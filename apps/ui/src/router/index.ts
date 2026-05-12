@@ -63,11 +63,10 @@ function layerRoute(): RouteRecordRaw {
       },
       ...placeholderTabs.map<RouteRecordRaw>((f) => ({
         path: f.path,
-        component: placeholder,
+        component: () => import('@/views/layer/LayerTabPlaceholder.vue'),
         props: (r) => ({
           title: `${humanKey(String(r.params.layerKey))} · ${f.label}`,
           phase: f.phase,
-          inset: true,
         }),
       })),
     ],
