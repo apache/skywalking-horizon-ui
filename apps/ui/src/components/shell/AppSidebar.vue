@@ -135,6 +135,7 @@ const sections: NavSection[] = [
     kicker: 'Admin',
     links: [
       { icon: 'set', label: 'Overview setup', to: '/setup' },
+      { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards' },
       { icon: 'user', label: 'Users', to: '/admin/users' },
       { icon: 'set', label: 'Roles', to: '/admin/roles' },
     ],

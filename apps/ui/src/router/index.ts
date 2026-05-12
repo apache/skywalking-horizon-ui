@@ -105,6 +105,10 @@ const shellRoutes: RouteRecordRaw[] = [
   // Dump
   { path: 'operate/dump', component: placeholder, props: { title: 'Dump & restore', phase: 'Phase 6', note: 'Stream OAP runtime-rule dump as tar.gz. Restore is deferred (no OAP endpoint yet).' } },
   // Admin
+  {
+    path: 'admin/layer-dashboards',
+    component: () => import('@/views/admin/LayerDashboardsAdmin.vue'),
+  },
   { path: 'admin/users', component: placeholder, props: { title: 'Users', phase: 'Phase 7' } },
   { path: 'admin/roles', component: placeholder, props: { title: 'Roles & permissions', phase: 'Phase 7' } },
 ];

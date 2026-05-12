@@ -53,6 +53,38 @@ export interface MeResponse {
   verbs: string[];
 }
 
+/** Wire shape returned by GET /api/admin/layer-templates. */
+export interface AdminLayerTemplate {
+  key: string;
+  alias?: string;
+  color?: string;
+  documentLink?: string;
+  slots: { services?: string; instances?: string; endpoints?: string; endpointDependency?: string };
+  components: {
+    service?: boolean;
+    instances?: boolean;
+    endpoints?: boolean;
+    endpointDependency?: boolean;
+    topology?: boolean;
+    traces?: boolean;
+    logs?: boolean;
+    profiling?: boolean;
+  };
+  metrics: {
+    orderBy?: string;
+    throughput?: string;
+    spark?: string;
+    columns?: Array<{
+      metric: string;
+      label: string;
+      unit?: string;
+      mqe?: string;
+      aggregation?: 'sum' | 'avg';
+    }>;
+  };
+  widgets: DashboardWidget[];
+}
+
 export class BffApiError extends Error {
   readonly status: number;
   readonly body: unknown;
@@ -169,6 +201,14 @@ export class BffClient {
       'POST',
       `/api/layer/${encodeURIComponent(layerKey)}/dashboard`,
       body,
+    );
+  }
+
+  /** Admin: list every loaded layer template (alias / components / widgets). */
+  adminLayerTemplates(): Promise<{ templates: AdminLayerTemplate[] }> {
+    return this.request<{ templates: AdminLayerTemplate[] }>(
+      'GET',
+      '/api/admin/layer-templates',
     );
   }
 

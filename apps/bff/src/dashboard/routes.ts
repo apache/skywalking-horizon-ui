@@ -43,6 +43,7 @@ import type { ConfigSource } from '../config/loader.js';
 import type { SessionStore } from '../auth/sessions.js';
 import { requireAuth } from '../auth/middleware.js';
 import { graphqlPost } from '../oap/graphql-client.js';
+import { allLayerTemplates } from '../layers/loader.js';
 import { defaultWidgetsFor } from './defaults.js';
 
 export interface DashboardRouteDeps {
@@ -267,4 +268,11 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
       return reply.send({ layer: layerKey, widgets: defaultWidgetsFor(layerKey) });
     },
   );
+
+  // Admin: enumerate every loaded JSON layer template. Used by the
+  // /admin/layer-dashboards page to render a layer picker + current
+  // widget set per layer.
+  app.get('/api/admin/layer-templates', { preHandler: auth }, async (_req, reply) => {
+    return reply.send({ templates: allLayerTemplates() });
+  });
 }
