@@ -209,18 +209,33 @@ function deleteMetricColumn(i: number): void {
   draft.template.metrics.columns.splice(i, 1);
 }
 
-function componentFlags(t: AdminLayerTemplate): string[] {
-  const c = t.components;
-  const out: string[] = [];
-  if (c.service) out.push('service');
-  if (c.instances) out.push('instances');
-  if (c.endpoints) out.push('endpoints');
-  if (c.endpointDependency) out.push('api dependency');
-  if (c.topology) out.push('topology');
-  if (c.traces) out.push('traces');
-  if (c.logs) out.push('logs');
-  if (c.profiling) out.push('profiling');
-  return out;
+/**
+ * Component toggles surfaced in the admin editor. Each entry binds to
+ * a key on the template's `components` block; flipping the toggle
+ * shows / hides the matching sidebar entry + per-layer route.
+ */
+type ComponentKey = keyof AdminLayerTemplate['components'];
+const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string }> = [
+  { key: 'service', label: 'Service', hint: "The layer's primary landing — widget grid driven by dashboards.service." },
+  { key: 'instances', label: 'Instances', hint: 'Per-instance dashboard (dashboards.instance widget set).' },
+  { key: 'endpoints', label: 'Endpoints', hint: 'Per-endpoint dashboard (dashboards.endpoint widget set).' },
+  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view (Phase 4).' },
+  { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer (Phase 4).' },
+  { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer (Phase 5).' },
+  { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer (Phase 5).' },
+  { key: 'profiling', label: 'Profiling', hint: 'Flame graphs / sampled stacks (Phase 8).' },
+];
+
+function ensureComponents(): AdminLayerTemplate['components'] {
+  if (!draft.template) throw new Error('no template selected');
+  if (!draft.template.components) {
+    (draft.template as AdminLayerTemplate).components = {};
+  }
+  return draft.template.components;
+}
+function toggleComponent(key: ComponentKey): void {
+  const c = ensureComponents();
+  c[key] = !c[key];
 }
 </script>
 
@@ -269,7 +284,6 @@ function componentFlags(t: AdminLayerTemplate): string[] {
               <h2>{{ selectedTpl.alias || selectedTpl.key }}</h2>
               <div class="meta">
                 <code>{{ selectedTpl.key }}</code>
-                <span v-for="c in componentFlags(selectedTpl)" :key="c" class="chip on">{{ c }}</span>
               </div>
             </div>
             <div class="actions">
@@ -291,6 +305,33 @@ function componentFlags(t: AdminLayerTemplate): string[] {
                 {{ isSaving ? 'Saving…' : 'Save' }}
               </button>
             </div>
+          </div>
+        </section>
+
+        <!-- Components editor: which per-layer views exist. Each
+             toggle controls a sidebar entry + a route + (where the
+             component is service / instance / endpoint) the matching
+             dashboards.<scope> widget set. -->
+        <section class="sw-card components-card">
+          <div class="card-head">
+            <h4>Components</h4>
+            <span class="sub">which sub-views this layer exposes</span>
+          </div>
+          <div class="comp-grid">
+            <label
+              v-for="t in COMPONENT_TOGGLES"
+              :key="t.key"
+              class="comp-toggle"
+              :class="{ on: !!selectedTpl.components?.[t.key] }"
+              :title="t.hint"
+            >
+              <input
+                type="checkbox"
+                :checked="!!selectedTpl.components?.[t.key]"
+                @change="toggleComponent(t.key)"
+              />
+              <span class="comp-label">{{ t.label }}</span>
+            </label>
           </div>
         </section>
 
@@ -678,6 +719,59 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   color: var(--sw-fg-3);
 }
 .scope-tab.on .count { color: var(--sw-accent-2); }
+
+.components-card { padding: 0; }
+.components-card .card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.components-card .card-head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+}
+.components-card .card-head .sub {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+}
+.comp-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 6px;
+  padding: 12px 14px;
+}
+.comp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--sw-fg-2);
+  padding: 6px 10px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.comp-toggle:hover {
+  background: var(--sw-bg-3);
+}
+.comp-toggle.on {
+  background: var(--sw-accent-soft);
+  border-color: var(--sw-accent-line);
+  color: var(--sw-accent-2);
+}
+.comp-toggle input {
+  accent-color: var(--sw-accent);
+  margin: 0;
+}
+.comp-label {
+  font-weight: 500;
+}
 
 .metrics-card { padding: 0; }
 .metrics-card .card-head .add {
