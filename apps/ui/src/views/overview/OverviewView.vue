@@ -72,7 +72,7 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
 <style scoped>
 .overview {
   padding: 20px 20px 60px;
-  max-width: 1140px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 .page-head {
@@ -145,7 +145,12 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
   text-decoration: none;
 }
 .cards {
-  display: flex;
-  flex-direction: column;
+  /* Auto-flow grid: as wide as 4 columns when there's room (>~1380 px),
+   * collapses to 3 / 2 / 1 as the viewport narrows. Each card holds its
+   * minmax-floor so the table stays legible. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+  align-items: start;
 }
 </style>

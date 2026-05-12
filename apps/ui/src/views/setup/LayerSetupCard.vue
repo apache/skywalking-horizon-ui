@@ -18,6 +18,7 @@
 import { computed, ref } from 'vue';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
+import { METRICS } from '@/composables/metricCatalog';
 import { useSetupStore, defaultLandingFor } from '@/stores/setup';
 
 const props = defineProps<{ layer: LayerDef; expanded?: boolean }>();
@@ -61,16 +62,15 @@ const capRows: Array<{ key: keyof typeof cfg.value.caps; label: string }> = [
   { key: 'events', label: 'Events' },
 ];
 
-// Columns the operator can enable on the landing card.
-const availableColumns = [
-  { metric: 'cpm', label: 'cpm' },
-  { metric: 'p99', label: 'p99', unit: 'ms' },
-  { metric: 'p95', label: 'p95', unit: 'ms' },
-  { metric: 'sla', label: 'SLA', unit: '%' },
-  { metric: 'apdex', label: 'apdex' },
-  { metric: 'err', label: 'err', unit: '%' },
-  { metric: 'resp', label: 'avg resp', unit: 'ms' },
-] as const;
+// Pulled from the shared metric catalog so labels/units/tips stay
+// consistent across the Overview cards and the setup UI.
+const availableColumns = Object.values(METRICS).map((m) => ({
+  metric: m.key,
+  label: m.label,
+  longLabel: m.longLabel,
+  unit: m.unit,
+  tip: m.tip,
+}));
 function isColumnSelected(metric: string): boolean {
   return cfg.value.landing.columns.some((c) => c.metric === metric);
 }
@@ -167,14 +167,18 @@ const isDefaultLanding = computed(() => {
           <label>
             <span>Order by</span>
             <select v-model="cfg.landing.orderBy">
-              <option v-for="c in availableColumns" :key="c.metric" :value="c.metric">{{ c.label }}</option>
+              <option v-for="c in availableColumns" :key="c.metric" :value="c.metric" :title="c.tip">
+                {{ c.longLabel }}
+              </option>
             </select>
           </label>
           <label>
             <span>Sparkline</span>
             <select :value="cfg.landing.spark?.metric ?? ''" @change="(e) => { const v = (e.target as HTMLSelectElement).value; cfg.landing.spark = v ? { metric: v, height: 28 } : undefined; }">
               <option value="">none</option>
-              <option v-for="c in availableColumns" :key="c.metric" :value="c.metric">{{ c.label }}</option>
+              <option v-for="c in availableColumns" :key="c.metric" :value="c.metric" :title="c.tip">
+                {{ c.longLabel }}
+              </option>
             </select>
           </label>
           <label>
@@ -195,9 +199,10 @@ const isDefaultLanding = computed(() => {
               class="chip"
               :class="{ on: isColumnSelected(c.metric) }"
               type="button"
-              @click="toggleColumn(c.metric, c.label, 'unit' in c ? c.unit : undefined)"
+              :title="`${c.longLabel}\n\n${c.tip}`"
+              @click="toggleColumn(c.metric, c.label, c.unit)"
             >
-              {{ c.label }}<span v-if="'unit' in c && c.unit" class="unit">{{ c.unit }}</span>
+              {{ c.label }}<span v-if="c.unit" class="unit">{{ c.unit }}</span>
             </button>
           </div>
         </div>

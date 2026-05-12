@@ -19,6 +19,7 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
+import { metricMeta } from '@/composables/metricCatalog';
 import { useSetupStore } from '@/stores/setup';
 
 const props = defineProps<{ layer: LayerDef }>();
@@ -55,10 +56,21 @@ const detailHref = computed(() => `/layer/${props.layer.key}`);
         <thead>
           <tr>
             <th class="svc-col">{{ slotName }}</th>
-            <th v-for="c in cfg.landing.columns" :key="c.metric" class="num">
+            <th
+              v-for="c in cfg.landing.columns"
+              :key="c.metric"
+              class="num"
+              :title="`${metricMeta(c.metric).longLabel}\n\n${metricMeta(c.metric).tip}`"
+            >
               {{ c.label }}<span v-if="c.unit" class="unit">{{ c.unit }}</span>
             </th>
-            <th v-if="cfg.landing.spark" class="spark-col">trend</th>
+            <th
+              v-if="cfg.landing.spark"
+              class="spark-col"
+              :title="`Trend of ${metricMeta(cfg.landing.spark.metric).longLabel} over the time window`"
+            >
+              {{ metricMeta(cfg.landing.spark.metric).label }} trend
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -86,13 +98,14 @@ const detailHref = computed(() => `/layer/${props.layer.key}`);
 
 <style scoped>
 .layer-landing {
-  margin-bottom: 12px;
+  /* margin-bottom dropped — parent grid owns the spacing now. */
+  min-width: 0; /* allow the grid track to shrink */
 }
 .head {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--sw-line);
 }
 .head .dot {
@@ -107,10 +120,13 @@ const detailHref = computed(() => `/layer/${props.layer.key}`);
 }
 h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--sw-fg-0);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 h2 a {
   color: inherit;
@@ -120,10 +136,10 @@ h2 a:hover {
   color: var(--sw-accent-2);
 }
 .sub {
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--sw-fg-2);
   display: flex;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   flex-wrap: wrap;
   margin-top: 2px;
@@ -144,11 +160,15 @@ h2 a:hover {
   padding: 4px 0 8px;
 }
 .svc-col {
-  width: 28%;
-  min-width: 160px;
+  width: 36%;
+  min-width: 110px;
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .spark-col {
-  width: 80px;
+  width: 60px;
 }
 th .unit {
   margin-left: 3px;
