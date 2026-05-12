@@ -28,8 +28,10 @@ function humanKey(k: string): string {
 // reads `:layerKey` from the URL and pulls layer config / live data.
 // Sub-route components fill the tab body via a nested router-view.
 function layerRoute(): RouteRecordRaw {
-  const features: { path: string; label: string; phase: string }[] = [
-    { path: 'services', label: 'Services', phase: 'Phase 2 / 3' },
+  // Tabs that still render generic placeholders. Services drops out
+  // because it has a real component; service-detail is a nested child
+  // of services so the breadcrumb stays clean.
+  const placeholderTabs: { path: string; label: string; phase: string }[] = [
     { path: 'instances', label: 'Instances', phase: 'Phase 2 / 3' },
     { path: 'endpoints', label: 'Endpoints', phase: 'Phase 2 / 3' },
     { path: 'topology', label: 'Topology', phase: 'Phase 4' },
@@ -46,14 +48,20 @@ function layerRoute(): RouteRecordRaw {
     children: [
       // Bare /layer/:layerKey lands on Services — the default entry.
       { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/services` }) },
-      ...features.map<RouteRecordRaw>((f) => ({
+      // Services list — live constellation + top-N table.
+      { path: 'services', component: () => import('@/views/layer/LayerServicesView.vue') },
+      // Service detail — KPIs scoped to one service. Component lazily
+      // loaded so the chunk doesn't bloat the layer-shell entry.
+      {
+        path: 'services/:serviceId',
+        component: () => import('@/views/layer/LayerServiceDetailView.vue'),
+      },
+      ...placeholderTabs.map<RouteRecordRaw>((f) => ({
         path: f.path,
         component: placeholder,
         props: (r) => ({
           title: `${humanKey(String(r.params.layerKey))} · ${f.label}`,
           phase: f.phase,
-          // The shell renders its own header — placeholder mode for tab
-          // bodies shows just the phase note.
           inset: true,
         }),
       })),

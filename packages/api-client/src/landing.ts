@@ -76,6 +76,13 @@ export interface LandingResponse {
   durationStart: string;
   durationEnd: string;
   rows: LandingServiceRow[];
+  /**
+   * All services the BFF probed for this layer (up to its internal cap,
+   * currently 25). `rows` is a sorted+sliced subset of this — the Overview
+   * card uses `rows`, the per-layer constellation / table uses the full
+   * `sampledRows` so deep-dive views don't lose context.
+   */
+  sampledRows?: LandingServiceRow[];
   /** Whole-layer rollup KPIs for the Overview strip tile. */
   aggregates: LandingAggregates;
   /**

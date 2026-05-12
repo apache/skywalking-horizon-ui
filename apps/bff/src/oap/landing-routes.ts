@@ -473,6 +473,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         durationStart: window.start,
         durationEnd: window.end,
         rows: topRows,
+        // `rows` is already sorted desc by orderBy and sliced to topN;
+        // `sampledRows` is the full set the BFF probed (post-sort), so
+        // per-layer views can render the long tail without a second call.
+        sampledRows: rows,
         aggregates,
         reachable: true,
       };
