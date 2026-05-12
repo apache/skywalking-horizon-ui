@@ -21,6 +21,7 @@ import Icon, { type IconName } from '@/components/icons/Icon.vue';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useAuthStore } from '@/stores/auth';
 import { useLayers } from '@/composables/useLayers';
+import { useLandingOrder } from '@/composables/useLandingOrder';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -30,13 +31,15 @@ async function signOut(): Promise<void> {
 }
 
 const { availableLayers, oapReachable, oapError, hasTopology } = useLayers();
+// Sidebar shares the landing's priority order so the two views stay in sync.
+const orderedLayers = useLandingOrder(availableLayers);
 
 // Default-open the first available layer once data arrives; user clicks
 // thereafter take over.
 const expandedLayer = ref<string | null>(null);
 let userTouched = false;
 watch(
-  availableLayers,
+  orderedLayers,
   (rows) => {
     if (userTouched || expandedLayer.value) return;
     if (rows.length > 0) expandedLayer.value = rows[0].key;
@@ -67,6 +70,10 @@ interface NavSection {
 
 // One leading row before the Layers block — the cross-layer landing.
 const overview: NavRow = { icon: 'dash', label: 'Overview', to: '/' };
+
+// Setup sits next to Overview as a leading link too — operators bounce
+// between these two during initial configuration.
+const setup: NavRow = { icon: 'set', label: 'Setup', to: '/setup' };
 
 // Vantage-style flat kickers for the Operate / Admin half of the sidebar.
 // Alarms is user-facing so it sits before the Operate block (between user
@@ -136,6 +143,13 @@ const sections: NavSection[] = [
       >
         <Icon :name="overview.icon" /><span>{{ overview.label }}</span>
       </RouterLink>
+      <RouterLink
+        :to="setup.to"
+        class="sw-nav-item lead"
+        :class="{ 'is-active': isActive(setup.to) }"
+      >
+        <Icon :name="setup.icon" /><span>{{ setup.label }}</span>
+      </RouterLink>
 
       <div class="sw-nav-section sw-row" style="justify-content: space-between">
         <span>Layers</span>
@@ -152,7 +166,7 @@ const sections: NavSection[] = [
           set up a layer
         </RouterLink>
       </div>
-      <template v-for="L in availableLayers" :key="L.key">
+      <template v-for="L in orderedLayers" :key="L.key">
         <div
           class="layer-row"
           :class="{ 'is-active': expandedLayer === L.key }"

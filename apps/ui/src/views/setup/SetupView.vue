@@ -18,22 +18,16 @@
 import { computed, ref } from 'vue';
 import LayerSetupCard from './LayerSetupCard.vue';
 import { useLayers } from '@/composables/useLayers';
+import { useLandingOrder } from '@/composables/useLandingOrder';
 import { useSetupStore } from '@/stores/setup';
 
 const { layers, oapReachable, oapError, isLoading } = useLayers();
 const store = useSetupStore();
 
-// Order by priority (lower first), with active layers always above inactive at
-// the same priority. The layer order on the landing will mirror this.
-const orderedLayers = computed(() =>
-  [...layers.value].sort((a, b) => {
-    const pa = store.ensure(a.key, { slots: a.slots, caps: a.caps }).landing.priority;
-    const pb = store.ensure(b.key, { slots: b.slots, caps: b.caps }).landing.priority;
-    if (pa !== pb) return pa - pb;
-    if (a.active !== b.active) return a.active ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  }),
-);
+// Order by priority (lower first) so this page lines up with the sidebar
+// and the Overview. Setup shows ALL layers (active or not) — operators
+// configure layers ahead of receivers coming online.
+const orderedLayers = useLandingOrder(layers);
 
 const enabledOnLanding = computed(() =>
   orderedLayers.value.filter((L) => store.ensure(L.key, { slots: L.slots, caps: L.caps }).landing.enabled),
