@@ -31,10 +31,10 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
 
-export function useLayerDashboardConfig(layerKey: Ref<string>) {
+export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
   const q = useQuery({
-    queryKey: ['dashboard-config', layerKey],
-    queryFn: () => bffClient.dashboardConfig(layerKey.value),
+    queryKey: ['dashboard-config', layerKey, scope ?? computed(() => 'service')],
+    queryFn: () => bffClient.dashboardConfig(layerKey.value, scope?.value),
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 5 * 60_000,
   });
@@ -45,11 +45,18 @@ export function useLayerDashboardConfig(layerKey: Ref<string>) {
   };
 }
 
-export function useLayerDashboard(layerKey: Ref<string>, service: Ref<string | null>) {
+export function useLayerDashboard(
+  layerKey: Ref<string>,
+  service: Ref<string | null>,
+  scope?: Ref<string>,
+) {
   const q = useQuery({
-    queryKey: ['dashboard', layerKey, service],
+    queryKey: ['dashboard', layerKey, service, scope ?? computed(() => 'service')],
     queryFn: () =>
-      bffClient.dashboard(layerKey.value, service.value ? { service: service.value } : {}),
+      bffClient.dashboard(layerKey.value, {
+        ...(service.value ? { service: service.value } : {}),
+        ...(scope?.value ? { scope: scope.value } : {}),
+      }),
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 45_000,
     refetchInterval: 60_000,

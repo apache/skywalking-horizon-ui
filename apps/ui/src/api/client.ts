@@ -187,20 +187,28 @@ export class BffClient {
   }
 
   // ── dashboards (per-layer widget data) ───────────────────────────────
-  dashboardConfig(layerKey: string): Promise<DashboardConfig> {
+  dashboardConfig(layerKey: string, scope?: string): Promise<DashboardConfig> {
+    const qs = scope ? `?scope=${encodeURIComponent(scope)}` : '';
     return this.request<DashboardConfig>(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/dashboard/config`,
+      `/api/layer/${encodeURIComponent(layerKey)}/dashboard/config${qs}`,
     );
   }
   dashboard(
     layerKey: string,
-    body: { service?: string; widgets?: DashboardWidget[] } = {},
+    body: { service?: string; widgets?: DashboardWidget[]; scope?: string } = {},
   ): Promise<DashboardResponse> {
     return this.request<DashboardResponse>(
       'POST',
       `/api/layer/${encodeURIComponent(layerKey)}/dashboard`,
       body,
+    );
+  }
+  saveLayerTemplate(template: AdminLayerTemplate): Promise<{ template: AdminLayerTemplate }> {
+    return this.request<{ template: AdminLayerTemplate }>(
+      'POST',
+      `/api/admin/layer-templates/${encodeURIComponent(template.key)}`,
+      template,
     );
   }
 

@@ -43,7 +43,13 @@ import type { ConfigSource } from '../config/loader.js';
 import type { SessionStore } from '../auth/sessions.js';
 import { requireAuth } from '../auth/middleware.js';
 import { graphqlPost } from '../oap/graphql-client.js';
-import { allLayerTemplates } from '../layers/loader.js';
+import {
+  allLayerTemplates,
+  getLayerTemplate,
+  widgetsForScope,
+  writeLayerTemplate,
+  type LayerTemplate,
+} from '../layers/loader.js';
 import { defaultWidgetsFor } from './defaults.js';
 
 export interface DashboardRouteDeps {
@@ -59,14 +65,20 @@ const widgetSchema = z.object({
   type: z.enum(['card', 'line']),
   expressions: z.array(z.string().min(1)).min(1).max(8),
   unit: z.string().optional(),
-  x: z.number().int().min(0),
-  y: z.number().int().min(0),
-  w: z.number().int().positive(),
-  h: z.number().int().positive(),
+  span: z.number().int().min(1).max(12).optional(),
+  rowSpan: z.number().int().min(1).max(64).optional(),
+  visibleWhen: z.string().optional(),
+  // Legacy x/y/w/h kept optional for back-compat.
+  x: z.number().int().min(0).optional(),
+  y: z.number().int().min(0).optional(),
+  w: z.number().int().positive().optional(),
+  h: z.number().int().positive().optional(),
 });
+const scopeSchema = z.enum(['service', 'instance', 'endpoint', 'trace', 'profiling']);
 const bodySchema = z.object({
   service: z.string().optional(),
   widgets: z.array(widgetSchema).max(40).optional(),
+  scope: scopeSchema.optional(),
 });
 
 interface MqeValuesShape {
@@ -153,7 +165,11 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
-      const widgets: DashboardWidget[] = parsed.data.widgets ?? defaultWidgetsFor(layerKey);
+      const scope = parsed.data.scope ?? 'service';
+      const tpl = getLayerTemplate(layerKey);
+      const widgets: DashboardWidget[] =
+        parsed.data.widgets ??
+        (tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(layerKey));
       let serviceName = parsed.data.service ?? '';
       let normal = true;
       const cfgCurrent = deps.config.current;
@@ -256,6 +272,7 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
 
   // GET version returns the default widget config without running queries —
   // useful for the SPA to know what to render before invoking POST.
+  // Accepts ?scope=service|instance|endpoint|trace|profiling.
   app.get(
     '/api/layer/:key/dashboard/config',
     { preHandler: auth },
@@ -265,7 +282,12 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      return reply.send({ layer: layerKey, widgets: defaultWidgetsFor(layerKey) });
+      const q = req.query as { scope?: string };
+      const scopeParsed = q.scope ? scopeSchema.safeParse(q.scope) : null;
+      const scope = scopeParsed?.success ? scopeParsed.data : 'service';
+      const tpl = getLayerTemplate(layerKey);
+      const widgets = tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(layerKey);
+      return reply.send({ layer: layerKey, scope, widgets });
     },
   );
 
@@ -275,4 +297,93 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
   app.get('/api/admin/layer-templates', { preHandler: auth }, async (_req, reply) => {
     return reply.send({ templates: allLayerTemplates() });
   });
+
+  // Admin: persist an operator-edited template back to its JSON file.
+  // Body is the whole template; the BFF rewrites the file and
+  // invalidates its in-memory cache so subsequent reads see the new
+  // shape immediately.
+  const adminTemplateSchema = z.object({
+    key: z.string().regex(/^[A-Z][A-Z0-9_]*$/),
+    alias: z.string().optional(),
+    color: z.string().optional(),
+    documentLink: z.string().optional(),
+    slots: z
+      .object({
+        services: z.string().optional(),
+        instances: z.string().optional(),
+        endpoints: z.string().optional(),
+        endpointDependency: z.string().optional(),
+      })
+      .strict(),
+    components: z
+      .object({
+        service: z.boolean().optional(),
+        instances: z.boolean().optional(),
+        endpoints: z.boolean().optional(),
+        endpointDependency: z.boolean().optional(),
+        topology: z.boolean().optional(),
+        traces: z.boolean().optional(),
+        logs: z.boolean().optional(),
+        profiling: z.boolean().optional(),
+      })
+      .strict(),
+    metrics: z
+      .object({
+        orderBy: z.string().optional(),
+        throughput: z.string().optional(),
+        spark: z.string().optional(),
+        columns: z
+          .array(
+            z.object({
+              metric: z.string().min(1),
+              label: z.string(),
+              unit: z.string().optional(),
+              mqe: z.string().optional(),
+              aggregation: z.enum(['sum', 'avg']).optional(),
+              scale: z.number().finite().optional(),
+              precision: z.number().int().min(0).max(6).optional(),
+            }),
+          )
+          .max(5)
+          .optional(),
+      })
+      .strict(),
+    dashboards: z
+      .object({
+        service: z.array(widgetSchema).max(40).optional(),
+        instance: z.array(widgetSchema).max(40).optional(),
+        endpoint: z.array(widgetSchema).max(40).optional(),
+        trace: z.array(widgetSchema).max(40).optional(),
+        profiling: z.array(widgetSchema).max(40).optional(),
+      })
+      .strict()
+      .optional(),
+    widgets: z.array(widgetSchema).max(40).optional(),
+  });
+
+  app.post(
+    '/api/admin/layer-templates/:key',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = req.params as { key: string };
+      const layerKey = params.key.toUpperCase();
+      const parsed = adminTemplateSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_template', detail: parsed.error.flatten() });
+      }
+      if (parsed.data.key.toUpperCase() !== layerKey) {
+        return reply.code(400).send({ error: 'key_mismatch', detail: 'URL key does not match body key' });
+      }
+      try {
+        writeLayerTemplate(parsed.data as LayerTemplate);
+      } catch (err) {
+        return reply.code(500).send({
+          error: 'write_failed',
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+      const refreshed = getLayerTemplate(layerKey);
+      return reply.send({ template: refreshed });
+    },
+  );
 }

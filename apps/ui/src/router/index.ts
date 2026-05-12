@@ -31,14 +31,14 @@ function layerRoute(): RouteRecordRaw {
   // Per-layer sub-routes that still render generic placeholders until
   // their phases land. The canonical landing is `/service` — that's
   // the widget-grid view operators see when they click a layer.
+  // Tabs that still don't have a per-scope dashboard set. Topology +
+  // dependency + logs need their own page treatments (Phase 4 / 5);
+  // their JSON template `components.*` flag still gates the sidebar
+  // entry, this just keeps the URL routing legible.
   const placeholderTabs: { path: string; label: string; phase: string }[] = [
-    { path: 'instances', label: 'Instances', phase: 'Phase 2 / 3' },
-    { path: 'endpoints', label: 'Endpoints', phase: 'Phase 2 / 3' },
     { path: 'topology', label: 'Topology', phase: 'Phase 4' },
     { path: 'dependency', label: 'API dependency', phase: 'Phase 4' },
-    { path: 'traces', label: 'Traces', phase: 'Phase 5' },
     { path: 'logs', label: 'Logs', phase: 'Phase 5' },
-    { path: 'profiling', label: 'Profiling', phase: 'Phase 8' },
   ];
   return {
     path: 'layer/:layerKey',
@@ -47,15 +47,18 @@ function layerRoute(): RouteRecordRaw {
       // Bare /layer/:layerKey lands on the Service view — the per-layer
       // widget grid driven by the dashboard config.
       { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }) },
-      // Canonical per-layer landing page.
+      // Per-scope dashboards. Same view component, scope inferred from
+      // the URL — widget set differs per scope via the JSON template's
+      // `dashboards.<scope>` array.
       { path: 'service', component: () => import('@/views/layer/LayerDashboardsView.vue') },
-      // Legacy routes — redirect to /service so old bookmarks keep working.
+      { path: 'instance', component: () => import('@/views/layer/LayerDashboardsView.vue') },
+      { path: 'endpoint', component: () => import('@/views/layer/LayerDashboardsView.vue') },
+      { path: 'trace', component: () => import('@/views/layer/LayerDashboardsView.vue') },
+      { path: 'profiling', component: () => import('@/views/layer/LayerDashboardsView.vue') },
+      // Legacy routes redirect to /service.
       {
         path: 'services',
-        redirect: (to) => ({
-          path: `/layer/${to.params.layerKey}/service`,
-          query: to.query,
-        }),
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
       },
       {
         path: 'services/:serviceId',
@@ -66,10 +69,19 @@ function layerRoute(): RouteRecordRaw {
       },
       {
         path: 'dashboards',
-        redirect: (to) => ({
-          path: `/layer/${to.params.layerKey}/service`,
-          query: to.query,
-        }),
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
+      },
+      {
+        path: 'instances',
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/instance`, query: to.query }),
+      },
+      {
+        path: 'endpoints',
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/endpoint`, query: to.query }),
+      },
+      {
+        path: 'traces',
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/trace`, query: to.query }),
       },
       ...placeholderTabs.map<RouteRecordRaw>((f) => ({
         path: f.path,

@@ -15,37 +15,158 @@
   limitations under the License.
 -->
 <!--
-  Admin / Layer dashboards setup. Lists every layer template the BFF
-  loaded from JSON and shows its current configuration: alias, enabled
-  components, landing card metrics, dashboard widget set. Editing comes
-  in the next iteration — this commit gets the view live so operators
-  can see what's configured per layer.
+  Admin / Layer dashboards. List every loaded layer template, pick one
+  on the left, edit its per-scope widget set on the right. Saves write
+  the JSON file back via POST /api/admin/layer-templates/:key so the
+  BFF refreshes its in-memory cache.
+
+  Widget editor presents the new span-based fields (12-col flow
+  layout): operator picks a column span, optional row span, MQE
+  expressions, type, title, unit, and an optional visibility predicate.
+  Legacy x/y/w/h are NOT shown — they're kept on the wire for
+  back-compat with older JSONs but operators don't edit them.
 -->
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue';
+import { computed, reactive, ref, onMounted, watch } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
+import type { DashboardScope, DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+
+const SCOPES: DashboardScope[] = ['service', 'instance', 'endpoint', 'trace', 'profiling'];
 
 const templates = ref<AdminLayerTemplate[]>([]);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const selectedKey = ref<string>('');
+const activeScope = ref<DashboardScope>('service');
+const isSaving = ref(false);
+const saveMsg = ref<string | null>(null);
 
-onMounted(async () => {
+/** Working copy — reactively edited. Diffs against `templates` to drive
+ *  the Save / Reset state. */
+const draft = reactive<{ template: AdminLayerTemplate | null }>({ template: null });
+
+async function loadAll(): Promise<void> {
+  isLoading.value = true;
+  error.value = null;
   try {
     const res = await bffClient.adminLayerTemplates();
     templates.value = res.templates;
-    if (res.templates.length > 0) selectedKey.value = res.templates[0].key;
+    if (res.templates.length > 0 && !selectedKey.value) {
+      selectedKey.value = res.templates[0].key;
+    }
+    syncDraft();
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
     isLoading.value = false;
   }
+}
+
+function syncDraft(): void {
+  const tpl = templates.value.find((t) => t.key === selectedKey.value);
+  draft.template = tpl ? JSON.parse(JSON.stringify(tpl)) : null;
+  saveMsg.value = null;
+}
+
+watch(selectedKey, syncDraft);
+onMounted(loadAll);
+
+const dirty = computed(() => {
+  const original = templates.value.find((t) => t.key === selectedKey.value);
+  if (!original || !draft.template) return false;
+  return JSON.stringify(original) !== JSON.stringify(draft.template);
 });
 
-const selected = computed<AdminLayerTemplate | null>(
-  () => templates.value.find((t) => t.key === selectedKey.value) ?? null,
-);
+function widgetsFor(scope: DashboardScope): DashboardWidget[] {
+  const tpl = draft.template;
+  if (!tpl) return [];
+  // Read from `dashboards.<scope>`, falling back to legacy `widgets`
+  // for the service scope so the existing JSONs keep their content
+  // until we explicitly migrate them.
+  const d = (tpl as unknown as { dashboards?: Record<string, DashboardWidget[]> }).dashboards;
+  if (d?.[scope]) return d[scope];
+  if (scope === 'service' && tpl.widgets) return tpl.widgets;
+  return [];
+}
+
+function setWidgetsFor(scope: DashboardScope, widgets: DashboardWidget[]): void {
+  const tpl = draft.template;
+  if (!tpl) return;
+  const dashboards =
+    (tpl as unknown as { dashboards?: Record<string, DashboardWidget[]> }).dashboards ?? {};
+  dashboards[scope] = widgets;
+  (tpl as unknown as { dashboards?: Record<string, DashboardWidget[]> }).dashboards = dashboards;
+  // Drop the legacy `widgets` once we've split — keeps the JSON clean.
+  if (scope === 'service' && tpl.widgets) {
+    (tpl as unknown as { widgets?: DashboardWidget[] }).widgets = undefined;
+  }
+}
+
+function addWidget(): void {
+  const widgets = [...widgetsFor(activeScope.value)];
+  const idx = widgets.length;
+  widgets.push({
+    id: `widget_${idx + 1}`,
+    title: `Widget ${idx + 1}`,
+    type: 'card',
+    expressions: [''],
+    span: 4,
+    rowSpan: 1,
+  });
+  setWidgetsFor(activeScope.value, widgets);
+}
+
+function deleteWidget(i: number): void {
+  const widgets = [...widgetsFor(activeScope.value)];
+  widgets.splice(i, 1);
+  setWidgetsFor(activeScope.value, widgets);
+}
+
+function moveWidget(i: number, dir: -1 | 1): void {
+  const widgets = [...widgetsFor(activeScope.value)];
+  const j = i + dir;
+  if (j < 0 || j >= widgets.length) return;
+  [widgets[i], widgets[j]] = [widgets[j], widgets[i]];
+  setWidgetsFor(activeScope.value, widgets);
+}
+
+function expressionsToText(arr: string[]): string {
+  return arr.join('\n');
+}
+function textToExpressions(s: string): string[] {
+  return s
+    .split('\n')
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
+
+async function save(): Promise<void> {
+  if (!draft.template || isSaving.value) return;
+  isSaving.value = true;
+  saveMsg.value = null;
+  try {
+    const res = await bffClient.saveLayerTemplate(draft.template);
+    // Splice the returned template back into the list so subsequent
+    // dirty diffs are against the persisted state.
+    const idx = templates.value.findIndex((t) => t.key === selectedKey.value);
+    if (idx >= 0 && res.template) templates.value[idx] = res.template;
+    syncDraft();
+    saveMsg.value = 'Saved.';
+    setTimeout(() => (saveMsg.value = null), 2400);
+  } catch (err) {
+    saveMsg.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+function reset(): void {
+  syncDraft();
+}
+
+const selectedTpl = computed(() => draft.template);
+const currentWidgets = computed(() => widgetsFor(activeScope.value));
 
 function componentFlags(t: AdminLayerTemplate): string[] {
   const c = t.components;
@@ -69,9 +190,9 @@ function componentFlags(t: AdminLayerTemplate): string[] {
         <div class="kicker">Admin</div>
         <h1>Layer dashboards</h1>
         <p class="lede">
-          Each layer ships with a JSON template defining its alias, enabled components,
-          landing card metrics, and dashboard widgets. This view shows the current
-          template per layer. Inline editing + operator overrides are next.
+          Each layer ships with a JSON template (alias, components, metric columns, widgets).
+          Pick a layer on the left, switch scopes (service / instance / endpoint / trace /
+          profiling), edit widgets in place, and save back to the JSON.
         </p>
       </div>
     </header>
@@ -81,7 +202,6 @@ function componentFlags(t: AdminLayerTemplate): string[] {
     <div v-else-if="templates.length === 0" class="empty">No layer templates loaded.</div>
 
     <div v-else class="grid">
-      <!-- Layer picker (left) -->
       <aside class="sw-card layer-list">
         <div class="list-head">
           <h4>Layers</h4>
@@ -96,111 +216,147 @@ function componentFlags(t: AdminLayerTemplate): string[] {
         >
           <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
           <span class="name">{{ t.alias || t.key }}</span>
-          <span class="badge">{{ t.widgets.length }}</span>
         </button>
       </aside>
 
-      <!-- Template detail (right) -->
-      <main v-if="selected" class="detail">
-        <section class="sw-card">
-          <div class="card-head">
-            <h4>Identity</h4>
-          </div>
-          <table class="kv">
-            <tbody>
-              <tr><th>Key</th><td class="mono">{{ selected.key }}</td></tr>
-              <tr><th>Alias</th><td>{{ selected.alias || '—' }}</td></tr>
-              <tr><th>Color</th><td>
-                <span class="dot inline" :style="{ background: selected.color || 'var(--sw-fg-3)' }" />
-                <code>{{ selected.color || '—' }}</code>
-              </td></tr>
-              <tr v-if="selected.documentLink"><th>Docs</th>
-                <td><a :href="selected.documentLink" target="_blank" rel="noopener noreferrer">{{ selected.documentLink }} ↗</a></td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
-        <section class="sw-card">
-          <div class="card-head"><h4>Components enabled</h4></div>
-          <div class="chips">
-            <span v-for="c in componentFlags(selected)" :key="c" class="chip on">{{ c }}</span>
-            <span v-if="componentFlags(selected).length === 0" class="chip off">none</span>
-          </div>
-        </section>
-
-        <section class="sw-card">
-          <div class="card-head">
-            <h4>Slots</h4>
-            <span class="sub">term aliases for service / instance / endpoint scopes</span>
-          </div>
-          <table class="kv">
-            <tbody>
-              <tr><th>Services</th><td>{{ selected.slots.services || '—' }}</td></tr>
-              <tr><th>Instances</th><td>{{ selected.slots.instances || '—' }}</td></tr>
-              <tr><th>Endpoints</th><td>{{ selected.slots.endpoints || '—' }}</td></tr>
-              <tr v-if="selected.slots.endpointDependency">
-                <th>Endpoint dependency</th><td>{{ selected.slots.endpointDependency }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </section>
-
-        <section class="sw-card">
-          <div class="card-head">
-            <h4>Landing card metrics</h4>
-            <span class="sub">columns shown on the Overview KPI tile + per-layer header</span>
-          </div>
-          <table v-if="selected.metrics.columns?.length" class="sw-table">
-            <thead>
-              <tr>
-                <th>metric</th><th>label</th><th>unit</th><th>aggregation</th><th>mqe</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="c in selected.metrics.columns" :key="c.metric">
-                <td class="mono">{{ c.metric }}</td>
-                <td>{{ c.label }}</td>
-                <td>{{ c.unit || '—' }}</td>
-                <td><span class="tag">{{ c.aggregation || 'avg' }}</span></td>
-                <td class="mono">{{ c.mqe || '(catalog default)' }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else class="empty">No columns defined.</p>
-          <div class="extras">
-            <span><strong>orderBy:</strong> <code>{{ selected.metrics.orderBy || '—' }}</code></span>
-            <span><strong>throughput:</strong> <code>{{ selected.metrics.throughput || '—' }}</code></span>
-            <span><strong>spark:</strong> <code>{{ selected.metrics.spark || '—' }}</code></span>
+      <main v-if="selectedTpl" class="detail">
+        <!-- Identity strip + save controls -->
+        <section class="sw-card identity-card">
+          <div class="identity-row">
+            <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
+            <div>
+              <h2>{{ selectedTpl.alias || selectedTpl.key }}</h2>
+              <div class="meta">
+                <code>{{ selectedTpl.key }}</code>
+                <span v-for="c in componentFlags(selectedTpl)" :key="c" class="chip on">{{ c }}</span>
+              </div>
+            </div>
+            <div class="actions">
+              <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
+              <button
+                class="sw-btn"
+                type="button"
+                :disabled="!dirty || isSaving"
+                @click="reset"
+              >
+                Reset
+              </button>
+              <button
+                class="sw-btn is-primary"
+                type="button"
+                :disabled="!dirty || isSaving"
+                @click="save"
+              >
+                {{ isSaving ? 'Saving…' : 'Save' }}
+              </button>
+            </div>
           </div>
         </section>
 
-        <section class="sw-card">
+        <!-- Scope tabs -->
+        <nav class="scope-tabs sw-card">
+          <button
+            v-for="s in SCOPES"
+            :key="s"
+            class="scope-tab"
+            :class="{ on: activeScope === s }"
+            type="button"
+            @click="activeScope = s"
+          >
+            {{ s }}
+            <span class="count">{{ widgetsFor(s).length }}</span>
+          </button>
+        </nav>
+
+        <!-- Widget editor -->
+        <section class="sw-card widgets-card">
           <div class="card-head">
-            <h4>Dashboard widgets</h4>
-            <span class="sub">{{ selected.widgets.length }} widget{{ selected.widgets.length === 1 ? '' : 's' }} · grid is 24-col</span>
+            <h4>{{ activeScope }} widgets</h4>
+            <span class="sub">12-col flow grid · uniform 180px row height · drag-free</span>
+            <button class="sw-btn add" type="button" @click="addWidget">＋ Add widget</button>
           </div>
-          <table v-if="selected.widgets.length > 0" class="sw-table">
-            <thead>
-              <tr>
-                <th>id</th><th>title</th><th>type</th><th>unit</th><th>x,y</th><th>w×h</th><th>expressions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="w in selected.widgets" :key="w.id">
-                <td class="mono">{{ w.id }}</td>
-                <td>{{ w.title }}</td>
-                <td><span class="tag">{{ w.type }}</span></td>
-                <td>{{ w.unit || '—' }}</td>
-                <td class="mono">{{ w.x }},{{ w.y }}</td>
-                <td class="mono">{{ w.w }}×{{ w.h }}</td>
-                <td class="mono mqe">
-                  <div v-for="(e, i) in w.expressions" :key="i">{{ e }}</div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <p v-else class="empty">No widgets defined.</p>
+
+          <div v-if="currentWidgets.length === 0" class="empty inset">
+            No widgets defined for this scope. Click "Add widget" to start.
+          </div>
+
+          <ul v-else class="widget-list">
+            <li v-for="(w, i) in currentWidgets" :key="i" class="widget-edit">
+              <div class="we-row">
+                <div class="we-handle">
+                  <button
+                    class="sw-btn ghost small"
+                    type="button"
+                    :disabled="i === 0"
+                    title="Move up"
+                    @click="moveWidget(i, -1)"
+                  >↑</button>
+                  <button
+                    class="sw-btn ghost small"
+                    type="button"
+                    :disabled="i === currentWidgets.length - 1"
+                    title="Move down"
+                    @click="moveWidget(i, 1)"
+                  >↓</button>
+                </div>
+                <div class="we-fields">
+                  <div class="row">
+                    <label>
+                      <span>id</span>
+                      <input class="mono" v-model="w.id" />
+                    </label>
+                    <label class="grow">
+                      <span>Title</span>
+                      <input v-model="w.title" />
+                    </label>
+                    <label>
+                      <span>Type</span>
+                      <select v-model="w.type">
+                        <option value="card">card</option>
+                        <option value="line">line</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Unit</span>
+                      <input v-model="w.unit" placeholder="—" />
+                    </label>
+                    <label>
+                      <span>Span (1–12)</span>
+                      <input type="number" min="1" max="12" v-model.number="w.span" />
+                    </label>
+                    <label>
+                      <span>Row span</span>
+                      <input type="number" min="1" max="6" v-model.number="w.rowSpan" />
+                    </label>
+                  </div>
+                  <div class="row">
+                    <label class="grow wide">
+                      <span>Visible when (optional)</span>
+                      <input
+                        class="mono"
+                        v-model="w.visibleWhen"
+                        placeholder="#entity.jvm   or   service_jvm_cpu has value"
+                      />
+                    </label>
+                  </div>
+                  <div class="row">
+                    <label class="grow wide">
+                      <span>MQE expressions (one per line)</span>
+                      <textarea
+                        class="mono"
+                        rows="3"
+                        :value="expressionsToText(w.expressions)"
+                        @input="w.expressions = textToExpressions(($event.target as HTMLTextAreaElement).value)"
+                      ></textarea>
+                    </label>
+                  </div>
+                </div>
+                <button class="sw-btn danger" type="button" title="Delete" @click="deleteWidget(i)">
+                  ✕
+                </button>
+              </div>
+            </li>
+          </ul>
         </section>
       </main>
     </div>
@@ -213,9 +369,7 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   max-width: 1440px;
   margin: 0 auto;
 }
-.page-head {
-  margin-bottom: 18px;
-}
+.page-head { margin-bottom: 18px; }
 .kicker {
   font-size: 10px;
   text-transform: uppercase;
@@ -252,10 +406,15 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   color: var(--sw-fg-3);
   font-size: 12px;
 }
+.empty.inset {
+  padding: 18px;
+  font-size: 11.5px;
+}
 .grid {
   display: grid;
   grid-template-columns: 220px 1fr;
   gap: 14px;
+  align-items: start;
 }
 .layer-list {
   padding: 8px;
@@ -263,6 +422,8 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   flex-direction: column;
   gap: 2px;
   align-self: start;
+  position: sticky;
+  top: 16px;
 }
 .list-head {
   padding: 6px 10px 10px;
@@ -293,17 +454,14 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   text-align: left;
   font: inherit;
 }
-.layer-row:hover {
-  background: var(--sw-bg-2);
-}
+.layer-row:hover { background: var(--sw-bg-2); }
 .layer-row.active {
   background: var(--sw-bg-3);
   color: var(--sw-fg-0);
   box-shadow: inset 2px 0 0 var(--sw-accent);
 }
 .layer-row .dot {
-  width: 7px;
-  height: 7px;
+  width: 7px; height: 7px;
   border-radius: 50%;
   flex: 0 0 7px;
 }
@@ -313,21 +471,109 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.layer-row .badge {
-  font-family: var(--sw-mono);
-  font-size: 10px;
-  color: var(--sw-fg-3);
-}
 .detail {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
 }
+.identity-card { padding: 12px 16px; }
+.identity-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.identity-row h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+}
+.identity-row .meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 10.5px;
+}
+.identity-row .meta code {
+  font-family: var(--sw-mono);
+  background: var(--sw-bg-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--sw-fg-1);
+}
+.chip {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+}
+.chip.on {
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-2);
+}
+.dot.inline {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.actions .sw-btn { font-size: 11.5px; }
+.actions .sw-btn[disabled] { opacity: 0.4; pointer-events: none; }
+.save-msg {
+  font-size: 11px;
+  color: var(--sw-ok);
+}
+
+.scope-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+}
+.scope-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--sw-fg-2);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  text-transform: capitalize;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.scope-tab:hover { background: var(--sw-bg-2); color: var(--sw-fg-1); }
+.scope-tab.on {
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-2);
+  font-weight: 600;
+}
+.scope-tab .count {
+  font-family: var(--sw-mono);
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
+.scope-tab.on .count { color: var(--sw-accent-2); }
+
+.widgets-card { padding: 0; }
 .card-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--sw-line);
 }
 .card-head h4 {
@@ -335,122 +581,107 @@ function componentFlags(t: AdminLayerTemplate): string[] {
   font-size: 12px;
   font-weight: 600;
   color: var(--sw-fg-0);
+  text-transform: capitalize;
 }
 .card-head .sub {
   font-size: 10.5px;
   color: var(--sw-fg-3);
 }
-.kv {
-  width: 100%;
-  font-size: 12px;
-}
-.kv th, .kv td {
-  padding: 6px 14px;
-  text-align: left;
-  border-bottom: 1px solid var(--sw-line);
-  vertical-align: top;
-}
-.kv th {
-  width: 140px;
-  color: var(--sw-fg-3);
-  font-weight: 500;
-}
-.kv tr:last-child th, .kv tr:last-child td {
-  border-bottom: none;
-}
-.mono {
-  font-family: var(--sw-mono);
+.card-head .add {
+  margin-left: auto;
   font-size: 11.5px;
-  color: var(--sw-fg-1);
-}
-.mono code {
-  background: transparent;
-  padding: 0;
-}
-.dot.inline {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 6px;
-  vertical-align: middle;
-}
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  padding: 12px 14px;
-}
-.chip {
-  font-size: 10.5px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-1);
-  border: 1px solid var(--sw-line-2);
-}
-.chip.on {
   background: var(--sw-accent-soft);
   color: var(--sw-accent-2);
   border-color: var(--sw-accent-line);
 }
-.chip.off {
-  color: var(--sw-fg-3);
+
+.widget-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
-.sw-table {
-  width: 100%;
-  font-size: 11.5px;
-}
-.sw-table th {
-  text-align: left;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sw-fg-3);
-  font-weight: 500;
-  padding: 6px 14px;
+.widget-edit {
   border-bottom: 1px solid var(--sw-line);
 }
-.sw-table td {
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--sw-line);
-  color: var(--sw-fg-1);
-  vertical-align: top;
+.widget-edit:last-child { border-bottom: none; }
+.we-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
 }
-.sw-table td.mqe div + div {
-  margin-top: 2px;
+.we-handle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 18px;
 }
-.tag {
+.we-handle .sw-btn {
+  width: 24px;
+  height: 22px;
+  padding: 0;
   font-size: 10px;
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-2);
-  font-family: var(--sw-mono);
 }
-.extras {
+.we-fields {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.row {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  padding: 10px 14px;
-  border-top: 1px dashed var(--sw-line);
-  font-size: 11px;
-  color: var(--sw-fg-2);
+  gap: 8px;
 }
-.extras strong {
-  color: var(--sw-fg-3);
-  font-weight: 500;
-  text-transform: uppercase;
-  font-size: 9.5px;
-  letter-spacing: 0.08em;
-  margin-right: 4px;
-}
-.extras code {
-  font-family: var(--sw-mono);
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   font-size: 10.5px;
+  color: var(--sw-fg-3);
+  flex: 0 1 auto;
+}
+.row label.grow { flex: 1 1 auto; min-width: 140px; }
+.row label.wide { flex: 1 1 100%; }
+.row input,
+.row select,
+.row textarea {
+  height: 26px;
+  padding: 0 8px;
   background: var(--sw-bg-2);
-  padding: 1px 4px;
-  border-radius: 3px;
-  color: var(--sw-fg-1);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11.5px;
+}
+.row textarea {
+  height: auto;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.row input.mono,
+.row textarea.mono {
+  font-family: var(--sw-mono);
+  font-size: 11px;
+}
+.row input:focus,
+.row select:focus,
+.row textarea:focus {
+  outline: none;
+  border-color: var(--sw-accent-line);
+}
+.sw-btn.danger {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  font-size: 11px;
+  margin-top: 18px;
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #f87171;
+}
+.sw-btn.danger:hover {
+  background: var(--sw-err-soft);
 }
 </style>

@@ -39,14 +39,21 @@ import { fmtMetric } from '@/utils/formatters';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
+// Scope is inferred from the active sub-route (`service` / `instance`
+// / `endpoint` / `trace` / `profiling`). The view is shared across
+// all per-layer scope routes, the BFF returns a different widget set
+// per scope.
+const scope = computed<string>(() => {
+  const path = route.path;
+  for (const s of ['instance', 'endpoint', 'trace', 'profiling']) {
+    if (path.endsWith(`/${s}`)) return s;
+  }
+  return 'service';
+});
 const { selectedId } = useSelectedService();
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
 
-// Look up the service NAME from landing data — selectedId is the
-// base64 OAP service id, which MQE doesn't accept; MQE entities are
-// keyed by serviceName. We share the landing query with the rest of
-// the per-layer page so this is free (cached by vue-query).
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
   key: layerKey.value, name: layerKey.value, color: 'var(--sw-fg-2)',
@@ -63,8 +70,8 @@ const serviceName = computed<string | null>(() => {
   return match?.serviceName ?? null;
 });
 
-const { config, isLoading: configLoading } = useLayerDashboardConfig(layerKey);
-const { data, isFetching, error } = useLayerDashboard(layerKey, serviceName);
+const { config, isLoading: configLoading } = useLayerDashboardConfig(layerKey, scope);
+const { data, isFetching, error } = useLayerDashboard(layerKey, serviceName, scope);
 
 const widgets = computed(() => config.value?.widgets ?? []);
 const resultsById = computed(() => {
@@ -75,6 +82,50 @@ const resultsById = computed(() => {
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? (error.value ? String(error.value) : null));
 const headerTitle = computed(() => serviceName.value ?? data.value?.service ?? 'Pick a service');
+
+/** Map a widget's grid footprint into the new 12-col flow grid. Honors
+ *  `span` / `rowSpan` first; falls back to legacy `w` / `h` (24-col
+ *  scaled to 12 by halving) so older templates still render. */
+function gridStyle(w: { span?: number; rowSpan?: number; w?: number; h?: number }): Record<string, string> {
+  const span = w.span ?? (w.w ? Math.max(1, Math.min(12, Math.round(w.w / 2))) : 4);
+  const rowSpan = w.rowSpan ?? (w.h ? Math.max(1, Math.round(w.h / 8)) : 1);
+  return {
+    gridColumn: `span ${span}`,
+    gridRow: `span ${rowSpan}`,
+  };
+}
+
+/**
+ * Evaluate a widget's `visibleWhen` predicate.
+ *   - `<metric_name> has value`  → the widget's result has a non-null
+ *     scalar / a non-empty series.
+ *   - `#entity.<key>`             → entity attribute exists (deferred —
+ *     we don't surface entity attributes yet; defaults true).
+ *   - anything else               → treated as "always visible".
+ *
+ * Empty / unset → always visible. Predicates that mention a metric not
+ * in the widget's own results never hide the widget either; they're
+ * advisory hints for the operator's mental model.
+ */
+function isVisible(
+  w: { id: string; visibleWhen?: string },
+  result: { value?: number | null; series?: Array<{ data: Array<number | null> }> } | undefined,
+): boolean {
+  const cond = w.visibleWhen?.trim();
+  if (!cond) return true;
+  const hasValueMatch = /^(\S+)\s+has\s+value$/i.exec(cond);
+  if (hasValueMatch && result) {
+    if (result.value !== undefined && result.value !== null) return true;
+    if (result.series && result.series.some((s) => s.data.some((v) => v !== null))) return true;
+    return false;
+  }
+  if (cond.startsWith('#entity.')) {
+    // Entity-attribute predicates need an attributes feed we don't
+    // surface yet (Phase 7-ish). Render the widget for now.
+    return true;
+  }
+  return true;
+}
 </script>
 
 <template>
@@ -98,13 +149,10 @@ const headerTitle = computed(() => serviceName.value ?? data.value?.service ?? '
     </div>
     <div v-else class="grid">
       <div
-        v-for="w in widgets"
+        v-for="w in widgets.filter((wi) => isVisible(wi, resultsById.get(wi.id)))"
         :key="w.id"
         class="widget sw-card"
-        :style="{
-          gridColumn: `span ${w.w}`,
-          gridRow: `span ${w.h}`,
-        }"
+        :style="gridStyle(w)"
       >
         <div class="w-head" :title="w.tip">
           <h4>{{ w.title }}</h4>
@@ -127,7 +175,7 @@ const headerTitle = computed(() => serviceName.value ?? data.value?.service ?? '
               v-if="resultsById.get(w.id)?.series?.length"
               :series="resultsById.get(w.id)!.series!"
               :unit="w.unit"
-              :height="Math.max(120, w.h * 14)"
+              :height="(w.rowSpan ?? 1) * 160 - 60"
             />
             <span v-else class="muted">no data</span>
           </template>
@@ -193,10 +241,15 @@ const headerTitle = computed(() => serviceName.value ?? data.value?.service ?? '
   font-size: 12px;
 }
 .grid {
+  /* 12-col flow grid with fixed row height. `grid-auto-flow: dense`
+   * back-fills gaps so a span-12 widget after several span-4s doesn't
+   * leave a hole. Widget heights are deliberately uniform — operators
+   * vary span (width) more than rowSpan. */
   display: grid;
-  grid-template-columns: repeat(24, 1fr);
-  grid-auto-rows: 14px;
-  gap: 10px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 180px;
+  grid-auto-flow: row dense;
+  gap: 12px;
 }
 .widget {
   display: flex;

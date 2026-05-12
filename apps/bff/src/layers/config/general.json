@@ -30,72 +30,171 @@
       { "metric": "err", "label": "err", "unit": "%", "mqe": "100 - service_sla/100", "aggregation": "avg" }
     ]
   },
-  "widgets": [
-    {
-      "id": "apdex",
-      "title": "Apdex",
-      "tip": "User satisfaction score on a 0–1 scale. service_apdex is integer-times-10000 on the server side; the expression scales it.",
-      "type": "card",
-      "expressions": ["avg(service_apdex)/10000"],
-      "x": 0, "y": 0, "w": 8, "h": 5
-    },
-    {
-      "id": "sla",
-      "title": "Success Rate",
-      "tip": "Percentage of successful requests.",
-      "type": "card",
-      "unit": "%",
-      "expressions": ["avg(service_sla)/100"],
-      "x": 8, "y": 0, "w": 8, "h": 5
-    },
-    {
-      "id": "traffic",
-      "title": "Traffic",
-      "tip": "Requests per minute. For HTTP / gRPC / RPC services this reflects request throughput.",
-      "type": "card",
-      "unit": "rpm",
-      "expressions": ["avg(service_cpm)"],
-      "x": 16, "y": 0, "w": 8, "h": 5
-    },
-    {
-      "id": "resp_time",
-      "title": "Avg Response Time",
-      "tip": "Mean latency across all calls in the window.",
-      "type": "line",
-      "unit": "ms",
-      "expressions": ["service_resp_time"],
-      "x": 0, "y": 5, "w": 12, "h": 14
-    },
-    {
-      "id": "percentile",
-      "title": "Response Time Percentile",
-      "tip": "Latency at p50 / p75 / p90 / p95 / p99 — useful for tail behavior.",
-      "type": "line",
-      "unit": "ms",
-      "expressions": [
-        "service_percentile{p='50'}",
-        "service_percentile{p='75'}",
-        "service_percentile{p='90'}",
-        "service_percentile{p='95'}",
-        "service_percentile{p='99'}"
-      ],
-      "x": 12, "y": 5, "w": 12, "h": 14
-    },
-    {
-      "id": "traffic_line",
-      "title": "Traffic",
-      "type": "line",
-      "unit": "rpm",
-      "expressions": ["service_cpm"],
-      "x": 0, "y": 19, "w": 12, "h": 12
-    },
-    {
-      "id": "sla_line",
-      "title": "Success Rate",
-      "type": "line",
-      "unit": "%",
-      "expressions": ["service_sla/100"],
-      "x": 12, "y": 19, "w": 12, "h": 12
-    }
-  ]
+  "dashboards": {
+    "service": [
+      {
+        "id": "apdex",
+        "title": "Apdex",
+        "tip": "User satisfaction score on a 0–1 scale. service_apdex is integer-times-10000 server-side.",
+        "type": "card",
+        "expressions": ["avg(service_apdex)/10000"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "sla",
+        "title": "Success Rate",
+        "type": "card",
+        "unit": "%",
+        "expressions": ["avg(service_sla)/100"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "traffic",
+        "title": "Traffic",
+        "type": "card",
+        "unit": "rpm",
+        "expressions": ["avg(service_cpm)"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "resp_time",
+        "title": "Avg Response Time",
+        "type": "line",
+        "unit": "ms",
+        "expressions": ["service_resp_time"],
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "percentile",
+        "title": "Response Time Percentile",
+        "tip": "p50 / p75 / p90 / p95 / p99 — useful for tail behavior.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "service_percentile{p='50'}",
+          "service_percentile{p='75'}",
+          "service_percentile{p='90'}",
+          "service_percentile{p='95'}",
+          "service_percentile{p='99'}"
+        ],
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "traffic_line",
+        "title": "Traffic",
+        "type": "line",
+        "unit": "rpm",
+        "expressions": ["service_cpm"],
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "sla_line",
+        "title": "Success Rate",
+        "type": "line",
+        "unit": "%",
+        "expressions": ["service_sla/100"],
+        "span": 6, "rowSpan": 2
+      }
+    ],
+    "instance": [
+      {
+        "id": "instance_cpm",
+        "title": "Instance Traffic",
+        "type": "card",
+        "unit": "rpm",
+        "expressions": ["avg(service_instance_cpm)"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "instance_resp",
+        "title": "Instance Avg Response Time",
+        "type": "card",
+        "unit": "ms",
+        "expressions": ["avg(service_instance_resp_time)"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "instance_sla",
+        "title": "Instance Success Rate",
+        "type": "card",
+        "unit": "%",
+        "expressions": ["avg(service_instance_sla)/100"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "instance_cpm_line",
+        "title": "Traffic",
+        "type": "line",
+        "unit": "rpm",
+        "expressions": ["service_instance_cpm"],
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "instance_resp_line",
+        "title": "Response Time",
+        "type": "line",
+        "unit": "ms",
+        "expressions": ["service_instance_resp_time"],
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "jvm_cpu",
+        "title": "JVM CPU",
+        "tip": "Renders only when the instance reports JVM metrics.",
+        "type": "line",
+        "unit": "%",
+        "expressions": ["instance_jvm_cpu"],
+        "visibleWhen": "instance_jvm_cpu has value",
+        "span": 6, "rowSpan": 2
+      },
+      {
+        "id": "jvm_heap",
+        "title": "JVM Heap (bytes)",
+        "type": "line",
+        "expressions": ["instance_jvm_memory{name='heap'}"],
+        "visibleWhen": "instance_jvm_memory has value",
+        "span": 6, "rowSpan": 2
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "endpoint_cpm",
+        "title": "Endpoint Traffic",
+        "type": "card",
+        "unit": "rpm",
+        "expressions": ["avg(endpoint_cpm)"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "endpoint_resp",
+        "title": "Avg Response Time",
+        "type": "card",
+        "unit": "ms",
+        "expressions": ["avg(endpoint_resp_time)"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "endpoint_sla",
+        "title": "Success Rate",
+        "type": "card",
+        "unit": "%",
+        "expressions": ["avg(endpoint_sla)/100"],
+        "span": 4, "rowSpan": 1
+      },
+      {
+        "id": "endpoint_percentile",
+        "title": "Endpoint Response Time Percentile",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "endpoint_percentile{p='50'}",
+          "endpoint_percentile{p='95'}",
+          "endpoint_percentile{p='99'}"
+        ],
+        "span": 12, "rowSpan": 2
+      }
+    ],
+    "trace": [],
+    "profiling": []
+  }
 }

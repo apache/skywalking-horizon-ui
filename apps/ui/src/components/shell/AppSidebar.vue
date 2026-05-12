@@ -224,17 +224,17 @@ const sections: NavSection[] = [
           </RouterLink>
           <RouterLink
             v-if="L.slots.instances"
-            :to="`/layer/${L.key}/instances`"
+            :to="`/layer/${L.key}/instance`"
             class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${L.key}/instances`) }"
+            :class="{ 'is-active': isActive(`/layer/${L.key}/instance`) }"
           >
             <Icon name="prof" /><span>{{ L.slots.instances }}</span>
           </RouterLink>
           <RouterLink
             v-if="L.slots.endpoints"
-            :to="`/layer/${L.key}/endpoints`"
+            :to="`/layer/${L.key}/endpoint`"
             class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${L.key}/endpoints`) }"
+            :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
           >
             <Icon name="ep" /><span>{{ L.slots.endpoints }}</span>
           </RouterLink>
@@ -257,9 +257,9 @@ const sections: NavSection[] = [
           </RouterLink>
           <RouterLink
             v-if="L.caps.traces"
-            :to="`/layer/${L.key}/traces`"
+            :to="`/layer/${L.key}/trace`"
             class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${L.key}/traces`) }"
+            :class="{ 'is-active': isActive(`/layer/${L.key}/trace`) }"
           >
             <Icon name="trace" /><span>Traces</span>
           </RouterLink>

@@ -32,10 +32,10 @@
  *     widget catalog)
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
+import type { DashboardScope, DashboardWidget } from '@skywalking-horizon-ui/api-client';
 
 export interface LayerComponentFlags {
   service?: boolean;
@@ -75,6 +75,21 @@ export interface LayerMetricsConfig {
   columns?: LayerMetricColumn[];
 }
 
+/**
+ * Per-scope dashboards bundled with a layer template. Each scope is an
+ * independent widget set; the SPA picks one based on the active route
+ * (`/layer/:key/service`, `/instance`, `/endpoint`, `/trace`,
+ * `/profiling`). Legacy `widgets` (flat array) is migrated to
+ * `dashboards.service` at load time.
+ */
+export interface LayerDashboards {
+  service?: DashboardWidget[];
+  instance?: DashboardWidget[];
+  endpoint?: DashboardWidget[];
+  trace?: DashboardWidget[];
+  profiling?: DashboardWidget[];
+}
+
 export interface LayerTemplate {
   /** UPPER_SNAKE enum key (matches OAP). */
   key: string;
@@ -87,7 +102,10 @@ export interface LayerTemplate {
   slots: LayerSlotsConfig;
   components: LayerComponentFlags;
   metrics: LayerMetricsConfig;
-  widgets: DashboardWidget[];
+  /** Per-scope widget sets. `service` is the layer's primary landing. */
+  dashboards?: LayerDashboards;
+  /** Legacy single widget list — treated as `dashboards.service`. */
+  widgets?: DashboardWidget[];
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -106,17 +124,47 @@ function load(): Map<string, LayerTemplate> {
     } catch (err) {
       throw new Error(`failed to parse layer config ${file}: ${err instanceof Error ? err.message : err}`);
     }
-    // File name should match the layer key (case-insensitive) so the
-    // operator can rename / locate the right file without grepping JSON.
     const expected = basename(file, '.json').toUpperCase();
     if (parsed.key && parsed.key.toUpperCase() !== expected) {
       throw new Error(
         `layer config ${file}: file basename does not match \`key\` (${parsed.key})`,
       );
     }
+    // Migrate legacy `widgets` (flat array) → `dashboards.service` so
+    // the rest of the codebase only needs to know about the new shape.
+    if (parsed.widgets && (!parsed.dashboards || !parsed.dashboards.service)) {
+      parsed.dashboards = { ...parsed.dashboards, service: parsed.widgets };
+    }
     out.set(parsed.key.toUpperCase(), parsed);
   }
   return out;
+}
+
+/** Resolve the widget set for a given scope, falling back to service. */
+export function widgetsForScope(
+  template: LayerTemplate,
+  scope: DashboardScope,
+): DashboardWidget[] {
+  const d = template.dashboards;
+  if (!d) return template.widgets ?? [];
+  return d[scope] ?? d.service ?? template.widgets ?? [];
+}
+
+/**
+ * Persist an operator-edited template back to its JSON file. Validates
+ * the basic shape, sorts keys for stable diffs, then refreshes the
+ * in-memory cache so subsequent reads see the new state. Intentionally
+ * naive: no concurrency control, no schema migrations — operators on
+ * single-node BFF deployments, single admin user.
+ */
+export function writeLayerTemplate(template: LayerTemplate): void {
+  if (!template.key || !/^[A-Z][A-Z0-9_]*$/.test(template.key)) {
+    throw new Error('invalid template key (must be UPPER_SNAKE_CASE)');
+  }
+  const file = join(CONFIG_DIR, `${template.key.toLowerCase()}.json`);
+  const serialised = JSON.stringify(template, null, 2) + '\n';
+  writeFileSync(file, serialised, 'utf-8');
+  reloadLayerTemplates();
 }
 
 /**

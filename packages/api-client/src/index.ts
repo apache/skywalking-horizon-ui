@@ -30,6 +30,7 @@ export type { LandingAggregates, LandingResponse, LandingServiceRow } from './la
 export type {
   DashboardConfig,
   DashboardResponse,
+  DashboardScope,
   DashboardSeries,
   DashboardWidget,
   DashboardWidgetResult,
