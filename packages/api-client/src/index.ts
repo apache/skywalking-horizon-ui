@@ -17,6 +17,13 @@
 
 export * from './types.js';
 export type { LayerSlots, LayerCaps, LayerDef, MenuResponse } from './menu.js';
+export type {
+  LandingColumn,
+  LandingConfig,
+  LayerConfig,
+  SetupResponse,
+  SetupSavePayload,
+} from './setup.js';
 export {
   RuntimeRuleClient,
   type RuntimeRuleClientOptions,

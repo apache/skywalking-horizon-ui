@@ -16,41 +16,16 @@
  */
 
 import { defineStore } from 'pinia';
-import { reactive } from 'vue';
-import type { LayerCaps, LayerSlots } from '@skywalking-horizon-ui/api-client';
+import { computed, reactive, ref } from 'vue';
+import type {
+  LandingConfig,
+  LayerCaps,
+  LayerConfig,
+  LayerSlots,
+} from '@skywalking-horizon-ui/api-client';
+import { bffClient } from '@/api/client';
 
-/** Per-layer landing-card configuration. See docs/design/landing-composition.md.
- *
- * Every available layer (one with services reporting) appears on the
- * landing automatically. There is intentionally NO `enabled` toggle — the
- * landing is the auto-composition of all layers' configs. Operators
- * adjust HOW each layer renders (priority, topN, columns, style); the
- * only way to suppress a layer is to disable its features in `caps`. */
-export interface LandingConfig {
-  /** Lower number → higher on the page. Defaults seeded from priority table. */
-  priority: number;
-  /** 5..8. */
-  topN: number;
-  /** MQE key used to rank the top-N services for this layer. */
-  orderBy: string;
-  /** Columns shown per service row in the card. */
-  columns: Array<{ metric: string; label: string; unit?: string }>;
-  /** Optional sparkline column metric. */
-  spark?: { metric: string; height: number };
-  style: 'table' | 'bar' | 'mini-topology';
-}
-
-/** Editable per-layer config the setup page mutates. Mirrors what the
- *  Phase 7 admin UI will persist via the BFF. */
-export interface LayerConfig {
-  /** Override display name (defaults to the menu title from OAP). */
-  displayName?: string;
-  /** Term aliases — overrides slots from /api/menu. */
-  slots: LayerSlots;
-  /** Feature toggles — start from /api/menu defaults, operator can disable. */
-  caps: LayerCaps;
-  landing: LandingConfig;
-}
+export type { LayerConfig, LandingConfig };
 
 /** Default-priority table per the design (General → Virtual* → Mesh → K8s). */
 function defaultPriority(layerKey: string): number {
@@ -63,7 +38,7 @@ function defaultPriority(layerKey: string): number {
 }
 
 /** Default-columns table per layer category. Concrete MQE metric names are
- *  illustrative until Stage 2.4 wires them up — adjust per layer admin. */
+ *  illustrative until Stage 2.6 wires them up — adjust per layer admin. */
 function defaultColumns(_layerKey: string): LandingConfig['columns'] {
   return [
     { metric: 'cpm', label: 'cpm' },
@@ -95,21 +70,133 @@ export function defaultLayerConfig(
   };
 }
 
+/**
+ * Layer customization store.
+ *
+ * Lifecycle:
+ *   1. `bootstrap()` hydrates the persisted overrides from `GET /api/setup`.
+ *   2. `ensure(key, defaults)` returns the editable config — creating one
+ *      from `defaults` on first touch.
+ *   3. UI mutations mark `dirty` true.
+ *   4. `save()` POSTs `/api/setup` and clears `dirty`.
+ *   5. `reset(key, defaults)` rebuilds a single layer from defaults.
+ *   6. `discard()` re-hydrates from server, dropping local changes.
+ *
+ * The BFF JSON store is the source of truth until OAP-side template
+ * management lands. See packages/api-client/src/setup.ts for the wire
+ * shape.
+ */
 export const useSetupStore = defineStore('setup', () => {
-  /** Layer key → edited config. Phase 2.4 will persist this via BFF. */
   const configs = reactive<Record<string, LayerConfig>>({});
+  const dirty = ref(false);
+  const loading = ref(false);
+  const saving = ref(false);
+  const lastError = ref<string | null>(null);
+  const bootstrapped = ref(false);
+  /** Last server-known shape; used by `discard()` to revert. */
+  let serverSnapshot: Record<string, LayerConfig> = {};
 
+  function applyServerSnapshot(layers: Record<string, LayerConfig>): void {
+    serverSnapshot = JSON.parse(JSON.stringify(layers));
+    for (const k of Object.keys(configs)) delete configs[k];
+    for (const [k, v] of Object.entries(layers)) configs[k] = JSON.parse(JSON.stringify(v));
+    dirty.value = false;
+  }
+
+  async function bootstrap(): Promise<void> {
+    if (bootstrapped.value || loading.value) return;
+    loading.value = true;
+    lastError.value = null;
+    try {
+      const res = await bffClient.loadSetup();
+      applyServerSnapshot(res.layers);
+      bootstrapped.value = true;
+    } catch (err) {
+      lastError.value = err instanceof Error ? err.message : 'failed to load setup';
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  function markDirty(): void {
+    if (!dirty.value) dirty.value = true;
+  }
+
+  /**
+   * Return the operator's config for a layer, creating one from defaults
+   * on first touch. Calls into this from a `computed()` MUTATE the store —
+   * intentional: the Pinia reactive proxy then makes every form-field
+   * binding write-through.
+   */
   function ensure(
     layerKey: string,
     defaults: { slots: LayerSlots; caps: LayerCaps },
   ): LayerConfig {
-    if (!configs[layerKey]) configs[layerKey] = defaultLayerConfig(layerKey, defaults);
-    return configs[layerKey];
+    let cfg = configs[layerKey];
+    if (!cfg) {
+      cfg = defaultLayerConfig(layerKey, defaults);
+      configs[layerKey] = cfg;
+      // Newly-created defaults aren't "dirty" — only explicit edits should
+      // turn the Save button on. We track that by leaving `dirty` alone
+      // here and relying on form-field bindings to flip it via deep proxy
+      // watchers below.
+    }
+    return cfg;
   }
 
-  function reset(layerKey: string, defaults: { slots: LayerSlots; caps: LayerCaps }): void {
+  function reset(
+    layerKey: string,
+    defaults: { slots: LayerSlots; caps: LayerCaps },
+  ): void {
     configs[layerKey] = defaultLayerConfig(layerKey, defaults);
+    markDirty();
   }
 
-  return { configs, ensure, reset };
+  async function save(): Promise<void> {
+    if (saving.value) return;
+    saving.value = true;
+    lastError.value = null;
+    try {
+      // Strip layers that match defaults exactly? Keep all touched layers
+      // for now — server stores them sparse but client sends the full set.
+      const payload = JSON.parse(JSON.stringify(configs)) as Record<string, LayerConfig>;
+      const res = await bffClient.saveSetup({ layers: payload });
+      applyServerSnapshot(res.layers);
+    } catch (err) {
+      lastError.value = err instanceof Error ? err.message : 'save failed';
+      throw err;
+    } finally {
+      saving.value = false;
+    }
+  }
+
+  async function discard(): Promise<void> {
+    applyServerSnapshot(serverSnapshot);
+  }
+
+  // Per-template Vue proxy mutation tracking — every form binding
+  // mutates `configs[layer].…`. We hook the proxy via a Pinia subscribe.
+  // Simpler: just call `markDirty` from the form handler. Form bindings
+  // (`v-model="cfg.slots.services"`) go through Pinia, but we can't tell
+  // a programmatic write from a user edit without an explicit signal.
+  // → expose `markDirty` and call it from LayerSetupCard on input.
+
+  return {
+    // state
+    configs,
+    dirty,
+    loading,
+    saving,
+    bootstrapped,
+    lastError,
+    // computed
+    layerCount: computed(() => Object.keys(configs).length),
+    // actions
+    bootstrap,
+    ensure,
+    reset,
+    markDirty,
+    save,
+    discard,
+  };
 });

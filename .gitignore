@@ -40,3 +40,4 @@ docs/design/
 horizon.yaml
 horizon-audit.jsonl
 horizon-wire.jsonl
+horizon-setup.json

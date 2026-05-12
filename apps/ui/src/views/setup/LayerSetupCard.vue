@@ -37,6 +37,12 @@ function resetThisLayer(): void {
   store.reset(props.layer.key, { slots: props.layer.slots, caps: props.layer.caps });
 }
 
+// Every form-field input on this card calls onEdit so the store knows the
+// user (not just a default-population) touched the config.
+function onEdit(): void {
+  store.markDirty();
+}
+
 const summary = computed<string>(() => {
   const c = cfg.value;
   const cols = c.landing.columns.map((x) => x.metric).join(', ');
@@ -82,11 +88,13 @@ function toggleColumn(metric: string, label: string, unit?: string): void {
   } else if (cols.length < 5) {
     cols.push({ metric, label, ...(unit ? { unit } : {}) });
   }
+  onEdit();
 }
 
 function clampTopN(n: number): void {
   const v = Math.max(5, Math.min(8, Math.round(n || 5)));
   cfg.value.landing.topN = v;
+  onEdit();
 }
 
 const headerColor = computed(() => props.layer.color);
@@ -122,23 +130,23 @@ const isDefaultLanding = computed(() => {
         <div class="field-grid">
           <label>
             <span>Display name</span>
-            <input v-model="cfg.displayName" :placeholder="layer.name" />
+            <input v-model="cfg.displayName" :placeholder="layer.name" @input="onEdit" />
           </label>
           <label v-if="layer.slots.services !== undefined">
             <span>Services</span>
-            <input v-model="cfg.slots.services" :placeholder="layer.slots.services" />
+            <input v-model="cfg.slots.services" :placeholder="layer.slots.services" @input="onEdit" />
           </label>
           <label v-if="layer.slots.instances !== undefined">
             <span>Instances</span>
-            <input v-model="cfg.slots.instances" :placeholder="layer.slots.instances" />
+            <input v-model="cfg.slots.instances" :placeholder="layer.slots.instances" @input="onEdit" />
           </label>
           <label v-if="layer.slots.endpoints !== undefined">
             <span>Endpoints</span>
-            <input v-model="cfg.slots.endpoints" :placeholder="layer.slots.endpoints" />
+            <input v-model="cfg.slots.endpoints" :placeholder="layer.slots.endpoints" @input="onEdit" />
           </label>
           <label v-if="cfg.caps.endpointDependency">
             <span>Endpoint dependency</span>
-            <input v-model="cfg.slots.endpointDependency" :placeholder="layer.slots.endpointDependency ?? `${cfg.slots.endpoints ?? 'Endpoint'} dependency`" />
+            <input v-model="cfg.slots.endpointDependency" :placeholder="layer.slots.endpointDependency ?? `${cfg.slots.endpoints ?? 'Endpoint'} dependency`" @input="onEdit" />
           </label>
         </div>
       </section>
@@ -147,7 +155,7 @@ const isDefaultLanding = computed(() => {
         <h4>Features</h4>
         <div class="caps-grid">
           <label v-for="row in capRows" :key="row.key" class="cap-toggle">
-            <input type="checkbox" v-model="cfg.caps[row.key]" />
+            <input type="checkbox" v-model="cfg.caps[row.key]" @change="onEdit" />
             <span>{{ row.label }}</span>
           </label>
         </div>
@@ -158,7 +166,7 @@ const isDefaultLanding = computed(() => {
         <div class="field-grid landing">
           <label>
             <span>Priority (lower = higher on page)</span>
-            <input type="number" v-model.number="cfg.landing.priority" min="0" max="99" />
+            <input type="number" v-model.number="cfg.landing.priority" min="0" max="99" @input="onEdit" />
           </label>
           <label>
             <span>Top N (5–8)</span>
@@ -166,7 +174,7 @@ const isDefaultLanding = computed(() => {
           </label>
           <label>
             <span>Order by</span>
-            <select v-model="cfg.landing.orderBy">
+            <select v-model="cfg.landing.orderBy" @change="onEdit">
               <option v-for="c in availableColumns" :key="c.metric" :value="c.metric" :title="c.tip">
                 {{ c.longLabel }}
               </option>
@@ -174,7 +182,7 @@ const isDefaultLanding = computed(() => {
           </label>
           <label>
             <span>Sparkline</span>
-            <select :value="cfg.landing.spark?.metric ?? ''" @change="(e) => { const v = (e.target as HTMLSelectElement).value; cfg.landing.spark = v ? { metric: v, height: 28 } : undefined; }">
+            <select :value="cfg.landing.spark?.metric ?? ''" @change="(e) => { const v = (e.target as HTMLSelectElement).value; cfg.landing.spark = v ? { metric: v, height: 28 } : undefined; onEdit(); }">
               <option value="">none</option>
               <option v-for="c in availableColumns" :key="c.metric" :value="c.metric" :title="c.tip">
                 {{ c.longLabel }}
@@ -183,7 +191,7 @@ const isDefaultLanding = computed(() => {
           </label>
           <label>
             <span>Style</span>
-            <select v-model="cfg.landing.style">
+            <select v-model="cfg.landing.style" @change="onEdit">
               <option value="table">Table</option>
               <option value="bar">Bar</option>
               <option value="mini-topology">Mini topology</option>

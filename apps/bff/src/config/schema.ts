@@ -93,6 +93,13 @@ const auditSchema = z
   .strict()
   .default({ file: './horizon-audit.jsonl' });
 
+const setupSchema = z
+  .object({
+    file: z.string().default('./horizon-setup.json'),
+  })
+  .strict()
+  .default({ file: './horizon-setup.json' });
+
 const debugLogSchema = z
   .object({
     enabled: z.boolean().default(false),
@@ -116,6 +123,7 @@ export const configSchema = z
     rbac: rbacSchema,
     session: sessionSchema,
     audit: auditSchema,
+    setup: setupSchema,
     debugLog: debugLogSchema,
   })
   .strict();

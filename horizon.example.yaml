@@ -51,6 +51,12 @@ session:
 audit:
   file: ./horizon-audit.jsonl
 
+# Per-layer setup overrides (priority / slots / caps / landing card config)
+# persist here. Until OAP-side template management lands, this file is the
+# source of truth for operator customization.
+setup:
+  file: ./horizon-setup.json
+
 debugLog:
   enabled: false
   file: ./horizon-wire.jsonl

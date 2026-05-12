@@ -24,6 +24,8 @@ import { loadConfig, type ConfigSource } from './config/loader.js';
 import { registerMenuRoute } from './oap/menu-routes.js';
 import { registerOapRoutes } from './oap/routes.js';
 import { registerPreflightRoutes } from './oap/preflight-routes.js';
+import { registerSetupRoutes } from './setup/routes.js';
+import { SetupStore } from './setup/store.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
 
@@ -47,6 +49,8 @@ app.setErrorHandler((err, _req, reply) => {
 const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
 const audit = new AuditLogger(source.current.audit.file);
 await audit.open();
+const setupStore = new SetupStore(source.current.setup.file);
+await setupStore.load();
 
 await app.register(cookie);
 
@@ -55,6 +59,7 @@ app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_req, body, done)
 
 registerAuthRoutes(app, source, sessions, audit);
 registerMenuRoute(app, { config: source, sessions });
+registerSetupRoutes(app, { config: source, sessions, audit, store: setupStore });
 registerOapRoutes(app, { config: source, sessions, audit });
 registerPreflightRoutes(app, { config: source, sessions });
 

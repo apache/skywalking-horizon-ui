@@ -15,7 +15,7 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import LayerSetupCard from './LayerSetupCard.vue';
 import { useLayers } from '@/composables/useLayers';
 import { useLandingOrder } from '@/composables/useLandingOrder';
@@ -23,6 +23,30 @@ import { useSetupStore } from '@/stores/setup';
 
 const { layers, oapReachable, oapError, isLoading } = useLayers();
 const store = useSetupStore();
+
+// Hydrate persisted overrides on first mount. The store is idempotent —
+// repeated mounts during HMR don't refetch unnecessarily.
+onMounted(() => {
+  void store.bootstrap();
+});
+
+const savePhase = ref<'idle' | 'saving' | 'saved' | 'error'>('idle');
+async function onSave(): Promise<void> {
+  savePhase.value = 'saving';
+  try {
+    await store.save();
+    savePhase.value = 'saved';
+    setTimeout(() => {
+      if (savePhase.value === 'saved') savePhase.value = 'idle';
+    }, 1500);
+  } catch {
+    savePhase.value = 'error';
+  }
+}
+async function onDiscard(): Promise<void> {
+  await store.discard();
+  savePhase.value = 'idle';
+}
 
 // Order by priority (lower first) so this page lines up with the sidebar
 // and the Overview. Setup shows ALL layers (active or not) — operators
@@ -107,9 +131,28 @@ const visibleLayers = computed(() => {
           <span v-if="orderedLayers.length > 8">…</span>
         </div>
         <div class="foot-right">
-          <span class="hint">
-            Persistence wires in at Stage 2.4. For now, changes live in this tab only.
+          <span v-if="store.lastError && savePhase === 'error'" class="hint err">
+            {{ store.lastError }}
           </span>
+          <span v-else-if="savePhase === 'saved'" class="hint ok">saved</span>
+          <span v-else-if="store.dirty" class="hint dirty">unsaved changes</span>
+          <span v-else class="hint">all changes persisted</span>
+          <button
+            class="sw-btn"
+            type="button"
+            :disabled="!store.dirty || savePhase === 'saving'"
+            @click="onDiscard"
+          >
+            Discard
+          </button>
+          <button
+            class="sw-btn is-primary"
+            type="button"
+            :disabled="!store.dirty || savePhase === 'saving'"
+            @click="onSave"
+          >
+            {{ savePhase === 'saving' ? 'Saving…' : 'Save' }}
+          </button>
         </div>
       </footer>
     </template>
@@ -293,8 +336,23 @@ const visibleLayers = computed(() => {
 .chip-name {
   color: var(--sw-fg-0);
 }
+.foot-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .foot-right .hint {
   font-size: 10.5px;
   color: var(--sw-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.foot-right .hint.dirty {
+  color: var(--sw-warn);
+}
+.foot-right .hint.err {
+  color: #f87171;
+}
+.foot-right .hint.ok {
+  color: var(--sw-ok);
 }
 </style>
