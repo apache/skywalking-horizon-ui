@@ -15,16 +15,46 @@
  * limitations under the License.
  */
 import { createRouter, createWebHistory } from 'vue-router';
+import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     {
+      path: '/login',
+      name: 'login',
+      component: () => import('@/views/auth/LoginView.vue'),
+      meta: { public: true },
+    },
+    {
       path: '/',
-      name: 'landing',
-      component: () => import('@/views/landing/LandingView.vue'),
+      component: () => import('@/components/shell/AppShell.vue'),
+      children: [
+        {
+          path: '',
+          name: 'home',
+          component: () => import('@/views/landing/LandingView.vue'),
+        },
+      ],
     },
   ],
+});
+
+let bootstrapped = false;
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore();
+  if (!bootstrapped) {
+    await auth.bootstrap();
+    bootstrapped = true;
+  }
+  const isPublic = to.meta.public === true;
+  if (!isPublic && !auth.isAuthenticated) {
+    return { name: 'login', query: { redirect: to.fullPath } };
+  }
+  if (to.name === 'login' && auth.isAuthenticated) {
+    return { path: '/' };
+  }
 });
 
 export default router;

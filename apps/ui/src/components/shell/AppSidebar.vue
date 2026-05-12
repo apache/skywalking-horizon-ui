@@ -16,8 +16,16 @@
 -->
 <script setup lang="ts">
 import { ref } from 'vue';
-import { RouterLink, useRoute } from 'vue-router';
+import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
+import { useAuthStore } from '@/stores/auth';
+
+const auth = useAuthStore();
+const router = useRouter();
+async function signOut(): Promise<void> {
+  await auth.logout();
+  await router.push({ name: 'login' });
+}
 
 // Phase 2 will replace this stub with real getMenuItems / listLayers data.
 const layers = ref([
@@ -124,11 +132,18 @@ const admin: NavRow[] = [
     </nav>
 
     <div class="sw-side-foot">
-      <div class="sw-avatar">SW</div>
-      <div style="line-height: 1.2">
-        <div style="color: var(--sw-fg-0); font-weight: 600">guest</div>
-        <div>not signed in</div>
+      <div class="sw-avatar">
+        {{ auth.user?.username ? auth.user.username.slice(0, 2).toUpperCase() : '?' }}
       </div>
+      <div style="line-height: 1.2; flex: 1; min-width: 0; overflow: hidden">
+        <div style="color: var(--sw-fg-0); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">
+          {{ auth.user?.username ?? 'guest' }}
+        </div>
+        <div>{{ auth.user?.roles?.join(' · ') ?? 'not signed in' }}</div>
+      </div>
+      <button v-if="auth.isAuthenticated" class="sw-btn is-icon" title="Sign out" @click="signOut">
+        <Icon name="share" :size="12" />
+      </button>
     </div>
   </aside>
 </template>
