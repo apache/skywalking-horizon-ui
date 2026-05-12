@@ -16,14 +16,41 @@
  */
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
+import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query';
 
 import App from './App.vue';
 import router from './router';
+import { bffClient } from './api/client';
+import { useAuthStore } from './stores/auth';
 
 import '@skywalking-horizon-ui/design-tokens/tokens.css';
 import './assets/styles/global.css';
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5_000,
+      refetchOnWindowFocus: true,
+      retry: 1,
+    },
+  },
+});
+
 const app = createApp(App);
-app.use(createPinia());
+const pinia = createPinia();
+app.use(pinia);
 app.use(router);
+app.use(VueQueryPlugin, { queryClient });
+
+// Mid-session 401 → clear auth state and bounce to login while preserving the
+// current path so the user can be returned after re-auth.
+bffClient.setOn401(() => {
+  const auth = useAuthStore();
+  auth.$patch({ user: null });
+  const redirect = router.currentRoute.value.fullPath;
+  if (router.currentRoute.value.name !== 'login') {
+    void router.push({ name: 'login', query: { redirect } });
+  }
+});
+
 app.mount('#app');
