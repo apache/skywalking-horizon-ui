@@ -20,7 +20,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useAuthStore } from '@/stores/auth';
-import { LAYERS } from './layers';
+import { LAYERS, hasTopology } from './layers';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -174,12 +174,20 @@ const sections: NavSection[] = [
           </RouterLink>
 
           <RouterLink
-            v-if="L.caps.topology"
+            v-if="hasTopology(L.caps)"
             :to="`/layer/${L.key}/topology`"
             class="sw-nav-item"
             :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
           >
             <Icon name="topo" /><span>Topology</span>
+          </RouterLink>
+          <RouterLink
+            v-if="L.caps.endpointDependency"
+            :to="`/layer/${L.key}/dependency`"
+            class="sw-nav-item"
+            :class="{ 'is-active': isActive(`/layer/${L.key}/dependency`) }"
+          >
+            <Icon name="ep" /><span>{{ L.slots.endpointDependency ?? `${L.slots.endpoints ?? 'Endpoint'} dependency` }}</span>
           </RouterLink>
           <RouterLink
             v-if="L.caps.dashboards"

@@ -56,24 +56,31 @@ function layerSubRoutes(): RouteRecordRaw[] {
     });
   }
 
-  const caps: { key: keyof NonNullable<ReturnType<typeof findLayer>>['caps']; label: string; phase: string }[] = [
-    { key: 'topology', label: 'Topology', phase: 'Phase 4' },
-    { key: 'dashboards', label: 'Dashboards', phase: 'Phase 3' },
-    { key: 'traces', label: 'Traces', phase: 'Phase 5' },
-    { key: 'logs', label: 'Logs', phase: 'Phase 5' },
-    { key: 'profiling', label: 'Profiling', phase: 'Phase 8' },
-    { key: 'events', label: 'Events', phase: 'Phase 5' },
+  const layerFeatures: { path: string; label: string; phase: string; capCheck?: (caps: NonNullable<ReturnType<typeof findLayer>>['caps']) => boolean }[] = [
+    {
+      path: 'topology',
+      label: 'Topology',
+      phase: 'Phase 4',
+      capCheck: (c) => Boolean(c.serviceMap || c.instanceTopology || c.processTopology),
+    },
+    { path: 'dependency', label: 'API dependency', phase: 'Phase 4', capCheck: (c) => Boolean(c.endpointDependency) },
+    { path: 'dashboards', label: 'Dashboards', phase: 'Phase 3', capCheck: (c) => Boolean(c.dashboards) },
+    { path: 'traces', label: 'Traces', phase: 'Phase 5', capCheck: (c) => Boolean(c.traces) },
+    { path: 'logs', label: 'Logs', phase: 'Phase 5', capCheck: (c) => Boolean(c.logs) },
+    { path: 'profiling', label: 'Profiling', phase: 'Phase 8', capCheck: (c) => Boolean(c.profiling) },
+    { path: 'events', label: 'Events', phase: 'Phase 5', capCheck: (c) => Boolean(c.events) },
   ];
-  for (const c of caps) {
+  for (const f of layerFeatures) {
     sub.push({
-      path: `layer/:layerKey/${c.key}`,
+      path: `layer/:layerKey/${f.path}`,
       component: placeholder,
       props: (r) => {
         const L = findLayer(String(r.params.layerKey));
+        const supported = L && (!f.capCheck || f.capCheck(L.caps));
         return {
-          title: L ? `${L.name} · ${c.label}` : `Layer · ${c.label}`,
-          phase: c.phase,
-          note: L && !L.caps[c.key] ? `${L.name} doesn't expose ${c.label.toLowerCase()}.` : undefined,
+          title: L ? `${L.name} · ${f.label}` : `Layer · ${f.label}`,
+          phase: f.phase,
+          note: L && !supported ? `${L.name} doesn't expose ${f.label.toLowerCase()}.` : undefined,
         };
       },
     });

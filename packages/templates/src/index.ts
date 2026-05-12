@@ -15,5 +15,12 @@
  * limitations under the License.
  */
 
-// Phase 2 will populate this with the ui-initialized-templates bundle.
-export {};
+export * from './types.js';
+export {
+  loadAll,
+  listLayers,
+  listTemplates,
+  getTemplate,
+  getMenuYaml,
+  templateCount,
+} from './loader.js';

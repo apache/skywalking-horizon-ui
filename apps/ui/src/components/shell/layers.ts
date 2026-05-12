@@ -18,21 +18,43 @@
 // Phase 2 will replace this static stub with real getMenuItems / listLayers
 // data + per-layer overrides from the BFF dashboard-template bundle. The
 // shape is what the sidebar and router will consume regardless.
+//
+// Aliases (`slots.*`) are a GLOBAL term presenter — the same alias is used
+// in the sidebar, breadcrumbs, table headers, dashboard titles, drill-down
+// labels, etc. "Endpoint" → "API" (General), "API → API" (the resulting
+// endpoint-relation feature) → "API dependency".
+//
+// `caps` is a pickable feature set per layer. Setting `caps.services =
+// false` hides the services slot entirely (e.g. a layer with only a single
+// virtual service can disable `instances` and `endpoints` but keep
+// `services`).
+//
+// Term aliases AND cap toggles are both editable from the Phase 7 admin UI
+// (Layer config) and persisted in the BFF JSON store. The values below are
+// the shipped defaults for each known layer.
 
 export interface LayerSlots {
-  /** Renamed service-equivalent (functions / workloads / clusters / apps / databases / …). */
+  /** Renamed service-equivalent (functions / workloads / clusters / apps / databases / virtual service / …). */
   services?: string;
   /** Renamed instance-equivalent (versions / pods / brokers / sessions / nodes / …). */
   instances?: string;
-  /** Renamed endpoint-equivalent (invocations / topics / pages / queries / …). */
+  /** Renamed endpoint-equivalent — e.g. "API" for General, "Topics" for MQ, "Pages" for Browser. */
   endpoints?: string;
+  /** Label for the endpoint-to-endpoint dependency feature. Defaults to `${endpoints} dependency`. */
+  endpointDependency?: string;
 }
 
 export interface LayerCaps {
   /** Per-layer landing page with KPIs / constellation / health. */
   overview?: boolean;
-  /** Topology graph. */
-  topology?: boolean;
+  /** Service map (service topology). */
+  serviceMap?: boolean;
+  /** Endpoint-to-endpoint dependency (a.k.a. "API dependency" when aliased). */
+  endpointDependency?: boolean;
+  /** Instance / pod / broker topology. */
+  instanceTopology?: boolean;
+  /** Process topology (eBPF / rover sourced). */
+  processTopology?: boolean;
   /** Per-scope dashboards (Service / Instance / Endpoint / Glance). */
   dashboards?: boolean;
   /** Trace explorer (SkyWalking native or Zipkin sources). */
@@ -43,6 +65,11 @@ export interface LayerCaps {
   profiling?: boolean;
   /** Event timeline. */
   events?: boolean;
+}
+
+/** Convenience: `caps.serviceMap || caps.instanceTopology || caps.processTopology`. */
+export function hasTopology(caps: LayerCaps): boolean {
+  return Boolean(caps.serviceMap || caps.instanceTopology || caps.processTopology);
 }
 
 export interface LayerDef {
@@ -62,8 +89,19 @@ export const LAYERS: readonly LayerDef[] = [
     name: 'General Service',
     color: 'var(--sw-accent)',
     serviceCount: 84,
-    slots: { services: 'Services', instances: 'Instances', endpoints: 'Endpoints' },
-    caps: { overview: true, topology: true, dashboards: true, traces: true, logs: true, profiling: true, events: true },
+    slots: { services: 'Services', instances: 'Instances', endpoints: 'API', endpointDependency: 'API dependency' },
+    caps: {
+      overview: true,
+      serviceMap: true,
+      endpointDependency: true,
+      instanceTopology: true,
+      processTopology: true,
+      dashboards: true,
+      traces: true,
+      logs: true,
+      profiling: true,
+      events: true,
+    },
   },
   {
     key: 'mesh',
@@ -71,7 +109,16 @@ export const LAYERS: readonly LayerDef[] = [
     color: 'var(--sw-info)',
     serviceCount: 22,
     slots: { services: 'Services', instances: 'Sidecars', endpoints: 'Endpoints' },
-    caps: { overview: true, topology: true, dashboards: true, traces: true, logs: true, events: true },
+    caps: {
+      overview: true,
+      serviceMap: true,
+      endpointDependency: true,
+      instanceTopology: true,
+      dashboards: true,
+      traces: true,
+      logs: true,
+      events: true,
+    },
   },
   {
     key: 'k8s',
@@ -79,7 +126,7 @@ export const LAYERS: readonly LayerDef[] = [
     color: 'var(--sw-purple)',
     serviceCount: 62,
     slots: { services: 'Workloads', instances: 'Pods' },
-    caps: { overview: true, topology: true, dashboards: true, events: true },
+    caps: { overview: true, serviceMap: true, instanceTopology: true, dashboards: true, events: true },
   },
   {
     key: 'rum',
@@ -111,7 +158,14 @@ export const LAYERS: readonly LayerDef[] = [
     color: 'var(--sw-purple)',
     serviceCount: 18,
     slots: { services: 'Services', instances: 'Instances', endpoints: 'Endpoints' },
-    caps: { overview: true, topology: true, dashboards: true, traces: true, logs: true },
+    caps: {
+      overview: true,
+      serviceMap: true,
+      endpointDependency: true,
+      dashboards: true,
+      traces: true,
+      logs: true,
+    },
   },
   {
     key: 'faas',
