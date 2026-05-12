@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.1",
-    "@fastify/static": "^8.0.2",
+    "@fastify/static": "^9.1.1",
     "@skywalking-horizon-ui/api-client": "workspace:*",
     "argon2": "^0.41.1",
     "chokidar": "^4.0.1",
