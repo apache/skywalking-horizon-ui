@@ -24,8 +24,8 @@
     "spark": "cpm",
     "orderBy": "cpm",
     "columns": [
-      { "metric": "cpm", "label": "Traffic", "unit": "rpm", "mqe": "service_cpm", "aggregation": "sum" },
-      { "metric": "p99", "label": "p99", "unit": "ms", "mqe": "service_percentile{p='99'}", "aggregation": "avg" },
+      { "metric": "cpm", "label": "RPM", "mqe": "service_cpm", "aggregation": "sum" },
+      { "metric": "apdex", "label": "Apdex", "mqe": "service_apdex/10000", "aggregation": "avg" },
       { "metric": "sla", "label": "SLA", "unit": "%", "mqe": "service_sla/100", "aggregation": "avg" },
       { "metric": "err", "label": "err", "unit": "%", "mqe": "100 - service_sla/100", "aggregation": "avg" }
     ]
@@ -33,59 +33,23 @@
   "dashboards": {
     "service": [
       {
-        "id": "apdex",
+        "id": "top_endpoints",
+        "title": "Top 20 endpoints by traffic",
+        "tip": "top_n(endpoint_cpm,20,des) — click an endpoint to drill in.",
+        "type": "top",
+        "unit": "rpm",
+        "expressions": ["top_n(endpoint_cpm,20,des)"],
+        "span": 3,
+        "rowSpan": 4
+      },
+      {
+        "id": "apdex_line",
         "title": "Apdex",
-        "tip": "User satisfaction score on a 0–1 scale. service_apdex is integer-times-10000 server-side.",
-        "type": "card",
-        "expressions": ["avg(service_apdex)/10000"],
-        "span": 4, "rowSpan": 1
-      },
-      {
-        "id": "sla",
-        "title": "Success Rate",
-        "type": "card",
-        "unit": "%",
-        "expressions": ["avg(service_sla)/100"],
-        "span": 4, "rowSpan": 1
-      },
-      {
-        "id": "traffic",
-        "title": "Traffic",
-        "type": "card",
-        "unit": "rpm",
-        "expressions": ["avg(service_cpm)"],
-        "span": 4, "rowSpan": 1
-      },
-      {
-        "id": "resp_time",
-        "title": "Avg Response Time",
+        "tip": "service_apdex/10000 — 0 to 1 satisfaction score.",
         "type": "line",
-        "unit": "ms",
-        "expressions": ["service_resp_time"],
-        "span": 6, "rowSpan": 2
-      },
-      {
-        "id": "percentile",
-        "title": "Response Time Percentile",
-        "tip": "p50 / p75 / p90 / p95 / p99 — useful for tail behavior.",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "service_percentile{p='50'}",
-          "service_percentile{p='75'}",
-          "service_percentile{p='90'}",
-          "service_percentile{p='95'}",
-          "service_percentile{p='99'}"
-        ],
-        "span": 6, "rowSpan": 2
-      },
-      {
-        "id": "traffic_line",
-        "title": "Traffic",
-        "type": "line",
-        "unit": "rpm",
-        "expressions": ["service_cpm"],
-        "span": 6, "rowSpan": 2
+        "expressions": ["service_apdex/10000"],
+        "span": 3,
+        "rowSpan": 2
       },
       {
         "id": "sla_line",
@@ -93,41 +57,58 @@
         "type": "line",
         "unit": "%",
         "expressions": ["service_sla/100"],
-        "span": 6, "rowSpan": 2
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "traffic_line",
+        "title": "Traffic",
+        "type": "line",
+        "unit": "rpm",
+        "expressions": ["service_cpm"],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "resp_time_line",
+        "title": "Avg Response Time",
+        "type": "line",
+        "unit": "ms",
+        "expressions": ["service_resp_time"],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "p99_line",
+        "title": "p99",
+        "type": "line",
+        "unit": "ms",
+        "expressions": ["service_percentile{p='99'}"],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "percentile_line",
+        "title": "Response Time Percentile",
+        "tip": "Single MQE: relabels(service_percentile{p='50,75,90,95,99'},...,percentile='50,...').",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "relabels(service_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
+        ],
+        "span": 3,
+        "rowSpan": 2
       }
     ],
     "instance": [
-      {
-        "id": "instance_cpm",
-        "title": "Instance Traffic",
-        "type": "card",
-        "unit": "rpm",
-        "expressions": ["avg(service_instance_cpm)"],
-        "span": 4, "rowSpan": 1
-      },
-      {
-        "id": "instance_resp",
-        "title": "Instance Avg Response Time",
-        "type": "card",
-        "unit": "ms",
-        "expressions": ["avg(service_instance_resp_time)"],
-        "span": 4, "rowSpan": 1
-      },
-      {
-        "id": "instance_sla",
-        "title": "Instance Success Rate",
-        "type": "card",
-        "unit": "%",
-        "expressions": ["avg(service_instance_sla)/100"],
-        "span": 4, "rowSpan": 1
-      },
       {
         "id": "instance_cpm_line",
         "title": "Traffic",
         "type": "line",
         "unit": "rpm",
         "expressions": ["service_instance_cpm"],
-        "span": 6, "rowSpan": 2
+        "span": 4,
+        "rowSpan": 2
       },
       {
         "id": "instance_resp_line",
@@ -135,7 +116,17 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["service_instance_resp_time"],
-        "span": 6, "rowSpan": 2
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "instance_sla_line",
+        "title": "Success Rate",
+        "type": "line",
+        "unit": "%",
+        "expressions": ["service_instance_sla/100"],
+        "span": 4,
+        "rowSpan": 2
       },
       {
         "id": "jvm_cpu",
@@ -145,53 +136,57 @@
         "unit": "%",
         "expressions": ["instance_jvm_cpu"],
         "visibleWhen": "instance_jvm_cpu has value",
-        "span": 6, "rowSpan": 2
+        "span": 6,
+        "rowSpan": 2
       },
       {
         "id": "jvm_heap",
-        "title": "JVM Heap (bytes)",
+        "title": "JVM Heap",
         "type": "line",
         "expressions": ["instance_jvm_memory{name='heap'}"],
         "visibleWhen": "instance_jvm_memory has value",
-        "span": 6, "rowSpan": 2
+        "span": 6,
+        "rowSpan": 2
       }
     ],
     "endpoint": [
       {
-        "id": "endpoint_cpm",
-        "title": "Endpoint Traffic",
-        "type": "card",
+        "id": "endpoint_cpm_line",
+        "title": "Traffic",
+        "type": "line",
         "unit": "rpm",
-        "expressions": ["avg(endpoint_cpm)"],
-        "span": 4, "rowSpan": 1
+        "expressions": ["endpoint_cpm"],
+        "span": 4,
+        "rowSpan": 2
       },
       {
-        "id": "endpoint_resp",
-        "title": "Avg Response Time",
-        "type": "card",
+        "id": "endpoint_resp_line",
+        "title": "Response Time",
+        "type": "line",
         "unit": "ms",
-        "expressions": ["avg(endpoint_resp_time)"],
-        "span": 4, "rowSpan": 1
+        "expressions": ["endpoint_resp_time"],
+        "span": 4,
+        "rowSpan": 2
       },
       {
-        "id": "endpoint_sla",
+        "id": "endpoint_sla_line",
         "title": "Success Rate",
-        "type": "card",
+        "type": "line",
         "unit": "%",
-        "expressions": ["avg(endpoint_sla)/100"],
-        "span": 4, "rowSpan": 1
+        "expressions": ["endpoint_sla/100"],
+        "span": 4,
+        "rowSpan": 2
       },
       {
         "id": "endpoint_percentile",
-        "title": "Endpoint Response Time Percentile",
+        "title": "Response Time Percentile",
         "type": "line",
         "unit": "ms",
         "expressions": [
-          "endpoint_percentile{p='50'}",
-          "endpoint_percentile{p='95'}",
-          "endpoint_percentile{p='99'}"
+          "relabels(endpoint_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
         ],
-        "span": 12, "rowSpan": 2
+        "span": 12,
+        "rowSpan": 2
       }
     ],
     "trace": [],

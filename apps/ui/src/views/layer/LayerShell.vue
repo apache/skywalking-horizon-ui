@@ -205,10 +205,11 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         </div>
         <div class="kpi-strip layer-kpis">
           <div v-for="(k, i) in layerKpis" :key="i" class="kpi">
-            <div class="kpi-label">{{ k.label }}</div>
+            <div class="kpi-label">
+              {{ k.label }}<span v-if="k.unit" class="unit">({{ k.unit }})</span>
+            </div>
             <div class="kpi-value" :style="{ color: k.color }">
               <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span>
-              <span v-if="k.unit" class="kpi-unit">{{ k.unit }}</span>
             </div>
             <Sparkline
               v-if="k.spark && k.spark.length > 1"
@@ -240,10 +241,11 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         </button>
         <div class="kpi-strip service-kpis">
           <div v-for="(k, i) in serviceKpis" :key="i" class="kpi compact">
-            <span class="kpi-label inline">{{ k.label }}</span>
+            <span class="kpi-label inline">
+              {{ k.label }}<span v-if="k.unit" class="unit">({{ k.unit }})</span>
+            </span>
             <span class="kpi-value inline" :style="{ color: k.color }">
               <span :class="{ muted: k.value == null }">{{ fmtMetric(k.value) }}</span>
-              <span v-if="k.unit" class="kpi-unit">{{ k.unit }}</span>
             </span>
           </div>
         </div>
@@ -429,6 +431,12 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
   letter-spacing: 0.08em;
   color: var(--sw-fg-3);
   margin-bottom: 2px;
+}
+.kpi-label .unit {
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 2px;
+  font-size: 9.5px;
 }
 .kpi-value {
   font-size: 18px;

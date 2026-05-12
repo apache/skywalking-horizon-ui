@@ -29,7 +29,7 @@
  * Phase 7 admin lets operators edit + persist their own widget set.
  */
 
-export type DashboardWidgetType = 'card' | 'line';
+export type DashboardWidgetType = 'card' | 'line' | 'top';
 
 /**
  * Per-entity dashboard scope. Each layer carries an independent widget
@@ -95,14 +95,25 @@ export interface DashboardSeries {
   data: Array<number | null>;
 }
 
+export interface DashboardTopItem {
+  /** Service / instance / endpoint name returned by OAP. */
+  name: string;
+  value: number | null;
+}
+
 export interface DashboardWidgetResult {
   id: string;
   /** Set when every MQE expression for this widget errored. */
   error?: string;
   /** `card` payload — single scalar (avg across the time window). */
   value?: number | null;
-  /** `line` payload — one entry per expression. */
+  /** `line` payload — one entry per expression. The line chart picks
+   *  up its line labels from the metric.labels relabel values returned
+   *  by OAP when present (e.g. `percentile='99'`); otherwise the raw
+   *  expression string is used. */
   series?: DashboardSeries[];
+  /** `top` payload — sorted list returned by a `top_n(...)` MQE. */
+  topList?: DashboardTopItem[];
 }
 
 export interface DashboardResponse {

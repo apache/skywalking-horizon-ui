@@ -62,7 +62,7 @@ const widgetSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
   tip: z.string().optional(),
-  type: z.enum(['card', 'line']),
+  type: z.enum(['card', 'line', 'top']),
   expressions: z.array(z.string().min(1)).min(1).max(8),
   unit: z.string().optional(),
   span: z.number().int().min(1).max(12).optional(),
@@ -81,8 +81,27 @@ const bodySchema = z.object({
   scope: scopeSchema.optional(),
 });
 
+interface MqeOwner {
+  scope?: string | null;
+  serviceName?: string | null;
+  serviceInstanceName?: string | null;
+  endpointName?: string | null;
+}
+interface MqeValueShape {
+  id?: string | null;
+  value?: string | null;
+  owner?: MqeOwner | null;
+}
+interface MqeLabelShape {
+  key: string;
+  value: string;
+}
+interface MqeMetadataShape {
+  labels?: MqeLabelShape[] | null;
+}
 interface MqeValuesShape {
-  values?: Array<{ id?: string | null; value?: string | null }>;
+  metric?: MqeMetadataShape | null;
+  values?: MqeValueShape[];
 }
 interface MqeResultShape {
   type: string;
@@ -124,12 +143,22 @@ function buildFragment(
   normal: boolean,
   w: Window,
 ): string {
+  // We fetch metric.labels (for multi-series Line widgets — relabels()
+  // returns one labeled result per percentile) and value.id /
+  // owner.endpointName (for TopList widgets — top_n() returns a
+  // sorted list of entities + values).
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(expression)},\n` +
     `      entity: { scope: Service, serviceName: ${JSON.stringify(serviceName)}, normal: ${normal ? 'true' : 'false'} },\n` +
     `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
-    `    ) { type error results { values { value } } }`
+    `    ) {\n` +
+    `      type error\n` +
+    `      results {\n` +
+    `        metric { labels { key value } }\n` +
+    `        values { id value owner { scope serviceName serviceInstanceName endpointName } }\n` +
+    `      }\n` +
+    `    }`
   );
 }
 
@@ -148,6 +177,62 @@ function avgOf(series: Array<number | null> | null): number | null {
   const xs = series.filter((v): v is number => v !== null);
   if (xs.length === 0) return null;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+/**
+ * Time-series MQE responses can carry multiple labeled results (one
+ * relabel() call returns 5 results, one per percentile). Convert each
+ * to a `DashboardSeries`. The label preference order:
+ *  - explicit `relabels(..., key='...')` from metric.labels
+ *  - the OAP id field (e.g., `endpoint_percentile{p='99'}`)
+ *  - fallback to the raw expression
+ */
+function parseLabeledSeries(
+  r: MqeResultShape | undefined,
+  fallbackLabel: string,
+): Array<{ label: string; data: Array<number | null> }> | null {
+  if (!r || r.error) return null;
+  const out: Array<{ label: string; data: Array<number | null> }> = [];
+  for (const rs of r.results ?? []) {
+    const values = rs.values ?? [];
+    if (values.length === 0) continue;
+    const data = values.map((v) => {
+      if (v.value === null || v.value === undefined) return null;
+      const n = Number(v.value);
+      return Number.isFinite(n) ? n : null;
+    });
+    // Prefer the most-specific label OAP returned. relabels() adds a
+    // `percentile` key; raw `service_percentile{p='99'}` shows up as
+    // `p='99'`. Either way, take the last (most-derived) entry.
+    const labels = rs.metric?.labels ?? [];
+    const lbl =
+      labels.length > 0
+        ? labels[labels.length - 1].value
+        : values[0]?.id ?? fallbackLabel;
+    out.push({ label: lbl, data });
+  }
+  return out.length > 0 ? out : null;
+}
+
+/** Extract a sorted list from a `top_n(...)` MQE response. Owner.endpointName
+ *  / serviceInstanceName / serviceName takes priority over the bare id
+ *  so operators see readable rows. */
+function parseTopList(
+  r: MqeResultShape | undefined,
+): Array<{ name: string; value: number | null }> | null {
+  if (!r || r.error) return null;
+  const values = r.results?.[0]?.values ?? [];
+  if (values.length === 0) return null;
+  return values.map((v) => {
+    const name =
+      v.owner?.endpointName ??
+      v.owner?.serviceInstanceName ??
+      v.owner?.serviceName ??
+      v.id ??
+      '—';
+    const num = v.value !== null && v.value !== undefined ? Number(v.value) : null;
+    return { name, value: Number.isFinite(num as number) ? (num as number) : null };
+  });
 }
 
 export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
@@ -245,25 +330,37 @@ export function registerDashboardRoute(app: FastifyInstance, deps: DashboardRout
         }
       }
 
-      // Step 3 — collapse per widget.
+      // Step 3 — collapse per widget. Per-type handling:
+      //  - 'card': scalar = avg of the first non-null series
+      //  - 'line': flatten every MQE result (one per series) — handles
+      //    both the simple case (1 expression → 1 series) and the
+      //    relabels() case (1 expression → N labeled series)
+      //  - 'top':  extract sorted list from the first expression
       const results: DashboardWidgetResult[] = widgets.map((widget, wIdx) => {
-        const series = widget.expressions.map((_, eIdx) => parseSeries(data[`w${wIdx}_e${eIdx}`]));
-        const allFailed = series.every((s) => s === null);
-        if (allFailed) {
-          return { id: widget.id, error: 'no data' };
+        if (widget.type === 'top') {
+          const r = data[`w${wIdx}_e0`];
+          const top = parseTopList(r);
+          return top ? { id: widget.id, topList: top } : { id: widget.id, error: 'no data' };
         }
+
         if (widget.type === 'card') {
-          // Card collapses to scalar from the first non-null series.
-          const first = series.find((s) => s !== null) ?? null;
+          const first = widget.expressions.map((_, eIdx) =>
+            parseSeries(data[`w${wIdx}_e${eIdx}`]),
+          ).find((s) => s !== null);
+          if (!first) return { id: widget.id, error: 'no data' };
           return { id: widget.id, value: avgOf(first) };
         }
-        return {
-          id: widget.id,
-          series: series.map((s, eIdx) => ({
-            label: widget.expressions[eIdx],
-            data: s ?? [],
-          })),
-        };
+
+        // 'line' — concat every result from every expression. One MQE
+        // can return N labeled series (relabels()), so we don't assume
+        // 1:1 between expressions and series.
+        const flat: { label: string; data: Array<number | null> }[] = [];
+        widget.expressions.forEach((expr, eIdx) => {
+          const labeled = parseLabeledSeries(data[`w${wIdx}_e${eIdx}`], expr);
+          if (labeled) flat.push(...labeled);
+        });
+        if (flat.length === 0) return { id: widget.id, error: 'no data' };
+        return { id: widget.id, series: flat };
       });
 
       return reply.send({ ...baseResp, widgets: results });

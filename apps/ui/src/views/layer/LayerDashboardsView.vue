@@ -30,6 +30,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
+import TopList from '@/components/charts/TopList.vue';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/composables/useLayerDashboard';
 import { useLayerLanding } from '@/composables/useLayerLanding';
 import { useLayers } from '@/composables/useLayers';
@@ -175,6 +176,14 @@ function isVisible(
             />
             <span v-else class="muted">no data</span>
           </template>
+          <template v-else-if="w.type === 'top'">
+            <TopList
+              v-if="resultsById.get(w.id)?.topList?.length"
+              :items="resultsById.get(w.id)!.topList!"
+              :unit="w.unit"
+            />
+            <span v-else class="muted">no data</span>
+          </template>
         </div>
       </div>
     </div>
@@ -273,6 +282,11 @@ function isVisible(
   justify-content: center;
   padding: 8px 12px;
   min-height: 0;
+  overflow: hidden;
+}
+.w-body :deep(.top-list) {
+  align-self: stretch;
+  justify-self: stretch;
 }
 .card-value {
   display: flex;
