@@ -18,7 +18,7 @@
 import { ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
-import logoSw from '@/assets/icons/logo-sw.svg?url';
+import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
@@ -74,7 +74,7 @@ const admin: NavRow[] = [
 <template>
   <aside class="sw-side">
     <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
-      <img :src="logoSw" alt="SkyWalking" class="brand-logo" />
+      <span class="brand-logo" v-html="logoSw" />
       <small>Horizon</small>
     </RouterLink>
 
@@ -155,7 +155,12 @@ const admin: NavRow[] = [
   color: inherit;
 }
 .brand-logo {
-  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--sw-fg-0);
+}
+.brand-logo :deep(svg) {
+  height: 16px;
   width: auto;
   display: block;
 }

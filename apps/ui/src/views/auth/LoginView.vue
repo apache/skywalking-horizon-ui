@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import logoSw from '@/assets/icons/logo-sw.svg?url';
+import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useAuthStore } from '@/stores/auth';
 
 const auth = useAuthStore();
@@ -47,7 +47,7 @@ async function submit(): Promise<void> {
   <div class="login-wrap">
     <form class="login-card" @submit.prevent="submit">
       <div class="brand">
-        <img :src="logoSw" alt="SkyWalking" class="brand-logo" />
+        <span class="brand-logo" v-html="logoSw" />
         <div class="brand-sub">Horizon UI</div>
       </div>
 
@@ -113,7 +113,11 @@ async function submit(): Promise<void> {
   margin-bottom: 22px;
 }
 .brand-logo {
-  height: 26px;
+  display: inline-flex;
+  color: var(--sw-fg-0);
+}
+.brand-logo :deep(svg) {
+  height: 24px;
   width: auto;
   display: block;
 }
