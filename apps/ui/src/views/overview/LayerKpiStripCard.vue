@@ -71,21 +71,21 @@ const slotName = computed(() => cfg.value.slots.services ?? 'services');
       <span class="count-unit">{{ slotName.toLowerCase() }}</span>
     </div>
 
-    <div class="traffic-row" :title="`${throughputMeta.longLabel}\n\n${throughputMeta.tip}`">
-      <span class="traffic-label">{{ throughputMeta.label }}</span>
-      <span class="traffic-value" :class="{ muted: throughputValue == null }">
-        {{ fmtMetric(throughputValue) }}<span v-if="throughputMeta.unit" class="unit">{{ throughputMeta.unit }}</span>
-      </span>
-    </div>
-
-    <div class="spark-row">
+    <div class="traffic-block" :title="`${throughputMeta.longLabel}\n\n${throughputMeta.tip}`">
+      <div class="traffic-meta">
+        <span class="traffic-label">{{ throughputMeta.label }}</span>
+        <span class="traffic-value" :class="{ muted: throughputValue == null }">
+          {{ fmtMetric(throughputValue) }}<span v-if="throughputMeta.unit" class="unit">{{ throughputMeta.unit }}</span>
+        </span>
+      </div>
       <Sparkline
         v-if="throughputSeries && throughputSeries.length > 1"
+        class="trend"
         :values="throughputSeries"
-        :width="120"
-        :height="18"
+        :width="160"
+        :height="32"
         :color="layer.color"
-        :stroke="1.25"
+        :stroke="1.5"
       />
       <span v-else class="spark-empty">—</span>
     </div>
@@ -150,7 +150,15 @@ const slotName = computed(() => cfg.value.slots.services ?? 'services');
   font-size: 10.5px;
   color: var(--sw-fg-3);
 }
-.traffic-row {
+.traffic-block {
+  margin-top: 3px;
+  border-top: 1px dashed var(--sw-line);
+  padding-top: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.traffic-meta {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -176,14 +184,17 @@ const slotName = computed(() => cfg.value.slots.services ?? 'services');
   font-size: 9.5px;
   margin-left: 1px;
 }
-.spark-row {
-  display: flex;
-  align-items: center;
-  margin-top: 2px;
-  min-height: 18px;
+.trend {
+  width: 100%;
+  height: 32px;
+  display: block;
 }
 .spark-empty {
   color: var(--sw-fg-3);
   font-size: 10px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

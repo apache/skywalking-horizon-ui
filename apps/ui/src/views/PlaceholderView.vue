@@ -15,14 +15,15 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-defineProps<{ title: string; phase: string; note?: string }>();
+defineProps<{ title: string; phase: string; note?: string; inset?: boolean }>();
 </script>
 
 <template>
-  <div class="ph">
+  <div class="ph" :class="{ inset }">
     <div class="ph-card">
       <div class="ph-kicker">Coming in {{ phase }}</div>
-      <h1>{{ title }}</h1>
+      <h1 v-if="!inset">{{ title }}</h1>
+      <h2 v-else>{{ title }}</h2>
       <p v-if="note">{{ note }}</p>
     </div>
   </div>
@@ -35,6 +36,19 @@ defineProps<{ title: string; phase: string; note?: string }>();
   justify-content: center;
   min-height: 60vh;
   padding: 32px;
+}
+.ph.inset {
+  min-height: 200px;
+  padding: 20px;
+}
+.ph.inset .ph-card {
+  padding: 20px 24px;
+}
+.ph-card h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  margin: 0 0 6px;
 }
 .ph-card {
   background: var(--sw-bg-1);

@@ -23,20 +23,11 @@ function humanKey(k: string): string {
   return k.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-// Layer sub-routes are open-ended — any `:layerKey` is accepted. The real
-// per-layer view (Phase 2.6+) will read live cap data via useLayers() and
-// render a 'doesn't expose' note when the cap is off. The placeholder here
-// only needs the raw key + the feature label.
-function layerSubRoutes(): RouteRecordRaw[] {
-  const sub: RouteRecordRaw[] = [];
-  // Bare /layer/:layerKey redirects to /layer/:layerKey/services — the
-  // default entry point per layer. There is no per-layer 'overview'
-  // (the global Overview at / handles that).
-  sub.push({
-    path: 'layer/:layerKey',
-    redirect: (to) => ({ path: `/layer/${to.params.layerKey}/services` }),
-  });
-
+// Layer sub-routes nest under a single LayerShell route so every tab
+// shares the header KPI strip + cap-driven tab navigation. The shell
+// reads `:layerKey` from the URL and pulls layer config / live data.
+// Sub-route components fill the tab body via a nested router-view.
+function layerRoute(): RouteRecordRaw {
   const features: { path: string; label: string; phase: string }[] = [
     { path: 'services', label: 'Services', phase: 'Phase 2 / 3' },
     { path: 'instances', label: 'Instances', phase: 'Phase 2 / 3' },
@@ -49,23 +40,31 @@ function layerSubRoutes(): RouteRecordRaw[] {
     { path: 'profiling', label: 'Profiling', phase: 'Phase 8' },
     { path: 'events', label: 'Events', phase: 'Phase 5' },
   ];
-  for (const f of features) {
-    sub.push({
-      path: `layer/:layerKey/${f.path}`,
-      component: placeholder,
-      props: (r) => ({
-        title: `${humanKey(String(r.params.layerKey))} · ${f.label}`,
-        phase: f.phase,
-      }),
-    });
-  }
-  return sub;
+  return {
+    path: 'layer/:layerKey',
+    component: () => import('@/views/layer/LayerShell.vue'),
+    children: [
+      // Bare /layer/:layerKey lands on Services — the default entry.
+      { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/services` }) },
+      ...features.map<RouteRecordRaw>((f) => ({
+        path: f.path,
+        component: placeholder,
+        props: (r) => ({
+          title: `${humanKey(String(r.params.layerKey))} · ${f.label}`,
+          phase: f.phase,
+          // The shell renders its own header — placeholder mode for tab
+          // bodies shows just the phase note.
+          inset: true,
+        }),
+      })),
+    ],
+  };
 }
 
 const shellRoutes: RouteRecordRaw[] = [
   { path: '', name: 'overview', component: () => import('@/views/overview/OverviewView.vue') },
   { path: 'setup', name: 'setup', component: () => import('@/views/setup/SetupView.vue') },
-  ...layerSubRoutes(),
+  layerRoute(),
   // Alerts (user-facing — alarms are observability data, not operator-only)
   { path: 'alarms', component: placeholder, props: { title: 'Alarms', phase: 'Phase 5', note: 'Read-only; recovery is backend-auto. Live debug card via admin REST.' } },
   // Marketplace — all dashboards / templates across layers
