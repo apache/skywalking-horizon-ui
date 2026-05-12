@@ -103,6 +103,11 @@ function buildOption(): echarts.EChartsCoreOption {
       backgroundColor: 'rgba(20,20,24,0.92)',
       borderColor: 'rgba(255,255,255,0.08)',
       textStyle: { color: '#e5e7eb', fontSize: 11 },
+      // Append to document.body so the popup isn't clipped by the
+      // widget card's overflow:hidden. Otherwise the tooltip cuts off
+      // at the card edge whenever a chart sits near the boundary.
+      appendToBody: true,
+      confine: false,
       valueFormatter: (v: unknown) =>
         typeof v === 'number' && Number.isFinite(v)
           ? `${v.toFixed(2)}${props.unit ? ` ${props.unit}` : ''}`
@@ -181,11 +186,25 @@ function buildOption(): echarts.EChartsCoreOption {
         name,
         type: 'line',
         smooth: true,
-        symbol: 'none',
+        // Small circle markers on every data point so values are
+        // visually anchored even before hover; the marker grows on
+        // emphasis (hover) for the active point.
+        symbol: 'circle',
+        symbolSize: 4,
+        showSymbol: true,
         yAxisIndex: s.yAxisIndex ?? 0,
         lineStyle: { width: 1.5 },
         data: s.data.map((v) => (v === null ? '-' : v)),
-        itemStyle: { color },
+        itemStyle: { color, borderColor: color, borderWidth: 1 },
+        emphasis: {
+          focus: 'series',
+          scale: false,
+          itemStyle: {
+            borderColor: color,
+            borderWidth: 2,
+            color: '#fff',
+          },
+        },
         areaStyle:
           props.series.length === 1
             ? { color: accentHex, opacity: 0.12 }
