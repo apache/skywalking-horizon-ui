@@ -17,8 +17,10 @@
 
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { AuditLogger } from '../audit/logger.js';
 import { badRequest, unauthorized } from '../errors.js';
 import type { ConfigSource } from '../config/loader.js';
+import { resolveVerbsForRoles } from '../rbac/verbs.js';
 import { verifyLocalCredentials } from './local.js';
 import type { SessionStore } from './sessions.js';
 
@@ -31,6 +33,7 @@ export function registerAuthRoutes(
   app: FastifyInstance,
   source: ConfigSource,
   sessions: SessionStore,
+  audit: AuditLogger,
 ): void {
   const cookieName = () => source.current.session.cookieName;
   const cookieSecure = () => source.current.session.cookieSecure;
@@ -45,9 +48,13 @@ export function registerAuthRoutes(
       parsed.data.username,
       parsed.data.password,
     );
-    if (!verified) throw unauthorized('invalid credentials');
+    if (!verified) {
+      audit.record({ actor: parsed.data.username, action: 'auth.login', outcome: 'failure' });
+      throw unauthorized('invalid credentials');
+    }
 
     const session = sessions.create(verified.username, verified.roles);
+    audit.record({ actor: session.username, action: 'auth.login', outcome: 'success' });
     reply.setCookie(cookieName(), session.sid, {
       httpOnly: true,
       sameSite: 'strict',
@@ -60,7 +67,11 @@ export function registerAuthRoutes(
 
   app.post('/api/auth/logout', async (req, reply) => {
     const sid = req.cookies[cookieName()];
-    if (sid) sessions.destroy(sid);
+    if (sid) {
+      const session = sessions.touch(sid);
+      if (session) audit.record({ actor: session.username, action: 'auth.logout', outcome: 'success' });
+      sessions.destroy(sid);
+    }
     reply.clearCookie(cookieName(), { path: '/' });
     return { status: 'ok' };
   });
@@ -70,6 +81,11 @@ export function registerAuthRoutes(
     if (!sid) throw unauthorized();
     const session = sessions.touch(sid);
     if (!session) throw unauthorized();
-    return { username: session.username, roles: session.roles };
+    const verbs = resolveVerbsForRoles(
+      source.current.rbac.roles,
+      session.roles,
+      source.current.rbac.enabled,
+    );
+    return { username: session.username, roles: session.roles, verbs };
   });
 }

@@ -17,6 +17,7 @@
 
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import { AuditLogger } from './audit/logger.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import { SessionStore } from './auth/sessions.js';
 import { loadConfig, type ConfigSource } from './config/loader.js';
@@ -41,10 +42,12 @@ app.setErrorHandler((err, _req, reply) => {
 });
 
 const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
+const audit = new AuditLogger(source.current.audit.file);
+await audit.open();
 
 await app.register(cookie);
 
-registerAuthRoutes(app, source, sessions);
+registerAuthRoutes(app, source, sessions, audit);
 
 app.get('/api/health', async () => ({
   status: 'ok',
@@ -65,6 +68,7 @@ async function shutdown(signal: string) {
   logger.info({ signal }, 'shutting down');
   await app.close();
   await sessions.close();
+  await audit.close();
   await source.close();
   process.exit(0);
 }
