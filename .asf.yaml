@@ -34,7 +34,10 @@ github:
     merge:   false
     rebase:  false
   dependabot_updates: false
-  # Branch protection is intentionally OFF during pre-1.0 single-author
-  # development to keep the iteration loop tight. Re-add `protected_branches`
-  # with `required_status_checks` + `required_approving_review_count: 1`
-  # before the v1.0 release / when a second committer joins.
+  # Branch protection and PR approval are intentionally OFF during pre-1.0
+  # single-author development to keep the iteration loop tight. The explicit
+  # `~` (YAML null) tells ASF infra to clear any previously-applied
+  # `protected_branches` config — omitting the key would leave prior
+  # protections in place. Re-add status-check + review gating before v1.0
+  # or when a second committer joins.
+  protected_branches: ~
