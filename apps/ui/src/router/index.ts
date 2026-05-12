@@ -65,7 +65,10 @@ function layerSubRoutes(): RouteRecordRaw[] {
 }
 
 const shellRoutes: RouteRecordRaw[] = [
-  { path: '', name: 'home', component: () => import('@/views/landing/LandingView.vue') },
+  { path: '', name: 'setup', component: () => import('@/views/setup/SetupView.vue') },
+  // The eventual landing route — wired live in Stage 2.4 once the layer
+  // landing data endpoint exists. For now it shares the setup component.
+  { path: 'landing', name: 'landing', component: () => import('@/views/setup/SetupView.vue') },
   ...layerSubRoutes(),
   // Alerts (user-facing — alarms are observability data, not operator-only)
   { path: 'alarms', component: placeholder, props: { title: 'Alarms', phase: 'Phase 5', note: 'Read-only; recovery is backend-auto. Live debug card via admin REST.' } },

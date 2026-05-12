@@ -98,57 +98,58 @@ async function submit(): Promise<void> {
     var(--sw-bg-0);
 }
 .login-card {
-  width: 360px;
+  width: 440px;
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
-  border-radius: 10px;
-  padding: 24px 24px 18px;
-  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
+  border-radius: 12px;
+  padding: 36px 36px 26px;
+  box-shadow: 0 32px 80px -28px rgba(0, 0, 0, 0.7);
 }
 .brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 22px;
+  gap: 10px;
+  margin-bottom: 28px;
 }
 .brand-logo {
   display: inline-flex;
   color: var(--sw-fg-0);
 }
 .brand-logo :deep(svg) {
-  height: 24px;
+  height: 44px;
   width: auto;
   display: block;
 }
 .brand-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--sw-fg-2);
-  letter-spacing: 0.06em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
+  font-weight: 500;
 }
 .field {
   display: block;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .field span {
   display: block;
-  font-size: 10px;
+  font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--sw-fg-2);
-  margin-bottom: 6px;
+  margin-bottom: 7px;
 }
 .field input {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
+  height: 38px;
+  padding: 0 12px;
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line-2);
-  border-radius: 6px;
+  border-radius: 7px;
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
   transition: border-color 0.1s;
 }
@@ -166,18 +167,20 @@ async function submit(): Promise<void> {
 }
 .submit {
   width: 100%;
-  height: 34px;
-  margin-top: 6px;
-  font-size: 13px;
+  height: 40px;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
 }
 .submit:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 .foot {
-  margin-top: 14px;
+  margin-top: 18px;
   font-size: 11px;
   color: var(--sw-fg-3);
   text-align: center;
+  line-height: 1.5;
 }
 </style>

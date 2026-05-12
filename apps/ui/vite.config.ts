@@ -28,7 +28,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 8080,
+    // 9090: horizon-side. 8080 is reserved for the legacy booster-ui that
+    // operators may run side-by-side during migration.
+    port: 9090,
+    strictPort: true,
     proxy: {
       // proxy to the BFF (`apps/bff`) during dev
       '/api': {
