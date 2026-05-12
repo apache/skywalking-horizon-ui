@@ -92,14 +92,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @skywalking-horizon-ui/bff build
 
-  sanity-check:
+  required:
+    # Status-check name pinned to "Required" so Apache branch protection
+    # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
+    # [Required]`) can gate on a single rolled-up signal.
     if: always() && !cancelled()
-    name: Sanity check results
+    name: Required
     needs: [license-header, type-check, build-ui, build-bff]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check results
+      - name: Check upstream jobs
         run: |
           [[ ${{ needs.license-header.result }} == 'success' ]] || exit 1
           [[ ${{ needs.type-check.result }} == 'success' ]] || exit 1
