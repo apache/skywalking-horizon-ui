@@ -34,12 +34,7 @@ github:
     merge:   false
     rebase:  false
   dependabot_updates: false
-  protected_branches:
-    main:
-      required_status_checks:
-        strict: true
-        contexts:
-          - Required
-      required_pull_request_reviews:
-        dismiss_stale_reviews: true
-        required_approving_review_count: 1
+  # Branch protection is intentionally OFF during pre-1.0 single-author
+  # development to keep the iteration loop tight. Re-add `protected_branches`
+  # with `required_status_checks` + `required_approving_review_count: 1`
+  # before the v1.0 release / when a second committer joins.
