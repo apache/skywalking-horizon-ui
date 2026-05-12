@@ -114,7 +114,9 @@ const tabs = computed<Tab[]>(() => {
   if (L.caps.traces) out.push({ to: `${base}/traces`, label: 'Traces' });
   if (L.caps.logs) out.push({ to: `${base}/logs`, label: 'Logs' });
   if (L.caps.profiling) out.push({ to: `${base}/profiling`, label: 'Profiling' });
-  if (L.caps.events) out.push({ to: `${base}/events`, label: 'Events' });
+  // `events` cap intentionally omitted — operators rely on the sidebar
+  // for cross-cutting event views; per-layer Events will get its own
+  // design pass later.
   return out;
 });
 
@@ -195,7 +197,23 @@ const sourceText = computed(() => {
         </div>
       </div>
 
-      <nav class="tab-strip" v-if="tabs.length > 0">
+    </header>
+
+    <!-- Service selector sits between the layer header and the tab
+         strip — operators pick context first, then drill into the
+         specific tab they want. Selection (URL ?service=) carries
+         across every tab. -->
+    <LayerServiceSelector
+      v-if="layer && sampledServices.length > 0"
+      :services="sampledServices"
+      :columns="selectorColumns"
+      :selected-id="selectedId"
+      :accent="layer.color"
+      @select="setSelected"
+    />
+
+    <nav v-if="layer && tabs.length > 0" class="sw-card tab-strip-wrap">
+      <div class="tab-strip">
         <RouterLink
           v-for="t in tabs"
           :key="t.to"
@@ -205,8 +223,8 @@ const sourceText = computed(() => {
         >
           {{ t.label }}
         </RouterLink>
-      </nav>
-    </header>
+      </div>
+    </nav>
 
     <div v-else class="missing">
       <div class="sw-card missing-card">
@@ -242,7 +260,7 @@ const sourceText = computed(() => {
   margin: 0 auto;
 }
 .layer-head {
-  padding: 14px 14px 0;
+  padding: 14px;
   margin-bottom: 14px;
 }
 .head-row {
@@ -338,12 +356,14 @@ const sourceText = computed(() => {
   color: var(--sw-fg-3);
   margin-left: 2px;
 }
+.tab-strip-wrap {
+  margin-bottom: 14px;
+  padding: 0;
+}
 .tab-strip {
   display: flex;
   gap: 2px;
-  margin: 14px -14px 0;
   padding: 0 14px;
-  border-bottom: 1px solid var(--sw-line);
   overflow-x: auto;
 }
 .tab {

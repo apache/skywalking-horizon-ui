@@ -74,10 +74,11 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
     </div>
 
     <template v-else>
-      <!-- Top KPI strip: 6 equal-width per-layer cards (service count +
-           throughput value + sparkline). Adopts the design's KPI-strip
-           style at landing.jsx:30-38. -->
-      <div class="kpi-strip" :style="{ '--kpi-count': topSix.length }">
+      <!-- Top KPI strip: per-layer cards (service count + throughput
+           value + sparkline). Adopts the design's KPI-strip style at
+           landing.jsx:30-38. Auto-fit grid so a 3-layer strip doesn't
+           leave 3 ghost columns. -->
+      <div class="kpi-strip">
         <LayerKpiStripCard v-for="L in topSix" :key="L.key" :layer="L" />
       </div>
 
@@ -184,19 +185,12 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
  * grid never goes wider than necessary. */
 .kpi-strip {
   display: grid;
-  grid-template-columns: repeat(var(--kpi-count, 6), 1fr);
+  /* Auto-fit on a 180px floor — 6 layers fit comfortably above ~1140px,
+   * fall back to 3 / 2 / 1 columns at narrower viewports without an
+   * explicit media-query stack. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
   margin-bottom: 14px;
-}
-@media (max-width: 1100px) {
-  .kpi-strip {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-@media (max-width: 720px) {
-  .kpi-strip {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 
 /* Layout — 5fr grid:

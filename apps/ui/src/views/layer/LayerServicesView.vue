@@ -28,7 +28,6 @@
 import { computed, ref } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 import type { LandingServiceRow, LayerDef } from '@skywalking-horizon-ui/api-client';
-import LayerConstellation from './LayerConstellation.vue';
 import { metricMeta } from '@/composables/metricCatalog';
 import { useLayerLanding } from '@/composables/useLayerLanding';
 import { useLayers } from '@/composables/useLayers';
@@ -130,17 +129,6 @@ const hasApdex = computed(() =>
 );
 const totalApdex = computed(() => apdexBuckets.value.reduce((a, b) => a + b.count, 0));
 
-const trafficMetric = computed(() => cfg.value?.landing.orderBy ?? 'cpm');
-const errorMetric = computed(() => {
-  // Prefer a column with 'err'-shaped semantics; otherwise fall through
-  // to the orderBy metric (constellation degrades gracefully — all dots
-  // render as 'ok' if the error metric isn't in the column set).
-  const cols = cfg.value?.landing.columns ?? [];
-  const match = cols.find((c) =>
-    /err|sla/.test(c.metric.toLowerCase()),
-  );
-  return match?.metric ?? 'err';
-});
 const reachable = computed(() => landing.data.value?.reachable !== false);
 </script>
 
@@ -152,28 +140,6 @@ const reachable = computed(() => landing.data.value?.reachable !== false);
     </div>
 
     <div class="grid">
-      <section class="sw-card">
-        <div class="card-head">
-          <h4>Service health constellation</h4>
-          <span class="sub">angle · service order ⋅ radius · log({{ trafficMetric }}) ⋅ color · {{ errorMetric }} band</span>
-        </div>
-        <div class="card-body">
-          <LayerConstellation
-            v-if="sampled.length > 0"
-            :services="sampled"
-            :traffic-metric="trafficMetric"
-            :error-metric="errorMetric"
-            :selected-id="selectedId"
-            @pick="openService"
-          />
-          <p v-else-if="landing.isLoading.value" class="empty">Loading services…</p>
-          <p v-else class="empty">
-            No services reporting on this layer yet. Once data flows the constellation lights up
-            automatically.
-          </p>
-        </div>
-      </section>
-
       <section class="sw-card services-table-card">
         <div class="card-head">
           <h4>Services in this layer</h4>

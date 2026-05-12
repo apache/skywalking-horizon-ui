@@ -40,7 +40,6 @@ function layerRoute(): RouteRecordRaw {
     { path: 'traces', label: 'Traces', phase: 'Phase 5' },
     { path: 'logs', label: 'Logs', phase: 'Phase 5' },
     { path: 'profiling', label: 'Profiling', phase: 'Phase 8' },
-    { path: 'events', label: 'Events', phase: 'Phase 5' },
   ];
   return {
     path: 'layer/:layerKey',
