@@ -19,6 +19,7 @@ import { computed, toRef } from 'vue';
 import { RouterLink } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
+import Sparkline from '@/components/charts/Sparkline.vue';
 import { metricMeta } from '@/composables/metricCatalog';
 import { useLayerLanding } from '@/composables/useLayerLanding';
 import { useSetupStore } from '@/stores/setup';
@@ -99,7 +100,16 @@ const serviceHref = (serviceId: string): string =>
             >
               {{ fmtMetric(row.metrics[c.metric]) }}
             </td>
-            <td v-if="cfg.landing.spark" class="spark-col muted">—</td>
+            <td v-if="cfg.landing.spark" class="spark-col">
+              <Sparkline
+                v-if="row.spark && row.spark.length > 1"
+                :values="row.spark"
+                :width="60"
+                :height="cfg.landing.spark.height ?? 14"
+                :color="layer.color"
+              />
+              <span v-else class="empty-cell">—</span>
+            </td>
           </tr>
           <tr
             v-for="i in placeholderCount"
@@ -130,8 +140,8 @@ const serviceHref = (serviceId: string): string =>
           <RouterLink to="/setup">customize this card</RouterLink>.
         </span>
         <span v-else class="placeholder-note">
-          Sparkline + live trend land in Stage 2.6b —
-          <RouterLink to="/setup">customize this card</RouterLink>.
+          <RouterLink to="/setup">Customize this card</RouterLink> ·
+          <RouterLink :to="detailHref">all services →</RouterLink>
         </span>
       </div>
     </div>

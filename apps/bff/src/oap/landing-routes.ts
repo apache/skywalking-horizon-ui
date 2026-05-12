@@ -41,7 +41,7 @@ import type { ConfigSource } from '../config/loader.js';
 import type { SessionStore } from '../auth/sessions.js';
 import { requireAuth } from '../auth/middleware.js';
 import { graphqlPost } from './graphql-client.js';
-import { resolveColumnExpressions } from './mqe-catalog.js';
+import { expressionForServiceMetric, resolveColumnExpressions } from './mqe-catalog.js';
 
 export interface LandingRouteDeps {
   config: ConfigSource;
@@ -138,6 +138,22 @@ function alias(serviceIdx: number, columnIdx: number): string {
  * booster-ui does on its KPI tiles when an expression isn't wrapped in
  * `avg(...)` already.
  */
+/**
+ * Convert a TIME_SERIES_VALUES MQE result into an ordered series, one
+ * bucket per `step` slot. Non-numeric / null values become `null` so
+ * the SPA can render a gap in the sparkline.
+ */
+function collapseToSeries(r: MqeResultShape | undefined): Array<number | null> | null {
+  if (!r || r.error) return null;
+  const values = r.results?.[0]?.values ?? [];
+  if (values.length === 0) return null;
+  return values.map((v) => {
+    if (v.value === null || v.value === undefined) return null;
+    const n = Number(v.value);
+    return Number.isFinite(n) ? n : null;
+  });
+}
+
 function collapseToScalar(r: MqeResultShape | undefined): number | null {
   if (!r || r.error) return null;
   const values = r.results?.[0]?.values ?? [];
@@ -176,6 +192,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         label: labels[i] || metric,
         ...(units[i] ? { unit: units[i] } : {}),
       }));
+      const sparkMetric = q.spark && q.spark.length > 0 ? q.spark : null;
 
       // OAP enum is upper-case (`GENERAL`, `VIRTUAL_MQ`, …); the SPA
       // sends lower-case route keys.
@@ -294,6 +311,43 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         return bv - av;
       });
 
+      const topRows = rows.slice(0, topN);
+
+      // Step 5 — sparkline series for the surviving topN only.
+      // Skipped when no spark metric was requested or its expression
+      // can't be resolved for this layer.
+      const sparkExpr = sparkMetric
+        ? expressionForServiceMetric(sparkMetric, layerKey)
+        : null;
+      if (sparkExpr && topRows.length > 0) {
+        const sparkFragments: string[] = [];
+        const sparkAliasFor = (i: number) => `s${i}`;
+        topRows.forEach((row, i) => {
+          const svc = sampled.find((s) => s.id === row.serviceId);
+          if (!svc) return;
+          const isNormal = svc.normal === false ? 'false' : 'true';
+          sparkFragments.push(
+            `${sparkAliasFor(i)}: execExpression(\n` +
+              `      expression: ${JSON.stringify(sparkExpr)},\n` +
+              `      entity: { scope: Service, serviceName: ${JSON.stringify(svc.value)}, normal: ${isNormal} },\n` +
+              `      duration: { start: ${JSON.stringify(window.start)}, end: ${JSON.stringify(window.end)}, step: MINUTE }\n` +
+              `    ) { type error results { values { value } } }`,
+          );
+        });
+        if (sparkFragments.length > 0) {
+          const sparkQuery = `query LandingSpark { ${sparkFragments.join('\n    ')} }`;
+          try {
+            const sparkData = await graphqlPost<Record<string, MqeResultShape>>(opts, sparkQuery);
+            topRows.forEach((row, i) => {
+              const series = collapseToSeries(sparkData[sparkAliasFor(i)]);
+              if (series) row.spark = series;
+            });
+          } catch {
+            // Soft-fail: card renders without sparkline column data.
+          }
+        }
+      }
+
       const body: LandingResponse = {
         layer: layerKey,
         topN,
@@ -302,7 +356,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         step: 'MINUTE',
         durationStart: window.start,
         durationEnd: window.end,
-        rows: rows.slice(0, topN),
+        rows: topRows,
         reachable: true,
       };
       return reply.send(body);
