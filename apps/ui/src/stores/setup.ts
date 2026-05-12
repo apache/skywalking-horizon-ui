@@ -18,6 +18,7 @@
 import { defineStore } from 'pinia';
 import { computed, reactive, ref } from 'vue';
 import type {
+  AggregationKind,
   LandingConfig,
   LayerCaps,
   LayerConfig,
@@ -42,13 +43,50 @@ function defaultPriority(layerKey: string): number {
   return 99;
 }
 
+/**
+ * Sensible default aggregation per metric. Throughput-shaped keys (cpm,
+ * msg-rate, qps, pv, invocations, tokens, page views, requests) default
+ * to `sum` so the layer-wide KPI tile reflects whole-layer traffic.
+ * Latency / SLA / percentile / error / apdex default to `avg`.
+ */
+function defaultAggregationFor(metricKey: string): AggregationKind {
+  const k = metricKey.toLowerCase();
+  if (
+    k === 'cpm' ||
+    k.endsWith('.msg-rate') ||
+    k.endsWith('.qps') ||
+    k.endsWith('.pv') ||
+    k.endsWith('.invocations') ||
+    k.endsWith('.tokens') ||
+    k.endsWith('.req') ||
+    k.endsWith('.slow-queries') ||
+    k.endsWith('.js-err') ||
+    k.endsWith('.cold-start') ||
+    k.endsWith('.restart')
+  ) {
+    return 'sum';
+  }
+  return 'avg';
+}
+
 export function defaultLandingFor(layerKey: string): LandingConfig {
+  const cols = defaultColumnsForLayer(layerKey).map((c) => ({
+    ...c,
+    aggregation: defaultAggregationFor(c.metric),
+  }));
+  const sparkMetric = defaultSparkForLayer(layerKey);
   return {
     priority: defaultPriority(layerKey),
     topN: 5,
     orderBy: defaultOrderByForLayer(layerKey),
-    columns: defaultColumnsForLayer(layerKey),
-    spark: { metric: defaultSparkForLayer(layerKey), height: 28 },
+    columns: cols,
+    spark: { metric: sparkMetric, height: 28 },
+    // Throughput tile defaults to the orderBy metric — operator can
+    // override or remove via Setup. `sum` matches whole-layer traffic.
+    throughput: {
+      metric: defaultOrderByForLayer(layerKey),
+      aggregation: defaultAggregationFor(defaultOrderByForLayer(layerKey)),
+    },
     style: 'table',
   };
 }

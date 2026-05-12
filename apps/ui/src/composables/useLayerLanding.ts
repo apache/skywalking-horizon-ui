@@ -34,21 +34,23 @@ export function useLayerLanding(
   cfg: Ref<LandingConfig>,
 ) {
   const layerKey = computed(() => layer.value.key);
-  const columnsKey = computed(() => cfg.value.columns.map((c) => c.metric).join(','));
-  const sparkKey = computed(() => cfg.value.spark?.metric ?? '');
+  // Cache key reflects every field that changes the server response —
+  // when an operator edits aggregation / MQE override / scale via setup,
+  // vue-query re-fetches.
+  const cfgHash = computed(() => JSON.stringify({
+    topN: cfg.value.topN,
+    orderBy: cfg.value.orderBy,
+    columns: cfg.value.columns,
+    spark: cfg.value.spark,
+    throughput: cfg.value.throughput,
+  }));
 
   const q = useQuery({
-    queryKey: ['layer-landing', layerKey, computed(() => cfg.value.topN), computed(() => cfg.value.orderBy), columnsKey, sparkKey],
-    queryFn: () => bffClient.layerLanding(layerKey.value, {
-      topN: cfg.value.topN,
-      orderBy: cfg.value.orderBy,
-      columns: cfg.value.columns,
-      ...(cfg.value.spark ? { spark: cfg.value.spark.metric } : {}),
-    }),
+    queryKey: ['layer-landing', layerKey, cfgHash],
+    queryFn: () => bffClient.layerLanding(layerKey.value, cfg.value),
     staleTime: 45_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
-    // Don't pound the server on a known-broken layer key.
     retry: 1,
   });
 

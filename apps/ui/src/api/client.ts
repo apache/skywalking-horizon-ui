@@ -16,6 +16,7 @@
  */
 
 import type {
+  LandingConfig,
   LandingResponse,
   MenuResponse,
   OapInfo,
@@ -38,14 +39,6 @@ export type {
   LandingServiceRow,
 } from '@skywalking-horizon-ui/api-client';
 
-/** Params accepted by `GET /api/layer/:key/landing`. */
-export interface LandingQuery {
-  topN: number;
-  orderBy: string;
-  columns: ReadonlyArray<{ metric: string; label: string; unit?: string }>;
-  /** Optional sparkline metric — not yet rendered server-side. */
-  spark?: string;
-}
 
 export interface MeResponse {
   username: string;
@@ -137,18 +130,20 @@ export class BffClient {
   }
 
   // ── landing (per-layer top-N) ────────────────────────────────────────
-  layerLanding(layerKey: string, q: LandingQuery): Promise<LandingResponse> {
-    const params = new URLSearchParams({
-      topN: String(q.topN),
-      orderBy: q.orderBy,
-      columns: q.columns.map((c) => c.metric).join(','),
-      labels: q.columns.map((c) => c.label).join('|'),
-      units: q.columns.map((c) => c.unit ?? '').join('|'),
-    });
-    if (q.spark) params.set('spark', q.spark);
+  layerLanding(layerKey: string, cfg: LandingConfig): Promise<LandingResponse> {
+    // The wire payload mirrors LandingConfig minus the priority/style
+    // bits the BFF doesn't care about.
+    const body = {
+      topN: cfg.topN,
+      orderBy: cfg.orderBy,
+      columns: cfg.columns,
+      ...(cfg.spark ? { spark: cfg.spark } : {}),
+      ...(cfg.throughput ? { throughput: cfg.throughput } : {}),
+    };
     return this.request<LandingResponse>(
-      'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/landing?${params.toString()}`,
+      'POST',
+      `/api/layer/${encodeURIComponent(layerKey)}/landing`,
+      body,
     );
   }
 

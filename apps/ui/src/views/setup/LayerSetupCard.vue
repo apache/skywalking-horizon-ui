@@ -16,10 +16,32 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { AggregationKind, LayerDef } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { METRICS, metricsForLayer } from '@/composables/metricCatalog';
 import { useSetupStore, defaultLandingFor } from '@/stores/setup';
+
+/** Mirror of the setup-store's defaultAggregationFor — kept inline so the
+ *  setup UI seeds new columns with the same defaults the store uses. */
+function defaultAgg(metricKey: string): AggregationKind {
+  const k = metricKey.toLowerCase();
+  if (
+    k === 'cpm' ||
+    k.endsWith('.msg-rate') ||
+    k.endsWith('.qps') ||
+    k.endsWith('.pv') ||
+    k.endsWith('.invocations') ||
+    k.endsWith('.tokens') ||
+    k.endsWith('.req') ||
+    k.endsWith('.slow-queries') ||
+    k.endsWith('.js-err') ||
+    k.endsWith('.cold-start') ||
+    k.endsWith('.restart')
+  ) {
+    return 'sum';
+  }
+  return 'avg';
+}
 
 const props = defineProps<{ layer: LayerDef; expanded?: boolean }>();
 const emit = defineEmits<{ (e: 'toggle'): void }>();
@@ -104,7 +126,26 @@ function toggleColumn(metric: string, label: string, unit?: string): void {
   if (idx >= 0) {
     cols.splice(idx, 1);
   } else if (cols.length < 5) {
-    cols.push({ metric, label, ...(unit ? { unit } : {}) });
+    cols.push({
+      metric,
+      label,
+      ...(unit ? { unit } : {}),
+      aggregation: defaultAgg(metric),
+    });
+  }
+  onEdit();
+}
+
+const showAdvanced = ref(false);
+function toggleThroughput(): void {
+  if (cfg.value.landing.throughput) {
+    cfg.value.landing.throughput = undefined;
+  } else {
+    const m = cfg.value.landing.orderBy;
+    cfg.value.landing.throughput = {
+      metric: m,
+      aggregation: defaultAgg(m),
+    };
   }
   onEdit();
 }
@@ -254,6 +295,133 @@ const isDefaultLanding = computed(() => {
               </button>
             </template>
           </div>
+        </div>
+      </section>
+
+      <section v-if="cfg.landing.columns.length > 0">
+        <div class="row-with-toggle">
+          <h4>Column details</h4>
+          <button class="sw-btn ghost small" type="button" @click="showAdvanced = !showAdvanced">
+            {{ showAdvanced ? 'Hide advanced' : 'Show advanced (MQE, scale, precision)' }}
+          </button>
+        </div>
+        <table class="col-editor">
+          <thead>
+            <tr>
+              <th>Metric</th>
+              <th>Label</th>
+              <th>Unit</th>
+              <th>Aggregate</th>
+              <template v-if="showAdvanced">
+                <th>MQE override</th>
+                <th>Scale</th>
+                <th>Precision</th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="col in cfg.landing.columns" :key="col.metric">
+              <td class="metric-key">{{ col.metric }}</td>
+              <td><input class="ctl" v-model="col.label" @input="onEdit" /></td>
+              <td><input class="ctl narrow" v-model="col.unit" placeholder="—" @input="onEdit" /></td>
+              <td>
+                <select class="ctl narrow" v-model="col.aggregation" @change="onEdit">
+                  <option value="avg">avg</option>
+                  <option value="sum">sum</option>
+                </select>
+              </td>
+              <template v-if="showAdvanced">
+                <td>
+                  <input
+                    class="ctl mono"
+                    v-model="col.mqe"
+                    placeholder="catalog default"
+                    title="Paste a custom MQE expression to override the built-in mapping (e.g. avg(service_sla)/100)."
+                    @input="onEdit"
+                  />
+                </td>
+                <td>
+                  <input
+                    class="ctl narrow"
+                    type="number"
+                    step="any"
+                    v-model.number="col.scale"
+                    placeholder="1"
+                    title="Multiplier applied to the raw MQE value. Use 0.01 to convert SkyWalking SLA (9923 → 99.23)."
+                    @input="onEdit"
+                  />
+                </td>
+                <td>
+                  <input
+                    class="ctl narrow"
+                    type="number"
+                    min="0"
+                    max="6"
+                    v-model.number="col.precision"
+                    placeholder="auto"
+                    title="Decimal places to round to before display."
+                    @input="onEdit"
+                  />
+                </td>
+              </template>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <div class="row-with-toggle">
+          <h4>Throughput KPI</h4>
+          <button class="sw-btn ghost small" type="button" @click="toggleThroughput">
+            {{ cfg.landing.throughput ? 'Remove' : 'Add' }}
+          </button>
+        </div>
+        <p class="hint subtle">
+          The headline metric on this layer's Overview tile. Aggregation defaults to
+          <code>sum</code> (whole-layer traffic) when off; switch to <code>avg</code> for
+          ratio-shaped metrics.
+        </p>
+        <div v-if="cfg.landing.throughput" class="field-grid landing">
+          <label>
+            <span>Metric</span>
+            <select v-model="cfg.landing.throughput.metric" @change="onEdit">
+              <option v-for="c in availableColumns" :key="c.metric" :value="c.metric" :title="c.tip">
+                {{ c.longLabel }}
+              </option>
+            </select>
+          </label>
+          <label>
+            <span>Aggregation</span>
+            <select v-model="cfg.landing.throughput.aggregation" @change="onEdit">
+              <option value="sum">sum</option>
+              <option value="avg">avg</option>
+            </select>
+          </label>
+          <label>
+            <span>Label (optional)</span>
+            <input v-model="cfg.landing.throughput.label" placeholder="Throughput" @input="onEdit" />
+          </label>
+          <label>
+            <span>Unit (optional)</span>
+            <input v-model="cfg.landing.throughput.unit" placeholder="—" @input="onEdit" />
+          </label>
+          <label class="wide-2">
+            <span>MQE override (optional)</span>
+            <input
+              class="mono"
+              v-model="cfg.landing.throughput.mqe"
+              placeholder="catalog default"
+              @input="onEdit"
+            />
+          </label>
+          <label>
+            <span>Scale</span>
+            <input type="number" step="any" v-model.number="cfg.landing.throughput.scale" placeholder="1" @input="onEdit" />
+          </label>
+          <label>
+            <span>Precision</span>
+            <input type="number" min="0" max="6" v-model.number="cfg.landing.throughput.precision" placeholder="auto" @input="onEdit" />
+          </label>
         </div>
       </section>
 
@@ -443,5 +611,78 @@ const isDefaultLanding = computed(() => {
   margin-left: auto;
   font-size: 10.5px;
   color: var(--sw-fg-3);
+}
+.row-with-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.row-with-toggle h4 {
+  margin: 0;
+}
+.row-with-toggle .sw-btn {
+  margin-left: auto;
+  height: 22px;
+  font-size: 10.5px;
+  padding: 0 8px;
+}
+.hint.subtle {
+  margin: -2px 0 8px;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  line-height: 1.5;
+}
+.hint.subtle code {
+  font-family: var(--sw-mono);
+  font-size: 10px;
+  background: var(--sw-bg-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+.col-editor {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.col-editor th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 10px;
+  color: var(--sw-fg-3);
+  letter-spacing: 0.04em;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.col-editor td {
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+.col-editor .metric-key {
+  font-family: var(--sw-mono);
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+}
+.col-editor .ctl {
+  width: 100%;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 3px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11px;
+}
+.col-editor .ctl.narrow {
+  max-width: 70px;
+}
+.col-editor .ctl.mono,
+.field-grid .mono {
+  font-family: var(--sw-mono);
+  font-size: 10.5px;
+}
+.field-grid label.wide-2 {
+  grid-column: span 2;
 }
 </style>

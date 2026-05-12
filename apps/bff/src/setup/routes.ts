@@ -32,11 +32,29 @@ export interface SetupRouteDeps {
   store: SetupStore;
 }
 
+const aggregationSchema = z.enum(['sum', 'avg']);
+
 const landingColumnSchema = z
   .object({
     metric: z.string().min(1),
     label: z.string().min(1),
     unit: z.string().optional(),
+    mqe: z.string().optional(),
+    aggregation: aggregationSchema.optional(),
+    scale: z.number().finite().optional(),
+    precision: z.number().int().min(0).max(6).optional(),
+  })
+  .strict();
+
+const throughputSchema = z
+  .object({
+    metric: z.string().min(1),
+    label: z.string().optional(),
+    unit: z.string().optional(),
+    mqe: z.string().optional(),
+    aggregation: aggregationSchema.optional(),
+    scale: z.number().finite().optional(),
+    precision: z.number().int().min(0).max(6).optional(),
   })
   .strict();
 
@@ -53,6 +71,7 @@ const landingSchema = z
       })
       .strict()
       .optional(),
+    throughput: throughputSchema.optional(),
     style: z.enum(['table', 'bar', 'mini-topology']),
   })
   .strict();

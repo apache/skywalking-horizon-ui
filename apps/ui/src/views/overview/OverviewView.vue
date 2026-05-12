@@ -19,13 +19,25 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import { useLayers } from '@/composables/useLayers';
 import { useLandingOrder } from '@/composables/useLandingOrder';
+import AlarmsPanel from './AlarmsPanel.vue';
+import LayerKpiTile from './LayerKpiTile.vue';
 import LayerLandingCard from './LayerLandingCard.vue';
 
 const { availableLayers, oapReachable, oapError, isLoading } = useLayers();
 const orderedLayers = useLandingOrder(availableLayers);
 
-// Empty only when no layer is reporting services. Otherwise every
-// available layer auto-renders a card per its setup config.
+/* Top 6 only — beyond six the page gets noisy and the user has to
+ * scroll past low-priority layers to reach the Alarms / Throughput
+ * panels. Operators with >6 reporting layers can re-order via setup
+ * to surface the ones that matter on the Overview. */
+const topSix = computed(() => orderedLayers.value.slice(0, 6));
+/* Featured pair = top-2 by priority. These get the full LayerLandingCard
+ * with the topN service table. */
+const featured = computed(() => topSix.value.slice(0, 2));
+/* The next 4 render as compact LayerKpiTile (KPI + sparkline + inline
+ * aggregates, no service table). 4 fits a 2×2 grid neatly. */
+const compact = computed(() => topSix.value.slice(2, 6));
+const overflow = computed(() => Math.max(0, orderedLayers.value.length - 6));
 const empty = computed(() => !isLoading.value && orderedLayers.value.length === 0);
 </script>
 
@@ -36,9 +48,8 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
         <div class="kicker">Overview</div>
         <h1>Cross-layer landing</h1>
         <p class="lede">
-          Every layer reporting services renders a card here, in the order each layer's priority
-          defines. Each card shows the top services for that layer with its configured metrics —
-          adjust per-layer priority, top-N, and columns in
+          The top 2 layers (by priority) get full top-N cards; the next 4 render as compact KPI
+          tiles. Adjust priority, columns, aggregation, and the throughput metric in
           <RouterLink to="/setup">Overview setup</RouterLink>.
         </p>
       </div>
@@ -57,14 +68,32 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
           ordered by the priority you assign in
           <RouterLink to="/setup">Overview setup</RouterLink>.
         </p>
-        <RouterLink class="sw-btn is-primary" to="/setup">
-          Open Overview setup
-        </RouterLink>
+        <RouterLink class="sw-btn is-primary" to="/setup">Open Overview setup</RouterLink>
       </div>
     </div>
 
-    <div v-else class="cards">
-      <LayerLandingCard v-for="L in orderedLayers" :key="L.key" :layer="L" />
+    <div v-else class="overview-grid">
+      <!-- Top 2 featured cards: side-by-side, each 2/5 of the page width. -->
+      <LayerLandingCard
+        v-for="L in featured"
+        :key="L.key"
+        :layer="L"
+        :class="`featured featured-${featured.indexOf(L) + 1}`"
+      />
+
+      <!-- Alarms rail: pinned to the right column, rowspans all visible rows. -->
+      <AlarmsPanel class="alarms-rail" />
+
+      <!-- Compact tiles: 2x2 grid filling 3/5 of the page width across 2 rows. -->
+      <div class="compact-grid">
+        <LayerKpiTile v-for="L in compact" :key="L.key" :layer="L" />
+      </div>
+
+      <div v-if="overflow > 0" class="overflow-note">
+        {{ overflow }} more layer{{ overflow === 1 ? '' : 's' }} not shown.
+        <RouterLink to="/setup">Re-order via setup</RouterLink>
+        to surface them.
+      </div>
     </div>
   </div>
 </template>
@@ -144,13 +173,81 @@ const empty = computed(() => !isLoading.value && orderedLayers.value.length === 
   color: var(--sw-accent-2);
   text-decoration: none;
 }
-.cards {
-  /* Auto-flow grid: as wide as 4 columns when there's room (>~1380 px),
-   * collapses to 3 / 2 / 1 as the viewport narrows. Each card holds its
-   * minmax-floor so the table stays legible. */
+
+/* Layout — 5fr grid:
+ *  Row 1: featured-1 (2/5) · featured-2 (2/5) · alarms-rail (1/5)
+ *  Row 2: compact-grid (4 tiles, 2x2 — 3/5 wide) ·   alarms-rail (continues, 2/5)
+ *
+ * The alarms rail widens from 1/5 in row 1 to 2/5 in row 2 — driven by
+ * the compact-grid only occupying 3/5 of the row. This matches the
+ * "top 2 = 2/5 each, other 4 = 3/5" allocation in the operator brief.
+ */
+.overview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 2fr 2fr 1fr;
+  grid-template-rows: auto auto;
+  grid-template-areas:
+    'feat1 feat2 alarms'
+    'compact compact alarms';
   gap: 14px;
   align-items: start;
+}
+.featured-1 {
+  grid-area: feat1;
+  min-width: 0;
+}
+.featured-2 {
+  grid-area: feat2;
+  min-width: 0;
+}
+.alarms-rail {
+  grid-area: alarms;
+  min-width: 0;
+  align-self: stretch;
+}
+.compact-grid {
+  grid-area: compact;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  min-width: 0;
+}
+.overflow-note {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--sw-fg-3);
+  padding: 4px 8px;
+}
+.overflow-note a {
+  color: var(--sw-accent-2);
+  text-decoration: none;
+}
+
+/* Below ~1100px the rail crowds the featured cards — fall back to a
+ * single column. The Alarms panel still has utility at narrow widths. */
+@media (max-width: 1100px) {
+  .overview-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'feat1 feat2'
+      'compact compact'
+      'alarms alarms';
+  }
+  .compact-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'feat1'
+      'feat2'
+      'compact'
+      'alarms';
+  }
+  .compact-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

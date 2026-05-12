@@ -18,13 +18,15 @@
 export * from './types.js';
 export type { LayerSlots, LayerCaps, LayerDef, MenuResponse } from './menu.js';
 export type {
+  AggregationKind,
   LandingColumn,
   LandingConfig,
   LayerConfig,
   SetupResponse,
   SetupSavePayload,
+  ThroughputConfig,
 } from './setup.js';
-export type { LandingResponse, LandingServiceRow } from './landing.js';
+export type { LandingAggregates, LandingResponse, LandingServiceRow } from './landing.js';
 export type { OapInfo } from './oap-info.js';
 export { parseOapTimezoneMinutes } from './oap-info.js';
 export {

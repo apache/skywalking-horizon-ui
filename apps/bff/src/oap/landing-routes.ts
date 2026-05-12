@@ -16,24 +16,32 @@
  */
 
 /**
- * `GET /api/layer/:key/landing` — top-N services for a layer with their
- * configured column metrics, ready for the Overview landing card.
+ * `POST /api/layer/:key/landing` — top-N services for a layer with their
+ * configured column metrics + whole-layer aggregates for the Overview
+ * KPI strip tile.
  *
- * One round-trip to OAP for `listServices(layer)`, then a second
- * round-trip that batches `execExpression(...)` aliases — one per
- * service × column. We sort the result by `orderBy desc` and slice to
- * `topN`. MQE failures are soft — the affected cell becomes `null` so
- * the rest of the card still renders.
+ * Body shape (subset of `LandingConfig` from the setup wire types):
+ * ```
+ *  {
+ *    topN, orderBy, columns: LandingColumn[],
+ *    spark?: { metric, height },
+ *    throughput?: ThroughputConfig,
+ *  }
+ * ```
  *
- * The duration window is always a fixed look-back (default 15 min,
- * MINUTE step) anchored to the BFF clock. Phase 2.7's per-layer detail
- * page introduces a proper time-range picker; Overview cards stay on
- * the cheap default.
+ * One GraphQL trip lists services, a second batches per-service column
+ * MQE values (one alias per service × column), a third optional trip
+ * fetches the sparkline + throughput series for the surviving topN
+ * rows. Errors anywhere in the MQE batch are local — failing cells
+ * become `null`, the rest of the response stands.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import type {
+  AggregationKind,
   FetchLike,
+  LandingAggregates,
   LandingResponse,
   LandingServiceRow,
 } from '@skywalking-horizon-ui/api-client';
@@ -41,7 +49,7 @@ import type { ConfigSource } from '../config/loader.js';
 import type { SessionStore } from '../auth/sessions.js';
 import { requireAuth } from '../auth/middleware.js';
 import { graphqlPost } from './graphql-client.js';
-import { expressionForServiceMetric, resolveColumnExpressions } from './mqe-catalog.js';
+import { expressionForServiceMetric } from './mqe-catalog.js';
 
 export interface LandingRouteDeps {
   config: ConfigSource;
@@ -51,7 +59,7 @@ export interface LandingRouteDeps {
 
 interface ListServicesRow {
   id: string;
-  value: string; // alias for name
+  value: string;
   shortName?: string | null;
   group?: string | null;
   normal?: boolean | null;
@@ -79,20 +87,37 @@ const LIST_SERVICES_QUERY = /* GraphQL */ `
   }
 `;
 
-/** Default look-back window for the landing card. Kept small + cheap —
- *  matches what booster-ui's KPI tiles use under the global Overview. */
 const DEFAULT_WINDOW_MIN = 15;
-
-/** Cap how many services we'll spread MQE queries over. listServices
- *  can return hundreds for big deployments; querying all of them on
- *  every Overview render is wasteful since only top-N are rendered. We
- *  sort client-side after the queries, so this cap is a sampling
- *  ceiling rather than the true top-N.
- *
- *  In Phase 3 we'll move to MQE's `top_n(...)` aggregator which OAP can
- *  resolve server-side. Until then, 25 is the breakpoint where one
- *  request stays sub-second on a typical dev OAP. */
 const SERVICE_QUERY_CAP = 25;
+
+const aggSchema = z.enum(['sum', 'avg']);
+const columnSchema = z.object({
+  metric: z.string().min(1),
+  label: z.string().min(1),
+  unit: z.string().optional(),
+  mqe: z.string().optional(),
+  aggregation: aggSchema.optional(),
+  scale: z.number().finite().optional(),
+  precision: z.number().int().min(0).max(6).optional(),
+});
+const throughputSchema = z.object({
+  metric: z.string().min(1),
+  label: z.string().optional(),
+  unit: z.string().optional(),
+  mqe: z.string().optional(),
+  aggregation: aggSchema.optional(),
+  scale: z.number().finite().optional(),
+  precision: z.number().int().min(0).max(6).optional(),
+});
+const bodySchema = z.object({
+  topN: z.number().int().min(1).max(8),
+  orderBy: z.string().min(1),
+  columns: z.array(columnSchema).max(5),
+  spark: z
+    .object({ metric: z.string().min(1), height: z.number().int().positive() })
+    .optional(),
+  throughput: throughputSchema.optional(),
+});
 
 interface Window {
   start: string;
@@ -100,7 +125,6 @@ interface Window {
   step: 'MINUTE';
 }
 
-/** Format a Date in OAP's MINUTE step format: `yyyy-MM-dd HHmm`. */
 function fmtMinute(d: Date): string {
   const yyyy = d.getUTCFullYear();
   const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -110,38 +134,34 @@ function fmtMinute(d: Date): string {
   return `${yyyy}-${mm}-${dd} ${hh}${mi}`;
 }
 
-/**
- * Build the default look-back window. Anchored to the BFF UTC clock for
- * now — replacing this with the OAP-side `getTimeInfo` cache is a
- * follow-up so the duration aligns with the storage TZ. The
- * MQE-resolver tolerates a few minutes of skew either way.
- */
 function defaultWindow(): Window {
   const end = new Date();
-  // Round to the previous minute boundary so consecutive calls hit
-  // the same OAP bucket — improves cache locality on the server side.
   end.setUTCSeconds(0, 0);
   const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
   return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
 }
 
-/** GraphQL aliases must be valid identifiers. Index-based prefix. */
-function alias(serviceIdx: number, columnIdx: number): string {
-  return `r${serviceIdx}_c${columnIdx}`;
+/** Pick the expression to fire for `(metric, layer)`. Honors the operator's
+ *  explicit `mqe` override when set. */
+function resolveMqe(metric: string, mqe: string | undefined, layerKey: string): string | null {
+  if (mqe && mqe.trim().length > 0) return mqe.trim();
+  return expressionForServiceMetric(metric, layerKey);
+}
+
+/** Apply optional scale + precision to a raw MQE value. */
+function postProcess(v: number | null, scale: number | undefined, precision: number | undefined): number | null {
+  if (v === null || !Number.isFinite(v)) return null;
+  let out = scale ? v * scale : v;
+  if (precision !== undefined) {
+    const factor = Math.pow(10, precision);
+    out = Math.round(out * factor) / factor;
+  }
+  return out;
 }
 
 /**
- * Convert a SINGLE_VALUE MQE result to a number. OAP returns each value
- * as a stringified number (or `null`). For SINGLE_VALUE the `values`
- * array has one entry; for TIME_SERIES_VALUES it has many — we use the
- * `avg` of the non-null entries as the cell value, matching what
- * booster-ui does on its KPI tiles when an expression isn't wrapped in
- * `avg(...)` already.
- */
-/**
- * Convert a TIME_SERIES_VALUES MQE result into an ordered series, one
- * bucket per `step` slot. Non-numeric / null values become `null` so
- * the SPA can render a gap in the sparkline.
+ * Collapse a TIME_SERIES_VALUES MQE result to an ordered series, one
+ * bucket per `step` slot. Non-numeric / null values become `null`.
  */
 function collapseToSeries(r: MqeResultShape | undefined): Array<number | null> | null {
   if (!r || r.error) return null;
@@ -154,23 +174,73 @@ function collapseToSeries(r: MqeResultShape | undefined): Array<number | null> |
   });
 }
 
+/**
+ * Collapse to a single scalar (avg of non-null bucket values). MQE with
+ * `step: MINUTE` over 15m typically returns ~15 buckets — averaging
+ * matches what booster-ui's KPI tiles do.
+ */
 function collapseToScalar(r: MqeResultShape | undefined): number | null {
-  if (!r || r.error) return null;
-  const values = r.results?.[0]?.values ?? [];
-  const parsed: number[] = [];
-  for (const v of values) {
-    if (v.value === null || v.value === undefined) continue;
-    const n = Number(v.value);
-    if (Number.isFinite(n)) parsed.push(n);
+  const series = collapseToSeries(r);
+  if (!series) return null;
+  const ns = series.filter((x): x is number => x !== null);
+  if (ns.length === 0) return null;
+  return ns.reduce((a, b) => a + b, 0) / ns.length;
+}
+
+/** Apply the operator's chosen aggregation across the topN rows for one metric. */
+function aggregate(values: Array<number | null>, kind: AggregationKind): number | null {
+  const finite = values.filter((v): v is number => v !== null && Number.isFinite(v));
+  if (finite.length === 0) return null;
+  const sum = finite.reduce((a, b) => a + b, 0);
+  return kind === 'avg' ? sum / finite.length : sum;
+}
+
+/** Same idea but point-by-point across multiple sparkline series. */
+function aggregateSeries(
+  serieses: Array<Array<number | null> | undefined>,
+  kind: AggregationKind,
+): Array<number | null> | null {
+  const real = serieses.filter((s): s is Array<number | null> => Array.isArray(s) && s.length > 0);
+  if (real.length === 0) return null;
+  const len = Math.max(...real.map((s) => s.length));
+  const out: Array<number | null> = [];
+  for (let i = 0; i < len; i++) {
+    const pts = real
+      .map((s) => s[i])
+      .filter((v): v is number => v !== null && v !== undefined && Number.isFinite(v));
+    if (pts.length === 0) {
+      out.push(null);
+    } else {
+      const sum = pts.reduce((a, b) => a + b, 0);
+      out.push(kind === 'avg' ? sum / pts.length : sum);
+    }
   }
-  if (parsed.length === 0) return null;
-  const sum = parsed.reduce((a, b) => a + b, 0);
-  return sum / parsed.length;
+  return out;
+}
+
+function alias(serviceIdx: number, columnIdx: number): string {
+  return `r${serviceIdx}_c${columnIdx}`;
+}
+
+interface MqeRequest {
+  expression: string;
+  serviceName: string;
+  normal: boolean;
+}
+
+function buildMqeFragment(aliasName: string, req: MqeRequest, w: Window): string {
+  return (
+    `${aliasName}: execExpression(\n` +
+    `      expression: ${JSON.stringify(req.expression)},\n` +
+    `      entity: { scope: Service, serviceName: ${JSON.stringify(req.serviceName)}, normal: ${req.normal ? 'true' : 'false'} },\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `    ) { type error results { values { value } } }`
+  );
 }
 
 export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDeps): void {
   const auth = requireAuth(deps);
-  app.get(
+  app.post(
     '/api/layer/:key/landing',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
@@ -179,28 +249,16 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-
-      const q = req.query as Record<string, string | undefined>;
-      const topNRaw = Number(q.topN ?? 5);
-      const topN = Math.max(1, Math.min(8, Number.isFinite(topNRaw) ? topNRaw : 5));
-      const columnsRaw = (q.columns ?? '').split(',').filter(Boolean);
-      const orderBy = q.orderBy ?? columnsRaw[0] ?? 'cpm';
-      const labels = (q.labels ?? '').split('|');
-      const units = (q.units ?? '').split('|');
-      const columns = columnsRaw.map((metric, i) => ({
-        metric,
-        label: labels[i] || metric,
-        ...(units[i] ? { unit: units[i] } : {}),
-      }));
-      const sparkMetric = q.spark && q.spark.length > 0 ? q.spark : null;
-
-      // OAP enum is upper-case (`GENERAL`, `VIRTUAL_MQ`, …); the SPA
-      // sends lower-case route keys.
+      const parsed = bodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
+      }
+      const cfg = parsed.data;
       const oapLayer = layerKey.toUpperCase();
-      const cfg = deps.config.current;
+      const cfgCurrent = deps.config.current;
       const opts = {
-        statusUrl: cfg.oap.statusUrl,
-        timeoutMs: cfg.oap.timeoutMs,
+        statusUrl: cfgCurrent.oap.statusUrl,
+        timeoutMs: cfgCurrent.oap.timeoutMs,
         fetch: deps.fetch,
       };
       const window = defaultWindow();
@@ -217,59 +275,54 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       } catch (err) {
         const body: LandingResponse = {
           layer: layerKey,
-          topN,
-          orderBy,
+          topN: cfg.topN,
+          orderBy: cfg.orderBy,
           generatedAt: Date.now(),
           step: 'MINUTE',
           durationStart: window.start,
           durationEnd: window.end,
           rows: [],
+          aggregates: { serviceCount: 0, metrics: {} },
           reachable: false,
           error: err instanceof Error ? err.message : String(err),
         };
         return reply.send(body);
       }
 
-      // Empty layer is fine — no error, no rows.
-      if (services.length === 0 || columns.length === 0) {
+      const totalServiceCount = services.length;
+      if (services.length === 0 || cfg.columns.length === 0) {
         const body: LandingResponse = {
           layer: layerKey,
-          topN,
-          orderBy,
+          topN: cfg.topN,
+          orderBy: cfg.orderBy,
           generatedAt: Date.now(),
           step: 'MINUTE',
           durationStart: window.start,
           durationEnd: window.end,
           rows: [],
+          aggregates: { serviceCount: totalServiceCount, metrics: {} },
           reachable: true,
         };
         return reply.send(body);
       }
 
-      // Step 2 — batched MQE queries, one alias per (service, column).
+      // Step 2 — resolve MQE expressions per column.
       const sampled = services.slice(0, SERVICE_QUERY_CAP);
-      const resolved = resolveColumnExpressions(columns, layerKey);
-      // Trip is cheaper than 25× round-trips: one query with all aliases.
+      const resolved = cfg.columns.map((c) => ({
+        column: c,
+        expression: resolveMqe(c.metric, c.mqe, layerKey),
+      }));
+
       const fragments: string[] = [];
-      const aliasMap = new Map<string, { sIdx: number; cIdx: number }>();
       sampled.forEach((svc, sIdx) => {
         resolved.forEach(({ expression }, cIdx) => {
           if (!expression) return;
-          const a = alias(sIdx, cIdx);
-          aliasMap.set(a, { sIdx, cIdx });
-          // Inline JSON.stringify keeps expressions safely quoted even
-          // when they contain `{p='99'}` label selectors.
-          const exprLit = JSON.stringify(expression);
-          const svcLit = JSON.stringify(svc.value);
-          const isNormal = svc.normal === false ? 'false' : 'true';
-          const startLit = JSON.stringify(window.start);
-          const endLit = JSON.stringify(window.end);
           fragments.push(
-            `${a}: execExpression(\n` +
-              `      expression: ${exprLit},\n` +
-              `      entity: { scope: Service, serviceName: ${svcLit}, normal: ${isNormal} },\n` +
-              `      duration: { start: ${startLit}, end: ${endLit}, step: MINUTE }\n` +
-              `    ) { type error results { values { value } } }`,
+            buildMqeFragment(
+              alias(sIdx, cIdx),
+              { expression, serviceName: svc.value, normal: svc.normal !== false },
+              window,
+            ),
           );
         });
       });
@@ -280,17 +333,16 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         try {
           mqeData = await graphqlPost<Record<string, MqeResultShape>>(opts, batchQuery);
         } catch {
-          // Soft-fail: leave mqeData empty, all cells render as null.
           mqeData = {};
         }
       }
 
-      // Step 3 — assemble rows.
+      // Step 3 — assemble per-row metrics (pre-aggregation, post-scale).
       const rows: LandingServiceRow[] = sampled.map((svc, sIdx) => {
         const metrics: Record<string, number | null> = {};
         resolved.forEach(({ column }, cIdx) => {
-          const a = alias(sIdx, cIdx);
-          metrics[column.metric] = collapseToScalar(mqeData[a]);
+          const raw = collapseToScalar(mqeData[alias(sIdx, cIdx)]);
+          metrics[column.metric] = postProcess(raw, column.scale, column.precision);
         });
         return {
           serviceId: svc.id,
@@ -301,62 +353,127 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         };
       });
 
-      // Step 4 — sort by orderBy desc, with nulls last; slice topN.
+      // Step 4 — sort + slice.
       rows.sort((a, b) => {
-        const av = a.metrics[orderBy];
-        const bv = b.metrics[orderBy];
+        const av = a.metrics[cfg.orderBy];
+        const bv = b.metrics[cfg.orderBy];
         if (av == null && bv == null) return a.serviceName.localeCompare(b.serviceName);
         if (av == null) return 1;
         if (bv == null) return -1;
         return bv - av;
       });
+      const topRows = rows.slice(0, cfg.topN);
 
-      const topRows = rows.slice(0, topN);
-
-      // Step 5 — sparkline series for the surviving topN only.
-      // Skipped when no spark metric was requested or its expression
-      // can't be resolved for this layer.
-      const sparkExpr = sparkMetric
-        ? expressionForServiceMetric(sparkMetric, layerKey)
+      // Step 5 — sparkline + throughput series for the surviving topN.
+      const sparkExpr = cfg.spark ? resolveMqe(cfg.spark.metric, undefined, layerKey) : null;
+      const throughputCol = cfg.throughput;
+      const throughputExpr = throughputCol
+        ? resolveMqe(throughputCol.metric, throughputCol.mqe, layerKey)
         : null;
-      if (sparkExpr && topRows.length > 0) {
+
+      // The throughput tile reuses one MQE call per surviving row — but
+      // only when it's a different expression than the column already
+      // fetched. Most setups will pick throughput = orderBy, so we just
+      // reuse `rows` values in that case.
+      const sparkSeriesByRow = new Map<number, Array<number | null>>();
+      const throughputSeriesByRow = new Map<number, Array<number | null>>();
+
+      if ((sparkExpr || throughputExpr) && topRows.length > 0) {
         const sparkFragments: string[] = [];
-        const sparkAliasFor = (i: number) => `s${i}`;
         topRows.forEach((row, i) => {
           const svc = sampled.find((s) => s.id === row.serviceId);
           if (!svc) return;
-          const isNormal = svc.normal === false ? 'false' : 'true';
-          sparkFragments.push(
-            `${sparkAliasFor(i)}: execExpression(\n` +
-              `      expression: ${JSON.stringify(sparkExpr)},\n` +
-              `      entity: { scope: Service, serviceName: ${JSON.stringify(svc.value)}, normal: ${isNormal} },\n` +
-              `      duration: { start: ${JSON.stringify(window.start)}, end: ${JSON.stringify(window.end)}, step: MINUTE }\n` +
-              `    ) { type error results { values { value } } }`,
-          );
+          const r: MqeRequest = { expression: '', serviceName: svc.value, normal: svc.normal !== false };
+          if (sparkExpr) {
+            sparkFragments.push(buildMqeFragment(`s${i}`, { ...r, expression: sparkExpr }, window));
+          }
+          if (throughputExpr && throughputExpr !== sparkExpr) {
+            sparkFragments.push(buildMqeFragment(`t${i}`, { ...r, expression: throughputExpr }, window));
+          }
         });
         if (sparkFragments.length > 0) {
           const sparkQuery = `query LandingSpark { ${sparkFragments.join('\n    ')} }`;
           try {
             const sparkData = await graphqlPost<Record<string, MqeResultShape>>(opts, sparkQuery);
             topRows.forEach((row, i) => {
-              const series = collapseToSeries(sparkData[sparkAliasFor(i)]);
-              if (series) row.spark = series;
+              const sk = sparkExpr ? collapseToSeries(sparkData[`s${i}`]) : null;
+              if (sk && cfg.spark) {
+                // Spark inherits the orderBy column's scale/precision if
+                // we have a matching column; otherwise raw.
+                const matchedCol = cfg.columns.find((c) => c.metric === cfg.spark!.metric);
+                const scaled = sk.map((v) =>
+                  postProcess(v, matchedCol?.scale, matchedCol?.precision),
+                );
+                row.spark = scaled;
+                sparkSeriesByRow.set(i, scaled);
+              }
+              if (throughputExpr) {
+                const series =
+                  throughputExpr === sparkExpr
+                    ? sk
+                    : collapseToSeries(sparkData[`t${i}`]);
+                if (series) {
+                  const scaled = series.map((v) =>
+                    postProcess(v, throughputCol?.scale, throughputCol?.precision),
+                  );
+                  throughputSeriesByRow.set(i, scaled);
+                }
+              }
             });
           } catch {
-            // Soft-fail: card renders without sparkline column data.
+            // Soft-fail: leave spark / throughput-spark empty.
           }
         }
       }
 
+      // Step 6 — aggregates for the KPI tile.
+      const aggregates: LandingAggregates = {
+        serviceCount: totalServiceCount,
+        metrics: {},
+      };
+      for (const col of cfg.columns) {
+        const kind: AggregationKind = col.aggregation ?? 'avg';
+        aggregates.metrics[col.metric] = aggregate(
+          topRows.map((r) => r.metrics[col.metric] ?? null),
+          kind,
+        );
+      }
+      if (throughputCol) {
+        const kind: AggregationKind = throughputCol.aggregation ?? 'sum';
+        // Value: either reuse the per-row column value (when throughput
+        // matches a column) or compute it now from the throughput series.
+        const matchingCol = cfg.columns.find((c) => c.metric === throughputCol.metric);
+        const values = matchingCol
+          ? topRows.map((r) => r.metrics[throughputCol.metric] ?? null)
+          : topRows.map((_, i) => {
+              const series = throughputSeriesByRow.get(i);
+              if (!series) return null;
+              const finite = series.filter((v): v is number => v !== null);
+              if (finite.length === 0) return null;
+              return finite.reduce((a, b) => a + b, 0) / finite.length;
+            });
+        aggregates.throughputMetric = throughputCol.metric;
+        aggregates.throughputValue = aggregate(values, kind);
+        const seriesList = topRows.map((_, i) => throughputSeriesByRow.get(i));
+        aggregates.spark = aggregateSeries(seriesList, kind);
+      } else if (cfg.spark) {
+        // No throughput configured — surface the spark metric's aggregated
+        // series as a fallback so the KPI tile still has a trend line.
+        const kind: AggregationKind = 'avg';
+        const seriesList = topRows.map((_, i) => sparkSeriesByRow.get(i));
+        aggregates.spark = aggregateSeries(seriesList, kind);
+      }
+
       const body: LandingResponse = {
         layer: layerKey,
-        topN,
-        orderBy,
+        topN: cfg.topN,
+        orderBy: cfg.orderBy,
         generatedAt: Date.now(),
         step: 'MINUTE',
         durationStart: window.start,
         durationEnd: window.end,
         rows: topRows,
+        aggregates,
         reachable: true,
       };
       return reply.send(body);
