@@ -38,29 +38,11 @@ jobs:
       - name: Check license header
         uses: apache/skywalking-eyes@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
 
-  dependency-license:
-    name: Dependency licenses
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
-      - run: pnpm install --frozen-lockfile
-      - name: Install license-eye
-        run: |
-          go install github.com/apache/skywalking-eyes/cmd/license-eye@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
-      - name: Verify dependency licenses
-        run: license-eye -v debug dependency resolve
+  # NOTE: `license-eye dependency resolve` is deferred to a release-only
+  # workflow. The tool invokes `npm ci` internally, which fails on pnpm
+  # workspaces (no package-lock.json). When we cut an Apache release we'll
+  # add a separate job that runs the resolver against a one-shot npm install
+  # of the production dep graph. For day-to-day CI, header-check is enough.
 
   type-check:
     name: Type-check (workspaces)
@@ -113,14 +95,13 @@ jobs:
   sanity-check:
     if: always() && !cancelled()
     name: Sanity check results
-    needs: [license-header, dependency-license, type-check, build-ui, build-bff]
+    needs: [license-header, type-check, build-ui, build-bff]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check results
         run: |
           [[ ${{ needs.license-header.result }} == 'success' ]] || exit 1
-          [[ ${{ needs.dependency-license.result }} == 'success' ]] || exit 1
           [[ ${{ needs.type-check.result }} == 'success' ]] || exit 1
           [[ ${{ needs.build-ui.result }} == 'success' ]] || exit 1
           [[ ${{ needs.build-bff.result }} == 'success' ]] || exit 1
