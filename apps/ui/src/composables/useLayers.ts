@@ -83,3 +83,26 @@ export function useLayers() {
     refetch: q.refetch,
   };
 }
+
+/**
+ * Pick the first sub-route a layer should land on, based on its
+ * declared components (slots / caps). Some layers turn off the service
+ * tab entirely (`mesh_dp` instance-only, `so11y_*_agent` per-agent
+ * JVM metrics) — without this helper, the sidebar + the bare-route
+ * redirect both shove the operator at `/service` and they land on an
+ * empty grid. Order mirrors the visible tab order in the sidebar.
+ */
+export function firstLayerTab(L: LayerDef | undefined): string {
+  if (!L) return 'service';
+  if (L.slots?.services || L.caps?.dashboards) return 'service';
+  if (L.slots?.instances) return 'instance';
+  if (L.slots?.endpoints) return 'endpoint';
+  if (L.caps?.serviceMap || L.caps?.instanceTopology || L.caps?.processTopology) return 'topology';
+  if (L.caps?.endpointDependency) return 'dependency';
+  if (L.caps?.traces) return 'trace';
+  if (L.caps?.logs) return 'logs';
+  if (L.caps?.traceProfiling) return 'trace-profiling';
+  if (L.caps?.ebpfProfiling) return 'ebpf-profiling';
+  if (L.caps?.asyncProfiling) return 'async-profiling';
+  return 'service';
+}

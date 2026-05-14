@@ -9,13 +9,16 @@
     "instances": "Sidecars"
   },
   "components": {
-    "service": true,
+    "service": false,
     "instances": true,
     "endpoints": false,
     "topology": false,
     "traces": false,
     "logs": true,
     "ebpfProfiling": true
+  },
+  "log": {
+    "scope": "instance"
   },
   "layer-header": {
     "orderBy": "conns",
@@ -67,126 +70,83 @@
   "dashboards": {
     "instance": [
       {
-        "id": "up_rq_active",
-        "title": "Upstream Request Active",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_up_rq_active"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "up_rq_pending",
-        "title": "Upstream Request Pending Active",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_up_rq_pending_active"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "up_rq_incr",
-        "title": "Upstream Request Increase",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_up_rq_incr"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "up_cx_active",
-        "title": "Upstream Connection Active",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_up_cx_active"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "up_cx_incr",
-        "title": "Upstream Connection Increase",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_up_cx_incr"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "membership",
-        "title": "Membership Healthy",
-        "type": "line",
-        "expressions": [
-          "envoy_cluster_membership_healthy"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
         "id": "connections",
-        "title": "Total Connections",
+        "title": "Connections",
+        "tip": "Server-side total + parent connections (envoy_total_connections_used / envoy_parent_connections_used).",
         "type": "line",
+        "unit": "conns",
         "expressions": [
           "envoy_total_connections_used",
           "envoy_parent_connections_used"
         ],
-        "expressionLabels": [
-          "total",
-          "parent"
-        ],
-        "span": 6,
-        "rowSpan": 2
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
       },
       {
-        "id": "concurrency",
+        "id": "worker_threads",
         "title": "Worker Threads",
+        "tip": "Concurrent worker threads in use vs the max observed (envoy_worker_threads / envoy_worker_threads_max).",
         "type": "line",
+        "unit": "",
         "expressions": [
           "envoy_worker_threads",
           "envoy_worker_threads_max"
         ],
-        "expressionLabels": [
-          "live",
-          "max"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "heap_memory",
-        "title": "Heap Memory (Bytes)",
-        "type": "line",
-        "expressions": [
-          "envoy_heap_memory_used",
-          "envoy_heap_memory_max_used",
-          "envoy_memory_allocated",
-          "envoy_memory_allocated_max",
-          "envoy_memory_physical_size",
-          "envoy_memory_physical_size_max"
-        ],
-        "expressionLabels": [
-          "heap used",
-          "heap max",
-          "allocated",
-          "allocated max",
-          "physical",
-          "physical max"
-        ],
-        "span": 12,
-        "rowSpan": 2
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
       },
       {
         "id": "bug_failures",
         "title": "Bug Failures",
+        "tip": "Envoy internal bug-failure counter (envoy_bug_failures). Should normally be zero \u2014 non-zero indicates an Envoy assertion / debug check tripped.",
         "type": "line",
+        "unit": "count",
         "expressions": [
           "envoy_bug_failures"
         ],
-        "span": 12,
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "heap_memory",
+        "title": "Heap Memory",
+        "tip": "Server heap size in bytes \u2014 current value + window max (envoy_heap_memory_used / envoy_heap_memory_max_used).",
+        "type": "line",
+        "unit": "bytes",
+        "expressions": [
+          "envoy_heap_memory_used",
+          "envoy_heap_memory_max_used"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "memory_allocated",
+        "title": "Memory Allocated",
+        "tip": "Server allocated memory (envoy_memory_allocated / envoy_memory_allocated_max).",
+        "type": "line",
+        "unit": "bytes",
+        "expressions": [
+          "envoy_memory_allocated",
+          "envoy_memory_allocated_max"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "memory_physical",
+        "title": "Physical Memory",
+        "tip": "Server physical memory footprint (envoy_memory_physical_size / envoy_memory_physical_size_max).",
+        "type": "line",
+        "unit": "bytes",
+        "expressions": [
+          "envoy_memory_physical_size",
+          "envoy_memory_physical_size_max"
+        ],
+        "span": 4,
         "rowSpan": 2
       }
     ]

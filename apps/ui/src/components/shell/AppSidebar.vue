@@ -20,7 +20,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useAuthStore } from '@/stores/auth';
-import { useLayers } from '@/composables/useLayers';
+import { useLayers, firstLayerTab } from '@/composables/useLayers';
 import { useLandingOrder } from '@/composables/useLandingOrder';
 
 const auth = useAuthStore();
@@ -107,7 +107,7 @@ function toggleGroup(label: string, layers: SidebarLayer[]): void {
   else next.add(label);
   openGroups.value = next;
   if (!wasOpen && layers[0]) {
-    void router.push(`/layer/${layers[0].key}/service`);
+    void router.push(`/layer/${layers[0].key}/${firstLayerTab(layers[0])}`);
   }
 }
 
@@ -253,7 +253,7 @@ const sections: NavSection[] = [
               <!-- Same per-layer markup as the ungrouped path. -->
               <RouterLink
                 v-if="isSingleFeatureLayer(L)"
-                :to="`/layer/${L.key}/service`"
+                :to="`/layer/${L.key}/${firstLayerTab(L)}`"
                 class="layer-row direct in-group"
                 :class="{ 'is-active': isActive(`/layer/${L.key}`) }"
               >
@@ -282,10 +282,10 @@ const sections: NavSection[] = [
                 class="layer-children in-group"
               >
                 <RouterLink
-                  v-if="L.slots.services || L.caps.dashboards"
-                  :to="`/layer/${L.key}/service`"
+                  v-if="L.caps.dashboards"
+                  :to="`/layer/${L.key}/${firstLayerTab(L)}`"
                   class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/service`) || route.path === `/layer/${L.key}` }"
+                  :class="{ 'is-active': isActive(`/layer/${L.key}/${firstLayerTab(L)}`) || route.path === `/layer/${L.key}` }"
                 >
                   <Icon name="svc" /><span>Service</span>
                   <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
@@ -370,7 +370,7 @@ const sections: NavSection[] = [
         <!-- Ungrouped single-feature layer: direct link. -->
         <RouterLink
           v-else-if="isSingleFeatureLayer(E.layer)"
-          :to="`/layer/${E.layer.key}/service`"
+          :to="`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`"
           class="layer-row direct"
           :class="{ 'is-active': isActive(`/layer/${E.layer.key}`) }"
         >
@@ -378,17 +378,19 @@ const sections: NavSection[] = [
           <span class="layer-name">{{ E.layer.name }}</span>
         </RouterLink>
 
-        <!-- Ungrouped multi-feature layer: expander row + children. -->
+        <!-- Ungrouped multi-feature layer: rendered as its own implicit
+             section header so the visual hierarchy stays consistent
+             with grouped sections. The "row" sits at the same level as
+             group headers (ISTIO / DATABASES / …); the tabs slot in
+             beneath it as the section's children. -->
         <div
           v-else
-          class="layer-row"
-          :class="{ 'is-active': expandedLayer === E.layer.key }"
+          class="layer-group standalone"
+          :class="{ 'is-open': expandedLayer === E.layer.key }"
           @click="toggleLayer(E.layer.key)"
         >
           <span class="layer-dot" :style="{ background: E.layer.color }" />
-          <span class="layer-name" :style="{ fontWeight: expandedLayer === E.layer.key ? 600 : 500 }">
-            {{ E.layer.name }}
-          </span>
+          <span class="layer-group-name">{{ E.layer.name }}</span>
           <span class="caret" :class="{ open: expandedLayer === E.layer.key }">
             <Icon name="caret" :size="10" />
           </span>
@@ -401,10 +403,10 @@ const sections: NavSection[] = [
           class="layer-children"
         >
           <RouterLink
-            v-if="E.layer.slots.services || E.layer.caps.dashboards"
-            :to="`/layer/${E.layer.key}/service`"
+            v-if="E.layer.caps.dashboards"
+            :to="`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`"
             class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/service`) || route.path === `/layer/${E.layer.key}` }"
+            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`) || route.path === `/layer/${E.layer.key}` }"
           >
             <Icon name="svc" /><span>Service</span>
             <span class="sw-badge" style="margin-left: auto">{{ E.layer.serviceCount }}</span>
@@ -620,19 +622,44 @@ const sections: NavSection[] = [
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px 4px;
-  margin-top: 6px;
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  padding: 9px 12px 5px;
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--sw-fg-3);
+  /* The section header IS the navigational anchor — operators rely on
+   * it to find the right layer family — so it needs to be legible at
+   * a glance. We previously dimmed it to `--sw-fg-3` which made the
+   * grouped sections (ISTIO / DATABASES / …) read like throwaway
+   * dividers; now it stays in `--sw-fg-2` baseline and brightens to
+   * `--sw-fg-0` on hover/open with a 2-px accent rule on the left so
+   * the section boundary is unambiguous. */
+  color: var(--sw-fg-2);
   cursor: pointer;
   user-select: none;
+  border-left: 2px solid transparent;
+  border-radius: 0 4px 4px 0;
 }
-.layer-group:hover { color: var(--sw-fg-1); }
-.layer-group.is-open { color: var(--sw-fg-1); }
+.layer-group:hover { color: var(--sw-fg-0); border-left-color: var(--sw-line-2); }
+.layer-group.is-open {
+  color: var(--sw-fg-0);
+  border-left-color: var(--sw-accent);
+}
 .layer-group-name { flex: 1; min-width: 0; }
+/* Standalone variant — ungrouped multi-feature layers (General /
+   Browser today) render as their own implicit section header so they
+   read as siblings of ISTIO / DATABASES / etc. The colored layer dot
+   sits before the name; styling stays in the group-header voice. */
+.layer-group.standalone {
+  padding: 7px 12px 5px;
+}
+.layer-group.standalone .layer-dot {
+  /* Slightly bigger so the dot reads at the section-header type size. */
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+}
 /* Layer rows nested inside a group section get a left indent + dashed
    guide rule so the visual hierarchy reads at a glance. */
 .layer-row.in-group {

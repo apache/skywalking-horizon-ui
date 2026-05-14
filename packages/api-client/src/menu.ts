@@ -203,6 +203,26 @@ export interface LayerDef {
    *  on the per-layer Overview tile. Empty when the layer template
    *  omits the `overview` block. */
   overview?: LayerOverviewConfig;
+  /** Logs-tab config. Layers like `MESH_DP` carry per-instance
+   *  (sidecar) logs and need an instance picker on the Logs tab; most
+   *  agent-traced layers carry per-service logs. Drives the UI scope +
+   *  the BFF query filter ride-along. */
+  log?: LogConfig;
+}
+
+export interface LogConfig {
+  /** Entity scope the log query rides on. Mirrors booster-ui's
+   *  ConditionTags model:
+   *   - `service`   → service is pinned; instance + endpoint selectors
+   *     surface as optional narrowers.
+   *   - `instance`  → instance is pinned (sidecar/JVM); only endpoint
+   *     selector is offered.
+   *   - `endpoint`  → endpoint is pinned; only instance selector is
+   *     offered.
+   *
+   *  The pinned entity is the one the layer's data is indexed by. */
+  scope?: 'service' | 'instance' | 'endpoint';
+  defaultTags?: Array<{ key: string; value: string }>;
 }
 
 export interface MenuResponse {

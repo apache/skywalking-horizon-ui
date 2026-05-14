@@ -30,6 +30,9 @@ export interface LogListParams {
   tags: Ref<LogTagFilter[]>;
   page: Ref<number>;
   pageSize: Ref<number>;
+  windowMinutes?: Ref<number>;
+  startTime?: Ref<string | null>;
+  endTime?: Ref<string | null>;
 }
 
 export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
@@ -45,6 +48,9 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
       params.tags,
       params.page,
       params.pageSize,
+      params.windowMinutes ?? computed(() => 0),
+      params.startTime ?? computed(() => null),
+      params.endTime ?? computed(() => null),
     ],
     queryFn: () =>
       bffClient.layerLogs(layerKey.value, {
@@ -54,6 +60,10 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),
         ...(params.keywords.value.length > 0 ? { keywordsOfContent: params.keywords.value } : {}),
         ...(params.tags.value.length > 0 ? { tags: params.tags.value } : {}),
+        ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
+        ...(params.startTime?.value && params.endTime?.value
+          ? { startTime: params.startTime.value, endTime: params.endTime.value }
+          : {}),
         page: params.page.value,
         pageSize: params.pageSize.value,
       }),
@@ -85,6 +95,9 @@ export interface LogFacetParams {
   endpointId: Ref<string | null>;
   traceId: Ref<string | null>;
   keywords: Ref<string[]>;
+  windowMinutes?: Ref<number>;
+  startTime?: Ref<string | null>;
+  endTime?: Ref<string | null>;
 }
 
 export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams) {
@@ -97,6 +110,9 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
       params.endpointId,
       params.traceId,
       params.keywords,
+      params.windowMinutes ?? computed(() => 0),
+      params.startTime ?? computed(() => null),
+      params.endTime ?? computed(() => null),
     ],
     queryFn: () =>
       bffClient.layerLogFacets(layerKey.value, {
@@ -105,6 +121,10 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
         ...(params.endpointId.value ? { endpointId: params.endpointId.value } : {}),
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),
         ...(params.keywords.value.length > 0 ? { keywordsOfContent: params.keywords.value } : {}),
+        ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
+        ...(params.startTime?.value && params.endTime?.value
+          ? { startTime: params.startTime.value, endTime: params.endTime.value }
+          : {}),
         sampleSize: 200,
       }),
     enabled: computed(() => layerKey.value.length > 0),
@@ -116,3 +136,9 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
     error: q.error,
   };
 }
+
+// Log tag autocomplete now uses OAP's native `queryLogTagAutocomplete`
+// endpoints (mirrors booster-ui's ConditionTags) via the BFF helpers
+// `bffClient.logTagKeys()` + `bffClient.logTagValues(key)`. Called
+// directly from `LayerLogsView` — no composable needed since they're
+// one-shot fetches keyed by the window + (optionally) the typed key.

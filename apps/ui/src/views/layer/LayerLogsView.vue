@@ -26,17 +26,24 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/composables/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/composables/useLayerLogs';
+import { bffClient } from '@/api/client';
+import { useLayerInstances } from '@/composables/useLayerInstances';
+import { useLayerEndpoints } from '@/composables/useLayerEndpoints';
 import { useLayers } from '@/composables/useLayers';
 import { useSelectedService } from '@/composables/useSelectedService';
+import { useSelectedInstance } from '@/composables/useSelectedInstance';
+import { useSelectedEndpoint } from '@/composables/useSelectedEndpoint';
 import { useSetupStore } from '@/stores/setup';
+import { useTracePopout } from '@/composables/useTracePopout';
+import { parseServiceName } from '@/utils/serviceName';
 
 const route = useRoute();
-const router = useRouter();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const { openTrace } = useTracePopout();
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
@@ -69,29 +76,260 @@ watch(
   { immediate: true },
 );
 
+// ── Log scope (per-layer config) ───────────────────────────────────
+// Drives which condition selectors the conditions bar surfaces.
+// Mirrors booster-ui's ConditionTags / EntityType routing:
+//   - 'service'  → instance + endpoint selectors (both optional)
+//   - 'instance' → endpoint selector only (instance is pinned)
+//   - 'endpoint' → instance selector only (endpoint is pinned)
+const logScope = computed<'service' | 'instance' | 'endpoint'>(
+  () => layer.value?.log?.scope ?? 'service',
+);
+// Instance + endpoint selectors render unconditionally now (with All
+// as the default). `showEndpointSelector` still gates whether the
+// combobox lists an `All` row — for endpoint-pinned layers picking
+// "All" doesn't make sense.
+const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
+
+// ── Instance picker. Always queries OAP's instance list; how the
+// picked value is used depends on `logScope`:
+//   - `instance` scope: pinned — the picker is the primary entity
+//     selector for the page.
+//   - `service` scope: optional narrower; null means "all instances".
+//   - `endpoint` scope: optional narrower as well.
+const { selectedInstance, setSelectedInstance } = useSelectedInstance();
+const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
+// Auto-pick the first instance ONLY when the layer pins instance via
+// `log.scope === 'instance'` (mesh_dp sidecar logs). For service /
+// endpoint scopes the picker stays empty by default so the operator's
+// landing view is "all instances of the picked service" — auto-binding
+// to one instance narrows the query and routinely returns zero rows
+// when that specific instance happens to be quiet.
+watch([instanceList, logScope], ([list, scope]) => {
+  if (scope !== 'instance') return;
+  if (selectedInstance.value) return;
+  const first = list[0];
+  if (first) setSelectedInstance(first.name);
+});
+watch(serviceName, (next, prev) => {
+  if (prev !== undefined && next !== prev && selectedInstance.value) {
+    setSelectedInstance(null);
+  }
+});
+const selectedInstanceObj = computed(() =>
+  selectedInstance.value
+    ? instanceList.value.find((i) => i.name === selectedInstance.value) ?? null
+    : null,
+);
+const instanceIdForQuery = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
+
+// ── Endpoint picker. Same shape — pinned when `logScope === 'endpoint'`,
+// optional narrower otherwise. Endpoint lists are unbounded so the
+// picker uses a search-keyword model (Enter to commit).
+const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
+// Endpoint search-and-select combobox. The input acts as both the
+// search field (filters the OAP `findEndpoint` query via the debounced
+// `endpointQuery`) AND the displayed selection. The dropdown opens
+// on focus / typing and closes on click-outside or after a pick.
+const endpointSearchInput = ref('');
+const endpointQuery = ref('');
+const endpointLimit = ref(20);
+const endpointComboOpen = ref(false);
+const endpointComboEl = ref<HTMLDivElement | null>(null);
+let endpointSearchTimer: ReturnType<typeof setTimeout> | null = null;
+watch(endpointSearchInput, (v) => {
+  if (endpointSearchTimer) clearTimeout(endpointSearchTimer);
+  endpointSearchTimer = setTimeout(() => {
+    endpointQuery.value = v.trim();
+  }, 250);
+});
+function onEndpointComboClickOutside(ev: MouseEvent): void {
+  if (!endpointComboOpen.value) return;
+  const el = endpointComboEl.value;
+  if (el && !el.contains(ev.target as Node)) endpointComboOpen.value = false;
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('click', onEndpointComboClickOutside);
+}
+function pickEndpoint(name: string): void {
+  setSelectedEndpoint(name);
+  endpointSearchInput.value = name;
+  endpointComboOpen.value = false;
+}
+function clearEndpoint(): void {
+  setSelectedEndpoint(null);
+  endpointSearchInput.value = '';
+  endpointQuery.value = '';
+}
+const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
+  layerKey,
+  serviceName,
+  endpointQuery,
+  endpointLimit,
+);
+// Auto-pick first endpoint ONLY when the layer pins endpoint via
+// `log.scope === 'endpoint'`. Same reasoning as the instance picker:
+// auto-pinning narrows the query and the operator typically wants the
+// landing view to be "any endpoint of the picked service".
+watch([endpointList, logScope], ([list, scope]) => {
+  if (scope !== 'endpoint') return;
+  if (selectedEndpoint.value) return;
+  const first = list[0];
+  if (first) setSelectedEndpoint(first.name);
+});
+watch(serviceName, (next, prev) => {
+  if (prev !== undefined && next !== prev && selectedEndpoint.value) {
+    setSelectedEndpoint(null);
+  }
+});
+const selectedEndpointObj = computed(() =>
+  selectedEndpoint.value
+    ? endpointList.value.find((e) => e.name === selectedEndpoint.value) ?? null
+    : null,
+);
+const endpointIdForQuery = computed<string | null>(() => selectedEndpointObj.value?.id ?? null);
+
 // ── Query state ────────────────────────────────────────────────────
+// Trace ID rides either from `?traceId=` in the URL (e.g. log row's
+// "↗ trace" link landing back on this tab) or from the operator's
+// explicit input on the conditions bar. The URL takes precedence so
+// shared / bookmarked URLs always restore the same view.
 const traceIdParam = computed(() => {
   const v = route.query.traceId;
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
-const keywordInput = ref('');
-const committedKeywords = ref<string[]>([]);
+// Trace ID — bound directly to the input. Each keystroke updates the
+// query (no Pin/Clear button). URL `?traceId=` still wins so the
+// trace→log roundtrip keeps the pinned value.
+const traceIdInput = ref('');
+// Free-text content search is intentionally NOT exposed. OAP's
+// content-keyword filter is opt-in per storage backend (off on the
+// stock H2 store) and indexing across full log bodies has surprising
+// latency / cardinality behaviour on busy clusters. The conditions
+// the UI exposes — service / instance / endpoint / traceID / tags —
+// are all indexed dimensions and cover the booster-ui condition set.
 const customTags = ref<LogTagFilter[]>([]);
 const page = ref(1);
 const pageSize = ref(50);
-const traceIdRef = computed(() => traceIdParam.value);
-const instanceIdRef = ref<string | null>(null);
-const endpointIdRef = ref<string | null>(null);
-const keywordsRef = computed(() => committedKeywords.value);
+const traceIdRef = computed<string | null>(() => {
+  if (traceIdParam.value) return traceIdParam.value;
+  const v = traceIdInput.value.trim();
+  return v.length > 0 ? v : null;
+});
+const instanceIdRef = computed<string | null>(() => instanceIdForQuery.value);
+const endpointIdRef = computed<string | null>(() => endpointIdForQuery.value);
+const keywordsRef = computed<string[]>(() => []);
 
-function submitSearch(): void {
-  const v = keywordInput.value.trim();
-  committedKeywords.value = v ? v.split(/\s+/) : [];
+// Time-range picker. Logs blocks the global topbar picker (see
+// `TIME_RANGE_OPT_OUT` in AppTopbar), so this is the source of truth
+// for which rolling window the log + facet queries scan. Presets
+// cover the most common ranges; the operator can extend if needed
+// (cap is 7 days, enforced server-side too). Mirrors the trace tab's
+// Custom… escape hatch — picking it swaps the preset dropdown for two
+// `datetime-local` inputs so the operator can pin an absolute window.
+const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
+  { label: 'Last 15 min', minutes: 15 },
+  { label: 'Last 30 min', minutes: 30 },
+  { label: 'Last 1 hour', minutes: 60 },
+  { label: 'Last 3 hours', minutes: 180 },
+  { label: 'Last 6 hours', minutes: 360 },
+  { label: 'Last 12 hours', minutes: 720 },
+  { label: 'Last 24 hours', minutes: 1440 },
+];
+const CUSTOM_RANGE_SENTINEL = -1;
+const windowMinutes = ref<number>(30);
+const customStart = ref<string | null>(null);
+const customEnd = ref<string | null>(null);
+const isCustomRange = computed(() => windowMinutes.value === CUSTOM_RANGE_SENTINEL);
+function fmtDateTimeLocal(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+watch(isCustomRange, (custom) => {
+  if (custom) {
+    if (!customStart.value || !customEnd.value) {
+      const end = new Date();
+      const start = new Date(end.getTime() - 30 * 60_000);
+      customStart.value = fmtDateTimeLocal(start);
+      customEnd.value = fmtDateTimeLocal(end);
+    }
+  } else {
+    customStart.value = null;
+    customEnd.value = null;
+  }
+});
+/** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
+ *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
+ *  same `queryDuration.start/end` slot the trace tab uses. */
+function toOapMinute(local: string | null): string | null {
+  if (!local) return null;
+  const [d, t] = local.split('T');
+  if (!d || !t) return null;
+  return `${d} ${t.replace(':', '')}`;
+}
+const startTimeRef = computed<string | null>(() =>
+  isCustomRange.value ? toOapMinute(customStart.value) : null,
+);
+const endTimeRef = computed<string | null>(() =>
+  isCustomRange.value ? toOapMinute(customEnd.value) : null,
+);
+const windowMinutesEffective = computed<number>(() =>
+  isCustomRange.value ? 0 : windowMinutes.value,
+);
+
+// ── Tag conditions (booster-style single `key=value` input) ──────
+// Mirrors the trace tab's ConditionTags pattern: one text input, the
+// datalist behind it swaps between known keys (before the operator
+// types `=`) and per-key values (after `=`). Enter commits the tag.
+// Tags accumulate in `customTags` and ride along on the OAP log query
+// as filters.
+const tagInput = ref('');
+const tagKeyOptions = ref<string[]>([]);
+const tagValueOptions = ref<string[]>([]);
+const tagValueKey = ref<string>('');
+async function loadTagKeys(): Promise<void> {
+  try {
+    const res = await bffClient.logTagKeys(30);
+    tagKeyOptions.value = res.keys ?? [];
+  } catch { /* autocomplete is best-effort */ }
+}
+async function loadTagValues(key: string): Promise<void> {
+  if (!key || key === tagValueKey.value) return;
+  tagValueKey.value = key;
+  try {
+    const res = await bffClient.logTagValues(key, 30);
+    tagValueOptions.value = res.values ?? [];
+  } catch { /* noop */ }
+}
+function onTagInput(): void {
+  const eq = tagInput.value.indexOf('=');
+  if (eq === -1) return; // still typing key — keys datalist is active
+  const key = tagInput.value.slice(0, eq).trim();
+  if (key) void loadTagValues(key);
+}
+// Pre-load known keys once we know which layer the operator is on so
+// the suggestion list isn't empty on first keypress.
+watch(layerKey, (k) => { if (k) void loadTagKeys(); }, { immediate: true });
+const tagDatalistOptions = computed<string[]>(() => {
+  const eq = tagInput.value.indexOf('=');
+  if (eq === -1) return tagKeyOptions.value;
+  const key = tagInput.value.slice(0, eq).trim();
+  return tagValueOptions.value.map((v) => `${key}=${v}`);
+});
+function addTagFilter(): void {
+  const raw = tagInput.value.trim();
+  if (!raw || !raw.includes('=')) return;
+  const idx = raw.indexOf('=');
+  const key = raw.slice(0, idx).trim();
+  const value = raw.slice(idx + 1).trim();
+  if (!key) return;
+  if (customTags.value.some((t) => t.key === key && t.value === value)) return;
+  customTags.value = [...customTags.value, { key, value }];
+  tagInput.value = '';
   page.value = 1;
 }
-function clearSearch(): void {
-  keywordInput.value = '';
-  committedKeywords.value = [];
+function removeTagFilter(i: number): void {
+  customTags.value = customTags.value.filter((_, idx) => idx !== i);
   page.value = 1;
 }
 
@@ -127,6 +365,9 @@ const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   tags: allTags,
   page,
   pageSize,
+  windowMinutes: windowMinutesEffective,
+  startTime: startTimeRef,
+  endTime: endTimeRef,
 });
 
 const { facets } = useLayerLogFacets(layerKey, {
@@ -135,7 +376,19 @@ const { facets } = useLayerLogFacets(layerKey, {
   endpointId: endpointIdRef,
   traceId: traceIdRef,
   keywords: keywordsRef,
+  windowMinutes: windowMinutesEffective,
+  startTime: startTimeRef,
+  endTime: endTimeRef,
 });
+
+// Run-query handler mirrors the trace tab: refetch both the log
+// stream + the facet sample on demand. With most filters already
+// auto-refetching, this is the operator's "I'm done editing — refresh
+// now" affordance, identical voice to `LayerTracesView#runQuery`.
+function runQuery(): void {
+  page.value = 1;
+  void refetch();
+}
 
 // ── Density histogram (60 bins). Loki/Datadog style: stacked bars
 // per level over the visible page's time window. Counts come from
@@ -246,44 +499,196 @@ function tryPrettyJson(content: string): string {
   }
 }
 
+/**
+ * Detect the rendered format of a log payload. OAP only labels
+ * JSON / TEXT, so we sniff for YAML markers (leading `---`, top-level
+ * `key:` mappings) and JSON-ness as a fallback so operators get the
+ * right pretty-printer in the popout. The detection is best-effort —
+ * an ambiguous payload falls back to TEXT.
+ */
+type LogFormat = 'json' | 'yaml' | 'text';
+function detectFormat(r: LogRow): LogFormat {
+  if (r.contentType === 'application/json') return 'json';
+  const trimmed = r.content?.trim() ?? '';
+  if (!trimmed) return 'text';
+  // JSON sniff — content-type missing but body parses cleanly.
+  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+    try { JSON.parse(trimmed); return 'json'; } catch { /* fallthrough */ }
+  }
+  // YAML sniff — document marker or 2+ top-level `key:` mappings.
+  if (trimmed.startsWith('---') || trimmed.startsWith('apiVersion:')) return 'yaml';
+  const lines = trimmed.split('\n');
+  if (lines.length >= 2) {
+    const topLevelMaps = lines.filter((l) => /^[A-Za-z_][\w.-]*\s*:\s*(\S|$)/.test(l)).length;
+    if (topLevelMaps >= 2) return 'yaml';
+  }
+  return 'text';
+}
+function prettyForFormat(r: LogRow, fmt: LogFormat): string {
+  if (fmt === 'json') return tryPrettyJson(r.content);
+  return r.content;
+}
+
+// ── Log payload popout — operator-triggered modal for inspecting a
+// single row's full payload at maximum size, with format-aware
+// pretty-print + a copy button + key/value tag table. The inline
+// expand below the row stays as a quick peek; the popout is the
+// "give me the whole thing" view.
+const popoutRow = ref<LogRow | null>(null);
+function openPopout(r: LogRow): void { popoutRow.value = r; }
+function closePopout(): void { popoutRow.value = null; }
+async function copyPopout(): Promise<void> {
+  if (!popoutRow.value) return;
+  try {
+    await navigator.clipboard.writeText(popoutRow.value.content);
+  } catch {
+    /* clipboard may be blocked; silently no-op */
+  }
+}
+
+/** Open the trace in the global popout overlay rather than navigating
+ *  to the Traces tab — keeps the operator in the log stream, lets them
+ *  scan the waterfall + close it back to where they were without
+ *  losing the keyword filter / pagination state. */
 function jumpToTrace(traceId: string): void {
-  void router.push({
-    path: `/layer/${layerKey.value}/trace`,
-    query: { traceId },
-  });
+  openTrace(traceId);
 }
 </script>
 
 <template>
   <div class="lg-tab">
-    <!-- Condition bar -->
+    <!-- Toolbar mirrors the trace tab: head row (kicker + Run query)
+         on top, conditions grid below, active tag chips at the foot. -->
     <header class="lg-toolbar sw-card">
-      <span class="kicker">Logs</span>
-      <span v-if="serviceName" class="for-svc">on <b>{{ serviceName }}</b></span>
-      <span v-if="traceIdParam" class="trace-pin">trace <code>{{ traceIdParam.slice(0, 12) }}…</code></span>
-      <span v-if="isFetching" class="hint">refreshing…</span>
-      <div class="filters">
-        <input
-          v-model="keywordInput"
-          class="kw-search"
-          type="search"
-          placeholder="Search content (space-separated keywords, press Enter)…"
-          @keydown.enter.prevent="submitSearch"
-          @search="submitSearch"
-        />
-        <button class="sw-btn small" type="button" @click="submitSearch">Search</button>
-        <button v-if="committedKeywords.length > 0" class="sw-btn small ghost" type="button" @click="clearSearch">
-          Clear
-        </button>
-        <label class="f-field">
+      <div class="lg-toolbar-head">
+        <span class="kicker">Logs</span>
+        <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
+        <span v-if="isFetching" class="hint">refreshing…</span>
+        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">Run query</button>
+      </div>
+      <div class="lg-conditions">
+        <!-- Instance / Sidecar picker. `All` is the default for every
+             scope; pinning an instance is opt-in via the dropdown. -->
+        <label class="cf">
+          <span>{{ logScope === 'instance' ? 'Sidecar' : 'Instance' }}</span>
+          <select
+            class="cf-input"
+            :value="selectedInstance ?? ''"
+            @change="setSelectedInstance(($event.target as HTMLSelectElement).value || null)"
+          >
+            <option value="">All</option>
+            <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
+          </select>
+        </label>
+        <!-- Endpoint combobox = search + dropdown in one component.
+             Type to filter the OAP list via `endpointQuery`; click an
+             item to pick. Width: 2 columns so long endpoint paths fit. -->
+        <div class="cf cf-wide">
+          <span>Endpoint</span>
+          <div ref="endpointComboEl" class="cf-combo" @click.stop>
+            <input
+              v-model="endpointSearchInput"
+              type="text"
+              class="cf-input"
+              :placeholder="selectedEndpoint ?? 'All'"
+              @focus="endpointComboOpen = true"
+              @input="endpointComboOpen = true"
+            />
+            <button
+              v-if="selectedEndpoint || endpointSearchInput"
+              type="button"
+              class="cf-combo-clear"
+              title="Clear endpoint"
+              @click="clearEndpoint"
+            >×</button>
+            <ul v-if="endpointComboOpen" class="cf-combo-list">
+              <li
+                v-if="showEndpointSelector"
+                class="cf-combo-item"
+                :class="{ on: !selectedEndpoint }"
+                @click="clearEndpoint"
+              >
+                <em>All</em>
+              </li>
+              <li
+                v-for="e in endpointList"
+                :key="e.id"
+                class="cf-combo-item"
+                :class="{ on: selectedEndpoint === e.name }"
+                @click="pickEndpoint(e.name)"
+              >
+                {{ e.name }}
+              </li>
+              <li v-if="endpointList.length === 0" class="cf-combo-empty">
+                {{ endpointsLoading ? 'searching…' : 'no matches' }}
+              </li>
+            </ul>
+          </div>
+        </div>
+        <!-- Trace ID. Bound directly — each keystroke updates the
+             query. URL `?traceId=` still overrides. -->
+        <label class="cf cf-wide">
+          <span>Trace ID</span>
+          <input
+            v-model="traceIdInput"
+            type="text"
+            class="cf-input mono"
+            placeholder="paste trace id…"
+          />
+        </label>
+        <!-- Tags — single key=value input + datalist autocomplete. -->
+        <label class="cf cf-wide">
+          <span>Tags</span>
+          <input
+            v-model="tagInput"
+            type="text"
+            class="cf-input mono"
+            placeholder="key=value, then Enter"
+            list="lg-tag-suggestions"
+            @input="onTagInput"
+            @keyup.enter="addTagFilter"
+          />
+          <datalist id="lg-tag-suggestions">
+            <option v-for="opt in tagDatalistOptions" :key="opt" :value="opt" />
+          </datalist>
+        </label>
+        <!-- Time range — presets + Custom… that swaps to two
+             datetime-local inputs (matches the trace tab). -->
+        <label class="cf" :class="{ 'cf-wide': isCustomRange }">
+          <span>Time range</span>
+          <template v-if="isCustomRange">
+            <div class="cf-range">
+              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <span class="cf-range-sep">–</span>
+              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
+            </div>
+          </template>
+          <select v-else v-model.number="windowMinutes" class="cf-input">
+            <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
+            <option :value="CUSTOM_RANGE_SENTINEL">Custom…</option>
+          </select>
+        </label>
+        <label class="cf">
           <span>Page size</span>
-          <select v-model.number="pageSize">
+          <select v-model.number="pageSize" class="cf-input">
             <option :value="20">20</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
           </select>
         </label>
-        <button class="sw-btn small" type="button" @click="() => refetch()">Refresh</button>
+      </div>
+      <!-- Active tag chips — same markup / class names as the trace
+           tab's `tr-tag-row` so the two pages read identically. -->
+      <div v-if="customTags.length > 0" class="tr-tag-row">
+        <span class="tag-row-label">Active tags</span>
+        <span class="tag-chips">
+          <span v-for="(t, i) in customTags" :key="`${t.key}=${t.value}`" class="tag-chip">
+            <span class="mono">{{ t.key }}={{ t.value }}</span>
+            <button type="button" class="tag-x" @click="removeTagFilter(i)">×</button>
+          </span>
+        </span>
       </div>
     </header>
 
@@ -341,7 +746,7 @@ function jumpToTrace(traceId: string): void {
 
         <!-- Stream -->
         <div v-if="filteredLogs.length === 0" class="lg-empty">
-          {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active level filter.' }}
+          {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
         </div>
         <div v-else class="lg-stream">
           <template v-for="(r, idx) in filteredLogs" :key="rowKey(r, idx)">
@@ -349,15 +754,29 @@ function jumpToTrace(traceId: string): void {
               <span class="lg-time mono">{{ fmtTime(r.timestamp) }}</span>
               <span class="lg-date mono dim">{{ fmtDate(r.timestamp) }}</span>
               <span class="lg-lvl" :style="{ color: LEVEL_COLOR[levelOf(r)] }">{{ levelOf(r) }}</span>
-              <span class="lg-svc mono dim">{{ r.serviceName ?? '—' }}</span>
+              <!-- Decode the OAP `<group>::<base>` convention so the
+                   row reads as "<chip> base" instead of dumping the
+                   raw `agent::songs` string. Falls back to the plain
+                   name when no group prefix is present. -->
+              <span class="lg-svc mono dim">
+                <span
+                  v-if="r.serviceName && parseServiceName(r.serviceName).group"
+                  class="lg-svc-group"
+                >{{ parseServiceName(r.serviceName).group }}</span>
+                {{ r.serviceName ? parseServiceName(r.serviceName).base : '—' }}
+              </span>
               <span v-if="r.traceId" class="lg-trace mono" @click.stop="jumpToTrace(r.traceId!)">↗ trace</span>
               <span class="lg-content mono">{{ summariseContent(r) }}</span>
             </div>
             <div v-if="expandedId === rowKey(r, idx)" class="lg-expand">
               <pre
-                v-if="r.contentType === 'application/json'"
+                v-if="detectFormat(r) === 'json'"
                 class="lg-payload json"
-              >{{ tryPrettyJson(r.content) }}</pre>
+              >{{ prettyForFormat(r, 'json') }}</pre>
+              <pre
+                v-else-if="detectFormat(r) === 'yaml'"
+                class="lg-payload yaml"
+              >{{ r.content }}</pre>
               <pre v-else class="lg-payload text">{{ r.content }}</pre>
               <div v-if="r.tags.length > 0" class="lg-tag-row">
                 <span v-for="t in r.tags" :key="`${t.key}=${t.value}`" class="lg-tag">
@@ -368,7 +787,8 @@ function jumpToTrace(traceId: string): void {
               <div class="lg-meta-row">
                 <span v-if="r.serviceInstanceName" class="lg-meta">instance <code>{{ r.serviceInstanceName }}</code></span>
                 <span v-if="r.endpointName" class="lg-meta">endpoint <code>{{ r.endpointName }}</code></span>
-                <span class="lg-meta">type <code>{{ r.contentType }}</code></span>
+                <span class="lg-meta">type <code>{{ detectFormat(r).toUpperCase() }}</code></span>
+                <button class="sw-btn small" type="button" @click.stop="openPopout(r)">View full</button>
               </div>
             </div>
           </template>
@@ -387,6 +807,57 @@ function jumpToTrace(traceId: string): void {
         </div>
       </div>
     </section>
+
+    <!-- Full-payload popout. Triggered from a row's expanded panel.
+         Format-aware pretty-print + copy button + tag table. Escape
+         or backdrop click closes. -->
+    <div v-if="popoutRow" class="lg-popout-backdrop" @click.self="closePopout">
+      <article class="lg-popout sw-card">
+        <header class="lg-popout-head">
+          <div>
+            <span class="kicker">Log entry</span>
+            <span class="lg-popout-time mono">{{ fmtTime(popoutRow.timestamp) }} · {{ fmtDate(popoutRow.timestamp) }}</span>
+            <span class="lg-popout-fmt">{{ detectFormat(popoutRow).toUpperCase() }}</span>
+          </div>
+          <div class="lg-popout-ctrls">
+            <button class="sw-btn small" type="button" @click="copyPopout">Copy</button>
+            <button
+              v-if="popoutRow.traceId"
+              class="sw-btn small"
+              type="button"
+              @click="jumpToTrace(popoutRow.traceId!)"
+            >↗ trace</button>
+            <button class="sw-btn small ghost" type="button" @click="closePopout">×</button>
+          </div>
+        </header>
+        <div class="lg-popout-meta">
+          <span v-if="popoutRow.serviceName" class="lg-meta">service <code>{{ popoutRow.serviceName }}</code></span>
+          <span v-if="popoutRow.serviceInstanceName" class="lg-meta">instance <code>{{ popoutRow.serviceInstanceName }}</code></span>
+          <span v-if="popoutRow.endpointName" class="lg-meta">endpoint <code>{{ popoutRow.endpointName }}</code></span>
+          <span v-if="popoutRow.traceId" class="lg-meta">trace <code class="mono">{{ popoutRow.traceId }}</code></span>
+        </div>
+        <pre
+          v-if="detectFormat(popoutRow) === 'json'"
+          class="lg-popout-body json"
+        >{{ prettyForFormat(popoutRow, 'json') }}</pre>
+        <pre
+          v-else-if="detectFormat(popoutRow) === 'yaml'"
+          class="lg-popout-body yaml"
+        >{{ popoutRow.content }}</pre>
+        <pre v-else class="lg-popout-body text">{{ popoutRow.content }}</pre>
+        <div v-if="popoutRow.tags.length > 0" class="lg-popout-tags">
+          <table class="lg-popout-tag-tbl">
+            <thead><tr><th>Key</th><th>Value</th></tr></thead>
+            <tbody>
+              <tr v-for="t in popoutRow.tags" :key="`${t.key}=${t.value}`">
+                <td class="mono">{{ t.key }}</td>
+                <td class="mono">{{ t.value }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
   </div>
 </template>
 
@@ -427,19 +898,129 @@ function jumpToTrace(traceId: string): void {
   flex: 1;
   min-width: 320px;
 }
-.kw-search {
-  flex: 1;
-  min-width: 220px;
+/* Trace-style toolbar layout (same voice as `LayerTracesView`). */
+.lg-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
+.lg-toolbar-head { display: flex; align-items: baseline; gap: 10px; }
+/* Run-query button: SkyWalking orange, sits at the right edge of the
+   toolbar head row. Matches `LayerTracesView.tr-run-btn` exactly so the
+   two pages read identically. `.sw-btn.primary` is locally scoped per
+   page (each view declares its own styling); copying the rule keeps
+   the visual stable without dragging in a shared global. */
+.lg-run-btn { margin-left: auto; }
+.sw-btn.primary {
+  background: var(--sw-accent);
+  color: var(--sw-bg-0);
+  border: none;
   height: 26px;
+  padding: 0 14px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sw-btn.primary:hover { background: var(--sw-accent-2); }
+.sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); }
+.lg-conditions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+@media (max-width: 900px) { .lg-conditions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cf {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--sw-fg-3);
+  font-weight: 500;
+  min-width: 0;
+}
+.cf.cf-wide { grid-column: span 2; }
+.cf-input {
+  height: 28px;
   padding: 0 8px;
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line-2);
   border-radius: 4px;
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 11.5px;
+  font-size: 11px;
+  width: 100%;
+  box-sizing: border-box;
 }
-.kw-search:focus { outline: none; border-color: var(--sw-accent-line); }
+.cf-input:focus { outline: none; border-color: var(--sw-accent-line); }
+.cf-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.cf-range { display: flex; align-items: center; gap: 4px; }
+.cf-range-num { flex: 1; min-width: 0; }
+.cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
+
+/* Endpoint combobox = single search input + anchored dropdown.
+   Click-outside closes it (see `onEndpointComboClickOutside`). */
+.cf-combo { position: relative; }
+.cf-combo .cf-input { padding-right: 22px; }
+.cf-combo-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  font-size: 13px;
+  cursor: pointer;
+}
+.cf-combo-clear:hover { color: var(--sw-err); }
+.cf-combo-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  padding: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  z-index: 50;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+}
+.cf-combo-item {
+  padding: 5px 8px;
+  font-size: 11px;
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-1);
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cf-combo-item em { color: var(--sw-fg-3); font-style: italic; }
+.cf-combo-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.cf-combo-item.on { background: var(--sw-accent-soft); color: var(--sw-accent-2); font-weight: 600; }
+.cf-combo-empty { padding: 6px 8px; font-size: 10.5px; color: var(--sw-fg-3); }
+
+/* Group-prefix chip in a log row's service column. Decodes
+   `<group>::<base>` so the eye lands on the base name first. */
+.lg-svc-group {
+  display: inline-block;
+  padding: 0 5px;
+  margin-right: 4px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 3px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--sw-fg-2);
+  text-transform: uppercase;
+}
 .f-field {
   display: inline-flex;
   align-items: baseline;
@@ -683,4 +1264,157 @@ function jumpToTrace(traceId: string): void {
   .lg-legend { padding: 8px 10px; gap: 4px; }
   .lg-legend-chip { padding: 2px 7px; font-size: 11px; }
 }
+
+/* Trace-ID + tag-key=value inputs on the conditions bar. */
+.lg-trace-input {
+  height: 26px;
+  width: 220px;
+  padding: 0 8px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11px;
+}
+.lg-trace-input:focus { outline: none; border-color: var(--sw-accent-line); }
+.lg-tag-input {
+  height: 26px;
+  width: 220px;
+  padding: 0 8px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11px;
+}
+.lg-tag-input:focus { outline: none; border-color: var(--sw-accent-line); }
+
+/* Active tag chips — markup + visuals lifted from `LayerTracesView`
+   so the two pages read identically. */
+.tr-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+  width: 100%;
+  border-top: 1px dashed var(--sw-line);
+}
+.tag-row-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3); }
+.tag-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 11px;
+  font-size: 10.5px;
+}
+.tag-x {
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0;
+}
+.tag-x:hover { color: var(--sw-err); }
+
+/* YAML payload colour (cyan-leaning to distinguish from JSON which
+   is also cyan; warm-yellow scheme conveys "config / declarative"). */
+.lg-payload.yaml { color: #fbbf24; }
+
+/* Full-payload popout — fixed, centred, modal-like overlay. */
+.lg-popout-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 24px;
+}
+.lg-popout {
+  width: min(1100px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.lg-popout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.lg-popout-head .kicker { margin-right: 8px; }
+.lg-popout-time { font-size: 11px; color: var(--sw-fg-2); margin-right: 10px; }
+.lg-popout-fmt {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-2);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.lg-popout-ctrls { display: inline-flex; gap: 6px; }
+.lg-popout-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px dashed var(--sw-line);
+  font-size: 11px;
+  color: var(--sw-fg-3);
+}
+.lg-popout-meta code {
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-1);
+  padding: 0 4px;
+  background: var(--sw-bg-2);
+  border-radius: 3px;
+}
+.lg-popout-body {
+  flex: 1;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--sw-bg-0);
+  font-family: var(--sw-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--sw-fg-0);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow: auto;
+}
+.lg-popout-body.json { color: var(--sw-cyan); }
+.lg-popout-body.yaml { color: #fbbf24; }
+.lg-popout-tags {
+  border-top: 1px solid var(--sw-line);
+  padding: 8px 14px;
+  max-height: 200px;
+  overflow: auto;
+}
+.lg-popout-tag-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.lg-popout-tag-tbl th, .lg-popout-tag-tbl td {
+  padding: 4px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--sw-line);
+}
+.lg-popout-tag-tbl th { color: var(--sw-fg-3); font-weight: 500; }
+.lg-popout-tag-tbl td { color: var(--sw-fg-1); font-family: var(--sw-mono); }
 </style>

@@ -58,9 +58,18 @@ function fmtMinute(d: Date): string {
   const MM = String(d.getUTCMinutes()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
 }
-function defaultWindow(): { start: string; end: string } {
+function defaultWindow(
+  minutes?: number,
+  explicit?: { startTime?: string; endTime?: string },
+): { start: string; end: string } {
+  if (explicit?.startTime && explicit.endTime) {
+    return { start: explicit.startTime, end: explicit.endTime };
+  }
+  const m = Number.isFinite(minutes) && (minutes as number) > 0
+    ? Math.min(60 * 24 * 7, Math.round(minutes as number))
+    : DEFAULT_WINDOW_MIN;
   const end = new Date();
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
+  const start = new Date(end.getTime() - m * 60_000);
   return { start: fmtMinute(start), end: fmtMinute(end) };
 }
 
@@ -148,7 +157,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       }
       const body = (req.body ?? {}) as LogBody;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
-      const window = defaultWindow();
+      const window = defaultWindow(body.windowMinutes, { startTime: body.startTime, endTime: body.endTime });
 
       // Resolve a service NAME to an id if the caller used one.
       let serviceId = body.serviceId ?? null;
@@ -239,7 +248,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       const body = (req.body ?? {}) as LogBody & { sampleSize?: number };
       const sampleSize = Math.max(50, Math.min(1000, body.sampleSize ?? 200));
       const opts = buildOapOpts(deps.config.current, deps.fetch);
-      const window = defaultWindow();
+      const window = defaultWindow(body.windowMinutes, { startTime: body.startTime, endTime: body.endTime });
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {
         try {
@@ -314,4 +323,10 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       }
     },
   );
+
+  // Log tag autocomplete lives in `trace-tag-routes.ts` under
+  // /api/log-tags/{keys,values} — they wrap OAP's
+  // `queryLogTagAutocomplete{Keys,Values}` GraphQL endpoints, the same
+  // API booster-ui's ConditionTags uses. We co-located them with
+  // trace-tags because the request/response shape is identical.
 }

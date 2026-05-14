@@ -64,6 +64,15 @@ export interface LogQueryRequest {
   page?: number;
   /** Page size, defaults 50 client-side. */
   pageSize?: number;
+  /** Rolling time-window for the query in minutes, ending at "now".
+   *  Falls back to the BFF default (~60min) when omitted. Ignored when
+   *  an explicit `startTime` / `endTime` pair is supplied. */
+  windowMinutes?: number;
+  /** Explicit absolute window — `YYYY-MM-DD HHmm` (OAP minute-step
+   *  format). When both `startTime` + `endTime` are set, the rolling
+   *  `windowMinutes` is ignored. */
+  startTime?: string;
+  endTime?: string;
 }
 
 export interface LogsResponse {
@@ -95,6 +104,15 @@ export interface LogFacetsResponse {
   level: Record<'error' | 'warn' | 'info' | 'debug' | 'other', number>;
   /** Top services by count, capped. */
   services: Array<{ name: string; count: number }>;
+  reachable: boolean;
+  error?: string;
+}
+
+/** Distinct tag keys + sampled values returned by
+ *  `POST /api/layer/:key/logs/tags-suggest`. Used to power the
+ *  conditions-bar tag autocomplete. */
+export interface LogTagsSuggestResponse {
+  keys: Array<{ key: string; values: string[] }>;
   reachable: boolean;
   error?: string;
 }

@@ -113,20 +113,23 @@ const { instances: instanceList, isFetching: instancesLoading } = useLayerInstan
  *  expanding one collapses the previous so the list stays compact. */
 const expandedInstance = ref<string | null>(null);
 
-/** Auto-pick the first available service when the operator lands on
- *  the Instance scope without one. The BFF's dashboard route already
- *  falls back to the first service when none is passed, but the
- *  instance-list endpoint needs an explicit service — so we mirror
- *  the same fallback client-side. */
+/** Auto-pick the first available service whenever the operator lands
+ *  on the page with no service selected — applies to every scope, not
+ *  just `instance`. The dashboard query is gated on `service.value`
+ *  (so it doesn't fire with `null` and re-fetch on resolve), and the
+ *  instance / endpoint feeds need an explicit service too. Without
+ *  this auto-pick on the Service scope, layers like Virtual MQ /
+ *  Virtual Database stayed empty until the operator manually clicked
+ *  the service picker — the first service has data, we just hadn't
+ *  bound to it. */
 const { setSelected: setSelectedService } = useSelectedService();
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
-watch([scope, landingRows], ([s, rows]) => {
-  if (s !== 'instance') return;
+watch(landingRows, (rows) => {
   if (selectedId.value) return;
   const first = rows[0];
   if (!first) return;
   setSelectedService(first.serviceId);
-});
+}, { immediate: true });
 // Drop the stale instance whenever the service changes — the new
 // service's instance list almost never matches the previous pick.
 watch(serviceName, (next, prev) => {
@@ -818,7 +821,7 @@ function isVisible(
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 12px;
+  padding: 5px 10px;
   border-bottom: 1px solid var(--sw-line);
   /* Subtle left-edge accent tinted to the widget's primary metric
    * color — ties each card to the matching KPI in the layer header. */
@@ -826,7 +829,7 @@ function isVisible(
 }
 .w-head h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--widget-accent, var(--sw-fg-0));
   letter-spacing: -0.01em;
@@ -835,7 +838,7 @@ function isVisible(
   text-overflow: ellipsis;
 }
 .w-head .unit {
-  font-size: 12px;
+  font-size: 10.5px;
   color: var(--sw-fg-3);
   flex: 0 0 auto;
 }

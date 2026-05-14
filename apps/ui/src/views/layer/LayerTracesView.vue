@@ -969,8 +969,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
     <div class="tr-top-strip">
       <header class="tr-toolbar sw-card">
         <div class="tr-toolbar-head">
+          <!-- Service name removed from the head row — the layer
+               header's Switch button already shows which service the
+               page is bound to, so repeating it here is duplicate
+               chrome (same reasoning as the logs tab). -->
           <span class="kicker">Traces</span>
-          <span v-if="serviceName" class="for-svc">on <b>{{ serviceName }}</b></span>
           <span v-if="isFetching" class="hint">refreshing…</span>
           <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">Run query</button>
         </div>

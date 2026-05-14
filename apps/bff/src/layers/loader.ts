@@ -203,6 +203,32 @@ export interface LayerTemplate {
    *  absent. The v2-vs-v3 split for native traces is decided at
    *  runtime by probing `hasQueryTracesV2Support`, not in this config. */
   traces?: TracesConfig;
+  /** Logs tab config. Some layers carry per-instance logs (Istio Data
+   *  Plane / sidecar access logs, eBPF profiling targets) — they need
+   *  an instance picker on the Logs tab and the BFF must thread
+   *  `serviceInstance` to the OAP log query. Other layers (traced
+   *  agents) carry per-service logs. Defaults to `service` when absent.
+   *  Operators can also pre-seed default custom tag filters that ride
+   *  along with every query — useful for layers whose logs are always
+   *  filtered by `logger=` or `source=`. */
+  log?: LogConfig;
+}
+
+export interface LogConfig {
+  /** Entity granularity the log query scopes to. Picks which entity
+   *  the BFF pins on every query, and which optional selectors the
+   *  conditions bar surfaces:
+   *   - `service`   (default): service is pinned; conditions bar
+   *     offers instance + endpoint selectors as narrowers.
+   *   - `instance`  : the picked instance (sidecar / JVM) is the pinned
+   *     entity; only an endpoint selector is shown alongside.
+   *   - `endpoint`  : the picked endpoint is pinned; only an instance
+   *     selector is shown alongside.
+   *  Matches booster-ui's ConditionTags routing (`EntityType[1|2|3]`). */
+  scope?: 'service' | 'instance' | 'endpoint';
+  /** Default tag filters appended to every log query. Operators can
+   *  add more on the page via the conditions bar. */
+  defaultTags?: Array<{ key: string; value: string }>;
 }
 
 /**
@@ -478,6 +504,12 @@ export function endpointDependencyConfigFor(
 export function tracesConfigFor(template: LayerTemplate | null): TracesConfig {
   if (template?.traces) return template.traces;
   return { source: 'both' };
+}
+
+/** Resolve the logs tab config — defaults to per-service scope. */
+export function logConfigFor(template: LayerTemplate | null): LogConfig {
+  if (template?.log) return template.log;
+  return { scope: 'service' };
 }
 
 /**

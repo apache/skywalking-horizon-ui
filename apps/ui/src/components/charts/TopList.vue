@@ -102,9 +102,12 @@ const showTabs = computed(() => effectiveGroups.value.length > 1);
     </div>
     <div class="rows">
       <div v-for="(it, i) in activeItems" :key="i" class="row" :title="it.name">
+        <!-- Background fill — trace-waterfall style. The bar paints the
+             row from the left, value is proportional to row.value/max,
+             and the rank+name+value text overlays the bar. -->
+        <span class="bar-bg" :style="{ width: `${pct(it.value)}%`, background: color }" />
         <span class="rank">{{ i + 1 }}</span>
         <span class="name">{{ it.name }}</span>
-        <div class="bar"><div class="fill" :style="{ width: `${pct(it.value)}%`, background: color }" /></div>
         <span class="value">
           {{ fmtMetric(it.value) }}<span v-if="activeUnit" class="unit">{{ activeUnit }}</span>
         </span>
@@ -125,13 +128,14 @@ const showTabs = computed(() => effectiveGroups.value.length > 1);
 .tabs {
   display: flex;
   gap: 2px;
-  padding: 2px 0 6px;
+  padding: 2px 0 4px;
   border-bottom: 1px solid var(--sw-line);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  flex: 0 0 auto;
 }
 .tab {
-  padding: 4px 10px;
-  font-size: 13px;
+  padding: 3px 8px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--sw-fg-2);
   background: transparent;
@@ -154,64 +158,78 @@ const showTabs = computed(() => effectiveGroups.value.length > 1);
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 2px 2px 4px;
+  gap: 2px;
+  padding: 2px 0 4px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;
 }
+/* Each row is its own absolute-positioning context: the .bar-bg fill
+ * sits behind, .rank / .name / .value text overlay on top. Matches the
+ * trace-waterfall pattern so operators read one mental model. */
 .row {
+  position: relative;
   display: grid;
-  grid-template-columns: 22px 1fr 56px 72px;
+  grid-template-columns: 18px 1fr auto;
   align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  padding: 0;
-  line-height: 1.35;
+  gap: 6px;
+  font-size: 11.5px;
+  padding: 3px 8px;
+  line-height: 1.3;
+  border-radius: 3px;
+  overflow: hidden;
+  min-height: 18px;
+}
+.row:hover {
+  background: var(--sw-bg-2);
+}
+.bar-bg {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+  opacity: 0.18;
+  transition: width 0.2s ease-out;
+  pointer-events: none;
+  z-index: 0;
 }
 .rank {
   font-family: var(--sw-mono);
-  font-size: 12px;
+  font-size: 10px;
   color: var(--sw-fg-3);
   text-align: right;
+  position: relative;
+  z-index: 1;
 }
 .name {
   font-family: var(--sw-mono);
-  font-size: 14px;
-  color: var(--sw-fg-1);
+  font-size: 11.5px;
+  color: var(--sw-fg-0);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.bar {
-  height: 6px;
-  background: var(--sw-bg-3);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.fill {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.2s ease-out;
+  position: relative;
+  z-index: 1;
 }
 .value {
   font-family: var(--sw-mono);
-  font-size: 13.5px;
+  font-size: 11px;
   color: var(--sw-fg-1);
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
+  position: relative;
+  z-index: 1;
 }
 .value .unit {
   margin-left: 2px;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: 9.5px;
   font-weight: 500;
 }
 .empty {
-  font-size: 14px;
+  font-size: 11px;
   color: var(--sw-fg-3);
   text-align: center;
-  margin: 14px 0;
+  margin: 10px 0;
 }
 </style>

@@ -16,14 +16,19 @@
  */
 
 /**
- * Trace tag autocomplete routes:
+ * Trace + log tag autocomplete routes:
  *   GET /api/trace-tags/keys?windowMinutes=30
  *   GET /api/trace-tags/values?key=<k>&windowMinutes=30
+ *   GET /api/log-tags/keys?windowMinutes=30
+ *   GET /api/log-tags/values?key=<k>&windowMinutes=30
  *
- * Both wrap OAP's `queryTraceTagAutocompleteKeys` /
- * `queryTraceTagAutocompleteValues` GraphQL endpoints. Same pattern
- * as booster-ui's `ConditionTags.vue` — operator types in the trace
- * tab's Tag input, the suggestions list narrows.
+ * All four wrap OAP's `queryXxxTagAutocompleteKeys` /
+ * `queryXxxTagAutocompleteValues` GraphQL endpoints. Same pattern as
+ * booster-ui's `ConditionTags.vue` — operator types in the Tag input,
+ * the suggestion list swaps between keys (before `=`) and per-key
+ * values (after `=`). Log keys/values share the same response shape
+ * as traces, so the routes co-locate here and the UI side reuses the
+ * same client helper pair.
  */
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
@@ -52,43 +57,50 @@ function rollingWindow(minutes: number): { start: string; end: string; step: 'MI
   return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
 }
 
-const KEYS_QUERY = /* GraphQL */ `
-  query TagKeys($duration: Duration!) {
+const TRACE_KEYS_QUERY = /* GraphQL */ `
+  query TraceTagKeys($duration: Duration!) {
     keys: queryTraceTagAutocompleteKeys(duration: $duration)
   }
 `;
-const VALUES_QUERY = /* GraphQL */ `
-  query TagValues($tagKey: String!, $duration: Duration!) {
+const TRACE_VALUES_QUERY = /* GraphQL */ `
+  query TraceTagValues($tagKey: String!, $duration: Duration!) {
     values: queryTraceTagAutocompleteValues(tagKey: $tagKey, duration: $duration)
+  }
+`;
+const LOG_KEYS_QUERY = /* GraphQL */ `
+  query LogTagKeys($duration: Duration!) {
+    keys: queryLogTagAutocompleteKeys(duration: $duration)
+  }
+`;
+const LOG_VALUES_QUERY = /* GraphQL */ `
+  query LogTagValues($tagKey: String!, $duration: Duration!) {
+    values: queryLogTagAutocompleteValues(tagKey: $tagKey, duration: $duration)
   }
 `;
 
 export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRouteDeps): void {
   const auth = requireAuth(deps);
 
-  app.get(
-    '/api/trace-tags/keys',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+  function tagsKeysHandler(query: string) {
+    return async (req: FastifyRequest, reply: FastifyReply) => {
       const q = req.query as { windowMinutes?: string };
       const m = q.windowMinutes ? Number(q.windowMinutes) : DEFAULT_WINDOW_MIN;
       const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const env = await graphqlPost<{ keys: string[] | null }>(opts, KEYS_QUERY, { duration });
+        const env = await graphqlPost<{ keys: string[] | null }>(opts, query, { duration });
         return reply.send({ keys: env.keys ?? [], generatedAt: Date.now() });
       } catch (err) {
-        return reply
-          .code(200)
-          .send({ keys: [], generatedAt: Date.now(), error: err instanceof Error ? err.message : String(err) });
+        return reply.code(200).send({
+          keys: [],
+          generatedAt: Date.now(),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    },
-  );
-
-  app.get(
-    '/api/trace-tags/values',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
+    };
+  }
+  function tagsValuesHandler(query: string) {
+    return async (req: FastifyRequest, reply: FastifyReply) => {
       const q = req.query as { key?: string; windowMinutes?: string };
       const key = (q.key ?? '').trim();
       if (!key) return reply.code(400).send({ error: 'missing_key' });
@@ -96,21 +108,24 @@ export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRoute
       const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const env = await graphqlPost<{ values: string[] | null }>(opts, VALUES_QUERY, {
+        const env = await graphqlPost<{ values: string[] | null }>(opts, query, {
           tagKey: key,
           duration,
         });
         return reply.send({ key, values: env.values ?? [], generatedAt: Date.now() });
       } catch (err) {
-        return reply
-          .code(200)
-          .send({
-            key,
-            values: [],
-            generatedAt: Date.now(),
-            error: err instanceof Error ? err.message : String(err),
-          });
+        return reply.code(200).send({
+          key,
+          values: [],
+          generatedAt: Date.now(),
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
-    },
-  );
+    };
+  }
+
+  app.get('/api/trace-tags/keys', { preHandler: auth }, tagsKeysHandler(TRACE_KEYS_QUERY));
+  app.get('/api/trace-tags/values', { preHandler: auth }, tagsValuesHandler(TRACE_VALUES_QUERY));
+  app.get('/api/log-tags/keys', { preHandler: auth }, tagsKeysHandler(LOG_KEYS_QUERY));
+  app.get('/api/log-tags/values', { preHandler: auth }, tagsValuesHandler(LOG_VALUES_QUERY));
 }

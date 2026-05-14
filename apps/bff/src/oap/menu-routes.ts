@@ -192,6 +192,7 @@ function deriveLayer(
       header: tpl.header,
       metrics: tpl.metrics,
       overview: tpl.overview,
+      log: tpl.log,
     };
   }
   const def = LAYER_DEFAULTS[rawKey] ?? DEFAULT_FOR_UNKNOWN_LAYER;

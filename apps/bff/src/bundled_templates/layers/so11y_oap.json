@@ -9,7 +9,7 @@
     "instances": "OAP nodes"
   },
   "components": {
-    "service": true,
+    "service": false,
     "instances": true,
     "endpoints": false,
     "topology": false,

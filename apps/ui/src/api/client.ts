@@ -421,6 +421,25 @@ export class BffClient {
     );
   }
 
+  /** Log tag autocomplete — list known tag keys for a recent log
+   *  window. Wraps OAP's `queryLogTagAutocompleteKeys`. */
+  logTagKeys(
+    windowMinutes: number = 30,
+  ): Promise<{ keys: string[]; generatedAt: number; error?: string }> {
+    return this.request('GET', `/api/log-tags/keys?windowMinutes=${windowMinutes}`);
+  }
+  /** Log tag autocomplete — list values for a specific key. Wraps
+   *  OAP's `queryLogTagAutocompleteValues`. */
+  logTagValues(
+    key: string,
+    windowMinutes: number = 30,
+  ): Promise<{ key: string; values: string[]; generatedAt: number; error?: string }> {
+    return this.request(
+      'GET',
+      `/api/log-tags/values?key=${encodeURIComponent(key)}&windowMinutes=${windowMinutes}`,
+    );
+  }
+
   /** List active instances for a service. The per-layer Instance
    *  dashboard surfaces a second selector below the service picker;
    *  this feeds it. Accepts the service id or name. */

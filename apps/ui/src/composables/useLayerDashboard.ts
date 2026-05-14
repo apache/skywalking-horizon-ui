@@ -99,7 +99,27 @@ export function useLayerDashboard(
         },
         mockTop?.value ? { mockTop: mockTop.value } : {},
       ),
-    enabled: computed(() => layerKey.value.length > 0),
+    // Gate the metric query on the entity actually being resolved.
+    // Otherwise the dashboard fires twice on landing: once with
+    // `service: null` (BFF then auto-picks the first service by
+    // orderBy, which often differs from the URL-selected one), then
+    // again once the landing rows arrive and `serviceName` resolves.
+    // The first fire returns rows for the wrong service and they
+    // briefly flash on screen — for instance/endpoint scopes the
+    // first fire returns mostly empty widgets because the BFF has no
+    // entity to scope to. Wait until both layer + service are known.
+    //
+    // Layer-wide scopes (`topology`, `dependency`, `logs`,
+    // `trace*Profiling`, `trace`) don't need a service — keep them
+    // enabled the moment `layerKey` is known.
+    enabled: computed(() => {
+      if (layerKey.value.length === 0) return false;
+      const s = scope?.value ?? 'service';
+      if (s === 'service' || s === 'instance' || s === 'endpoint') {
+        return Boolean(service.value);
+      }
+      return true;
+    }),
     staleTime: 25_000,
     refetchInterval: refetchIntervalRef,
     refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),

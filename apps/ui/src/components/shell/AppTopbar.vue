@@ -78,7 +78,15 @@ const tzMismatch = computed<boolean>(() => {
  * Add more routes here as Logs / Traces / etc. each opt out of the
  * global rolling window in favour of a per-page picker.
  */
-const TIME_RANGE_OPT_OUT = [/^\/layer\/[^/]+\/trace$/];
+const TIME_RANGE_OPT_OUT = [
+  /^\/layer\/[^/]+\/trace$/,
+  // Logs run their own time window the same way traces do — the page
+  // carries an explicit time picker (the condition bar), and the level
+  // / keyword filters make rolling-window refresh awkward when the
+  // operator is mid-investigation. Block the global picker + pause the
+  // auto-refresher whenever the operator is on a Logs tab.
+  /^\/layer\/[^/]+\/logs$/,
+];
 const ownsTimeRange = computed<boolean>(() => TIME_RANGE_OPT_OUT.some((r) => r.test(route.path)));
 const globalTimeTooltip = computed<string>(() => {
   if (ownsTimeRange.value) {

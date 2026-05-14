@@ -129,6 +129,26 @@ const groupedRows = computed<Map<string, GroupedRow[]>>(() => {
 
 // Defensive truncate for long node labels — preserves the head + an
 // ellipsis so cluster IDs that share a long prefix still distinguish.
+/**
+ * Build SVG `points=` for a flat-top regular hexagon centred at (0,0)
+ * with circumradius `r`. Same outer envelope as a circle of the same
+ * radius, but with the six-sided silhouette. Vertices go clockwise
+ * starting from the right tip.
+ */
+function hexPoints(r: number): string {
+  const s = r * 0.8660254037844386; // r * sin(60°)
+  const h = r * 0.5;                // r * cos(60°)
+  // (r, 0) → (h, s) → (-h, s) → (-r, 0) → (-h, -s) → (h, -s)
+  return [
+    `${r},0`,
+    `${h},${s}`,
+    `${-h},${s}`,
+    `${-r},0`,
+    `${-h},${-s}`,
+    `${h},${-s}`,
+  ].join(' ');
+}
+
 function truncateLabel(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 2) + '…' : s;
 }
@@ -255,65 +275,129 @@ function diffText(d: number | null): string {
   return (d >= 0 ? '+' : '') + fmtMetric(d);
 }
 
-// ── Layered layout (BFS depth from entry points).
+// ── Layered layout (port of booster-ui `computeLevels`).
+//
+// The upstream/downstream BFS-from-many-roots layout we used to run
+// produced a multi-spine grid that didn't read as well as booster-ui's
+// "horizontal main chain + branches drop down" feel (see ui-5.png). So
+// this is a faithful port of booster-ui's `computeLevels` / `layout`:
+//
+//   1. Pick ONE seed — the literal `User` node if present, else the
+//      node that appears most often as either source or target.
+//   2. BFS walks BOTH directions (upstream + downstream) from the
+//      seed. The insertion order is preserved: whichever node enters
+//      level N first sits at the top row of that column, so the
+//      dominant call chain naturally rises to the top.
+//   3. Disconnected subgraphs are processed recursively and their
+//      levels are merged by index — subgraph node #2 at level 3 lines
+//      up with the main spine's level-3 column.
+//   4. No barycentric reorder, no metric-based sort: a node's row
+//      within a column is exactly the order BFS reached it.
 interface LayoutNode extends TopologyNode {
   layerIdx: number;
 }
-/** Only the literal `User` node OAP emits counts as the entry-user.
- *  Synthetic non-real nodes (localhost:-1, external IPs) are NOT users;
- *  they're unattributed callers and we render them with their own
- *  cloud-shaped icon so the operator can tell them apart. */
 function isUser(n: TopologyNode): boolean {
   return isUserNode(n);
+}
+function findMostFrequentInCalls(
+  callsList: TopologyCall[],
+  pool: TopologyNode[],
+): TopologyNode | null {
+  if (callsList.length === 0) return null;
+  const count = new Map<string, number>();
+  let maxCount = 0;
+  let maxId: string | null = null;
+  for (const c of callsList) {
+    const s = (count.get(c.source) ?? 0) + 1;
+    count.set(c.source, s);
+    if (s > maxCount) { maxCount = s; maxId = c.source; }
+    const t = (count.get(c.target) ?? 0) + 1;
+    count.set(c.target, t);
+    if (t > maxCount) { maxCount = t; maxId = c.target; }
+  }
+  if (!maxId) return null;
+  return pool.find((n) => n.id === maxId) ?? null;
+}
+function computeBoosterLevels(
+  callsList: TopologyCall[],
+  nodeList: TopologyNode[],
+  acc: TopologyNode[][],
+): TopologyNode[][] {
+  if (nodeList.length === 0) return acc;
+  // Sort by name first so the seed-pick + traversal are deterministic
+  // across renders. Booster-ui does the same.
+  let pool = [...nodeList].sort((a, b) =>
+    a.name.toLowerCase() < b.name.toLowerCase() ? -1 :
+    a.name.toLowerCase() > b.name.toLowerCase() ? 1 : 0,
+  );
+  let seedIdx = pool.findIndex(isUser);
+  if (seedIdx < 0) {
+    const most = findMostFrequentInCalls(callsList, pool);
+    seedIdx = most ? pool.findIndex((n) => n.id === most.id) : 0;
+  }
+  if (seedIdx < 0) seedIdx = 0;
+  const levels: TopologyNode[][] = [[pool[seedIdx]]];
+  pool = pool.filter((_, i) => i !== seedIdx);
+  // Walk levels — new levels get appended inside the loop, so this is
+  // an index-based for so the freshly-pushed levels are visited too.
+  for (let li = 0; li < levels.length; li++) {
+    const level = levels[li];
+    const next: TopologyNode[] = [];
+    for (const l of level) {
+      for (const c of callsList) {
+        if (c.target === l.id) {
+          const i = pool.findIndex((d) => d.id === c.source);
+          if (i > -1) {
+            next.push(pool[i]);
+            pool = pool.filter((_, idx) => idx !== i);
+          }
+        }
+        if (c.source === l.id) {
+          const i = pool.findIndex((d) => d.id === c.target);
+          if (i > -1) {
+            next.push(pool[i]);
+            pool = pool.filter((_, idx) => idx !== i);
+          }
+        }
+      }
+    }
+    if (next.length > 0) levels.push(next);
+  }
+  // Merge this subgraph's levels into the running accumulator by
+  // index: subgraph level-K nodes append to acc[K]. Booster's exact
+  // shape — keeps disconnected subgraphs aligned to the same columns.
+  const longer = levels.length > acc.length ? levels : acc;
+  const shorter = levels.length > acc.length ? acc : levels;
+  const merged = longer.map((sub, idx) =>
+    shorter[idx] ? [...sub, ...shorter[idx]] : sub,
+  );
+  if (pool.length > 0) {
+    const remainingIds = new Set(pool.map((n) => n.id));
+    const remainingCalls = callsList.filter(
+      (c) => remainingIds.has(c.source) || remainingIds.has(c.target),
+    );
+    return computeBoosterLevels(remainingCalls, pool, merged);
+  }
+  return merged;
 }
 const layoutNodes = computed<LayoutNode[]>(() => {
   const all = nodes.value;
   if (all.length === 0) return [];
-  const callsList = calls.value;
-  const downstream = new Map<string, string[]>();
-  const upstream = new Map<string, string[]>();
-  for (const c of callsList) {
-    if (!downstream.has(c.source)) downstream.set(c.source, []);
-    downstream.get(c.source)!.push(c.target);
-    if (!upstream.has(c.target)) upstream.set(c.target, []);
-    upstream.get(c.target)!.push(c.source);
-  }
-  const userIds = new Set(all.filter(isUser).map((n) => n.id));
-  const roots: string[] = [...userIds];
+  const levels = computeBoosterLevels(calls.value, all, []);
+  const out: LayoutNode[] = [];
+  levels.forEach((lvl, idx) => {
+    for (const n of lvl) out.push({ ...n, layerIdx: idx });
+  });
+  // Truly-isolated nodes that never got BFS'd (no edges at all,
+  // booster's pool is empty by recursion but ours may still have
+  // them if `nodes` and `calls` disagree). Tuck them on as an extra
+  // rightmost column so they don't drop off the canvas.
+  const seen = new Set(out.map((n) => n.id));
+  const orphanIdx = levels.length;
   for (const n of all) {
-    if (userIds.has(n.id)) continue;
-    if ((upstream.get(n.id) ?? []).length === 0) roots.push(n.id);
+    if (!seen.has(n.id)) out.push({ ...n, layerIdx: orphanIdx });
   }
-  if (roots.length === 0) {
-    const focus = all.find((n) => n.name === serviceName.value);
-    if (focus) roots.push(focus.id);
-    else {
-      const sorted = [...all].sort((a, b) => (nodeVal(b, centerDef.value) ?? 0) - (nodeVal(a, centerDef.value) ?? 0));
-      if (sorted[0]) roots.push(sorted[0].id);
-    }
-  }
-  const layerOf = new Map<string, number>();
-  for (const r of roots) layerOf.set(r, 0);
-  let changed = true;
-  let safety = all.length + 8;
-  while (changed && safety-- > 0) {
-    changed = false;
-    for (const c of callsList) {
-      const s = layerOf.get(c.source);
-      if (s === undefined) continue;
-      const tCur = layerOf.get(c.target);
-      const want = s + 1;
-      if (tCur === undefined || want > tCur) {
-        layerOf.set(c.target, want);
-        changed = true;
-      }
-    }
-  }
-  const maxLayer = Math.max(0, ...layerOf.values());
-  for (const n of all) {
-    if (!layerOf.has(n.id)) layerOf.set(n.id, maxLayer + 1);
-  }
-  return all.map((n) => ({ ...n, layerIdx: layerOf.get(n.id)! }));
+  return out;
 });
 
 // (Heaviest-path overlay removed — every edge now reads as equally
@@ -328,73 +412,23 @@ interface LayerColumn {
   hidden: number;
 }
 const layerColumns = computed<LayerColumn[]>(() => {
+  // Booster-ui's algorithm already returned levels in the right order
+  // (seed in level 0, then BFS-expansion). We just preserve that order
+  // and cap each column at NODES_PER_LAYER. No barycentric reorder, no
+  // metric sort, no User-pin — the seed-driven BFS naturally puts the
+  // dominant chain at the top row of each column.
   const byLayer = new Map<number, LayoutNode[]>();
   for (const n of layoutNodes.value) {
     if (!byLayer.has(n.layerIdx)) byLayer.set(n.layerIdx, []);
     byLayer.get(n.layerIdx)!.push(n);
   }
   const indices = [...byLayer.keys()].sort((a, b) => a - b);
-
-  // Pass 1 — keep the top-N busiest nodes per column (metric-driven
-  // overflow). Order within `keep` is unimportant here; pass 2 fixes
-  // it via barycentric reorder.
-  const buckets = indices.map((i) => {
-    const list = byLayer.get(i)!.slice().sort((a, b) => {
-      return (nodeVal(b, centerDef.value) ?? 0) - (nodeVal(a, centerDef.value) ?? 0);
-    });
-    const keep = list.slice(0, NODES_PER_LAYER);
-    const hidden = Math.max(0, list.length - NODES_PER_LAYER);
-    return { keep, hidden };
-  });
-
-  // Pass 2 — barycentric sweep to minimise edge crossings. For each
-  // column, sort its nodes by the average row index of their connected
-  // neighbours in the adjacent column (incoming on the forward sweep,
-  // outgoing on the backward sweep). Three iterations is enough to
-  // converge for graph sizes the topology view caps at; further
-  // iterations don't change the order meaningfully.
-  const callsList = calls.value;
-  const callsBySource = new Map<string, string[]>();
-  const callsByTarget = new Map<string, string[]>();
-  for (const c of callsList) {
-    (callsBySource.get(c.source) ?? callsBySource.set(c.source, []).get(c.source)!).push(c.target);
-    (callsByTarget.get(c.target) ?? callsByTarget.set(c.target, []).get(c.target)!).push(c.source);
-  }
-  function rowOf(id: string, col: LayoutNode[]): number {
-    const i = col.findIndex((n) => n.id === id);
-    return i < 0 ? -1 : i;
-  }
-  function barycenter(id: string, neighbourCol: LayoutNode[], edges: Map<string, string[]>): number {
-    const out = edges.get(id) ?? [];
-    if (out.length === 0 || neighbourCol.length === 0) return Number.POSITIVE_INFINITY;
-    let acc = 0;
-    let n = 0;
-    for (const t of out) {
-      const r = rowOf(t, neighbourCol);
-      if (r >= 0) { acc += r; n++; }
-    }
-    return n === 0 ? Number.POSITIVE_INFINITY : acc / n;
-  }
-  for (let pass = 0; pass < 3; pass++) {
-    // Forward sweep — column i ordered by its left neighbour (i-1).
-    for (let i = 1; i < buckets.length; i++) {
-      const left = buckets[i - 1].keep;
-      buckets[i].keep = buckets[i].keep.slice().sort((a, b) => {
-        return barycenter(a.id, left, callsByTarget) - barycenter(b.id, left, callsByTarget);
-      });
-    }
-    // Backward sweep — column i ordered by its right neighbour (i+1).
-    for (let i = buckets.length - 2; i >= 0; i--) {
-      const right = buckets[i + 1].keep;
-      buckets[i].keep = buckets[i].keep.slice().sort((a, b) => {
-        return barycenter(a.id, right, callsBySource) - barycenter(b.id, right, callsBySource);
-      });
-    }
-  }
-
-  return indices.map((i, idx) => {
+  return indices.map((i) => {
+    const all = byLayer.get(i)!;
+    const visible = all.slice(0, NODES_PER_LAYER);
+    const hidden = Math.max(0, all.length - NODES_PER_LAYER);
     const label = i === 0 ? 'L0 · Entry' : `L${i} · Tier ${i}`;
-    return { index: i, label, visible: buckets[idx].keep, hidden: buckets[idx].hidden };
+    return { index: i, label, visible, hidden };
   });
 });
 
@@ -406,8 +440,12 @@ const layerColumns = computed<LayerColumn[]>(() => {
  * text sits beneath the node with a larger size to compensate.
  */
 const NODE_R = 32;
-const COL_GAP = 240;
-const ROW_GAP = NODE_R * 2 + 90;
+const COL_GAP = 220;
+// Each row used to be NODE_R*2 + 90 = 154px tall; bump ~20% so the
+// secondary node beneath a spine node (e.g. `agent::rating` under
+// `agent::songs`) has more breathing room and the diagonal calls
+// reach a clearly distinct row instead of crowding the spine.
+const ROW_GAP = Math.round((NODE_R * 2 + 90) * 1.2);
 const W = computed(() => Math.max(820, layerColumns.value.length * COL_GAP + 80));
 const H = computed(() => {
   const maxNodes = Math.max(1, ...layerColumns.value.map((c) => c.visible.length));
@@ -786,12 +824,16 @@ function fitToScreen(animate = true): void {
   if (!svgEl.value || !zoomBehaviour) return;
   const vp = viewportSize();
   const pad = 24;
-  const scale = Math.min(
+  const fit = Math.min(
     (vp.width - pad * 2) / W.value,
     (vp.height - pad * 2) / H.value,
-    1.5, // never overshoot too far
   );
-  const k = Math.max(0.15, scale);
+  // Operator-validated readable scale: at ~79% the node labels +
+  // metric line both stay legible. Default to that unless the graph
+  // is so wide / tall it forces a smaller fit. Never overshoot above
+  // 79% — blowing the canvas up past that just wastes pixels.
+  const READABLE_K = 0.79;
+  const k = Math.max(0.15, Math.min(fit, READABLE_K));
   const tx = (vp.width - W.value * k) / 2;
   const ty = (vp.height - H.value * k) / 2;
   const sel = d3.select(svgEl.value);
@@ -1004,7 +1046,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
       {{ errorText ?? 'Topology feed failed — check the BFF and OAP.' }}
     </div>
 
-    <section class="sm-card sw-card" :style="{ height: cardHeightPx + 'px' }">
+    <section class="sm-card sw-card" :class="{ 'has-selection': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
       <div ref="containerEl" class="sm-graph">
         <!-- Single SVG that fills the container; pan/zoom transforms
              apply to the inner `<g class="zoom-layer">`. No scroll
@@ -1027,21 +1069,11 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <!-- Soft radial glow behind the chain — pure decoration. -->
             <rect :width="W" :height="H" fill="url(#sm-bg-glow)" />
 
-            <!-- Single-baseline guide along the median row (single-row
-                 chains) or one guide per row (fan-out columns). The
-                 linear-chain design uses a single horizontal dashed
-                 line through every node. -->
-            <line
-              v-for="r in Array.from({ length: Math.max(1, ...layerColumns.map((c) => c.visible.length)) }, (_, i) => i)"
-              :key="`baseline-${r}`"
-              x1="40"
-              :x2="W - 40"
-              :y1="110 + r * ROW_GAP + NODE_R"
-              :y2="110 + r * ROW_GAP + NODE_R"
-              stroke="var(--sw-line)"
-              stroke-dasharray="2 6"
-              opacity="0.4"
-            />
+            <!-- Row-baseline guides were dropped — they assumed strict
+                 columns, but the honeycomb stagger (odd columns shifted
+                 down by half a row) makes the dashed lines look broken.
+                 The animated edges + node halos carry enough visual
+                 anchoring on their own. -->
 
             <g
               v-for="c in visibleCalls"
@@ -1156,28 +1188,33 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               style="cursor: grab"
               @click.stop="selectNode(n.id)"
             >
-              <!-- Selection halo: tinted fill at r=56 + dashed ring at
-                   r=50 (design spec). -->
+              <!-- Selection halo: tinted hex at r=56 + dashed hex at
+                   r=50 (design spec; circles swapped for flat-top
+                   hexagons so the silhouette reads like a service-
+                   chip while keeping the same two-tone halo + ring
+                   layering). -->
               <template v-if="selectedNodeId === n.id">
-                <circle r="56" :fill="ringColor(n)" opacity="0.10" />
-                <circle
-                  r="50"
+                <polygon :points="hexPoints(56)" :fill="ringColor(n)" opacity="0.10" stroke-linejoin="round" />
+                <polygon
+                  :points="hexPoints(50)"
                   fill="none"
                   :stroke="ringColor(n)"
                   stroke-width="1.2"
                   stroke-dasharray="3 4"
+                  stroke-linejoin="round"
                   opacity="0.7"
                 />
               </template>
               <!-- Outer ring (health). Dashed for client / external
                    to signal "untraced" (no agent here). Solid stroke
                    for real services. -->
-              <circle
-                r="42"
+              <polygon
+                :points="hexPoints(42)"
                 fill="var(--sw-bg-1)"
                 :stroke="ringColor(n)"
                 :stroke-width="nodeKind(n) === 'service' ? 2.5 : 1.2"
                 :stroke-dasharray="nodeKind(n) === 'service' ? '0' : '4 4'"
+                stroke-linejoin="round"
                 :style="{
                   filter: selectedNodeId === n.id
                     ? `drop-shadow(0 0 12px ${ringColor(n)})`
@@ -1187,11 +1224,12 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <!-- Inner disc — slightly darker for services to push
                    the icon forward; matches the design's two-tone
                    readout. -->
-              <circle
-                r="32"
+              <polygon
+                :points="hexPoints(32)"
                 :fill="nodeKind(n) === 'service' ? 'var(--sw-bg-2)' : 'var(--sw-bg-1)'"
                 stroke="var(--sw-line-2)"
                 stroke-width="1"
+                stroke-linejoin="round"
               />
 
               <!-- Kind icon: client = user silhouette, service = 3D
@@ -1251,13 +1289,26 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
               </circle>
 
-              <!-- Name below the node. Slightly larger now that the
-                   circle radius is smaller — keeps the label as the
-                   readable anchor for the node. -->
-              <!-- Node label = base name only. The group prefix
+              <!-- RPM (center metric) above the hex body. No label —
+                   the unit chip on the right is enough to disambiguate
+                   it from the latency line beneath the name. Hidden
+                   when the node reports no RPM so silent nodes don't
+                   carry an empty placeholder. -->
+              <text
+                v-if="centerDef && nodeVal(n, centerDef) !== null"
+                text-anchor="middle"
+                y="-50"
+                :fill="ringColor(n)"
+                font-size="14"
+                font-family="var(--sw-mono)"
+                font-weight="700"
+              >
+                {{ fmtMetric(nodeVal(n, centerDef)) }}{{ centerDef.unit ? ' ' + centerDef.unit.toUpperCase() : '' }}
+              </text>
+
+              <!-- Name below the node — base only. The group prefix
                    (`<group>::base`) appears as a chip in the right
-                   sidebar; jamming it into the canvas label competes
-                   with the metric line below. -->
+                   sidebar. -->
               <text
                 text-anchor="middle"
                 y="58"
@@ -1268,25 +1319,19 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               >
                 {{ truncateLabel(serviceBaseName(n.name), 22) }}
               </text>
-              <!-- Metric line. Operator-configured `center` metric
-                   in the ring colour; `secondary` next to it muted.
-                   Units always UPPERCASE per design rule. Bumped
-                   font size since the node radius shrunk. -->
+              <!-- Latency (secondary metric) below the name. No label
+                   — the unit chip disambiguates from RPM. Hidden when
+                   the node has no latency reading. -->
               <text
+                v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"
                 text-anchor="middle"
-                y="76"
-                :fill="centerDef && nodeVal(n, centerDef) !== null ? ringColor(n) : 'var(--sw-fg-3)'"
-                font-size="14"
+                y="78"
+                fill="var(--sw-fg-2)"
+                font-size="13"
                 font-family="var(--sw-mono)"
-                font-weight="700"
+                font-weight="600"
               >
-                {{
-                  centerDef
-                    ? (nodeVal(n, centerDef) === null
-                        ? `— ${(centerDef.unit ?? '').toUpperCase()}`
-                        : `${fmtMetric(nodeVal(n, centerDef))}${centerDef.unit ? ' ' + centerDef.unit.toUpperCase() : ''}`)
-                    : ''
-                }}<template v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ secondaryDef.label }} {{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
+                {{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}
               </text>
             </g>
           </g>
@@ -1334,7 +1379,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
            missing side. Edges DO NOT open a dashboard page — metrics
            live here and on the canvas, that's the full extent of
            edge drill-in. -->
-      <aside class="sm-panels">
+      <aside v-if="selectedNode || selectedCall" class="sm-panels">
       <!-- ── Top slot: node panel (or empty prompt). ── -->
       <article v-if="selectedNode" class="sm-panel">
         <header class="sp-head">
@@ -1386,8 +1431,11 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         </div>
       </article>
 
-      <!-- Top-slot empty when no node is selected. -->
-      <article v-if="!selectedNode" class="sm-panel sm-panel-empty">
+      <!-- Top-slot placeholder when only an edge is selected — keeps
+           the layout balanced (otherwise the edge panel would jump up
+           to the top). When NEITHER node nor edge is selected the
+           whole `aside` is hidden, so the SVG claims full width. -->
+      <article v-if="!selectedNode && selectedCall" class="sm-panel sm-panel-empty">
         <span>Click a node to inspect a service</span>
       </article>
 
@@ -1526,9 +1574,12 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         </div>
       </article>
 
-      <!-- Bottom-slot empty when no edge is selected. -->
+      <!-- Bottom-slot placeholder when only a node is selected — keeps
+           the column the same height as it would be with both panels
+           filled. Whole `aside` is hidden when neither side is
+           selected (see the `v-if` on it). -->
       <article
-        v-if="!(selectedCall && selectedCallSource && selectedCallTarget)"
+        v-if="selectedNode && !(selectedCall && selectedCallSource && selectedCallTarget)"
         class="sm-panel sm-panel-empty"
       >
         <span>Click an edge to inspect a call</span>
@@ -1550,6 +1601,14 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   align-items: center;
   gap: 12px;
   padding: 8px 12px;
+  /* `.sw-card` ships with `overflow: hidden` to clip rounded corners
+   *  on its child content. The focus picker's absolute-positioned
+   *  dropdown lives inside this toolbar, though, and getting clipped
+   *  by the card boundary blocks the operator from scrolling the
+   *  service list. Override here so the popup can spill beneath the
+   *  toolbar. Rounded corners are preserved by the children
+   *  themselves not bleeding into the corner. */
+  overflow: visible;
 }
 .sm-toolbar .left {
   display: inline-flex;
@@ -1674,15 +1733,16 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   font-size: 11.5px;
 }
 .sm-card {
-  /* Map card — graph on the left, dual-stack sidebar on the right.
-     Height is driven by the `cardHeightPx` computed in the script:
-     adapts to the graph's actual content with a 60% floor of the
-     780px baseline and a 1100px cap. See `cardHeightPx` for the
-     reasoning; the inline `style="height: …px"` on the section
-     wins over this declaration. */
+  /* Map card — graph on the left, dual-stack sidebar on the right
+     when a node / edge is selected; otherwise the card collapses to
+     a single full-width column so the canvas isn't squished by an
+     empty placeholder rail. Height is driven by `cardHeightPx`. */
   padding: 0;
   overflow: hidden;
   display: grid;
+  grid-template-columns: 1fr;
+}
+.sm-card.has-selection {
   grid-template-columns: 1fr 360px;
 }
 .sm-panels {
