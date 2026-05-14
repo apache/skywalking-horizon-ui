@@ -19,12 +19,14 @@
 #   - any `v*` tag    (tagged with the version + the full commit SHA)
 #
 # The full commit SHA is the canonical, immutable identifier — moving
-# tags like `main` and `vX.Y.Z` are conveniences that *also* point at
-# the same SHA-pinned image. Operators should pull by SHA in production.
+# tags like `main` and `vX.Y.Z` are conveniences that point at the same
+# SHA-built image. Operators should pull by SHA in production.
 #
-# Third-party actions are SHA-pinned per ASF infra policy (mirrors the
-# `apache/skywalking` publish-docker.yaml). `if: github.repository ==`
-# also matches that pattern — fork pushes don't run the publish job.
+# Only login / setup-qemu / setup-buildx are pulled from `docker/*` —
+# everything else (tag computation, buildx build+push) is shell-driven
+# to stay within ASF infra's third-party-action allow-list. SHAs are
+# the same ones `apache/skywalking`'s publish-docker.yaml uses, so
+# they're already vetted at the org level.
 name: publish-image
 
 on:
@@ -42,16 +44,15 @@ concurrency:
   group: publish-image-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
   build-and-push:
     if: github.repository == 'apache/skywalking-horizon-ui'
     name: Build + push
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NAME: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -70,41 +71,49 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # The canonical tag is the full 40-char commit SHA. We also publish
-      # moving tags so common workflows ("pull :main", "pull :v1.2.3")
-      # work — they all resolve back to the same SHA-pinned image.
+      # Compute image tags in shell so we don't need docker/metadata-action.
+      # Canonical = full 40-char SHA; moving tags layered per trigger.
       - name: Compute image tags
-        id: meta
-        uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,format=long,prefix=
-            type=ref,event=branch,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}},enable=${{ github.ref_type == 'tag' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.ref_type == 'tag' }}
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Apache SkyWalking Horizon UI
-            org.opencontainers.image.description=Next-generation web UI for Apache SkyWalking.
-            org.opencontainers.image.licenses=Apache-2.0
+        id: tags
+        run: |
+          set -eu
+          base="${REGISTRY}/${IMAGE_NAME}"
+          # lower-case the image path — GHCR rejects mixed-case names.
+          base="$(echo "$base" | tr '[:upper:]' '[:lower:]')"
+          sha="${{ github.sha }}"
+          tags="-t ${base}:${sha}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            tags="${tags} -t ${base}:main"
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            # Strip the leading `v` from `vX.Y.Z` for the semver tag.
+            ver="${GITHUB_REF_NAME#v}"
+            tags="${tags} -t ${base}:${ver} -t ${base}:latest"
+            # Bonus: major.minor (e.g. 1.2 from 1.2.3) for the common
+            # "track the minor line" usage. POSIX shell substitution.
+            mm="${ver%.*}"
+            if [ "${mm}" != "${ver}" ]; then
+              tags="${tags} -t ${base}:${mm}"
+            fi
+          fi
+          echo "IMAGE_BASE=${base}" >> "$GITHUB_ENV"
+          echo "TAG_ARGS=${tags}" >> "$GITHUB_ENV"
+          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
 
       - name: Build + push
-        uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Image SHA tag (canonical)
         run: |
-          echo "::notice::Published ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha=${{ github.sha }}"
-          echo "All published tags:"
-          echo '${{ steps.meta.outputs.tags }}'
+          set -eu
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --file Dockerfile \
+            --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.title=Apache SkyWalking Horizon UI" \
+            --label "org.opencontainers.image.description=Next-generation web UI for Apache SkyWalking." \
+            --label "org.opencontainers.image.licenses=Apache-2.0" \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            ${TAG_ARGS} \
+            --push \
+            .
+          echo "::notice::Published ${IMAGE_BASE}@sha=${{ github.sha }}"
