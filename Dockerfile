@@ -23,7 +23,10 @@ WORKDIR /workspace
 # argon2 (password hashing) builds a native module; alpine needs python + a
 # C toolchain at build time. The deps are dropped from the runtime stage.
 RUN apk add --no-cache python3 make g++ libc6-compat
-RUN corepack enable && corepack prepare pnpm@9.12.3 --activate
+# corepack reads `packageManager` from package.json — no need to pin the
+# pnpm version here. Adding `--activate` so the binary is in PATH for
+# subsequent layers.
+RUN corepack enable && corepack prepare --activate
 
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY apps/bff/package.json apps/bff/
@@ -38,9 +41,11 @@ RUN pnpm --filter @skywalking-horizon-ui/bff build \
  && pnpm --filter @skywalking-horizon-ui/ui  build
 
 # Deploy a focused production install for the BFF — pnpm copies only the
-# packages it actually needs (workspace deps + runtime npm deps). This is
-# what ships in the final image.
-RUN pnpm deploy --filter @skywalking-horizon-ui/bff --prod /deploy/bff
+# packages it actually needs (workspace deps + runtime npm deps). The
+# `--legacy` flag is mandatory under pnpm 10+ for non-injected
+# workspaces (the alternative is enabling `inject-workspace-packages`
+# everywhere, which we don't need for plain workspace deps).
+RUN pnpm deploy --legacy --filter @skywalking-horizon-ui/bff --prod /deploy/bff
 
 # ---- runtime ---------------------------------------------------------------
 FROM node:20-alpine
