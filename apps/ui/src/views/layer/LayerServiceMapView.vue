@@ -186,8 +186,9 @@ const ringDef = computed(() => {
 });
 const centerDef = computed(() => pickByRole(cfg.value.nodeMetrics, 'center'));
 const secondaryDef = computed(() => pickByRole(cfg.value.nodeMetrics, 'secondary'));
-const lineServerDef = computed(() => pickByRole(cfg.value.linkServerMetrics ?? [], 'lineServer'));
-const lineClientDef = computed(() => pickByRole(cfg.value.linkClientMetrics ?? [], 'lineClient'));
+// (lineServerDef / lineClientDef were only used by the dropped
+// heaviest-path overlay. The on-canvas edge chip now reads RPM
+// directly off cfg.linkServerMetrics / linkClientMetrics via id.)
 
 function nodeVal(n: TopologyNode, def: TopologyMetricDef | null): number | null {
   if (!def) return null;
@@ -333,22 +334,67 @@ const layerColumns = computed<LayerColumn[]>(() => {
     byLayer.get(n.layerIdx)!.push(n);
   }
   const indices = [...byLayer.keys()].sort((a, b) => a - b);
-  return indices.map((i) => {
-    // Per-column sort: busiest by `center` metric first. No heaviest-path
-    // boost — every node is treated as a peer; overflow is purely by
-    // metric value (so the visible 12 are the loudest, not the ones on
-    // a synthetic critical path).
+
+  // Pass 1 — keep the top-N busiest nodes per column (metric-driven
+  // overflow). Order within `keep` is unimportant here; pass 2 fixes
+  // it via barycentric reorder.
+  const buckets = indices.map((i) => {
     const list = byLayer.get(i)!.slice().sort((a, b) => {
       return (nodeVal(b, centerDef.value) ?? 0) - (nodeVal(a, centerDef.value) ?? 0);
     });
-    const keep: LayoutNode[] = [];
-    const overflow: LayoutNode[] = [];
-    for (const n of list) {
-      if (keep.length < NODES_PER_LAYER) keep.push(n);
-      else overflow.push(n);
+    const keep = list.slice(0, NODES_PER_LAYER);
+    const hidden = Math.max(0, list.length - NODES_PER_LAYER);
+    return { keep, hidden };
+  });
+
+  // Pass 2 — barycentric sweep to minimise edge crossings. For each
+  // column, sort its nodes by the average row index of their connected
+  // neighbours in the adjacent column (incoming on the forward sweep,
+  // outgoing on the backward sweep). Three iterations is enough to
+  // converge for graph sizes the topology view caps at; further
+  // iterations don't change the order meaningfully.
+  const callsList = calls.value;
+  const callsBySource = new Map<string, string[]>();
+  const callsByTarget = new Map<string, string[]>();
+  for (const c of callsList) {
+    (callsBySource.get(c.source) ?? callsBySource.set(c.source, []).get(c.source)!).push(c.target);
+    (callsByTarget.get(c.target) ?? callsByTarget.set(c.target, []).get(c.target)!).push(c.source);
+  }
+  function rowOf(id: string, col: LayoutNode[]): number {
+    const i = col.findIndex((n) => n.id === id);
+    return i < 0 ? -1 : i;
+  }
+  function barycenter(id: string, neighbourCol: LayoutNode[], edges: Map<string, string[]>): number {
+    const out = edges.get(id) ?? [];
+    if (out.length === 0 || neighbourCol.length === 0) return Number.POSITIVE_INFINITY;
+    let acc = 0;
+    let n = 0;
+    for (const t of out) {
+      const r = rowOf(t, neighbourCol);
+      if (r >= 0) { acc += r; n++; }
     }
+    return n === 0 ? Number.POSITIVE_INFINITY : acc / n;
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    // Forward sweep — column i ordered by its left neighbour (i-1).
+    for (let i = 1; i < buckets.length; i++) {
+      const left = buckets[i - 1].keep;
+      buckets[i].keep = buckets[i].keep.slice().sort((a, b) => {
+        return barycenter(a.id, left, callsByTarget) - barycenter(b.id, left, callsByTarget);
+      });
+    }
+    // Backward sweep — column i ordered by its right neighbour (i+1).
+    for (let i = buckets.length - 2; i >= 0; i--) {
+      const right = buckets[i + 1].keep;
+      buckets[i].keep = buckets[i].keep.slice().sort((a, b) => {
+        return barycenter(a.id, right, callsBySource) - barycenter(b.id, right, callsBySource);
+      });
+    }
+  }
+
+  return indices.map((i, idx) => {
     const label = i === 0 ? 'L0 · Entry' : `L${i} · Tier ${i}`;
-    return { index: i, label, visible: keep, hidden: overflow.length };
+    return { index: i, label, visible: buckets[idx].keep, hidden: buckets[idx].hidden };
   });
 });
 
@@ -385,6 +431,23 @@ const cardHeightPx = computed<number>(() => {
   return Math.max(CARD_MIN, Math.min(CARD_MAX, ideal));
 });
 interface Pos { cx: number; cy: number }
+
+// Drag overrides — populated by d3.drag on each node. Once a user
+// drops a node anywhere on the canvas, its (cx, cy) is pinned here and
+// `nodePos` uses the override instead of the column layout. Dragging
+// re-routes every connected edge automatically because `callPathD`
+// pulls live coordinates from `nodePos`. The map is keyed by service
+// id so it survives layer re-render as long as the same services come
+// back. Cleared whenever the underlying node set changes meaningfully
+// (different layer / refresh blowing away the topology).
+const dragOverrides = ref<Map<string, Pos>>(new Map());
+watch(
+  () => layoutNodes.value.map((n) => n.id).sort().join('|'),
+  (curr, prev) => {
+    if (prev !== undefined && curr !== prev) dragOverrides.value = new Map();
+  },
+);
+
 const nodePos = computed<Map<string, Pos>>(() => {
   const map = new Map<string, Pos>();
   layerColumns.value.forEach((col, colIdx) => {
@@ -394,6 +457,11 @@ const nodePos = computed<Map<string, Pos>>(() => {
       map.set(n.id, { cx, cy });
     });
   });
+  // Drag overrides win — but only when the node is still in the
+  // visible set, so a stale id from a previous layer doesn't bleed.
+  for (const [id, p] of dragOverrides.value) {
+    if (map.has(id)) map.set(id, p);
+  }
   return map;
 });
 const visibleCalls = computed<TopologyCall[]>(() => {
@@ -453,18 +521,22 @@ function nodeKind(n: TopologyNode): 'client' | 'service' | 'external' {
   if (!n.isReal) return 'external';
   return 'service';
 }
-/** Pick the edge metric to surface as a label. Server-side first per
- *  operator direction; falls back to client when null. */
+/** Pick the edge metric to surface as a label. RPM-only by design —
+ *  the canvas chip stays compact and consistent across layers. Other
+ *  line metrics (latency, p95, SLA) are still available in the right
+ *  sidebar's per-edge detail. Server-side wins; client falls back. */
 function edgeLabel(c: TopologyCall): { value: number; unit: string; isClient: boolean } | null {
-  const sDef = lineServerDef.value;
-  if (sDef) {
-    const v = edgeVal(c, 'server', sDef);
-    if (v !== null) return { value: v, unit: sDef.unit ?? '', isClient: false };
+  const sList = cfg.value.linkServerMetrics ?? [];
+  const cList = cfg.value.linkClientMetrics ?? [];
+  const sRpm = sList.find((m) => m.id === 'cpm') ?? null;
+  const cRpm = cList.find((m) => m.id === 'cpm') ?? null;
+  if (sRpm) {
+    const v = edgeVal(c, 'server', sRpm);
+    if (v !== null) return { value: v, unit: sRpm.unit ?? 'rpm', isClient: false };
   }
-  const cDef = lineClientDef.value;
-  if (cDef) {
-    const v = edgeVal(c, 'client', cDef);
-    if (v !== null) return { value: v, unit: cDef.unit ?? '', isClient: true };
+  if (cRpm) {
+    const v = edgeVal(c, 'client', cRpm);
+    if (v !== null) return { value: v, unit: cRpm.unit ?? 'rpm', isClient: true };
   }
   return null;
 }
@@ -746,6 +818,11 @@ function installZoom(): void {
       // Wheel + dblclick + drag all proceed normally; pinch on
       // trackpads fires `wheel` with ctrlKey=true which d3 handles.
       if (event.type === 'mousedown' && (event as MouseEvent).button !== 0) return false;
+      // Skip when the pointer started on a node — that's a node-drag,
+      // not a canvas pan. The `data-node-id` attribute identifies the
+      // node-group target; bubbles up through SVG groups.
+      const t = event.target as Element | null;
+      if (t && t.closest && t.closest('[data-node-id]')) return false;
       return !(event as MouseEvent).button;
     })
     .on('zoom', (ev) => {
@@ -760,11 +837,46 @@ function installZoom(): void {
   sel.on('dblclick', () => fitToScreen(true));
 }
 
+// Node drag: pointer-drives the (cx, cy) override for the dragged
+// service. The whole edge set re-routes live because every edge's
+// `d` attribute reads from `nodePos`, which surfaces the override.
+// Drop = commit position. We don't fight the user with a snap-back.
+function installNodeDrag(): void {
+  if (!zoomLayerEl.value) return;
+  const sel = d3.select(zoomLayerEl.value).selectAll<SVGGElement, unknown>('g.sm-node');
+  sel.on('.drag', null);
+  sel.call(
+    d3
+      .drag<SVGGElement, unknown>()
+      .clickDistance(4)
+      .on('start', function (event) {
+        // Mark which node is being dragged so the zoom filter knows
+        // to bow out for this pointer sequence.
+        (event.sourceEvent as MouseEvent).stopPropagation();
+      })
+      .on('drag', function (event) {
+        const el = this as SVGGElement;
+        const id = el.getAttribute('data-node-id');
+        if (!id) return;
+        const cur = nodePos.value.get(id);
+        if (!cur) return;
+        // event.dx / event.dy are post-transform deltas (d3.drag does
+        // the math on the parent's CTM internally), so we can add them
+        // directly to the override coordinates without unzooming.
+        const next = { cx: cur.cx + event.dx, cy: cur.cy + event.dy };
+        const m = new Map(dragOverrides.value);
+        m.set(id, next);
+        dragOverrides.value = m;
+      }),
+  );
+}
+
 onMounted(() => {
   // Defer one tick so the SVG has been rendered (layoutNodes drives
   // its mount through v-if).
   void nextTick(() => {
     installZoom();
+    installNodeDrag();
     if (svgEl.value) fitToScreen(false);
   });
 });
@@ -779,7 +891,10 @@ watch(
   () => `${W.value}x${H.value}x${layoutNodes.value.length}`,
   () => {
     // If the SVG remounts (v-if), we need to re-install zoom. Defer.
+    // Also re-bind drag — `selectAll('g.sm-node')` is bound to the
+    // current DOM nodes, so a remount drops the handlers.
     void nextTick(() => {
+      installNodeDrag();
       if (!zoomBehaviour) installZoom();
       fitToScreen(false);
     });
@@ -990,25 +1105,25 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                    always displayed UPPERCASE. -->
               <template v-if="edgeLabel(c) && edgeMidpoint(c)">
                 <g
-                  :transform="`translate(${edgeMidpoint(c)!.x - 38}, ${edgeMidpoint(c)!.y - 11})`"
+                  :transform="`translate(${edgeMidpoint(c)!.x - 44}, ${edgeMidpoint(c)!.y - 13})`"
                   style="pointer-events: none"
                 >
                   <rect
                     x="0"
                     y="0"
-                    width="76"
-                    height="20"
-                    rx="10"
+                    width="88"
+                    height="24"
+                    rx="12"
                     fill="var(--sw-bg-1)"
                     :stroke="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'"
                     :stroke-width="selectedCallId === c.id ? 1.4 : 1"
                   />
                   <text
-                    x="38"
-                    y="14"
+                    x="44"
+                    y="17"
                     text-anchor="middle"
                     :fill="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'"
-                    font-size="11"
+                    font-size="13"
                     font-family="var(--sw-mono)"
                     font-weight="700"
                   >
@@ -1035,8 +1150,10 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <g
               v-for="n in layoutNodes.filter((nn) => nodePos.get(nn.id))"
               :key="n.id"
+              :data-node-id="n.id"
               :transform="`translate(${nodePos.get(n.id)!.cx}, ${nodePos.get(n.id)!.cy})`"
               class="sm-node"
+              style="cursor: grab"
               @click.stop="selectNode(n.id)"
             >
               <!-- Selection halo: tinted fill at r=56 + dashed ring at
@@ -1145,7 +1262,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 text-anchor="middle"
                 y="58"
                 :fill="selectedNodeId === n.id ? 'var(--sw-fg-0)' : 'var(--sw-fg-1)'"
-                font-size="13"
+                font-size="16"
                 font-family="var(--sw-mono)"
                 :font-weight="selectedNodeId === n.id ? 700 : 600"
               >
@@ -1159,7 +1276,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 text-anchor="middle"
                 y="76"
                 :fill="centerDef && nodeVal(n, centerDef) !== null ? ringColor(n) : 'var(--sw-fg-3)'"
-                font-size="12"
+                font-size="14"
                 font-family="var(--sw-mono)"
                 font-weight="700"
               >

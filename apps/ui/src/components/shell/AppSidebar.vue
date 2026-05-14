@@ -95,12 +95,32 @@ const sidebarEntries = computed<SidebarEntry[]>(() => {
   return out;
 });
 const openGroups = ref<Set<string>>(new Set());
-function toggleGroup(label: string): void {
-  const next = new Set(openGroups.value);
-  if (next.has(label)) next.delete(label); else next.add(label);
-  openGroups.value = next;
-}
 function isGroupOpen(label: string): boolean { return openGroups.value.has(label); }
+// Clicking a group header opens it AND jumps to the first layer in
+// the group's Service page — saves the operator one extra click when
+// they know which group they want but not which specific layer. If
+// the group is already open the click still navigates to the first
+// layer (handy for "back to top of section"); only collapse the group
+// when the user clicks its already-open header AND they're already on
+// one of its pages.
+function toggleGroup(label: string, layers: SidebarLayer[]): void {
+  const wasOpen = openGroups.value.has(label);
+  const next = new Set(openGroups.value);
+  const first = layers[0];
+  if (wasOpen) {
+    // Collapse the section, but only when the user isn't actively on
+    // a page within it (otherwise the collapse would hide their
+    // current location).
+    const inThisGroup = layers.some((L) => route.path.startsWith(`/layer/${L.key}`));
+    if (!inThisGroup) next.delete(label);
+  } else {
+    next.add(label);
+  }
+  openGroups.value = next;
+  if (first) {
+    void router.push(`/layer/${first.key}/service`);
+  }
+}
 
 const route = useRoute();
 function isActive(path: string): boolean {
@@ -232,10 +252,9 @@ const sections: NavSection[] = [
           <div
             class="layer-group"
             :class="{ 'is-open': isGroupOpen(E.label) }"
-            @click="toggleGroup(E.label)"
+            @click="toggleGroup(E.label, E.layers)"
           >
             <span class="layer-group-name">{{ E.label }}</span>
-            <span class="layer-group-count">{{ E.layers.length }}</span>
             <span class="caret" :class="{ open: isGroupOpen(E.label) }">
               <Icon name="caret" :size="10" />
             </span>
@@ -625,16 +644,6 @@ const sections: NavSection[] = [
 .layer-group:hover { color: var(--sw-fg-1); }
 .layer-group.is-open { color: var(--sw-fg-1); }
 .layer-group-name { flex: 1; min-width: 0; }
-.layer-group-count {
-  font-family: var(--sw-mono);
-  font-size: 9.5px;
-  letter-spacing: 0;
-  text-transform: none;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-2);
-  border-radius: 3px;
-  padding: 1px 5px;
-}
 /* Layer rows nested inside a group section get a left indent + dashed
    guide rule so the visual hierarchy reads at a glance. */
 .layer-row.in-group {
