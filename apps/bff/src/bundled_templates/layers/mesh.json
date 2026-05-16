@@ -100,30 +100,6 @@
   "dashboards": {
     "service": [
       {
-        "id": "top_apis",
-        "title": "Top 20 APIs",
-        "tip": "Layer-wide endpoint ranking. Switch tabs to re-rank by traffic, response time, or worst success rate.",
-        "type": "top",
-        "expressions": [
-          "top_n(endpoint_cpm,20,des)",
-          "top_n(endpoint_resp_time,20,des)",
-          "top_n(endpoint_sla,20,asc)/100"
-        ],
-        "expressionLabels": [
-          "Traffic",
-          "Slow",
-          "Successful Rate"
-        ],
-        "expressionUnits": [
-          "rpm",
-          "ms",
-          "%"
-        ],
-        "layerScope": true,
-        "span": 3,
-        "rowSpan": 4
-      },
-      {
         "id": "traffic_line",
         "title": "Traffic",
         "tip": "Mesh-wide requests per minute observed by Envoy sidecars.",
