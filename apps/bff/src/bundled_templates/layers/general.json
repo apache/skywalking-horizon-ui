@@ -73,6 +73,21 @@
   "dashboards": {
     "service": [
       {
+        "id": "top_apis",
+        "title": "Top 20 APIs",
+        "tip": "Top endpoints under the selected service. Switch tabs to re-rank by traffic, response time, or worst success rate.",
+        "type": "top",
+        "expressions": [
+          "top_n(endpoint_cpm,20,des)",
+          "top_n(endpoint_resp_time,20,des)",
+          "top_n(endpoint_sla,20,asc)/100"
+        ],
+        "expressionLabels": ["Traffic", "Slow", "Successful Rate"],
+        "expressionUnits": ["rpm", "ms", "%"],
+        "span": 3,
+        "rowSpan": 4
+      },
+      {
         "id": "traffic_line",
         "title": "Traffic",
         "type": "line",
@@ -172,21 +187,6 @@
         "type": "record",
         "unit": "ms",
         "expressions": ["top_n(top_n_service_database_statement, 20, des)"],
-        "span": 12,
-        "rowSpan": 4
-      },
-      {
-        "id": "top_apis",
-        "title": "Top 20 APIs",
-        "tip": "Top endpoints under the selected service, by traffic / slowness / worst success rate.",
-        "type": "top",
-        "expressions": [
-          "top_n(endpoint_cpm,20,des)",
-          "top_n(endpoint_resp_time,20,des)",
-          "top_n(endpoint_sla,20,asc)/100"
-        ],
-        "expressionLabels": ["Traffic", "Slow", "Successful Rate"],
-        "expressionUnits": ["rpm", "ms", "%"],
         "span": 12,
         "rowSpan": 4
       }
