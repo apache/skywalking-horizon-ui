@@ -26,7 +26,9 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
-import { pushEvent } from '@/controls/eventLog';
+import { useQueryEvents } from '@/controls/useQueryEvents';
+
+type EndpointsResp = Awaited<ReturnType<typeof bffClient.layer.endpoints>>;
 
 export function useLayerEndpoints(
   layerKey: Ref<string>,
@@ -36,21 +38,22 @@ export function useLayerEndpoints(
 ) {
   const q = useQuery({
     queryKey: ['layer-endpoints', layerKey, service, query, limit],
-    queryFn: async () => {
-      const label = query.value ? `"${query.value}"` : 'top';
-      pushEvent('endpoints', 'start', `Loading endpoints (${label}) for ${service.value}…`);
-      try {
-        const r = await bffClient.layer.endpoints(layerKey.value, service.value ?? '', query.value, limit.value);
-        const n = r.endpoints?.length ?? 0;
-        pushEvent('endpoints', 'ok', `Loaded ${n} endpoint${n === 1 ? '' : 's'}`);
-        return r;
-      } catch (err) {
-        pushEvent('endpoints', 'err', `Endpoint list failed: ${err instanceof Error ? err.message : String(err)}`);
-        throw err;
-      }
-    },
+    queryFn: () =>
+      bffClient.layer.endpoints(layerKey.value, service.value ?? '', query.value, limit.value),
     enabled: computed(() => layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
+  });
+  useQueryEvents<EndpointsResp>('endpoints', q, {
+    start: () => {
+      const label = query.value ? `"${query.value}"` : 'top';
+      return `Loading endpoints (${label}) for ${service.value}…`;
+    },
+    ok: (r) => {
+      const n = r.endpoints?.length ?? 0;
+      return `Loaded ${n} endpoint${n === 1 ? '' : 's'} for ${service.value}`;
+    },
+    err: (e) => `Endpoint list failed: ${e instanceof Error ? e.message : String(e)}`,
+    cached: (r) => `Endpoints cached (${r.endpoints?.length ?? 0}) for ${service.value}`,
   });
   return {
     data: computed(() => q.data.value ?? null),
