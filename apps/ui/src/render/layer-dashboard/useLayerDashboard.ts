@@ -27,10 +27,8 @@
  * viewed service is instant.
  */
 
-import { computed, watch, type Ref } from 'vue';
+import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useQueryEvents } from '@/controls/useQueryEvents';
-import { pushEvent } from '@/controls/eventLog';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import {
@@ -38,7 +36,7 @@ import {
   getDashboardConfig,
   useConfigBundle,
 } from '@/controls/configBundle';
-import type { DashboardConfig, DashboardResponse } from '@skywalking-horizon-ui/api-client';
+import type { DashboardConfig } from '@skywalking-horizon-ui/api-client';
 
 export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
   // Prefer the preloaded bundle. The bundle preload kicks off at app
@@ -64,33 +62,8 @@ export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<strin
   });
   useAutoRefreshSubscribe(() => q.refetch());
 
-  const config = computed(() => bundled.value ?? q.data.value ?? null);
-  // Surface the config-resolution step in the event ticker so the
-  // operator sees the page-assembly sequence start at the very top
-  // (config → services → instances/endpoints → widgets). The bundle
-  // hit fires the moment localStorage resolves; the network fallback
-  // gets its own start/ok event via useQueryEvents below.
-  let configReported = false;
-  watch(
-    config,
-    (c) => {
-      if (!c || configReported) return;
-      const s = (scope?.value ?? 'service') as string;
-      const widgetN = c.widgets?.length ?? 0;
-      const source = bundled.value ? 'preloaded' : 'network';
-      pushEvent('config', 'info', `${s} dashboard config ready · ${widgetN} widget${widgetN === 1 ? '' : 's'} (${source})`);
-      configReported = true;
-    },
-    { immediate: true },
-  );
-  useQueryEvents('config-net', q, {
-    start: () => `Fetching ${scope?.value ?? 'service'} dashboard config for ${layerKey.value}…`,
-    ok: () => `Dashboard config loaded from BFF`,
-    err: (e) => `Dashboard config fetch failed: ${e instanceof Error ? e.message : String(e)}`,
-  });
-
   return {
-    config,
+    config: computed(() => bundled.value ?? q.data.value ?? null),
     isLoading: computed(() => !loaded.value && q.isLoading.value),
     error: q.error,
   };
@@ -172,30 +145,6 @@ export function useLayerDashboard(
     refetchInterval: refetchIntervalRef,
     refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),
     retry: 1,
-  });
-  useQueryEvents<DashboardResponse>('dashboard', q, {
-    start: () => {
-      const s = scope?.value ?? 'service';
-      const label = entityRefs.instance?.value
-        ? `${service.value} / ${entityRefs.instance.value}`
-        : entityRefs.endpoint?.value
-          ? `${service.value} / ${entityRefs.endpoint.value}`
-          : service.value ?? layerKey.value;
-      return `Querying ${s} dashboard for ${label}…`;
-    },
-    ok: (r) => {
-      const total = r.widgets?.length ?? 0;
-      const withData = (r.widgets ?? []).filter(
-        (w) =>
-          !w.error &&
-          (w.value != null ||
-            (w.series?.length ?? 0) > 0 ||
-            (w.topList?.length ?? 0) > 0 ||
-            (w.topGroups?.length ?? 0) > 0),
-      ).length;
-      return `Rendered ${withData}/${total} widget${total === 1 ? '' : 's'} with data`;
-    },
-    err: (e) => `Dashboard query failed: ${e instanceof Error ? e.message : String(e)}`,
   });
   return {
     data: computed(() => q.data.value ?? null),

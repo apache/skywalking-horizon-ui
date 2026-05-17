@@ -25,9 +25,6 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
-import { useQueryEvents } from '@/controls/useQueryEvents';
-
-type InstancesResp = Awaited<ReturnType<typeof bffClient.layer.instances>>;
 
 export function useLayerInstances(layerKey: Ref<string>, service: Ref<string | null>) {
   const q = useQuery({
@@ -35,15 +32,6 @@ export function useLayerInstances(layerKey: Ref<string>, service: Ref<string | n
     queryFn: () => bffClient.layer.instances(layerKey.value, service.value ?? ''),
     enabled: computed(() => layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
-  });
-  useQueryEvents<InstancesResp>('instances', q, {
-    start: () => `Loading instances for ${service.value}…`,
-    ok: (r) => {
-      const n = r.instances?.length ?? 0;
-      return `Loaded ${n} instance${n === 1 ? '' : 's'} for ${service.value}`;
-    },
-    err: (e) => `Instance list failed: ${e instanceof Error ? e.message : String(e)}`,
-    cached: (r) => `Instances cached (${r.instances?.length ?? 0}) for ${service.value}`,
   });
   return {
     data: computed(() => q.data.value ?? null),

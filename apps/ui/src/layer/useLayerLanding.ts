@@ -18,7 +18,6 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../controls/useAutoRefreshSubscribe';
-import { useQueryEvents } from '@/controls/useQueryEvents';
 import type { LandingConfig, LandingResponse, LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 
@@ -54,18 +53,6 @@ export function useLayerLanding(
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
     retry: 1,
-  });
-  useQueryEvents<LandingResponse>('services', q, {
-    start: () => `Loading services for ${layerKey.value}…`,
-    ok: (r) => {
-      const count = (r.sampledRows ?? r.rows ?? []).length;
-      return `Loaded ${count} service${count === 1 ? '' : 's'} for ${layerKey.value}`;
-    },
-    err: (e) => `Service list failed: ${e instanceof Error ? e.message : String(e)}`,
-    cached: (r) => {
-      const count = (r.sampledRows ?? r.rows ?? []).length;
-      return `Services cached (${count}) for ${layerKey.value}`;
-    },
   });
 
   useAutoRefreshSubscribe(() => q.refetch());

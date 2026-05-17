@@ -33,6 +33,7 @@ import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
+import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerLanding } from '@/layer/useLayerLanding';
@@ -230,6 +231,24 @@ const { data, isFetching, error } = useLayerDashboard(
   mockTop,
   { instance: selectedInstance, endpoint: selectedEndpoint },
 );
+
+// Sequential page-init events for the EventTicker — config →
+// services → service → instances/endpoints → instance/endpoint →
+// dashboard. The orchestrator watches the refs above and emits one
+// numbered step at a time, so the ticker reads top-to-bottom in
+// dependency order even when the underlying vue-queries race.
+useLayerPageOrchestrator({
+  layerKey,
+  scope,
+  config,
+  serviceList: landingRows,
+  effectiveService: serviceName,
+  instanceList,
+  effectiveInstance: selectedInstance,
+  endpointList,
+  effectiveEndpoint: selectedEndpoint,
+  dashboard: data,
+});
 
 const widgets = computed(() => config.value?.widgets ?? []);
 const resultsById = computed(() => {
