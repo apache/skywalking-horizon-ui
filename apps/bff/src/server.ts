@@ -49,6 +49,7 @@ import { registerLayerTemplateRoutes } from './http/config/layer-template.js';
 import { registerAlarmsConfigRoutes } from './http/config/alarms.js';
 import { registerSetupRoutes } from './http/config/setup.js';
 import { registerOverviewRoutes } from './http/config/overview.js';
+import { registerConfigBundleRoute } from './http/config/bundle.js';
 // Admin (operational tools)
 import { registerDslCatalogRoutes } from './http/admin/dsl/catalog.js';
 import { registerDslRuleRoutes } from './http/admin/dsl/rule.js';
@@ -124,6 +125,7 @@ registerLayerTemplateRoutes(app, { config: source, sessions });
 registerAlarmsConfigRoutes(app, { config: source, sessions, audit, store: alarmsStore, serviceLayer });
 registerSetupRoutes(app, { config: source, sessions, audit, store: setupStore });
 registerOverviewRoutes(app, { config: source, sessions });
+registerConfigBundleRoute(app, { config: source, sessions });
 
 // ── Admin ──────────────────────────────────────────────────────────
 registerDslCatalogRoutes(app, { config: source, sessions, audit });

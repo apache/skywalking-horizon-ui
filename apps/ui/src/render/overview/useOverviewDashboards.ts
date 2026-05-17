@@ -19,6 +19,11 @@ import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
 import { useLayers } from '../../shell/useLayers';
+import {
+  ensureConfigBundle,
+  getOverviews,
+  useConfigBundle,
+} from '@/controls/configBundle';
 
 /**
  * Overview-dashboard list driver. Fetches the BFF's bundled list, then
@@ -32,9 +37,14 @@ import { useLayers } from '../../shell/useLayers';
  * section.
  */
 export function useOverviewDashboards() {
+  void ensureConfigBundle();
+  const { loaded: bundleLoaded } = useConfigBundle();
+  // Network fallback only when the bundle is missing (or empty —
+  // e.g. a fresh BFF deploy that didn't ship overview templates yet).
   const q = useQuery({
     queryKey: ['overview-dashboards'],
     queryFn: () => bffClient.overview.list(),
+    enabled: computed(() => bundleLoaded.value && (getOverviews()?.length ?? 0) === 0),
     staleTime: 60_000,
     refetchOnWindowFocus: true,
   });
@@ -46,7 +56,17 @@ export function useOverviewDashboards() {
     return s;
   });
 
-  const all = computed(() => q.data.value?.dashboards ?? []);
+  const all = computed(() => {
+    // SetupView reads `d.widgetCount` (a precomputed convenience the
+    // list endpoint adds). Bundle entries are the full OverviewDashboard
+    // shape with `widgets[]` — derive `widgetCount` from that so both
+    // paths produce the same shape downstream.
+    const bundled = getOverviews();
+    if (bundled && bundled.length > 0) {
+      return bundled.map((d) => ({ ...d, widgetCount: d.widgets?.length ?? 0 }));
+    }
+    return q.data.value?.dashboards ?? [];
+  });
   const visible = computed(() =>
     all.value.filter((d) => {
       const layers = d.layers ?? [];

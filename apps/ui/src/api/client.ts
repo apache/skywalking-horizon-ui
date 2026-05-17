@@ -63,6 +63,7 @@ import { LiveDebugApi } from './scopes/live-debug';
 import { InspectApi } from './scopes/inspect';
 import { AlarmsApi } from './scopes/alarms';
 import { LayerTemplatesApi } from './scopes/layer-template';
+import { ConfigsApi } from './scopes/configs';
 
 // ── Wire types re-exported from @skywalking-horizon-ui/api-client ────
 // Re-exported so consumers can import everything from this module.
@@ -531,6 +532,7 @@ export class BffClient {
   readonly inspect = new InspectApi(this);
   readonly alarms = new AlarmsApi(this);
   readonly layerTemplates = new LayerTemplatesApi(this);
+  readonly configs = new ConfigsApi(this);
 }
 
 export const bffClient = new BffClient();

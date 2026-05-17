@@ -15,12 +15,23 @@
   limitations under the License.
 -->
 <script setup lang="ts">
+import { onMounted } from 'vue';
 import { RouterView } from 'vue-router';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import GlobalConnectivityBanner from './GlobalConnectivityBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
+import { ensureConfigBundle } from '@/controls/configBundle';
+
+// Kick the config preload once the shell mounts (i.e. after the auth
+// guard has let the user through). All layer dashboard configs +
+// overview list arrive in one round-trip and land in localStorage so
+// subsequent navigations read configs synchronously — no per-page
+// spinner for what's effectively static template content.
+onMounted(() => {
+  void ensureConfigBundle();
+});
 </script>
 
 <template>

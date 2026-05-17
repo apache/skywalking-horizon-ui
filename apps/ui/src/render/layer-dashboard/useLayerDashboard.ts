@@ -32,19 +32,40 @@ import { useQuery } from '@tanstack/vue-query';
 import { pushEvent } from '@/controls/eventLog';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
+import {
+  ensureConfigBundle,
+  getDashboardConfig,
+  useConfigBundle,
+} from '@/controls/configBundle';
+import type { DashboardConfig } from '@skywalking-horizon-ui/api-client';
 
 export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
+  // Prefer the preloaded bundle. The bundle preload kicks off at app
+  // mount in AppShell; if for some reason this composable runs first
+  // we still trigger it here so the lookup eventually resolves.
+  void ensureConfigBundle();
+  const { loaded } = useConfigBundle();
+  const bundled = computed<DashboardConfig | null>(() => {
+    if (!loaded.value) return null;
+    const s = (scope?.value ?? 'service') as 'service' | 'instance' | 'endpoint';
+    const widgets = getDashboardConfig(layerKey.value, s);
+    if (!widgets) return null;
+    return { layer: layerKey.value, scope: s, widgets };
+  });
+  // Network fallback — only fires if the bundle lookup came back null
+  // (e.g. a layer added since the cached bundle was written). Keeps
+  // the page rendering even when localStorage is stale.
   const q = useQuery({
     queryKey: ['dashboard-config', layerKey, scope ?? computed(() => 'service')],
     queryFn: () => bffClient.layer.dashboardConfig(layerKey.value, scope?.value),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: computed(() => layerKey.value.length > 0 && loaded.value && bundled.value === null),
     staleTime: 5 * 60_000,
   });
   useAutoRefreshSubscribe(() => q.refetch());
 
   return {
-    config: computed(() => q.data.value ?? null),
-    isLoading: q.isLoading,
+    config: computed(() => bundled.value ?? q.data.value ?? null),
+    isLoading: computed(() => !loaded.value && q.isLoading.value),
     error: q.error,
   };
 }
