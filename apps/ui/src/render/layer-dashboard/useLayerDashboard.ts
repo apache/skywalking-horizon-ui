@@ -27,7 +27,7 @@
  * viewed service is instant.
  */
 
-import { computed, type Ref } from 'vue';
+import { computed, ref, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
@@ -36,7 +36,12 @@ import {
   getDashboardConfig,
   useConfigBundle,
 } from '@/controls/configBundle';
-import type { DashboardConfig } from '@skywalking-horizon-ui/api-client';
+import type {
+  DashboardConfig,
+  DashboardResponse,
+  DashboardWidget,
+  DashboardWidgetResult,
+} from '@skywalking-horizon-ui/api-client';
 
 export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
   // Prefer the preloaded bundle. The bundle preload kicks off at app
@@ -99,6 +104,14 @@ export function useLayerDashboard(
    *  time-picker change refires the widget batch the same way a
    *  service/instance pick does. */
   range?: Ref<DashboardRange | null>,
+  /** Optional widget list. When supplied the SPA chunks it into
+   *  groups (matching booster-ui's DashboardMaxQueryWidgets = 6)
+   *  and fires N parallel BFF calls instead of one — exposes the
+   *  per-chunk completion as `widgetsArrived` so the loading
+   *  indicator can tick "x fired / y all". When omitted, falls
+   *  back to a single BFF call that resolves widgets server-side
+   *  (used by callers that don't have the config bundle handy). */
+  widgetsList?: Ref<DashboardWidget[]>,
 ) {
   // Auto-refresh is metrics-only. Trace / log / profiling pages are
   // explore-style (operator-driven queries, log tails, etc.) and would
@@ -121,6 +134,13 @@ export function useLayerDashboard(
     if (!r) return null;
     return `${r.step}:${Math.floor(r.startMs / 60_000)}:${Math.floor(r.endMs / 60_000)}`;
   });
+  // Per-chunk progress for the loading indicator. Resets to
+  // {arrived: 0, total: N} at queryFn start, ticks up as each
+  // parallel BFF chunk resolves. The widget-list path uses this;
+  // the legacy single-call path leaves it at {0, 0}.
+  const progress = ref<{ arrived: number; total: number }>({ arrived: 0, total: 0 });
+  const CHUNK_SIZE = 6;
+
   const q = useQuery({
     queryKey: [
       'dashboard',
@@ -131,25 +151,72 @@ export function useLayerDashboard(
       entityRefs.instance ?? computed(() => null),
       entityRefs.endpoint ?? computed(() => null),
       rangeKey,
+      // Hash of widget ids so adding/removing a widget refires.
+      computed(() => widgetsList?.value.map((w) => w.id).join('|') ?? null),
     ],
-    queryFn: () =>
-      bffClient.layer.dashboard(
-        layerKey.value,
-        {
-          ...(service.value ? { service: service.value } : {}),
-          ...(scope?.value ? { scope: scope.value } : {}),
-          ...(entityRefs.instance?.value ? { serviceInstance: entityRefs.instance.value } : {}),
-          ...(entityRefs.endpoint?.value ? { endpoint: entityRefs.endpoint.value } : {}),
-          ...(rangeRef.value
-            ? {
-                step: rangeRef.value.step,
-                startMs: rangeRef.value.startMs,
-                endMs: rangeRef.value.endMs,
-              }
-            : {}),
-        },
-        mockTop?.value ? { mockTop: mockTop.value } : {},
-      ),
+    queryFn: async () => {
+      const baseBody = {
+        ...(service.value ? { service: service.value } : {}),
+        ...(scope?.value ? { scope: scope.value } : {}),
+        ...(entityRefs.instance?.value ? { serviceInstance: entityRefs.instance.value } : {}),
+        ...(entityRefs.endpoint?.value ? { endpoint: entityRefs.endpoint.value } : {}),
+        ...(rangeRef.value
+          ? {
+              step: rangeRef.value.step,
+              startMs: rangeRef.value.startMs,
+              endMs: rangeRef.value.endMs,
+            }
+          : {}),
+      };
+      const opts = mockTop?.value ? { mockTop: mockTop.value } : {};
+      const all = widgetsList?.value ?? [];
+      // No widget list → fall back to the legacy single-call path:
+      // BFF resolves widgets from the layer template + auto-picks
+      // entities. No per-chunk progress (no list to chunk against).
+      if (all.length === 0) {
+        progress.value = { arrived: 0, total: 0 };
+        return bffClient.layer.dashboard(layerKey.value, baseBody, opts);
+      }
+      // Chunked path. Fire N parallel BFF calls (one per 6-widget
+      // group) so each chunk's completion ticks the progress ref.
+      // Wall-clock is roughly max(chunk_time) thanks to Promise.all;
+      // each chunk is small enough to stay inside OAP's per-query
+      // budget without relying on BFF-internal chunking.
+      progress.value = { arrived: 0, total: all.length };
+      const chunks: DashboardWidget[][] = [];
+      for (let i = 0; i < all.length; i += CHUNK_SIZE) {
+        chunks.push(all.slice(i, i + CHUNK_SIZE));
+      }
+      const merged: DashboardWidgetResult[] = [];
+      let baseResp: DashboardResponse | null = null;
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          const resp = await bffClient.layer.dashboard(
+            layerKey.value,
+            { ...baseBody, widgets: chunk },
+            opts,
+          );
+          // First-arrived chunk donates the response envelope
+          // (`service`, `reachable`, `durationStart/End`, etc.) —
+          // all chunks share the same upstream state since they
+          // were resolved against the same entity.
+          if (!baseResp) baseResp = resp;
+          merged.push(...(resp.widgets ?? []));
+          progress.value = { arrived: merged.length, total: all.length };
+        }),
+      );
+      const finalEnvelope = baseResp ?? {
+        layer: layerKey.value,
+        service: service.value ?? null,
+        generatedAt: Date.now(),
+        step: 'MINUTE' as const,
+        durationStart: '',
+        durationEnd: '',
+        reachable: true,
+        widgets: [],
+      };
+      return { ...finalEnvelope, widgets: merged };
+    },
     // Trailing-control principle: the widget batch is the deepest
     // control in the chain and must wait for everything upstream
     // (layer → service → instance/endpoint) to be resolved by the
@@ -185,5 +252,10 @@ export function useLayerDashboard(
     isFetching: q.isFetching,
     error: q.error,
     refetch: q.refetch,
+    /** Per-chunk progress for the loading indicator. While a fetch
+     *  is in flight, `arrived` ticks from 0 → total as each parallel
+     *  chunk's BFF call resolves. `total` is 0 when the legacy
+     *  no-widgetsList path is in use. */
+    progress,
   };
 }

@@ -303,14 +303,17 @@ const effectiveEndpoint = computed<string | null>(() => {
   if (!v) return null;
   return endpointList.value.some((e) => e.name === v) ? v : null;
 });
-const { data, isFetching, error } = useLayerDashboard(
+const widgetsForQuery = computed(() => config.value?.widgets ?? []);
+const { data, isFetching, error, progress } = useLayerDashboard(
   layerKey,
   serviceName,
   scope,
   mockTop,
   { instance: effectiveInstance, endpoint: effectiveEndpoint },
   rangeRef,
+  widgetsForQuery,
 );
+const widgetsArrived = computed(() => progress.value.arrived);
 
 // Sequential page-init events for the EventTicker — config →
 // services → service → instances/endpoints → instance/endpoint →
@@ -650,7 +653,9 @@ function isVisible(
             / <b>{{ selectedEndpoint }}</b>
           </template>
         </template>
-        …
+        <span class="reading-progress">
+          · {{ widgetsArrived }}/{{ widgets.length }} metric{{ widgets.length === 1 ? '' : 's' }} {{ widgetsArrived === widgets.length ? 'ready' : 'firing' }}
+        </span>
       </span>
     </div>
     <div v-else class="grid">
