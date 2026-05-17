@@ -186,8 +186,15 @@ function togglePicker(): void {
   pickerOpen.value = !pickerOpen.value;
 }
 function pickService(id: string): void {
+  // Update selection FIRST and let the picker render the highlight
+  // on the just-clicked row before unmounting — closing in the same
+  // tick swallows the visual confirmation that the click registered.
+  // 140ms is short enough to feel responsive and long enough for one
+  // animation frame to paint the new `:class="{ active }"` state.
   setSelected(id);
-  pickerOpen.value = false;
+  setTimeout(() => {
+    pickerOpen.value = false;
+  }, 140);
 }
 
 // ── Header identity ──────────────────────────────────────────────────

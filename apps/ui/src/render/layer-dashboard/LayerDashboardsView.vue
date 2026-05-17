@@ -638,7 +638,20 @@ function isVisible(
          each widget's value / no-data / error normally. Background
          refetches keep showing the prior data, no flash. -->
     <div v-else-if="!dataIsFresh && reachable" class="empty reading">
-      <span class="reading-dot" /> Reading data…
+      <span class="reading-dot" />
+      <span>
+        Reading data
+        <template v-if="serviceName">
+          for <b>{{ serviceName }}</b>
+          <template v-if="scope === 'instance' && selectedInstance">
+            / <b>{{ selectedInstance }}</b>
+          </template>
+          <template v-else-if="scope === 'endpoint' && selectedEndpoint">
+            / <b>{{ selectedEndpoint }}</b>
+          </template>
+        </template>
+        …
+      </span>
     </div>
     <div v-else class="grid">
       <div
