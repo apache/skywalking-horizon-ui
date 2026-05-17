@@ -27,9 +27,10 @@
  * viewed service is instant.
  */
 
-import { computed, type Ref } from 'vue';
+import { computed, watch, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useQueryEvents } from '@/controls/useQueryEvents';
+import { pushEvent } from '@/controls/eventLog';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import {
@@ -63,8 +64,33 @@ export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<strin
   });
   useAutoRefreshSubscribe(() => q.refetch());
 
+  const config = computed(() => bundled.value ?? q.data.value ?? null);
+  // Surface the config-resolution step in the event ticker so the
+  // operator sees the page-assembly sequence start at the very top
+  // (config → services → instances/endpoints → widgets). The bundle
+  // hit fires the moment localStorage resolves; the network fallback
+  // gets its own start/ok event via useQueryEvents below.
+  let configReported = false;
+  watch(
+    config,
+    (c) => {
+      if (!c || configReported) return;
+      const s = (scope?.value ?? 'service') as string;
+      const widgetN = c.widgets?.length ?? 0;
+      const source = bundled.value ? 'preloaded' : 'network';
+      pushEvent('config', 'info', `${s} dashboard config ready · ${widgetN} widget${widgetN === 1 ? '' : 's'} (${source})`);
+      configReported = true;
+    },
+    { immediate: true },
+  );
+  useQueryEvents('config-net', q, {
+    start: () => `Fetching ${scope?.value ?? 'service'} dashboard config for ${layerKey.value}…`,
+    ok: () => `Dashboard config loaded from BFF`,
+    err: (e) => `Dashboard config fetch failed: ${e instanceof Error ? e.message : String(e)}`,
+  });
+
   return {
-    config: computed(() => bundled.value ?? q.data.value ?? null),
+    config,
     isLoading: computed(() => !loaded.value && q.isLoading.value),
     error: q.error,
   };

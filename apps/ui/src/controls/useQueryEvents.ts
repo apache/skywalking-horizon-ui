@@ -57,15 +57,24 @@ export function useQueryEvents<T>(
   q: QueryLike<T>,
   labels: QueryEventLabels<T>,
 ): void {
-  // Cache-hit echo — when the composable mounts and the query already
-  // has data, emit an info line so the ticker doesn't go silent on
-  // fast-path revisits.
-  if (labels.cached && q.data.value !== undefined && !q.isFetching.value) {
+  // Snapshot the mount-time state. vue-query can flip `isFetching`
+  // synchronously during the surrounding `useQuery(...)` call (the
+  // query is auto-fired the moment `enabled` is truthy), so by the
+  // time this composable runs we may have already missed the
+  // false→true edge. Cover the three possible initial states
+  // explicitly:
+  //   - in-flight  ⇒ retroactive `start` (the watch below will then
+  //                    pick up the matching falling edge as `ok`/`err`).
+  //   - cache hit  ⇒ one-shot `info` line so the ticker doesn't go
+  //                    silent on fast-path revisits.
+  //   - empty       ⇒ no event yet; the watch will catch the upcoming
+  //                    rising edge once the query actually fires.
+  if (q.isFetching.value) {
+    pushEvent(topic, 'start', labels.start());
+  } else if (labels.cached && q.data.value !== undefined) {
     pushEvent(topic, 'info', labels.cached(q.data.value));
   }
 
-  // Fetch in-flight — push `start` on rising edge, push `ok`/`err`
-  // on falling edge based on whether the result is an error.
   watch(
     () => q.isFetching.value,
     (now, before) => {
