@@ -154,7 +154,12 @@ watch(serviceName, (next, prev) => {
 });
 // Default-select the first instance once the list arrives, but only
 // on the Instance scope (so other scopes don't bake an instance into
-// their URL on every visit).
+// their URL on every visit). `immediate: true` so a cache-hit on
+// mount (vue-query had this serviceId's instance list already, e.g.
+// because the shell init gate stretched the mount past the query's
+// first response) still fires the auto-pick — without it, the watch
+// would only catch the transition from [] to [...] and silently skip
+// the pick when the list arrived synchronously.
 watch([instanceList, scope], ([list, s]) => {
   if (s !== 'instance') return;
   if (list.length === 0) {
@@ -164,7 +169,7 @@ watch([instanceList, scope], ([list, s]) => {
   if (!selectedInstance.value || !list.some((i) => i.name === selectedInstance.value)) {
     setSelectedInstance(list[0].name);
   }
-});
+}, { immediate: true });
 
 // Endpoint selection — same pattern as instance, with a keyword
 // search box driving findEndpoint(...). Endpoints are unbounded so
