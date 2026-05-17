@@ -544,7 +544,9 @@ function isVisible(
           <template v-else-if="w.type === 'card'">
             <div class="card-value">
               <span class="num" :class="{ muted: resultsById.get(w.id)?.value == null }">
-                {{ fmtMetricAs(resultsById.get(w.id)?.value ?? null, w.format) }}
+                {{ resultsById.has(w.id)
+                  ? fmtMetricAs(resultsById.get(w.id)?.value ?? null, w.format)
+                  : (isFetching ? '…' : fmtMetricAs(null, w.format)) }}
               </span>
               <span v-if="w.unit" class="unit">{{ w.unit }}</span>
             </div>
@@ -558,7 +560,7 @@ function isVisible(
               :accent="widgetColor(w)"
               :format="w.format"
             />
-            <span v-else class="muted">no data</span>
+            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'top'">
             <TopList
@@ -573,7 +575,7 @@ function isVisible(
               :unit="w.unit"
               :color="widgetColor(w)"
             />
-            <span v-else class="muted">no data</span>
+            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'record'">
             <!-- Slow-statement / record table — reuses the TopList
@@ -585,7 +587,7 @@ function isVisible(
               :unit="w.unit"
               :color="widgetColor(w)"
             />
-            <span v-else class="muted">no data</span>
+            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
           </template>
         </div>
       </div>

@@ -290,13 +290,48 @@ export function useLayerPageOrchestrator(refs: OrchestratorRefs): {
     { immediate: true },
   );
 
-  // Re-arm on route / scope change. Both the stamps and `done` reset
-  // so the next page produces a fresh top-to-bottom sequence; the
-  // event log itself is reset by the router.afterEach hook.
+  // Re-arm scoped to what actually changed. Layer/scope = whole
+  // chain. Service change = step 3 onwards (config + services list
+  // stay valid). Instance/endpoint pick = step 5 + dashboard. This
+  // keeps the EventTicker showing the cascade for each new
+  // selection without spamming a fresh "config / services" pair
+  // for every picker click.
   watch(
     [() => refs.layerKey.value, () => refs.scope.value],
-    () => {
+    (_now, before) => {
+      if (before === undefined) return;
       Object.assign(stamps, freshStamps());
+      done.value = false;
+    },
+  );
+  watch(
+    () => refs.effectiveService.value,
+    (_now, before) => {
+      if (before === undefined) return;
+      stamps.service = false;
+      stamps.instances = false;
+      stamps.instance = false;
+      stamps.endpoints = false;
+      stamps.endpoint = false;
+      stamps.dashboard = false;
+      done.value = false;
+    },
+  );
+  watch(
+    () => refs.effectiveInstance.value,
+    (_now, before) => {
+      if (before === undefined) return;
+      stamps.instance = false;
+      stamps.dashboard = false;
+      done.value = false;
+    },
+  );
+  watch(
+    () => refs.effectiveEndpoint.value,
+    (_now, before) => {
+      if (before === undefined) return;
+      stamps.endpoint = false;
+      stamps.dashboard = false;
       done.value = false;
     },
   );
