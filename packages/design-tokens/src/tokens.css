@@ -132,7 +132,7 @@
 .sw-brand-mark svg { width: 13px; height: 13px; color: #fff; }
 .sw-brand small { font-weight: 500; color: var(--sw-fg-2); margin-left: 2px; }
 
-.sw-nav { padding: 8px 6px; flex: 1; overflow: auto; }
+.sw-nav { padding: 8px 6px; flex: 1; overflow-x: hidden; overflow-y: auto; }
 .sw-nav-section {
   font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--sw-fg-3); padding: 14px 14px 4px;

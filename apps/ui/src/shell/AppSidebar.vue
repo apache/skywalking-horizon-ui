@@ -953,11 +953,22 @@ watch(
  * "on" reads consistently with selected nav items. */
 .sw-nav-toggle {
   width: 100%;
+  min-width: 0;
   background: transparent;
   border: none;
   font: inherit;
   text-align: left;
   cursor: pointer;
+  /* Defensive: keep the label + badge inside the sidebar even if
+   * future copy grows. Combined with `.sw-nav` overflow-x: hidden,
+   * the row clips cleanly instead of forcing a horizontal scroll. */
+  overflow: hidden;
+}
+.sw-nav-toggle > span:not(.sw-badge) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .sw-nav-toggle .sw-badge.ok {
   color: var(--sw-ok);

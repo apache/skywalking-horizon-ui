@@ -26,6 +26,7 @@ import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
 import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
 import { useLayers } from '@/shell/useLayers';
+import { useDebugPanel } from '@/controls/debugPanel';
 
 // Kick the config preload once the shell mounts (i.e. after the auth
 // guard has let the user through). All layer dashboard configs +
@@ -59,13 +60,20 @@ const menuSettled = computed<boolean>(
 const initReady = computed<boolean>(
   () => menuSettled.value && bundleLoaded.value,
 );
+
+// Reserve bottom padding on the main pane equal to the panel's
+// collapsed height when the debug panel is enabled, so the panel
+// doesn't overlay page content. The expanded popover is still a
+// transient overlay (operator dismisses it explicitly) — reserving
+// 260px permanently would waste real estate.
+const { enabled: debugPanelEnabled } = useDebugPanel();
 </script>
 
 <template>
   <div class="sw">
     <AppSidebar />
     <AppTopbar />
-    <main class="sw-main">
+    <main class="sw-main" :class="{ 'has-debug-panel': debugPanelEnabled }">
       <!-- Sticky strip under the topbar; only renders when the graphql
            (`:12800`) poll reports unreachable. Admin-port (`:17128`)
            failures render per-page via AdminFeatureWarning, not here. -->
@@ -98,6 +106,13 @@ const initReady = computed<boolean>(
 </template>
 
 <style scoped>
+/* Reserve room for the collapsed DebugEventPanel (26px) when it's
+ * enabled so the panel doesn't overlay page content. Expanded
+ * popover stays a transient overlay — operators close it
+ * explicitly, reserving its full 260px permanently would waste
+ * vertical real estate. */
+.sw-main.has-debug-panel { padding-bottom: 26px; }
+
 .sw-init {
   padding: 48px 20px;
   display: flex;
