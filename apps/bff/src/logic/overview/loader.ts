@@ -62,14 +62,12 @@ function isString(v: unknown): v is string {
 }
 
 const WIDGET_TYPES: ReadonlySet<OverviewWidgetType> = new Set([
-  'service-count',
   'metric',
   'topology',
   'section-break',
   'kpi-tile',
   'alarms',
-  'k8s-summary',
-  'pilot-summary',
+  'metric-composite',
 ]);
 // `layer` is required for data-bound widgets; layout-only / aggregate
 // widgets resolve their data without an explicit layer binding.
@@ -84,13 +82,25 @@ function parseKpis(raw: unknown): OverviewKpi[] | undefined {
   for (const k of raw) {
     if (!k || typeof k !== 'object') continue;
     const rec = k as Record<string, unknown>;
-    if (!isString(rec.label) || !isString(rec.mqe)) continue;
+    if (!isString(rec.label)) continue;
+    const source = rec.source === 'service-count' ? 'service-count' : 'mqe';
+    /* MQE source requires a non-empty `mqe`; service-count source
+     * doesn't need one (the layer's listServices count is the value). */
+    if (source === 'mqe' && !isString(rec.mqe)) continue;
+    const style = rec.style === 'progress-bar' ? 'progress-bar' : rec.style === 'number' ? 'number' : undefined;
+    const max =
+      style === 'progress-bar' && typeof rec.max === 'number' && Number.isFinite(rec.max) && rec.max > 0
+        ? rec.max
+        : undefined;
     out.push({
       label: rec.label,
-      mqe: rec.mqe,
+      mqe: isString(rec.mqe) ? rec.mqe : undefined,
       unit: isString(rec.unit) ? rec.unit : undefined,
       aggregation:
         rec.aggregation === 'sum' ? 'sum' : rec.aggregation === 'avg' ? 'avg' : undefined,
+      style,
+      max,
+      source,
     });
   }
   return out.length > 0 ? out : undefined;
@@ -227,5 +237,31 @@ export function writeOverviewDashboard(id: string, dash: OverviewDashboard): voi
   const tmp = `${file}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(dash, null, 2), 'utf8');
   fs.renameSync(tmp, file);
+  invalidateOverviewCache();
+}
+
+/** Create a new dashboard JSON in the bundled dir. Fails when an
+ *  existing file already declares the same id (the admin should
+ *  surface this as "id already in use" rather than overwriting). */
+export function createOverviewDashboard(dash: OverviewDashboard): void {
+  if (findOverviewFile(dash.id)) {
+    throw new Error(`overview/${dash.id}: dashboard already exists`);
+  }
+  if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  /* Filename = `<id>.json` so the on-disk layout matches the id
+   * exactly. Sanitise to guard against accidental path traversal —
+   * loader id-equality is what really binds the file to the
+   * dashboard, but the operator's also editing on disk later. */
+  const safe = dash.id.replace(/[^A-Za-z0-9_\-]/g, '_');
+  const file = path.join(CONFIG_DIR, `${safe}.json`);
+  fs.writeFileSync(file, JSON.stringify(dash, null, 2), 'utf8');
+  invalidateOverviewCache();
+}
+
+/** Remove the JSON file backing `id`. No-op when there's no file. */
+export function deleteOverviewDashboard(id: string): void {
+  const file = findOverviewFile(id);
+  if (!file) return;
+  fs.unlinkSync(file);
   invalidateOverviewCache();
 }

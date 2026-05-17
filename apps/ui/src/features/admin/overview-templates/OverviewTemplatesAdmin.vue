@@ -15,17 +15,34 @@
   limitations under the License.
 -->
 <!--
-  Admin: overview-dashboard templates. Lists every bundled dashboard,
-  lets the operator edit per-widget fields that don't need code
-  changes — layer / limit / title / tip / span / rowSpan. Type,
-  MQE, KPIs, and the widget set stay frozen at the bundled value;
-  changing those is still a code edit (the bundled JSON is the
-  source of truth, this admin is an in-place tweak layer).
+  Admin: overview-dashboard templates. List on the left, per-widget
+  editor on the right. The editor is TYPE-AWARE — each widget kind
+  exposes only the fields it actually consumes, so the operator
+  isn't asked to set a `limit` on a topology card or an MQE on a
+  metric-composite card.
+
+  Editable per type:
+   - section-break  : title, cols
+   - metric         : layer, title, tip, mqe, unit, aggregation, span/rowSpan
+   - topology       : layer, title, tip, span/rowSpan
+   - alarms         : layer, title, tip, limit, span/rowSpan
+   - kpi-tile       : layer, title, tip, showCount, KPI rows (add/remove +
+                      label/MQE/unit/aggregation/style/max), span/rowSpan
+   - metric-composite : layer, title, tip, KPI rows (mixed MQE +
+                        service-count source, number / progress-bar
+                        style), span/rowSpan
+
+  Widget type / id / order stay frozen — those are code-shape
+  decisions, not config tweaks.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import type { OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
+import type {
+  OverviewDashboard,
+  OverviewKpi,
+  OverviewWidget,
+} from '@skywalking-horizon-ui/api-client';
 import { bff } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 
@@ -37,12 +54,196 @@ const listQuery = useQuery({
 const dashboards = computed(() => listQuery.data.value?.dashboards ?? []);
 
 const selectedId = ref<string>('');
+/* Auto-select rule: if nothing is selected (cold start), pick the
+ * first dashboard. If the currently-selected id disappears from the
+ * list (just deleted by the operator), fall back to the new first. */
 watch(
   () => dashboards.value,
   (list) => {
-    if (!selectedId.value && list.length > 0) selectedId.value = list[0]!.id;
+    if (list.length === 0) {
+      selectedId.value = '';
+      return;
+    }
+    const stillExists = list.some((d) => d.id === selectedId.value);
+    if (!selectedId.value || !stillExists) {
+      selectedId.value = list[0]!.id;
+    }
   },
+  { immediate: true },
 );
+
+// ── New-dashboard composer ─────────────────────────────────────────
+const newDashOpen = ref(false);
+const newDashId = ref('');
+const newDashTitle = ref('');
+const newDashError = ref<string | null>(null);
+
+function openNewDash(): void {
+  newDashOpen.value = true;
+  newDashId.value = '';
+  newDashTitle.value = '';
+  newDashError.value = null;
+}
+function cancelNewDash(): void {
+  newDashOpen.value = false;
+  newDashError.value = null;
+}
+async function createDash(): Promise<void> {
+  const id = newDashId.value.trim();
+  const title = newDashTitle.value.trim();
+  if (!id) {
+    newDashError.value = 'id is required';
+    return;
+  }
+  if (!/^[a-z0-9_-]+$/i.test(id)) {
+    newDashError.value = 'id may only contain letters, digits, _ and -';
+    return;
+  }
+  if (!title) {
+    newDashError.value = 'title is required';
+    return;
+  }
+  if (dashboards.value.some((d) => d.id === id)) {
+    newDashError.value = `dashboard "${id}" already exists`;
+    return;
+  }
+  try {
+    await bff.overview.adminCreate({ id, title, widgets: [] });
+    await listQuery.refetch();
+    selectedId.value = id;
+    newDashOpen.value = false;
+    setFlash(`created · ${id}`);
+  } catch (err) {
+    newDashError.value = err instanceof Error ? err.message : 'create failed';
+  }
+}
+
+// ── Preview pane ──────────────────────────────────────────────────
+/* Lightweight layout preview — recreates the dashboard's grid + a
+ * summary card per widget (kind / title / KPI labels) so the
+ * operator can see "is the layout right?" without saving + tab-
+ * switching to the actual overview. Mock values fill anywhere the
+ * widget would normally show a number (random 0..999 for counts,
+ * 0..100 for percent / progress-bar). Not pixel-fidelity vs the real
+ * widget components — that would require running the orchestrator
+ * against mock OAP data — but enough to validate placement + scope. */
+/* Detail-pane view mode — `config` (the per-widget editor) or
+ * `preview` (the layout + mock-data sanity board). Tabs in the
+ * detail head switch between them. Defaults to config so an
+ * operator who lands on the admin sees the editor immediately. */
+const viewMode = ref<'config' | 'preview'>('config');
+
+interface PreviewSection {
+  cols: number;
+  widgets: typeof draft.value extends infer T
+    ? T extends { widgets: infer W }
+      ? W
+      : never
+    : never;
+}
+const previewSections = computed<PreviewSection[]>(() => {
+  if (!draft.value) return [];
+  const out: PreviewSection[] = [];
+  let cur: PreviewSection | null = null;
+  for (const w of draft.value.widgets) {
+    if (w.type === 'section-break') {
+      cur = { cols: w.cols ?? 12, widgets: [] as never };
+      out.push(cur);
+      continue;
+    }
+    if (!cur) {
+      cur = { cols: 12, widgets: [] as never };
+      out.push(cur);
+    }
+    (cur.widgets as unknown as OverviewWidget[]).push(w);
+  }
+  return out;
+});
+
+/* Cheap deterministic mock values — keyed by widget id + KPI label
+ * so re-renders return the same number (no jitter while editing).
+ * Hash-based so different ids look different but each is stable. */
+function hash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function mockNumber(seed: string, max = 999): number {
+  return hash(seed) % max;
+}
+function mockPercent(seed: string): number {
+  return 10 + (hash(seed) % 85);
+}
+/** Mock alarm rows for the preview's alarms widget. Deterministic
+ *  per widget id so the rows don't churn while editing. */
+const MOCK_ALARM_MSGS = [
+  'Response time of service mesh-svr::cart is more than 20ms.',
+  'JVM old-gen GC > 5s/min on agent::orders',
+  'p95 SLA below threshold for service mesh-svr::reviews',
+];
+const MOCK_ALARM_SCOPES = ['Service · mesh-svr::cart', 'Instance · pod-2 of agent::orders', 'Service · reviews'];
+const MOCK_ALARM_AGES = ['2m', '14m', '47m'];
+function mockAlarms(seed: string, n: number): Array<{
+  key: string;
+  firing: boolean;
+  msg: string;
+  scope: string;
+  since: string;
+}> {
+  const out: Array<{ key: string; firing: boolean; msg: string; scope: string; since: string }> = [];
+  const cap = Math.max(0, Math.min(n, MOCK_ALARM_MSGS.length));
+  for (let i = 0; i < cap; i++) {
+    out.push({
+      key: `${seed}::${i}`,
+      firing: (hash(seed + i) % 4) !== 0, // ~3/4 firing
+      msg: MOCK_ALARM_MSGS[i]!,
+      scope: MOCK_ALARM_SCOPES[i]!,
+      since: MOCK_ALARM_AGES[i]!,
+    });
+  }
+  return out;
+}
+
+/** Split a kpi-tile / metric-composite widget's rows into the two
+ *  visual partitions the real renderer uses: number tiles (count
+ *  grid) vs progress-bar rows. Same rule the runtime uses —
+ *  `style === 'progress-bar'` OR `unit === '%'` go to bars. */
+function kpiCountRows(w: OverviewWidget): OverviewKpi[] {
+  return (w.kpis ?? []).filter((k) => k.style !== 'progress-bar' && k.unit !== '%');
+}
+function kpiBarRows(w: OverviewWidget): OverviewKpi[] {
+  return (w.kpis ?? []).filter((k) => k.style === 'progress-bar' || k.unit === '%');
+}
+
+function previewSectionTitle(idx: number): string {
+  if (!draft.value) return '';
+  /* Walk the original widget array up to the idx-th section-break
+   * to recover its title (the preview groups widgets under each
+   * break but only stores cols + widget rows in the section). */
+  let n = 0;
+  for (const w of draft.value.widgets) {
+    if (w.type !== 'section-break') continue;
+    if (n === idx) return w.title;
+    n += 1;
+  }
+  return '';
+}
+
+// ── Delete current dashboard ───────────────────────────────────────
+async function deleteCurrentDash(): Promise<void> {
+  const id = selectedId.value;
+  if (!id) return;
+  if (!window.confirm(`Delete dashboard "${id}"? This removes the JSON file from disk.`)) {
+    return;
+  }
+  try {
+    await bff.overview.adminDelete(id);
+    await listQuery.refetch();
+    setFlash(`deleted · ${id}`);
+  } catch (err) {
+    setFlash(err instanceof Error ? `error: ${err.message}` : 'delete failed');
+  }
+}
 
 const detailQuery = useQuery({
   queryKey: computed(() => ['admin/overview-templates', selectedId.value]),
@@ -52,14 +253,9 @@ const detailQuery = useQuery({
 });
 
 const { availableLayers } = useLayers();
-/** Layer dropdown options. Starts from the layers the connected OAP
- *  is actively reporting on (so the operator sees real data sources
- *  first) but ALSO includes any layer key already referenced by a
- *  widget in the current draft — even if that layer has no live
- *  data. Without this fallback, configuring a widget for a layer
- *  that's "configured but quiet" (e.g. VIRTUAL_GENAI on a deployment
- *  with no AI traffic) would silently blank the dropdown and lose
- *  the operator's prior choice. */
+/** Union of live layers + any layer already referenced by the draft
+ *  so a "configured but quiet" layer (VIRTUAL_GENAI on a deployment
+ *  with no AI traffic, etc.) stays selectable. */
 const layerOptions = computed<string[]>(() => {
   const live = new Set((availableLayers.value ?? []).map((l) => l.key.toUpperCase()));
   for (const w of draft.value?.widgets ?? []) {
@@ -68,13 +264,15 @@ const layerOptions = computed<string[]>(() => {
   return Array.from(live).sort();
 });
 
-/* Local working copy — deep-cloned so edits don't mutate the
- * react-query cache. Reset on dashboard switch + on save. */
 const draft = ref<OverviewDashboard | null>(null);
 watch(
   () => detailQuery.data.value,
   (resp) => {
-    draft.value = resp ? (JSON.parse(JSON.stringify(resp.dashboard)) as OverviewDashboard) : null;
+    if (!resp) {
+      draft.value = null;
+      return;
+    }
+    draft.value = JSON.parse(JSON.stringify(resp.dashboard)) as OverviewDashboard;
   },
 );
 
@@ -113,16 +311,135 @@ function onReset(): void {
   if (orig) draft.value = JSON.parse(JSON.stringify(orig)) as OverviewDashboard;
 }
 
-/** Which widget fields are editable per-type. Type / MQE / KPIs stay
- *  frozen — they're code-shape decisions, not config tweaks. */
-function showsLayer(w: OverviewWidget): boolean {
-  return w.type !== 'section-break' && w.type !== 'alarms' ? true : w.type === 'alarms';
+// ── KPI row helpers (kpi-tile only) ────────────────────────────────
+function addKpi(w: OverviewWidget): void {
+  const next = [...(w.kpis ?? []), { label: 'new KPI', mqe: '' } as OverviewKpi];
+  w.kpis = next;
 }
-function showsLimit(w: OverviewWidget): boolean {
-  return w.type === 'alarms';
+function removeKpi(w: OverviewWidget, idx: number): void {
+  if (!w.kpis) return;
+  w.kpis = w.kpis.filter((_, i) => i !== idx);
 }
-function showsLayout(w: OverviewWidget): boolean {
-  return w.type !== 'section-break';
+function moveKpi(w: OverviewWidget, idx: number, dir: -1 | 1): void {
+  if (!w.kpis) return;
+  const next = [...w.kpis];
+  const j = idx + dir;
+  if (j < 0 || j >= next.length) return;
+  [next[idx], next[j]] = [next[j], next[idx]];
+  w.kpis = next;
+}
+/* Switching a KPI to progress-bar makes `max` mandatory — seed a
+ * sensible default if it isn't set so the BFF doesn't 400 on save. */
+function onKpiStyleChange(k: OverviewKpi): void {
+  if (k.style === 'progress-bar' && (k.max === undefined || k.max === null)) {
+    k.max = 100;
+  }
+}
+
+// ── Widget reorder + delete ────────────────────────────────────────
+function moveWidget(idx: number, dir: -1 | 1): void {
+  if (!draft.value) return;
+  const next = [...draft.value.widgets];
+  const j = idx + dir;
+  if (j < 0 || j >= next.length) return;
+  [next[idx], next[j]] = [next[j], next[idx]];
+  draft.value = { ...draft.value, widgets: next };
+}
+function removeWidget(idx: number): void {
+  if (!draft.value) return;
+  const next = draft.value.widgets.filter((_, i) => i !== idx);
+  draft.value = { ...draft.value, widgets: next };
+}
+
+// ── Add-widget composer ────────────────────────────────────────────
+/* Small inline form that gates a new widget on (type, width, height)
+ * — the operator picks those first per the spec, then the widget
+ * is appended with sensible defaults and the existing per-widget
+ * editor handles everything else. */
+const composerOpen = ref(false);
+const composerType = ref<OverviewWidget['type']>('metric');
+const composerSpan = ref<number>(3);
+const composerRowSpan = ref<number>(1);
+
+function openComposer(): void {
+  composerOpen.value = true;
+  /* Default sizing matches the most common shape per type so the
+   * operator doesn't have to remember "topology wants 9x6" etc. */
+  composerType.value = 'metric';
+  composerSpan.value = 3;
+  composerRowSpan.value = 1;
+}
+function cancelComposer(): void {
+  composerOpen.value = false;
+}
+
+/** Auto-id: `<type>_<n>` where n increments to avoid collisions with
+ *  any existing widget id in the dashboard. */
+function nextWidgetId(type: string): string {
+  const existing = new Set(draft.value?.widgets.map((w) => w.id) ?? []);
+  let n = 1;
+  while (existing.has(`${type}_${n}`)) n++;
+  return `${type}_${n}`;
+}
+
+/** Per-type seed values — title + any required type-specific fields
+ *  so the new widget renders something sensible immediately and the
+ *  save round-trip passes the BFF's zod schema. */
+function widgetDefaults(type: OverviewWidget['type']): Partial<OverviewWidget> {
+  switch (type) {
+    case 'section-break':
+      return { title: 'New section', cols: 12 };
+    case 'metric':
+      return { title: 'New metric', mqe: '', aggregation: 'avg' };
+    case 'topology':
+      return { title: 'Topology' };
+    case 'alarms':
+      return { title: 'Active alarms', limit: 10 };
+    case 'kpi-tile':
+      return { title: 'KPI tile', kpis: [], showCount: false };
+    case 'metric-composite':
+      return { title: 'Composite metrics', kpis: [] };
+    default:
+      return { title: 'New widget' };
+  }
+}
+
+function createWidget(): void {
+  if (!draft.value) return;
+  const type = composerType.value;
+  const defaults = widgetDefaults(type);
+  const widget: OverviewWidget = {
+    id: nextWidgetId(type),
+    title: defaults.title ?? 'New widget',
+    type,
+    span: type === 'section-break' ? undefined : composerSpan.value,
+    rowSpan: type === 'section-break' ? undefined : composerRowSpan.value,
+    ...defaults,
+  };
+  draft.value = { ...draft.value, widgets: [...draft.value.widgets, widget] };
+  composerOpen.value = false;
+}
+
+// ── Widget meta ────────────────────────────────────────────────────
+const WIDGET_TYPE_OPTIONS: ReadonlyArray<{ type: OverviewWidget['type']; label: string }> = [
+  { type: 'section-break', label: 'Section break' },
+  { type: 'metric', label: 'Metric' },
+  { type: 'topology', label: 'Topology' },
+  { type: 'alarms', label: 'Alarms' },
+  { type: 'kpi-tile', label: 'KPI tile (number + metrics)' },
+  { type: 'metric-composite', label: 'Composite metrics (mixed)' },
+];
+
+function widgetKindLabel(type: OverviewWidget['type']): string {
+  switch (type) {
+    case 'metric-composite': return 'Composite metrics';
+    case 'section-break': return 'Section break';
+    case 'metric': return 'Metric';
+    case 'topology': return 'Topology';
+    case 'alarms': return 'Alarms';
+    case 'kpi-tile': return 'KPI tile';
+    default: return type;
+  }
 }
 </script>
 
@@ -133,10 +450,11 @@ function showsLayout(w: OverviewWidget): boolean {
         <div class="ot__kicker">Dashboard setup · Overviews</div>
         <h1>Overview templates</h1>
         <p class="ot__lede">
-          Per-widget tweaks for the bundled overview dashboards. Edits write back to
-          <code>bundled_templates/overviews/*.json</code> and invalidate the BFF cache
-          so the next dashboard fetch picks them up. Widget type / MQE / KPI definitions
-          stay code-managed — only layout + scope fields are editable here.
+          Per-widget editor for the bundled overview dashboards. Each widget kind shows only
+          the fields it consumes — e.g. <code>kpi-tile</code> exposes its KPI row list with
+          number / progress-bar style; <code>alarms</code> exposes the row limit. Type and
+          widget set are code-shape decisions and stay frozen; edits write back to
+          <code>bundled_templates/overviews/*.json</code> and refresh the BFF cache.
         </p>
       </div>
     </header>
@@ -160,6 +478,41 @@ function showsLayout(w: OverviewWidget): boolean {
           </div>
         </li>
         <li v-if="dashboards.length === 0" class="ot__list-empty">No overview templates loaded.</li>
+        <li class="ot__list-add">
+          <button
+            v-if="!newDashOpen"
+            type="button"
+            class="ot__add-trigger ot__add-trigger--list"
+            @click="openNewDash"
+          >+ New dashboard</button>
+          <div v-else class="ot__newdash">
+            <label class="ot__field">
+              <span>Id</span>
+              <input
+                v-model="newDashId"
+                type="text"
+                class="ot__in"
+                placeholder="my-overview"
+                @keyup.enter="createDash"
+              />
+            </label>
+            <label class="ot__field">
+              <span>Title</span>
+              <input
+                v-model="newDashTitle"
+                type="text"
+                class="ot__in"
+                placeholder="My overview"
+                @keyup.enter="createDash"
+              />
+            </label>
+            <div v-if="newDashError" class="ot__newdash-err">{{ newDashError }}</div>
+            <div class="ot__newdash-foot">
+              <button type="button" class="ot__btn" @click="cancelNewDash">cancel</button>
+              <button type="button" class="ot__btn ot__btn--primary" @click="createDash">create</button>
+            </div>
+          </div>
+        </li>
       </ul>
 
       <section class="ot__detail">
@@ -167,73 +520,430 @@ function showsLayout(w: OverviewWidget): boolean {
         <template v-else-if="draft">
           <header class="ot__detail-head">
             <h2><code>{{ draft.id }}</code></h2>
-            <span class="ot__count mono">{{ draft.widgets.length }} widget{{ draft.widgets.length === 1 ? '' : 's' }}</span>
+            <span class="ot__count mono">
+              {{ draft.widgets.length }} widget{{ draft.widgets.length === 1 ? '' : 's' }}
+            </span>
+            <!-- Tab strip — Config (editor) / Preview (mock board). -->
+            <div class="ot__tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                class="ot__tab"
+                :class="{ active: viewMode === 'config' }"
+                :aria-selected="viewMode === 'config'"
+                @click="viewMode = 'config'"
+              >Config</button>
+              <button
+                type="button"
+                role="tab"
+                class="ot__tab"
+                :class="{ active: viewMode === 'preview' }"
+                :aria-selected="viewMode === 'preview'"
+                @click="viewMode = 'preview'"
+              >Preview</button>
+            </div>
+            <button
+              type="button"
+              class="ot__head-btn ot__head-btn--danger"
+              :title="`Delete dashboard ${draft.id}`"
+              @click="deleteCurrentDash"
+            >delete</button>
           </header>
 
-          <table class="ot__table">
-            <thead>
-              <tr>
-                <th>Widget</th>
-                <th>Type</th>
-                <th>Layer</th>
-                <th>Limit</th>
-                <th>Span / Row</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(w, i) in draft.widgets" :key="w.id">
-                <td>
-                  <input v-model="w.title" type="text" class="ot__in" :placeholder="w.id" />
-                  <input v-model="w.tip" type="text" class="ot__in ot__in--tip" placeholder="tip (optional)" />
-                  <code class="ot__wid-id">{{ w.id }}</code>
-                </td>
-                <td><span class="ot__type">{{ w.type }}</span></td>
-                <td>
-                  <select
-                    v-if="showsLayer(w)"
-                    v-model="w.layer"
-                    class="ot__in ot__in--narrow"
-                  >
+          <div v-if="viewMode === 'config'" class="ot__widgets">
+            <article
+              v-for="(w, wi) in draft.widgets"
+              :key="w.id"
+              class="ot__widget"
+              :class="`ot__widget--${w.type}`"
+            >
+              <!-- Header: type kicker + widget id + move/delete row actions. -->
+              <header class="ot__widget-head">
+                <span class="ot__widget-kind">{{ widgetKindLabel(w.type) }}</span>
+                <code class="ot__widget-id">{{ w.id }}</code>
+                <span class="ot__widget-actions">
+                  <button
+                    type="button"
+                    class="ot__arrow"
+                    :disabled="wi === 0"
+                    title="Move up"
+                    @click="moveWidget(wi, -1)"
+                  >‹</button>
+                  <button
+                    type="button"
+                    class="ot__arrow"
+                    :disabled="wi === draft.widgets.length - 1"
+                    title="Move down"
+                    @click="moveWidget(wi, 1)"
+                  >›</button>
+                  <button
+                    type="button"
+                    class="ot__del"
+                    title="Remove widget"
+                    @click="removeWidget(wi)"
+                  >×</button>
+                </span>
+              </header>
+
+              <!-- 1. Size (width / height) first per the spec — layout
+                   decisions before content. section-break has no
+                   per-cell span (it spans the whole row), so we show
+                   the grid `cols` field there instead. -->
+              <div class="ot__row">
+                <label v-if="w.type === 'section-break'" class="ot__field">
+                  <span>Columns (grid)</span>
+                  <input v-model.number="w.cols" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                </label>
+                <template v-else>
+                  <label class="ot__field">
+                    <span>Width (span)</span>
+                    <input v-model.number="w.span" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                  <label class="ot__field">
+                    <span>Height (rows)</span>
+                    <input v-model.number="w.rowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                </template>
+              </div>
+
+              <!-- 2. Title + tip. -->
+              <div class="ot__row">
+                <label class="ot__field ot__field--wide">
+                  <span>Title</span>
+                  <input v-model="w.title" type="text" class="ot__in" />
+                </label>
+                <label v-if="w.type !== 'section-break'" class="ot__field ot__field--wide">
+                  <span>Tip</span>
+                  <input v-model="w.tip" type="text" class="ot__in" placeholder="(optional)" />
+                </label>
+              </div>
+
+              <!-- 3. Layer — universal for data widgets. -->
+              <div v-if="w.type !== 'section-break'" class="ot__row">
+                <label class="ot__field">
+                  <span>Layer</span>
+                  <select v-model="w.layer" class="ot__in ot__in--narrow">
                     <option :value="undefined">— any —</option>
                     <option v-for="k in layerOptions" :key="k" :value="k">{{ k }}</option>
                   </select>
-                  <span v-else class="ot__none">—</span>
-                </td>
-                <td>
-                  <input
-                    v-if="showsLimit(w)"
-                    v-model.number="w.limit"
-                    type="number"
-                    min="1"
-                    max="100"
-                    class="ot__in ot__in--num"
-                  />
-                  <span v-else class="ot__none">—</span>
-                </td>
-                <td>
-                  <template v-if="showsLayout(w)">
-                    <input
-                      v-model.number="w.span"
-                      type="number"
-                      min="1"
-                      max="12"
-                      class="ot__in ot__in--xnum"
-                      :title="`Widget ${i + 1} grid span (1..12)`"
-                    />
-                    <input
-                      v-model.number="w.rowSpan"
-                      type="number"
-                      min="1"
-                      max="12"
-                      class="ot__in ot__in--xnum"
-                      :title="`Widget ${i + 1} row span (1..12)`"
-                    />
+                </label>
+              </div>
+
+              <!-- metric: mqe + unit + aggregation -->
+              <div v-if="w.type === 'metric'" class="ot__row">
+                <label class="ot__field ot__field--wide">
+                  <span>MQE</span>
+                  <input v-model="w.mqe" type="text" class="ot__in ot__in--mono" placeholder="service_cpm" />
+                </label>
+                <label class="ot__field">
+                  <span>Unit</span>
+                  <input v-model="w.unit" type="text" class="ot__in ot__in--narrow" placeholder="rpm / ms / %" />
+                </label>
+                <label class="ot__field">
+                  <span>Aggregation</span>
+                  <select v-model="w.aggregation" class="ot__in ot__in--narrow">
+                    <option :value="undefined">—</option>
+                    <option value="avg">avg</option>
+                    <option value="sum">sum</option>
+                  </select>
+                </label>
+              </div>
+
+              <!-- alarms: limit -->
+              <div v-if="w.type === 'alarms'" class="ot__row">
+                <label class="ot__field">
+                  <span>Row limit</span>
+                  <input v-model.number="w.limit" type="number" min="1" max="100" class="ot__in ot__in--num" />
+                </label>
+              </div>
+
+              <!-- kpi-tile / metric-composite: KPI rows. -->
+              <template v-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
+                <div v-if="w.type === 'kpi-tile'" class="ot__row">
+                  <label class="ot__field">
+                    <span>Show service count</span>
+                    <input type="checkbox" v-model="w.showCount" />
+                  </label>
+                </div>
+                <div class="ot__kpis">
+                  <div class="ot__kpis-head">
+                    <span>KPI rows ({{ (w.kpis ?? []).length }})</span>
+                    <button type="button" class="ot__add-btn" @click="addKpi(w)">+ add row</button>
+                  </div>
+                  <div v-if="(w.kpis ?? []).length === 0" class="ot__kpis-empty">
+                    No KPI rows. Add one to surface a metric on the tile.
+                  </div>
+                  <table v-else class="ot__kpi-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Label</th>
+                        <th>Source</th>
+                        <th>MQE</th>
+                        <th>Unit</th>
+                        <th>Aggr</th>
+                        <th>Style</th>
+                        <th>Max</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(k, i) in w.kpis ?? []" :key="i">
+                        <td>
+                          <button
+                            type="button"
+                            class="ot__arrow"
+                            :disabled="i === 0"
+                            @click="moveKpi(w, i, -1)"
+                          >‹</button>
+                          <button
+                            type="button"
+                            class="ot__arrow"
+                            :disabled="i === (w.kpis ?? []).length - 1"
+                            @click="moveKpi(w, i, 1)"
+                          >›</button>
+                        </td>
+                        <td><input v-model="k.label" type="text" class="ot__in" /></td>
+                        <td>
+                          <select v-model="k.source" class="ot__in ot__in--narrow">
+                            <option :value="undefined">mqe</option>
+                            <option value="mqe">mqe</option>
+                            <option value="service-count">service-count</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            v-if="(k.source ?? 'mqe') === 'mqe'"
+                            v-model="k.mqe"
+                            type="text"
+                            class="ot__in ot__in--mono"
+                          />
+                          <span v-else class="ot__none">— (listServices)</span>
+                        </td>
+                        <td><input v-model="k.unit" type="text" class="ot__in ot__in--xnarrow" /></td>
+                        <td>
+                          <select v-model="k.aggregation" class="ot__in ot__in--xnarrow">
+                            <option :value="undefined">—</option>
+                            <option value="avg">avg</option>
+                            <option value="sum">sum</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            v-model="k.style"
+                            class="ot__in ot__in--narrow"
+                            @change="onKpiStyleChange(k)"
+                          >
+                            <option :value="undefined">number</option>
+                            <option value="number">number</option>
+                            <option value="progress-bar">progress-bar</option>
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            v-if="k.style === 'progress-bar'"
+                            v-model.number="k.max"
+                            type="number"
+                            min="0"
+                            step="any"
+                            class="ot__in ot__in--xnum"
+                            placeholder="100"
+                          />
+                          <span v-else class="ot__none">—</span>
+                        </td>
+                        <td>
+                          <button type="button" class="ot__del" @click="removeKpi(w, i)">×</button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </template>
+            </article>
+
+            <!-- Add-widget composer. Operator picks type + size FIRST
+                 (per the spec); on Create the widget is appended with
+                 sensible defaults and the inline editor handles the
+                 rest (title / layer / MQE / KPI rows / etc.). -->
+            <div class="ot__add-widget">
+              <button
+                v-if="!composerOpen"
+                type="button"
+                class="ot__add-trigger"
+                @click="openComposer"
+              >
+                + Add widget
+              </button>
+              <article v-else class="ot__widget ot__composer">
+                <header class="ot__widget-head">
+                  <span class="ot__widget-kind">New widget</span>
+                </header>
+                <div class="ot__row">
+                  <label class="ot__field">
+                    <span>Type</span>
+                    <select v-model="composerType" class="ot__in ot__in--narrow">
+                      <option v-for="opt in WIDGET_TYPE_OPTIONS" :key="opt.type" :value="opt.type">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label v-if="composerType !== 'section-break'" class="ot__field">
+                    <span>Width (span)</span>
+                    <input v-model.number="composerSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                  <label v-if="composerType !== 'section-break'" class="ot__field">
+                    <span>Height (rows)</span>
+                    <input v-model.number="composerRowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                </div>
+                <div class="ot__composer-foot">
+                  <span class="ot__composer-hint">
+                    A default title + content scaffold is generated; you can edit everything below after creating.
+                  </span>
+                  <button type="button" class="ot__btn" @click="cancelComposer">cancel</button>
+                  <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">
+                    create
+                  </button>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <!-- Layout + mock-data preview. Sits on its own tab so it
+               gets the full pane width, no scroll-past-editor needed. -->
+          <section v-if="viewMode === 'preview'" class="ot__preview">
+            <header class="ot__preview-head">
+              <h3>Preview</h3>
+              <span class="ot__preview-hint">layout + mock data · not live OAP values</span>
+            </header>
+            <div
+              v-for="(sec, si) in previewSections"
+              :key="si"
+              class="ot__pv-section"
+            >
+              <div v-if="previewSectionTitle(si)" class="ot__pv-section-head">
+                {{ previewSectionTitle(si) }}
+              </div>
+              <div
+                class="ot__pv-grid"
+                :style="{ gridTemplateColumns: `repeat(${sec.cols}, minmax(0, 1fr))` }"
+              >
+                <article
+                  v-for="w in sec.widgets"
+                  :key="w.id"
+                  class="ot__pv-card"
+                  :style="{
+                    gridColumn: `span ${Math.min(w.span ?? 12, sec.cols)}`,
+                    gridRow: `span ${w.rowSpan ?? 1}`,
+                  }"
+                >
+                  <div class="ot__pv-card-head">
+                    <span class="ot__pv-kind">{{ widgetKindLabel(w.type) }}</span>
+                    <span v-if="w.layer" class="ot__pv-layer">{{ w.layer }}</span>
+                  </div>
+                  <div class="ot__pv-title">{{ w.title }}</div>
+                  <!-- Per-type mock body. -->
+                  <template v-if="w.type === 'metric'">
+                    <div class="ot__pv-bignum">
+                      {{ mockNumber(w.id) }}<span v-if="w.unit" class="ot__pv-unit">{{ w.unit }}</span>
+                    </div>
+                    <code v-if="w.mqe" class="ot__pv-mqe">{{ w.mqe }}</code>
                   </template>
-                  <span v-else class="ot__none">— / —</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  <template v-else-if="w.type === 'alarms'">
+                    <!-- Mock alarm rows — same shape as AlarmsWidget so
+                         the operator sees the rail layout, not just a
+                         count. Severity / message / scope all mocked. -->
+                    <ul class="ot__pv-alarms">
+                      <li
+                        v-for="row in mockAlarms(w.id, Math.min(w.limit ?? 10, 3))"
+                        :key="row.key"
+                        class="ot__pv-alarm"
+                      >
+                        <span class="ot__pv-alarm-dot" :class="row.firing ? 'is-err' : 'is-ok'" />
+                        <div class="ot__pv-alarm-text">
+                          <div class="ot__pv-alarm-msg">{{ row.msg }}</div>
+                          <div class="ot__pv-alarm-scope">{{ row.scope }}</div>
+                        </div>
+                        <span class="ot__pv-alarm-time mono">{{ row.since }}</span>
+                      </li>
+                    </ul>
+                    <div class="ot__pv-sub">
+                      mock · max {{ w.limit ?? 10 }} rows
+                    </div>
+                  </template>
+                  <template v-else-if="w.type === 'topology'">
+                    <!-- Mock topology SVG: a small graph of circles + edges
+                         so the operator sees the shape of a topology tile
+                         in this widget's slot. -->
+                    <svg class="ot__pv-topo-svg" viewBox="0 0 220 100" preserveAspectRatio="xMidYMid meet">
+                      <line x1="40"  y1="20" x2="110" y2="50" />
+                      <line x1="40"  y1="80" x2="110" y2="50" />
+                      <line x1="110" y1="50" x2="180" y2="25" />
+                      <line x1="110" y1="50" x2="180" y2="75" />
+                      <line x1="180" y1="25" x2="180" y2="75" />
+                      <circle cx="40"  cy="20" r="8" />
+                      <circle cx="40"  cy="80" r="8" />
+                      <circle cx="110" cy="50" r="10" class="hub" />
+                      <circle cx="180" cy="25" r="8" />
+                      <circle cx="180" cy="75" r="8" />
+                    </svg>
+                    <div class="ot__pv-sub">topology · {{ w.layer ?? '—' }}</div>
+                  </template>
+                  <template v-else-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
+                    <!-- Split layout: number-style → count tiles grid;
+                         progress-bar style → bars grid. Mirrors how the
+                         real MetricCompositeWidget partitions its KPIs. -->
+                    <div v-if="(w.kpis ?? []).length === 0" class="ot__pv-empty">
+                      no KPI rows configured
+                    </div>
+                    <template v-else>
+                      <div
+                        v-if="kpiCountRows(w).length > 0"
+                        class="ot__pv-num-grid"
+                      >
+                        <div
+                          v-for="k in kpiCountRows(w)"
+                          :key="k.label"
+                          class="ot__pv-num-tile"
+                        >
+                          <span class="ot__pv-num-val">
+                            {{ mockNumber(w.id + k.label) }}<span v-if="k.unit" class="ot__pv-num-unit">{{ k.unit }}</span>
+                          </span>
+                          <span class="ot__pv-num-label">{{ k.label }}</span>
+                        </div>
+                      </div>
+                      <div
+                        v-if="kpiBarRows(w).length > 0"
+                        class="ot__pv-bar-grid"
+                      >
+                        <div
+                          v-for="k in kpiBarRows(w)"
+                          :key="k.label"
+                          class="ot__pv-bar-row"
+                        >
+                          <div class="ot__pv-bar-head">
+                            <span class="ot__pv-bar-label">{{ k.label }}</span>
+                            <span class="ot__pv-bar-val">
+                              {{ mockPercent(w.id + k.label) }}{{ k.unit ?? '%' }}
+                            </span>
+                          </div>
+                          <div class="ot__pv-bar">
+                            <span
+                              class="ot__pv-bar-fill"
+                              :style="{ width: mockPercent(w.id + k.label) + '%' }"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+                  </template>
+                </article>
+              </div>
+            </div>
+            <div v-if="previewSections.length === 0" class="ot__pv-empty">
+              No widgets yet — add one above to see the preview.
+            </div>
+          </section>
 
           <div class="ot__actions">
             <span v-if="flash" class="ot__flash">{{ flash }}</span>
@@ -287,6 +997,220 @@ function showsLayout(w: OverviewWidget): boolean {
 .ot__list-meta code { font-family: var(--sw-mono); color: var(--sw-fg-2); }
 .ot__readonly-tag { color: var(--sw-warn); font-style: italic; }
 .ot__list-empty { padding: 24px; text-align: center; font-size: 12px; color: var(--sw-fg-3); }
+.ot__list-add { padding: 8px; border-top: 1px solid var(--sw-line); }
+.ot__add-trigger--list { font-size: 11.5px; padding: 6px; }
+.ot__newdash { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.ot__newdash-err { font-size: 11px; color: var(--sw-err); }
+.ot__newdash-foot { display: flex; gap: 6px; justify-content: flex-end; }
+.ot__head-btn {
+  background: transparent;
+  border: 1px solid var(--sw-line-2);
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.ot__head-btn:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.ot__head-btn.active { background: var(--sw-bg-3); color: var(--sw-fg-0); border-color: var(--sw-accent); }
+.ot__head-btn--danger:hover {
+  background: transparent; color: var(--sw-err); border-color: rgba(239,68,68,0.4);
+}
+
+/* Config / Preview tab strip. Sits between the dashboard id + the
+ * delete action; consumes flex space so the delete button lands at
+ * the right edge. */
+.ot__tabs {
+  display: inline-flex;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 5px;
+  padding: 2px;
+  margin-left: 12px;
+}
+.ot__tab {
+  background: transparent;
+  border: 0;
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.ot__tab:hover { color: var(--sw-fg-0); }
+.ot__tab.active {
+  background: var(--sw-bg-3);
+  color: var(--sw-fg-0);
+  font-weight: 600;
+}
+
+/* Preview pane */
+.ot__preview {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+}
+.ot__preview-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 10px;
+}
+.ot__preview-head h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-2);
+  margin: 0;
+}
+.ot__preview-hint { font-size: 10.5px; color: var(--sw-fg-3); font-style: italic; }
+.ot__pv-section { margin-bottom: 10px; }
+.ot__pv-section-head {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-2);
+  padding-bottom: 6px;
+  border-bottom: 1px dashed var(--sw-line);
+  margin-bottom: 6px;
+}
+.ot__pv-grid { display: grid; gap: 6px; }
+.ot__pv-card {
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 60px;
+  overflow: hidden;
+}
+.ot__pv-card-head { display: flex; gap: 6px; align-items: baseline; }
+.ot__pv-kind {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-accent);
+  font-weight: 600;
+}
+.ot__pv-layer {
+  font-family: var(--sw-mono);
+  font-size: 9px;
+  color: var(--sw-fg-3);
+  margin-left: auto;
+}
+.ot__pv-title { font-size: 11px; color: var(--sw-fg-0); font-weight: 500; }
+.ot__pv-bignum {
+  font-size: 20px; font-weight: 600; color: var(--sw-fg-0);
+  font-variant-numeric: tabular-nums; margin-top: auto;
+}
+.ot__pv-bignum--err { color: var(--sw-err); }
+.ot__pv-unit { font-size: 11px; color: var(--sw-fg-3); margin-left: 4px; }
+.ot__pv-sub { font-size: 10px; color: var(--sw-fg-3); }
+.ot__pv-mqe {
+  font-family: var(--sw-mono); font-size: 9px;
+  color: var(--sw-fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Topology mock — SVG of a few nodes + edges. Uses currentColor /
+ * design tokens so the graph reads against the card background. */
+.ot__pv-topo-svg {
+  width: 100%;
+  flex: 1;
+  min-height: 80px;
+  max-height: 140px;
+}
+.ot__pv-topo-svg line {
+  stroke: var(--sw-line-2);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+.ot__pv-topo-svg circle {
+  fill: var(--sw-bg-2);
+  stroke: var(--sw-fg-2);
+  stroke-width: 1.5;
+}
+.ot__pv-topo-svg circle.hub {
+  fill: var(--sw-accent-soft);
+  stroke: var(--sw-accent);
+}
+
+/* Alarms mock rows */
+.ot__pv-alarms { list-style: none; margin: 0; padding: 0; }
+.ot__pv-alarm {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 4px 0;
+  border-top: 1px solid var(--sw-line);
+  font-size: 10.5px;
+}
+.ot__pv-alarm:first-child { border-top: none; }
+.ot__pv-alarm-dot {
+  width: 5px; height: 5px; border-radius: 50%; margin-top: 4px; flex-shrink: 0;
+}
+.ot__pv-alarm-dot.is-err { background: var(--sw-err); }
+.ot__pv-alarm-dot.is-ok { background: var(--sw-ok); }
+.ot__pv-alarm-text { flex: 1; min-width: 0; }
+.ot__pv-alarm-msg {
+  color: var(--sw-fg-1); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ot__pv-alarm-scope {
+  font-family: var(--sw-mono); font-size: 9px;
+  color: var(--sw-fg-3); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ot__pv-alarm-time { color: var(--sw-fg-3); font-size: 9px; flex-shrink: 0; }
+
+/* Composite metrics mock — same number-grid + bar-grid split the
+ * real MetricCompositeWidget uses. */
+.ot__pv-num-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 4px;
+}
+.ot__pv-num-tile {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 5px 7px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+}
+.ot__pv-num-val {
+  font-size: 14px; font-weight: 600; color: var(--sw-fg-0);
+  font-variant-numeric: tabular-nums;
+}
+.ot__pv-num-unit { font-size: 9px; color: var(--sw-fg-3); margin-left: 2px; }
+.ot__pv-num-label {
+  font-size: 9px; color: var(--sw-fg-3);
+  text-transform: uppercase; letter-spacing: 0.05em;
+}
+.ot__pv-bar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+.ot__pv-bar-row { display: flex; flex-direction: column; gap: 3px; }
+.ot__pv-bar-head { display: flex; justify-content: space-between; align-items: baseline; }
+.ot__pv-bar-label { font-size: 10px; color: var(--sw-fg-2); }
+.ot__pv-bar-val {
+  font-size: 10.5px; font-weight: 600; color: var(--sw-fg-0);
+  font-variant-numeric: tabular-nums;
+}
+.ot__pv-bar {
+  height: 3px; background: var(--sw-bg-2);
+  border-radius: 2px; overflow: hidden;
+}
+.ot__pv-bar-fill { display: block; height: 100%; background: var(--sw-accent); }
+.ot__pv-empty {
+  padding: 14px; text-align: center;
+  font-size: 11px; color: var(--sw-fg-3); font-style: italic;
+}
 
 .ot__detail { background: var(--sw-bg-1); border: 1px solid var(--sw-line); border-radius: 8px; padding: 16px; }
 .ot__detail-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
@@ -294,40 +1218,136 @@ function showsLayout(w: OverviewWidget): boolean {
 .ot__detail-head h2 code { font-family: var(--sw-mono); color: var(--sw-fg-0); }
 .ot__count { font-size: 11px; color: var(--sw-fg-3); margin-left: auto; }
 
-.ot__table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-.ot__table thead th {
-  text-align: left; font-size: 10px;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--sw-fg-3); padding: 6px 8px;
-  border-bottom: 1px solid var(--sw-line); font-weight: 600;
+/* Per-widget card */
+.ot__widgets { display: flex; flex-direction: column; gap: 10px; }
+.ot__widget {
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  padding: 10px 12px;
 }
-.ot__table tbody td {
-  padding: 8px; vertical-align: top;
-  border-bottom: 1px solid var(--sw-line);
+.ot__widget--section-break { border-left: 3px solid var(--sw-accent); }
+.ot__widget-head {
+  display: flex; align-items: baseline; gap: 8px;
+  margin-bottom: 8px;
 }
-.ot__table tbody tr:last-child td { border-bottom: none; }
+.ot__widget-kind {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sw-accent); font-weight: 600;
+}
+.ot__widget-id {
+  font-family: var(--sw-mono); font-size: 10.5px; color: var(--sw-fg-3);
+  margin-left: auto;
+}
+.ot__widget-actions { display: inline-flex; gap: 2px; }
+.ot__widget-actions .ot__arrow { width: 22px; height: 22px; }
+.ot__widget-actions .ot__del { font-size: 16px; }
+
+.ot__row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.ot__row--tight { gap: 4px; align-items: center; }
+.ot__field {
+  display: flex; flex-direction: column; gap: 3px;
+  min-width: 140px;
+}
+.ot__field--wide { flex: 1 1 220px; }
+.ot__field > span {
+  font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sw-fg-3); font-weight: 600;
+}
 .ot__in {
-  background: var(--sw-bg-2); border: 1px solid var(--sw-line);
+  background: var(--sw-bg-1); border: 1px solid var(--sw-line);
   color: var(--sw-fg-0); font: inherit; font-size: 11.5px;
   padding: 4px 6px; border-radius: 4px;
 }
-.ot__in--narrow { width: 140px; }
-.ot__in--num { width: 70px; font-variant-numeric: tabular-nums; }
-.ot__in--xnum { width: 48px; font-variant-numeric: tabular-nums; margin-right: 4px; }
-.ot__in--tip {
-  display: block; margin-top: 4px;
-  font-size: 10.5px; color: var(--sw-fg-2); width: 100%;
+.ot__in--narrow { width: 160px; }
+.ot__in--xnarrow { width: 70px; }
+.ot__in--mono { font-family: var(--sw-mono); }
+.ot__in--num { width: 80px; font-variant-numeric: tabular-nums; }
+.ot__in--xnum { width: 48px; font-variant-numeric: tabular-nums; }
+.ot__field input[type='checkbox'] { width: 14px; height: 14px; margin: 4px 0 0; cursor: pointer; }
+.ot__none { color: var(--sw-fg-3); font-size: 11px; }
+
+/* KPI sub-table */
+.ot__kpis {
+  margin-top: 8px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 5px;
+  padding: 8px;
 }
-.ot__wid-id {
-  display: block; margin-top: 4px;
-  font-family: var(--sw-mono); font-size: 10px; color: var(--sw-fg-3);
+.ot__kpis-head {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sw-fg-3); font-weight: 600;
+  margin-bottom: 6px;
 }
-.ot__type {
-  font-family: var(--sw-mono); font-size: 10.5px;
-  color: var(--sw-fg-1); background: var(--sw-bg-2);
-  padding: 2px 6px; border-radius: 3px;
+.ot__kpis-empty {
+  padding: 14px; text-align: center;
+  font-size: 11.5px; color: var(--sw-fg-3);
 }
-.ot__none { color: var(--sw-fg-3); }
+.ot__add-btn {
+  margin-left: auto;
+  background: transparent; border: 1px dashed var(--sw-line-2);
+  color: var(--sw-fg-2); font: inherit; font-size: 11px;
+  padding: 2px 10px; border-radius: 4px; cursor: pointer;
+}
+.ot__add-btn:hover { color: var(--sw-fg-0); border-style: solid; }
+.ot__kpi-table { width: 100%; border-collapse: collapse; }
+.ot__kpi-table thead th {
+  text-align: left; font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--sw-fg-3); font-weight: 600;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.ot__kpi-table tbody td { padding: 4px; vertical-align: middle; }
+.ot__kpi-table input.ot__in,
+.ot__kpi-table select.ot__in { width: 100%; min-width: 0; }
+.ot__arrow {
+  background: transparent; border: 0;
+  color: var(--sw-fg-2); font: inherit; font-size: 12px;
+  width: 20px; height: 22px; cursor: pointer;
+}
+.ot__arrow:disabled { opacity: 0.3; cursor: not-allowed; }
+.ot__arrow:not(:disabled):hover { color: var(--sw-fg-0); }
+.ot__del {
+  background: transparent; border: 0;
+  color: var(--sw-fg-3); font: inherit; font-size: 14px; line-height: 1;
+  width: 22px; height: 22px; cursor: pointer; border-radius: 3px;
+}
+.ot__del:hover { color: var(--sw-err); background: var(--sw-bg-2); }
+
+/* Add-widget composer */
+.ot__add-widget { margin-top: 8px; }
+.ot__add-trigger {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--sw-line-2);
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: 12px;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ot__add-trigger:hover {
+  border-color: var(--sw-accent);
+  color: var(--sw-fg-0);
+  background: var(--sw-bg-2);
+}
+.ot__composer { border-color: var(--sw-accent); }
+.ot__composer-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ot__composer-hint {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  flex: 1;
+  font-style: italic;
+}
 
 .ot__actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
 .ot__flash { font-size: 11px; color: var(--sw-ok); margin-right: auto; }

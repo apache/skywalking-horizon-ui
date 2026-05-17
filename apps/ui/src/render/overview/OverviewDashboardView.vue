@@ -31,12 +31,10 @@ import { useRoute } from 'vue-router';
 import type { OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import { useOverviewDashboard } from '@/render/overview/useOverviewDashboard';
 import SectionBreak from '@/render/widgets/SectionBreak.vue';
-import ServiceCountWidget from '@/render/widgets/ServiceCountWidget.vue';
 import MetricWidget from '@/render/widgets/MetricWidget.vue';
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import AlarmsWidget from '@/render/widgets/AlarmsWidget.vue';
-import K8sSummaryWidget from '@/render/widgets/K8sSummaryWidget.vue';
-import PilotSummaryWidget from '@/render/widgets/PilotSummaryWidget.vue';
+import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 
 const route = useRoute();
@@ -88,15 +86,8 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
           :style="{ gridTemplateColumns: `repeat(${sec.cols}, minmax(0, 1fr))` }"
         >
           <template v-for="w in sec.widgets" :key="w.id">
-            <ServiceCountWidget
-              v-if="w.type === 'service-count'"
-              :title="w.title"
-              :tip="w.tip"
-              :value="values.values[w.id]"
-              :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
-            />
             <MetricWidget
-              v-else-if="w.type === 'metric'"
+              v-if="w.type === 'metric'"
               :title="w.title"
               :tip="w.tip"
               :value="values.values[w.id]"
@@ -139,19 +130,12 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
                    composables look up by. -->
               <LayerServiceMapView :layer-key="w.layer.toLowerCase()" :embedded="true" />
             </div>
-            <K8sSummaryWidget
-              v-else-if="w.type === 'k8s-summary'"
+            <MetricCompositeWidget
+              v-else-if="w.type === 'metric-composite'"
               :title="w.title"
               :tip="w.tip"
               :layer="w.layer"
-              :kpi-values="values.kpiValues[w.id] ?? {}"
-              :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
-            />
-            <PilotSummaryWidget
-              v-else-if="w.type === 'pilot-summary'"
-              :title="w.title"
-              :tip="w.tip"
-              :layer="w.layer"
+              :kpis="w.kpis"
               :kpi-values="values.kpiValues[w.id] ?? {}"
               :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
             />

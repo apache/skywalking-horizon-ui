@@ -35,6 +35,8 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
+  createOverviewDashboard,
+  deleteOverviewDashboard,
   findOverviewFile,
   getOverviewDashboard,
   loadOverviewDashboards,
@@ -47,22 +49,41 @@ export interface OverviewTemplatesAdminDeps {
 }
 
 const WIDGET_TYPES = [
-  'service-count',
   'metric',
   'topology',
   'section-break',
   'kpi-tile',
   'alarms',
-  'k8s-summary',
-  'pilot-summary',
+  'metric-composite',
 ] as const;
 
-const kpiSchema = z.object({
-  label: z.string().min(1),
-  mqe: z.string().min(1),
-  unit: z.string().optional(),
-  aggregation: z.enum(['sum', 'avg']).optional(),
-});
+const kpiSchema = z
+  .object({
+    label: z.string().min(1),
+    /* `mqe` is required when source is 'mqe' (the default), optional
+     * when source is 'service-count'. Cross-field check below. */
+    mqe: z.string().optional(),
+    unit: z.string().optional(),
+    aggregation: z.enum(['sum', 'avg']).optional(),
+    style: z.enum(['number', 'progress-bar']).optional(),
+    /* `max` is only meaningful when style is `progress-bar` — but
+     * we accept it for any style and let the renderer ignore it
+     * otherwise. Validating that pairing here would add false
+     * positives during in-flight edits. */
+    max: z.number().positive().optional(),
+    source: z.enum(['mqe', 'service-count']).optional(),
+  })
+  .refine(
+    (k) => {
+      const src = k.source ?? 'mqe';
+      if (src === 'mqe') return typeof k.mqe === 'string' && k.mqe.length > 0;
+      return true;
+    },
+    { message: 'mqe is required when source is "mqe"' },
+  )
+  .refine((k) => k.style !== 'progress-bar' || (typeof k.max === 'number' && k.max > 0), {
+    message: 'progress-bar style requires `max > 0`',
+  });
 
 const widgetSchema = z.object({
   id: z.string().min(1),
@@ -155,6 +176,50 @@ export function registerOverviewTemplatesAdminRoutes(
       } catch (err) {
         return reply.code(500).send({
           error: 'write_failed',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return reply.send({ ok: true, id });
+    },
+  );
+
+  /* POST /api/admin/overview-templates — create a brand-new
+   * dashboard. The body is a full OverviewDashboard JSON; the id is
+   * pulled from the body (matching the editor flow where the
+   * operator types the id once at creation time). */
+  app.post(
+    '/api/admin/overview-templates',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const parsed = dashboardSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
+      }
+      try {
+        createOverviewDashboard(parsed.data as OverviewDashboard);
+      } catch (err) {
+        return reply.code(409).send({
+          error: 'create_failed',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return reply.send({ ok: true, id: parsed.data.id });
+    },
+  );
+
+  /* DELETE /api/admin/overview-templates/:id — remove the file.
+   * No-op when the file doesn't exist; the cache is invalidated
+   * either way so the list reflects the removal. */
+  app.delete(
+    '/api/admin/overview-templates/:id',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as { id: string };
+      try {
+        deleteOverviewDashboard(id);
+      } catch (err) {
+        return reply.code(500).send({
+          error: 'delete_failed',
           message: err instanceof Error ? err.message : String(err),
         });
       }

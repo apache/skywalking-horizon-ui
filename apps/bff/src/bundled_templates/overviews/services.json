@@ -130,10 +130,43 @@
       "id": "k8s_summary",
       "title": "Cluster capacity & utilisation",
       "tip": "Nodes / namespaces / workloads + cluster-wide CPU, memory, and disk usage.",
-      "type": "k8s-summary",
+      "type": "metric-composite",
       "layer": "K8S",
       "span": 12,
-      "rowSpan": 3
+      "rowSpan": 3,
+      "kpis": [
+        { "label": "Nodes",        "mqe": "latest(k8s_cluster_node_total)",        "aggregation": "avg" },
+        { "label": "Namespaces",   "mqe": "latest(k8s_cluster_namespace_total)",   "aggregation": "avg" },
+        { "label": "Deployments",  "mqe": "latest(k8s_cluster_deployment_total)",  "aggregation": "avg" },
+        { "label": "StatefulSets", "mqe": "latest(k8s_cluster_statefulset_total)", "aggregation": "avg" },
+        { "label": "DaemonSets",   "mqe": "latest(k8s_cluster_daemonset_total)",   "aggregation": "avg" },
+        { "label": "Services",     "mqe": "latest(k8s_cluster_service_total)",     "aggregation": "avg" },
+        { "label": "Containers",   "mqe": "latest(k8s_cluster_container_total)",   "aggregation": "avg" },
+        {
+          "label": "CPU",
+          "mqe": "k8s_cluster_cpu_cores_requests/k8s_cluster_cpu_cores*100",
+          "unit": "%",
+          "aggregation": "avg",
+          "style": "progress-bar",
+          "max": 100
+        },
+        {
+          "label": "Memory",
+          "mqe": "k8s_cluster_memory_requests/k8s_cluster_memory_total*100",
+          "unit": "%",
+          "aggregation": "avg",
+          "style": "progress-bar",
+          "max": 100
+        },
+        {
+          "label": "Storage",
+          "mqe": "(k8s_cluster_storage_total-k8s_cluster_storage_allocatable)/k8s_cluster_storage_total*100",
+          "unit": "%",
+          "aggregation": "avg",
+          "style": "progress-bar",
+          "max": 100
+        }
+      ]
     }
   ]
 }

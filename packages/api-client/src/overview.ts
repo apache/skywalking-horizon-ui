@@ -53,21 +53,46 @@
  */
 
 export type OverviewWidgetType =
-  | 'service-count'
   | 'metric'
   | 'topology'
   | 'section-break'
   | 'kpi-tile'
   | 'alarms'
-  | 'k8s-summary'
-  | 'pilot-summary';
+  | 'metric-composite';
 
-/** One KPI row inside a `kpi-tile` widget. */
+/** Visual style for a KPI row.
+ *   - `number`        — value rendered as a right-aligned number with
+ *                       an optional unit suffix. The default.
+ *   - `progress-bar`  — value rendered as a fill against `max`. Use
+ *                       for SLA, utilisation, or other 0..N metrics
+ *                       where the operator wants "how close to the
+ *                       ceiling" at a glance instead of the raw digit. */
+export type OverviewKpiStyle = 'number' | 'progress-bar';
+
+/** Value source for a KPI row.
+ *   - `mqe`            — execute the row's `mqe` expression against
+ *                        the widget's layer. The default.
+ *   - `service-count`  — count the layer's services via `listServices`
+ *                        and use the count as the row's value. Lets a
+ *                        `metric-composite` widget mix "5 services"
+ *                        with MQE-derived numbers like RPM / latency. */
+export type OverviewKpiSource = 'mqe' | 'service-count';
+
+/** One KPI row inside a `kpi-tile` / `metric-composite` widget. */
 export interface OverviewKpi {
   label: string;
-  mqe: string;
+  /** Required when `source === 'mqe'` (the default); ignored when
+   *  `source === 'service-count'`. */
+  mqe?: string;
   unit?: string;
   aggregation?: 'sum' | 'avg';
+  /** Defaults to `'number'`. */
+  style?: OverviewKpiStyle;
+  /** Required when `style === 'progress-bar'` — the value plotted at
+   *  100% fill. Ignored otherwise. */
+  max?: number;
+  /** Defaults to `'mqe'`. */
+  source?: OverviewKpiSource;
 }
 
 export interface OverviewWidget {

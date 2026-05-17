@@ -39,6 +39,16 @@ const props = defineProps<{
 const tileTo = computed(() =>
   props.layer ? `/layer/${props.layer.toLowerCase()}/service` : '',
 );
+
+/** Clamp value/max into a 0..100 percentage for the progress-bar
+ *  width. `null` / non-finite / max=0 collapse to 0. */
+function barPct(value: number | null | undefined, max: number): number {
+  if (value === null || value === undefined || !Number.isFinite(value) || max <= 0) return 0;
+  const pct = (value / max) * 100;
+  if (pct < 0) return 0;
+  if (pct > 100) return 100;
+  return Math.round(pct);
+}
 </script>
 
 <template>
@@ -54,8 +64,18 @@ const tileTo = computed(() =>
       </div>
       <div class="kpis">
         <div v-for="k in kpis" :key="k.label" class="kpi">
-          <span class="kpi-label">{{ k.label }}</span>
-          <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+          <template v-if="k.style === 'progress-bar' && k.max">
+            <span class="kpi-label">{{ k.label }}</span>
+            <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+            <div
+              class="kpi-bar"
+              :style="`--pct: ${barPct(kpiValues[k.label], k.max)}%`"
+            />
+          </template>
+          <template v-else>
+            <span class="kpi-label">{{ k.label }}</span>
+            <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+          </template>
         </div>
       </div>
     </section>
@@ -72,8 +92,18 @@ const tileTo = computed(() =>
       </div>
       <div class="kpis">
         <div v-for="k in kpis" :key="k.label" class="kpi">
-          <span class="kpi-label">{{ k.label }}</span>
-          <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+          <template v-if="k.style === 'progress-bar' && k.max">
+            <span class="kpi-label">{{ k.label }}</span>
+            <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+            <div
+              class="kpi-bar"
+              :style="`--pct: ${barPct(kpiValues[k.label], k.max)}%`"
+            />
+          </template>
+          <template v-else>
+            <span class="kpi-label">{{ k.label }}</span>
+            <span class="kpi-value">{{ formatValue(kpiValues[k.label], k.unit) }}</span>
+          </template>
         </div>
       </div>
     </section>
@@ -101,11 +131,34 @@ h4 { margin: 0; font-size: 11px; font-weight: 600; color: var(--sw-fg-1); }
   font-size: 22px; font-weight: 600; color: var(--sw-fg-0);
   font-variant-numeric: tabular-nums; margin-left: auto;
 }
-.kpis { display: flex; flex-direction: column; gap: 4px; }
-.kpi { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.kpis { display: flex; flex-direction: column; gap: 6px; }
+.kpi {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 8px;
+  row-gap: 2px;
+}
 .kpi-label { font-size: 11px; color: var(--sw-fg-2); }
 .kpi-value {
   font-size: 13px; font-weight: 600; color: var(--sw-fg-0);
   font-variant-numeric: tabular-nums;
+}
+.kpi-bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 4px;
+  background: var(--sw-bg-2);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.kpi-bar::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--pct, 0%);
+  background: var(--sw-accent);
+  border-radius: 2px;
 }
 </style>

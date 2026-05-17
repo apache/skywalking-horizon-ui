@@ -42,6 +42,12 @@ interface MqeRequest {
   mqe: string;
   aggregation: 'sum' | 'avg';
   unit?: string;
+  /** When set, the widget+kpi expects the layer's service count (from
+   *  the landing aggregate's `serviceCount`) instead of an MQE
+   *  result. The `mqe` field is filled with a placeholder so the
+   *  request shape stays uniform; the value-pickup pass below treats
+   *  it specially. */
+  isServiceCount?: boolean;
 }
 
 /**
@@ -54,13 +60,6 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
     const layer = w.layer;
     if (!layer) continue;
     if (w.type === 'section-break' || w.type === 'alarms' || w.type === 'topology') continue;
-    if (w.type === 'service-count') {
-      // Service count lives in the landing aggregates as `serviceCount`,
-      // no MQE column needed — but we still tag the layer so the call
-      // happens.
-      if (!out.has(layer)) out.set(layer, []);
-      continue;
-    }
     if (w.type === 'metric' && w.mqe) {
       const reqs = out.get(layer) ?? [];
       reqs.push({
@@ -72,43 +71,17 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
       out.set(layer, reqs);
       continue;
     }
-    if (w.type === 'kpi-tile' && w.kpis) {
+    if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && w.kpis) {
       const reqs = out.get(layer) ?? [];
       for (const k of w.kpis) {
+        const isCount = k.source === 'service-count';
         reqs.push({
           widgetId: w.id,
           kpiLabel: k.label,
-          mqe: k.mqe,
+          mqe: isCount ? '__service_count' : (k.mqe ?? ''),
           aggregation: k.aggregation ?? 'avg',
           unit: k.unit,
-        });
-      }
-      out.set(layer, reqs);
-      continue;
-    }
-    if (w.type === 'k8s-summary') {
-      const reqs = out.get(layer) ?? [];
-      for (const k of K8S_SUMMARY_KPIS) {
-        reqs.push({
-          widgetId: w.id,
-          kpiLabel: k.label,
-          mqe: k.mqe,
-          aggregation: k.aggregation,
-          unit: k.unit,
-        });
-      }
-      out.set(layer, reqs);
-      continue;
-    }
-    if (w.type === 'pilot-summary') {
-      const reqs = out.get(layer) ?? [];
-      for (const k of PILOT_SUMMARY_KPIS) {
-        reqs.push({
-          widgetId: w.id,
-          kpiLabel: k.label,
-          mqe: k.mqe,
-          aggregation: k.aggregation,
-          unit: k.unit,
+          isServiceCount: isCount,
         });
       }
       out.set(layer, reqs);
@@ -116,77 +89,6 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
   }
   return out;
 }
-
-/** Fixed-shape KPI set for the K8s capacity / utilisation block. The
- *  widget renderer reads these labels back to lay them out.
- *
- *  Count metrics are gauges — wrap with `latest()` so the per-bucket
- *  evaluation returns the most recent observed value rather than a
- *  series average. Usage % is derived per booster-ui's k8s-cluster
- *  template: requests-to-total for CPU + memory, and (total − allocatable)
- *  / total for storage (no requests meter exists for storage). */
-export const K8S_SUMMARY_KPIS: ReadonlyArray<{
-  label: string;
-  mqe: string;
-  unit?: string;
-  aggregation: 'sum' | 'avg';
-}> = [
-  { label: 'Nodes', mqe: 'latest(k8s_cluster_node_total)', aggregation: 'avg' },
-  { label: 'Namespaces', mqe: 'latest(k8s_cluster_namespace_total)', aggregation: 'avg' },
-  { label: 'Deployments', mqe: 'latest(k8s_cluster_deployment_total)', aggregation: 'avg' },
-  { label: 'StatefulSets', mqe: 'latest(k8s_cluster_statefulset_total)', aggregation: 'avg' },
-  { label: 'DaemonSets', mqe: 'latest(k8s_cluster_daemonset_total)', aggregation: 'avg' },
-  { label: 'Services', mqe: 'latest(k8s_cluster_service_total)', aggregation: 'avg' },
-  { label: 'Containers', mqe: 'latest(k8s_cluster_container_total)', aggregation: 'avg' },
-  {
-    label: 'CPU',
-    mqe: 'k8s_cluster_cpu_cores_requests/k8s_cluster_cpu_cores*100',
-    unit: '%',
-    aggregation: 'avg',
-  },
-  {
-    label: 'Memory',
-    mqe: 'k8s_cluster_memory_requests/k8s_cluster_memory_total*100',
-    unit: '%',
-    aggregation: 'avg',
-  },
-  {
-    label: 'Storage',
-    mqe:
-      '(k8s_cluster_storage_total-k8s_cluster_storage_allocatable)/k8s_cluster_storage_total*100',
-    unit: '%',
-    aggregation: 'avg',
-  },
-];
-
-/** Fixed-shape KPI set for the Istio pilot block. Compact 4-up layout
- *  to match the neighbour service tile's visual weight. Every metric
- *  is pulled verbatim from booster-ui's `mesh-control-plane-service.json`
- *  (entity = Service, layer = MESH_CP).
- *
- *  "Pilot errors" mirrors booster-ui's widget title of the same name —
- *  there's no single error counter in OAP, so we sum the four xDS
- *  reject types plus the write-timeout meter via MQE arithmetic to
- *  surface one number. Individual reject types remain visible on the
- *  per-layer Control Plane page's Pilot Errors chart. */
-export const PILOT_SUMMARY_KPIS: ReadonlyArray<{
-  label: string;
-  mqe: string;
-  unit?: string;
-  aggregation: 'sum' | 'avg';
-}> = [
-  { label: 'xDS pushes', mqe: 'meter_istio_pilot_xds_pushes', aggregation: 'sum' },
-  { label: 'xDS connections', mqe: 'meter_istio_pilot_xds', aggregation: 'avg' },
-  { label: 'Services', mqe: 'meter_istio_pilot_services', aggregation: 'avg' },
-  {
-    label: 'Pilot errors',
-    mqe:
-      'meter_istio_pilot_xds_cds_reject+meter_istio_pilot_xds_eds_reject+' +
-      'meter_istio_pilot_xds_lds_reject+meter_istio_pilot_xds_rds_reject+' +
-      'meter_istio_pilot_xds_write_timeout',
-    aggregation: 'sum',
-  },
-];
 
 /**
  * Load one overview dashboard + its widget values. Topology widgets are
@@ -214,6 +116,11 @@ export function useOverviewDashboard(idRef: Ref<string>) {
       return entries.map(([layer, reqs]) => ({
         queryKey: ['overview-dashboard-data', idRef.value, layer],
         queryFn: () => {
+          /* Service-count KPIs read from `aggregates.serviceCount`
+           * — strip them from the MQE column list to avoid sending
+           * a synthetic MQE upstream. They still ride in `reqs` so
+           * the value-pickup pass below can inject the count. */
+          const mqeReqs = reqs.filter((r) => !r.isServiceCount);
           // priority + style are required by the LandingConfig type
           // but ignored by the BFF route — the client only forwards
           // topN/orderBy/columns. Stubbed to satisfy the type.
@@ -221,8 +128,8 @@ export function useOverviewDashboard(idRef: Ref<string>) {
             priority: 0,
             style: 'table',
             topN: 1,
-            orderBy: reqs[0]?.mqe ?? 'service_cpm',
-            columns: reqs.map((r, i) => ({
+            orderBy: mqeReqs[0]?.mqe ?? 'service_cpm',
+            columns: mqeReqs.map((r, i) => ({
               metric: `w_${i}`,
               label: r.kpiLabel ?? r.widgetId,
               mqe: r.mqe,
@@ -233,6 +140,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           return bffClient.layer.landing(layer, cfg).then((res) => ({
             layer,
             reqs,
+            mqeReqs,
             aggregates: res.aggregates,
           }));
         },
@@ -244,21 +152,18 @@ export function useOverviewDashboard(idRef: Ref<string>) {
 
   const values = computed<OverviewWidgetValues>(() => {
     const out: OverviewWidgetValues = { values: {}, kpiValues: {} };
-    // First pass: service-count widgets pull from the landing aggregate's
-    // `serviceCount` field on the matching layer.
-    for (const w of widgets.value) {
-      if (w.type === 'service-count' && w.layer) {
-        const r = layerQueries.value.find((q) => q.data?.layer === w.layer);
-        out.values[w.id] = r?.data?.aggregates.serviceCount ?? null;
-      }
-    }
-    // Second pass: metric / kpi-tile / k8s-summary / pilot-summary read
-    // their MQE values out of the layer aggregate keyed by `w_<idx>`.
+    // metric / kpi-tile / metric-composite read their MQE
+    // values out of the layer aggregate keyed by `w_<idx>`. KPI rows
+    // with `source: 'service-count'` instead pick up the landing
+    // aggregate's `serviceCount` directly.
     for (const q of layerQueries.value) {
       const data = q.data;
       if (!data) continue;
-      const { reqs, aggregates } = data;
-      reqs.forEach((r, i) => {
+      const { reqs, mqeReqs, aggregates } = data;
+      /* MQE rows map by position in `mqeReqs` (which is the only set
+       * the BFF actually evaluated). Service-count rows below pick
+       * up the count regardless of position. */
+      mqeReqs.forEach((r, i) => {
         const v = aggregates.metrics[`w_${i}`] ?? null;
         if (r.kpiLabel) {
           if (!out.kpiValues[r.widgetId]) out.kpiValues[r.widgetId] = {};
@@ -267,13 +172,17 @@ export function useOverviewDashboard(idRef: Ref<string>) {
           out.values[r.widgetId] = v;
         }
       });
-      // service-count widgets sharing the layer pick up the count from
-      // the same landing call. kpi-tile widgets with showCount=true do
-      // the same — the count slot above the KPI rows reads
-      // `values[widget.id]`, same as a standalone service-count tile.
+      for (const r of reqs) {
+        if (!r.isServiceCount || !r.kpiLabel) continue;
+        if (!out.kpiValues[r.widgetId]) out.kpiValues[r.widgetId] = {};
+        out.kpiValues[r.widgetId][r.kpiLabel] = aggregates.serviceCount;
+      }
+      // kpi-tile widgets with showCount=true pick up the layer's
+      // service count for the slot above the KPI rows. Read from the
+      // same landing aggregate — no separate listServices call.
       for (const w of widgets.value) {
         if (w.layer !== data.layer) continue;
-        if (w.type === 'service-count' || (w.type === 'kpi-tile' && w.showCount)) {
+        if (w.type === 'kpi-tile' && w.showCount) {
           out.values[w.id] = aggregates.serviceCount;
         }
       }
