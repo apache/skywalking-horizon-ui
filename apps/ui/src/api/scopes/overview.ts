@@ -16,10 +16,28 @@
  */
 
 import type {
+  OverviewDashboard,
   OverviewDashboardListResponse,
   OverviewDashboardResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+
+export interface OverviewTemplateSummary {
+  id: string;
+  title: string;
+  description?: string;
+  widgetCount: number;
+  editable: boolean;
+}
+export interface OverviewTemplateListResponse {
+  generatedAt: number;
+  dashboards: OverviewTemplateSummary[];
+}
+export interface OverviewTemplateDetailResponse {
+  generatedAt: number;
+  dashboard: OverviewDashboard;
+  editable: boolean;
+}
 
 /** `bff.overview` — cross-layer overview dashboards (Services / Mesh / …). */
 export class OverviewApi {
@@ -32,6 +50,25 @@ export class OverviewApi {
     return this.bff.request<OverviewDashboardResponse>(
       'GET',
       `/api/overview/dashboards/${encodeURIComponent(id)}`,
+    );
+  }
+
+  /* Admin endpoints — same dashboard JSON, write surface for editing
+   * per-widget layer / limit / title / tip / span / rowSpan etc. */
+  adminList(): Promise<OverviewTemplateListResponse> {
+    return this.bff.request<OverviewTemplateListResponse>('GET', '/api/admin/overview-templates');
+  }
+  adminGet(id: string): Promise<OverviewTemplateDetailResponse> {
+    return this.bff.request<OverviewTemplateDetailResponse>(
+      'GET',
+      `/api/admin/overview-templates/${encodeURIComponent(id)}`,
+    );
+  }
+  adminSave(id: string, body: OverviewDashboard): Promise<{ ok: true; id: string }> {
+    return this.bff.request<{ ok: true; id: string }>(
+      'POST',
+      `/api/admin/overview-templates/${encodeURIComponent(id)}`,
+      body,
     );
   }
 }

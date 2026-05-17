@@ -1,0 +1,164 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * `/api/admin/overview-templates*` — admin CRUD for the per-dashboard
+ * JSON templates that drive overview pages. Mirrors the layer-template
+ * admin: write back to the same on-disk bundled file, invalidate the
+ * loader cache so the next SPA fetch sees the new shape.
+ *
+ *   GET  /api/admin/overview-templates           — list (id, title,
+ *                                                  widgets summary).
+ *   GET  /api/admin/overview-templates/:id       — full dashboard config.
+ *   POST /api/admin/overview-templates/:id       — write a dashboard's
+ *                                                  full config back.
+ */
+
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
+import type { ConfigSource } from '../../config/loader.js';
+import type { SessionStore } from '../../user/sessions.js';
+import { requireAuth } from '../../user/middleware.js';
+import {
+  findOverviewFile,
+  getOverviewDashboard,
+  loadOverviewDashboards,
+  writeOverviewDashboard,
+} from '../../logic/overview/loader.js';
+
+export interface OverviewTemplatesAdminDeps {
+  config: ConfigSource;
+  sessions: SessionStore;
+}
+
+const WIDGET_TYPES = [
+  'service-count',
+  'metric',
+  'topology',
+  'section-break',
+  'kpi-tile',
+  'alarms',
+  'k8s-summary',
+  'pilot-summary',
+] as const;
+
+const kpiSchema = z.object({
+  label: z.string().min(1),
+  mqe: z.string().min(1),
+  unit: z.string().optional(),
+  aggregation: z.enum(['sum', 'avg']).optional(),
+});
+
+const widgetSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  tip: z.string().optional(),
+  layer: z.string().optional(),
+  type: z.enum(WIDGET_TYPES),
+  mqe: z.string().optional(),
+  unit: z.string().optional(),
+  aggregation: z.enum(['sum', 'avg']).optional(),
+  cols: z.number().int().optional(),
+  kpis: z.array(kpiSchema).optional(),
+  showCount: z.boolean().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  span: z.number().int().min(1).max(12).optional(),
+  rowSpan: z.number().int().min(1).max(12).optional(),
+});
+
+const dashboardSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  visibility: z.enum(['public', 'operate']).optional(),
+  icon: z.string().optional(),
+  order: z.number().optional(),
+  layers: z.array(z.string()).optional(),
+  widgets: z.array(widgetSchema).max(64),
+});
+
+export function registerOverviewTemplatesAdminRoutes(
+  app: FastifyInstance,
+  deps: OverviewTemplatesAdminDeps,
+): void {
+  const auth = requireAuth(deps);
+
+  /* GET /api/admin/overview-templates — every loaded dashboard. */
+  app.get(
+    '/api/admin/overview-templates',
+    { preHandler: auth },
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      const dashboards = loadOverviewDashboards();
+      return reply.send({
+        generatedAt: Date.now(),
+        dashboards: dashboards.map((d) => ({
+          id: d.id,
+          title: d.title,
+          description: d.description,
+          widgetCount: d.widgets.length,
+          editable: !!findOverviewFile(d.id),
+        })),
+      });
+    },
+  );
+
+  /* GET /api/admin/overview-templates/:id — full editable config. */
+  app.get(
+    '/api/admin/overview-templates/:id',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as { id: string };
+      const dash = getOverviewDashboard(id);
+      if (!dash) return reply.code(404).send({ error: 'not_found', id });
+      return reply.send({
+        generatedAt: Date.now(),
+        dashboard: dash,
+        editable: !!findOverviewFile(id),
+      });
+    },
+  );
+
+  /* POST /api/admin/overview-templates/:id — write back. The body
+   * MUST have the same `id` as the URL param (defensive against
+   * accidental cross-dashboard overwrites). */
+  app.post(
+    '/api/admin/overview-templates/:id',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const { id } = req.params as { id: string };
+      const parsed = dashboardSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
+      }
+      if (parsed.data.id !== id) {
+        return reply
+          .code(400)
+          .send({ error: 'id_mismatch', urlId: id, bodyId: parsed.data.id });
+      }
+      try {
+        writeOverviewDashboard(id, parsed.data as OverviewDashboard);
+      } catch (err) {
+        return reply.code(500).send({
+          error: 'write_failed',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      return reply.send({ ok: true, id });
+    },
+  );
+}

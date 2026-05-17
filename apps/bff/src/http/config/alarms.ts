@@ -16,10 +16,12 @@
  */
 
 /**
- * `/api/alarms/config` — read + write the alarm-page setup
- * (per-traffic-layer MQE expression list). The `serviceLayer` cache is
- * invalidated on save so the next `GET /api/alarms` picks up any newly
- * configured layer immediately instead of waiting for the 60s TTL.
+ * `/api/alarms/config` — read + write the alarm-page setup. The shape
+ * is `{ pinnedLayers: string[] }`: OAP layer keys that get a
+ * dedicated tile + breakdown chip on the alarms page header. The
+ * `serviceLayer` cache is invalidated on save so per-row layer tags
+ * pick up any new layer immediately instead of waiting for the 60s
+ * TTL.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -29,7 +31,13 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { AuditLogger } from '../../audit/logger.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { ServiceLayerMap } from '../../logic/alarms/service-layer-map.js';
-import type { AlarmsStore, AlarmsConfig } from '../../logic/alarms/store.js';
+import {
+  ALARMS_WINDOW_OPTIONS,
+  OVERVIEW_ALARMS_LIMIT_MAX,
+  OVERVIEW_ALARMS_LIMIT_MIN,
+  type AlarmsStore,
+  type AlarmsConfig,
+} from '../../logic/alarms/store.js';
 
 export interface AlarmsConfigRouteDeps {
   config: ConfigSource;
@@ -40,15 +48,23 @@ export interface AlarmsConfigRouteDeps {
 }
 
 const configSaveSchema = z.object({
-  trafficLayers: z
-    .array(
-      z.object({
-        layerKey: z.string().min(1),
-        mqe: z.string().min(1),
-        label: z.string().optional(),
-      }).strict(),
-    )
-    .max(8),
+  pinnedLayers: z.array(z.string().min(1)).max(8),
+  /* Locked to the page-picker preset set so the admin's pick always
+   * lights up a real tab. Hand-edited values are rejected with a 400
+   * rather than silently coerced — keeps debugging predictable. */
+  defaultWindowMs: z
+    .number()
+    .int()
+    .refine((v) => (ALARMS_WINDOW_OPTIONS as readonly number[]).includes(v), {
+      message: `must be one of ${ALARMS_WINDOW_OPTIONS.join(', ')}`,
+    }),
+  /* Bounded range — too low starves the widget's incident merge of
+   * variety; too high pulls more bytes per poll than necessary. */
+  overviewAlarmsLimit: z
+    .number()
+    .int()
+    .min(OVERVIEW_ALARMS_LIMIT_MIN)
+    .max(OVERVIEW_ALARMS_LIMIT_MAX),
 });
 
 export function registerAlarmsConfigRoutes(
@@ -74,14 +90,32 @@ export function registerAlarmsConfigRoutes(
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
-      const next: AlarmsConfig = { trafficLayers: parsed.data.trafficLayers };
+      /* Normalise layer keys to upper-case + dedup so the persisted
+       * shape is canonical regardless of what the admin form sent. */
+      const seen = new Set<string>();
+      const pinnedLayers: string[] = [];
+      for (const raw of parsed.data.pinnedLayers) {
+        const k = raw.trim().toUpperCase();
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        pinnedLayers.push(k);
+      }
+      const next: AlarmsConfig = {
+        pinnedLayers,
+        defaultWindowMs: parsed.data.defaultWindowMs,
+        overviewAlarmsLimit: parsed.data.overviewAlarmsLimit,
+      };
       await deps.store.save(next);
       deps.serviceLayer.invalidate();
       deps.audit.record({
         action: 'alarms.config.save',
         actor: req.session?.username ?? null,
         outcome: 'ok',
-        details: { layers: next.trafficLayers.map((l) => `${l.layerKey}:${l.mqe}`) },
+        details: {
+          pinnedLayers: next.pinnedLayers,
+          defaultWindowMs: next.defaultWindowMs,
+          overviewAlarmsLimit: next.overviewAlarmsLimit,
+        },
         fromIp: req.ip,
         sessionId: req.session?.sid,
       });

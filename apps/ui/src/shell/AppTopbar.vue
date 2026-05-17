@@ -19,12 +19,39 @@ import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
 import { useOapInfo } from '@/shell/useOapInfo';
+import { useAlarmCount } from '@/shell/useAlarmCount';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
 import { useTimeRangeStore, TIME_PRESETS, STEP_LIMITS, isValidRange, type TimeStep } from '@/controls/timeRange';
 
 const route = useRoute();
 
 const { info, reachable, tzOffsetLabel, healthState } = useOapInfo();
+
+/* Alarm badge — independent 60s timer, rolling 20m window. The
+ * badge sits next to OAP / time / refresh because alarms are a
+ * top-level concern; clicking jumps straight to /alarms regardless of
+ * which page the operator is on. */
+const alarmCount = useAlarmCount();
+const alarmBadgeTooltip = computed<string>(() => {
+  if (alarmCount.hasError.value) {
+    return `Alarms unavailable: ${alarmCount.errorMessage.value ?? 'no response'}`;
+  }
+  const windowMin = Math.round(alarmCount.windowMs.value / 60_000);
+  const active = alarmCount.activeIncidents.value;
+  const inc = alarmCount.incidents.value;
+  const cap = alarmCount.truncated.value ? ' (capped — open the page for the full list)' : '';
+  if (active === 0) {
+    if (inc > 0) {
+      return `No active alarms in the last ${windowMin}m · ${inc} recovered incident${inc === 1 ? '' : 's'}`;
+    }
+    return `No alarms in the last ${windowMin}m`;
+  }
+  return `${active} active incident${active === 1 ? '' : 's'} in the last ${windowMin}m${cap}`;
+});
+const alarmBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
+  if (alarmCount.hasError.value) return 'unknown';
+  return alarmCount.activeIncidents.value > 0 ? 'err' : 'ok';
+});
 
 const oapChipTooltip = computed<string>(() => {
   if (!info.value) return 'OAP status — loading…';
@@ -472,7 +499,15 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
           </ul>
         </transition>
       </div>
-      <div class="sw-btn is-icon"><Icon name="bell" :size="12" /></div>
+      <RouterLink
+        class="sw-btn alarm-badge"
+        :class="`is-${alarmBadgeState}`"
+        :title="alarmBadgeTooltip"
+        to="/alarms"
+      >
+        <Icon name="bell" :size="12" />
+        <span class="alarm-count mono">{{ alarmCount.displayCount.value }}</span>
+      </RouterLink>
     </div>
   </header>
 </template>
@@ -771,5 +806,46 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
   0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.6); }
   70% { box-shadow: 0 0 0 6px transparent; }
   100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* ── Alarm badge ───────────────────────────────────────────────── */
+/* Bell + count, same chip footprint as the OAP pill. Red fill when
+ * any alarm fired in the window, neutral when clean, grey when the
+ * BFF can't reach OAP. Click jumps to /alarms. */
+.alarm-badge {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+}
+.alarm-badge .alarm-count {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 14px;
+  text-align: center;
+}
+.alarm-badge.is-ok {
+  color: var(--sw-fg-2);
+}
+.alarm-badge.is-ok .alarm-count {
+  color: var(--sw-fg-2);
+}
+.alarm-badge.is-err {
+  color: var(--sw-err);
+}
+.alarm-badge.is-err .alarm-count {
+  color: var(--sw-err);
+}
+.alarm-badge.is-err :deep(svg) {
+  animation: pulse-err 1.6s infinite;
+  transform-origin: 50% 50%;
+}
+.alarm-badge.is-unknown {
+  color: var(--sw-fg-3);
+}
+.alarm-badge.is-unknown .alarm-count {
+  color: var(--sw-fg-3);
 }
 </style>

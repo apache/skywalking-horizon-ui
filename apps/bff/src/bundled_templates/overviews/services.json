@@ -113,8 +113,9 @@
     {
       "id": "svc_alarms",
       "title": "Active alarms",
-      "tip": "All currently firing alarms (layer filter is best-effort in v1).",
+      "tip": "Currently-firing alarms on agent-reported services.",
       "type": "alarms",
+      "layer": "GENERAL",
       "limit": 12,
       "span": 3,
       "rowSpan": 6

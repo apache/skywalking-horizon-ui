@@ -59,7 +59,9 @@ watchEffect(() => {
           but no overview is set to <code>visibility: public</code>. Operations-only
           overviews are reachable from the Admin section in the sidebar.
         </p>
-        <RouterLink class="sw-btn is-primary" to="/setup">Open Overview setup</RouterLink>
+        <RouterLink class="sw-btn is-primary" to="/admin/overview-templates">
+          Open Overview templates
+        </RouterLink>
       </div>
     </div>
   </div>

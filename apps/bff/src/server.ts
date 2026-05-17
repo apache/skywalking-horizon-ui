@@ -58,6 +58,8 @@ import { registerDslOalRoutes } from './http/admin/dsl/oal.js';
 import { registerClusterRoutes } from './http/admin/cluster.js';
 import { registerDebugRoutes } from './http/admin/live-debug.js';
 import { registerInspectRoutes } from './http/admin/inspect.js';
+import { registerAlarmRulesRoutes } from './http/admin/alarm-rules.js';
+import { registerOverviewTemplatesAdminRoutes } from './http/admin/overview-templates.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
 import { SetupStore } from './logic/setup/store.js';
@@ -113,7 +115,7 @@ registerTraceTagRoutes(app, { config: source, sessions });
 registerZipkinRoutes(app, { config: source, sessions });
 registerLogRoute(app, { config: source, sessions });
 registerDashboardQueryRoute(app, { config: source, sessions });
-registerAlarmsQueryRoutes(app, { config: source, sessions, serviceLayer, store: alarmsStore });
+registerAlarmsQueryRoutes(app, { config: source, sessions, serviceLayer });
 registerPreflightRoutes(app, { config: source, sessions });
 registerProfileRoutes(app, { config: source, sessions });
 registerEBPFRoutes(app, { config: source, sessions });
@@ -135,6 +137,8 @@ registerDslOalRoutes(app, { config: source, sessions, audit });
 registerClusterRoutes(app, { config: source, sessions, audit });
 registerDebugRoutes(app, { config: source, sessions, audit });
 registerInspectRoutes(app, { config: source, sessions, audit });
+registerAlarmRulesRoutes(app, { config: source, sessions });
+registerOverviewTemplatesAdminRoutes(app, { config: source, sessions });
 
 // Serve the built SPA out of the BFF when HORIZON_STATIC_DIR points at a
 // directory (Docker image layout: /app/static contains the Vite dist).

@@ -119,6 +119,7 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
               :title="w.title"
               :tip="w.tip"
               :limit="w.limit"
+              :layer="w.layer"
               :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
             />
             <!-- Topology: the SAME LayerServiceMapView component the

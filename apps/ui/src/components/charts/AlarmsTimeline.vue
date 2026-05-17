@@ -15,239 +15,116 @@
   limitations under the License.
 -->
 <!--
-  Alarms timeline. Multi-line background traffic (RPM) over the window
-  with alarm markers overlaid as colored dots at each alarm's start
-  time. The X axis is real epoch-ms (time type), not category-indexed
-  buckets, so alarms anchor at their actual timestamp without needing
-  the caller to align them to traffic buckets.
+  Alarms timeline. Single line chart of "alarms-per-minute" across the
+  window. Each non-zero bucket gets a pin flag with the count label so
+  the operator can read intensity at a glance — empty minutes get a
+  zero-baseline point but no flag (label / marker hidden).
+
+  X axis: real epoch-ms (time type). The line steps minute-by-minute.
+  Y axis: integer count.
 
   Interactions:
-   - Click an alarm dot          → emits `select-alarm` with that id.
-   - Drag a region on the chart  → emits `select-time-range` with
-                                   `{startTime, endTime}` (ms).
-   - Click the chart background  → emits `clear-selection`.
-
-  This is the page's headline widget — kept inline rather than in
-  TimeChart because the alarm-flag overlay + brush behavior don't
-  belong in the per-layer dashboards' generic line chart wrapper.
+   - Click a flag                → emits `select-time-range` for that
+                                   single one-minute bucket.
+   - Drag a region (lineX brush) → emits `select-time-range` with
+                                   `{startTime, endTime}` ms.
+   - Click empty area / clear    → emits `clear-selection`.
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
-import { LineChart, ScatterChart } from 'echarts/charts';
+import { LineChart } from 'echarts/charts';
 import {
   BrushComponent,
   GridComponent,
-  LegendComponent,
   MarkLineComponent,
   TooltipComponent,
-  ToolboxComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsType } from 'echarts/core';
-import type { AlarmMessage, AlarmTrafficSeries } from '@/api/client';
+import type { AlarmMessage } from '@/api/client';
 
 echarts.use([
   LineChart,
-  ScatterChart,
   BrushComponent,
   GridComponent,
-  LegendComponent,
   MarkLineComponent,
   TooltipComponent,
-  ToolboxComponent,
   CanvasRenderer,
 ]);
 
 const props = defineProps<{
-  /** Aligned, per-layer RPM series (one line per layer). */
-  traffic: AlarmTrafficSeries[];
-  /** Alarms to overlay as dots at their startTime. */
+  /** Alarms to bucket into per-minute counts. */
   alarms: AlarmMessage[];
   startTime: number;
   endTime: number;
   height?: number;
-  /** Composite key `${alarm.id}::${alarm.startTime}` — OAP's `id`
-   *  alone collapses every firing of the same rule on the same
-   *  entity, so we key selection by (id + startTime) instead. */
-  selectedAlarmKey?: string | null;
+  /** Two-way reflection of the parent's brushed range. When `null`,
+   *  the chart clears its on-screen brush rectangle programmatically
+   *  — lets the parent's own "clear selection" button wipe the
+   *  brush, so the operator never gets stuck with a stale band. */
+  selectedRange?: { startTime: number; endTime: number } | null;
 }>();
 
 const emit = defineEmits<{
-  (e: 'select-alarm', alarmKey: string): void;
   (e: 'select-time-range', range: { startTime: number; endTime: number }): void;
   (e: 'clear-selection'): void;
 }>();
 
-function keyFor(a: AlarmMessage): string {
-  return `${a.id}::${a.startTime}`;
+const MINUTE_MS = 60_000;
+
+/** Per-minute bucket split by event state. `firing` and `recovered`
+ *  are stacked in the chart so the column height matches the total
+ *  while the color breakdown surfaces the active vs cleared share. */
+interface Bucket {
+  ts: number;
+  firing: number;
+  recovered: number;
 }
 
-const PALETTE = [
-  '#f97316', // orange (accent)
-  '#60a5fa', // blue
-  '#22d3ee', // cyan
-  '#a78bfa', // purple
-  '#34d399', // green
-  '#f472b6', // pink
-];
+/* Floor a window to minute boundaries and walk every minute in
+ * between, so the line has a point per minute even when the bucket
+ * is empty. */
+function bucketize(): Bucket[] {
+  const startMin = Math.floor(props.startTime / MINUTE_MS) * MINUTE_MS;
+  const endMin = Math.floor(props.endTime / MINUTE_MS) * MINUTE_MS;
+  const buckets = new Map<number, Bucket>();
+  for (let ts = startMin; ts <= endMin; ts += MINUTE_MS) {
+    buckets.set(ts, { ts, firing: 0, recovered: 0 });
+  }
+  for (const a of props.alarms) {
+    const bucket = Math.floor(a.startTime / MINUTE_MS) * MINUTE_MS;
+    let b = buckets.get(bucket);
+    if (!b) {
+      b = { ts: bucket, firing: 0, recovered: 0 };
+      buckets.set(bucket, b);
+    }
+    if (a.recoveryTime === null) b.firing += 1;
+    else b.recovered += 1;
+  }
+  return Array.from(buckets.values()).sort((a, b) => a.ts - b.ts);
+}
+
+function formatMinute(ts: number): string {
+  const d = new Date(ts);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
 
 const container = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
 
-function trafficSeriesOption(s: AlarmTrafficSeries, idx: number, addNowMark: boolean) {
-  const color = PALETTE[idx % PALETTE.length];
-  return {
-    name: s.label,
-    type: 'line',
-    showSymbol: false,
-    smooth: true,
-    lineStyle: { width: 1.5, color, opacity: s.present ? 0.85 : 0.25 },
-    areaStyle: s.present
-      ? {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: color + '33' },
-            { offset: 1, color: color + '00' },
-          ]),
-        }
-      : undefined,
-    data: s.points.map((p) => [p.ts, p.value]),
-    // Anchor the `now` reference line on the first series only —
-    // ECharts collapses markLines from multiple series so we only
-    // need it once. Drawn as a faint vertical dashed rule the
-    // operator uses to gauge "is the data current or stale?".
-    markLine: addNowMark
-      ? {
-          symbol: 'none',
-          silent: true,
-          lineStyle: { color: 'rgba(255,255,255,0.25)', type: 'dashed', width: 1 },
-          label: {
-            show: true,
-            position: 'insideEndTop',
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: 10,
-            formatter: 'now',
-          },
-          data: [{ xAxis: Date.now() }],
-        }
-      : undefined,
-    z: 1,
-  };
-}
-
-/* Bucket alarms by layerKey AND pair each layer with the same color
- * the traffic series uses for that layer. Result is one scatter
- * series per layer, color-matched to its traffic line, so the
- * legend reads layer-by-layer instead of one undifferentiated
- * "Alarms" lump. Unmatched alarms (layerKey null, or layer not in
- * the traffic config) fall into an "Other" bucket with a neutral
- * grey + a diamond marker so the operator can still see them. */
-interface AlarmBucket {
-  layerKey: string;
-  label: string;
-  color: string;
-  symbol: 'pin' | 'diamond';
-  alarms: AlarmMessage[];
-}
-
-function bucketAlarmsByLayer(): AlarmBucket[] {
-  // Layer order from the traffic config drives the legend order.
-  const buckets = new Map<string, AlarmBucket>();
-  props.traffic.forEach((s, idx) => {
-    buckets.set(s.layerKey, {
-      layerKey: s.layerKey,
-      label: s.label,
-      color: PALETTE[idx % PALETTE.length],
-      symbol: 'pin',
-      alarms: [],
-    });
-  });
-  const otherKey = '__other__';
-  for (const a of props.alarms) {
-    const k = a.layerKey ?? '';
-    let target = k && buckets.get(k);
-    if (!target) {
-      target = buckets.get(otherKey);
-      if (!target) {
-        target = {
-          layerKey: otherKey,
-          label: 'Other',
-          color: '#818a9c',
-          symbol: 'diamond',
-          alarms: [],
-        };
-        buckets.set(otherKey, target);
-      }
-    }
-    target.alarms.push(a);
-  }
-  // Drop empty buckets so we don't pollute the legend with layers
-  // that have no alarms in the window.
-  return Array.from(buckets.values()).filter((b) => b.alarms.length > 0);
-}
-
-function alarmSeriesFor(bucket: AlarmBucket) {
-  const seriesName = `${bucket.label} · alarms (${bucket.alarms.length})`;
-  const data = bucket.alarms.map((a) => {
-    const firing = a.recoveryTime === null;
-    const k = keyFor(a);
-    const selected = k === props.selectedAlarmKey;
-    return {
-      value: [a.startTime, 0],
-      // `name` carries the composite (id + startTime) so the click
-      // handler emits the right key — ECharts echoes back data.name
-      // on click. id alone collapses every firing of one rule.
-      name: k,
-      itemStyle: {
-        // Firing alarms keep the layer color full-saturation; recovered
-        // ones drop opacity so the operator can tell active from past
-        // at a glance without losing the layer mapping.
-        color: bucket.color,
-        opacity: firing ? 1 : 0.4,
-        borderColor: selected ? '#fff' : 'transparent',
-        borderWidth: selected ? 1.5 : 0,
-      },
-      alarm: a,
-    };
-  });
-  return {
-    name: seriesName,
-    type: 'scatter',
-    yAxisIndex: 1,
-    symbol: bucket.symbol === 'pin' ? 'pin' : 'diamond',
-    symbolSize: 14,
-    z: 5,
-    data,
-    tooltip: {
-      formatter: (params: unknown): string => {
-        const p = params as { data: { alarm: AlarmMessage } };
-        const a = p.data.alarm;
-        const firing = a.recoveryTime === null;
-        const time = new Date(a.startTime).toLocaleString();
-        return [
-          `<div style="font-weight:600;color:${bucket.color};">${escapeHtml(bucket.label)} · ${firing ? 'firing' : 'recovered'}</div>`,
-          `<div style="margin-top:4px;font-size:11px;color:var(--sw-fg-0);">${escapeHtml(a.message)}</div>`,
-          `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-2);">${escapeHtml(a.name)}</div>`,
-          `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-3);">${time}</div>`,
-        ].join('');
-      },
-    },
-  };
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 function buildOption(): echarts.EChartsCoreOption {
-  const alarmBuckets = bucketAlarmsByLayer();
+  const buckets = bucketize();
+  /* Y-axis max: echarts handles auto-scaling, but pin a floor so an
+   * all-zero window doesn't collapse to a 0-height axis. */
+  const maxCount = buckets.reduce((m, b) => Math.max(m, b.firing + b.recovered), 0);
+  const yMax = maxCount === 0 ? 1 : undefined;
+
   return {
     animation: false,
-    grid: { left: 48, right: 12, top: 36, bottom: 22 },
+    grid: { left: 32, right: 10, top: 18, bottom: 18 },
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'line', lineStyle: { color: 'rgba(255,255,255,0.15)' } },
@@ -255,44 +132,38 @@ function buildOption(): echarts.EChartsCoreOption {
       borderColor: 'rgba(255,255,255,0.08)',
       textStyle: { color: '#e8ecf3', fontSize: 11 },
       extraCssText: 'box-shadow: 0 4px 16px rgba(0,0,0,0.4);',
-    },
-    legend: {
-      top: 4,
-      left: 8,
-      itemWidth: 10,
-      itemHeight: 8,
-      textStyle: { color: '#b6bdcc', fontSize: 11 },
-      type: 'scroll',
-      data: [
-        // Traffic lines first, then alarm flag series per layer.
-        // Names match the `name` we assign on each series — ECharts
-        // pairs them by string identity.
-        ...props.traffic.map((s) => s.label),
-        ...alarmBuckets.map((b) => `${b.label} · alarms (${b.alarms.length})`),
-      ],
+      formatter: (params: unknown): string => {
+        const arr = Array.isArray(params) ? params : [params];
+        const first = arr[0] as { dataIndex?: number; data?: [number, number] };
+        if (!first?.data) return '';
+        const [ts] = first.data;
+        const b = buckets[first.dataIndex ?? 0];
+        const firing = b?.firing ?? 0;
+        const recovered = b?.recovered ?? 0;
+        const total = firing + recovered;
+        return [
+          `<div style="font-weight:600;color:#f97316;">${formatMinute(ts)}</div>`,
+          `<div style="margin-top:4px;font-size:11px;color:var(--sw-fg-0);">${total} event${total === 1 ? '' : 's'}</div>`,
+          total > 0
+            ? `<div style="margin-top:2px;font-size:10.5px;">
+                 <span style="color:#ef4444;">${firing} firing</span>
+                 · <span style="color:#22c55e;">${recovered} recovered</span>
+               </div>`
+            : '',
+          total > 0
+            ? `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-3);">click to filter to this minute</div>`
+            : '',
+        ].join('');
+      },
     },
     brush: {
-      toolbox: ['lineX', 'clear'],
       xAxisIndex: 0,
+      brushType: 'lineX',
+      brushMode: 'single',
       brushStyle: { color: 'rgba(249,115,22,0.18)', borderColor: 'rgba(249,115,22,0.6)' },
+      transformable: false,
       throttleType: 'debounce',
       throttleDelay: 200,
-    },
-    toolbox: {
-      show: true,
-      top: 2,
-      right: 8,
-      itemSize: 12,
-      feature: {
-        brush: {
-          type: ['lineX', 'clear'],
-          title: { lineX: 'select time range', clear: 'clear' } as Record<string, string>,
-          icon: {
-            // ECharts default icons render fine; just style the text colour.
-          } as Record<string, string>,
-        },
-      },
-      iconStyle: { borderColor: '#818a9c' },
     },
     xAxis: {
       type: 'time',
@@ -302,57 +173,145 @@ function buildOption(): echarts.EChartsCoreOption {
       axisLabel: { color: '#64748b', fontSize: 10 },
       splitLine: { show: false },
     },
-    yAxis: [
-      {
-        // Traffic axis (left).
-        type: 'value',
-        name: 'RPM',
-        nameTextStyle: { color: '#64748b', fontSize: 10, padding: [0, 0, 0, -4] },
-        axisLine: { show: false },
-        axisLabel: { color: '#64748b', fontSize: 10 },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: yMax,
+      minInterval: 1,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 10,
+        formatter: (v: number): string => String(Math.round(v)),
       },
-      {
-        // Alarms axis — hidden, just a fixed band so the scatter dots
-        // sit on a horizontal line at the bottom of the plot.
-        type: 'value',
-        show: false,
-        min: -1,
-        max: 1,
-      },
-    ],
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
+    },
     series: [
-      ...props.traffic.map((s, i) => trafficSeriesOption(s, i, i === 0)),
-      ...alarmBuckets.map((b) => alarmSeriesFor(b)),
+      /* Firing events first (bottom of the stack — red), then
+       * recovered events on top (green). Stack key shared so the
+       * column heights add up. Pin label shows count when non-zero,
+       * with each stack contributing its own pin so the operator
+       * sees the firing/recovered split at a glance. */
+      {
+        name: 'firing',
+        type: 'line',
+        stack: 'events',
+        smooth: false,
+        step: 'middle',
+        showSymbol: true,
+        symbol: (val: number[]): string => (val[1] > 0 ? 'pin' : 'none'),
+        symbolSize: 16,
+        lineStyle: { width: 1, color: '#ef4444' },
+        itemStyle: { color: '#ef4444', borderColor: '#0f141d', borderWidth: 1 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(239,68,68,0.34)' },
+            { offset: 1, color: 'rgba(239,68,68,0)' },
+          ]),
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 700,
+          formatter: (p: { data?: [number, number] }): string => {
+            const v = p.data?.[1] ?? 0;
+            return v > 0 ? String(v) : '';
+          },
+        },
+        emphasis: { focus: 'series' },
+        data: buckets.map((b) => [b.ts, b.firing]),
+        z: 3,
+      },
+      {
+        name: 'recovered',
+        type: 'line',
+        stack: 'events',
+        smooth: false,
+        step: 'middle',
+        showSymbol: true,
+        symbol: (val: number[]): string => (val[1] > 0 ? 'pin' : 'none'),
+        symbolSize: 16,
+        lineStyle: { width: 1, color: '#22c55e' },
+        itemStyle: { color: '#22c55e', borderColor: '#0f141d', borderWidth: 1 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(34,197,94,0.32)' },
+            { offset: 1, color: 'rgba(34,197,94,0)' },
+          ]),
+        },
+        label: {
+          show: true,
+          position: 'inside',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 700,
+          formatter: (p: { data?: [number, number] }): string => {
+            const v = p.data?.[1] ?? 0;
+            return v > 0 ? String(v) : '';
+          },
+        },
+        emphasis: { focus: 'series' },
+        data: buckets.map((b) => [b.ts, b.recovered]),
+        z: 2,
+      },
     ],
   };
+}
+
+function activateBrush(): void {
+  /* Permanent lineX brush cursor. Without this the operator's first
+   * drag silently fails (ECharts ships brush mode opt-in via a
+   * toolbox icon we removed). Click events on data symbols still
+   * fire — ECharts dispatches `click` before the brush sees a
+   * mousedown-as-drag-start. */
+  chart?.dispatchAction({
+    type: 'takeGlobalCursor',
+    key: 'brush',
+    brushOption: { brushType: 'lineX', brushMode: 'single' },
+  });
+}
+
+/** Wipe the brush rectangle from the chart. Called when the parent's
+ *  selectedRange goes null (e.g. the operator hit "clear selection"
+ *  in the list header). */
+function clearBrush(): void {
+  chart?.dispatchAction({ type: 'brush', areas: [] });
+  /* `brush` with empty areas can drop the global cursor — re-arm so
+   * the next drag still draws. */
+  activateBrush();
 }
 
 function attach(): void {
   if (!container.value) return;
   chart = echarts.init(container.value, undefined, { renderer: 'canvas' });
   chart.setOption(buildOption());
+  activateBrush();
 
+  /* Click on either series' non-zero point → narrow the list to that
+   * one minute. Click on a zero point or off-data → clear selection
+   * (and the brush rectangle via the parent's prop sync). */
   chart.on('click', (params: unknown) => {
-    // All alarm scatter series have `seriesType: 'scatter'` plus an
-    // `alarm` field on the datum. Discriminate by series type rather
-    // than name so the new per-layer series names (e.g. "Mesh ·
-    // alarms (3)") all match without a regex.
-    const p = params as {
-      seriesType?: string;
-      data?: { name?: string; alarm?: AlarmMessage };
-    };
-    if (p.seriesType === 'scatter' && p.data?.alarm && p.data.name) {
-      emit('select-alarm', p.data.name);
+    const p = params as { seriesType?: string; data?: [number, number] };
+    if (p.seriesType === 'line' && p.data) {
+      const [ts, count] = p.data;
+      if (count > 0) {
+        emit('select-time-range', { startTime: ts, endTime: ts + MINUTE_MS - 1 });
+        return;
+      }
     }
+    emit('clear-selection');
   });
 
-  /* Brush emits two events: `brushSelected` while the user drags AND
-   * a final one after release. We listen to `brushEnd` so we only
-   * commit a range when the gesture finishes. */
+  /* `brushEnd` is the drag-finished event — fires once per gesture
+   * after mouseup, so we emit exactly one `select-time-range` per
+   * drag. The "drag cleared" case (release on the same pixel) shows
+   * up as a zero-width area; treat it as a clear. */
   chart.on('brushEnd', (params: unknown) => {
     const p = params as {
-      areas: Array<{ brushType: string; coordRange: [number, number] }>;
+      areas?: Array<{ brushType: string; coordRange: [number, number] }>;
     };
     const area = p.areas?.[0];
     if (!area || area.brushType !== 'lineX') {
@@ -360,15 +319,24 @@ function attach(): void {
       return;
     }
     const [a, b] = area.coordRange;
-    const startTime = Math.min(a, b);
-    const endTime = Math.max(a, b);
-    emit('select-time-range', { startTime, endTime });
+    if (a === b) {
+      emit('clear-selection');
+      return;
+    }
+    /* Snap the brushed range to whole minutes so the BFF query keys
+     * + the per-minute bucket lookup line up cleanly. */
+    const start = Math.floor(Math.min(a, b) / MINUTE_MS) * MINUTE_MS;
+    const end = Math.ceil(Math.max(a, b) / MINUTE_MS) * MINUTE_MS - 1;
+    emit('select-time-range', { startTime: start, endTime: end });
   });
 }
 
 function refresh(): void {
   if (!chart) return;
-  chart.setOption(buildOption(), { replaceMerge: ['series', 'legend'] });
+  chart.setOption(buildOption(), { replaceMerge: ['series', 'yAxis'] });
+  /* `setOption` can reset the global cursor — re-arm brush so a
+   * subsequent drag still works after a data refresh. */
+  activateBrush();
 }
 
 onMounted(() => {
@@ -385,14 +353,28 @@ onBeforeUnmount(() => {
 });
 
 watch(
-  () => [props.traffic, props.alarms, props.startTime, props.endTime, props.selectedAlarmKey],
+  () => [props.alarms, props.startTime, props.endTime],
   () => refresh(),
   { deep: true },
+);
+
+/* Parent-driven brush clear: when the operator hits the "clear
+ * selection" button in the list header, the parent sets its
+ * `selectedRange` ref to null. Mirror that into the chart by
+ * wiping the brush rectangle. We only act on the null transition —
+ * a non-null selection on this side is either echoed from a drag we
+ * just did (no-op needed) or from a click on a flag (no rectangle
+ * needed; the row list narrowing is the visual feedback). */
+watch(
+  () => props.selectedRange,
+  (next) => {
+    if (next === null || next === undefined) clearBrush();
+  },
 );
 </script>
 
 <template>
-  <div ref="container" class="alarms-timeline" :style="{ height: `${height ?? 200}px` }" />
+  <div ref="container" class="alarms-timeline" :style="{ height: `${height ?? 110}px` }" />
 </template>
 
 <style scoped>

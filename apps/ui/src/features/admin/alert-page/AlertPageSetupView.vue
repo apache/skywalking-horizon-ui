@@ -15,36 +15,42 @@
   limitations under the License.
 -->
 <!--
-  Admin view for the Alarms page setup. Operators pick which OAP
-  layers' RPM traffic to draw as the background series on /alarms and
-  set the MQE expression to fire per layer.
+  Admin view for the Alarms page setup. The operator pins a small set
+  of OAP layers — those layers get a dedicated KPI tile at the top of
+  the Alarms page (TOTAL · pinned-1 · pinned-2 · …); every other
+  layer with at least one firing alarm appears in the overflow chip
+  row underneath. Order here is render order on the page.
 
-  Defaults seed agent (`GENERAL`) + mesh (`MESH`) with `service_cpm`.
-  Layers absent on the OAP install render as `present: false` on the
-  alarms page (dimmed line, no values) — listing them here is
-  harmless.
+  Defaults seed `GENERAL` (agent) + `MESH` (mesh) — the two most
+  common drivers of alarm volume on every install.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { useLayers } from '@/shell/useLayers';
 import {
+  ALARMS_WINDOW_OPTIONS,
+  OVERVIEW_ALARMS_LIMIT_DEFAULT,
+  OVERVIEW_ALARMS_LIMIT_MAX,
+  OVERVIEW_ALARMS_LIMIT_MIN,
   bff,
-  type AlarmTrafficLayerConfig,
   type AlarmsConfig,
 } from '@/api/client';
 
-const KNOWN_LAYERS: ReadonlyArray<{ key: string; label: string; defaultMqe: string }> = [
-  { key: 'GENERAL', label: 'Agent (GENERAL)', defaultMqe: 'service_cpm' },
-  { key: 'MESH', label: 'Mesh (MESH)', defaultMqe: 'service_cpm' },
-  { key: 'MESH_DP', label: 'Mesh data plane', defaultMqe: 'service_cpm' },
-  { key: 'MESH_CP', label: 'Mesh control plane', defaultMqe: 'service_cpm' },
-  { key: 'K8S_SERVICE', label: 'Kubernetes service', defaultMqe: 'service_cpm' },
-  { key: 'BROWSER', label: 'Browser', defaultMqe: 'browser_app_pv' },
-  { key: 'VIRTUAL_DATABASE', label: 'Virtual database', defaultMqe: 'database_access_cpm' },
-  { key: 'VIRTUAL_CACHE', label: 'Virtual cache', defaultMqe: 'cache_access_cpm' },
-  { key: 'VIRTUAL_MQ', label: 'Virtual MQ', defaultMqe: 'mq_service_consume_cpm' },
-  { key: 'VIRTUAL_GENAI', label: 'Virtual GenAI', defaultMqe: 'gen_ai_provider_cpm' },
-];
+/* Cap matches the BFF's `configSaveSchema.max(8)` — keeps the header
+ * row from wrapping into a second line at typical widths. */
+const MAX_PINNED = 8;
+
+const WINDOW_LABELS: Record<number, string> = {
+  [20 * 60_000]: '20 minutes',
+  [2 * 60 * 60_000]: '2 hours',
+  [4 * 60 * 60_000]: '4 hours',
+};
+
+const layersList = useLayers();
+const knownLayerKeys = computed<string[]>(() =>
+  (layersList.availableLayers.value ?? []).map((l) => l.key.toUpperCase()),
+);
 
 const q = useQuery({
   queryKey: ['alarms/config'],
@@ -52,15 +58,36 @@ const q = useQuery({
   staleTime: Infinity,
 });
 
-const draft = ref<AlarmTrafficLayerConfig[]>([]);
+const draft = ref<string[]>([]);
+const draftWindowMs = ref<number>(ALARMS_WINDOW_OPTIONS[0]);
+const draftLimit = ref<number>(OVERVIEW_ALARMS_LIMIT_DEFAULT);
+const limitError = ref<string | null>(null);
 
 watch(
   () => q.data.value,
   (cfg) => {
-    if (cfg) draft.value = cfg.trafficLayers.map((l) => ({ ...l }));
+    if (cfg) {
+      draft.value = [...cfg.pinnedLayers];
+      draftWindowMs.value = cfg.defaultWindowMs;
+      draftLimit.value = cfg.overviewAlarmsLimit;
+    }
   },
   { immediate: true },
 );
+
+function validateLimit(): boolean {
+  const v = Number(draftLimit.value);
+  if (!Number.isInteger(v)) {
+    limitError.value = 'must be an integer';
+    return false;
+  }
+  if (v < OVERVIEW_ALARMS_LIMIT_MIN || v > OVERVIEW_ALARMS_LIMIT_MAX) {
+    limitError.value = `must be between ${OVERVIEW_ALARMS_LIMIT_MIN} and ${OVERVIEW_ALARMS_LIMIT_MAX}`;
+    return false;
+  }
+  limitError.value = null;
+  return true;
+}
 
 const flash = ref<string | null>(null);
 const saving = ref(false);
@@ -72,46 +99,49 @@ function setFlash(msg: string): void {
   }, 4000);
 }
 
-const usedLayerKeys = computed<Set<string>>(() => new Set(draft.value.map((l) => l.layerKey)));
-const addableLayers = computed(() =>
-  KNOWN_LAYERS.filter((L) => !usedLayerKeys.value.has(L.key)),
-);
+/* Layers the operator can still add — known to OAP AND not already
+ * pinned. Pinned-but-unknown layers (e.g. an older install removed a
+ * layer that's still in the saved config) stay rendered as pinned
+ * chips so the operator can remove them; they just don't appear in
+ * the "add" palette. */
+const addableLayers = computed<string[]>(() => {
+  const used = new Set(draft.value);
+  return knownLayerKeys.value.filter((k) => !used.has(k)).sort();
+});
 
-function addLayer(layerKey: string): void {
-  const def = KNOWN_LAYERS.find((L) => L.key === layerKey);
-  draft.value.push({ layerKey, mqe: def?.defaultMqe ?? 'service_cpm', label: def?.label });
+function addLayer(key: string): void {
+  if (draft.value.includes(key)) return;
+  if (draft.value.length >= MAX_PINNED) return;
+  draft.value = [...draft.value, key];
 }
 
-function addCustom(): void {
-  draft.value.push({ layerKey: '', mqe: 'service_cpm' });
+function removeLayer(i: number): void {
+  draft.value = draft.value.filter((_, j) => j !== i);
 }
 
-function removeRow(i: number): void {
-  draft.value.splice(i, 1);
+function moveLayer(i: number, dir: -1 | 1): void {
+  const next = [...draft.value];
+  const j = i + dir;
+  if (j < 0 || j >= next.length) return;
+  [next[i], next[j]] = [next[j], next[i]];
+  draft.value = next;
 }
 
 async function onSave(): Promise<void> {
-  // Drop empty rows + duplicates (keep the first occurrence) so the
-  // BFF never sees a half-typed entry.
-  const seen = new Set<string>();
-  const clean: AlarmTrafficLayerConfig[] = [];
-  for (const row of draft.value) {
-    const key = row.layerKey.trim();
-    if (!key) continue;
-    if (!row.mqe.trim()) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    clean.push({
-      layerKey: key.toUpperCase(),
-      mqe: row.mqe.trim(),
-      label: row.label?.trim() || undefined,
-    });
-  }
+  if (!validateLimit()) return;
   saving.value = true;
   try {
-    const saved = await bff.alarms.saveConfig({ trafficLayers: clean });
-    draft.value = saved.trafficLayers.map((l) => ({ ...l }));
-    setFlash(`saved · ${saved.trafficLayers.length} layer${saved.trafficLayers.length === 1 ? '' : 's'}`);
+    const saved = await bff.alarms.saveConfig({
+      pinnedLayers: draft.value,
+      defaultWindowMs: draftWindowMs.value,
+      overviewAlarmsLimit: Number(draftLimit.value),
+    });
+    draft.value = [...saved.pinnedLayers];
+    draftWindowMs.value = saved.defaultWindowMs;
+    draftLimit.value = saved.overviewAlarmsLimit;
+    setFlash(
+      `saved · ${saved.pinnedLayers.length} pinned · ${WINDOW_LABELS[saved.defaultWindowMs] ?? '—'} · limit ${saved.overviewAlarmsLimit}`,
+    );
   } catch (err) {
     setFlash(err instanceof Error ? `error: ${err.message}` : 'save failed');
   } finally {
@@ -120,19 +150,34 @@ async function onSave(): Promise<void> {
 }
 
 function onReset(): void {
-  if (q.data.value) draft.value = q.data.value.trafficLayers.map((l) => ({ ...l }));
+  if (q.data.value) {
+    draft.value = [...q.data.value.pinnedLayers];
+    draftWindowMs.value = q.data.value.defaultWindowMs;
+    draftLimit.value = q.data.value.overviewAlarmsLimit;
+    limitError.value = null;
+  }
 }
 
 const isDirty = computed<boolean>(() => {
-  const saved = q.data.value?.trafficLayers ?? [];
+  const saved = q.data.value?.pinnedLayers ?? [];
   if (saved.length !== draft.value.length) return true;
   for (let i = 0; i < saved.length; i++) {
-    if (saved[i].layerKey !== draft.value[i].layerKey) return true;
-    if (saved[i].mqe !== draft.value[i].mqe) return true;
-    if ((saved[i].label ?? '') !== (draft.value[i].label ?? '')) return true;
+    if (saved[i] !== draft.value[i]) return true;
+  }
+  if (q.data.value) {
+    if (draftWindowMs.value !== q.data.value.defaultWindowMs) return true;
+    if (Number(draftLimit.value) !== q.data.value.overviewAlarmsLimit) return true;
   }
   return false;
 });
+
+function prettyLayer(k: string): string {
+  return k
+    .toLowerCase()
+    .split('_')
+    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : ''))
+    .join(' ');
+}
 </script>
 
 <template>
@@ -142,78 +187,135 @@ const isDirty = computed<boolean>(() => {
         <div class="aps__kicker">Dashboard setup · Alert page</div>
         <h1>Alert page setup</h1>
         <p class="aps__lede">
-          Pick which OAP layers' RPM traffic gets rendered as the background series on
-          <RouterLink to="/alarms">Alarms</RouterLink>, and set the MQE expression to fire per
-          layer. Layers that aren't active on the OAP install are skipped silently — listing them
-          here is harmless. Up to 8 layers.
+          Pin the OAP layers that get their own KPI tile at the top of
+          <RouterLink to="/alarms">Alarms</RouterLink>. Defaults are <code>GENERAL</code> + <code>MESH</code>.
+          Every other layer with at least one firing alarm appears
+          in the overflow chip row underneath. Reorder with the
+          arrows — left-to-right matches the page header. Up to {{ MAX_PINNED }} layers.
         </p>
       </div>
     </header>
 
     <div v-if="q.isPending.value" class="aps__empty">loading…</div>
 
-    <table v-else class="aps__table">
-      <thead>
-        <tr>
-          <th>Layer key</th>
-          <th>Display label</th>
-          <th>MQE expression</th>
-          <th style="width: 60px"></th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="(row, i) in draft" :key="i">
-          <td>
-            <input
-              v-model="row.layerKey"
-              type="text"
-              placeholder="GENERAL"
-              class="aps__in"
-            />
-          </td>
-          <td>
-            <input
-              v-model="row.label"
-              type="text"
-              placeholder="(auto)"
-              class="aps__in"
-            />
-          </td>
-          <td>
-            <input
-              v-model="row.mqe"
-              type="text"
-              placeholder="service_cpm"
-              class="aps__in aps__in--mono"
-            />
-          </td>
-          <td>
-            <button type="button" class="aps__del" @click="removeRow(i)">remove</button>
-          </td>
-        </tr>
-        <tr v-if="draft.length === 0">
-          <td colspan="4" class="aps__empty-row">No layers configured. Add one below.</td>
-        </tr>
-      </tbody>
-    </table>
+    <template v-else>
+      <section class="aps__panel">
+        <header class="aps__panel-head">
+          <h3>Pinned ({{ draft.length }} / {{ MAX_PINNED }})</h3>
+        </header>
+        <div v-if="draft.length === 0" class="aps__empty-row">
+          No pinned layers. Add one from the palette below.
+        </div>
+        <ol v-else class="aps__pinned">
+          <li v-for="(key, i) in draft" :key="key" class="aps__pin">
+            <button
+              type="button"
+              class="aps__pin-arrow"
+              :disabled="i === 0"
+              :title="'Move left'"
+              @click="moveLayer(i, -1)"
+            >‹</button>
+            <span class="aps__pin-pos mono">{{ i + 1 }}</span>
+            <span class="aps__pin-label">{{ prettyLayer(key) }}</span>
+            <code class="aps__pin-key">{{ key }}</code>
+            <button
+              type="button"
+              class="aps__pin-arrow"
+              :disabled="i === draft.length - 1"
+              :title="'Move right'"
+              @click="moveLayer(i, 1)"
+            >›</button>
+            <button
+              type="button"
+              class="aps__pin-del"
+              :title="'Unpin'"
+              @click="removeLayer(i)"
+            >×</button>
+          </li>
+        </ol>
+      </section>
 
-    <div class="aps__add">
-      <span class="aps__add-label">Add layer:</span>
-      <button
-        v-for="L in addableLayers"
-        :key="L.key"
-        type="button"
-        class="aps__add-chip"
-        :disabled="draft.length >= 8"
-        @click="addLayer(L.key)"
-      >+ {{ L.label }}</button>
-      <button
-        type="button"
-        class="aps__add-chip aps__add-chip--custom"
-        :disabled="draft.length >= 8"
-        @click="addCustom"
-      >+ custom…</button>
-    </div>
+      <section class="aps__panel">
+        <header class="aps__panel-head">
+          <h3>Default time window</h3>
+        </header>
+        <div class="aps__win">
+          <p class="aps__win-lede">
+            Initial time range for the topbar alarm badge AND the alarms page's first load.
+            The overview "Active alarms" widget keeps its own fixed 60-minute window.
+          </p>
+          <div class="aps__win-options">
+            <label
+              v-for="opt in ALARMS_WINDOW_OPTIONS"
+              :key="opt"
+              class="aps__win-opt"
+              :class="{ active: draftWindowMs === opt }"
+            >
+              <input
+                type="radio"
+                name="defaultWindow"
+                :value="opt"
+                v-model="draftWindowMs"
+              />
+              <span>{{ WINDOW_LABELS[opt] }}</span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <section class="aps__panel">
+        <header class="aps__panel-head">
+          <h3>Overview alarms widget</h3>
+        </header>
+        <div class="aps__win">
+          <p class="aps__win-lede">
+            Per-poll fetch cap for the "Active alarms" widget on overview dashboards.
+            The widget merges the fetched events into incidents client-side and surfaces
+            the top N by recency. Higher caps catch more variety in noisy installs;
+            smaller caps cut the per-poll payload. Range
+            <code>{{ OVERVIEW_ALARMS_LIMIT_MIN }}</code>–<code>{{ OVERVIEW_ALARMS_LIMIT_MAX }}</code>,
+            default <code>{{ OVERVIEW_ALARMS_LIMIT_DEFAULT }}</code>.
+          </p>
+          <div class="aps__limit">
+            <label>
+              <span>Fetch cap</span>
+              <input
+                v-model.number="draftLimit"
+                type="number"
+                :min="OVERVIEW_ALARMS_LIMIT_MIN"
+                :max="OVERVIEW_ALARMS_LIMIT_MAX"
+                step="10"
+                class="aps__in aps__in--num"
+                @blur="validateLimit"
+              />
+            </label>
+            <span v-if="limitError" class="aps__limit-err">{{ limitError }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="aps__panel">
+        <header class="aps__panel-head">
+          <h3>Add layer</h3>
+        </header>
+        <div v-if="addableLayers.length === 0" class="aps__empty-row">
+          Every OAP-known layer is already pinned.
+        </div>
+        <div v-else class="aps__add">
+          <button
+            v-for="key in addableLayers"
+            :key="key"
+            type="button"
+            class="aps__add-chip"
+            :disabled="draft.length >= MAX_PINNED"
+            @click="addLayer(key)"
+          >
+            <span>+ {{ prettyLayer(key) }}</span>
+            <code>{{ key }}</code>
+          </button>
+        </div>
+      </section>
+    </template>
 
     <div class="aps__actions">
       <span v-if="flash" class="aps__flash">{{ flash }}</span>
@@ -272,47 +374,158 @@ const isDirty = computed<boolean>(() => {
 .aps__lede a:hover {
   text-decoration: underline;
 }
+.aps__lede code {
+  font-family: var(--sw-mono);
+  font-size: 11.5px;
+  color: var(--sw-fg-0);
+  background: var(--sw-bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
 .aps__empty {
   padding: 24px;
   text-align: center;
   color: var(--sw-fg-3);
   font-size: 12px;
 }
-.aps__table {
-  width: 100%;
-  border-collapse: collapse;
+
+.aps__panel {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
   border-radius: 8px;
-  overflow: hidden;
   margin-bottom: 14px;
+  overflow: hidden;
 }
-.aps__table thead th {
-  text-align: left;
-  font-size: 10.5px;
+.aps__panel-head {
+  padding: 8px 14px;
+  background: var(--sw-bg-2);
+  border-bottom: 1px solid var(--sw-line);
+}
+.aps__panel-head h3 {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sw-fg-1);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-2);
-  font-weight: 600;
-}
-.aps__table tbody td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--sw-line);
-}
-.aps__table tbody tr:last-child td {
-  border-bottom: none;
+  margin: 0;
 }
 .aps__empty-row {
+  padding: 20px 14px;
   text-align: center;
   color: var(--sw-fg-3);
   font-size: 12px;
-  padding: 24px !important;
 }
-.aps__in {
-  width: 100%;
+
+.aps__pinned {
+  list-style: none;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.aps__pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 4px 8px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+}
+.aps__pin-pos {
+  font-size: 10px;
+  color: var(--sw-accent);
+  font-weight: 600;
+}
+.aps__pin-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--sw-fg-0);
+}
+.aps__pin-key {
+  font-family: var(--sw-mono);
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+  background: var(--sw-bg-1);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.aps__pin-arrow,
+.aps__pin-del {
+  background: transparent;
+  border: 0;
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.aps__pin-arrow:not(:disabled):hover {
+  background: var(--sw-bg-3);
+  color: var(--sw-fg-0);
+}
+.aps__pin-arrow:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.aps__pin-del:hover {
+  background: var(--sw-err-soft);
+  color: var(--sw-err);
+}
+
+.aps__win { padding: 10px 14px 12px; }
+.aps__win-lede {
+  margin: 0 0 8px;
+  font-size: 11.5px;
+  color: var(--sw-fg-2);
+  line-height: 1.5;
+}
+.aps__win-options {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.aps__win-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--sw-fg-1);
+  cursor: pointer;
+}
+.aps__win-opt input { margin: 0; cursor: pointer; }
+.aps__win-opt:hover { border-color: var(--sw-line-2); color: var(--sw-fg-0); }
+.aps__win-opt.active {
+  border-color: var(--sw-accent);
+  color: var(--sw-fg-0);
+  background: var(--sw-bg-3);
+}
+.aps__limit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.aps__limit label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  font-weight: 600;
+}
+.aps__in--num {
+  width: 100px;
+  font-variant-numeric: tabular-nums;
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
   color: var(--sw-fg-0);
@@ -321,40 +534,22 @@ const isDirty = computed<boolean>(() => {
   padding: 5px 8px;
   border-radius: 4px;
 }
-.aps__in--mono {
-  font-family: var(--sw-mono);
-}
-.aps__del {
-  background: transparent;
-  border: 1px solid var(--sw-line-2);
-  color: var(--sw-fg-2);
-  font: inherit;
-  font-size: 11px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.aps__del:hover {
-  border-color: rgba(239, 68, 68, 0.4);
+.aps__limit-err {
   color: var(--sw-err);
+  font-size: 11px;
 }
+
 .aps__add {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 6px;
-  padding: 10px 0;
-  margin-bottom: 16px;
-}
-.aps__add-label {
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  margin-right: 4px;
+  padding: 10px 12px;
 }
 .aps__add-chip {
-  background: var(--sw-bg-1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
   color: var(--sw-fg-1);
   font: inherit;
@@ -364,7 +559,7 @@ const isDirty = computed<boolean>(() => {
   cursor: pointer;
 }
 .aps__add-chip:not(:disabled):hover {
-  background: var(--sw-bg-2);
+  background: var(--sw-bg-3);
   color: var(--sw-fg-0);
   border-color: var(--sw-line-2);
 }
@@ -372,9 +567,12 @@ const isDirty = computed<boolean>(() => {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.aps__add-chip--custom {
+.aps__add-chip code {
   font-family: var(--sw-mono);
+  font-size: 10px;
+  color: var(--sw-fg-3);
 }
+
 .aps__actions {
   display: flex;
   align-items: center;

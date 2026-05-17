@@ -421,42 +421,115 @@ export interface AlarmsResponse {
   total: number;
   pageNum: number;
   pageSize: number;
+  /** True iff `total === pageSize`. The page should warn the operator
+   *  that there may be more alarms than shown. */
+  truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
 }
 export interface AlarmsQuery {
   startTime: number;
   endTime: number;
+  /** Legacy mode only — Service / Endpoint / etc. Ignored in new-API
+   *  mode in favor of the `layer` + entity-cascade fields. */
   scope?: string;
   keyword?: string;
   pageNum?: number;
   pageSize?: number;
+  /** New-API mode only — narrows to alarms in this OAP layer. */
+  layer?: string;
   service?: string;
   instance?: string;
   endpoint?: string;
 }
-export interface AlarmTrafficPoint { ts: number; value: number | null }
-export interface AlarmTrafficSeries {
-  layerKey: string;
-  label: string;
-  present: boolean;
-  points: AlarmTrafficPoint[];
-  error?: string;
-}
-export interface AlarmTrafficResponse {
-  generatedAt: number;
+export interface AlarmsCountResponse {
+  /** Total individual events returned (capped). */
+  total: number;
+  /** Events where `recoveryTime === null`. */
+  firing: number;
+  /** Distinct (entity, rule) incidents. */
+  incidents: number;
+  /** Incidents whose latest event is firing. Topbar badge reads
+   *  this — fully-recovered incidents count as "no alarm". */
+  activeIncidents: number;
+  truncated: boolean;
   startTime: number;
   endTime: number;
-  step: 'MINUTE';
-  series: AlarmTrafficSeries[];
+  generatedAt: number;
 }
-export interface AlarmTrafficLayerConfig {
-  layerKey: string;
-  mqe: string;
-  label?: string;
+/** Mirror of `AlarmRuleDetail` on the BFF (which mirrors OAP's
+ *  `AlarmRuleDetail` Java type). Used by the alarms detail panel +
+ *  the Operate › Alerting Rules page. */
+export interface AlarmRuleDetail {
+  ruleId: string;
+  expression: string;
+  period: number;
+  silencePeriod: number;
+  recoveryObservationPeriod: number;
+  additionalPeriod: number;
+  includeEntityNames: string[];
+  excludeEntityNames: string[];
+  includeEntityNamesRegex?: string;
+  excludeEntityNamesRegex?: string;
+  runningEntities: Array<{ scope: string; name: string; formattedMessage: string }>;
+  tags: Array<{ key: string; value: string }>;
+  hooks: string[];
+  includeMetrics: string[];
 }
+export interface AlertingRuleNode {
+  address: string;
+  ok: boolean;
+  error?: string;
+  loaded: boolean;
+}
+export interface AlertingRuleSummary {
+  ruleId: string;
+  detail: AlarmRuleDetail | null;
+  nodes: AlertingRuleNode[];
+  loadedOn: number;
+  totalNodes: number;
+}
+export interface AlertingRulesListResponse {
+  generatedAt: number;
+  reachable: boolean;
+  error?: string;
+  rules: AlertingRuleSummary[];
+  nodes: Array<{ address: string; ok: boolean; error?: string }>;
+}
+export interface AlertingRuleDetailResponse {
+  ruleId: string;
+  generatedAt: number;
+  reachable: boolean;
+  error?: string;
+  detail: AlarmRuleDetail | null;
+  nodes: Array<{ address: string; ok: boolean; error?: string; detail: AlarmRuleDetail | null }>;
+}
+/** Allowed values for `AlarmsConfig.defaultWindowMs`, in ms. Matches
+ *  the alarms page's preset list so the admin's choice always
+ *  corresponds to a real tab. */
+export const ALARMS_WINDOW_OPTIONS = [
+  20 * 60_000,
+  2 * 60 * 60_000,
+  4 * 60 * 60_000,
+] as const;
+export type AlarmsWindowMs = (typeof ALARMS_WINDOW_OPTIONS)[number];
+
+export const OVERVIEW_ALARMS_LIMIT_MIN = 10;
+export const OVERVIEW_ALARMS_LIMIT_MAX = 500;
+export const OVERVIEW_ALARMS_LIMIT_DEFAULT = 200;
+
 export interface AlarmsConfig {
-  trafficLayers: AlarmTrafficLayerConfig[];
+  /** OAP layer keys (canonical `GENERAL`, `MESH`, …) that get a
+   *  dedicated tile on the alarms page header. Render order matches
+   *  the array order. */
+  pinnedLayers: string[];
+  /** Default time window in milliseconds for the topbar alarm badge
+   *  AND the alarms page's initial picker selection. */
+  defaultWindowMs: number;
+  /** Fetch cap for the overview "Active alarms" widget. Default 200,
+   *  range [10, 500]. Bigger = more incident variety; smaller =
+   *  cheaper poll. */
+  overviewAlarmsLimit: number;
 }
 
 type On401 = () => void;

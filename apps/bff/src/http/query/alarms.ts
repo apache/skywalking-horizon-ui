@@ -16,25 +16,33 @@
  */
 
 /**
- * `/api/alarms/*` routes — alarm list + background-traffic series for
- * the alarms page + admin config.
+ * `/api/alarms/*` query routes — alarm list, count probe, and the
+ * cascading-filter service-list helper.
  *
- *   GET  /api/alarms                            — OAP getAlarm proxy
- *                                                 + layer tag per row.
- *   GET  /api/alarms/traffic                    — per-configured-layer
- *                                                 RPM time-series.
- *   GET  /api/alarms/config                     — current alarm-page
- *                                                 setup.
- *   POST /api/alarms/config                     — save alarm-page setup.
+ *   GET  /api/alarms                  — paged alarm list (dual-mode:
+ *                                       queryAlarms when available,
+ *                                       getAlarm otherwise).
+ *   GET  /api/alarms/count            — total + firing tally for the
+ *                                       topbar badge.
+ *   GET  /api/alarms/services?layer=  — service roster for the alarms
+ *                                       filter cascade.
  *
- * Notes:
- *   - All times on the wire are millisecond epoch. OAP's Duration
- *     takes a `yyyy-MM-dd HHmm` string in OAP-server-TZ; the helper
- *     below converts ms → that shape using the server tz from
- *     `getTimeInfo` (cached upstream).
- *   - Layer tagging uses the cached service-name → layer index. If
- *     the index doesn't know the service (e.g. instance / endpoint
- *     scope), `layerKey` is `null` and the UI groups under "Other".
+ * Wire-time notes:
+ *   - `startTime` / `endTime` are ms epoch. OAP's `Duration` expects
+ *     `yyyy-MM-dd HHmmss` strings in OAP-server-TZ; conversion uses
+ *     the timezone advertised by `getTimeInfo` (cached upstream).
+ *   - The window is hard-capped at 4 hours. Alarms are
+ *     second-precision events with no chunking; allowing larger
+ *     windows pulls thousands of rows and starves the page on slow
+ *     storage backends. The UI's picker enforces the same cap; this
+ *     server-side guard is defence-in-depth.
+ *   - `pageSize` is capped at 500 so the header KPIs + frontend pager
+ *     can work from a single fetch. The COUNT route uses a 200 cap
+ *     since it skips the snapshot payload.
+ *   - Layer tagging on each row uses the cached service-name → layer
+ *     index. Entries the index can't resolve (e.g. instance-scope
+ *     alarms whose name doesn't carry a service prefix) get
+ *     `layerKey: null` and the UI groups them under "Other".
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -47,17 +55,13 @@ import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import type { ServiceLayerMap } from '../../logic/alarms/service-layer-map.js';
-import type { AlarmsStore } from '../../logic/alarms/store.js';
 
 export interface AlarmsQueryRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
-  /** Shared with config/alarms.ts so a config save can invalidate
-   *  the cache and the next list call picks up the new layers. */
+  /** Shared with config/alarms.ts so a config save can invalidate the
+   *  cache and the next list call picks up the new layers. */
   serviceLayer: ServiceLayerMap;
-  /** Used by `/api/alarms/traffic` to read which layers the operator
-   *  configured as traffic backdrops. */
-  store: AlarmsStore;
   fetch?: FetchLike;
 }
 
@@ -120,41 +124,36 @@ export interface AlarmMessage {
 }
 
 export interface AlarmsResponse {
+  /** Rows returned for this page. The list route does not page through
+   *  the OAP response; the UI pages this client-side. */
   total: number;
   pageNum: number;
   pageSize: number;
+  /** True when `total === pageSize`, meaning OAP may have more rows
+   *  than we fetched. The UI shows a "Nrows+" hint to nudge the
+   *  operator to tighten the window. */
+  truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
 }
 
-export interface AlarmTrafficPoint {
-  /** ms epoch */
-  ts: number;
-  value: number | null;
-}
-
-export interface AlarmTrafficSeries {
-  layerKey: string;
-  label: string;
-  /** True when OAP recognised the layer AND `listServices` returned
-   *  at least one service. False slots still appear in the response
-   *  so the UI can show the empty / unavailable state. */
-  present: boolean;
-  /** ms-keyed points across the requested window. */
-  points: AlarmTrafficPoint[];
-  /** Per-layer error string when OAP returned a graphql error or the
-   *  layer is missing. */
-  error?: string;
-}
-
-export interface AlarmTrafficResponse {
-  generatedAt: number;
-  /** Window start / end, ms epoch — echoed back so the UI can align
-   *  the alarm markers and the traffic lines on a single x-axis. */
+export interface AlarmsCountResponse {
+  /** Total individual events returned by OAP — capped at
+   *  COUNT_FETCH_CAP. */
+  total: number;
+  /** Events with `recoveryTime === null`. */
+  firing: number;
+  /** Distinct (entity, rule) groups across `total` — one per OAP id.
+   *  This is the "real" incident count regardless of re-firings. */
+  incidents: number;
+  /** Subset of `incidents` whose LATEST event is still firing. The
+   *  topbar badge displays this — a fully-recovered incident counts
+   *  as "no alarm" per the page spec. */
+  activeIncidents: number;
+  truncated: boolean;
   startTime: number;
   endTime: number;
-  step: 'MINUTE';
-  series: AlarmTrafficSeries[];
+  generatedAt: number;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -162,7 +161,6 @@ export interface AlarmTrafficResponse {
 interface ServerTzInfo {
   /** Minutes from UTC (e.g. 480 for UTC+8). 0 fallback. */
   offsetMinutes: number;
-  /** ms when this snapshot was taken. */
   fetchedAt: number;
 }
 let tzCache: ServerTzInfo | null = null;
@@ -189,7 +187,6 @@ async function getServerOffsetMinutes(
       TIME_INFO_QUERY,
     );
     const raw = got.time?.timezone ?? '+0000';
-    // Format `±HHmm`, e.g. `+0800` for UTC+8.
     const m = /^([+-])(\d{2})(\d{2})$/.exec(raw);
     if (m) {
       const sign = m[1] === '-' ? -1 : 1;
@@ -206,22 +203,8 @@ async function getServerOffsetMinutes(
   return 0;
 }
 
-/** Format an epoch-ms into OAP's `yyyy-MM-dd HHmm` (MINUTE granularity)
- *  in the server's timezone. */
-function fmtMinute(epochMs: number, offsetMinutes: number): string {
-  const shifted = new Date(epochMs + offsetMinutes * 60_000);
-  const y = shifted.getUTCFullYear();
-  const mo = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(shifted.getUTCDate()).padStart(2, '0');
-  const h = String(shifted.getUTCHours()).padStart(2, '0');
-  const mi = String(shifted.getUTCMinutes()).padStart(2, '0');
-  return `${y}-${mo}-${d} ${h}${mi}`;
-}
-
 /** Format an epoch-ms into OAP's `yyyy-MM-dd HHmmss` (SECOND
- *  granularity). Used for the alarms query so the window includes
- *  alarms that fire in the current minute — MINUTE-precision rounds
- *  the end down and chops them off. */
+ *  granularity), in the server's timezone. */
 function fmtSecond(epochMs: number, offsetMinutes: number): string {
   const shifted = new Date(epochMs + offsetMinutes * 60_000);
   const y = shifted.getUTCFullYear();
@@ -233,34 +216,13 @@ function fmtSecond(epochMs: number, offsetMinutes: number): string {
   return `${y}-${mo}-${d} ${h}${mi}${s}`;
 }
 
-function safeFloat(v: string | null | undefined): number | null {
-  if (v === null || v === undefined) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-}
+// ── GraphQL queries ──────────────────────────────────────────────────
 
-/** Minutes between two MINUTE-rounded epochs (inclusive endpoints). */
-function bucketCount(startMs: number, endMs: number): number {
-  return Math.max(1, Math.round((endMs - startMs) / 60_000) + 1);
-}
-
-function buildTimeline(startMs: number, endMs: number): number[] {
-  const n = bucketCount(startMs, endMs);
-  const out: number[] = [];
-  for (let i = 0; i < n; i++) out.push(startMs + i * 60_000);
-  return out;
-}
-
-// ── GraphQL queries ───────────────────────────────────────────────────
-
-/* `events` is deliberately OMITTED — demo OAP (and likely any OAP
- *  backed by some storage variants) throws `java.io.IOException:
- *  fail to query stream` when the events resolver streams per-alarm
- *  events alongside a 30-row alarm list. The snapshot already
- *  carries everything the detail panel needs (expression + the MQE
- *  values that crossed threshold). When per-alarm events are needed
- *  later, fetch them via a separate keyword-filtered call against
- *  this same endpoint, or via the Events query directly. */
+/* `events` is deliberately OMITTED — demo OAP (and some storage
+ *  backends) throw `java.io.IOException: fail to query stream` when
+ *  events stream per-row alongside a 30+ row page. The snapshot
+ *  already carries everything the detail panel needs (expression +
+ *  the MQE values that crossed threshold). */
 const GET_ALARM_QUERY = /* GraphQL */ `
   query HorizonGetAlarm(
     $duration: Duration!
@@ -271,12 +233,7 @@ const GET_ALARM_QUERY = /* GraphQL */ `
   ) {
     getAlarm(duration: $duration, scope: $scope, keyword: $keyword, paging: $paging, tags: $tags) {
       msgs {
-        id
-        startTime
-        recoveryTime
-        scope
-        name
-        message
+        id startTime recoveryTime scope name message
         tags { key value }
         snapshot {
           expression
@@ -292,22 +249,11 @@ const GET_ALARM_QUERY = /* GraphQL */ `
     }
   }
 `;
-
-/* New-API variant — added in query-protocol #157 alongside the
- * deprecation of `getAlarm`. Same `Alarms.msgs` selection set as the
- * legacy query so the row mapper stays shared; the only difference is
- * the wrapper (`condition` input vs. individual args) and the future
- * filter surface (entities / layers / ruleNames — wired in step 4). */
 const QUERY_ALARMS_QUERY = /* GraphQL */ `
   query HorizonQueryAlarms($condition: AlarmQueryCondition!) {
     queryAlarms(condition: $condition) {
       msgs {
-        id
-        startTime
-        recoveryTime
-        scope
-        name
-        message
+        id startTime recoveryTime scope name message
         tags { key value }
         snapshot {
           expression
@@ -323,16 +269,26 @@ const QUERY_ALARMS_QUERY = /* GraphQL */ `
     }
   }
 `;
-
+/* Lightweight selection for the topbar badge — count primitives + a
+ * startTime so the incident merger can pick the latest event per
+ * (entity, rule) group. Snapshot / tags / message stay omitted to
+ * keep the payload cheap (target: < 5kB per poll at the 200-row
+ * cap). */
+const COUNT_GET_ALARM_QUERY = /* GraphQL */ `
+  query HorizonCountGetAlarm($duration: Duration!, $paging: Pagination!) {
+    getAlarm(duration: $duration, paging: $paging) { msgs { id startTime recoveryTime } }
+  }
+`;
+const COUNT_QUERY_ALARMS_QUERY = /* GraphQL */ `
+  query HorizonCountQueryAlarms($condition: AlarmQueryCondition!) {
+    queryAlarms(condition: $condition) { msgs { id startTime recoveryTime } }
+  }
+`;
 const LIST_SERVICES_QUERY = /* GraphQL */ `
   query HorizonAlarmServices($layer: String!) {
     listServices(layer: $layer) { name normal }
   }
 `;
-
-interface ListServicesRaw {
-  listServices: Array<{ name: string; normal: boolean | null }>;
-}
 
 interface GetAlarmRaw {
   getAlarm?: { msgs?: AlarmMessage[] } | null;
@@ -340,25 +296,104 @@ interface GetAlarmRaw {
 interface QueryAlarmsRaw {
   queryAlarms?: { msgs?: AlarmMessage[] } | null;
 }
+interface ListServicesRaw {
+  listServices: Array<{ name: string; normal: boolean | null }>;
+}
 
-// ── Routes ───────────────────────────────────────────────────────────
+// ── Schemas + caps ───────────────────────────────────────────────────
+
+/** Window cap for `/api/alarms` and `/api/alarms/count`. Defence-in-
+ *  depth — the UI picker already enforces this, but a hand-crafted
+ *  URL shouldn't pull a 24h fan-out from OAP. */
+const WINDOW_CAP_MS = 4 * 60 * 60_000;
+const LIST_PAGE_SIZE_CAP = 500;
+const COUNT_FETCH_CAP = 200;
 
 const alarmsQuerySchema = z.object({
   startTime: z.coerce.number().int().positive(),
   endTime: z.coerce.number().int().positive(),
+  /** Legacy-mode only. Ignored in new mode (use `layer` + entity
+   *  fields instead). */
   scope: z.string().optional(),
   keyword: z.string().optional(),
   pageNum: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(200).default(100),
+  pageSize: z.coerce.number().int().min(1).max(LIST_PAGE_SIZE_CAP).default(LIST_PAGE_SIZE_CAP),
+  /** New-mode only. Maps to `condition.layers: [layer]`. */
+  layer: z.string().optional(),
+  /** New-mode only. Combined with `instance` / `endpoint` to build a
+   *  single `Entity` filter. When absent, no entity narrowing. */
   service: z.string().optional(),
   instance: z.string().optional(),
   endpoint: z.string().optional(),
 });
 
-const trafficQuerySchema = z.object({
+const countQuerySchema = z.object({
   startTime: z.coerce.number().int().positive(),
   endTime: z.coerce.number().int().positive(),
 });
+
+// ── Entity builder (new mode) ────────────────────────────────────────
+
+/* Translate the cascade fields (`layer`, `service`, `instance`,
+ * `endpoint`) into the smallest precise `Entity` that the
+ * queryAlarms `condition.entities` filter accepts. Scope is inferred
+ * from which name fields are populated — same convention OAP itself
+ * uses (see alarm.graphqls comment on `entities`).
+ *
+ * Returns null when no entity narrowing is requested. The caller then
+ * omits `entities` from the condition entirely, leaving `layers`
+ * as the only entity-side filter (or no entity filter at all when
+ * `layer` is also blank).
+ */
+interface EntityFilter {
+  scope: string;
+  serviceName?: string;
+  normal?: boolean;
+  serviceInstanceName?: string;
+  endpointName?: string;
+}
+function buildEntity(q: {
+  service?: string;
+  instance?: string;
+  endpoint?: string;
+}): EntityFilter | null {
+  if (!q.service) return null;
+  const base: EntityFilter = { scope: 'Service', serviceName: q.service, normal: true };
+  if (q.endpoint && !q.instance) {
+    return { ...base, scope: 'Endpoint', endpointName: q.endpoint };
+  }
+  if (q.instance) {
+    return { ...base, scope: 'ServiceInstance', serviceInstanceName: q.instance };
+  }
+  return base;
+}
+
+// ── Row tagging ──────────────────────────────────────────────────────
+
+async function tagWithLayer(
+  msgsRaw: AlarmMessage[],
+  serviceLayer: ServiceLayerMap,
+): Promise<AlarmMessage[]> {
+  const layerIdx = await serviceLayer.get();
+  return msgsRaw.map((m) => {
+    /* Entity name on Service scope is the service name directly; on
+     * ServiceInstance / Endpoint the wire packs the service name as
+     * a prefix before a separator. Try the literal first, then strip
+     * after common separators. */
+    const candidates = [m.name, m.name.split('::')[0], m.name.split(' ')[0]];
+    let layerKey: string | null = null;
+    for (const cand of candidates) {
+      const hit = layerIdx.byName.get(cand.toLowerCase());
+      if (hit) {
+        layerKey = hit;
+        break;
+      }
+    }
+    return { ...m, layerKey };
+  });
+}
+
+// ── Routes ───────────────────────────────────────────────────────────
 
 export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQueryRouteDeps): void {
   const auth = requireAuth(deps);
@@ -372,36 +407,41 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     }
     const q = parsed.data;
     if (q.endTime <= q.startTime) return badRequest('endTime must be greater than startTime');
+    if (q.endTime - q.startTime > WINDOW_CAP_MS) {
+      return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
+    }
 
     const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
-    // SECOND-precision duration window. Booster-ui uses SECOND here
-    // and it's the right call: MINUTE-rounding the end excludes any
-    // alarm whose startTime is in the current/upcoming minute, which
-    // for OAP installs that emit alarms continuously means the UI
-    // perpetually misses the most-recent firing. Per-second precision
-    // keeps the latest alarm in the window.
     const start = fmtSecond(q.startTime, offset);
     const end = fmtSecond(q.endTime, offset);
 
     const opts = buildOapOpts(deps.config.current, deps.fetch);
     const caps = await getOapCapabilities(deps.config.current, deps.fetch);
 
-    /* Branch on schema capability: `queryAlarms(condition)` is the
-     * forward path — same returned shape, bundles every filter into
-     * one input type so step-4 entity / layer / ruleName filters land
-     * here without a route change. `getAlarm` stays as the fallback
-     * for older OAPs (scope+keyword+tags-only). */
     let msgsRaw: AlarmMessage[];
     try {
       if (caps.queryAlarms) {
+        /* New-mode condition. `entities` + `layers` ride server-side;
+         * `scope` is intentionally ignored here because it's a
+         * legacy-only coarse filter and `entities` + `layers` cover
+         * its use-cases more precisely. */
         const condition: Record<string, unknown> = {
           duration: { start, end, step: 'SECOND' },
           paging: { pageNum: q.pageNum, pageSize: q.pageSize },
         };
         if (q.keyword) condition.keyword = q.keyword;
+        if (q.layer) condition.layers = [q.layer];
+        const entity = buildEntity(q);
+        if (entity) condition.entities = [entity];
         const raw = await graphqlPost<QueryAlarmsRaw>(opts, QUERY_ALARMS_QUERY, { condition });
         msgsRaw = raw.queryAlarms?.msgs ?? [];
       } else {
+        /* Legacy mode: scope + keyword + tags only. The UI hides the
+         * layer / cascade filter row in this mode, so `layer` /
+         * `service` / `instance` / `endpoint` query params should
+         * not be present — but if they are (operator hand-rolled a
+         * URL), the BFF silently ignores them rather than 400-ing,
+         * matching the spirit of the spec's "drop fake filters". */
         const variables: Record<string, unknown> = {
           duration: { start, end, step: 'SECOND' },
           paging: { pageNum: q.pageNum, pageSize: q.pageSize },
@@ -418,163 +458,112 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       });
     }
 
-    // Service-name → layer tag (best-effort, see service-layer-map docs).
-    const layerIdx = await serviceLayer.get();
-
-    // Post-filter — OAP doesn't expose service/instance/endpoint filters
-    // on `getAlarm` directly, so we filter the page client-side. The
-    // page-size cap (200) keeps this O(pageSize).
-    const filtered = msgsRaw.filter((m) => {
-      if (q.service && !m.name.toLowerCase().includes(q.service.toLowerCase())) return false;
-      if (q.instance && !m.name.toLowerCase().includes(q.instance.toLowerCase())) return false;
-      if (q.endpoint && !m.name.toLowerCase().includes(q.endpoint.toLowerCase())) return false;
-      return true;
-    });
-
-    const tagged: AlarmMessage[] = filtered.map((m) => {
-      // Entity name on `Service` scope is the service name directly;
-      // on `ServiceInstance` / `Endpoint` the wire packs the service
-      // name as a prefix before a separator — try the literal name
-      // first, then strip after common separators.
-      const candidates = [m.name, m.name.split('::')[0], m.name.split(' ')[0]];
-      let layerKey: string | null = null;
-      for (const cand of candidates) {
-        const hit = layerIdx.byName.get(cand.toLowerCase());
-        if (hit) {
-          layerKey = hit;
-          break;
-        }
-      }
-      return { ...m, layerKey };
-    });
+    const tagged = await tagWithLayer(msgsRaw, serviceLayer);
 
     const body: AlarmsResponse = {
       total: tagged.length,
       pageNum: q.pageNum,
       pageSize: q.pageSize,
+      truncated: tagged.length >= q.pageSize,
       generatedAt: Date.now(),
       msgs: tagged,
     };
     return reply.send(body);
   });
 
-  // ── GET /api/alarms/traffic ────────────────────────────────────────
+  // ── GET /api/alarms/count ──────────────────────────────────────────
   app.get(
-    '/api/alarms/traffic',
+    '/api/alarms/count',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const parsed = trafficQuerySchema.safeParse(req.query);
+      const parsed = countQuerySchema.safeParse(req.query);
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_query', detail: parsed.error.flatten() });
       }
       const q = parsed.data;
       if (q.endTime <= q.startTime) return badRequest('endTime must be greater than startTime');
-
-      // Round to minute boundaries to match the OAP MINUTE step.
-      const startMs = Math.floor(q.startTime / 60_000) * 60_000;
-      const endMs = Math.floor(q.endTime / 60_000) * 60_000;
+      if (q.endTime - q.startTime > WINDOW_CAP_MS) {
+        return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
+      }
 
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
-      const start = fmtMinute(startMs, offset);
-      const end = fmtMinute(endMs, offset);
-      const timeline = buildTimeline(startMs, endMs);
+      const start = fmtSecond(q.startTime, offset);
+      const end = fmtSecond(q.endTime, offset);
 
-      const cfg = await deps.store.load();
       const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const caps = await getOapCapabilities(deps.config.current, deps.fetch);
 
-      const series: AlarmTrafficSeries[] = await Promise.all(
-        cfg.trafficLayers.map<Promise<AlarmTrafficSeries>>(async (L) => {
-          const label = L.label ?? prettyLayer(L.layerKey);
-          // 1) list services in the layer.
-          let services: Array<{ name: string; normal: boolean | null }>;
-          try {
-            const ls = await graphqlPost<ListServicesRaw>(opts, LIST_SERVICES_QUERY, {
-              layer: L.layerKey,
-            });
-            services = Array.isArray(ls.listServices) ? ls.listServices : [];
-          } catch (err) {
-            return {
-              layerKey: L.layerKey,
-              label,
-              present: false,
-              points: timeline.map((ts) => ({ ts, value: null })),
-              error: err instanceof Error ? err.message : String(err),
-            };
-          }
-          if (services.length === 0) {
-            return {
-              layerKey: L.layerKey,
-              label,
-              present: false,
-              points: timeline.map((ts) => ({ ts, value: null })),
-            };
-          }
-
-          // 2) fan out MQE for each service. Cap at 40 services to
-          //    bound the upstream graphql blast — the alarms timeline
-          //    is a glanceable backdrop, not a precise dashboard.
-          const cap = 40;
-          const sliced = services.slice(0, cap);
-          const aliased = sliced
-            .map(
-              (s, i) =>
-                `s${i}: execExpression(\n` +
-                `      expression: ${JSON.stringify(L.mqe)},\n` +
-                `      entity: { scope: Service, serviceName: ${JSON.stringify(s.name)}, normal: ${s.normal === false ? 'false' : 'true'} },\n` +
-                `      duration: { start: ${JSON.stringify(start)}, end: ${JSON.stringify(end)}, step: MINUTE }\n` +
-                `    ) { type error results { values { value } } }`,
-            )
-            .join('\n');
-          const query = `query HorizonAlarmTrafficLayer { ${aliased} }`;
-          let data: Record<string, { error?: string | null; results?: Array<{ values: Array<{ value: string | null }> }> }>;
-          try {
-            data = await graphqlPost(opts, query);
-          } catch (err) {
-            return {
-              layerKey: L.layerKey,
-              label,
-              present: false,
-              points: timeline.map((ts) => ({ ts, value: null })),
-              error: err instanceof Error ? err.message : String(err),
-            };
-          }
-          // 3) Sum per-bucket across services.
-          const summed: Array<number | null> = timeline.map(() => null);
-          for (let i = 0; i < sliced.length; i++) {
-            const row = data[`s${i}`];
-            const values = row?.results?.[0]?.values ?? [];
-            for (let b = 0; b < timeline.length; b++) {
-              const v = safeFloat(values[b]?.value);
-              if (v === null) continue;
-              summed[b] = (summed[b] ?? 0) + v;
-            }
-          }
-          return {
-            layerKey: L.layerKey,
-            label,
-            present: true,
-            points: timeline.map((ts, i) => ({ ts, value: summed[i] })),
+      let rows: Array<{ id: string; startTime: number; recoveryTime: number | null }>;
+      try {
+        if (caps.queryAlarms) {
+          const condition = {
+            duration: { start, end, step: 'SECOND' },
+            paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
           };
-        }),
-      );
+          const raw = await graphqlPost<QueryAlarmsRaw>(opts, COUNT_QUERY_ALARMS_QUERY, { condition });
+          rows = (raw.queryAlarms?.msgs ?? []).map((m) => ({
+            id: m.id,
+            startTime: m.startTime,
+            recoveryTime: m.recoveryTime,
+          }));
+        } else {
+          const variables = {
+            duration: { start, end, step: 'SECOND' },
+            paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
+          };
+          const raw = await graphqlPost<GetAlarmRaw>(opts, COUNT_GET_ALARM_QUERY, variables);
+          rows = (raw.getAlarm?.msgs ?? []).map((m) => ({
+            id: m.id,
+            startTime: m.startTime,
+            recoveryTime: m.recoveryTime,
+          }));
+        }
+      } catch (err) {
+        return reply.code(502).send({
+          error: 'oap_unreachable',
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
 
-      const body: AlarmTrafficResponse = {
+      const total = rows.length;
+      const firing = rows.reduce((n, r) => n + (r.recoveryTime === null ? 1 : 0), 0);
+
+      /* Group by OAP id (= entity.rule key); the incident's state is
+       * the LATEST event's state. Matches the UI's `mergeIncidents`
+       * semantics — keep both implementations in lock-step. */
+      const latestByGroup = new Map<string, { startTime: number; recoveryTime: number | null }>();
+      for (const r of rows) {
+        const cur = latestByGroup.get(r.id);
+        if (!cur || r.startTime > cur.startTime) {
+          latestByGroup.set(r.id, { startTime: r.startTime, recoveryTime: r.recoveryTime });
+        }
+      }
+      const incidents = latestByGroup.size;
+      let activeIncidents = 0;
+      for (const v of latestByGroup.values()) {
+        if (v.recoveryTime === null) activeIncidents += 1;
+      }
+
+      const body: AlarmsCountResponse = {
+        total,
+        firing,
+        incidents,
+        activeIncidents,
+        truncated: total >= COUNT_FETCH_CAP,
+        startTime: q.startTime,
+        endTime: q.endTime,
         generatedAt: Date.now(),
-        startTime: startMs,
-        endTime: endMs,
-        step: 'MINUTE',
-        series,
       };
       return reply.send(body);
     },
   );
 
   // ── GET /api/alarms/services?layer=X ──────────────────────────────
-  // Cascading-filter helper for the alarms page. Returns the service
-  // roster for one OAP layer in alpha order so the UI can populate
-  // a dropdown without re-implementing the listServices wire. The
-  // instance + endpoint pickers reuse the existing
-  // /api/layer/:key/instances and /api/layer/:key/endpoints endpoints.
+  /* Cascading-filter helper. Returns the service roster for one OAP
+   * layer in alpha order so the UI populates a dropdown without
+   * re-implementing the listServices wire. The instance + endpoint
+   * pickers reuse the existing /api/layer/:key/instances and
+   * /api/layer/:key/endpoints endpoints. */
   app.get(
     '/api/alarms/services',
     { preHandler: auth },
@@ -598,13 +587,4 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       }
     },
   );
-
-}
-
-function prettyLayer(key: string): string {
-  return key
-    .toLowerCase()
-    .split('_')
-    .map((w) => (w.length > 0 ? w[0]!.toUpperCase() + w.slice(1) : ''))
-    .join(' ');
 }

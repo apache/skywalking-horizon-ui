@@ -128,7 +128,11 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'overview-dashboard',
     component: () => import('@/render/overview/OverviewDashboardView.vue'),
   },
-  { path: 'setup', name: 'setup', component: () => import('@/features/setup/SetupView.vue') },
+  /* Legacy `/setup` route — the read-only "Overview dashboards"
+   * browser was replaced by `/admin/overview-templates` which both
+   * lists AND edits. Redirect rather than 404 so old bookmarks /
+   * stale links land somewhere useful. */
+  { path: 'setup', redirect: '/admin/overview-templates' },
   layerRoute(),
   // Alarms — independent page (not a layer template / overview).
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
@@ -136,6 +140,13 @@ const shellRoutes: RouteRecordRaw[] = [
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
   // Cluster
   { path: 'operate/cluster', component: () => import('@/features/operate/cluster/ClusterStatusView.vue') },
+  // Alerting rules — read-only catalog backed by admin /status/alarm/*.
+  // Gated on admin-server reachability at the page-body level.
+  {
+    path: 'operate/alerting-rules',
+    name: 'alerting-rules',
+    component: () => import('@/features/operate/alerting-rules/AlertingRulesView.vue'),
+  },
   // ── DSL Management ─────────────────────────────────────────────────
   // Static sub-routes are declared first so they aren't shadowed by
   // the catalog alternation regex (which would otherwise grab `edit`
@@ -194,6 +205,11 @@ const shellRoutes: RouteRecordRaw[] = [
     path: 'admin/alert-page-setup',
     name: 'alert-page-setup',
     component: () => import('@/features/admin/alert-page/AlertPageSetupView.vue'),
+  },
+  {
+    path: 'admin/overview-templates',
+    name: 'overview-templates',
+    component: () => import('@/features/admin/overview-templates/OverviewTemplatesAdmin.vue'),
   },
   { path: 'admin/users', component: placeholder, props: { title: 'Users', phase: 'Phase 7' } },
   { path: 'admin/roles', component: placeholder, props: { title: 'Roles & permissions', phase: 'Phase 7' } },

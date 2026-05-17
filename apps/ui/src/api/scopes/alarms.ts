@@ -17,13 +17,15 @@
 
 import type {
   AlarmsConfig,
+  AlarmsCountResponse,
   AlarmsQuery,
   AlarmsResponse,
-  AlarmTrafficResponse,
+  AlertingRuleDetailResponse,
+  AlertingRulesListResponse,
   BffClient,
 } from '../client';
 
-/** `bff.alarms` — alarm list + per-layer traffic backdrop + alarm-page
+/** `bff.alarms` — alarm list + topbar count probe + alarm-page
  *  config CRUD. */
 export class AlarmsApi {
   constructor(private readonly bff: BffClient) {}
@@ -33,19 +35,24 @@ export class AlarmsApi {
       startTime: String(q.startTime),
       endTime: String(q.endTime),
       pageNum: String(q.pageNum ?? 1),
-      pageSize: String(q.pageSize ?? 100),
+      pageSize: String(q.pageSize ?? 500),
     });
     if (q.scope) p.set('scope', q.scope);
     if (q.keyword) p.set('keyword', q.keyword);
+    if (q.layer) p.set('layer', q.layer);
     if (q.service) p.set('service', q.service);
     if (q.instance) p.set('instance', q.instance);
     if (q.endpoint) p.set('endpoint', q.endpoint);
     return this.bff.request<AlarmsResponse>('GET', `/api/alarms?${p.toString()}`);
   }
 
-  traffic(startTime: number, endTime: number): Promise<AlarmTrafficResponse> {
+  /** Lightweight count probe for the topbar badge — bounded selection
+   *  set (id + recoveryTime only), capped result. Polled on the
+   *  badge's own interval, independent of the global time-range
+   *  ticker. */
+  count(startTime: number, endTime: number): Promise<AlarmsCountResponse> {
     const p = new URLSearchParams({ startTime: String(startTime), endTime: String(endTime) });
-    return this.bff.request<AlarmTrafficResponse>('GET', `/api/alarms/traffic?${p.toString()}`);
+    return this.bff.request<AlarmsCountResponse>('GET', `/api/alarms/count?${p.toString()}`);
   }
 
   /** Service roster for one OAP layer (alpha-sorted) — feeds the
@@ -64,5 +71,20 @@ export class AlarmsApi {
 
   saveConfig(next: AlarmsConfig): Promise<AlarmsConfig> {
     return this.bff.request<AlarmsConfig>('POST', '/api/alarms/config', next);
+  }
+
+  /** OAP `/status/alarm/rules` fan-out + per-rule detail merge.
+   *  Drives the Operate › Alerting Rules page. */
+  adminRules(): Promise<AlertingRulesListResponse> {
+    return this.bff.request<AlertingRulesListResponse>('GET', '/api/admin/alarm-rules');
+  }
+
+  /** Single-rule detail — used by the alarms detail panel kicker
+   *  AND the operate page's right pane. */
+  adminRule(id: string): Promise<AlertingRuleDetailResponse> {
+    return this.bff.request<AlertingRuleDetailResponse>(
+      'GET',
+      `/api/admin/alarm-rules/${encodeURIComponent(id)}`,
+    );
   }
 }

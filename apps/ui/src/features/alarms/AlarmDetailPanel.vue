@@ -28,12 +28,92 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { AlarmMessage } from '@/api/client';
-import TimeChart from '@/components/charts/TimeChart.vue';
+import { useQuery } from '@tanstack/vue-query';
+import { bff, type AlarmMessage, type AlertingRuleDetailResponse } from '@/api/client';
+import AlarmSnapshotChart from './AlarmSnapshotChart.vue';
+import { formatAlarmEntity } from '@/utils/alarmEntity';
 
 const props = defineProps<{ alarm: AlarmMessage | null }>();
 
+const entityLabel = computed(() =>
+  props.alarm ? formatAlarmEntity(props.alarm.scope, props.alarm.name) : null,
+);
+
 const firing = computed<boolean>(() => props.alarm?.recoveryTime === null);
+
+/* OAP packs `<entityBase64>.<ruleNumber>` into the AlarmMessage.id.
+ * The rule's actual name lives in the `message` text via the
+ * formatter template — we don't have a clean way to extract it from
+ * the wire shape alone. Best signal: scan the message for the rule
+ * IDs that admin-server knows about and pick the first match.
+ *
+ * The query is intentionally minimal — fires only when there's an
+ * alarm selected AND the admin-server `/status/alarm/rules` endpoint
+ * is reachable. Failures are silent (no panic-banner): the rule
+ * section just collapses to "rule definition unavailable".
+ */
+const rulesIndex = useQuery({
+  queryKey: ['alarms/admin-rules-index'],
+  queryFn: () => bff.alarms.adminRules(),
+  enabled: computed(() => props.alarm !== null),
+  staleTime: 60_000,
+  retry: false,
+});
+
+/** Best-effort rule-id pick: longest-prefix match of any known rule
+ *  ID in the alarm message. Longest wins because rule names share
+ *  prefixes (`service_resp_time_rule` vs `service_resp_time_p99_rule`)
+ *  and we want the more specific match. */
+const matchedRuleId = computed<string | null>(() => {
+  const a = props.alarm;
+  const list = rulesIndex.data.value?.rules ?? [];
+  if (!a || list.length === 0) return null;
+  const msg = a.message;
+  let best: string | null = null;
+  for (const r of list) {
+    if (msg.includes(r.ruleId)) {
+      if (!best || r.ruleId.length > best.length) best = r.ruleId;
+    }
+  }
+  return best;
+});
+
+const ruleDetailQuery = useQuery({
+  queryKey: computed(() => ['alarms/admin-rule', matchedRuleId.value]),
+  queryFn: (): Promise<AlertingRuleDetailResponse> =>
+    bff.alarms.adminRule(matchedRuleId.value!),
+  enabled: computed(() => matchedRuleId.value !== null),
+  staleTime: 60_000,
+  retry: false,
+});
+
+const ruleDetail = computed(() => ruleDetailQuery.data.value?.detail ?? null);
+
+/** Inferred snapshot window — one value per MINUTE bucket. Read from
+ *  the first metric's first result's value-array length. */
+const snapshotBuckets = computed<number>(() => {
+  const m = props.alarm?.snapshot.metrics[0];
+  const r = m?.results[0];
+  return r?.values.length ?? 0;
+});
+
+/** Bucket-range label: "HH:MM → HH:MM" computed the same way the
+ *  snapshot chart anchors its x-axis (latest bucket = trigger minute,
+ *  earlier buckets step back). Empty when no snapshot. */
+const snapshotRangeLabel = computed<string>(() => {
+  if (!props.alarm || snapshotBuckets.value === 0) return '';
+  const MINUTE = 60_000;
+  const T = Math.floor(props.alarm.startTime / MINUTE) * MINUTE;
+  const start = T - (snapshotBuckets.value - 1) * MINUTE;
+  return `${fmtMinute(start)} → ${fmtMinute(T)}`;
+});
+
+function fmtMinute(ts: number): string {
+  const d = new Date(ts);
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}
 
 const startedRelative = computed<string>(() => {
   if (!props.alarm) return '';
@@ -57,68 +137,54 @@ function formatRelative(ts: number): string {
   return `${d}d ${h % 24}h ago`;
 }
 
-interface ChartSpec {
-  title: string;
-  labels: string[];
-  series: Array<{ label: string; data: Array<number | null> }>;
-}
-
-const charts = computed<ChartSpec[]>(() => {
+/** Metrics with at least one series of values, in wire order.
+ *  Drives the one-snapshot-chart-per-metric render below. */
+const snapshotMetrics = computed(() => {
   if (!props.alarm) return [];
-  const out: ChartSpec[] = [];
-  for (const metric of props.alarm.snapshot.metrics) {
-    if (metric.results.length === 0) continue;
-    const maxLen = Math.max(...metric.results.map((r) => r.values.length), 0);
-    const series = metric.results.map((r, i) => {
-      const labels = (r.metric?.labels ?? []).map((l) => `${l.key}=${l.value}`).join(',');
-      return {
-        label: labels.length > 0 ? labels : `series ${i + 1}`,
-        data: r.values.map((v) => {
-          if (v.value === null) return null;
-          const n = Number(v.value);
-          return Number.isFinite(n) ? n : null;
-        }),
-      };
-    });
-    // Bucket indices on the x-axis — OAP doesn't return per-bucket
-    // timestamps with the snapshot; using indices keeps it stable.
-    const labels: string[] = [];
-    for (let i = 0; i < maxLen; i++) labels.push(String(i));
-    out.push({ title: metric.name, labels, series });
-  }
-  return out;
+  return props.alarm.snapshot.metrics.filter((m) => m.results.length > 0);
 });
+
+/** Rule's `period` (MINUTE buckets) when admin-server reported it,
+ *  for the snapshot chart's window-band overlay. Null when admin is
+ *  unreachable or the rule isn't matched. */
+const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? null);
 </script>
 
 <template>
   <aside class="ad" v-if="alarm">
+    <!-- Headline: entity (scope prefix + OAP's pre-formatted name).
+         OAP's `NotifyHandler` already joins relations + instance-
+         of-service into the `name` field, so we just decorate with
+         the scope-as-noun prefix. Status pill sits to the right. -->
     <header class="ad__head">
-      <h2 class="ad__id">{{ alarm.id }}</h2>
+      <div class="ad__head-main">
+        <div v-if="entityLabel?.prefix" class="ad__entity-kind">{{ entityLabel.prefix }}</div>
+        <h2 class="ad__entity-name">
+          <template v-for="(s, i) in entityLabel?.segments ?? []" :key="i">
+            <template v-if="s.kind === 'group'">
+              <span class="ad__entity-group">{{ s.group }}</span><span class="ad__entity-base">{{ s.base }}</span>
+            </template>
+            <span v-else>{{ s.text }}</span>
+          </template>
+        </h2>
+      </div>
       <span class="sw-badge" :class="firing ? 'is-err' : 'is-ok'">
         <span class="state-dot" />{{ firing ? 'firing' : 'recovered' }}
       </span>
     </header>
-
-    <p class="ad__rule">{{ alarm.message }}</p>
     <div class="ad__sub">
       <span>started {{ startedRelative }}</span>
       <template v-if="!firing"> · recovered {{ recoveredRelative }}</template>
+      <template v-if="alarm.layerKey"> · {{ alarm.layerKey }}</template>
     </div>
 
+    <!-- 1. Message -->
     <section class="ad__sec">
-      <div class="ad__kicker">Trigger expression</div>
-      <pre class="ad__expr">{{ alarm.snapshot.expression || '— no MQE recorded —' }}</pre>
+      <div class="ad__kicker">Message</div>
+      <p class="ad__rule">{{ alarm.message }}</p>
     </section>
 
-    <section class="ad__sec">
-      <div class="ad__kicker">Scope</div>
-      <div class="ad__scope">
-        <span class="ad__tag">{{ alarm.scope ?? 'unknown' }}</span>
-        <code class="ad__entity">{{ alarm.name }}</code>
-        <span v-if="alarm.layerKey" class="ad__tag">{{ alarm.layerKey }}</span>
-      </div>
-    </section>
-
+    <!-- 2. Tags -->
     <section v-if="alarm.tags.length > 0" class="ad__sec">
       <div class="ad__kicker">Tags</div>
       <div class="ad__tags">
@@ -128,12 +194,71 @@ const charts = computed<ChartSpec[]>(() => {
       </div>
     </section>
 
-    <section v-for="c in charts" :key="c.title" class="ad__sec">
-      <div class="ad__kicker">{{ c.title }}</div>
-      <TimeChart :series="c.series" :height="100" format="decimal" />
+    <!-- 3. Expression -->
+    <section class="ad__sec">
+      <div class="ad__kicker">Trigger expression</div>
+      <pre class="ad__expr">{{ alarm.snapshot.expression || '— no MQE recorded —' }}</pre>
+      <div v-if="snapshotBuckets > 0" class="ad__hint">
+        snapshot covers {{ snapshotBuckets }} × 1m bucket{{ snapshotBuckets === 1 ? '' : 's' }}
+        · {{ snapshotRangeLabel }}
+      </div>
     </section>
 
-    <section v-if="charts.length === 0" class="ad__sec ad__empty">
+    <!-- Rule body — lazy fetch via admin-server. Sits between the
+         expression and the snapshot charts so the metadata
+         (period / silence / hooks) contextualises the bucket count
+         shown above and the per-metric chart shown below. Hidden when
+         admin is unreachable or the message doesn't match a known
+         rule. -->
+    <section v-if="matchedRuleId" class="ad__sec">
+      <div class="ad__kicker ad__kicker--with-link">
+        <span>Rule</span>
+        <RouterLink
+          :to="{ path: '/operate/alerting-rules', query: { id: matchedRuleId } }"
+          class="ad__rule-link"
+        >view in catalog →</RouterLink>
+      </div>
+      <div v-if="ruleDetailQuery.isPending.value" class="ad__rule-loading">
+        loading rule…
+      </div>
+      <div v-else-if="ruleDetailQuery.isError.value || !ruleDetail" class="ad__rule-loading">
+        rule definition unavailable
+      </div>
+      <div v-else class="ad__rule-grid">
+        <div class="ad__rule-cell"><span class="ad__rule-label">id</span><code>{{ ruleDetail.ruleId }}</code></div>
+        <div class="ad__rule-cell"><span class="ad__rule-label">period</span>{{ ruleDetail.period }}m</div>
+        <div class="ad__rule-cell"><span class="ad__rule-label">silence</span>{{ ruleDetail.silencePeriod }}m</div>
+        <div class="ad__rule-cell">
+          <span class="ad__rule-label">recovery-obs</span>{{ ruleDetail.recoveryObservationPeriod }}m
+        </div>
+        <div v-if="ruleDetail.hooks.length > 0" class="ad__rule-cell ad__rule-cell--wide">
+          <span class="ad__rule-label">hooks</span>
+          <span v-for="h in ruleDetail.hooks" :key="h" class="ad__tag">{{ h }}</span>
+        </div>
+        <div v-if="ruleDetail.includeMetrics.length > 0" class="ad__rule-cell ad__rule-cell--wide">
+          <span class="ad__rule-label">metrics</span>
+          <code v-for="m in ruleDetail.includeMetrics" :key="m">{{ m }}</code>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Snapshots — per-metric chart of values captured at firing.
+         X-axis is real time (reconstructed from the trigger minute
+         + bucket count). Trigger time is marked with a vertical
+         orange line; the rule's evaluation window is shaded when
+         admin-server gave us the rule's `period`. -->
+    <section v-for="m in snapshotMetrics" :key="m.name" class="ad__sec">
+      <div class="ad__kicker">{{ m.name }}</div>
+      <AlarmSnapshotChart
+        :metric="m"
+        :trigger-time="alarm.startTime"
+        :recovery-time="alarm.recoveryTime"
+        :rule-period="rulePeriod"
+        :height="120"
+      />
+    </section>
+
+    <section v-if="snapshotMetrics.length === 0" class="ad__sec ad__empty">
       No MQE snapshot was recorded with this alarm. Upgrade OAP or
       enable the snapshot capture in the alarm rule to see the trigger
       values here.
@@ -183,22 +308,53 @@ const charts = computed<ChartSpec[]>(() => {
 }
 .ad__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
 }
-.ad__id {
-  font-family: var(--sw-mono);
-  font-size: 12px;
-  color: var(--sw-fg-2);
-  margin: 0;
+.ad__head-main {
   flex: 1;
+  min-width: 0;
 }
-.ad__rule {
-  font-size: 13px;
+.ad__entity-kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-accent);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ad__entity-name {
+  font-family: var(--sw-mono);
+  font-size: 14px;
   font-weight: 600;
   color: var(--sw-fg-0);
   margin: 0;
   line-height: 1.4;
+  word-break: break-all;
+}
+/* Probe-source classifier (`agent`, `mesh-svr`, `mesh-dp`, `mesh-cp`).
+ * Just operational metadata — muted, not accent. Render as a quiet
+ * grey tag adjacent to the service base name. */
+.ad__entity-group {
+  display: inline-block;
+  font-family: var(--sw-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: lowercase;
+  color: var(--sw-fg-2);
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  padding: 0 5px;
+  border-radius: 3px;
+  margin-right: 5px;
+  vertical-align: 2px;
+}
+.ad__entity-base { /* default — inherits parent mono font */ }
+.ad__rule {
+  font-size: 13px;
+  color: var(--sw-fg-0);
+  margin: 0;
+  line-height: 1.5;
 }
 .ad__sub {
   font-size: 11px;
@@ -228,18 +384,62 @@ const charts = computed<ChartSpec[]>(() => {
   word-break: break-all;
   line-height: 1.5;
 }
-.ad__scope {
+.ad__hint {
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+}
+.ad__kicker--with-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ad__rule-link {
+  font-size: 10.5px;
+  color: var(--sw-accent);
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.ad__rule-link:hover { text-decoration: underline; }
+.ad__rule-loading {
+  font-size: 11px;
+  color: var(--sw-fg-3);
+  font-style: italic;
+}
+.ad__rule-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.ad__rule-cell {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
-}
-.ad__entity {
-  font-family: var(--sw-mono);
   font-size: 11.5px;
   color: var(--sw-fg-0);
+  padding: 4px 8px;
   background: var(--sw-bg-2);
-  padding: 2px 6px;
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.ad__rule-cell--wide { grid-column: 1 / -1; }
+.ad__rule-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  font-weight: 600;
+}
+.ad__rule-cell code {
+  font-family: var(--sw-mono);
+  font-size: 10.5px;
+  color: var(--sw-fg-1);
+  background: var(--sw-bg-1);
+  padding: 1px 5px;
   border-radius: 3px;
 }
 .ad__tag {

@@ -34,27 +34,28 @@ describe('AlarmsApi.list — query param assembly', () => {
   it('includes only the required fields when filters are empty', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({ startTime: 100, endTime: 200 });
-    expect(calls[0][1]).toBe('/api/alarms?startTime=100&endTime=200&pageNum=1&pageSize=100');
+    expect(calls[0][1]).toBe('/api/alarms?startTime=100&endTime=200&pageNum=1&pageSize=500');
   });
 
-  it('defaults pageNum=1 and pageSize=100 when not provided', async () => {
+  it('defaults pageNum=1 and pageSize=500 when not provided', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({ startTime: 1, endTime: 2 });
     expect(calls[0][1]).toContain('pageNum=1');
-    expect(calls[0][1]).toContain('pageSize=100');
+    expect(calls[0][1]).toContain('pageSize=500');
   });
 
-  it('forwards entity filters (service / instance / endpoint) with URL encoding', async () => {
+  it('forwards entity filters (layer / service / instance / endpoint) with URL encoding', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({
       startTime: 1,
       endTime: 2,
+      layer: 'MESH',
       service: 'mesh-svr::reviews',
       instance: 'reviews-pod-1',
       endpoint: '/api/orders',
     });
     expect(calls[0][1]).toBe(
-      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=100&service=mesh-svr%3A%3Areviews&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
+      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&layer=MESH&service=mesh-svr%3A%3Areviews&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
     );
   });
 
@@ -71,11 +72,11 @@ describe('AlarmsApi.list — query param assembly', () => {
   });
 });
 
-describe('AlarmsApi.traffic + services + config', () => {
-  it('traffic GETs /api/alarms/traffic with start + end', async () => {
+describe('AlarmsApi.services + config + count', () => {
+  it('count GETs /api/alarms/count with start + end', async () => {
     const { bff, calls } = makeStub();
-    await new AlarmsApi(bff).traffic(1000, 2000);
-    expect(calls[0]).toEqual(['GET', '/api/alarms/traffic?startTime=1000&endTime=2000', undefined]);
+    await new AlarmsApi(bff).count(1000, 2000);
+    expect(calls[0]).toEqual(['GET', '/api/alarms/count?startTime=1000&endTime=2000', undefined]);
   });
 
   it('services GETs with layer param', async () => {
@@ -88,12 +89,39 @@ describe('AlarmsApi.traffic + services + config', () => {
     const { bff, calls } = makeStub();
     const api = new AlarmsApi(bff);
     await api.config();
-    await api.saveConfig({ trafficLayers: [{ layerKey: 'MESH', mqe: 'service_cpm' }] });
+    await api.saveConfig({
+      pinnedLayers: ['GENERAL', 'MESH'],
+      defaultWindowMs: 1200000,
+      overviewAlarmsLimit: 200,
+    });
     expect(calls[0]).toEqual(['GET', '/api/alarms/config', undefined]);
     expect(calls[1][0]).toBe('POST');
     expect(calls[1][1]).toBe('/api/alarms/config');
     expect(calls[1][2]).toEqual({
-      trafficLayers: [{ layerKey: 'MESH', mqe: 'service_cpm' }],
+      pinnedLayers: ['GENERAL', 'MESH'],
+      defaultWindowMs: 1200000,
+      overviewAlarmsLimit: 200,
     });
+  });
+
+  it('adminRules + adminRule hit /api/admin/alarm-rules', async () => {
+    const { bff, calls } = makeStub();
+    const api = new AlarmsApi(bff);
+    await api.adminRules();
+    await api.adminRule('service_resp_time_rule');
+    expect(calls[0]).toEqual(['GET', '/api/admin/alarm-rules', undefined]);
+    expect(calls[1]).toEqual([
+      'GET',
+      '/api/admin/alarm-rules/service_resp_time_rule',
+      undefined,
+    ]);
+  });
+
+  it('adminRule URL-encodes the rule id', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).adminRule('rule with space / slash');
+    expect(calls[0][1]).toBe(
+      '/api/admin/alarm-rules/rule%20with%20space%20%2F%20slash',
+    );
   });
 });

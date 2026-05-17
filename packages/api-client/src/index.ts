@@ -183,6 +183,16 @@ export {
 } from './runtime-rule.js';
 export { StatusClient, type StatusClientOptions, type NormalisedClusterNode } from './status.js';
 export {
+  AlarmStatusClient,
+  AlarmStatusApiError,
+  type AlarmStatusClientOptions,
+  type AlarmRuleList,
+  type AlarmRuleDetail,
+  type AlarmRunningContext,
+  type ClusterAlarmStatus,
+  type InstanceAlarmStatus,
+} from './alarm-status.js';
+export {
   OalClient,
   type OalClientOptions,
   type OalFilesResponse,

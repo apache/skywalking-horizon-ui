@@ -55,8 +55,9 @@
     {
       "id": "mesh_alarms",
       "title": "Active alarms",
-      "tip": "All currently firing alarms (layer filter is best-effort in v1).",
+      "tip": "Currently-firing alarms on mesh-reported services.",
       "type": "alarms",
+      "layer": "MESH",
       "limit": 12,
       "span": 3,
       "rowSpan": 6

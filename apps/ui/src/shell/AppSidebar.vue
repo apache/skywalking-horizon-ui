@@ -24,8 +24,13 @@ import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { useLandingOrder } from '@/shell/useLandingOrder';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { useDebugPanel } from '@/controls/debugPanel';
+import { useAlarmCount } from '@/shell/useAlarmCount';
 
 const { enabled: debugPanelEnabled, toggle: toggleDebugPanel } = useDebugPanel();
+/* Shares the same composable as the topbar badge — one query feeds
+ * both, so the two surfaces never disagree and the cache is warm
+ * regardless of which renders first. */
+const alarmCount = useAlarmCount();
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -154,6 +159,7 @@ const sections: NavSection[] = [
     kicker: 'Operate',
     links: [
       { icon: 'svc', label: 'Cluster status', to: '/operate/cluster' },
+      { icon: 'alert', label: 'Alerting rules', to: '/operate/alerting-rules' },
       {
         icon: 'flame',
         label: 'Live debugger',
@@ -185,7 +191,7 @@ const sections: NavSection[] = [
   {
     kicker: 'Dashboard setup',
     links: [
-      { icon: 'set', label: 'Overview dashboards', to: '/setup' },
+      { icon: 'set', label: 'Overview templates', to: '/admin/overview-templates' },
       { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards' },
       { icon: 'alert', label: 'Alert page', to: '/admin/alert-page-setup' },
     ],
@@ -256,7 +262,11 @@ watch(
         :class="{ 'is-active': isActive('/alarms') }"
       >
         <Icon name="alert" /><span>Alarms</span>
-        <span class="sw-badge err" style="margin-left: auto">7</span>
+        <span
+          v-if="alarmCount.activeIncidents.value > 0"
+          class="sw-badge err"
+          style="margin-left: auto"
+        >{{ alarmCount.displayCount.value }}</span>
       </RouterLink>
 
       <div class="sw-nav-section sw-nav-section--icon" style="justify-content: space-between">

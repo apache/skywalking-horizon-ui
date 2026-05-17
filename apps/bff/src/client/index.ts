@@ -23,6 +23,7 @@
  */
 
 import {
+  AlarmStatusClient,
   DslDebuggingClient,
   InspectClient,
   OalClient,
@@ -58,6 +59,10 @@ export interface OapClients {
    *  enumeration. Identical across nodes (storage is shared), so we
    *  bind to the first admin URL. */
   inspect(): InspectClient;
+  /** Alarm-status client — `/status/alarm/*` admin REST. The handler
+   *  internally fans out to peer OAP nodes via gRPC, so we only need
+   *  to hit the primary URL. */
+  alarmStatus(): AlarmStatusClient;
   /** All admin URLs, in config order. */
   adminUrls(): readonly string[];
 }
@@ -107,6 +112,9 @@ export function buildOapClients(
     },
     inspect(): InspectClient {
       return new InspectClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
+    },
+    alarmStatus(): AlarmStatusClient {
+      return new AlarmStatusClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
     adminUrls(): readonly string[] {
       return config.oap.adminUrls;

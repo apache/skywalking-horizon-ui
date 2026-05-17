@@ -186,11 +186,46 @@ export function loadOverviewDashboards(): OverviewDashboard[] {
   return cache;
 }
 
-/** Force a re-read on the next call. Used in tests. */
+/** Force a re-read on the next call. Used in tests + by the admin
+ *  write path so the next dashboard fetch sees the freshly-saved JSON. */
 export function invalidateOverviewCache(): void {
   cache = null;
 }
 
 export function getOverviewDashboard(id: string): OverviewDashboard | null {
   return loadOverviewDashboards().find((d) => d.id === id) ?? null;
+}
+
+/** Locate the on-disk JSON file backing `id`, if any. Bundle files are
+ *  named by id but operators may use any filename — scan the dir for a
+ *  match. Returns null when no file in the bundle dir parses with that
+ *  id (admin then has nowhere to write). */
+export function findOverviewFile(id: string): string | null {
+  if (!fs.existsSync(CONFIG_DIR)) return null;
+  for (const f of fs.readdirSync(CONFIG_DIR)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const raw = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, f), 'utf8'));
+      if (raw && typeof raw === 'object' && (raw as { id?: unknown }).id === id) {
+        return path.join(CONFIG_DIR, f);
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
+
+/** Persist a dashboard's full config back to disk and invalidate the
+ *  cache. Atomic via `.tmp` rename so a partial write never leaves
+ *  half-JSON on disk. */
+export function writeOverviewDashboard(id: string, dash: OverviewDashboard): void {
+  const file = findOverviewFile(id);
+  if (!file) {
+    throw new Error(`overview/${id}: no source file to write back to`);
+  }
+  const tmp = `${file}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(dash, null, 2), 'utf8');
+  fs.renameSync(tmp, file);
+  invalidateOverviewCache();
 }
