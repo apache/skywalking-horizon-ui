@@ -30,9 +30,9 @@ github:
     - logging
     - topology
   enabled_merge_buttons:
-    squash:  true
-    merge:   false
-    rebase:  false
+    squash: true
+    merge: false
+    rebase: false
   dependabot_updates: false
   # Branch protection and PR approval are intentionally OFF during pre-1.0
   # single-author development to keep the iteration loop tight. The explicit
@@ -40,4 +40,17 @@ github:
   # `protected_branches` config — omitting the key would leave prior
   # protections in place. Re-add status-check + review gating before v1.0
   # or when a second committer joins.
-  protected_branches: ~
+  protected_branches:
+  rulesets:
+    - name: "Default Branch Protection"
+      type: branch
+      branches:
+        includes:
+          - "~DEFAULT_BRANCH"
+          - "release/*"
+          - "rel/*"
+        excludes: []
+      bypass_teams:
+        - root
+      restrict_deletion: true
+      restrict_force_push: true
