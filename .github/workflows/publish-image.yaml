@@ -14,19 +14,38 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Publish a Horizon UI container image to GHCR on:
+# Publish a multi-arch Horizon UI container image to GHCR on:
 #   - push to `main`  (tagged with `main` + the full commit SHA)
 #   - any `v*` tag    (tagged with the version + the full commit SHA)
 #
-# The full commit SHA is the canonical, immutable identifier — moving
-# tags like `main` and `vX.Y.Z` are conveniences that point at the same
-# SHA-built image. Operators should pull by SHA in production.
+# Architecture story
+#   The image is a pure copy-in of `./dist/` (no compile or network
+#   inside `docker build`). The `dist/node_modules/` carries `argon2`'s
+#   native binding — that binding is platform-specific, so a single
+#   amd64-built dist/ cannot be packaged into an arm64-correct image.
+#   We build each architecture on its own native GitHub runner
+#   (`ubuntu-latest` for amd64, `ubuntu-24.04-arm` for arm64), push a
+#   per-arch SHA-suffix tag, and a final `manifest` job stitches them
+#   into a single SHA-canonical OCI manifest list. Pulling the canonical
+#   tag from any host (Apple Silicon, AWS Graviton, plain x86_64)
+#   selects the right arch automatically — no Rosetta / QEMU emulation
+#   needed at run time.
 #
-# Only login / setup-qemu / setup-buildx are pulled from `docker/*` —
-# everything else (tag computation, buildx build+push) is shell-driven
-# to stay within ASF infra's third-party-action allow-list. SHAs are
-# the same ones `apache/skywalking`'s publish-docker.yaml uses, so
-# they're already vetted at the org level.
+# Tagging
+#   - `:<40-char-sha>`           always (canonical, immutable)
+#   - `:main`                    on push to main
+#   - `:<ver>` + `:latest`       on v* tags (ver = the tag with leading `v` stripped)
+#   - `:<major.minor>`           on v* tags (e.g. `1.2` from `v1.2.3`)
+#
+# Per-arch interim tags
+#   - `:<sha>-amd64` / `:<sha>-arm64` are also pushed so a debugger can
+#     pull a specific arch directly. The manifest job is the only thing
+#     that exposes the canonical tag without an arch suffix.
+#
+# Only login / setup-buildx / setup-node are pulled from third-party
+# actions — everything else (tag computation, buildx build+push,
+# manifest stitching) is shell-driven to stay within ASF infra's
+# third-party-action allow-list. SHAs are vetted at the org level.
 name: publish-image
 
 on:
@@ -45,22 +64,77 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-push:
+  # ── Compute tags once so the per-arch matrix + the manifest job all
+  # ── work from the same set without duplicating the shell math.
+  tags:
     if: github.repository == 'apache/skywalking-horizon-ui'
-    name: Build + push
+    name: Compute image tags
     runs-on: ubuntu-latest
+    outputs:
+      base: ${{ steps.tags.outputs.base }}
+      moving: ${{ steps.tags.outputs.moving }}
+    steps:
+      - id: tags
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository }}
+        run: |
+          set -eu
+          base="${REGISTRY}/${IMAGE_NAME}"
+          # lower-case the image path — GHCR rejects mixed-case names.
+          base="$(echo "$base" | tr '[:upper:]' '[:lower:]')"
+          sha="${{ github.sha }}"
+          # `moving` = the SET of canonical/moving tags the manifest
+          # job needs to stitch (one per `imagetools create -t ...`).
+          # Space-separated; consumers split on whitespace.
+          moving="${base}:${sha}"
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            moving="${moving} ${base}:main"
+          fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            ver="${GITHUB_REF_NAME#v}"
+            moving="${moving} ${base}:${ver} ${base}:latest"
+            mm="${ver%.*}"
+            if [ "${mm}" != "${ver}" ]; then
+              moving="${moving} ${base}:${mm}"
+            fi
+          fi
+          echo "base=${base}" >> "$GITHUB_OUTPUT"
+          echo "moving=${moving}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Canonical SHA: ${sha}"
+          echo "::notice::Moving tags: ${moving}"
+
+  # ── Per-arch native build. Each runner produces its own `./dist/`
+  # ── (with the correct argon2 native binding) and pushes
+  # ── `<base>:<sha>-<arch>`. The manifest job below stitches the
+  # ── `:<sha>-amd64` + `:<sha>-arm64` pair into the canonical tag set.
+  build:
+    if: github.repository == 'apache/skywalking-horizon-ui'
+    needs: tags
+    name: Build ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          # Free arm64 runners for public repos. If the org doesn't have
+          # them enabled, this matrix entry fails and the manifest job
+          # below short-circuits — fix is to either enable them on the
+          # org or drop arm64 here and accept Rosetta-emulation on Macs.
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
     env:
-      REGISTRY: ghcr.io
-      IMAGE_NAME: ${{ github.repository }}
+      BASE: ${{ needs.tags.outputs.base }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
-      # The Dockerfile is a pure copy-in of `./dist/` (no compile or
-      # network inside `docker build`). Build the artifact on the
-      # runner first; the image just lays it out under /app.
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -72,11 +146,12 @@ jobs:
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      - name: Build self-contained ./dist/
+      - name: Build self-contained ./dist/ (native ${{ matrix.arch }})
+        # `pnpm package` runs `pnpm deploy` whose `node_modules` contains
+        # the argon2 binding for the current runner's architecture.
+        # Running this on `ubuntu-24.04-arm` produces an arm64-correct
+        # tree; on `ubuntu-latest` it's amd64.
         run: pnpm package
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -84,59 +159,60 @@ jobs:
       - name: Log in to GHCR
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Compute image tags in shell so we don't need docker/metadata-action.
-      # Canonical = full 40-char SHA; moving tags layered per trigger.
-      - name: Compute image tags
-        id: tags
+      - name: Build + push (${{ matrix.arch }})
         run: |
           set -eu
-          base="${REGISTRY}/${IMAGE_NAME}"
-          # lower-case the image path — GHCR rejects mixed-case names.
-          base="$(echo "$base" | tr '[:upper:]' '[:lower:]')"
-          sha="${{ github.sha }}"
-          tags="-t ${base}:${sha}"
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            tags="${tags} -t ${base}:main"
-          fi
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            # Strip the leading `v` from `vX.Y.Z` for the semver tag.
-            ver="${GITHUB_REF_NAME#v}"
-            tags="${tags} -t ${base}:${ver} -t ${base}:latest"
-            # Bonus: major.minor (e.g. 1.2 from 1.2.3) for the common
-            # "track the minor line" usage. POSIX shell substitution.
-            mm="${ver%.*}"
-            if [ "${mm}" != "${ver}" ]; then
-              tags="${tags} -t ${base}:${mm}"
-            fi
-          fi
-          echo "IMAGE_BASE=${base}" >> "$GITHUB_ENV"
-          echo "TAG_ARGS=${tags}" >> "$GITHUB_ENV"
-          echo "tags=${tags}" >> "$GITHUB_OUTPUT"
-
-      - name: Build + push
-        run: |
-          set -eu
-          # Single-platform (linux/amd64) for now. The `./dist/` is built
-          # on the GitHub-hosted runner (linux/amd64), and `argon2` ships
-          # native bindings — cross-arch packaging would need a per-arch
-          # matrix of build jobs that each produce their own dist/ +
-          # platform-tagged image, then a buildx imagetools merge into a
-          # manifest list. Easy follow-up when arm64 demand is real.
           docker buildx build \
-            --platform linux/amd64 \
+            --platform ${{ matrix.platform }} \
             --file Dockerfile \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
             --label "org.opencontainers.image.revision=${{ github.sha }}" \
             --label "org.opencontainers.image.title=Apache SkyWalking Horizon UI" \
             --label "org.opencontainers.image.description=Next-generation web UI for Apache SkyWalking." \
             --label "org.opencontainers.image.licenses=Apache-2.0" \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            ${TAG_ARGS} \
+            --cache-from type=gha,scope=${{ matrix.arch }} \
+            --cache-to type=gha,mode=max,scope=${{ matrix.arch }} \
+            -t "${BASE}:${{ github.sha }}-${{ matrix.arch }}" \
             --push \
             .
-          echo "::notice::Published ${IMAGE_BASE}@sha=${{ github.sha }}"
+          echo "::notice::Pushed ${BASE}:${{ github.sha }}-${{ matrix.arch }}"
+
+  # ── Stitch the per-arch tags into a single OCI manifest list per
+  # ── canonical/moving tag. Pulling any of these tags from any host
+  # ── selects the matching arch automatically.
+  manifest:
+    if: github.repository == 'apache/skywalking-horizon-ui'
+    needs: [tags, build]
+    name: Stitch multi-arch manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      BASE: ${{ needs.tags.outputs.base }}
+      MOVING: ${{ needs.tags.outputs.moving }}
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list per moving tag
+        run: |
+          set -eu
+          amd="${BASE}:${{ github.sha }}-amd64"
+          arm="${BASE}:${{ github.sha }}-arm64"
+          for tag in ${MOVING}; do
+            echo "::group::Stitch ${tag}"
+            docker buildx imagetools create -t "${tag}" "${amd}" "${arm}"
+            docker buildx imagetools inspect "${tag}" | head -40
+            echo "::endgroup::"
+          done
+          echo "::notice::Published multi-arch manifest @sha=${{ github.sha }} (amd64+arm64)"
