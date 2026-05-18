@@ -22,22 +22,49 @@
 export type Verb = string;
 
 export const VERBS = {
+  // Public data reads — covered by `*:read` for the viewer baseline. Per-area
+  // verbs let an admin grant read on one area without granting all reads.
+  metricsRead: 'metrics:read',
+  alarmsRead: 'alarms:read',
+  tracesRead: 'traces:read',
+  logsRead: 'logs:read',
+  topologyRead: 'topology:read',
+  profileRead: 'profile:read',
+
+  // Operate writes
   ruleRead: 'rule:read',
   ruleWrite: 'rule:write',
   ruleWriteStructural: 'rule:write:structural',
   ruleDelete: 'rule:delete',
   ruleDebug: 'rule:debug',
-  clusterRead: 'cluster:read',
-  inspectRead: 'inspect:read',
   dashboardRead: 'dashboard:read',
   dashboardWrite: 'dashboard:write',
+  overviewRead: 'overview:read',
+  overviewWrite: 'overview:write',
+  setupRead: 'setup:read',
+  setupWrite: 'setup:write',
+  alarmSetupRead: 'alarm-setup:read',
+  alarmSetupWrite: 'alarm-setup:write',
+  alarmRuleRead: 'alarm-rule:read',
+  alarmRuleWrite: 'alarm-rule:write',
+  liveDebugRead: 'live-debug:read',
+  liveDebugWrite: 'live-debug:write',
+  /** Single verb covering task-creation across all profiling families
+   *  (agent / async / pprof / eBPF cpu / eBPF network). Reads ride on
+   *  `*:read` via `profile:read`. */
+  profileEnable: 'profile:enable',
+
+  // Platform monitoring (read-only screens that focus on OAP itself).
+  clusterRead: 'cluster:read',
+  inspectRead: 'inspect:read',
+
+  // Admin surface
   userRead: 'user:read',
   userWrite: 'user:write',
   roleRead: 'role:read',
   roleWrite: 'role:write',
+  authRead: 'auth:read',
   auditRead: 'audit:read',
-  alarmRuleRead: 'alarm-rule:read',
-  alarmRuleWrite: 'alarm-rule:write',
   admin: 'admin',
 } as const;
 
@@ -46,12 +73,15 @@ export type KnownVerb = (typeof VERBS)[keyof typeof VERBS];
 function matchOne(grant: Verb, required: Verb): boolean {
   if (grant === '*' || grant === 'admin') return true;
   if (grant === required) return true;
-  // `area:*` matches any verb in that area
-  const [grantArea, grantAction] = grant.split(':', 2);
-  const [reqArea, reqAction] = required.split(':', 2);
-  if (grantAction === '*' && grantArea === reqArea) return true;
-  // `*:action` matches any area for that action
-  if (grantArea === '*' && grantAction === reqAction) return true;
+  // `area:*` matches any verb in that area (and any sub-action — `rule:*` covers `rule:write:structural`)
+  const [grantArea, grantAction, grantSub] = grant.split(':', 3);
+  const [reqArea, reqAction, reqSub] = required.split(':', 3);
+  if (grantArea === reqArea && grantAction === '*') return true;
+  // `*:action` matches that action in any area
+  if (grantArea === '*' && grantAction === reqAction && (grantSub ?? '') === (reqSub ?? '')) return true;
+  // Sub-action exact match (e.g. grant `rule:write:structural` only matches itself)
+  if (grantArea === reqArea && grantAction === reqAction && (grantSub ?? '') === (reqSub ?? ''))
+    return true;
   return false;
 }
 

@@ -15,20 +15,35 @@
  * limitations under the License.
  */
 
-/**
- * Verb-check helper consumed by the auth middleware. The actual Fastify
- * pre-handlers live in `user/middleware.ts` — this file only knows about
- * resolving a session's effective verbs against the role policy table.
- */
+import type { BffClient } from '../client';
 
-import type { HorizonConfig } from '../config/schema.js';
-import { hasVerb, resolveVerbsForRoles } from './verbs.js';
+export interface AdminUserRow {
+  username: string;
+  source: 'local' | 'ldap' | 'break-glass';
+  roles: string[];
+  lastSeenAt: number | null;
+  lastIp: string | null;
+  staticOnly: boolean;
+  fallbackOnly: boolean;
+}
 
-export function sessionHasVerb(
-  config: HorizonConfig,
-  roles: readonly string[],
-  required: string,
-): boolean {
-  const verbs = resolveVerbsForRoles(config.rbac.roles, roles, config.rbac.enabled);
-  return hasVerb(verbs, required);
+export interface AdminUsersResponse {
+  generatedAt: number;
+  backend: 'local' | 'ldap';
+  rows: AdminUserRow[];
+  counts: {
+    total: number;
+    fromLdap: number;
+    local: number;
+    activeLast24h: number;
+  };
+}
+
+/** `bff.adminUsers` — read-only user listing (LDAP + local fallback). */
+export class AdminUsersApi {
+  constructor(private readonly bff: BffClient) {}
+
+  list(): Promise<AdminUsersResponse> {
+    return this.bff.request<AdminUsersResponse>('GET', '/api/admin/users');
+  }
 }

@@ -16,13 +16,16 @@
  */
 
 /**
- * Cluster state — fan-out `/runtime/rule/list` to every configured OAP
- * admin URL and pivot the result into a per-rule × per-node matrix the
- * SPA renders directly.
+ * Runtime-rule cluster snapshot.
  *
- * The fan-out runs in parallel; one slow node doesn't delay the
- * others. Per-node failures are captured (so the operator can see
- * which node is unreachable) without failing the whole call.
+ * The BFF fires a single `/runtime/rule/list` to `oap.adminUrl` and
+ * exposes the result. OAP routes rule operations cluster-internally, so
+ * one node's list is the cluster's list — we don't fan out on the BFF
+ * side. The previous "per-node convergence" view was retired alongside
+ * the `adminUrls: [...]` → `adminUrl: string` config rename; if you
+ * need per-node visibility for runtime rules, that's an OAP-side
+ * feature ask (cluster routes already exist for `/dsl-debugging/status`
+ * which the BFF probes via DNS lookup on `adminUrl`).
  */
 
 import type {
@@ -34,118 +37,57 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { OapClients } from './index.js';
 
-export interface NodeListResult {
-  url: string;
-  envelope: ListEnvelope | null;
-  /** Set when `envelope === null`. */
-  error?: string;
-}
-
-export interface ClusterRulePerNode {
+export interface ClusterRuleRow {
+  catalog: Catalog;
+  name: string;
   status: RuleStatus | null;
   localState: LocalState | null;
   contentHash: string | null;
   lastApplyError: string;
 }
 
-export interface ClusterRule {
-  catalog: Catalog;
-  name: string;
-  /** True iff every responding node has this rule with the same
-   *  contentHash. False when any node is missing the rule, or any two
-   *  nodes disagree on contentHash. */
-  converged: boolean;
-  /** Map of admin URL → per-node state. A node that responded but
-   *  doesn't have the rule appears with `status: null`. A node that
-   *  didn't respond at all is omitted (its top-level `nodes[i].ok`
-   *  surfaces the failure). */
-  perNode: Record<string, ClusterRulePerNode>;
-}
-
 export interface ClusterStateResponse {
   generatedAt: number;
-  /** Per-node availability summary. Includes every configured admin
-   *  URL, even when the node didn't respond. */
-  nodes: { url: string; ok: boolean; error?: string }[];
-  rules: ClusterRule[];
+  /** The admin URL the BFF fired against. The response is the cluster's
+   *  rule list — OAP itself handles inter-node routing. */
+  adminUrl: string;
+  /** True iff the list call succeeded. */
+  ok: boolean;
+  /** Populated when `ok === false`. */
+  error?: string;
+  rules: ClusterRuleRow[];
 }
 
-/** Fan-out helper. Returns a per-node array preserving the input
- *  order; failed nodes have `envelope: null` + `error`. */
-export async function fetchPerNode(clients: OapClients): Promise<NodeListResult[]> {
-  const urls = clients.adminUrls();
-  return Promise.all(
-    urls.map(async (url): Promise<NodeListResult> => {
-      try {
-        const envelope = await clients.forUrl(url).list();
-        return { url, envelope };
-      } catch (err) {
-        return {
-          url,
-          envelope: null,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    }),
-  );
-}
-
-/** Pivot per-node `/list` envelopes into a per-rule matrix. Pure —
- *  takes the fan-out result and returns the response shape. */
-export function pivotClusterState(
-  perNode: NodeListResult[],
-  generatedAt: number = Date.now(),
-): ClusterStateResponse {
-  const respondingUrls = perNode.filter((n) => n.envelope !== null).map((n) => n.url);
-
-  const seen = new Map<string, ClusterRule>();
-  for (const node of perNode) {
-    if (!node.envelope) continue;
-    for (const rule of node.envelope.rules) {
-      const key = `${rule.catalog}/${rule.name}`;
-      let entry = seen.get(key);
-      if (!entry) {
-        entry = {
-          catalog: rule.catalog,
-          name: rule.name,
-          converged: false, // computed below
-          perNode: {},
-        };
-        seen.set(key, entry);
-      }
-      entry.perNode[node.url] = {
-        status: rule.status,
-        localState: rule.localState,
-        contentHash: rule.contentHash,
-        lastApplyError: extractLastApplyError(rule),
-      };
-    }
+export async function fetchClusterState(clients: OapClients): Promise<ClusterStateResponse> {
+  const adminUrl = clients.adminUrl();
+  const generatedAt = Date.now();
+  let envelope: ListEnvelope;
+  try {
+    envelope = await clients.primary().list();
+  } catch (err) {
+    return {
+      generatedAt,
+      adminUrl,
+      ok: false,
+      error: err instanceof Error ? err.message : String(err),
+      rules: [],
+    };
   }
-
-  // Convergence pass — all responding nodes must have the rule with the
-  // same contentHash.
-  for (const entry of seen.values()) {
-    const presentOn = Object.keys(entry.perNode);
-    if (presentOn.length !== respondingUrls.length) {
-      entry.converged = false;
-      continue;
-    }
-    const hashes = new Set(Object.values(entry.perNode).map((p) => p.contentHash));
-    entry.converged = hashes.size === 1;
-  }
-
   return {
     generatedAt,
-    nodes: perNode.map((n) => ({
-      url: n.url,
-      ok: n.envelope !== null,
-      ...(n.error !== undefined ? { error: n.error } : {}),
+    adminUrl,
+    ok: true,
+    rules: envelope.rules.map((rule) => ({
+      catalog: rule.catalog,
+      name: rule.name,
+      status: rule.status,
+      localState: rule.localState,
+      contentHash: rule.contentHash,
+      lastApplyError: extractLastApplyError(rule),
     })),
-    rules: [...seen.values()],
   };
 }
 
 function extractLastApplyError(row: ListRow): string {
-  // Operator-pushed rows carry the field; bundled / orphan rows don't.
   return 'lastApplyError' in row ? row.lastApplyError : '';
 }

@@ -19,8 +19,11 @@ import type { ClusterNode, ClusterNodesResponse } from './types.js';
 import type { FetchLike } from './runtime-rule.js';
 
 export interface StatusClientOptions {
-  /** OAP query/status URL, default port 12800. No trailing slash. */
-  statusUrl: string;
+  /** OAP query host URL (serves GraphQL + `/status/*`), default port
+   *  12800. No trailing slash. Named `queryUrl` because the same OAP
+   *  HTTP server hosts both the query (GraphQL) and status surfaces;
+   *  StatusClient just hits the `/status/*` subset. */
+  queryUrl: string;
   fetch?: FetchLike;
   headers?: Record<string, string>;
   /** Per-call timeout in ms. 0 disables. Default 0. */
@@ -48,7 +51,7 @@ export class StatusClient {
 
   constructor(options: StatusClientOptions) {
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
-    this.base = options.statusUrl.replace(/\/$/, '');
+    this.base = options.queryUrl.replace(/\/$/, '');
     this.defaultHeaders = options.headers ?? {};
     this.timeoutMs = options.timeoutMs ?? 0;
   }

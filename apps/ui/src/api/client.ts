@@ -64,6 +64,8 @@ import { InspectApi } from './scopes/inspect';
 import { AlarmsApi } from './scopes/alarms';
 import { LayerTemplatesApi } from './scopes/layer-template';
 import { ConfigsApi } from './scopes/configs';
+import { AdminAuthApi } from './scopes/admin-auth';
+import { AdminUsersApi } from './scopes/admin-users';
 
 // ── Wire types re-exported from @skywalking-horizon-ui/api-client ────
 // Re-exported so consumers can import everything from this module.
@@ -206,6 +208,9 @@ export interface MeResponse {
   username: string;
   roles: string[];
   verbs: string[];
+  /** Server-suggested landing route based on the user's role. The
+   *  router uses this on fresh login when no `?redirect=` is set. */
+  landingRoute?: string;
 }
 
 /** Wire shape returned by GET /api/admin/layer-templates. */
@@ -606,6 +611,8 @@ export class BffClient {
   readonly alarms = new AlarmsApi(this);
   readonly layerTemplates = new LayerTemplatesApi(this);
   readonly configs = new ConfigsApi(this);
+  readonly adminAuth = new AdminAuthApi(this);
+  readonly adminUsers = new AdminUsersApi(this);
 }
 
 export const bffClient = new BffClient();

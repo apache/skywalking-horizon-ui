@@ -22,7 +22,10 @@ import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { AuditLogger } from './audit/logger.js';
 import { SessionStore } from './user/sessions.js';
-import { loadConfig, type ConfigSource } from './config/loader.js';
+import { LdapHealth } from './user/ldap-health.js';
+import { UserSeenCache } from './user/seen-cache.js';
+import { loadConfig, type ConfigSource, BootstrapError } from './config/loader.js';
+import { makeRouteAuthHook } from './rbac/route-policy.js';
 // User
 import { registerAuthRoutes } from './http/user.js';
 // Query (read-only data from OAP)
@@ -60,6 +63,9 @@ import { registerDebugRoutes } from './http/admin/live-debug.js';
 import { registerInspectRoutes } from './http/admin/inspect.js';
 import { registerAlarmRulesRoutes } from './http/admin/alarm-rules.js';
 import { registerOverviewTemplatesAdminRoutes } from './http/admin/overview-templates.js';
+import { registerAuthStatusRoutes } from './http/admin/auth-status.js';
+import { registerAdminUsersRoute } from './http/admin/users.js';
+import { registerAuthHealthRoute } from './http/auth-health.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
 import { SetupStore } from './logic/setup/store.js';
@@ -69,9 +75,29 @@ import { logger, loggerOptions } from './logger.js';
 
 const configPath = process.env.HORIZON_CONFIG ?? './horizon.yaml';
 
-const source: ConfigSource = loadConfig(configPath);
-logger.info({ configPath: source.path }, 'config loaded');
-source.onChange((cfg) => logger.info({ users: cfg.auth.local.users.length }, 'config reloaded'));
+let source: ConfigSource;
+try {
+  source = loadConfig(configPath);
+} catch (err) {
+  if (err instanceof BootstrapError) {
+    // Fail loud — a misconfigured deployment must not silently start
+    // with no auth backend wired.
+    logger.fatal({ err: err.message, configPath }, 'BFF refusing to start: bootstrap validation failed');
+    process.exit(1);
+  }
+  throw err;
+}
+logger.info(
+  { configPath: source.path, backend: source.current.auth.backend },
+  'config loaded',
+);
+if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.length > 0) {
+  logger.warn(
+    { users: source.current.auth.local.users.length },
+    'auth.local.users is populated but auth.backend is "ldap"; local users are ignored',
+  );
+}
+source.onChange((cfg) => logger.info({ backend: cfg.auth.backend }, 'config reloaded'));
 
 const app = Fastify({ logger: loggerOptions });
 
@@ -87,6 +113,8 @@ app.setErrorHandler((err, _req, reply) => {
 const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
 const audit = new AuditLogger(source.current.audit.file);
 await audit.open();
+const ldapHealth = new LdapHealth();
+const seenCache = new UserSeenCache();
 const setupStore = new SetupStore(source.current.setup.file);
 await setupStore.load();
 const alarmsStore = new AlarmsStore(source.current.alarms.file);
@@ -99,8 +127,14 @@ await app.register(cookie);
 // Text/plain body parser — the rule editor sends raw YAML to /api/rule.
 app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_req, body, done) => done(null, body));
 
+// Auto-apply RBAC pre-handlers to every route as it's registered. Must
+// be added BEFORE the route registrations below — onRoute fires for
+// each subsequent app.get/post/...
+app.addHook('onRoute', makeRouteAuthHook({ config: source, sessions }));
+
 // ── User ───────────────────────────────────────────────────────────
-registerAuthRoutes(app, source, sessions, audit);
+registerAuthRoutes(app, { config: source, sessions, audit, ldapHealth, seenCache });
+registerAuthHealthRoute(app, { config: source, ldapHealth });
 
 // ── Query ──────────────────────────────────────────────────────────
 registerOapInfoRoute(app, { config: source, sessions });
@@ -139,6 +173,8 @@ registerDebugRoutes(app, { config: source, sessions, audit });
 registerInspectRoutes(app, { config: source, sessions, audit });
 registerAlarmRulesRoutes(app, { config: source, sessions });
 registerOverviewTemplatesAdminRoutes(app, { config: source, sessions });
+registerAuthStatusRoutes(app, { config: source, ldapHealth, sessions });
+registerAdminUsersRoute(app, { config: source, seenCache });
 
 // Serve the built SPA out of the BFF when HORIZON_STATIC_DIR points at a
 // directory (Docker image layout: /app/static contains the Vite dist).

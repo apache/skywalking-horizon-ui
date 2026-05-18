@@ -32,7 +32,7 @@
      padding — context only, not in the threshold check.
 -->
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import {
@@ -123,6 +123,24 @@ function fmtMinute(ts: number): string {
   return `${h}:${m}`;
 }
 
+/** Caption shown above the chart canvas — mirrors what the shaded
+ *  band represents. Reactive so it tracks the snapshot's bucket
+ *  count + the admin-fetched rule period when either changes. */
+const windowCaption = computed<string>(() => {
+  const bucketCount = Math.max(
+    ...props.metric.results.map((r) => r.values.length),
+    0,
+  );
+  if (bucketCount === 0) return '';
+  const haveRulePeriod = !!(
+    props.rulePeriod && props.rulePeriod > 0 && props.rulePeriod <= bucketCount
+  );
+  const minutes = haveRulePeriod ? props.rulePeriod! : bucketCount;
+  return haveRulePeriod
+    ? `rule window · ${minutes}m`
+    : `snapshot window · ${minutes}m`;
+});
+
 function buildOption(): echarts.EChartsCoreOption {
   const { series, bucketCount, latestMinute } = buildSeries();
   const startMin = latestMinute - (bucketCount - 1) * MINUTE_MS;
@@ -157,9 +175,6 @@ function buildOption(): echarts.EChartsCoreOption {
   const windowMinutes = haveRulePeriod ? props.rulePeriod! : bucketCount;
   const winStart = latestMinute - windowMinutes * MINUTE_MS;
   const winEnd = latestMinute;
-  const winLabel = haveRulePeriod
-    ? `rule window (${windowMinutes}m)`
-    : `snapshot window (${windowMinutes}m)`;
   const markArea = {
     silent: true,
     itemStyle: {
@@ -168,14 +183,11 @@ function buildOption(): echarts.EChartsCoreOption {
       borderWidth: 1,
       borderType: 'dashed',
     },
-    label: {
-      show: true,
-      position: 'insideTop',
-      color: 'rgba(249,115,22,0.95)',
-      fontSize: 10,
-      fontWeight: 600,
-      formatter: winLabel,
-    },
+    /* Label is rendered OUTSIDE the chart canvas (see the caption
+     * above the container in the template) so it doesn't crowd the
+     * y-axis labels or sit on top of data lines. The markArea only
+     * paints the shaded region itself. */
+    label: { show: false },
     data: [[{ xAxis: winStart }, { xAxis: winEnd }]],
   };
 
@@ -303,10 +315,25 @@ watch(
 </script>
 
 <template>
-  <div ref="container" class="alarm-snapshot" :style="{ height: `${height}px` }" />
+  <div class="alarm-snapshot-wrap">
+    <div v-if="windowCaption" class="alarm-snapshot__caption">{{ windowCaption }}</div>
+    <div ref="container" class="alarm-snapshot" :style="{ height: `${height}px` }" />
+  </div>
 </template>
 
 <style scoped>
+.alarm-snapshot-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alarm-snapshot__caption {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-accent);
+  font-weight: 600;
+}
 .alarm-snapshot {
   width: 100%;
 }

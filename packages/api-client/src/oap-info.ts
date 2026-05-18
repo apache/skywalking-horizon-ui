@@ -25,7 +25,7 @@
 
 export interface OapInfo {
   reachable: boolean;
-  statusUrl: string;
+  queryUrl: string;
   /** OAP build version. */
   version?: string;
   /** Raw OAP timezone string in `±HHmm` form (e.g. `+0000`, `+0800`, `-0530`).

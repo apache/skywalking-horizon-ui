@@ -14,66 +14,186 @@
 # limitations under the License.
 
 # Copy this file to `horizon.yaml` and edit. Hot-reload picks up changes.
+#
+# Env-var interpolation: `${VAR}` or `${VAR:default}` is expanded BEFORE
+# YAML parsing. Use the `:default` form for non-secret values; for
+# secrets prefer the bare `${VAR}` form so a missing env var fails loud
+# instead of silently falling back to a placeholder.
 
 server:
   host: 127.0.0.1
   port: 8081
 
 oap:
-  # OAP admin host (port 17128 by default; runtime-rule / dsl-debugging / inspect / status live here).
-  adminUrls:
-    - http://127.0.0.1:17128
-  # OAP query/status host (port 12800 by default; GraphQL + /status/*).
-  statusUrl: http://127.0.0.1:12800
+  # OAP query host (port 12800 by default; GraphQL + /status/*). One URL
+  # because query traffic is load-balanceable — any OAP node can answer.
+  queryUrl: http://127.0.0.1:12800
+  # OAP admin host (port 17128 by default; runtime-rule / dsl-debugging
+  # / inspect / status live here). Single URL — point it at a DNS name
+  # or VIP fronting your OAP cluster. Runtime-rule lists hit it once
+  # (OAP routes cluster-internal); per-node live-debug status uses a
+  # DNS lookup on the hostname to discover all node IPs and probes each.
+  adminUrl: http://127.0.0.1:17128
   # OAP's Zipkin v2 REST host. Defaults to a standalone port (9412 +
   # /zipkin) per the upstream Armeria binding. When OAP is configured
   # to share the GraphQL port (typical for the demo / k8s deploys),
-  # use `<statusUrl>/zipkin` instead. Used by the Zipkin-source trace
-  # views on mesh / k8s layers.
+  # use `<queryUrl>/zipkin` instead.
   zipkinUrl: http://127.0.0.1:9412/zipkin
   timeoutMs: 15000
-  # Optional basic-auth credentials for outbound OAP calls (GraphQL,
-  # /status, Zipkin /api/v2/*). The public demo at
-  # `demo.skywalking.apache.org` gates traffic behind
-  # skywalking:skywalking — set both fields below to use it.
+  # Optional basic-auth credentials for outbound OAP calls.
   # auth:
   #   username: skywalking
   #   password: skywalking
 
+# ────────────────────────────────────────────────────────────────────
+# Authentication
+#
+# Pick ONE backend: `local` or `ldap`. The other block can stay
+# populated for break-glass / future use, but it's IGNORED. If you set
+# `backend: ldap` and leave `auth.local.users` populated, a warning is
+# logged at startup.
+#
+# Bootstrap rule: if `backend: local` and `auth.local.users` is empty,
+# OR `backend: ldap` and `auth.ldap` is missing / `groupMappings` empty,
+# the BFF refuses to start. There is no "default admin/admin" password.
+# Generate hashes with:   pnpm --filter bff cli:hash
+# ────────────────────────────────────────────────────────────────────
 auth:
   backend: local
+
   local:
     users: []
-    # Example user (generate the argon2 hash with `pnpm --filter bff cli:hash`):
     # - username: admin
     #   passwordHash: "$argon2id$v=19$..."
     #   roles: [admin]
 
+  # ── LDAP ──────────────────────────────────────────────────────────
+  # Required when `backend: ldap`. Passwords are never stored or read
+  # from the directory — login binds AS the user with their typed
+  # password, and group membership maps to a Horizon role via
+  # `groupMappings` (first match wins, multiple matches union).
+  # ldap:
+  #   url: ldaps://ldap.corp:636
+  #   bindDn: "cn=horizon,ou=services,dc=corp"
+  #   # `${VAR}` (required) or `${VAR:default}` (optional). Leave empty
+  #   # for anonymous service-bind (only works if the directory permits
+  #   # anonymous searches).
+  #   bindPassword: "${HORIZON_LDAP_BIND_PW}"
+  #   userBaseDn: "ou=people,dc=corp"
+  #   # `{username}` is substituted with the typed username (RFC 4515
+  #   # escaped). Use `(sAMAccountName={username})` for AD.
+  #   userFilter: "(uid={username})"
+  #   displayNameAttr: cn
+  #   # `memberOf` reads the attr off the user entry (AD-style);
+  #   # `search` searches `groupBaseDn` for the user's DN (OpenLDAP-style).
+  #   groupStrategy: memberOf
+  #   groupBaseDn: ""        # only used when groupStrategy: search
+  #   memberAttr: member     # only used when groupStrategy: search
+  #   timeoutMs: 5000
+  #   tlsInsecure: false     # set true only for dev with self-signed certs
+  #   groupMappings:
+  #     - group: "cn=horizon-admin,ou=groups,dc=corp"
+  #       role: admin
+  #     - group: "cn=sre,ou=groups,dc=corp"
+  #       role: operator
+  #     - group: "cn=platform,ou=groups,dc=corp"
+  #       role: maintainer
+  #     - group: "*"           # fallback for every authenticated user
+  #       role: viewer
+
+  # ── Break-glass ───────────────────────────────────────────────────
+  # Optional local admin credential honored ONLY when:
+  #   - backend: ldap, AND
+  #   - the LDAP probe is currently failing.
+  # Every successful break-glass login is audited at WARN level. Leave
+  # commented out to disable.
+  # breakGlass:
+  #   username: emergency-admin
+  #   passwordHash: "${HORIZON_BREAK_GLASS_HASH}"
+  #   roles: [admin]
+
+# ────────────────────────────────────────────────────────────────────
+# RBAC: four built-in roles. Verbs are dot-namespaced; `*:read` grants
+# every read across all areas, `area:*` grants every action in one area,
+# `*` grants everything. Routes are gated by a single policy table on
+# the BFF — see `apps/bff/src/rbac/route-policy.ts`.
+# ────────────────────────────────────────────────────────────────────
 rbac:
-  enabled: false
+  enabled: true
   roles:
-    viewer: ["*:read"]
-    editor: ["*:read", "rule:write", "rule:debug", "inspect:read"]
-    admin: ["*"]
+    # Data catalog only. Deliberately NOT `*:read` so a viewer can't
+    # accidentally see rule definitions, live-debug sessions, setup
+    # screens, or platform internals.
+    viewer:
+      - metrics:read
+      - alarms:read
+      - traces:read
+      - logs:read
+      - topology:read
+      - profile:read
+
+    # Viewer + platform monitoring (OAP cluster + module inspector).
+    maintainer:
+      - metrics:read
+      - alarms:read
+      - traces:read
+      - logs:read
+      - topology:read
+      - profile:read
+      - cluster:read
+      - inspect:read
+
+    # Configures observability: dashboards, alarm rules, DSL/OAL,
+    # diagnostics, profiling. Inherits viewer + platform reads so the
+    # operator can verify their edits against live data.
+    operator:
+      - metrics:read
+      - alarms:read
+      - traces:read
+      - logs:read
+      - topology:read
+      - profile:read
+      - cluster:read
+      - inspect:read
+      - overview:read
+      - overview:write
+      - setup:read
+      - setup:write
+      - dashboard:read
+      - dashboard:write
+      - alarm-setup:read
+      - alarm-setup:write
+      - alarm-rule:read
+      - alarm-rule:write
+      - rule:read
+      - rule:write
+      - rule:write:structural
+      - rule:delete
+      - rule:debug
+      - live-debug:read
+      - live-debug:write
+      - profile:enable
+
+    admin:
+      - "*"
+  # Where each role lands after login. First role on the user wins.
+  landingByRole:
+    viewer: /
+    maintainer: /admin/cluster
+    operator: /
+    admin: /admin/cluster
 
 session:
   ttlMinutes: 60
   cookieName: horizon_sid
-  cookieSecure: false
+  cookieSecure: false           # set true behind HTTPS
 
 audit:
   file: ./horizon-audit.jsonl
 
-# Per-layer setup overrides (priority / slots / caps / landing card config)
-# persist here. Until OAP-side template management lands, this file is the
-# source of truth for operator customization.
 setup:
   file: ./horizon-setup.json
 
-# Alarm-page setup — which OAP layers' RPM traffic is drawn as the
-# background series on /alarms, and what MQE to fire per layer.
-# Operators edit the saved file through the Alert Page Setup admin
-# view; this section just tells the BFF where to keep the file.
 alarms:
   file: ./horizon-alarms.json
 

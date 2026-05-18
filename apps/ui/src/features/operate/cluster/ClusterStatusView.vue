@@ -130,7 +130,7 @@ function refreshAll(): void {
           <div class="sw-card-head"><h4>Version</h4></div>
           <div class="kpi-body">
             <div class="kpi-value">{{ version ?? '—' }}</div>
-            <div class="kpi-label">{{ reachable ? info?.statusUrl : 'OAP unreachable' }}</div>
+            <div class="kpi-label">{{ reachable ? info?.queryUrl : 'OAP unreachable' }}</div>
           </div>
         </div>
 

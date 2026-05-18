@@ -16,11 +16,10 @@
  */
 
 /**
- * `GET /api/cluster/state` — fan-out `/runtime/rule/list` to every
- * configured OAP admin URL and pivot the result into the per-rule ×
- * per-node matrix the SPA renders. Gated on `cluster:read`. Not part
- * of the DSL family proper — kept here under admin/ because it shares
- * the same OAP-admin auth surface.
+ * `GET /api/cluster/state` — fires `/runtime/rule/list` once against the
+ * configured OAP admin URL and returns the cluster rule list. OAP itself
+ * handles cluster-internal routing for runtime rules, so a single fire
+ * to any one node returns the cluster view. Gated on `cluster:read`.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -29,7 +28,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { ensureVerb, makeClients } from './dsl/_shared.js';
-import { fetchPerNode, pivotClusterState } from '../../client/cluster.js';
+import { fetchClusterState } from '../../client/cluster.js';
 import type { AuditLogger } from '../../audit/logger.js';
 
 export interface ClusterRouteDeps {
@@ -47,8 +46,7 @@ export function registerClusterRoutes(app: FastifyInstance, deps: ClusterRouteDe
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!ensureVerb(req, reply, deps, 'cluster:read')) return;
-      const perNode = await fetchPerNode(clients());
-      return reply.send(pivotClusterState(perNode));
+      return reply.send(await fetchClusterState(clients()));
     },
   );
 }

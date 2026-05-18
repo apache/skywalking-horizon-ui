@@ -211,8 +211,21 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'overview-templates',
     component: () => import('@/features/admin/overview-templates/OverviewTemplatesAdmin.vue'),
   },
-  { path: 'admin/users', component: placeholder, props: { title: 'Users', phase: 'Phase 7' } },
-  { path: 'admin/roles', component: placeholder, props: { title: 'Roles & permissions', phase: 'Phase 7' } },
+  {
+    path: 'admin/users',
+    name: 'admin-users',
+    component: () => import('@/features/admin/users/UsersAdminView.vue'),
+  },
+  {
+    path: 'admin/auth-status',
+    name: 'admin-auth-status',
+    component: () => import('@/features/admin/auth-status/AuthStatusView.vue'),
+  },
+  {
+    path: 'admin/roles',
+    name: 'admin-roles',
+    component: () => import('@/features/admin/roles/RolesView.vue'),
+  },
 ];
 
 const router = createRouter({

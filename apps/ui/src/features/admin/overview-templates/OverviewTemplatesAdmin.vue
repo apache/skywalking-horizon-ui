@@ -76,12 +76,14 @@ watch(
 const newDashOpen = ref(false);
 const newDashId = ref('');
 const newDashTitle = ref('');
+const newDashDescription = ref('');
 const newDashError = ref<string | null>(null);
 
 function openNewDash(): void {
   newDashOpen.value = true;
   newDashId.value = '';
   newDashTitle.value = '';
+  newDashDescription.value = '';
   newDashError.value = null;
 }
 function cancelNewDash(): void {
@@ -108,7 +110,13 @@ async function createDash(): Promise<void> {
     return;
   }
   try {
-    await bff.overview.adminCreate({ id, title, widgets: [] });
+    const description = newDashDescription.value.trim();
+    await bff.overview.adminCreate({
+      id,
+      title,
+      ...(description ? { description } : {}),
+      widgets: [],
+    });
     await listQuery.refetch();
     selectedId.value = id;
     newDashOpen.value = false;
@@ -471,6 +479,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
           @click="selectedId = d.id"
         >
           <div class="ot__list-title">{{ d.title }}</div>
+          <div v-if="d.description" class="ot__list-desc">{{ d.description }}</div>
           <div class="ot__list-meta">
             <code>{{ d.id }}</code>
             <span>{{ d.widgetCount }} widget{{ d.widgetCount === 1 ? '' : 's' }}</span>
@@ -504,6 +513,15 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                 class="ot__in"
                 placeholder="My overview"
                 @keyup.enter="createDash"
+              />
+            </label>
+            <label class="ot__field ot__field--wide">
+              <span>Description (optional)</span>
+              <textarea
+                v-model="newDashDescription"
+                class="ot__in ot__in--ta"
+                rows="2"
+                placeholder="Short, one-paragraph description shown under the dashboard title."
               />
             </label>
             <div v-if="newDashError" class="ot__newdash-err">{{ newDashError }}</div>
@@ -551,6 +569,30 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
           </header>
 
           <div v-if="viewMode === 'config'" class="ot__widgets">
+            <!-- Dashboard-level meta: title + description. These show
+                 on every page that references the dashboard (sidebar
+                 list, sub-heading on the page itself, admin list).
+                 Description is optional but recommended. -->
+            <section class="ot__meta">
+              <header class="ot__meta-head">
+                <span class="ot__meta-kicker">Dashboard meta</span>
+                <span class="ot__meta-hint">Shown in the sidebar and as the page sub-heading.</span>
+              </header>
+              <label class="ot__field">
+                <span>Title</span>
+                <input v-model="draft.title" type="text" class="ot__in" />
+              </label>
+              <label class="ot__field ot__field--wide">
+                <span>Description</span>
+                <textarea
+                  v-model="draft.description"
+                  class="ot__in ot__in--ta"
+                  rows="3"
+                  placeholder="Short, one-paragraph description shown under the dashboard title."
+                />
+              </label>
+            </section>
+
             <article
               v-for="(w, wi) in draft.widgets"
               :key="w.id"
@@ -1264,8 +1306,63 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 .ot__in--mono { font-family: var(--sw-mono); }
 .ot__in--num { width: 80px; font-variant-numeric: tabular-nums; }
 .ot__in--xnum { width: 48px; font-variant-numeric: tabular-nums; }
+.ot__in--ta {
+  /* Textarea variant of `.ot__in`. Three lines is the sweet spot for a
+     description paragraph — enough to read the whole sentence without
+     scrolling, not so tall it pushes the widget list down. The base
+     `.ot__in` 4px vertical padding is cramped for multi-line text;
+     restore comfortable line-height + padding here. */
+  width: 100%;
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 1.5;
+  font-family: var(--sw-sans);
+  font-size: 12px;
+}
 .ot__field input[type='checkbox'] { width: 14px; height: 14px; margin: 4px 0 0; cursor: pointer; }
 .ot__none { color: var(--sw-fg-3); font-size: 11px; }
+
+/* Dashboard-level meta card (sits above the widget list). */
+.ot__meta {
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ot__meta-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.ot__meta-kicker {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sw-fg-3);
+  font-weight: 700;
+}
+.ot__meta-hint {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+}
+
+/* Sub-title (description preview) in the dashboard list. */
+.ot__list-desc {
+  margin-top: 3px;
+  color: var(--sw-fg-2);
+  font-size: 11px;
+  line-height: 1.4;
+  /* Clamp to two lines so long descriptions don't push the meta row
+     off-screen. Falls back gracefully on browsers without -webkit-line-clamp. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 /* KPI sub-table */
 .ot__kpis {

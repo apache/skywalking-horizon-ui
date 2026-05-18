@@ -283,5 +283,5 @@ export interface MenuResponse {
   layers: LayerDef[];
   generatedAt: number;
   /** Best-effort status of the upstream OAP query host. */
-  oap: { reachable: boolean; statusUrl: string; error?: string };
+  oap: { reachable: boolean; queryUrl: string; error?: string };
 }

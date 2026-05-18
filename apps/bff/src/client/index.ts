@@ -52,19 +52,18 @@ export interface OapClients {
    *  and collect both fan-out internally on the OAP side; Studio
    *  hits one node and lets OAP do the cluster work. */
   debug(): DslDebuggingClient;
-  /** Build a DSL-debugging client for one specific admin URL — used
-   *  by the per-node fan-out for `/dsl-debugging/status`. */
+  /** Build a DSL-debugging client for one specific URL — used by the
+   *  DNS-resolved per-IP fan-out for `/dsl-debugging/status`. */
   debugForUrl(adminUrl: string): DslDebuggingClient;
   /** Inspect API client (SWIP-14) — metadata-only catalog + entity
-   *  enumeration. Identical across nodes (storage is shared), so we
-   *  bind to the first admin URL. */
+   *  enumeration. */
   inspect(): InspectClient;
-  /** Alarm-status client — `/status/alarm/*` admin REST. The handler
-   *  internally fans out to peer OAP nodes via gRPC, so we only need
-   *  to hit the primary URL. */
+  /** Alarm-status client — `/status/alarm/*` admin REST. OAP itself
+   *  aggregates cluster-wide; one fire is enough. */
   alarmStatus(): AlarmStatusClient;
-  /** All admin URLs, in config order. */
-  adminUrls(): readonly string[];
+  /** The configured admin URL (single). DNS-resolved on demand by
+   *  features that want per-node visibility (live-debug status). */
+  adminUrl(): string;
 }
 
 export interface BuildOapClientsOptions {
@@ -76,7 +75,7 @@ export function buildOapClients(
   opts: BuildOapClientsOptions = {},
 ): OapClients {
   const fetch = opts.fetch;
-  const primaryUrl = config.oap.adminUrls[0]!;
+  const primaryUrl = config.oap.adminUrl;
   const timeoutMs = config.oap.timeoutMs;
   // If config.oap.auth is set, every constructed client gets the
   // basic-auth Authorization header so all upstream calls (status,
@@ -99,7 +98,7 @@ export function buildOapClients(
       return new RuntimeRuleClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
     status(): StatusClient {
-      return new StatusClient({ statusUrl: config.oap.statusUrl, fetch, timeoutMs, headers });
+      return new StatusClient({ queryUrl: config.oap.queryUrl, fetch, timeoutMs, headers });
     },
     oal(): OalClient {
       return new OalClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
@@ -116,8 +115,8 @@ export function buildOapClients(
     alarmStatus(): AlarmStatusClient {
       return new AlarmStatusClient({ adminUrl: primaryUrl, fetch, timeoutMs, headers });
     },
-    adminUrls(): readonly string[] {
-      return config.oap.adminUrls;
+    adminUrl(): string {
+      return config.oap.adminUrl;
     },
   };
 }

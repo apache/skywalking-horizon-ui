@@ -82,7 +82,7 @@ export async function runPreflight(
   config: HorizonConfig,
   fetch: FetchLike,
 ): Promise<PreflightResult> {
-  const adminUrl = config.oap.adminUrls[0]!;
+  const adminUrl = config.oap.adminUrl;
   const generatedAt = Date.now();
   const dump = await fetchConfigDump(adminUrl, fetch, config.oap.timeoutMs);
 

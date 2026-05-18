@@ -65,7 +65,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
   const auth = requireAuth(deps);
   app.get('/api/oap/info', { preHandler: auth }, async (_req: FastifyRequest, reply: FastifyReply) => {
     const cfg = deps.config.current;
-    const statusUrl = cfg.oap.statusUrl;
+    const queryUrl = cfg.oap.queryUrl;
     try {
       /* Capability probe runs in parallel with the info call — both
        * are GraphQL POSTs to the same endpoint; serialising would add
@@ -78,7 +78,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
       ]);
       const body: OapInfo = {
         reachable: true,
-        statusUrl,
+        queryUrl,
         version: raw.version ?? undefined,
         timezone: raw.time?.timezone ?? undefined,
         currentTimestamp: raw.time?.currentTimestamp ?? undefined,
@@ -90,7 +90,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
     } catch (err) {
       const body: OapInfo = {
         reachable: false,
-        statusUrl,
+        queryUrl,
         error: err instanceof Error ? err.message : String(err),
       };
       return reply.status(200).send(body);

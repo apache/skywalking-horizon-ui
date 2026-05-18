@@ -131,7 +131,7 @@ watch([unreachable, retryChoice], () => startRetry(), { immediate: true });
 onBeforeUnmount(() => clearRetry());
 
 const errorText = computed<string>(() => info.value?.error ?? 'no response');
-const statusUrl = computed<string | undefined>(() => info.value?.statusUrl);
+const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
 </script>
 
 <template>
@@ -143,8 +143,8 @@ const statusUrl = computed<string | undefined>(() => info.value?.statusUrl);
       <strong>OAP query port unreachable</strong>
       <span class="detail">
         Last seen <span class="when">{{ downForLabel }}</span>
-        <span v-if="statusUrl">
-          · <code>{{ statusUrl }}</code>
+        <span v-if="queryUrl">
+          · <code>{{ queryUrl }}</code>
         </span>
         · <span class="err">{{ errorText }}</span>
       </span>

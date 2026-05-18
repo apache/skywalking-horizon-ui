@@ -147,6 +147,10 @@ interface NavRow {
   activeWhen?: (path: string) => boolean;
   /** Present ⇒ row renders as an L1 expandable with these as L2. */
   children?: NavRow[];
+  /** Optional verb gate — row is removed from the DOM when the user
+   *  lacks it. UI-only filter; the BFF enforces the same verbs server-
+   *  side, so hiding is a UX nicety, not security. */
+  verb?: string;
 }
 
 interface NavSection {
@@ -199,11 +203,30 @@ const sections: NavSection[] = [
   {
     kicker: 'Admin',
     links: [
-      { icon: 'user', label: 'Users', to: '/admin/users' },
-      { icon: 'set', label: 'Roles', to: '/admin/roles' },
+      { icon: 'user', label: 'Users', to: '/admin/users', verb: 'user:read' },
+      { icon: 'set', label: 'Auth status', to: '/admin/auth-status', verb: 'auth:read' },
+      { icon: 'set', label: 'Roles & permissions', to: '/admin/roles', verb: 'role:read' },
     ],
   },
 ];
+
+/**
+ * Verb-filtered view of `sections`: rows with a `verb` the current user
+ * lacks are removed; rows without a `verb` always show; sections that
+ * end up empty are dropped so we don't render orphan headers.
+ *
+ * Hiding is a UX nicety — the BFF enforces the same verbs server-side,
+ * so this is "don't show controls that won't work," not security.
+ */
+const visibleSections = computed<NavSection[]>(() => {
+  const out: NavSection[] = [];
+  for (const sec of sections) {
+    const links = sec.links.filter((r) => !r.verb || auth.hasVerb(r.verb));
+    if (links.length === 0) continue;
+    out.push({ kicker: sec.kicker, links });
+  }
+  return out;
+});
 
 const openNavL1 = ref<Set<string>>(new Set());
 function isNavL1Open(to: string): boolean { return openNavL1.value.has(to); }
@@ -613,7 +636,7 @@ watch(
         </template>
       </template>
 
-      <template v-for="entry in sections" :key="`m:${entry.kicker}`">
+      <template v-for="entry in visibleSections" :key="`m:${entry.kicker}`">
         <div class="sw-nav-section sw-nav-section--icon">
           <Icon :name="sectionIcon(entry.kicker)" />
           <span>{{ entry.kicker }}</span>

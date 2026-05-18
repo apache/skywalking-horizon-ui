@@ -19,7 +19,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../config/schema.js';
 
 export interface GraphqlOptions {
-  statusUrl: string;
+  queryUrl: string;
   timeoutMs: number;
   fetch?: FetchLike;
   /** Optional basic-auth credentials for outbound OAP calls. When
@@ -37,7 +37,7 @@ export function buildOapOpts(
   fetch?: FetchLike,
 ): GraphqlOptions {
   return {
-    statusUrl: cfg.oap.statusUrl,
+    queryUrl: cfg.oap.queryUrl,
     timeoutMs: cfg.oap.timeoutMs,
     auth: cfg.oap.auth,
     fetch,
@@ -80,7 +80,7 @@ export async function graphqlPost<T>(
   variables?: Record<string, unknown>,
 ): Promise<T> {
   const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
-  const url = opts.statusUrl.replace(/\/$/, '') + '/graphql';
+  const url = opts.queryUrl.replace(/\/$/, '') + '/graphql';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
   const headers: Record<string, string> = { 'content-type': 'application/json' };

@@ -19,7 +19,7 @@
  * Tiny REST client for OAP's Zipkin Query plugin endpoints.
  *
  * Zipkin lives on the SAME host:port as OAP's GraphQL (the
- * `oap.statusUrl`) but uses standard zipkin v2 paths instead of
+ * `oap.queryUrl`) but uses standard zipkin v2 paths instead of
  * GraphQL:
  *
  *   GET /api/v2/services
@@ -42,7 +42,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 
 export interface ZipkinClientOpts {
-  statusUrl: string;
+  queryUrl: string;
   timeoutMs: number;
   fetch?: FetchLike;
   /** Optional basic-auth — same shape as the GraphQL client. */
@@ -67,7 +67,7 @@ const DEFAULT_LOOKBACK_MS = 30 * 60_000;
 
 async function zipkinFetch<T>(opts: ZipkinClientOpts, path: string): Promise<T> {
   const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
-  const url = opts.statusUrl.replace(/\/$/, '') + path;
+  const url = opts.queryUrl.replace(/\/$/, '') + path;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
   const headers: Record<string, string> = { Accept: 'application/json' };

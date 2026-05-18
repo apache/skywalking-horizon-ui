@@ -15,10 +15,13 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
+import loginBgUrl from '@/assets/login-bg.jpg?url';
 import { useAuthStore } from '@/state/auth';
+import { bff } from '@/api/client';
+import type { AuthHealth } from '@/api/scopes/admin-auth';
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -28,18 +31,50 @@ const username = ref('');
 const password = ref('');
 const submitting = ref(false);
 
+const health = ref<AuthHealth | null>(null);
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+
+async function refreshHealth(): Promise<void> {
+  try {
+    health.value = await bff.adminAuth.health();
+  } catch {
+    /* swallow — the login form remains usable; status pill stays as-is */
+  }
+}
+onMounted(() => {
+  void refreshHealth();
+  pingTimer = setInterval(() => void refreshHealth(), 5000);
+});
+onUnmounted(() => {
+  if (pingTimer) clearInterval(pingTimer);
+});
+
+const statusKind = computed<'ok' | 'err' | 'info' | null>(() => {
+  if (!health.value) return null;
+  if (health.value.backend === 'local') return 'ok';
+  if (health.value.backend === 'ldap') return health.value.ldap?.reachable ? 'ok' : 'err';
+  return 'info';
+});
+const statusLabel = computed<string>(() => {
+  if (!health.value) return 'Checking auth backend…';
+  if (health.value.backend === 'local') return 'Local users';
+  if (health.value.backend === 'ldap') {
+    return health.value.ldap?.reachable ? 'LDAP reachable' : 'LDAP unreachable';
+  }
+  return 'Unknown backend';
+});
+const statusHost = computed<string | null>(() => health.value?.ldap?.host ?? null);
+const currentYear = new Date().getFullYear();
+
 async function submit(): Promise<void> {
   if (submitting.value) return;
   submitting.value = true;
   try {
     const ok = await auth.login(username.value, password.value);
     if (ok) {
-      // Honor an explicit `?redirect=` (session-expiry bounce-back). For
-      // a fresh login we want to always land on the Overview — never the
-      // bare login URL or an empty path. The /login redirect itself is
-      // also skipped so a stale tab doesn't loop the user back.
       const raw = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-      const redirect = raw && raw !== '/login' ? raw : '/';
+      const landing = auth.user?.landingRoute ?? '/';
+      const redirect = raw && raw !== '/login' ? raw : landing;
       await router.push(redirect);
     }
   } finally {
@@ -49,132 +84,385 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="login-wrap">
-    <form class="login-card" @submit.prevent="submit">
-      <div class="brand">
+  <div class="stage" :style="{ backgroundImage: `url(${loginBgUrl})` }">
+    <!-- Desaturate + dim the photo so the UI floats above. -->
+    <div class="dim" />
+    <!-- Color wash tying the canyon orange to the brand palette. -->
+    <div class="wash" />
+    <!-- Subtle grid overlay. -->
+    <div class="grid" />
+
+    <!-- Top: SkyWalking logo + Horizon wordmark + inline auth-status pill. -->
+    <header class="top">
+      <span class="brand">
         <span class="brand-logo" v-html="logoSw" />
-        <div class="brand-sub">Horizon UI</div>
+        <span class="brand-sep" aria-hidden="true" />
+        <span class="brand-name">Horizon</span>
+      </span>
+      <span v-if="statusKind" class="status-pill" :class="`pill-${statusKind}`">
+        <span class="status-dot" />
+        <b>{{ statusLabel }}</b>
+        <template v-if="statusHost">
+          <span class="status-sep">·</span>
+          <code class="status-host">{{ statusHost }}</code>
+        </template>
+      </span>
+    </header>
+
+    <!-- Centered glass card. -->
+    <main class="center">
+      <form class="card" @submit.prevent="submit">
+        <div class="card-head">
+          <h1>Welcome to SkyWalking</h1>
+        </div>
+
+        <label class="field">
+          <span>Username</span>
+          <input
+            v-model="username"
+            type="text"
+            name="username"
+            autocomplete="username"
+            autofocus
+            required
+          />
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <input
+            v-model="password"
+            type="password"
+            name="password"
+            autocomplete="current-password"
+            required
+          />
+        </label>
+
+        <div v-if="auth.loginError" class="error">{{ auth.loginError }}</div>
+
+        <button class="sign-in" type="submit" :disabled="submitting">
+          {{ submitting ? 'Signing in…' : 'Sign in' }}
+        </button>
+      </form>
+    </main>
+
+    <!-- Footer: Apache copyright + trademark notice. -->
+    <footer class="foot">
+      <div class="foot-legal">
+        <div>© 2017&nbsp;–&nbsp;{{ currentYear }} The Apache Software Foundation. All Rights Reserved.</div>
+        <div class="foot-tm">
+          Apache SkyWalking, SkyWalking, Apache, the Apache feather logo, and the Apache
+          SkyWalking project logo are either registered trademarks or trademarks of the
+          Apache Software Foundation.
+        </div>
       </div>
-
-      <label class="field">
-        <span>Username</span>
-        <input
-          v-model="username"
-          type="text"
-          name="username"
-          autocomplete="username"
-          autofocus
-          required
-        />
-      </label>
-
-      <label class="field">
-        <span>Password</span>
-        <input
-          v-model="password"
-          type="password"
-          name="password"
-          autocomplete="current-password"
-          required
-        />
-      </label>
-
-      <div v-if="auth.loginError" class="error">{{ auth.loginError }}</div>
-
-      <button class="sw-btn is-primary submit" type="submit" :disabled="submitting">
-        {{ submitting ? 'Signing in…' : 'Sign in' }}
-      </button>
-    </form>
+    </footer>
   </div>
 </template>
 
 <style scoped>
-.login-wrap {
+.stage {
+  position: relative;
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(1200px 600px at 20% 10%, rgba(249, 115, 22, 0.06), transparent 60%),
-    radial-gradient(900px 500px at 100% 90%, rgba(168, 85, 247, 0.06), transparent 60%),
-    var(--sw-bg-0);
-}
-.login-card {
-  width: 440px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 12px;
-  padding: 36px 36px 26px;
-  box-shadow: 0 32px 80px -28px rgba(0, 0, 0, 0.7);
-}
-.brand {
+  /* Use 100dvh on mobile (dynamic viewport, accounts for safari URL bar)
+     and fall back to 100vh elsewhere. */
+  min-height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  color: var(--sw-fg-0);
+  font-family: var(--sw-sans);
+  background-size: cover;
+  background-position: center;
+  background-color: var(--sw-bg-0);
+  /* Flex column lays out top / main / footer in flow, so nothing
+     overlaps on short viewports and the card stays centered while
+     real estate is available. */
   display: flex;
   flex-direction: column;
+}
+.dim,
+.wash,
+.grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.dim {
+  background: rgba(10, 13, 18, 0.62);
+  backdrop-filter: saturate(0.55) blur(1px);
+  -webkit-backdrop-filter: saturate(0.55) blur(1px);
+}
+.wash {
+  /* Viewport-relative sizes so the orange/purple washes scale on
+     ultra-wide and ultra-tall screens (5K, portrait phones). Caps with
+     pixel max so they don't get cartoonish on a 30" 5120-wide. */
+  background:
+    radial-gradient(min(60vw, 1200px) min(60vh, 800px) at 20% 30%, rgba(249, 115, 22, 0.18), transparent 60%),
+    radial-gradient(min(50vw, 900px) min(50vh, 700px) at 80% 75%, rgba(168, 85, 247, 0.14), transparent 60%),
+    linear-gradient(180deg, rgba(10, 13, 18, 0) 30%, rgba(10, 13, 18, 0.6) 100%);
+}
+.grid {
+  opacity: 0.1;
+  mix-blend-mode: overlay;
+  background:
+    linear-gradient(var(--sw-line-2) 1px, transparent 1px) 0 0 / 96px 96px,
+    linear-gradient(90deg, var(--sw-line-2) 1px, transparent 1px) 0 0 / 96px 96px;
+}
+
+/* ── Top brand bar ────────────────────────────────────────────── */
+.top {
+  position: relative;
+  z-index: 2;
+  padding: 20px 28px;
+  display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 28px;
+  gap: 14px;
+  /* Wrap on narrow viewports so the status pill sits below the brand
+     rather than clipping off-screen. */
+  flex-wrap: wrap;
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 .brand-logo {
   display: inline-flex;
   color: var(--sw-fg-0);
 }
 .brand-logo :deep(svg) {
-  height: 44px;
+  height: 32px;
   width: auto;
   display: block;
+  filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
 }
-.brand-sub {
-  font-size: 12px;
-  color: var(--sw-fg-2);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  font-weight: 500;
+.brand-sep {
+  width: 1px;
+  height: 22px;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
 }
+.brand-name {
+  /* Inter at a relaxed wordmark size: large enough to read as the
+     product name, tight letter-spacing so it sits comfortably next to
+     the SkyWalking mark without becoming louder than it. */
+  font-family: var(--sw-sans);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  /* Cap so a long LDAP host doesn't push the whole bar wide on
+     narrow screens; the host code below ellipsizes. */
+  max-width: min(420px, calc(100vw - 200px));
+  min-width: 0;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill-ok {
+  color: var(--sw-ok);
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+.pill-err {
+  color: var(--sw-err);
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+.pill-err .status-dot {
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45);
+  animation: pulse 1.4s ease-out infinite;
+}
+.pill-info {
+  color: var(--sw-info);
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.45); }
+  80% { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.status-sep {
+  color: rgba(255, 255, 255, 0.4);
+}
+.status-host {
+  font-family: var(--sw-mono);
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.7);
+  /* Ellipsize when the host string is longer than the pill allows. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ── Centered glass card ──────────────────────────────────────── */
+.center {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  /* No `min-height: 100vh` — the flex column already gives `main` the
+     remaining space between top + footer, so the card centers in
+     whatever rectangle is left without forcing scrolling on short
+     viewports. */
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.card {
+  width: 380px;
+  max-width: 100%;
+  padding: 22px;
+  background: rgba(15, 19, 26, 0.55);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.card-head {
+  margin-bottom: 20px;
+}
+.card-head h1 {
+  margin: 0;
+  font-family: var(--sw-sans);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
+  line-height: 1.2;
+  color: #fff;
+}
+
 .field {
   display: block;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 .field span {
   display: block;
-  font-size: 10.5px;
+  font-size: 10px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--sw-fg-2);
-  margin-bottom: 7px;
+  color: rgba(232, 236, 243, 0.55);
+  margin-bottom: 5px;
+  font-weight: 600;
 }
 .field input {
   width: 100%;
-  height: 38px;
+  height: 36px;
   padding: 0 12px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 7px;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--sw-mono);
+  font-size: 13px;
   outline: none;
   transition: border-color 0.1s;
 }
 .field input:focus {
   border-color: var(--sw-accent-line);
+  background: rgba(255, 255, 255, 0.07);
 }
 .error {
   margin: 8px 0 12px;
   padding: 8px 10px;
-  background: var(--sw-err-soft);
+  background: rgba(239, 68, 68, 0.12);
   color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.3);
+  border: 1px solid rgba(239, 68, 68, 0.35);
   border-radius: 6px;
   font-size: 12px;
 }
-.submit {
+.sign-in {
   width: 100%;
-  height: 40px;
-  margin-top: 10px;
-  font-size: 14px;
+  height: 38px;
+  margin-top: 4px;
+  background: linear-gradient(180deg, var(--sw-accent), #ea580c);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow:
+    0 8px 20px -8px var(--sw-accent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transition: filter 0.1s, transform 0.05s;
 }
-.submit:disabled {
+.sign-in:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.sign-in:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.sign-in:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  filter: grayscale(0.3);
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
+.foot {
+  position: relative;
+  z-index: 2;
+  padding: 14px 28px 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 10.5px;
+  flex-wrap: wrap;
+}
+.foot-legal {
+  /* Single column now that the Horizon mark moved up top. Centered so
+     the copyright reads as page chrome rather than a left-anchored
+     credit competing with the form. */
+  margin: 0 auto;
+  text-align: center;
+  max-width: 820px;
+  line-height: 1.5;
+}
+.foot-tm {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.4);
+}
+/* Hide the trademark prose on very short viewports so the card has
+   full breathing room. The copyright year line stays. */
+@media (max-height: 520px) {
+  .foot-tm { display: none; }
+}
+/* On very narrow viewports the brand bar can become the dominant
+   element; trim its padding so the card has more vertical room. */
+@media (max-width: 480px) {
+  .top { padding: 14px 16px; gap: 10px; }
+  .center { padding: 16px; }
+  .card { padding: 18px; }
+  .brand-tag { display: none; }
 }
 </style>

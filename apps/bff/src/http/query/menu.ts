@@ -259,7 +259,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
   const auth = requireAuth(deps);
   app.get('/api/menu', { preHandler: auth }, async (_req: FastifyRequest, reply: FastifyReply) => {
     const cfg = deps.config.current;
-    const statusUrl = cfg.oap.statusUrl;
+    const queryUrl = cfg.oap.queryUrl;
     const opts = buildOapOpts(cfg, deps.fetch);
     try {
       const raw = await graphqlPost<MenuRaw>(opts, MENU_QUERY);
@@ -329,7 +329,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const body: MenuResponse = {
         layers,
         generatedAt: Date.now(),
-        oap: { reachable: true, statusUrl },
+        oap: { reachable: true, queryUrl },
       };
       return reply.send(body);
     } catch (err) {
@@ -338,7 +338,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         generatedAt: Date.now(),
         oap: {
           reachable: false,
-          statusUrl,
+          queryUrl,
           error: err instanceof Error ? err.message : String(err),
         },
       };

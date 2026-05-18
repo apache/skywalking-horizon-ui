@@ -98,8 +98,8 @@ async function resolveMqeTarget(deps: ResolveDeps): Promise<MqeTarget> {
     };
   }
 
-  // Otherwise we need the config dump. Fetch from the first admin URL.
-  const adminUrl = cfg.adminUrls[0]!;
+  // Otherwise we need the config dump.
+  const adminUrl = cfg.adminUrl;
   const dump = await fetchConfigDump(adminUrl, deps.fetch, cfg.timeoutMs);
   const adminHost = new URL(adminUrl).hostname;
 

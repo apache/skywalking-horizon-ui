@@ -126,7 +126,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
     <div v-else-if="listQuery.data.value && !listQuery.data.value.reachable" class="ar__empty ar__empty--err">
       Admin server unreachable —
       <code>{{ listQuery.data.value.error ?? 'no response' }}</code>.
-      Check the <code>SW_ADMIN_SERVER</code> selector and the BFF's <code>oap.adminUrls</code>.
+      Check the <code>SW_ADMIN_SERVER</code> selector and the BFF's <code>oap.adminUrl</code>.
     </div>
 
     <template v-else>

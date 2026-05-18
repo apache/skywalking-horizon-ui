@@ -22,7 +22,7 @@
  *
  * The probe runs a minimal `__type(name: "Query") { fields { name } }`
  * introspection call and reports per-feature booleans. Result is cached
- * per `statusUrl` for `CAPS_TTL_MS` — the GraphQL schema is fixed for an
+ * per `queryUrl` for `CAPS_TTL_MS` — the GraphQL schema is fixed for an
  * OAP process lifetime, so the TTL only matters across OAP restarts
  * (and the staleness is harmless: legacy-mode fallback works against
  * new OAP, just doesn't use the new filters).
@@ -67,7 +67,7 @@ const CAPS_TTL_MS = 5 * 60_000;
  *  every request. */
 const CAPS_FAILURE_TTL_MS = 60_000;
 
-/** Reset the per-statusUrl cache. Test-only. */
+/** Reset the per-queryUrl cache. Test-only. */
 export function _resetCapabilitiesCache(): void {
   cache.clear();
 }
@@ -76,7 +76,7 @@ export async function getOapCapabilities(
   config: HorizonConfig,
   fetchImpl?: FetchLike,
 ): Promise<OapCapabilities> {
-  const key = config.oap.statusUrl;
+  const key = config.oap.queryUrl;
   const now = Date.now();
   const hit = cache.get(key);
   if (hit && now - hit.fetchedAt < CAPS_TTL_MS) return hit.result;

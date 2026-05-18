@@ -27,7 +27,7 @@
  * we can probe once and cache. Cached for 5 minutes so an OAP rollover
  * or a redeploy is picked up without an explicit reload.
  *
- * The decision is per OAP target (keyed by `statusUrl`) — when the
+ * The decision is per OAP target (keyed by `queryUrl`) — when the
  * operator points horizon at a different cluster, the probe runs
  * again.
  */
@@ -46,7 +46,7 @@ const CACHE_TTL_MS = 5 * 60_000;
 const cache = new Map<string, CacheEntry>();
 
 interface ProbeOpts {
-  statusUrl: string;
+  queryUrl: string;
   timeoutMs: number;
   fetch?: FetchLike;
   /** Optional basic-auth — same shape as GraphqlOptions so call
@@ -68,7 +68,7 @@ const PROBE_QUERY = /* GraphQL */ `
  */
 export async function detectTraceProtocol(opts: ProbeOpts): Promise<TraceProtocol> {
   const now = Date.now();
-  const cached = cache.get(opts.statusUrl);
+  const cached = cache.get(opts.queryUrl);
   if (cached && cached.expiresAt > now) return cached.protocol;
   let protocol: TraceProtocol = 'v3';
   try {
@@ -78,7 +78,7 @@ export async function detectTraceProtocol(opts: ProbeOpts): Promise<TraceProtoco
     // Probe failed — older OAP doesn't have the field, GraphQL errors
     // out. Cache v3 so we don't re-probe on every list call.
   }
-  cache.set(opts.statusUrl, { protocol, expiresAt: now + CACHE_TTL_MS });
+  cache.set(opts.queryUrl, { protocol, expiresAt: now + CACHE_TTL_MS });
   return protocol;
 }
 

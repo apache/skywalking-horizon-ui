@@ -52,7 +52,7 @@ import { useOapInfo } from '@/shell/useOapInfo';
 import AlarmsTimeline from '@/components/charts/AlarmsTimeline.vue';
 import AlarmDetailPanel from './AlarmDetailPanel.vue';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
-import { mergeIncidents, splitForList, type AlarmIncident } from '@/utils/alarmIncidents';
+import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
 
 // ── Time window ──────────────────────────────────────────────────────
 /* Per the alerting redesign: 20m / 2h / 4h presets + custom up to 4h.
@@ -282,9 +282,16 @@ function keyFor(a: AlarmMessage): string {
 const selectedAlarmKey = ref<string | null>(null);
 const selectedRange = ref<{ startTime: number; endTime: number } | null>(null);
 
+/* Picking an alarm and brushing a range are NOT mutually exclusive:
+ * the operator typically brushes first to narrow the rows, then
+ * clicks one to inspect. Clearing the brush on row-click yanked the
+ * list out from under the click and surprised everyone. Now row
+ * selection only sets the alarm; the brush survives so the list
+ * stays narrowed. Brushing still clears any alarm selection (a new
+ * brush implies the operator is re-narrowing, and the previously
+ * selected alarm may not be in the new slice). */
 function selectAlarm(key: string): void {
   selectedAlarmKey.value = key;
-  selectedRange.value = null;
 }
 function selectRange(r: { startTime: number; endTime: number }): void {
   selectedRange.value = r;
@@ -350,14 +357,14 @@ const rangeIncidents = computed<AlarmIncident[]>(() =>
 const countsByLayer = computed<Map<string, number>>(() => {
   const m = new Map<string, number>();
   for (const inc of rangeIncidents.value) {
-    if (inc.state !== 'firing') continue;
+    if (inc.state === 'recovered') continue;  // unstable is still actively firing
     const k = inc.layerKey ?? 'OTHER';
     m.set(k, (m.get(k) ?? 0) + 1);
   }
   return m;
 });
 const totalCount = computed<number>(
-  () => rangeIncidents.value.filter((i) => i.state === 'firing').length,
+  () => rangeIncidents.value.filter((i) => i.state !== 'recovered').length,
 );
 /** Pinned layers always render in the header even when count = 0. */
 const pinnedKpis = computed<Array<{ key: string; label: string; count: number }>>(() => {
@@ -381,13 +388,13 @@ const overflowChips = computed<Array<{ key: string; label: string; count: number
   return out;
 });
 
-/** Row list uses the LIST-flavored merge: each firing event is its
- *  own row (every active firing matters for triage), recovered
- *  events for the same (entity, rule) collapse to a single
- *  "triggered N× · recovered" row (just noise — one summary line
- *  per group is enough). Counts above still use `mergeIncidents`
- *  so the chip totals stay incident-shaped. */
-const listEntries = computed<AlarmIncident[]>(() => splitForList(rangeScopedAlarms.value));
+/** Row list uses the SAME incident merge as the counts: one row per
+ *  (entity, rule). Re-firings of the same rule on the same entity
+ *  collapse into a single row tagged "triggered N×"; the row's state
+ *  reflects the latest firing (still firing or recovered). Recovered
+ *  incidents stay visible in the list as recent history but already
+ *  drop out of `totalCount` / `countsByLayer` above. */
+const listEntries = computed<AlarmIncident[]>(() => rangeIncidents.value);
 const filteredIncidents = computed<AlarmIncident[]>(() => {
   let rows = listEntries.value;
   if (chipLayer.value) {
@@ -395,6 +402,39 @@ const filteredIncidents = computed<AlarmIncident[]>(() => {
   }
   return rows;
 });
+
+/* Expandable per-incident history — operators click the chevron to see
+ * every individual firing/recovery on this (entity, rule) in time
+ * order. Tracked by incident id; survives re-renders, cleared when the
+ * page unmounts. The detail panel (right-side) keeps showing the latest
+ * event regardless of which expanded sub-row is hovered. */
+const expandedIncidents = ref<Set<string>>(new Set());
+function isExpanded(id: string): boolean {
+  return expandedIncidents.value.has(id);
+}
+function toggleExpanded(id: string): void {
+  const next = new Set(expandedIncidents.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  expandedIncidents.value = next;
+}
+
+/** Per-state labels for the row. */
+function stateBadgeLabel(inc: AlarmIncident): string {
+  if (inc.state === 'recovered') {
+    return inc.triggerCount > 1 ? `recovered · was triggered ${inc.triggerCount}×` : 'recovered';
+  }
+  if (inc.state === 'unstable') {
+    const firingNow = inc.triggerCount - inc.recoveredCount;
+    return `unstable · ${firingNow} firing, ${inc.recoveredCount} recovered`;
+  }
+  return inc.triggerCount > 1 ? `firing · triggered ${inc.triggerCount}×` : 'firing';
+}
+function stateBadgeClass(inc: AlarmIncident): string {
+  if (inc.state === 'recovered') return 'is-ok';
+  if (inc.state === 'unstable') return 'is-warn';
+  return 'is-err';
+}
 
 /** Data feed for the timeline chart — chip-aware, range-IGNORANT.
  *  Brushing must not hide data outside the brush, otherwise the
@@ -729,37 +769,81 @@ onMounted(() => {
              one with the freshest snapshot. Incidents with N>1
              firings show a "triggered N times" subnote. -->
         <ul v-else class="ax__rows">
-          <li
-            v-for="inc in pagedIncidents"
-            :key="inc.id"
-            class="ax__row"
-            :class="{ active: keyFor(inc.latest) === selectedAlarmKey, resolved: inc.state === 'recovered' }"
-            @click="selectAlarm(keyFor(inc.latest))"
-          >
-            <span class="ax__sev" :class="inc.state === 'firing' ? 'is-err' : 'is-ok'" />
-            <div class="ax__row-main">
-              <div class="ax__row-entity">
-                <span class="ax__row-kind">{{ formatAlarmEntity(inc.latest.scope, inc.latest.name).prefix }}</span>
-                <code class="ax__row-entity-name">
-                  <template v-for="(s, i) in formatAlarmEntity(inc.latest.scope, inc.latest.name).segments" :key="i">
-                    <template v-if="s.kind === 'group'">
-                      <span class="ax__row-entity-group">{{ s.group }}</span><span>{{ s.base }}</span>
+          <template v-for="inc in pagedIncidents" :key="inc.id">
+            <li
+              class="ax__row"
+              :class="{
+                active: keyFor(inc.latest) === selectedAlarmKey,
+                resolved: inc.state === 'recovered',
+                unstable: inc.state === 'unstable',
+              }"
+              @click="selectAlarm(keyFor(inc.latest))"
+            >
+              <span class="ax__sev" :class="['ax__sev--' + inc.state]" />
+              <div class="ax__row-main">
+                <div class="ax__row-entity">
+                  <span class="ax__row-kind">{{ formatAlarmEntity(inc.latest.scope, inc.latest.name).prefix }}</span>
+                  <code class="ax__row-entity-name">
+                    <template v-for="(s, i) in formatAlarmEntity(inc.latest.scope, inc.latest.name).segments" :key="i">
+                      <template v-if="s.kind === 'group'">
+                        <span class="ax__row-entity-group">{{ s.group }}</span><span>{{ s.base }}</span>
+                      </template>
+                      <span v-else>{{ s.text }}</span>
                     </template>
-                    <span v-else>{{ s.text }}</span>
-                  </template>
-                </code>
+                  </code>
+                </div>
+                <div class="ax__row-msg">{{ inc.latest.message }}</div>
+                <div class="ax__row-meta">
+                  <span v-if="inc.latest.layerKey" class="ax__row-tag">{{ prettyLayer(inc.latest.layerKey) }}</span>
+                  <span v-else class="ax__row-tag ax__row-tag--other">Other</span>
+                  <span class="ax__row-time">{{ formatRelative(inc.latest.startTime) }}</span>
+                </div>
               </div>
-              <div class="ax__row-msg">{{ inc.latest.message }}</div>
-              <div class="ax__row-meta">
-                <span v-if="inc.latest.layerKey" class="ax__row-tag">{{ prettyLayer(inc.latest.layerKey) }}</span>
-                <span v-else class="ax__row-tag ax__row-tag--other">Other</span>
-                <span class="ax__row-time">{{ formatRelative(inc.latest.startTime) }}</span>
-              </div>
-            </div>
-            <span class="sw-badge" :class="inc.state === 'firing' ? 'is-err' : 'is-ok'">
-              <span class="state-dot" />{{ inc.state }}
-            </span>
-          </li>
+              <span class="sw-badge" :class="stateBadgeClass(inc)">
+                <span class="state-dot" />{{ stateBadgeLabel(inc) }}
+              </span>
+              <button
+                v-if="inc.triggerCount > 1"
+                type="button"
+                class="ax__row-expand"
+                :class="{ 'is-open': isExpanded(inc.id) }"
+                :aria-expanded="isExpanded(inc.id)"
+                :title="isExpanded(inc.id) ? 'Hide history' : `Show all ${inc.triggerCount} events`"
+                @click.stop="toggleExpanded(inc.id)"
+              >▾</button>
+              <span v-else class="ax__row-expand-placeholder" aria-hidden="true" />
+            </li>
+            <!-- Expanded history: every individual firing/recovery
+                 in startTime-ascending order. Clicking a sub-row
+                 selects that specific event for the detail panel. -->
+            <li
+              v-if="isExpanded(inc.id) && inc.triggerCount > 1"
+              class="ax__row-history"
+              :key="inc.id + '::history'"
+            >
+              <ol>
+                <li
+                  v-for="(ev, evi) in inc.events"
+                  :key="ev.startTime + '-' + evi"
+                  class="ax__hist-row"
+                  :class="{
+                    active: keyFor(ev) === selectedAlarmKey,
+                    'is-recovered': ev.recoveryTime !== null,
+                  }"
+                  @click.stop="selectAlarm(keyFor(ev))"
+                >
+                  <span class="ax__hist-idx mono">#{{ evi + 1 }}</span>
+                  <span class="ax__hist-dot" :class="ev.recoveryTime !== null ? 'is-ok' : 'is-err'" />
+                  <span class="ax__hist-label">
+                    {{ ev.recoveryTime !== null ? 'recovered' : 'fired' }}
+                  </span>
+                  <span class="ax__hist-time mono">
+                    {{ formatRelative(ev.recoveryTime ?? ev.startTime) }}
+                  </span>
+                </li>
+              </ol>
+            </li>
+          </template>
         </ul>
 
         <!-- Frontend pager — only when there's more than one page. -->
@@ -1256,6 +1340,9 @@ onMounted(() => {
 }
 .ax__sev.is-err { background: var(--sw-err); }
 .ax__sev.is-ok { background: var(--sw-ok); }
+.ax__sev--firing { background: var(--sw-err); }
+.ax__sev--recovered { background: var(--sw-ok); }
+.ax__sev--unstable { background: var(--sw-warn); }
 .ax__row-main { flex: 1; min-width: 0; }
 .ax__row-entity {
   display: flex;
@@ -1363,4 +1450,72 @@ onMounted(() => {
 }
 .sw-badge.is-ok { color: var(--sw-ok); background: var(--sw-ok-soft); border-color: rgba(34,197,94,0.3); }
 .sw-badge.is-err { color: var(--sw-err); background: var(--sw-err-soft); border-color: rgba(239,68,68,0.3); }
+.sw-badge.is-warn { color: var(--sw-warn); background: var(--sw-warn-soft); border-color: rgba(234,179,8,0.3); }
+
+/* ── Expand chevron + per-incident history ────────────────────────
+   The chevron is only rendered when triggerCount > 1; otherwise a
+   spacer keeps the row's grid alignment stable. */
+.ax__row-expand,
+.ax__row-expand-placeholder {
+  width: 22px; height: 22px;
+  display: inline-grid; place-items: center;
+  margin-left: 8px;
+  flex: 0 0 22px;
+}
+.ax__row-expand {
+  background: transparent;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-2);
+  font-size: 12px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.1s, color 0.1s;
+}
+.ax__row-expand:hover {
+  border-color: var(--sw-line-3);
+  color: var(--sw-fg-0);
+}
+.ax__row-expand.is-open {
+  transform: rotate(180deg);
+  border-color: var(--sw-accent-line);
+  color: var(--sw-accent-2);
+}
+
+.ax__row-history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--sw-bg-1);
+  border-bottom: 1px solid var(--sw-line);
+}
+.ax__row-history ol {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px 8px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ax__hist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: var(--sw-fg-2);
+  cursor: pointer;
+}
+.ax__hist-row:hover { background: var(--sw-bg-2); color: var(--sw-fg-1); }
+.ax__hist-row.active { background: var(--sw-accent-soft); color: var(--sw-fg-0); }
+.ax__hist-idx { color: var(--sw-fg-3); width: 28px; }
+.ax__hist-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.ax__hist-dot.is-err { background: var(--sw-err); }
+.ax__hist-dot.is-ok { background: var(--sw-ok); }
+.ax__hist-label { flex: 1; }
+.ax__hist-row.is-recovered .ax__hist-label { color: var(--sw-ok); }
+.ax__hist-row:not(.is-recovered) .ax__hist-label { color: var(--sw-err); }
+.ax__hist-time { color: var(--sw-fg-3); font-variant-numeric: tabular-nums; }
 </style>

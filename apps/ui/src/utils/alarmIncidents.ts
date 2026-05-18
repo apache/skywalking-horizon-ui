@@ -48,6 +48,8 @@
 
 import type { AlarmMessage } from '@/api/client';
 
+export type AlarmIncidentState = 'firing' | 'recovered' | 'unstable';
+
 export interface AlarmIncident {
   /** OAP id field — `<entityBase64>.<ruleNumber>`. Stable per
    *  (entity, rule). */
@@ -57,9 +59,17 @@ export interface AlarmIncident {
   /** Convenience handles to the head + tail of `events`. */
   oldest: AlarmMessage;
   latest: AlarmMessage;
-  /** Latest firing's recovery state — `firing` when still active,
-   *  `recovered` when OAP cleared it. */
-  state: 'firing' | 'recovered';
+  /**
+   * Three-state classification:
+   *   - `firing`    : latest event is still firing AND no event in the
+   *                   history ever recovered.
+   *   - `recovered` : latest event has a recoveryTime — incident is
+   *                   closed for now. Counts as "no alarm".
+   *   - `unstable`  : latest event is firing, but at least one earlier
+   *                   event recovered (rule fired → cleared → fired
+   *                   again). Counts as currently-active.
+   */
+  state: AlarmIncidentState;
   /** Number of individual firings in this incident. */
   triggerCount: number;
   /** Number of events where `recoveryTime !== null`. */
@@ -84,14 +94,21 @@ export function mergeIncidents(events: AlarmMessage[]): AlarmIncident[] {
     arr.sort((a, b) => a.startTime - b.startTime);
     const latest = arr[arr.length - 1]!;
     const oldest = arr[0]!;
+    const recoveredCount = arr.filter((e) => e.recoveryTime !== null).length;
+    const state: AlarmIncidentState =
+      latest.recoveryTime !== null
+        ? 'recovered'
+        : recoveredCount > 0
+          ? 'unstable'  // rule fired, cleared, then fired again (flapping)
+          : 'firing';
     out.push({
       id,
       events: arr,
       oldest,
       latest,
-      state: latest.recoveryTime === null ? 'firing' : 'recovered',
+      state,
       triggerCount: arr.length,
-      recoveredCount: arr.filter((e) => e.recoveryTime !== null).length,
+      recoveredCount,
       layerKey: latest.layerKey,
     });
   }

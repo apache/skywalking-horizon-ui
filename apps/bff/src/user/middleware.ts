@@ -16,11 +16,20 @@
  */
 
 /**
- * Per-request auth + RBAC pre-handlers. Pluggable into any Fastify
- * route via `{ preHandler: [requireAuth(deps), requireVerb(deps, 'rule:read')] }`.
+ * Per-request auth + RBAC pre-handlers.
  *
- * Two-step shape (require-auth, then require-verb) keeps the verb name
- * visible at the route declaration site.
+ * Typical wiring at the route-registration site:
+ *
+ *   app.get(
+ *     '/api/alarms',
+ *     { preHandler: [requireAuth(deps), requireVerb(deps, 'alarms:read')] },
+ *     handler,
+ *   );
+ *
+ * Both pre-handlers send a JSON error and short-circuit; nothing else
+ * runs once they reply. Errors use `reply.code(...).send(...)` rather
+ * than `throw` because Fastify's global error handler swallows the
+ * `WWW-Authenticate`-style metadata we may want to attach in the future.
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -41,12 +50,12 @@ export interface AuthDeps {
 
 export function requireAuth(deps: AuthDeps) {
   return async function authPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const cookieName = deps.config.current_().session.cookieName;
+    const cookieName = deps.config.current.session.cookieName;
     const sid = req.cookies?.[cookieName];
     if (!sid) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
-    const session = deps.sessions.get(sid);
+    const session = deps.sessions.touch(sid);
     if (!session) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
@@ -55,12 +64,17 @@ export function requireAuth(deps: AuthDeps) {
 }
 
 export function requireVerb(deps: AuthDeps, verb: string) {
+  const auth = requireAuth(deps);
   return async function verbPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+    await auth(req, reply);
+    // `requireAuth` may have already sent a 401; in that case `reply.sent`
+    // is true and we must not write again.
+    if (reply.sent) return;
     const session = req.session;
     if (!session) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
-    if (!sessionHasVerb(deps.config.current_(), session.roles, verb)) {
+    if (!sessionHasVerb(deps.config.current, session.roles, verb)) {
       return void reply.code(403).send({ error: 'permission_denied', verb });
     }
   };

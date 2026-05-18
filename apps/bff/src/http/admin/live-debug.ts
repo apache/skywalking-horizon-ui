@@ -48,6 +48,7 @@ import { requireAuth } from '../../user/middleware.js';
 import { sessionHasVerb } from '../../rbac/policy.js';
 import type { Session } from '../../user/sessions.js';
 import type { SessionStore } from '../../user/sessions.js';
+import { resolveTargets } from '../../util/dns-fanout.js';
 import { buildOapClients, type OapClients } from '../../client/index.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 
@@ -198,22 +199,26 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
   );
 
   // ── per-cluster status fan-out ───────────────────────────────────
-  // /dsl-debugging/status is a per-node read; the cluster pane wants
-  // all nodes' posture, so the BFF fans out.
+  // /dsl-debugging/status is a per-node read; OAP doesn't aggregate it
+  // cluster-wide. We turn the single `oap.adminUrl` into one URL per
+  // resolved IP via DNS lookup and probe each. When the hostname is
+  // already an IP (or DNS returns one address), this collapses to a
+  // single fire.
   app.get(
     '/api/debug/status',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       if (!ensureVerb(req, reply, deps, 'cluster:read')) return;
       const c = clients();
+      const targets = await resolveTargets(c.adminUrl());
       const nodes = await Promise.all(
-        c.adminUrls().map(async (url) => {
+        targets.map(async (t) => {
           try {
-            const status = await c.debugForUrl(url).getStatus();
-            return { url, ok: true as const, status };
+            const status = await c.debugForUrl(t.url).getStatus();
+            return { url: t.url, ok: true as const, status };
           } catch (err) {
             return {
-              url,
+              url: t.url,
               ok: false as const,
               error: err instanceof Error ? err.message : String(err),
             };
