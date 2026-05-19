@@ -7,7 +7,6 @@ This is the operator's single pane for "is the OAP backend wired correctly?". It
 - **Live health** of the two OAP ports.
 - **Required-module state** for the four admin selectors.
 - **Cluster member discovery** (OAP nodes behind the configured URL).
-- A planned strip for upcoming metadata views (per-node module activity, storage health, receiver activity, effective config, TTL grid).
 
 The triage flow during a banner-heavy incident lives here. The full check sequence is documented in [Compatibility → Cluster Status Check Sequence](../compatibility/cluster-status.md); this page focuses on what the operator sees and does.
 
@@ -31,13 +30,6 @@ The triage flow during a banner-heavy incident lives here. The full check sequen
 │  oap-1.example.com   12800  receiver    2s ago                  │
 │  oap-2.example.com   12800  receiver    1s ago                  │
 │  oap-3.example.com   12800  receiver    3s ago                  │
-├─────────────────────────────────────────────────────────────────┤
-│ Coming soon (Phase 6 / 7):                                      │
-│  • Per-node module activity matrix                              │
-│  • Storage backend health (BanyanDB / ES / JDBC)                │
-│  • Receiver activity (gRPC / HTTP / Kafka / OTLP)               │
-│  • Effective-configuration tree (two-node diff)                 │
-│  • TTL & retention grid                                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

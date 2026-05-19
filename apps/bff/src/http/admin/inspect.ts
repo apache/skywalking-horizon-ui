@@ -24,9 +24,8 @@
  *
  * The MQE values themselves are NOT served here — those go via the
  * regular GraphQL `execExpression` mutation, which the BFF proxies in
- * `inspect-exec.ts` (Phase 4). The merged catalog endpoint
- * `/api/inspect/catalog` (Phase 2) layers Studio-side rule attribution
- * on top of `/inspect/metrics`.
+ * `inspect-exec.ts`. The merged catalog endpoint `/api/inspect/catalog`
+ * layers Studio-side rule attribution on top of `/inspect/metrics`.
  *
  * Inspect is read-only and metadata-ish — every route is gated on a
  * single `inspect:read` verb. There is no write surface.

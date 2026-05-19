@@ -20,9 +20,9 @@
  * `mutation execExpression(expression, entity, duration)` and returns
  * the `ExpressionResult` payload to the SPA.
  *
- * SWIP-14 deliberately punts value queries off the admin port so that
- * MQE auth / quotas / observability stay on a single surface. The BFF
- * resolves that surface via `MqeTargetCache` (Phase 3) and is the
+ * The Inspect API deliberately punts value queries off the admin port
+ * so that MQE auth / quotas / observability stay on a single surface.
+ * The BFF resolves that surface via `MqeTargetCache` and is the
  * single egress point for MQE traffic from Studio.
  *
  * The handler validates inbound shape, builds the GraphQL request,

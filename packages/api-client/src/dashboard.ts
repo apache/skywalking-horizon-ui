@@ -26,7 +26,9 @@
  * Defaults per layer are seeded from `apps/bff/src/dashboard/defaults.ts`
  * — those defaults are lifted from the equivalent booster-ui templates
  * so the metric coverage matches what operators expect on day one.
- * Phase 7 admin lets operators edit + persist their own widget set.
+ * Operators edit + persist their own widget set via the Dashboard
+ * setup admin pages, which write the override to OAP through the
+ * UI-template sync surface.
  */
 
 /**
