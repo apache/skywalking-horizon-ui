@@ -55,12 +55,16 @@ function layerRoute(): RouteRecordRaw {
       // `LayerTracesEntry` is a runtime dispatcher: it inspects the
       // layer template's `traces.source` and renders either the native
       // trace view or the Zipkin one. Mesh / k8s layers land on Zipkin.
-      // `ownsServiceSelector` hides the shell's SkyWalking service
-      // picker — the trace tabs (both native + Zipkin) carry their
-      // own service input, and Zipkin's service universe is decoupled
-      // from SkyWalking's anyway (different name index, no `normal`
-      // flag, queried via `/api/v2/services`).
-      { path: 'trace', component: () => import('@/layer/traces/LayerTracesEntry.vue'), meta: { ownsServiceSelector: true } },
+      //
+      // Both trace views read the shell-level service selection via
+      // `useSelectedService`, so we leave `ownsServiceSelector` OFF —
+      // the LayerShell's Switch picker stays visible and the native
+      // view's toolbar deliberately doesn't repeat it (see comment
+      // inside LayerTracesView.vue). The Zipkin view also carries its
+      // own free-text service filter for the cases where Zipkin's
+      // service universe drifts from SkyWalking's; that input lives
+      // inside the view and is independent of the shell picker.
+      { path: 'trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
       { path: 'trace-profiling', component: () => import('@/layer/profiling/LayerTraceProfilingView.vue') },
       { path: 'ebpf-profiling', component: () => import('@/layer/profiling/LayerEBPFProfilingView.vue') },
