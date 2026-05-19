@@ -194,11 +194,11 @@ function precisionForMinutes(m: number): 'MINUTE' | 'HOUR' | 'DAY' {
 const draftPrecision = computed(() => precisionForMinutes(timeDraftMinutes.value));
 const draftBucketCount = computed(() => {
   const m = timeDraftMinutes.value;
-  switch (draftPrecision.value) {
-    case 'MINUTE': return m;            // 60-min window → 60 one-minute buckets
-    case 'HOUR':   return Math.round(m / 60);
-    case 'DAY':    return Math.round(m / 60 / 24);
-  }
+  // 60-min window @ MINUTE step → 60 one-minute buckets;
+  // hour-precision divides by 60, day-precision by 60*24.
+  if (draftPrecision.value === 'MINUTE') return m;
+  if (draftPrecision.value === 'HOUR') return Math.round(m / 60);
+  return Math.round(m / 60 / 24);
 });
 
 // ── Diff modal state ──────────────────────────────────────────────

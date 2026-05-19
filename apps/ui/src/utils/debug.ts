@@ -83,7 +83,6 @@ export function reloadDebugScopes(): void {
  *  around expensive computations. */
 export function debug(scope: string, ...args: unknown[]): void {
   if (!enabledFor(scope)) return;
-  // eslint-disable-next-line no-console
   console.debug(`[${scope}]`, ...args);
 }
 
