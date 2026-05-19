@@ -169,6 +169,25 @@ export const useTimeRangeStore = defineStore('time-range', () => {
     presetId.value = 'custom';
   }
 
+  /** Pick the preset closest to `minutes`. Used by AppShell when the
+   *  three-tier time-defaults resolution lands a value that differs
+   *  from the static `'1h'` default. Picks the nearest by absolute ms
+   *  delta; ties broken in favor of the shorter window. */
+  function selectByMinutes(minutes: number): void {
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    const targetMs = minutes * 60_000;
+    let best = TIME_PRESETS[0]!;
+    let bestDelta = Math.abs(best.durationMs - targetMs);
+    for (const p of TIME_PRESETS) {
+      const d = Math.abs(p.durationMs - targetMs);
+      if (d < bestDelta || (d === bestDelta && p.durationMs < best.durationMs)) {
+        best = p;
+        bestDelta = d;
+      }
+    }
+    presetId.value = best.id;
+  }
+
   return {
     presetId,
     preset,
@@ -179,6 +198,7 @@ export const useTimeRangeStore = defineStore('time-range', () => {
     label,
     selectPreset,
     selectCustom,
+    selectByMinutes,
     customStartMs,
     customEndMs,
     customStep,

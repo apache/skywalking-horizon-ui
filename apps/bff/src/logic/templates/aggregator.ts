@@ -28,7 +28,16 @@
 import { allLayerTemplates } from '../layers/loader.js';
 import { loadOverviewDashboards } from '../overview/loader.js';
 import { loadBundledAlertPageSetup } from '../alarms/bundled.js';
-import { ALERT_PAGE_SETUP_KEY, type TemplateKind } from './names.js';
+import {
+  loadBundledThemeActive,
+  loadBundledTimeDefaults,
+} from './global-defaults-bundled.js';
+import {
+  ALERT_PAGE_SETUP_KEY,
+  THEME_ACTIVE_KEY,
+  TIME_DEFAULTS_KEY,
+  type TemplateKind,
+} from './names.js';
 import type { BundledTemplate } from './sync.js';
 
 export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
@@ -42,5 +51,15 @@ export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
     kind: 'alert' satisfies TemplateKind,
     key: ALERT_PAGE_SETUP_KEY,
     content: loadBundledAlertPageSetup(),
+  };
+  yield {
+    kind: 'theme' satisfies TemplateKind,
+    key: THEME_ACTIVE_KEY,
+    content: loadBundledThemeActive(),
+  };
+  yield {
+    kind: 'time-defaults' satisfies TemplateKind,
+    key: TIME_DEFAULTS_KEY,
+    content: loadBundledTimeDefaults(),
   };
 }

@@ -29,6 +29,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient, ClusterStateResponse } from '../client';
 import { BffApiError } from '../client';
+import { pushEvent } from '@/controls/eventLog';
 
 /** `bff.dsl` — DSL Management: rule catalog browse, single-rule fetch /
  *  save / inactivate / delete, OAL read-only browse, cluster state, dump. */
@@ -60,12 +61,19 @@ export class DslApi {
     const params = new URLSearchParams({ catalog: args.catalog, name: args.name });
     if (args.source) params.set('source', args.source);
     const path = `/api/rule?${params.toString()}`;
-    const res = await fetch(path, {
-      method: 'GET',
-      credentials: 'include',
-      headers: { Accept: 'application/x-yaml' },
-    });
+    let res: Response;
+    try {
+      res = await fetch(path, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'application/x-yaml' },
+      });
+    } catch (err) {
+      pushEvent('api', 'err', `GET ${path} · network ${err instanceof Error ? err.message : String(err)}`);
+      throw err;
+    }
     if (res.status === 401) {
+      pushEvent('api', 'info', `GET ${path} · 401 (re-auth)`);
       this.bff.handleUnauthorized();
       throw new BffApiError(401, 'unauthenticated', null);
     }
@@ -73,6 +81,7 @@ export class DslApi {
     if (!res.ok) {
       let parsed: unknown = null;
       try { parsed = await res.json(); } catch { parsed = await res.text(); }
+      pushEvent('api', 'err', `GET ${path} · ${res.status}`);
       throw new BffApiError(res.status, `GET ${path} failed (${res.status})`, parsed);
     }
     const content = await res.text();

@@ -24,9 +24,11 @@
  *   { "name": "horizon.<kind>.<key>", "kind": "...", "version": 1, "content": {...} }
  *
  * Naming:
- *   - `horizon.overview.<id>`       — overview dashboards (e.g. `services`, `mesh`)
- *   - `horizon.layer.<KEY>`         — layer dashboards (e.g. `GENERAL`, `K8S`)
- *   - `horizon.alert.page-setup`    — alert page setup (singleton)
+ *   - `horizon.overview.<id>`        — overview dashboards (e.g. `services`, `mesh`)
+ *   - `horizon.layer.<KEY>`          — layer dashboards (e.g. `GENERAL`, `K8S`)
+ *   - `horizon.alert.page-setup`     — alert page setup (singleton)
+ *   - `horizon.theme.active`         — org-default theme selection (singleton)
+ *   - `horizon.time-defaults.global` — global time-picker default window (singleton)
  *
  * The `horizon.` prefix keeps Horizon's templates cleanly separated from
  * any other UI (notably booster-ui) that may share the same OAP. Names
@@ -38,14 +40,24 @@
  * key order is stable.
  */
 
-export type TemplateKind = 'overview' | 'layer' | 'alert';
+export type TemplateKind = 'overview' | 'layer' | 'alert' | 'theme' | 'time-defaults';
 
-export const TEMPLATE_KINDS: readonly TemplateKind[] = ['overview', 'layer', 'alert'] as const;
+export const TEMPLATE_KINDS: readonly TemplateKind[] = [
+  'overview',
+  'layer',
+  'alert',
+  'theme',
+  'time-defaults',
+] as const;
 
 /** Single alert template key — alert page-setup is a singleton. */
 export const ALERT_PAGE_SETUP_KEY = 'page-setup' as const;
+/** Singleton key for the active theme selection. */
+export const THEME_ACTIVE_KEY = 'active' as const;
+/** Singleton key for the global time-defaults setup. */
+export const TIME_DEFAULTS_KEY = 'global' as const;
 
-const NAME_RE = /^horizon\.(overview|layer|alert)\.([A-Za-z0-9_-]+)$/;
+const NAME_RE = /^horizon\.(overview|layer|alert|theme|time-defaults)\.([A-Za-z0-9_-]+)$/;
 
 export interface ParsedName {
   kind: TemplateKind;

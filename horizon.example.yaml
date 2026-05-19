@@ -177,11 +177,14 @@ rbac:
     admin:
       - "*"
   # Where each role lands after login. First role on the user wins.
+  # Cluster status lives under /operate/cluster (it's an operator tool
+  # against OAP, not an admin / RBAC surface); the prior `/admin/cluster`
+  # values 404'd because no route by that name exists.
   landingByRole:
     viewer: /
-    maintainer: /admin/cluster
+    maintainer: /operate/cluster
     operator: /
-    admin: /admin/cluster
+    admin: /operate/cluster
 
 session:
   ttlMinutes: 60

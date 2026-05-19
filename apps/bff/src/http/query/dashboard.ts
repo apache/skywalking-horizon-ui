@@ -108,6 +108,11 @@ const bodySchema = z.object({
    *  the Endpoint page. Switches the entity to
    *  `{ scope: Endpoint, serviceName, endpointName }`. */
   endpoint: z.string().optional(),
+  // Hard cap per request — protects OAP's storage page-size cliffs
+  // (CLAUDE.md warns about backend-specific thresholds). The UI is
+  // responsible for chunking widget sets larger than this across
+  // multiple requests; the BFF refuses oversized bodies up-front so
+  // an accidentally-huge template never reaches OAP.
   widgets: z.array(widgetSchema).max(40).optional(),
   scope: scopeSchema.optional(),
 });

@@ -45,6 +45,7 @@ import type {
   Catalog,
 } from '@skywalking-horizon-ui/api-client';
 
+import { pushEvent } from '@/controls/eventLog';
 import { SessionApi } from './scopes/session';
 import { MenuApi } from './scopes/menu';
 import { OverviewApi } from './scopes/overview';
@@ -556,7 +557,13 @@ export class BffClient {
   /** Internal — used by sub-clients in `./scopes/*` to dispatch a JSON
    *  request and unwrap the typed body. 401 hits the {@link setOn401}
    *  hook before rejecting with {@link BffApiError}; other non-2xx
-   *  responses also throw. 204s resolve to `undefined`. */
+   *  responses also throw. 204s resolve to `undefined`.
+   *
+   *  Every failure path (network throw, 401, other non-2xx) emits a
+   *  `pushEvent('api', 'err', …)` into the debug event log so the
+   *  ticker / DebugEventPanel surfaces backend trouble without each
+   *  caller having to wire its own logging. Successful responses are
+   *  intentionally NOT logged — the volume would drown the ticker. */
   async request<T>(
     method: string,
     path: string,
@@ -572,8 +579,26 @@ export class BffClient {
       },
     };
     if (body !== undefined) init.body = JSON.stringify(body);
-    const res = await fetch(path, init);
+    let res: Response;
+    try {
+      res = await fetch(path, init);
+    } catch (err) {
+      // Network-level failure: DNS, CORS, aborted, BFF down, etc.
+      // fetch() doesn't throw on HTTP-level errors (4xx/5xx) — only on
+      // these. They're the "blocked" symptom operators see when the
+      // BFF or its upstream is unreachable.
+      pushEvent(
+        'api',
+        'err',
+        `${method} ${path} · network ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
     if (res.status === 401) {
+      // 401 is normal-ish (session expired) — log at 'info' rather
+      // than 'err' so it doesn't read as a failure when it's just the
+      // re-auth dance.
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
       this.on401?.();
       throw new BffApiError(401, 'unauthenticated', null);
     }
@@ -584,6 +609,18 @@ export class BffClient {
       } catch {
         parsed = await res.text();
       }
+      // Surface the BFF's `code` / `message` envelope when present so
+      // the operator gets the actionable reason instead of just "500".
+      let extra = '';
+      if (parsed && typeof parsed === 'object') {
+        const env = parsed as { code?: unknown; message?: unknown };
+        if (typeof env.code === 'string' || typeof env.message === 'string') {
+          extra = ` · ${env.code ?? ''}${env.code && env.message ? ' — ' : ''}${env.message ?? ''}`;
+        }
+      } else if (typeof parsed === 'string' && parsed.length > 0 && parsed.length < 200) {
+        extra = ` · ${parsed}`;
+      }
+      pushEvent('api', 'err', `${method} ${path} · ${res.status}${extra}`);
       throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed);
     }
     if (res.status === 204) return undefined as T;

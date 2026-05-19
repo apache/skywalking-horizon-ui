@@ -224,14 +224,16 @@ const rbacSchema = z
         admin: ['*'],
       }),
     /** Landing route per role; the UI uses this to send users to the
-     *  page that fits their job after login. */
+     *  page that fits their job after login. Cluster status lives at
+     *  `/operate/cluster` (operator tooling against OAP) — the prior
+     *  `/admin/cluster` defaults 404'd because no such route exists. */
     landingByRole: z
       .record(z.string(), z.string())
       .default({
         viewer: '/',
-        maintainer: '/admin/cluster',
+        maintainer: '/operate/cluster',
         operator: '/',
-        admin: '/admin/cluster',
+        admin: '/operate/cluster',
       }),
   })
   .strict()

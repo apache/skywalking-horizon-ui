@@ -19,15 +19,16 @@ import type {
   DashboardWidget,
   OverviewDashboard,
 } from '@skywalking-horizon-ui/api-client';
+import { pushEvent } from '@/controls/eventLog';
 import type { BffClient } from '../client';
 
 export type BundleScopeMap = Partial<
   Record<'service' | 'instance' | 'endpoint', DashboardWidget[]>
 >;
 
-/** What kind of template a sync-status row describes. Three reserved
+/** What kind of template a sync-status row describes. Five reserved
  *  kinds — see the BFF's `apps/bff/src/logic/templates/names.ts`. */
-export type TemplateKind = 'overview' | 'layer' | 'alert';
+export type TemplateKind = 'overview' | 'layer' | 'alert' | 'theme' | 'time-defaults';
 
 /** Status of a single template, mirrored from the BFF sync orchestrator.
  *  - `synced`           — bundled == remote, byte-equal
@@ -84,18 +85,35 @@ export class ConfigsApi {
   async bundle(ifNoneMatch?: string): Promise<ConfigBundle | null> {
     const headers: Record<string, string> = {};
     if (ifNoneMatch) headers['If-None-Match'] = ifNoneMatch;
-    // Direct fetch so we can detect 304 without throwing.
-    const res = await fetch('/api/configs/bundle', {
-      method: 'GET',
-      credentials: 'include',
-      headers,
-    });
+    // Direct fetch (not BffClient.request) because we need 304 to be a
+    // non-throwing success path. The error logging that lives in
+    // BffClient.request is replicated here so a bundle-load failure
+    // still lands in the debug event log.
+    let res: Response;
+    try {
+      res = await fetch('/api/configs/bundle', {
+        method: 'GET',
+        credentials: 'include',
+        headers,
+      });
+    } catch (err) {
+      pushEvent(
+        'api',
+        'err',
+        `GET /api/configs/bundle · network ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw err;
+    }
     if (res.status === 304) return null;
     if (res.status === 401) {
+      pushEvent('api', 'info', 'GET /api/configs/bundle · 401 (re-auth)');
       this.bff.handleUnauthorized();
       throw new Error('unauthenticated');
     }
-    if (!res.ok) throw new Error(`bundle fetch failed (${res.status})`);
+    if (!res.ok) {
+      pushEvent('api', 'err', `GET /api/configs/bundle · ${res.status}`);
+      throw new Error(`bundle fetch failed (${res.status})`);
+    }
     return (await res.json()) as ConfigBundle;
   }
 }

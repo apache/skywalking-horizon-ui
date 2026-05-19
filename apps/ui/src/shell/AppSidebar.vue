@@ -18,7 +18,16 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
+// Full "SkyWalking" wordmark + moon. The shipped file is white-fill
+// (designed for dark backgrounds). For light-appearance themes we
+// derive a blue (`#1368B3` — the official SkyWalking brand blue)
+// variant by replacing the fill color in the raw SVG string. Keeps
+// the SAME wordmark shape; just recolors. Avoids shipping a separate
+// blue asset that could drift from the white one.
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
+import { useThemeStore, AVAILABLE_THEMES } from '@/state/theme';
+
+const logoSwBlue = logoSw.replace(/fill="#fff"/g, 'fill="#1368B3"');
 import { useAuthStore } from '@/state/auth';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { useLandingOrder } from '@/shell/useLandingOrder';
@@ -34,6 +43,10 @@ const alarmCount = useAlarmCount();
 
 const auth = useAuthStore();
 const router = useRouter();
+const themeStore = useThemeStore();
+const isLightAppearance = computed<boolean>(
+  () => AVAILABLE_THEMES.find((t) => t.id === themeStore.active)?.appearance === 'light',
+);
 async function signOut(): Promise<void> {
   await auth.logout();
   await router.push({ name: 'login' });
@@ -198,6 +211,7 @@ const sections: NavSection[] = [
       { icon: 'set', label: 'Overview templates', to: '/admin/overview-templates' },
       { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards' },
       { icon: 'alert', label: 'Alert page', to: '/admin/alert-page-setup' },
+      { icon: 'set', label: 'Global defaults', to: '/admin/global-defaults' },
     ],
   },
   {
@@ -261,7 +275,7 @@ watch(
 <template>
   <aside class="sw-side">
     <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
-      <span class="brand-logo" v-html="logoSw" />
+      <span class="brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
       <small>Horizon</small>
     </RouterLink>
 
@@ -741,6 +755,8 @@ watch(
   align-items: center;
   color: var(--sw-fg-0);
 }
+/* Logo SVG variant is chosen in <script setup> via v-html, not via
+ * CSS scoping. See `isLightAppearance` above. */
 .brand-logo :deep(svg) {
   height: 16px;
   width: auto;

@@ -1,0 +1,138 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* ── Horizon NG theme variants ────────────────────────────────────────
+ *
+ * The `:root` block in `tokens.css` is the **Horizon** flagship dark
+ * palette. Each other theme is a `[data-theme="<id>"]` block that
+ * overrides only the tokens that change; the `--rr-*` aliases pick up
+ * new `--sw-*` values via `var()` automatically.
+ *
+ * Five bundled themes (design-specified names + dominant hue):
+ *   horizon   — flagship dark, canyon orange accent (the :root default)
+ *   obsidian  — dark, BLUE accent
+ *   aurora    — dark, PINK accent
+ *   meridian  — dark, PURPLE accent
+ *   daybreak  — WHITE light theme, muted accent
+ *
+ * IMPORTANT — the specific hex values below are PLACEHOLDERS pulled
+ * from typical hues in each color family. They are NOT the design
+ * spec's exact tokens (which I do not have visibility into). Replace
+ * each `--sw-accent` / `--sw-accent-*` value with the design's
+ * canonical hex once provided.
+ *
+ * Switched at runtime by setting `data-theme="<id>"` on `<html>`.
+ * Adding a theme means appending another block here + listing the id
+ * in `themeStore.AVAILABLE_THEMES`.
+ */
+
+/* ── horizon (default, no-op override; declared for completeness) ── */
+[data-theme="horizon"] {
+  /* Mirrors :root in tokens.css. */
+}
+
+/* ── obsidian — dark, BLUE accent ─────────────────────────────────── */
+[data-theme="obsidian"] {
+  --sw-bg-0: #000000;
+  --sw-bg-1: #0a0a0a;
+  --sw-bg-2: #141414;
+  --sw-bg-3: #1c1c1c;
+  --sw-bg-4: #262626;
+  --sw-line: #2a2f38;
+  --sw-line-2: #3a4252;
+  --sw-line-3: #4a5468;
+
+  --sw-fg-0: #ffffff;
+  --sw-fg-1: #ededed;
+  --sw-fg-2: #c8c8c8;
+  --sw-fg-3: #989898;
+
+  /* TODO: replace with design-spec blue */
+  --sw-accent: #3a8ed0;
+  --sw-accent-2: #5aa3e0;
+  --sw-accent-soft: rgba(58, 142, 208, 0.16);
+  --sw-accent-line: rgba(58, 142, 208, 0.5);
+}
+
+/* ── aurora — dark, PINK accent ───────────────────────────────────── */
+[data-theme="aurora"] {
+  --sw-bg-0: #0e0a14;
+  --sw-bg-1: #181020;
+  --sw-bg-2: #221830;
+  --sw-bg-3: #2a1f3c;
+  --sw-bg-4: #34294a;
+  --sw-line: #2e2240;
+  --sw-line-2: #3e2f56;
+  --sw-line-3: #4e3f6c;
+
+  --sw-fg-0: #f5edf5;
+  --sw-fg-1: #d8cce0;
+  --sw-fg-2: #a89cb8;
+  --sw-fg-3: #7e7090;
+
+  /* TODO: replace with design-spec pink */
+  --sw-accent: #ec4899;
+  --sw-accent-2: #f472b6;
+  --sw-accent-soft: rgba(236, 72, 153, 0.16);
+  --sw-accent-line: rgba(236, 72, 153, 0.45);
+}
+
+/* ── meridian — dark, PURPLE accent ───────────────────────────────── */
+[data-theme="meridian"] {
+  --sw-bg-0: #0d0a1a;
+  --sw-bg-1: #15102a;
+  --sw-bg-2: #1d1838;
+  --sw-bg-3: #261f48;
+  --sw-bg-4: #2f285a;
+  --sw-line: #2a2548;
+  --sw-line-2: #3a345e;
+  --sw-line-3: #4c4476;
+
+  --sw-fg-0: #efedf7;
+  --sw-fg-1: #d4cfe6;
+  --sw-fg-2: #a59fc0;
+  --sw-fg-3: #7b7398;
+
+  /* TODO: replace with design-spec purple */
+  --sw-accent: #a855f7;
+  --sw-accent-2: #c084fc;
+  --sw-accent-soft: rgba(168, 85, 247, 0.16);
+  --sw-accent-line: rgba(168, 85, 247, 0.5);
+}
+
+/* ── daybreak — WHITE light theme ─────────────────────────────────── */
+[data-theme="daybreak"] {
+  --sw-bg-0: #ffffff;
+  --sw-bg-1: #fbfbfd;
+  --sw-bg-2: #f4f5f8;
+  --sw-bg-3: #ecedf2;
+  --sw-bg-4: #e2e4eb;
+  --sw-line: #e3e5ec;
+  --sw-line-2: #d3d6e0;
+  --sw-line-3: #b8bcc8;
+
+  --sw-fg-0: #14181f;
+  --sw-fg-1: #2e3640;
+  --sw-fg-2: #5b6373;
+  --sw-fg-3: #8a93a0;
+
+  /* TODO: replace with design-spec daybreak accent (muted is a guess) */
+  --sw-accent: #4b5563;
+  --sw-accent-2: #6b7280;
+  --sw-accent-soft: rgba(75, 85, 99, 0.10);
+  --sw-accent-line: rgba(75, 85, 99, 0.35);
+}

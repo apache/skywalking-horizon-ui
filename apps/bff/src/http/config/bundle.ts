@@ -60,6 +60,7 @@ import {
   getSyncStatus,
   type TemplateRow,
 } from '../../logic/templates/sync.js';
+import type { TemplateKind } from '../../logic/templates/names.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
 import { logger } from '../../logger.js';
@@ -82,7 +83,7 @@ export interface BundleSyncStatus {
   generatedAt: number;
   badges: Array<{
     name: string;
-    kind: 'overview' | 'layer' | 'alert';
+    kind: TemplateKind;
     key: string;
     status: TemplateRow['status'];
   }>;

@@ -17,6 +17,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+// Full "SkyWalking" wordmark + moon, white-fill. The login page's
+// backdrop is always the dark canyon photo, so the logo stays white
+// regardless of which theme the operator has picked for the post-
+// login app. (The sidebar logo DOES swap to blue on light themes —
+// see AppSidebar.vue — because that surface follows the theme.)
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import loginBgUrl from '@/assets/login-bg.jpg?url';
 import { useAuthStore } from '@/state/auth';
@@ -487,7 +492,17 @@ async function submit(): Promise<void> {
   width: 100%;
   height: 38px;
   margin-top: 4px;
-  background: linear-gradient(180deg, var(--sw-accent), #ea580c);
+  /* Gradient stops both derived from --sw-accent so the button tracks
+   * the operator's theme — Obsidian gets purple→darker-purple,
+   * Daybreak gets dawn-pink→darker-dawn-pink, etc. The dark stop is
+   * 14% darker than the accent via color-mix; if the runtime is too
+   * old for color-mix the fallback flat accent below still works. */
+  background: var(--sw-accent);
+  background: linear-gradient(
+    180deg,
+    var(--sw-accent),
+    color-mix(in srgb, var(--sw-accent) 86%, black 14%)
+  );
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;

@@ -24,7 +24,17 @@ import type {
   LandingResponse,
   TopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
+import { pushEvent } from '@/controls/eventLog';
 import type { BffClient } from '../client';
+
+/** BFF cap on widgets per `/api/layer/:key/dashboard` body. Mirrors
+ *  the zod `widgetSchema.max(40)` in `apps/bff/src/http/query/dashboard.ts`
+ *  — kept here as a single source of truth for the chunking logic in
+ *  `dashboard()` below. Bumping this requires bumping the BFF zod cap
+ *  too. The cap exists to protect OAP's storage page-size cliffs, not
+ *  to enforce a UI limit, so the UI splits oversized requests rather
+ *  than refusing them. */
+export const DASHBOARD_WIDGETS_PER_REQUEST = 40;
 
 /** `bff.layer` — per-layer data: landing top-N, dashboard widgets,
  *  endpoint / instance pickers, topology, endpoint dependency. */
@@ -63,7 +73,7 @@ export class LayerApi {
     );
   }
 
-  dashboard(
+  async dashboard(
     layerKey: string,
     body: {
       service?: string;
@@ -83,11 +93,47 @@ export class LayerApi {
     opts: { mockTop?: number } = {},
   ): Promise<DashboardResponse> {
     const qs = opts.mockTop && opts.mockTop > 0 ? `?mockTop=${opts.mockTop}` : '';
-    return this.bff.request<DashboardResponse>(
-      'POST',
-      `/api/layer/${encodeURIComponent(layerKey)}/dashboard${qs}`,
-      body,
+    const path = `/api/layer/${encodeURIComponent(layerKey)}/dashboard${qs}`;
+    const widgets = body.widgets ?? [];
+
+    // Fast path: a single request is enough.
+    if (widgets.length <= DASHBOARD_WIDGETS_PER_REQUEST) {
+      return this.bff.request<DashboardResponse>('POST', path, body);
+    }
+
+    // Slow path: oversize widget set. The BFF rejects bodies with more
+    // than `DASHBOARD_WIDGETS_PER_REQUEST` widgets (protects OAP's
+    // storage page-size cliffs); the UI chunks instead of refusing.
+    // We fire chunks in parallel because each chunk hits a different
+    // subset of OAP metrics — there's no in-OAP locking that benefits
+    // from serial dispatch.
+    const chunks: DashboardWidget[][] = [];
+    for (let i = 0; i < widgets.length; i += DASHBOARD_WIDGETS_PER_REQUEST) {
+      chunks.push(widgets.slice(i, i + DASHBOARD_WIDGETS_PER_REQUEST));
+    }
+    pushEvent(
+      'api',
+      'info',
+      `${path} · ${widgets.length} widgets → ${chunks.length} chunks of ≤${DASHBOARD_WIDGETS_PER_REQUEST}`,
     );
+
+    const responses = await Promise.all(
+      chunks.map((chunk) =>
+        this.bff.request<DashboardResponse>('POST', path, { ...body, widgets: chunk }),
+      ),
+    );
+
+    // Merge: concatenate `widgets` in original order, AND-fold
+    // `reachable`, surface the first non-empty `error`. All other
+    // top-level fields are deterministic for the same body shape so
+    // we pick the first response's values.
+    const first = responses[0]!;
+    return {
+      ...first,
+      widgets: responses.flatMap((r) => r.widgets),
+      reachable: responses.every((r) => r.reachable),
+      error: responses.find((r) => r.error)?.error,
+    };
   }
 
   endpoints(

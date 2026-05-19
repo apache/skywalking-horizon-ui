@@ -27,6 +27,36 @@ import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
 import { useLayers } from '@/shell/useLayers';
 import { useDebugPanel } from '@/controls/debugPanel';
+import { useThemeStore } from '@/state/theme';
+import { useTimeDefaultsStore } from '@/state/timeDefaults';
+import { useTimeRangeStore } from '@/controls/timeRange';
+import { watch } from 'vue';
+
+// Eager-load the theme + time-defaults org defaults so the renderer
+// has the right `<html data-theme>` and the right default window for
+// the first paint. Both stores expose 3-tier resolution (user pref
+// in localStorage → OAP → bundled) — at construction they already
+// reflect the user pref + bundled fallback; this call fills the OAP
+// tier as soon as auth is through.
+const themeStore = useThemeStore();
+const timeDefaultsStore = useTimeDefaultsStore();
+const timeRangeStore = useTimeRangeStore();
+
+// Apply the resolved time-defaults to the live time-range store as
+// soon as it lands. The time-range store is constructed with a static
+// `'1h'` default; this watch promotes the resolved value (user pref →
+// OAP → bundled) over that. Subsequent operator picks on the time
+// picker stay sticky — we don't override an explicit selection.
+let timeDefaultsApplied = false;
+watch(
+  () => timeDefaultsStore.defaultWindowMinutes,
+  (m) => {
+    if (timeDefaultsApplied) return;
+    timeRangeStore.selectByMinutes(m);
+    timeDefaultsApplied = true;
+  },
+  { immediate: true },
+);
 
 // Kick the config preload once the shell mounts (i.e. after the auth
 // guard has let the user through). All layer dashboard configs +
@@ -35,6 +65,8 @@ import { useDebugPanel } from '@/controls/debugPanel';
 // spinner for what's effectively static template content.
 onMounted(() => {
   void ensureConfigBundle();
+  void themeStore.loadOrgDefault();
+  void timeDefaultsStore.loadOrgDefault();
 });
 
 // Global delegated click tracker — emits `click` events into the

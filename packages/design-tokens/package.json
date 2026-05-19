@@ -10,11 +10,13 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./themes.css": "./src/themes.css"
   },
   "files": [
     "dist",
-    "src/tokens.css"
+    "src/tokens.css",
+    "src/themes.css"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

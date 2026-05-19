@@ -785,21 +785,20 @@ const clusterRects = computed<ClusterRect[]>(() => {
     if (count === 0) continue;
     // Each "centre" needs room for the node circle (NODE_R) plus the
     // label text rendered beneath the node (~26px). Inflate by both.
+    // `padTop` reserves CLUSTER_HEAD_HEIGHT above the topmost node for
+    // the alias·value chip — which now renders INSIDE the cluster top
+    // (see the chip template below). Drawing the chip inside removes
+    // the prior CHIP_HEADROOM floor: the cluster top can now follow a
+    // dragged node freely (even off the visible canvas top), and the
+    // node stays visually enclosed because `y` is derived purely from
+    // node positions instead of being clamped to a constant.
     const padTop = NODE_R + CLUSTER_HEAD_HEIGHT;
     const padBot = NODE_R + 32; // label + RPM
     const padSide = NODE_R + 18;
     const x = minX - padSide - CLUSTER_MARGIN;
-    // Floor the cluster top so the floating chip (~40px above the top
-    // border) never clips against the SVG's y=0 edge even when the
-    // operator drags a node to the very top of the canvas. When we
-    // clamp the top up, shrink the height by the same amount so the
-    // bottom edge stays anchored to maxY + padding.
-    const CHIP_HEADROOM = 44;
-    const rawY = minY - padTop - CLUSTER_MARGIN;
-    const y = Math.max(CHIP_HEADROOM, rawY);
+    const y = minY - padTop - CLUSTER_MARGIN;
     const w = (maxX - minX) + (padSide + CLUSTER_MARGIN) * 2;
-    const naturalH = (maxY - minY) + padTop + padBot + CLUSTER_MARGIN * 2;
-    const h = naturalH - (y - rawY);
+    const h = (maxY - minY) + padTop + padBot + CLUSTER_MARGIN * 2;
     out.push({ key: b.key, alias: b.alias, rect: { x, y, w, h } });
   }
   return out;
@@ -1487,13 +1486,18 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                     stroke-width="1"
                     stroke-dasharray="4 5"
                   />
-                  <!-- Floating chip: sits with its baseline ~18px
-                       above the box's top edge so neither the border
-                       nor the chip overlap the cluster contents. The
-                       cluster *value* is rendered noticeably larger
-                       than the alias label — the name is the signal,
-                       the alias is just a qualifier. -->
-                  <g transform="translate(20, -18)">
+                  <!-- Header chip rendered INSIDE the cluster top
+                       (in the CLUSTER_HEAD_HEIGHT padding above the
+                       topmost node, reserved by the rect math above).
+                       Previously this chip floated above the box top,
+                       which forced a CHIP_HEADROOM floor on the rect
+                       y that broke encompass when a node was dragged
+                       above the floor. Drawing inside the cluster
+                       removes that constraint entirely. The cluster
+                       *value* is rendered noticeably larger than the
+                       alias label — the name is the signal, the
+                       alias is just a qualifier. -->
+                  <g transform="translate(20, 22)">
                     <rect
                       x="0"
                       y="-19"

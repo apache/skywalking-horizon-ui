@@ -206,6 +206,13 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'alert-page-setup',
     component: () => import('@/features/admin/alert-page/AlertPageSetupView.vue'),
   },
+  // Global defaults — theme + time-defaults combined. Two OAP singletons
+  // edited in one place because they share the "set once and leave" cadence.
+  {
+    path: 'admin/global-defaults',
+    name: 'global-defaults',
+    component: () => import('@/features/admin/global-defaults/GlobalDefaultsAdmin.vue'),
+  },
   {
     path: 'admin/overview-templates',
     name: 'overview-templates',

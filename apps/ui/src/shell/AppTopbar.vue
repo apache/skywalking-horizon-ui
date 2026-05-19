@@ -22,6 +22,49 @@ import { useOapInfo } from '@/shell/useOapInfo';
 import { useAlarmCount } from '@/shell/useAlarmCount';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
 import { useTimeRangeStore, TIME_PRESETS, STEP_LIMITS, isValidRange, type TimeStep } from '@/controls/timeRange';
+import { useThemeStore, AVAILABLE_THEMES, type ThemeId } from '@/state/theme';
+import { useTimeDefaultsStore } from '@/state/timeDefaults';
+
+// Per-user "Save as my default" / "Reset to org default" on the time
+// picker. The org default is what the admin set on
+// /admin/global-defaults (3-tier: localStorage → OAP → bundled 60m).
+const timeDefaultsStore = useTimeDefaultsStore();
+function saveCurrentAsMyTimeDefault(): void {
+  const dur = timeRange.preset?.durationMs;
+  if (!dur || !Number.isFinite(dur)) return;
+  const minutes = Math.max(1, Math.round(dur / 60_000));
+  timeDefaultsStore.setUserOverride(minutes);
+}
+function resetTimeDefaultToOrg(): void {
+  timeDefaultsStore.clearUserOverride();
+  // After clearing the local pref the resolved minutes flip back to
+  // org-default-or-bundled — apply that to the visible picker.
+  timeRange.selectByMinutes(timeDefaultsStore.defaultWindowMinutes);
+}
+
+// Per-user theme chip — opens a popover with the 5 bundled themes +
+// an option to clear the local override and fall back to the org
+// default. Lives in the topbar's right cluster, next to alarm badge.
+// Per CLAUDE.md the theme is a runtime concern, not a feature flag;
+// this is the only surface where end users touch it.
+const themeStore = useThemeStore();
+const themeMenuOpen = ref(false);
+const themeChipEl = ref<HTMLElement | null>(null);
+function toggleThemeMenu(): void { themeMenuOpen.value = !themeMenuOpen.value; }
+function pickTheme(id: ThemeId): void {
+  themeStore.setUserOverride(id);
+  themeMenuOpen.value = false;
+}
+function resetThemeOverride(): void {
+  themeStore.clearUserOverride();
+  themeMenuOpen.value = false;
+}
+function onThemeChipBlur(e: FocusEvent): void {
+  // Close when focus leaves the cluster — the popover lives outside
+  // the chip, so we check `relatedTarget` for cluster containment.
+  const next = e.relatedTarget as HTMLElement | null;
+  if (!themeChipEl.value?.contains(next)) themeMenuOpen.value = false;
+}
 
 const route = useRoute();
 
@@ -465,6 +508,31 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
                 </div>
               </div>
             </div>
+            <!-- Per-user "Save as my default" / "Reset to org default".
+                 Persists the current rolling window's minute count into
+                 localStorage, or clears it so the org default wins. Hidden
+                 when the current selection is a custom range (we can't
+                 represent that as a single minute count). -->
+            <div class="tr-defaults">
+              <div class="tr-defaults-line">
+                <span>My default: <strong>{{ timeDefaultsStore.defaultWindowMinutes }}m</strong>{{ timeDefaultsStore.hasUserOverride ? ' (your override)' : ' (org default)' }}</span>
+              </div>
+              <div class="tr-defaults-foot">
+                <button
+                  type="button"
+                  class="tr-cust-btn ghost"
+                  :disabled="timeRange.presetId === 'custom'"
+                  :title="timeRange.presetId === 'custom' ? 'Pick a rolling preset first' : ''"
+                  @click="saveCurrentAsMyTimeDefault"
+                >Save as my default</button>
+                <button
+                  type="button"
+                  class="tr-cust-btn ghost"
+                  :disabled="!timeDefaultsStore.hasUserOverride"
+                  @click="resetTimeDefaultToOrg"
+                >Reset to org default</button>
+              </div>
+            </div>
           </div>
         </transition>
       </div>
@@ -508,6 +576,44 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
         <Icon name="bell" :size="12" />
         <span class="alarm-count mono">{{ alarmCount.displayCount.value }}</span>
       </RouterLink>
+
+      <!-- ── Theme chip ────────────────────────────────────────────
+        Labeled with the current theme name so operators can find it
+        without guessing the icon. The small dot indicates an active
+        user override (theme differs from org default). Click opens a
+        popover with the 5 themes + Reset. -->
+      <div ref="themeChipEl" class="theme-chip-cluster" tabindex="-1" @focusout="onThemeChipBlur">
+        <button
+          type="button"
+          class="sw-btn theme-chip"
+          :title="`Theme: ${themeStore.active}${themeStore.hasUserOverride ? ' (your override)' : ''} — click to change`"
+          @click="toggleThemeMenu"
+        >
+          <span class="theme-chip-swatch" />
+          <span class="theme-chip-label">{{ themeStore.active }}</span>
+          <span v-if="themeStore.hasUserOverride" class="theme-chip-dot" />
+          <Icon name="caret" :size="10" />
+        </button>
+        <transition name="rf-menu">
+          <ul v-if="themeMenuOpen" class="theme-menu">
+            <li class="theme-menu-head">Theme</li>
+            <li
+              v-for="t in AVAILABLE_THEMES"
+              :key="t.id"
+              :class="{ on: themeStore.active === t.id }"
+              @click="pickTheme(t.id)"
+            >
+              {{ t.label }}
+              <span v-if="!themeStore.hasUserOverride && t.id === themeStore.active" class="theme-menu-org">(org default)</span>
+            </li>
+            <li
+              v-if="themeStore.hasUserOverride"
+              class="theme-menu-reset"
+              @click="resetThemeOverride"
+            >Reset to org default</li>
+          </ul>
+        </transition>
+      </div>
     </div>
   </header>
 </template>
@@ -847,5 +953,102 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 }
 .alarm-badge.is-unknown .alarm-count {
   color: var(--sw-fg-3);
+}
+
+/* ── Theme chip ────────────────────────────────────────────────────
+   Mirrors `refresh-cluster` — a small icon button + popover. The dot
+   surfaces when the user has a local theme override active. */
+.theme-chip-cluster {
+  position: relative;
+  display: inline-flex;
+  outline: none;
+}
+.theme-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 8px;
+  height: 26px;
+}
+.theme-chip-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--sw-accent);
+  border: 1px solid var(--sw-line-2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+.theme-chip-label {
+  font-size: 11px;
+  color: var(--sw-fg-1);
+  text-transform: capitalize;
+  letter-spacing: 0.02em;
+}
+.theme-chip-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--sw-accent);
+  border: 1px solid var(--sw-bg-0);
+}
+.theme-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  min-width: 200px;
+  z-index: 60;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.theme-menu-head {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sw-fg-3);
+  padding: 4px 10px 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.theme-menu li:not(.theme-menu-head) {
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.theme-menu li:not(.theme-menu-head):hover {
+  background: var(--sw-bg-3);
+}
+.theme-menu li.on { color: var(--sw-accent); font-weight: 500; }
+.theme-menu-org { color: var(--sw-fg-3); font-size: 10.5px; }
+.theme-menu-reset {
+  border-top: 1px solid var(--sw-line);
+  color: var(--sw-fg-2);
+  font-size: 10.5px !important;
+}
+
+/* ── Per-user time-defaults footer (in the time-picker dropdown) ──── */
+.tr-defaults {
+  border-top: 1px solid var(--sw-line);
+  padding: 8px 10px;
+}
+.tr-defaults-line {
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+  margin-bottom: 6px;
+}
+.tr-defaults-line strong {
+  color: var(--sw-fg-0);
+  font-weight: 600;
+}
+.tr-defaults-foot {
+  display: flex; gap: 6px;
 }
 </style>

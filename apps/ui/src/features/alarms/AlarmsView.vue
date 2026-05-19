@@ -374,8 +374,26 @@ const pinnedKpis = computed<Array<{ key: string; label: string; count: number }>
     count: countsByLayer.value.get(k) ?? 0,
   }));
 });
+/** "Other" KPI tile — the residual between `totalCount` and the
+ *  pinned-layer counts. Surfaces alarms in layers the operator didn't
+ *  pin AND alarms the BFF couldn't attribute to a known layer (bucket
+ *  key === 'OTHER'). Without this tile the math `totalCount === sum
+ *  of visible KPI tiles` reads as broken because the overflow pills
+ *  below are smaller and easy to miss. The tile becomes a passthrough
+ *  filter when clicked — same selectChip dispatch as a pinned layer. */
+const otherKpiCount = computed<number>(() => {
+  const pinned = new Set(pinnedLayers.value);
+  let n = 0;
+  for (const [k, v] of countsByLayer.value.entries()) {
+    if (!pinned.has(k)) n += v;
+  }
+  return n;
+});
 /** Non-pinned layers with at least one active incident, descending
- *  by count. Recovered-only layers drop out — "no alarm as number". */
+ *  by count. Recovered-only layers drop out — "no alarm as number".
+ *  These render as small pills BELOW the KPI tiles; the "Other" KPI
+ *  tile above already surfaces the aggregate count, so these are the
+ *  detailed breakdown for triage filtering. */
 const overflowChips = computed<Array<{ key: string; label: string; count: number }>>(() => {
   const pinned = new Set(pinnedLayers.value);
   const out: Array<{ key: string; label: string; count: number }> = [];
@@ -623,6 +641,24 @@ onMounted(() => {
       >
         <div class="ax__kpi-label">{{ k.label }}</div>
         <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': k.count > 0 }">{{ k.count }}</div>
+      </button>
+      <!-- "Other" KPI tile — sum of all non-pinned-layer alarms (and
+           unmapped / 'OTHER' bucket). Always rendered (even at zero)
+           so operators can mentally verify
+           `Active = General + Mesh + Other` at a glance. Read-only
+           aggregate; clicking it doesn't filter. The smaller pills
+           below remain the per-layer filters. Rendered as a
+           `<button disabled>` (not a `<div>`) so the flex row's
+           box-metrics match the neighbour KPI buttons exactly —
+           same padding / border / line-height resolution. -->
+      <button
+        type="button"
+        disabled
+        class="ax__kpi ax__kpi--passive"
+        title="Sum of alarms in non-pinned layers (and unmapped). Use the chips below to filter by a specific other layer."
+      >
+        <div class="ax__kpi-label">Other</div>
+        <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': otherKpiCount > 0 }">{{ otherKpiCount }}</div>
       </button>
       <div v-if="overflowChips.length > 0" class="ax__chips">
         <button
@@ -1038,6 +1074,23 @@ onMounted(() => {
 }
 .ax__kpi--total {
   border-color: var(--sw-line-2);
+}
+/* "Other" KPI tile — read-only aggregate, rendered as a disabled
+ * button so the flex-row metrics match neighbours exactly. Dashed
+ * border + cursor:default makes the read-only-ness obvious; an
+ * explicit opacity:1 override keeps the value legible (browser-
+ * default disabled-button styling fades to ~0.5). */
+.ax__kpi--passive {
+  cursor: default;
+  border-style: dashed;
+  opacity: 1;
+}
+.ax__kpi--passive:hover {
+  border-color: var(--sw-line);
+}
+.ax__kpi--passive .ax__kpi-label,
+.ax__kpi--passive .ax__kpi-val {
+  color: var(--sw-fg-2);
 }
 .ax__kpi-label {
   font-size: 10px;
