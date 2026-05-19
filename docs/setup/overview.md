@@ -6,7 +6,7 @@ This page is the smallest possible path from "no Horizon" to "Horizon in front o
 
 - Apache SkyWalking **OAP 11.x** (native). OAP 10.x runs the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) but the entire admin port — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and OAP UI-template sync — is v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the feature-vs-version matrix.
 - Network reachability from the Horizon BFF to the OAP query port (`:12800`) and admin port (`:17128`). See [Network Ports](../compatibility/ports.md).
-- Node.js 20+, pnpm 9+ (for source builds). A pre-built artifact will not need either.
+- Node.js 20+, pnpm 10+ (for source builds; pinned via Corepack). A pre-built artifact only needs Node.js.
 
 ## Five-step start
 
@@ -36,7 +36,7 @@ oap:
 
 ### 3. Add at least one local user
 
-The BFF refuses to start with no users. Generate an argon2 hash:
+With no users configured, the BFF boots so the login page can show the setup-required state, but no login can succeed. Generate an argon2 hash:
 
 ```sh
 pnpm --filter bff cli:hash

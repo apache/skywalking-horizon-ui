@@ -48,7 +48,7 @@ The two blocks are **mutually exclusive at runtime**. Leaving the inactive block
 
 | Field | Type | Default | Required | Notes |
 |---|---|---|---|---|
-| `local.users` | array | `[]` | required when `backend: local` (must be non-empty) | Array of user objects. |
+| `local.users` | array | `[]` | required for local login | Array of user objects. Empty means the BFF boots but every local login is rejected. |
 | `local.users[].username` | string (min 1) | — | yes | Unique login name. |
 | `local.users[].passwordHash` | string (min 1) | — | yes | Argon2id hash. Generate via `pnpm --filter bff cli:hash`. Never store plain passwords. |
 | `local.users[].roles` | string[] | `[]` | no | Roles assigned to this user. Empty array means no permissions (sessions still created; UI shows "no access" for everything). |
@@ -57,7 +57,7 @@ See [Local Backend](../access-control/local-backend.md) for hash generation and 
 
 ## `auth.ldap`
 
-Required when `backend: ldap`. `groupMappings` must be non-empty.
+Required for LDAP login when `backend: ldap`. `groupMappings` must be non-empty before any LDAP user can sign in.
 
 | Field | Type | Default | Required | Notes |
 |---|---|---|---|---|
@@ -72,7 +72,7 @@ Required when `backend: ldap`. `groupMappings` must be non-empty.
 | `ldap.memberAttr` | string | `member` | no | Group attribute listing members. Only used when `groupStrategy: search`. |
 | `ldap.timeoutMs` | number | `5000` | no | LDAP bind / search timeout in milliseconds. Positive integer. |
 | `ldap.tlsInsecure` | boolean | `false` | no | Skip TLS certificate validation. **Never use in production.** |
-| `ldap.groupMappings` | array | `[]` | required when `backend: ldap` (must be non-empty) | Group DN → Horizon role bindings. |
+| `ldap.groupMappings` | array | `[]` | required for LDAP login | Group DN → Horizon role bindings. Empty means the BFF boots but every LDAP login is rejected. |
 | `ldap.groupMappings[].group` | string (min 1) | — | yes | LDAP group DN, or the literal `"*"` (matches any authenticated user — fallback). |
 | `ldap.groupMappings[].role` | string (min 1) | — | yes | Horizon role assigned when the user's groups include `group`. First match wins; multiple matches union. |
 
@@ -94,8 +94,8 @@ See [Break-Glass Access](../access-control/break-glass.md) for the trigger condi
 
 | Condition | Result |
 |---|---|
-| `backend: local` and `local.users` empty | startup fails |
-| `backend: ldap` and `ldap` missing | startup fails |
-| `backend: ldap` and `ldap.groupMappings` empty | startup fails |
+| `backend: local` and `local.users` empty | startup warning; login rejected until a user is configured |
+| `backend: ldap` and `ldap` missing | startup warning; login rejected until LDAP is configured |
+| `backend: ldap` and `ldap.groupMappings` empty | startup warning; login rejected until a mapping is configured |
 | `backend: ldap` and `local.users` populated | warning at startup |
 | `breakGlass` populated but `backend: local` | warning at startup (block is unused in local mode) |

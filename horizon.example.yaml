@@ -55,7 +55,8 @@ oap:
 #
 # Bootstrap rule: if `backend: local` and `auth.local.users` is empty,
 # OR `backend: ldap` and `auth.ldap` is missing / `groupMappings` empty,
-# the BFF refuses to start. There is no "default admin/admin" password.
+# the BFF boots but no login succeeds until auth is configured. There is
+# no "default admin/admin" password.
 # Generate hashes with:   pnpm --filter bff cli:hash
 # ────────────────────────────────────────────────────────────────────
 auth:

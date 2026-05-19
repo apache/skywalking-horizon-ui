@@ -27,7 +27,7 @@ Full docs ship at [skywalking.apache.org → Horizon UI](https://skywalking.apac
 
 ## Tech stack
 
-Vue 3 + TypeScript on Vite 5, Pinia, vue-router 4, Apache ECharts 5, D3 v7, vue-grid-layout, d3-flame-graph, Monaco, Vitest. The BFF is Fastify on Node 20+.
+Vue 3 + TypeScript on Vite 5, Pinia, vue-router 4, Apache ECharts 6, D3 v7, vue-grid-layout, d3-flame-graph, Monaco, Vitest. The BFF is Fastify on Node 20+.
 
 ## Development
 

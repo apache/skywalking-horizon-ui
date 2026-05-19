@@ -26,7 +26,7 @@ auth:
       - { group: "*", role: viewer }
 ```
 
-Bootstrap rule: `ldap.groupMappings` must be non-empty.
+Bootstrap rule: `ldap.groupMappings` must be non-empty before LDAP users can sign in. The BFF boots and surfaces the setup-required state on the login page, but no LDAP login succeeds until at least one mapping is configured.
 
 ## Login flow
 

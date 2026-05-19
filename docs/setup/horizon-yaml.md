@@ -63,14 +63,15 @@ ldap:
 
 ## Bootstrap rules
 
-The BFF refuses to start when any of:
+The BFF validates the file shape at startup and on every hot reload. Schema errors still reject the file; auth bootstrap gaps are softer so a first-run container can render the login page with a setup-required banner.
+
+Auth gaps that boot with a warning but reject login:
 
 1. `auth.backend: local` and `auth.local.users` is empty.
 2. `auth.backend: ldap` and `auth.ldap` block is missing.
 3. `auth.backend: ldap` and `auth.ldap.groupMappings` is empty.
-4. `rbac.enabled: true` and no roles defined (the four built-ins are used by default; this only trips if you wipe them).
 
-A startup failure logs the reason and exits with non-zero. There is no "default admin/admin" fallback.
+There is no "default admin/admin" fallback.
 
 ## Warnings (do not block startup)
 

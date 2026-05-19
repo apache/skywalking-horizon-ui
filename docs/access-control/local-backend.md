@@ -20,7 +20,7 @@ auth:
         roles: [viewer]
 ```
 
-Bootstrap rule: `local.users` must be non-empty when `backend: local`. The BFF refuses to start otherwise — there is **no built-in default admin/admin**.
+Bootstrap rule: `local.users` must be non-empty when `backend: local` before anyone can sign in. The BFF boots and surfaces the setup-required state on the login page, but no login succeeds until a user is configured. There is **no built-in default admin/admin**.
 
 ## Generate a password hash
 

@@ -9,13 +9,13 @@ Registry: **GitHub Container Registry (GHCR)** at `ghcr.io/apache/skywalking-hor
 | Tag | Points at | Use case |
 |---|---|---|
 | `<40-char-sha>` | Exact commit. Immutable. | **Production.** Pin to a SHA so deploys are reproducible. |
-| `vX.Y.Z` | Tagged release. | Stable release. Same image as the SHA it was built from. |
+| `X.Y.Z` | Tagged release, produced from git tag `vX.Y.Z`. | Stable release. Same image as the SHA it was built from. |
 | `X.Y` | Latest patch on a minor line. Moves over time. | Track a minor release line. |
-| `latest` | Newest `vX.Y.Z` tag. Moves. | Demos / dev only — do not pin production to `latest`. |
+| `latest` | Newest git `vX.Y.Z` tag. Moves. | Demos / dev only — do not pin production to `latest`. |
 | `main` | Head of `main`. Moves on every merge. | Smoke-test the development branch. |
 
 ```sh
-docker pull ghcr.io/apache/skywalking-horizon-ui:v1.2.3
+docker pull ghcr.io/apache/skywalking-horizon-ui:0.4.0
 docker pull ghcr.io/apache/skywalking-horizon-ui:<sha>
 ```
 
@@ -25,7 +25,7 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 
 | Path inside the container | Owner | Writable by `horizon`? | What it is |
 |---|---|---|---|
-| `/app/dist/server.js` | root | no | Compiled BFF entry point. `CMD` runs `node dist/server.js`. |
+| `/app/server.js` | root | no | Compiled BFF entry point. `CMD` runs `node server.js`. |
 | `/app/node_modules/` | root | no | Production npm dependencies. |
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
 | `/app/horizon.example.yaml` | root | no | Example config — **read-only reference**, copy from it. |
@@ -50,7 +50,7 @@ The runtime stage runs as the non-root user `horizon`. Two locations are owned b
 
 The four `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/setup/alarms/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
 
-`server.host` and `server.port` come from the YAML — not from env vars. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
+`server.host` and `server.port` come from the YAML when present. If they are omitted, the image supplies defaults via `HORIZON_SERVER_HOST=0.0.0.0` and `HORIZON_SERVER_PORT=8081`. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
 
 ## How to load `horizon.yaml` into the container
 
@@ -65,20 +65,20 @@ docker run -d \
   --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
-  ghcr.io/apache/skywalking-horizon-ui:v1.2.3
+  ghcr.io/apache/skywalking-horizon-ui:0.4.0
 ```
 
 Notes:
 
 - `:ro` — read-only mount. The BFF only reads the file; preventing writes catches mistakes.
-- `server.host` in your YAML should be `0.0.0.0`, not the default `127.0.0.1` — otherwise the BFF only binds the container's loopback and `-p 8081:8081` cannot reach it.
+- If your YAML sets `server.host`, use `0.0.0.0` in containers. `127.0.0.1` binds container loopback only, so `-p 8081:8081` cannot reach it.
 
 ### 2. Bake it in (custom image)
 
 For immutable single-tenant deployments, build a child image that includes your config:
 
 ```dockerfile
-FROM ghcr.io/apache/skywalking-horizon-ui:v1.2.3
+FROM ghcr.io/apache/skywalking-horizon-ui:0.4.0
 COPY horizon.yaml /app/horizon.yaml
 ```
 
@@ -146,7 +146,7 @@ spec:
         fsGroup: 101
       containers:
         - name: horizon
-          image: ghcr.io/apache/skywalking-horizon-ui:v1.2.3
+          image: ghcr.io/apache/skywalking-horizon-ui:0.4.0
           ports:
             - containerPort: 8081
           envFrom:
@@ -188,7 +188,7 @@ docker run -d --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
   -v horizon-state:/data \
-  ghcr.io/apache/skywalking-horizon-ui:v1.2.3
+  ghcr.io/apache/skywalking-horizon-ui:0.4.0
 ```
 
 Without a mounted volume the writes still land in the container's writable layer at `/data/` (ephemeral, but at least non-failing). Mounting a volume is what makes them durable.
@@ -299,7 +299,14 @@ so session cookies are flagged `Secure` and the browser refuses to send them ove
 
 ## Building locally
 
-The image is built from the `Dockerfile` in the repo root. Same `docker buildx` invocation as CI:
+The image is built from the pre-packaged `./dist/` directory in the repo root. Build that artifact first:
+
+```sh
+pnpm install
+pnpm package
+```
+
+Then use the same `docker buildx` invocation shape as CI:
 
 ```sh
 docker buildx build \
