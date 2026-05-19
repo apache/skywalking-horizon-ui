@@ -2,7 +2,7 @@
 
 Path: `/admin/inspect`. Verb: `inspect:read` (granted by maintainer, operator, admin).
 
-The Inspect page lets the operator browse OAP's live metric catalog and enumerate the entities (services, instances, endpoints, processes, …) that have data for a given metric. It is built on the **Inspect API** (SWIP-14), which is new in OAP 10.5.0 — the page does not render on older OAPs.
+The Inspect page lets the operator browse OAP's live metric catalog and enumerate the entities (services, instances, endpoints, processes, …) that have data for a given metric. It is built on the **Inspect API** (SWIP-14), which is **OAP 11.x only** — the page does not render on v10.
 
 ## What the page is for
 
@@ -15,7 +15,7 @@ Common scenarios:
 
 ## Prerequisites
 
-- OAP 10.5.0 or later.
+- OAP 11.x.
 - `SW_INSPECT=default` on the OAP side.
 - `SW_ADMIN_SERVER=default` (gates the admin port itself).
 - The admin port (default 17128) reachable from the Horizon BFF.
@@ -113,7 +113,7 @@ The BFF is a thin proxy — caching is per-request, not cross-request. The Inspe
 
 ## Related
 
-- [Compatibility → OAP Version](../compatibility/oap-version.md) — why 10.5.0.
+- [Compatibility → OAP Version](../compatibility/oap-version.md) — why v11.
 - [Compatibility → Required OAP Modules](../compatibility/required-modules.md) — `SW_INSPECT` enablement.
 - [Customization → Layer Dashboard Templates](../customization/layer-templates.md) — where the metrics you find here end up being used.
 - OAP's [SWIP-14 (Inspect API)](https://github.com/apache/skywalking/blob/master/docs/en/swip/swip-14.md) — upstream design.

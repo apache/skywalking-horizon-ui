@@ -20,7 +20,7 @@ The triage flow during a banner-heavy incident lives here. The full check sequen
 │  Query (:12800)                  │  Admin (:17128)              │
 │  ─────────────────────           │  ─────────────────────       │
 │  Reachable  ✓                    │  Reachable  ✓                │
-│  Version    10.5.0               │  admin-server         ✓      │
+│  Version    11.0.0               │  admin-server         ✓      │
 │  Timezone   +0800                │  receiver-runtime-rule ✓     │
 │  Timestamp  2026-05-18 09:14:02  │  dsl-debugging        ✓      │
 │  Health     0 (OK)               │  inspect              ✓      │

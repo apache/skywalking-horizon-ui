@@ -11,14 +11,14 @@ The admin-port endpoints are gated by per-module selectors on the OAP side. Hori
 
 | Module | OAP env-var | Min OAP | Endpoints Horizon hits | What breaks if disabled |
 |---|---|---|---|---|
-| **admin-server** | `SW_ADMIN_SERVER=default` | 10.0 | `GET /debugging/config/dump` | Everything on the admin port. With admin-server off, all three other selectors report `enabled: false` regardless of their actual state. |
-| **receiver-runtime-rule** | `SW_RECEIVER_RUNTIME_RULE=default` | 10.0 | `GET /runtime/rule/list`, `GET /runtime/rule`, `POST /runtime/rule/addOrUpdate`, `POST /runtime/rule/delete`, `GET /runtime/rule/bundled` | DSL Management page; alarm rule editor save/load; cluster-status rule matrix; Live Debugger rule picker; Inspect page source attribution. |
-| **dsl-debugging** | `SW_DSL_DEBUGGING=default` | 10.0 | `GET /dsl-debugging/status`, `GET /status/alarm/*` | Live Debugger (MAL / LAL / OAL session start, poll, stop); cluster-status DSL health pane; alarm rule diagnostics. |
-| **inspect** | `SW_INSPECT=default` | **10.5.0** | `GET /inspect/metrics`, `GET /inspect/entities` | Inspect page (returns 404 from OAP). |
+| **admin-server** | `SW_ADMIN_SERVER=default` | 11.x | `GET /debugging/config/dump`, `/ui-management/templates*` | Everything on the admin port. With admin-server off, all other admin-port selectors report `enabled: false` regardless of their actual state. The template-sync admin pages fall back to bundled read-only. |
+| **receiver-runtime-rule** | `SW_RECEIVER_RUNTIME_RULE=default` | 11.x | `GET /runtime/rule/list`, `GET /runtime/rule`, `POST /runtime/rule/addOrUpdate`, `POST /runtime/rule/delete`, `GET /runtime/rule/bundled` | DSL Management page; alarm rule editor save/load; cluster-status rule matrix; Live Debugger rule picker; Inspect page source attribution. |
+| **dsl-debugging** | `SW_DSL_DEBUGGING=default` | 11.x | `GET /dsl-debugging/status`, `GET /status/alarm/*` | Live Debugger (MAL / LAL / OAL session start, poll, stop); cluster-status DSL health pane; alarm rule diagnostics. |
+| **inspect** | `SW_INSPECT=default` | 11.x | `GET /inspect/metrics`, `GET /inspect/entities` | Inspect page (returns 404 from OAP). |
 
-All four are recommended. **admin-server** is non-optional; the rest can be left off if you do not need the corresponding feature, but the Cluster Status page will surface warnings.
+All four are recommended on v11. **admin-server** is non-optional for the v11 admin surface; the rest can be left off if you do not need the corresponding feature, but the Cluster Status page will surface warnings.
 
-The `inspect` module is the only one that requires OAP 10.5.0+; the first three exist in every 10.x release. On an OAP < 10.5, the `inspect` row in the Cluster Status → Admin pane reports off (the module isn't in the config dump) and the Inspect tab is hidden from the sidebar — the rest of the UI is unaffected. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
+The entire admin-port surface (all four modules) is **OAP 11.x only**. They appeared in the 10.5 development snapshot but **there is no OAP 10.5 release** — the SWIPs that introduced them shipped in 11.0. On OAP 10.x the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) works fine; the admin-port features (DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, Inspect, OAP UI-template sync) are unavailable and the corresponding sidebar entries are hidden. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
 
 ## How Horizon detects module state
 

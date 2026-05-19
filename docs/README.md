@@ -10,7 +10,7 @@ This documentation tree explains:
 - **Access Control** — [local](access-control/local-backend.md) + [LDAP](access-control/ldap-backend.md) backends, [break-glass admin](access-control/break-glass.md), the 28-verb [RBAC model](access-control/rbac.md), the [audit log](access-control/audit-log.md), and the three [admin pages](access-control/admin-pages.md).
 - **Customization** — how the [sidebar is composed from OAP layers](customization/menu-structure.md), how to author [layer dashboard templates](customization/layer-templates.md), how to author [overview (war-room) templates](customization/overview-templates.md), and the end-to-end recipe for [adding a new layer](customization/adding-a-new-layer.md).
 - **Components** — field-by-field reference for every widget primitive ([overview](components/overview-widgets.md) + [per-layer dashboard](components/dashboard-widgets.md)) and the [wrapped chart components](components/charts.md).
-- **Operate** — [Cluster Status & Metadata](operate/cluster-metadata.md) page and the [Inspect](operate/inspect.md) page (the latter additionally requires OAP 10.5.0+ for the SWIP-14 Inspect API; everything else works on any OAP 10.x — see the [feature matrix](compatibility/oap-version.md#feature-matrix-vs-oap-version)).
+- **Operate** — [Cluster Status & Metadata](operate/cluster-metadata.md) page and the [Inspect](operate/inspect.md) page (the latter requires OAP 11.x for the SWIP-14 Inspect API; OAP 10.x is partially supported — see the [feature matrix](compatibility/oap-version.md#feature-matrix-vs-oap-version)).
 
 ## Repository layout (orientation only)
 

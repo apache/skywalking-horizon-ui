@@ -23,7 +23,7 @@ oap:
 | `timeoutMs` | number | `15000` | no | Per-request HTTP timeout (milliseconds) for all OAP calls. Applies to query, admin, Zipkin. Must be positive integer. |
 | `auth.username` | string | — | required if `auth` block present | Basic-auth username. Sent on every outbound OAP call. |
 | `auth.password` | string | — | required if `auth` block present | Basic-auth password. Sent on every outbound OAP call. Use `${VAR}` interpolation, not a literal. |
-| `mqe.host` | string | — | no | (Reserved) Override host for MQE GraphQL. When unset, Horizon discovers it via the sharing-server config dump on OAP 10.5+, falling back to `queryUrl`'s host. |
+| `mqe.host` | string | — | no | (Reserved) Override host for MQE GraphQL. When unset, Horizon discovers it via the sharing-server config dump on OAP 11.x, falling back to `queryUrl`'s host. |
 | `mqe.port` | number | — | no | (Reserved) Override port for MQE GraphQL. Must be positive integer. |
 
 ## How the BFF uses each URL
@@ -55,13 +55,13 @@ oap:
 
 ## OAP capability probing
 
-Horizon detects optional GraphQL fields via introspection on first use, then caches the result per BFF process lifetime. This is what makes "Horizon runs against any 10.5+ OAP" work — newer fields are picked up automatically when present, and missing fields are routed around silently.
+Horizon detects optional GraphQL fields via introspection on first use, then caches the result per BFF process lifetime. This is what lets Horizon run natively against OAP 11.x while still supporting v10 for triage — newer fields are picked up automatically when present, and missing fields are routed around silently.
 
 | Capability | Probed |
 |---|---|
 | `queryAlarms` (modern alarm query with server-side layer filter) | First alarms request. If missing → falls back to legacy `getAlarm` and filters client-side. |
 | `getMenuItems` field set (per OAP version) | First menu request. |
-| MQE target (sharing-server vs core.restPort) | First MQE call. OAP 10.5+ default → sharing-server. |
+| MQE target (sharing-server vs core.restPort) | First MQE call. OAP 11.x default → sharing-server; v10 → `core.restPort`. |
 
 The cache is per-process. After a BFF restart, the next request re-probes.
 

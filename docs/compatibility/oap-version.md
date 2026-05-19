@@ -1,32 +1,36 @@
 # OAP Version Requirement
 
-## Minimum: OAP 10.0; recommended OAP 10.5.0+
+## Native: OAP 11.x; partial support: OAP 10.x
 
-Horizon UI runs against **any Apache SkyWalking OAP in the 10.x line**. Most of the UI works against 10.0–10.4; one page — **Inspect** — additionally requires **10.5.0+** because it calls the [Inspect API (SWIP-14)](https://github.com/apache/skywalking/blob/master/docs/en/swip/swip-14.md) endpoints that were introduced in 10.5.
+Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes v11. **OAP 10.x is partially supported**: the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) renders correctly because it only touches the query GraphQL port. Everything that lives on OAP's **admin port** — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync — depends on modules (`admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `inspect`) that only exist in v11. On v10 those sidebar entries are hidden and the admin pages fall back to bundled read-only.
 
-Older 9.x OAPs are not supported — the layer concept, the MQE language baseline Horizon assumes, and the admin port layout all settled in 10.0.
+> Note: those four modules appeared in OAP's 10.5 development snapshot, but **there is no OAP 10.5 release** — the SWIPs that introduced them shipped in 11.0. Treat any "10.5" reference in old docs as "v11."
+
+Older 9.x OAPs are not supported — the layer concept, the MQE language baseline Horizon assumes, and the admin port layout all settled later.
 
 ### Feature matrix vs OAP version
 
-| Horizon feature | OAP 10.0–10.4 | OAP 10.5.0+ |
+| Horizon feature | OAP 10.x (partial) | OAP 11.x (native) |
 |---|---|---|
 | Layer dashboards, overviews | ✓ | ✓ |
-| Alarms (read) | ✓ — falls back to legacy `getAlarm` when `queryAlarms` is absent | ✓ — uses `queryAlarms` (server-side layer filter) when present |
+| Alarms (read) | ✓ — falls back to legacy `getAlarm` when `queryAlarms` is absent | ✓ — uses `queryAlarms` (server-side layer filter) |
 | Traces (native + Zipkin), Logs, Topology | ✓ | ✓ |
 | Profiling (trace / async / pprof / eBPF) | ✓ — per the profiling modules you've turned on | ✓ |
 | Cluster Status — Query pane | ✓ | ✓ |
-| Cluster Status — Admin pane (admin-server, runtime-rule, dsl-debugging) | ✓ — module probe works on any v10 admin-server | ✓ — also reports the `inspect` module |
-| DSL Management, Live Debugger, Alarm Rule editor | ✓ — needs `receiver-runtime-rule` + `dsl-debugging` modules on (any v10) | ✓ |
-| MQE execution / metric reads | ✓ — Horizon's MQE target resolver discovers the REST port from `core.restHost`/`core.restPort` when `sharing-server` is absent | ✓ — uses `sharing-server.default.restPort` (the v10.5+ default) |
-| **Inspect page** (metric catalog + entity enumerator) | ✗ — endpoints don't exist; the page is hidden / returns 404 | ✓ — requires `SW_INSPECT=default` on OAP |
+| MQE execution / metric reads | ✓ — falls back to `core.restHost`/`core.restPort` when `sharing-server` is absent | ✓ — uses `sharing-server.default.restPort` (the v11 default) |
+| Cluster Status — Admin pane (admin-server, runtime-rule, dsl-debugging, inspect) | ✗ — admin-port modules don't exist on v10; pane is hidden | ✓ |
+| DSL Management, Live Debugger, Alarm Rule editor | ✗ — needs `receiver-runtime-rule` + `dsl-debugging` (v11-only) | ✓ |
+| **Inspect page** (metric catalog + entity enumerator) | ✗ — `/inspect/*` endpoints don't exist | ✓ — requires `SW_INSPECT=default` on OAP |
+| **OAP UI-template sync** (admin pages edit OAP-stored dashboards) | ✗ — `/ui-management/templates*` not available; admin pages are read-only against bundled | ✓ — required for non-read-only admin editing |
 
-### What "requires 10.5.0+" means in practice for the Inspect page
+### What "partial support on v10" means in practice
 
-- The Inspect page makes calls to `GET /inspect/metrics` and `GET /inspect/entities` on the OAP admin port. These endpoints only exist in OAP 10.5.0+.
-- Horizon's Cluster Status → Admin pane probes the `inspect` module via the OAP config dump. On an OAP < 10.5, the module is not in the dump, so the pane shows `inspect` as off and the Inspect tab is hidden from the sidebar. There is no broken-half-rendered state.
-- All other pages remain fully functional on 10.0–10.4. The compatibility cliff is scoped to one page.
+- **Data-plane pages just work.** Dashboards, overviews, alarms (read), traces, logs, topology, and profiling all render on v10. The GraphQL query port (default `:12800`) is what they use, and the protocol is stable across both lines.
+- **Admin port is dark on v10.** The entire admin port (default `:17128`) is gone — `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, and `inspect` are v11-only. Anything that depends on them (Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync) is unavailable. The sidebar entries are hidden so operators don't see broken pages.
+- **MQE target resolution** falls back to OAP's `core.restHost`/`core.restPort` instead of the v11 `sharing-server.default.restPort` default. Works fine, just a different code path.
+- **Admin template editing** is read-only — the dashboard / overview / alert admin pages render bundled JSON and show the OAP-unreachable banner. Saves are blocked. Display still works.
 
-If you run 10.0–10.4 and don't need the Inspect tab, you don't need to upgrade. If you do need it, upgrade OAP to 10.5.0+ and set `SW_INSPECT=default`.
+If you only need triage (dashboards, alarms, traces, logs), v10 is sufficient. If you need any operate / admin functionality, you need v11.
 
 ## Where the version is shown
 
@@ -50,7 +54,7 @@ Horizon does **not** lock to a specific OAP minor version. The BFF probes OAP's 
 - **Alarms**: prefers the modern `queryAlarms` capability (server-side layer filter) and falls back to the legacy `getAlarm` (all-layers + client-side filter) when the schema doesn't include it.
 - **Per-call capability cache** ensures the probe runs once per BFF lifetime, not per request.
 
-This means a Horizon release built against OAP 10.5.0 will continue to work against OAP 10.7, 10.8, etc., picking up new server-side capabilities automatically when they appear — and will also keep working against an older 10.x OAP at the cost of the Inspect page.
+This means a Horizon release built against OAP 11.x will continue to work against future v11 patch releases, picking up new server-side capabilities automatically when they appear — and will also keep working against v10 at the cost of Inspect + admin template editing.
 
 ## Versions of related pieces
 

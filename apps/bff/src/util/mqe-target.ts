@@ -28,8 +28,8 @@
  *      `Map<String,String>` with keys like `core.default.restPort`
  *      and (when the sharing-server module is enabled)
  *      `sharing-server.default.restPort`. Prefer the sharing-server
- *      values because 10.5+ defaults the query GraphQL there; fall
- *      back to core's REST otherwise.
+ *      values because OAP 11.x defaults the query GraphQL there; fall
+ *      back to core's REST otherwise (the v10 layout).
  *
  *   3. Host fallback: if the discovered bind host is empty / wildcard
  *      (`0.0.0.0`, `::`), reuse the admin URL's hostname. Port-forward
@@ -137,8 +137,8 @@ interface PickResult {
 }
 
 function pickFromDump(dump: Record<string, string>, adminHost: string): PickResult {
-  // Prefer sharing-server over core (10.5+ defaults the query
-  // GraphQL on the sharing-server REST).
+  // Prefer sharing-server over core (OAP 11.x defaults the query
+  // GraphQL on the sharing-server REST; the v10 layout has it on core).
   const sharingHost = dump['sharing-server.default.restHost'];
   const sharingPortStr = dump['sharing-server.default.restPort'];
   const coreHost = dump['core.default.restHost'];
