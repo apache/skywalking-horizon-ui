@@ -318,7 +318,8 @@ const alarmsQuerySchema = z.object({
   keyword: z.string().optional(),
   pageNum: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(LIST_PAGE_SIZE_CAP).default(LIST_PAGE_SIZE_CAP),
-  /** New-mode only. Maps to `condition.layers: [layer]`. */
+  /** New-mode only. Maps to `condition.layer` (a single String on the
+   *  OAP side — an alarm record is persisted with one layer). */
   layer: z.string().optional(),
   /** New-mode only. Combined with `instance` / `endpoint` to build a
    *  single `Entity` filter. When absent, no entity narrowing. */
@@ -421,16 +422,22 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     let msgsRaw: AlarmMessage[];
     try {
       if (caps.queryAlarms) {
-        /* New-mode condition. `entities` + `layers` ride server-side;
+        /* New-mode condition. `entities` + `layer` ride server-side;
          * `scope` is intentionally ignored here because it's a
-         * legacy-only coarse filter and `entities` + `layers` cover
-         * its use-cases more precisely. */
+         * legacy-only coarse filter and `entities` + `layer` cover
+         * its use-cases more precisely. NOTE: the OAP field is
+         * `layer: String` (singular scalar), NOT `layers: [String]`.
+         * An alarm record is persisted with exactly one layer, so the
+         * filter is a single value. Sending `layers` silently no-ops —
+         * OAP ignores the unknown field and returns every layer's
+         * alarms, which looked like "the per-layer filter doesn't
+         * work". */
         const condition: Record<string, unknown> = {
           duration: { start, end, step: 'SECOND' },
           paging: { pageNum: q.pageNum, pageSize: q.pageSize },
         };
         if (q.keyword) condition.keyword = q.keyword;
-        if (q.layer) condition.layers = [q.layer];
+        if (q.layer) condition.layer = q.layer;
         const entity = buildEntity(q);
         if (entity) condition.entities = [entity];
         const raw = await graphqlPost<QueryAlarmsRaw>(opts, QUERY_ALARMS_QUERY, { condition });
