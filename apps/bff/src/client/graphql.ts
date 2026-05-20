@@ -102,7 +102,28 @@ export async function graphqlPost<T>(
     const text = await res.text().catch(() => '');
     throw new GraphqlError(res.status, `graphql http ${res.status}: ${text.slice(0, 200)}`);
   }
-  const body = (await res.json()) as { data?: T; errors?: ReadonlyArray<{ message: string; path?: ReadonlyArray<string | number> }> };
+  // A 200 that isn't JSON means the endpoint isn't actually OAP's
+  // GraphQL — most commonly it's serving an HTML page (a reverse proxy
+  // / SPA fallback, a login redirect, or the OAP UI itself). Parsing
+  // that as JSON yields the opaque `Unexpected token '<'`; surface a
+  // clear diagnostic with the status, content-type, and a snippet.
+  const raw = await res.text();
+  const ctype = res.headers.get('content-type') ?? '';
+  const looksJson = ctype.includes('json') || /^\s*[{[]/.test(raw);
+  if (!looksJson) {
+    const snippet = raw.replace(/\s+/g, ' ').trim().slice(0, 120);
+    throw new GraphqlError(
+      res.status,
+      `OAP query endpoint returned non-JSON (HTTP ${res.status}, content-type "${ctype || 'unknown'}") — ` +
+        `expected GraphQL JSON. Check oap.queryUrl points at OAP's GraphQL port, not a UI/proxy. Body: ${snippet}`,
+    );
+  }
+  let body: { data?: T; errors?: ReadonlyArray<{ message: string; path?: ReadonlyArray<string | number> }> };
+  try {
+    body = JSON.parse(raw);
+  } catch (e) {
+    throw new GraphqlError(res.status, `OAP returned malformed JSON: ${e instanceof Error ? e.message : String(e)}`);
+  }
   if (body.errors && body.errors.length) {
     throw new GraphqlError(200, body.errors.map((e) => e.message).join('; '), body.errors);
   }

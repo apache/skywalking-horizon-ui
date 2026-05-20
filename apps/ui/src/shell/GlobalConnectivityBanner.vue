@@ -131,6 +131,9 @@ watch([unreachable, retryChoice], () => startRetry(), { immediate: true });
 onBeforeUnmount(() => clearRetry());
 
 const errorText = computed<string>(() => info.value?.error ?? 'no response');
+// The "View cluster status" shortcut is pointless once the operator is
+// already on the cluster page — hide it there.
+const onClusterPage = computed<boolean>(() => route.path.startsWith('/operate/cluster'));
 const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
 </script>
 
@@ -160,7 +163,7 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
     </label>
 
     <button type="button" class="now" @click="() => refetch()">retry now</button>
-    <RouterLink to="/operate/cluster" class="link">View cluster status →</RouterLink>
+    <RouterLink v-if="!onClusterPage" to="/operate/cluster" class="link">View cluster status →</RouterLink>
   </div>
 </template>
 
