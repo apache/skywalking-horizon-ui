@@ -171,36 +171,41 @@ interface NavSection {
   links: NavRow[];
 }
 
+// Each static menu carries the read verb its page's primary data route
+// requires (see apps/bff/src/rbac/route-policy.ts). The sidebar removes
+// rows the user can't read; the BFF enforces the same verbs server-side.
 const sections: NavSection[] = [
   {
     kicker: 'Operate',
     links: [
-      { icon: 'svc', label: 'Cluster status', to: '/operate/cluster' },
-      { icon: 'alert', label: 'Alerting rules', to: '/operate/alerting-rules' },
+      { icon: 'svc', label: 'Cluster status', to: '/operate/cluster', verb: 'cluster:read' },
+      { icon: 'alert', label: 'Alerting rules', to: '/operate/alerting-rules', verb: 'alarm-rule:read' },
       {
         icon: 'flame',
         label: 'Live debugger',
         to: '/operate/live-debug',
+        verb: 'live-debug:read',
         // Match the tab variants only; the history sibling at
         // /operate/live-debug/history must NOT highlight this row.
         activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal)(\/|$)/.test(p),
       },
-      { icon: 'event', label: 'Capture history', to: '/operate/live-debug/history' },
-      { icon: 'metric', label: 'Metrics Inspect', to: '/operate/inspect' },
+      { icon: 'event', label: 'Capture history', to: '/operate/live-debug/history', verb: 'live-debug:read' },
+      { icon: 'metric', label: 'Metrics Inspect', to: '/operate/inspect', verb: 'inspect:read' },
       {
         icon: 'set',
         label: 'DSL Management',
         // No standalone landing — `to` jumps to the first rule page so
         // the L1 itself is clickable; activeWhen covers all DSL routes.
         to: '/operate/dsl/otel-rules',
+        verb: 'rule:read',
         activeWhen: (p) => p === '/operate/oal' || /^\/operate\/dsl(\/|$)/.test(p),
         children: [
-          { icon: 'set', label: 'MAL · OTEL', to: '/operate/dsl/otel-rules' },
-          { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules' },
-          { icon: 'set', label: 'LAL', to: '/operate/dsl/lal' },
-          { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules' },
-          { icon: 'trace', label: 'OAL · read-only', to: '/operate/oal' },
-          { icon: 'download', label: 'Dump & restore', to: '/operate/dsl/dump' },
+          { icon: 'set', label: 'MAL · OTEL', to: '/operate/dsl/otel-rules', verb: 'rule:read' },
+          { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules', verb: 'rule:read' },
+          { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
+          { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
+          { icon: 'trace', label: 'OAL · read-only', to: '/operate/oal', verb: 'rule:read' },
+          { icon: 'download', label: 'Dump & restore', to: '/operate/dsl/dump', verb: 'rule:read' },
         ],
       },
     ],
@@ -208,10 +213,10 @@ const sections: NavSection[] = [
   {
     kicker: 'Dashboard setup',
     links: [
-      { icon: 'set', label: 'Overview templates', to: '/admin/overview-templates' },
-      { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards' },
-      { icon: 'alert', label: 'Alert page', to: '/admin/alert-page-setup' },
-      { icon: 'set', label: 'Global defaults', to: '/admin/global-defaults' },
+      { icon: 'set', label: 'Overview templates', to: '/admin/overview-templates', verb: 'overview:read' },
+      { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards', verb: 'dashboard:read' },
+      { icon: 'alert', label: 'Alert page', to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
+      { icon: 'set', label: 'Global defaults', to: '/admin/global-defaults', verb: 'setup:read' },
     ],
   },
   {
@@ -280,20 +285,24 @@ watch(
     </RouterLink>
 
     <nav class="sw-nav">
-      <div class="sw-nav-section sw-nav-section--icon">
-        <Icon :name="sectionIcon('Overviews')" />
-        <span>Overviews</span>
-      </div>
+      <!-- Overviews are gated by `overview:read` (operator / admin). -->
+      <template v-if="auth.hasVerb('overview:read')">
+        <div class="sw-nav-section sw-nav-section--icon">
+          <Icon :name="sectionIcon('Overviews')" />
+          <span>Overviews</span>
+        </div>
+        <RouterLink
+          v-for="ov in publicOverviews"
+          :key="`pub:${ov.id}`"
+          :to="`/overview/${ov.id}`"
+          class="sw-nav-item"
+          :class="{ 'is-active': isActive(`/overview/${ov.id}`) }"
+        >
+          <Icon :name="(ov.icon as IconName) || 'dash'" /><span>{{ ov.title }}</span>
+        </RouterLink>
+      </template>
       <RouterLink
-        v-for="ov in publicOverviews"
-        :key="`pub:${ov.id}`"
-        :to="`/overview/${ov.id}`"
-        class="sw-nav-item"
-        :class="{ 'is-active': isActive(`/overview/${ov.id}`) }"
-      >
-        <Icon :name="(ov.icon as IconName) || 'dash'" /><span>{{ ov.title }}</span>
-      </RouterLink>
-      <RouterLink
+        v-if="auth.hasVerb('alarms:read')"
         to="/alarms"
         class="sw-nav-item"
         :class="{ 'is-active': isActive('/alarms') }"
