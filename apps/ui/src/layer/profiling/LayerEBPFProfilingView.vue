@@ -46,6 +46,7 @@ import type {
 } from '@/api/client';
 import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
 import ProfileStackTable from '@/layer/profiling/ProfileStackTable.vue';
+import Icon from '@/components/icons/Icon.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -381,7 +382,8 @@ function toggleNewTaskLabel(l: string): void {
         <span>eBPF profile tasks</span>
         <div class="side-head-actions">
           <button
-            class="btn-icon"
+            class="btn-refresh"
+            :class="{ spinning: tasksLoading }"
             :disabled="!selectedId || tasksLoading"
             :title="
               !selectedId
@@ -392,13 +394,7 @@ function toggleNewTaskLabel(l: string): void {
             "
             aria-label="Refresh task list"
             @click="refreshTasks"
-          >
-            <!-- Inline ↻ glyph — avoids pulling an extra icon and stays
-                 readable at 10.5px. The CSS spin keyframe runs while
-                 `tasksLoading` is true so the operator sees the refetch
-                 in-flight. -->
-            <span class="ic" :class="{ spin: tasksLoading }">↻</span>
-          </button>
+          ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
             :disabled="!selectedId || !couldProfiling"
@@ -679,34 +675,32 @@ function toggleNewTaskLabel(l: string): void {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.btn-icon {
-  font-size: 11.5px;
-  line-height: 1;
-  width: 22px;
-  height: 22px;
+/* Refresh button — matches .btn-new height (font-size 10.5px + 2px V
+ * padding ≈ 18px tall) so the two head-actions sit flush. Square ratio
+ * via padding instead of fixed width keeps the box auto-sized to the
+ * icon — `Icon :size="11"` renders an 11px SVG that the .sw-btn global
+ * would force to 12px via `.sw-btn svg`, which is why we use a custom
+ * shell rather than `sw-btn is-icon`. */
+.btn-refresh {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid var(--sw-line-2);
   background: var(--sw-bg-1);
   color: var(--sw-fg-1);
   cursor: pointer;
+  line-height: 0;
 }
-.btn-icon:hover:not(:disabled) {
+.btn-refresh:hover:not(:disabled) {
   border-color: var(--sw-accent);
   color: var(--sw-accent);
 }
-.btn-icon:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.btn-icon .ic {
-  display: inline-block;
+.btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-refresh.spinning :deep(svg) {
+  animation: ebpf-refresh-spin 1.6s linear infinite;
   transform-origin: 50% 50%;
-}
-.btn-icon .ic.spin {
-  animation: ebpf-refresh-spin 0.9s linear infinite;
 }
 @keyframes ebpf-refresh-spin {
   to { transform: rotate(360deg); }

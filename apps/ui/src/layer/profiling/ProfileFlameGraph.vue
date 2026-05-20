@@ -27,7 +27,7 @@
                                        is `count`.
 -->
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import * as d3 from 'd3';
 import { flamegraph } from 'd3-flame-graph';
 import type { ProfileAnalyzationElement, ProfileAnalyzationTree } from '@/api/client';
@@ -171,50 +171,84 @@ function draw(): void {
   d3.select(root.value).datum(tree).call(chart);
   const svg = root.value.querySelector('svg');
   if (svg) {
-    // Click a frame → open the popout dialog. This replaces the
-    // earlier cursor-following tooltip, which clipped against the
-    // viewport edge when the cell was near the bottom of the page.
-    // The dialog renders inside Vue's template (see below) — viewport-
-    // centered, with backdrop + ESC + outside-click to dismiss.
-    svg.addEventListener('click', (event) => {
+    // Hover a frame → render a cursor-following info card (悬浮信息).
+    // The earlier click-driven modal popout was a useful escape hatch
+    // while the framework was unstable, but now that the flame draw is
+    // settled, an inline tooltip matches operator muscle memory from
+    // booster-ui + every other flame viewer. Tracking happens at the
+    // SVG layer so each `g` (frame group) is resolved via event-target
+    // walk-up — no per-frame listener install (matters at 1000+ frames).
+    const onMove = (event: MouseEvent) => {
       const target = (event.target as Element).closest('g');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data: any = target && (d3.select(target as Element).datum() as any);
-      if (!data || !data.data) return;
-      selectedFrame.value = data.data as FlameNode;
-    });
+      if (!data || !data.data) {
+        hoveredFrame.value = null;
+        return;
+      }
+      hoveredFrame.value = data.data as FlameNode;
+      tipPos.x = event.clientX;
+      tipPos.y = event.clientY;
+    };
+    const onLeave = () => { hoveredFrame.value = null; };
+    svg.addEventListener('mousemove', onMove);
+    svg.addEventListener('mouseleave', onLeave);
+    // Hold onto handlers so the unmount cleanup detaches them along
+    // with the d3 chart, even though the SVG is replaced wholesale on
+    // every draw() (a fresh d3.flamegraph render rebuilds the tree).
+    svgHandlers = { svg, onMove, onLeave };
   }
 }
 
-const selectedFrame = ref<FlameNode | null>(null);
+const hoveredFrame = ref<FlameNode | null>(null);
+const tipPos = reactive({ x: 0, y: 0 });
+let svgHandlers: { svg: SVGElement; onMove: (e: MouseEvent) => void; onLeave: () => void } | null = null;
+
 const rootCountForPct = computed<number>(() => {
   const tree = buildVirtualRoot();
   return tree?.count ?? 0;
 });
-const selectedPctRoot = computed<string>(() => {
-  const f = selectedFrame.value;
+const hoveredPctRoot = computed<string>(() => {
+  const f = hoveredFrame.value;
   const total = rootCountForPct.value;
   if (!f || total === 0) return '0';
   return ((f.count / total) * 100).toFixed(2);
 });
 
-function closeFrameDialog(): void { selectedFrame.value = null; }
-function onKeyDown(ev: KeyboardEvent): void {
-  if (ev.key === 'Escape' && selectedFrame.value) closeFrameDialog();
-}
+// Tip position with viewport-edge clamping. Width is capped via CSS
+// (max-width: 360px), height typically ≤ 140px for the four-row card —
+// 380×160 is a defensive overshoot so the flip kicks in early enough
+// to avoid clipping. `transform: translate(...)` is on a `position:
+// fixed` element so coords are viewport-relative.
+const TIP_W = 380;
+const TIP_H = 160;
+const tipStyle = computed<Record<string, string>>(() => {
+  if (typeof window === 'undefined') return {};
+  const offset = 14;
+  let x = tipPos.x + offset;
+  let y = tipPos.y + offset;
+  if (x + TIP_W > window.innerWidth - 8) x = tipPos.x - TIP_W - offset;
+  if (y + TIP_H > window.innerHeight - 8) y = tipPos.y - TIP_H - offset;
+  if (x < 8) x = 8;
+  if (y < 8) y = 8;
+  return { transform: `translate(${x}px, ${y}px)` };
+});
 
 onMounted(() => {
   draw();
-  window.addEventListener('keydown', onKeyDown);
 });
 watch(() => [props.trees, props.metricKey], () => {
-  // Closing the dialog on data change keeps a stale frame from being
-  // shown after Analyze re-runs against a different span / segment.
-  selectedFrame.value = null;
+  // Drop any stale hover state when the data changes — keeps the card
+  // from briefly pointing at a frame that no longer exists.
+  hoveredFrame.value = null;
   draw();
 });
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeyDown);
+  if (svgHandlers) {
+    svgHandlers.svg.removeEventListener('mousemove', svgHandlers.onMove);
+    svgHandlers.svg.removeEventListener('mouseleave', svgHandlers.onLeave);
+    svgHandlers = null;
+  }
   if (chart) {
     try {
       chart.destroy();
@@ -229,52 +263,37 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="root" class="fg-host"></div>
-  <!-- Frame-detail popout. Replaces the cursor-following tooltip that
-       used to clip at the viewport edge — now centered, with a
-       backdrop, ESC + outside-click + close-button to dismiss.
-       Backdrop swallows the click bubble (.self) so clicks inside the
-       dialog don't close it. -->
+  <!-- Cursor-following info card. Teleported to <body> so the parent's
+       overflow:auto doesn't clip it at the bottom edge of the host.
+       `pointer-events: none` keeps the card transparent to the
+       underlying SVG so hovering across frames doesn't churn the
+       mouseleave/mouseover events that drive `hoveredFrame`. -->
   <Teleport to="body">
     <div
-      v-if="selectedFrame"
-      class="fg-pop-backdrop"
-      @click.self="closeFrameDialog"
+      v-if="hoveredFrame"
+      class="fg-tip"
+      :style="tipStyle"
+      role="tooltip"
     >
-      <div class="fg-pop sw-card" role="dialog" aria-label="Frame detail">
-        <header class="fg-pop-head">
-          <h4>Stack frame</h4>
-          <button
-            type="button"
-            class="fg-pop-close"
-            aria-label="Close"
-            title="Close (Esc)"
-            @click="closeFrameDialog"
-          >×</button>
-        </header>
-        <div class="fg-pop-body">
-          <div class="fg-pop-sig" :title="selectedFrame.codeSignature">
-            {{ selectedFrame.codeSignature }}
-          </div>
-          <dl class="fg-pop-rows">
-            <div class="fg-pop-row">
-              <dt>Dump count</dt>
-              <dd>{{ selectedFrame.count }}</dd>
-            </div>
-            <div class="fg-pop-row">
-              <dt>Duration</dt>
-              <dd>{{ selectedFrame.duration }} ns</dd>
-            </div>
-            <div class="fg-pop-row">
-              <dt>Duration (excl. children)</dt>
-              <dd>{{ selectedFrame.durationChildExcluded }} ns</dd>
-            </div>
-            <div class="fg-pop-row">
-              <dt>% of root</dt>
-              <dd>{{ selectedPctRoot }}%</dd>
-            </div>
-          </dl>
+      <div class="fg-tip-sig">{{ hoveredFrame.codeSignature }}</div>
+      <dl class="fg-tip-rows">
+        <div class="fg-tip-row">
+          <dt>Dump count</dt>
+          <dd>{{ hoveredFrame.count }}</dd>
         </div>
-      </div>
+        <div class="fg-tip-row">
+          <dt>Duration</dt>
+          <dd>{{ hoveredFrame.duration }} ns</dd>
+        </div>
+        <div class="fg-tip-row">
+          <dt>Duration (excl. children)</dt>
+          <dd>{{ hoveredFrame.durationChildExcluded }} ns</dd>
+        </div>
+        <div class="fg-tip-row">
+          <dt>% of root</dt>
+          <dd>{{ hoveredPctRoot }}%</dd>
+        </div>
+      </dl>
     </div>
   </Teleport>
 </template>
@@ -284,7 +303,6 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   overflow: auto;
-  cursor: pointer;
 }
 .fg-host :deep(svg) {
   width: 100%;
@@ -292,99 +310,56 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* Modal backdrop + frame-detail card. Lives in <body> via <Teleport>
- * so it isn't clipped by any ancestor's overflow:hidden. Card width
- * caps at 560px and uses `overflow-wrap: anywhere` so even the
- * longest stack frame (`org.jboss.threads.EnhancedQueueExecutor$
- * ThreadBody.run:1556`) wraps inside the box instead of pushing past
- * its edge. */
-.fg-pop-backdrop {
+/* Cursor-following hover info. Teleported to <body>, fixed-positioned
+ * with `transform: translate(...)` driven by the JS clamp. Width caps
+ * at 360px with `overflow-wrap: anywhere` so even the longest stack
+ * frame (`org.jboss.threads.EnhancedQueueExecutor$ThreadBody.run:1556`)
+ * wraps inside the box instead of pushing past its edge. */
+.fg-tip {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-}
-.fg-pop {
-  width: min(560px, 100%);
-  max-height: calc(100vh - 64px);
-  display: flex;
-  flex-direction: column;
+  width: max-content;
+  max-width: 360px;
+  pointer-events: none;
   background: var(--sw-bg-1, #1b1d24);
   border: 1px solid var(--sw-line, #2a2d36);
   border-radius: 6px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-}
-.fg-pop-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--sw-line, #2a2d36);
-  background: var(--sw-bg-2, #20232c);
-}
-.fg-pop-head h4 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--sw-fg-1, #d4d6de);
-}
-.fg-pop-close {
-  margin-left: auto;
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3, #6b6f7a);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 6px;
-  border-radius: 3px;
-}
-.fg-pop-close:hover {
-  background: var(--sw-bg-3, #2a2d36);
-  color: var(--sw-fg-0, #f5f7fb);
-}
-.fg-pop-body {
-  padding: 12px 14px;
-  overflow: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  padding: 10px 12px;
   font-family: var(--sw-mono, monospace);
-  font-size: 11.5px;
+  font-size: 11px;
   color: var(--sw-fg-1, #d4d6de);
   line-height: 1.5;
 }
-.fg-pop-sig {
+.fg-tip-sig {
   color: var(--sw-fg-0, #f5f7fb);
   font-weight: 600;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
   border-bottom: 1px dashed var(--sw-line, #2a2d36);
   overflow-wrap: anywhere;
   word-break: break-all;
 }
-.fg-pop-rows {
+.fg-tip-rows {
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
-.fg-pop-row {
+.fg-tip-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
 }
-.fg-pop-row dt {
+.fg-tip-row dt {
   margin: 0;
   color: var(--sw-fg-3, #6b6f7a);
   flex: 0 0 auto;
 }
-.fg-pop-row dd {
+.fg-tip-row dd {
   margin: 0;
   color: var(--sw-fg-0, #f5f7fb);
   font-variant-numeric: tabular-nums;
