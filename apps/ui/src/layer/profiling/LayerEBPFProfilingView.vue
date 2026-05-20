@@ -111,6 +111,18 @@ const highlightTop = ref(true);
 // Process picker state
 const processSearch = ref('');
 const showProcessPicker = ref(false);
+// Per-row expand/fold for the process picker. Rows render the same
+// truncated three-column shape by default; expanding shows every
+// attribute uncropped (the most useful column — `command_line`,
+// `container.id`, agent metadata — is too wide to fit a single grid
+// cell). Tracked as a Set to keep toggle O(1).
+const expandedProcessIds = ref<Set<string>>(new Set());
+function toggleProcessExpanded(id: string): void {
+  const next = new Set(expandedProcessIds.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  expandedProcessIds.value = next;
+}
 
 // New task modal
 const showNewTask = ref(false);
@@ -509,25 +521,70 @@ function toggleNewTaskLabel(l: string): void {
             <div class="cc cc-name">Process</div>
             <div class="cc cc-inst">Instance</div>
             <div class="cc cc-attrs">Attributes</div>
+            <div class="cc cc-exp"></div>
           </div>
           <div v-if="!filteredProcesses.length" class="empty">No matches.</div>
-          <label
-            v-for="p in filteredProcesses"
-            :key="p.id"
-            class="pr"
-            :class="{ on: selectedProcessIds.includes(p.id) }"
-          >
-            <div class="cc cc-sel">
-              <input
-                type="checkbox"
-                :checked="selectedProcessIds.includes(p.id)"
-                @change="toggleProcessId(p.id)"
-              />
+          <template v-for="p in filteredProcesses" :key="p.id">
+            <div
+              class="pr"
+              :class="{ on: selectedProcessIds.includes(p.id) }"
+              @click="toggleProcessId(p.id)"
+            >
+              <div class="cc cc-sel" @click.stop>
+                <input
+                  type="checkbox"
+                  :checked="selectedProcessIds.includes(p.id)"
+                  :aria-label="`Pin process ${p.name}`"
+                  @change="toggleProcessId(p.id)"
+                />
+              </div>
+              <div class="cc cc-name" :title="p.name">{{ p.name }}</div>
+              <div class="cc cc-inst" :title="p.instanceName ?? ''">{{ p.instanceName }}</div>
+              <div class="cc cc-attrs" :title="attrLine(p)">{{ attrLine(p) }}</div>
+              <button
+                type="button"
+                class="cc cc-exp pr-caret"
+                :class="{ open: expandedProcessIds.has(p.id) }"
+                :aria-expanded="expandedProcessIds.has(p.id)"
+                :aria-label="expandedProcessIds.has(p.id) ? 'Collapse details' : 'Expand details'"
+                @click.stop="toggleProcessExpanded(p.id)"
+              >
+                <Icon name="caret" :size="10" />
+              </button>
             </div>
-            <div class="cc cc-name" :title="p.name">{{ p.name }}</div>
-            <div class="cc cc-inst" :title="p.instanceName ?? ''">{{ p.instanceName }}</div>
-            <div class="cc cc-attrs" :title="attrLine(p)">{{ attrLine(p) }}</div>
-          </label>
+            <div v-if="expandedProcessIds.has(p.id)" class="pr-expand">
+              <dl class="pe-rows">
+                <div class="pe-row"><dt>Process</dt><dd class="mono">{{ p.name }}</dd></div>
+                <div v-if="p.serviceName" class="pe-row">
+                  <dt>Service</dt><dd class="mono">{{ p.serviceName }}</dd>
+                </div>
+                <div v-if="p.instanceName" class="pe-row">
+                  <dt>Instance</dt><dd class="mono">{{ p.instanceName }}</dd>
+                </div>
+                <div v-if="p.agentId" class="pe-row">
+                  <dt>Agent</dt><dd class="mono">{{ p.agentId }}</dd>
+                </div>
+                <div v-if="p.detectType" class="pe-row">
+                  <dt>Detect type</dt><dd class="mono">{{ p.detectType }}</dd>
+                </div>
+                <div v-if="(p.labels ?? []).length" class="pe-row">
+                  <dt>Labels</dt>
+                  <dd>
+                    <span v-for="l in p.labels" :key="l" class="pe-chip">{{ l }}</span>
+                  </dd>
+                </div>
+                <div v-if="(p.attributes ?? []).length" class="pe-row pe-attrs">
+                  <dt>Attributes</dt>
+                  <dd>
+                    <div v-for="a in p.attributes" :key="a.name" class="pe-attr">
+                      <span class="pe-attr-k">{{ a.name }}</span>
+                      <span class="pe-attr-v mono">{{ a.value }}</span>
+                    </div>
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -912,7 +969,7 @@ function toggleNewTaskLabel(l: string): void {
 .ph,
 .pr {
   display: grid;
-  grid-template-columns: 30px minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(160px, 2fr);
+  grid-template-columns: 30px minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(160px, 2fr) 26px;
   align-items: center;
   font-size: 11px;
 }
@@ -940,6 +997,91 @@ function toggleNewTaskLabel(l: string): void {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.pr-caret {
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 0;
+}
+.pr-caret:hover { color: var(--sw-accent); }
+.pr-caret :deep(svg) {
+  transition: transform 0.15s ease;
+  transform-origin: 50% 50%;
+}
+.pr-caret.open :deep(svg) {
+  transform: rotate(180deg);
+  color: var(--sw-accent);
+}
+
+/* Expanded detail panel — full-width, sits directly under its row,
+ * shares the picker's vertical scroll. Mono fonts on values for the
+ * grep-friendly fields (`command_line`, `container.id`, agent UUIDs).
+ * Removes the truncating ellipsis: each attribute is on its own line
+ * with overflow-wrap so monstrous JVM command lines wrap inside the
+ * box instead of pushing past it. */
+.pr-expand {
+  background: var(--sw-bg-2);
+  border-bottom: 1px solid var(--sw-line);
+  padding: 8px 12px 10px 38px;  /* 38px = 30px sel-col + 8px row padding */
+  font-size: 11px;
+  color: var(--sw-fg-1);
+}
+.pe-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pe-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  align-items: baseline;
+}
+.pe-row dt {
+  margin: 0;
+  color: var(--sw-fg-3);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.pe-row dd {
+  margin: 0;
+  color: var(--sw-fg-0);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.pe-row .mono { font-family: var(--sw-mono, monospace); }
+.pe-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--sw-bg-3, var(--sw-bg-1));
+  border: 1px solid var(--sw-line-2);
+  color: var(--sw-fg-1);
+  margin: 0 4px 4px 0;
+  font-size: 10.5px;
+}
+.pe-attrs dd { display: flex; flex-direction: column; gap: 2px; }
+.pe-attr {
+  display: grid;
+  grid-template-columns: minmax(130px, max-content) 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.pe-attr-k {
+  color: var(--sw-fg-2);
+  font-family: var(--sw-mono, monospace);
+}
+.pe-attr-v {
+  color: var(--sw-fg-0);
+  overflow-wrap: anywhere;
+  word-break: break-all;
 }
 
 .result {
