@@ -68,10 +68,19 @@ export function invalidateGlobalDefaultsBundledCache(): void {
 }
 
 function locate(rel: string): string {
+  // Same probe order as the alert + layer + overview loaders:
+  //   1. <HERE>/bundled_templates/...      — bundled BFF (esbuild rolls
+  //      this loader into dist/server.js; HERE = .../dist and the
+  //      bundled_templates folder sits as a sibling). In the container
+  //      this resolves to /app/bundled_templates/.
+  //   2. <HERE>/../../bundled_templates/... — dev (tsx). Source is at
+  //      apps/bff/src/logic/templates/, bundled_templates is two levels
+  //      up at apps/bff/src/bundled_templates/.
+  //   3. <cwd>/bundled_templates/...       — operator-relocated dist/.
   const candidates = [
+    resolve(HERE, `bundled_templates/${rel}`),
     resolve(HERE, `../../bundled_templates/${rel}`),
-    resolve(HERE, `../bundled_templates/${rel}`),
-    resolve(HERE, `../../../bundled_templates/${rel}`),
+    resolve(process.cwd(), `bundled_templates/${rel}`),
   ];
   for (const c of candidates) {
     if (existsSync(c)) return c;
