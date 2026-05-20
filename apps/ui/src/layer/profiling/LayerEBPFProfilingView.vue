@@ -28,7 +28,7 @@
     └───────────┴────────────────────────────────────────────────┘
 -->
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -111,11 +111,63 @@ const highlightTop = ref(true);
 // Process picker state
 const processSearch = ref('');
 const showProcessPicker = ref(false);
-// Per-row expand/fold for the process picker. Rows render the same
-// truncated three-column shape by default; expanding shows every
-// attribute uncropped (the most useful column — `command_line`,
-// `container.id`, agent metadata — is too wide to fit a single grid
-// cell). Tracked as a Set to keep toggle O(1).
+// Trigger button + computed popout coordinates. The picker is teleported
+// to <body> on open so it can overflow the layer-tab card without
+// pushing the flamegraph down. Position is anchored to the trigger
+// button's viewport rect (BCR) at open-time + on resize; we don't
+// re-anchor on scroll because the toolbar sits inside the page's own
+// scroller and tracking that would cost a listener per repaint for
+// negligible UX gain — the picker just closes if the operator scrolls
+// it offscreen.
+const pickerBtnEl = ref<HTMLElement | null>(null);
+const pickerPos = reactive({ top: 0, left: 0, width: 0 });
+const PICKER_WIDTH = 880;
+const PICKER_MAX_HEIGHT = 480;
+function anchorPicker(): void {
+  const el = pickerBtnEl.value;
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  // Default: drop down below the button. If there's not enough room
+  // below, flip up so the body fits without being clipped at the
+  // viewport bottom. 12px gap from the button edge.
+  const gap = 8;
+  const spaceBelow = window.innerHeight - r.bottom - gap;
+  const wantDown = spaceBelow >= 240 || spaceBelow >= r.top - gap;
+  pickerPos.top = wantDown
+    ? r.bottom + gap
+    : Math.max(8, r.top - gap - PICKER_MAX_HEIGHT);
+  // Right-align so the popout sits under the trigger's right edge,
+  // matching standard dropdown anchoring. Clamp to viewport (8px gutter).
+  const wantLeft = Math.min(
+    r.right - PICKER_WIDTH,
+    window.innerWidth - PICKER_WIDTH - 8,
+  );
+  pickerPos.left = Math.max(8, wantLeft);
+  pickerPos.width = Math.min(PICKER_WIDTH, window.innerWidth - 16);
+}
+function openProcessPicker(): void {
+  showProcessPicker.value = true;
+  // Schedule the anchor compute after the button's reactive class/text
+  // flip lands in the DOM, so the BCR is the post-render rect.
+  void Promise.resolve().then(anchorPicker);
+}
+function closeProcessPicker(): void {
+  showProcessPicker.value = false;
+}
+function onPickerOutsideMouseDown(ev: MouseEvent): void {
+  if (!showProcessPicker.value) return;
+  const target = ev.target as Node;
+  // Trigger button toggles via its own @click; ignore.
+  if (pickerBtnEl.value && pickerBtnEl.value.contains(target)) return;
+  // Click inside the popout itself stays open.
+  const popout = document.querySelector('.process-picker-pop');
+  if (popout && popout.contains(target)) return;
+  closeProcessPicker();
+}
+function onPickerKeyDown(ev: KeyboardEvent): void {
+  if (ev.key === 'Escape' && showProcessPicker.value) closeProcessPicker();
+}
+// Per-row expand/fold inside the popout. Tracked as a Set for O(1) toggle.
 const expandedProcessIds = ref<Set<string>>(new Set());
 function toggleProcessExpanded(id: string): void {
   const next = new Set(expandedProcessIds.value);
@@ -313,6 +365,26 @@ watch(selectedProcessIds, () => {
   void runAnalyze();
 }, { deep: true });
 
+// Wire the picker's outside-click + ESC + resize listeners only while
+// it's open. Symmetric attach/detach keeps the document free of stray
+// listeners when the picker is closed (cheap, but the right shape).
+watch(showProcessPicker, (open) => {
+  if (open) {
+    window.addEventListener('resize', anchorPicker);
+    document.addEventListener('mousedown', onPickerOutsideMouseDown);
+    document.addEventListener('keydown', onPickerKeyDown);
+  } else {
+    window.removeEventListener('resize', anchorPicker);
+    document.removeEventListener('mousedown', onPickerOutsideMouseDown);
+    document.removeEventListener('keydown', onPickerKeyDown);
+  }
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', anchorPicker);
+  document.removeEventListener('mousedown', onPickerOutsideMouseDown);
+  document.removeEventListener('keydown', onPickerKeyDown);
+});
+
 async function submitNewTask(): Promise<void> {
   if (!selectedId.value) {
     newTaskError.value = 'Pick a service first';
@@ -489,8 +561,15 @@ function toggleNewTaskLabel(l: string): void {
         </div>
         <div class="tb-block grow">
           <label class="lbl">Processes ({{ selectedProcessIds.length }} pinned)</label>
-          <button class="btn-secondary" @click="showProcessPicker = !showProcessPicker">
-            {{ showProcessPicker ? 'Hide picker' : 'Pick processes' }}
+          <button
+            ref="pickerBtnEl"
+            class="btn-secondary"
+            :class="{ open: showProcessPicker }"
+            :aria-expanded="showProcessPicker"
+            aria-haspopup="dialog"
+            @click="showProcessPicker ? closeProcessPicker() : openProcessPicker()"
+          >
+            {{ showProcessPicker ? 'Close picker' : 'Pick processes' }}
           </button>
         </div>
         <button
@@ -509,84 +588,110 @@ function toggleNewTaskLabel(l: string): void {
         — {{ schedules.length }} schedule{{ schedules.length === 1 ? '' : 's' }}
       </div>
 
-      <div v-if="showProcessPicker" class="process-picker">
-        <input
-          v-model="processSearch"
-          placeholder="Search by name / instance / command line…"
-          class="ti-input wide"
-        />
-        <div class="proc-table">
-          <div class="ph">
-            <div class="cc cc-sel"></div>
-            <div class="cc cc-name">Process</div>
-            <div class="cc cc-inst">Instance</div>
-            <div class="cc cc-attrs">Attributes</div>
-            <div class="cc cc-exp"></div>
+      <!-- Picker popout — teleported to <body> so it overlays the
+           layer-tab card instead of pushing the flamegraph down. Anchor
+           rect lives on `pickerPos`; click-outside + ESC dismiss are
+           wired in via setup-level watchers. -->
+      <Teleport to="body">
+        <div
+          v-if="showProcessPicker"
+          class="process-picker-pop sw-card"
+          role="dialog"
+          aria-label="Process picker"
+          :style="{
+            top: pickerPos.top + 'px',
+            left: pickerPos.left + 'px',
+            width: pickerPos.width + 'px',
+          }"
+        >
+          <div class="pp-head">
+            <input
+              v-model="processSearch"
+              placeholder="Search by name / instance / command line…"
+              class="ti-input wide"
+              autofocus
+            />
+            <span class="pp-count">{{ selectedProcessIds.length }} pinned</span>
+            <!-- Textual ×, not an icon glyph (no SVG asset exists for
+                 close and a one-off SVG would violate CLAUDE.md's
+                 single-icon-component rule). Same shape as the prior
+                 dialog close buttons across the codebase. -->
+            <button class="pp-close" aria-label="Close picker" title="Close (Esc)" @click="closeProcessPicker">×</button>
           </div>
-          <div v-if="!filteredProcesses.length" class="empty">No matches.</div>
-          <template v-for="p in filteredProcesses" :key="p.id">
-            <div
-              class="pr"
-              :class="{ on: selectedProcessIds.includes(p.id) }"
-              @click="toggleProcessId(p.id)"
-            >
-              <div class="cc cc-sel" @click.stop>
-                <input
-                  type="checkbox"
-                  :checked="selectedProcessIds.includes(p.id)"
-                  :aria-label="`Pin process ${p.name}`"
-                  @change="toggleProcessId(p.id)"
-                />
-              </div>
-              <div class="cc cc-name" :title="p.name">{{ p.name }}</div>
-              <div class="cc cc-inst" :title="p.instanceName ?? ''">{{ p.instanceName }}</div>
-              <div class="cc cc-attrs" :title="attrLine(p)">{{ attrLine(p) }}</div>
-              <button
-                type="button"
-                class="cc cc-exp pr-caret"
-                :class="{ open: expandedProcessIds.has(p.id) }"
-                :aria-expanded="expandedProcessIds.has(p.id)"
-                :aria-label="expandedProcessIds.has(p.id) ? 'Collapse details' : 'Expand details'"
-                @click.stop="toggleProcessExpanded(p.id)"
+          <div class="proc-table">
+            <div class="ph">
+              <div class="cc cc-sel"></div>
+              <div class="cc cc-name">Process</div>
+              <div class="cc cc-inst">Instance</div>
+              <div class="cc cc-attrs">Attributes</div>
+              <div class="cc cc-exp"></div>
+            </div>
+            <div v-if="!filteredProcesses.length" class="empty">No matches.</div>
+            <template v-for="p in filteredProcesses" :key="p.id">
+              <div
+                class="pr"
+                :class="{ on: selectedProcessIds.includes(p.id) }"
+                @click="toggleProcessId(p.id)"
               >
-                <Icon name="caret" :size="10" />
-              </button>
-            </div>
-            <div v-if="expandedProcessIds.has(p.id)" class="pr-expand">
-              <dl class="pe-rows">
-                <div class="pe-row"><dt>Process</dt><dd class="mono">{{ p.name }}</dd></div>
-                <div v-if="p.serviceName" class="pe-row">
-                  <dt>Service</dt><dd class="mono">{{ p.serviceName }}</dd>
+                <div class="cc cc-sel" @click.stop>
+                  <input
+                    type="checkbox"
+                    :checked="selectedProcessIds.includes(p.id)"
+                    :aria-label="`Pin process ${p.name}`"
+                    @change="toggleProcessId(p.id)"
+                  />
                 </div>
-                <div v-if="p.instanceName" class="pe-row">
-                  <dt>Instance</dt><dd class="mono">{{ p.instanceName }}</dd>
-                </div>
-                <div v-if="p.agentId" class="pe-row">
-                  <dt>Agent</dt><dd class="mono">{{ p.agentId }}</dd>
-                </div>
-                <div v-if="p.detectType" class="pe-row">
-                  <dt>Detect type</dt><dd class="mono">{{ p.detectType }}</dd>
-                </div>
-                <div v-if="(p.labels ?? []).length" class="pe-row">
-                  <dt>Labels</dt>
-                  <dd>
-                    <span v-for="l in p.labels" :key="l" class="pe-chip">{{ l }}</span>
-                  </dd>
-                </div>
-                <div v-if="(p.attributes ?? []).length" class="pe-row pe-attrs">
-                  <dt>Attributes</dt>
-                  <dd>
-                    <div v-for="a in p.attributes" :key="a.name" class="pe-attr">
-                      <span class="pe-attr-k">{{ a.name }}</span>
-                      <span class="pe-attr-v mono">{{ a.value }}</span>
-                    </div>
-                  </dd>
-                </div>
-              </dl>
-            </div>
-          </template>
+                <div class="cc cc-name" :title="p.name">{{ p.name }}</div>
+                <div class="cc cc-inst" :title="p.instanceName ?? ''">{{ p.instanceName }}</div>
+                <div class="cc cc-attrs" :title="attrLine(p)">{{ attrLine(p) }}</div>
+                <button
+                  type="button"
+                  class="cc cc-exp pr-caret"
+                  :class="{ open: expandedProcessIds.has(p.id) }"
+                  :aria-expanded="expandedProcessIds.has(p.id)"
+                  :aria-label="expandedProcessIds.has(p.id) ? 'Collapse details' : 'Expand details'"
+                  @click.stop="toggleProcessExpanded(p.id)"
+                >
+                  <Icon name="caret" :size="10" />
+                </button>
+              </div>
+              <div v-if="expandedProcessIds.has(p.id)" class="pr-expand">
+                <dl class="pe-rows">
+                  <div class="pe-row"><dt>Process</dt><dd class="mono">{{ p.name }}</dd></div>
+                  <div v-if="p.serviceName" class="pe-row">
+                    <dt>Service</dt><dd class="mono">{{ p.serviceName }}</dd>
+                  </div>
+                  <div v-if="p.instanceName" class="pe-row">
+                    <dt>Instance</dt><dd class="mono">{{ p.instanceName }}</dd>
+                  </div>
+                  <div v-if="p.agentId" class="pe-row">
+                    <dt>Agent</dt><dd class="mono">{{ p.agentId }}</dd>
+                  </div>
+                  <div v-if="p.detectType" class="pe-row">
+                    <dt>Detect type</dt><dd class="mono">{{ p.detectType }}</dd>
+                  </div>
+                  <div v-if="(p.labels ?? []).length" class="pe-row">
+                    <dt>Labels</dt>
+                    <dd>
+                      <span v-for="l in p.labels" :key="l" class="pe-chip">{{ l }}</span>
+                    </dd>
+                  </div>
+                  <!-- Attributes flattened: each `name=value` is a
+                       first-level dl row, matching booster-ui's process
+                       detail card. Nesting them under an "Attributes"
+                       label added a hierarchy level for no payoff — the
+                       names (`host_ip`, `container.id`, `command_line`)
+                       already read as attributes. -->
+                  <div v-for="a in p.attributes ?? []" :key="`attr-${a.name}`" class="pe-row">
+                    <dt>{{ a.name }}</dt>
+                    <dd class="mono">{{ a.value }}</dd>
+                  </div>
+                </dl>
+              </div>
+            </template>
+          </div>
         </div>
-      </div>
+      </Teleport>
 
       <div class="result">
         <div v-if="analyzeTip" class="tip">{{ analyzeTip }}</div>
@@ -940,13 +1045,6 @@ function toggleNewTaskLabel(l: string): void {
   font-weight: 600;
 }
 
-.process-picker {
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
-  padding: 8px 12px;
-  max-height: 220px;
-  overflow: auto;
-}
 .ti-input,
 .ti-input.wide {
   background: var(--sw-bg-2);
@@ -960,7 +1058,6 @@ function toggleNewTaskLabel(l: string): void {
 }
 .ti-input.wide {
   width: 100%;
-  margin-bottom: 8px;
 }
 .proc-table {
   border: 1px solid var(--sw-line);
@@ -1067,21 +1164,64 @@ function toggleNewTaskLabel(l: string): void {
   margin: 0 4px 4px 0;
   font-size: 10.5px;
 }
-.pe-attrs dd { display: flex; flex-direction: column; gap: 2px; }
-.pe-attr {
-  display: grid;
-  grid-template-columns: minmax(130px, max-content) 1fr;
+/* Popout shell — teleported to <body>; Vue scoped CSS data-v-X attrs
+ * still match because teleport preserves the component's attribute
+ * assignment. Fixed-positioned, max-height capped so very large process
+ * lists scroll inside the popout instead of overflowing the viewport. */
+.process-picker-pop {
+  position: fixed;
+  z-index: 9000;
+  max-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+.pp-head {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  align-items: baseline;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sw-line);
+  background: var(--sw-bg-2);
 }
-.pe-attr-k {
-  color: var(--sw-fg-2);
-  font-family: var(--sw-mono, monospace);
+.pp-head .ti-input.wide { flex: 1 1 auto; margin-bottom: 0; }
+.pp-count {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
-.pe-attr-v {
+.pp-close {
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.pp-close:hover {
+  background: var(--sw-bg-3);
   color: var(--sw-fg-0);
-  overflow-wrap: anywhere;
-  word-break: break-all;
+}
+/* The proc-table inside the popout grows / scrolls instead of pushing
+ * the popout taller — the head row stays sticky at the top so column
+ * labels remain visible while the body scrolls. */
+.process-picker-pop .proc-table {
+  flex: 1 1 auto;
+  overflow: auto;
+  border: none;
+  border-radius: 0;
+}
+.process-picker-pop .ph {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .result {
