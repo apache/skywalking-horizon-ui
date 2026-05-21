@@ -310,8 +310,11 @@ cd "${CLONE_DIR}"
 pnpm install --frozen-lockfile
 pnpm package
 # The packager left dist/server.js + dist/node_modules + dist/static + …
-# Now layer in LICENSE/NOTICE + per-dep license texts.
-node "${CLONE_DIR}/scripts/collect-dist-licenses.mjs"
+# Now layer in LICENSE/NOTICE + per-dep license texts. `--check` regenerates
+# dist/LICENSE + dist/NOTICE AND aborts if they drift from the committed
+# reference (dist-material/release-docs/) — so the binary ships exactly the
+# reviewed bytes. check-dist-licenses then enforces the ASF allow/deny list.
+node "${CLONE_DIR}/scripts/collect-dist-licenses.mjs" --check
 node "${CLONE_DIR}/scripts/check-dist-licenses.mjs"
 
 # Stage the binary contents under a clean folder name so the tar root

@@ -19,6 +19,8 @@
     "test:unit": "pnpm -r run test:unit",
     "license:check": "license-eye -c .licenserc.yaml header check",
     "license:fix": "license-eye -c .licenserc.yaml header fix",
+    "licenses:bin:update": "node scripts/collect-dist-licenses.mjs --update-reference",
+    "licenses:bin:check": "node scripts/collect-dist-licenses.mjs --check && node scripts/check-dist-licenses.mjs",
     "package": "node scripts/package.mjs",
     "start": "HORIZON_CONFIG=${HORIZON_CONFIG:-./horizon.yaml} node dist/server.js"
   },

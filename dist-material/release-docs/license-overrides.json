@@ -1,0 +1,4 @@
+{
+  "_comment": "Human-asserted SPDX license for bundled deps whose package.json omits or mis-declares the `license` field. Each entry MUST be verified against the package's own LICENSE/COPYING file (reproduced under dist/licenses/) before being added. Keyed by `name@version`.",
+  "vue-grid-layout@3.0.0-beta1": "MIT"
+}

@@ -39,15 +39,18 @@ jobs:
         uses: apache/skywalking-eyes@5b7ee1731d036b5aac68f8bd3fc9e6f98ada082e
 
   dependency-license:
-    # Separate from `license-header` on purpose: header check is a quick
-    # static scan; dep-license collection requires a full production build
-    # (pnpm package → dist/node_modules) and then a walk of that tree to
-    # produce dist/LICENSE + dist/NOTICE + dist/licenses/. We also verify
-    # source vs. binary LICENSE/NOTICE differ in the expected way
-    # (only the binary carries the bundled-dep summary).
+    # The binary tarball bundles the full production dependency tree — the
+    # BFF runtime deps (dist/node_modules) AND the UI deps Vite compiles
+    # into the static bundle — so ASF policy requires every one of their
+    # licenses reproduced in the binary LICENSE/NOTICE.
+    # collect-dist-licenses.mjs enumerates that tree straight from the pnpm
+    # store (no `pnpm package` needed), and this job fails if either:
+    #   1. a dep carries a Category-X / unknown license (check-dist-licenses), or
+    #   2. the committed binary LICENSE/NOTICE reference is stale (--check) —
+    #      i.e. prod deps changed without `pnpm licenses:bin:update`.
     name: Dependency license
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -58,30 +61,26 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
-      - run: pnpm package
-      - name: Collect bundled-dep LICENSE/NOTICE
-        run: node scripts/collect-dist-licenses.mjs
-      - name: Check bundled-dep licenses against ASF allow/deny
-        run: node scripts/check-dist-licenses.mjs
+      - name: Verify binary LICENSE/NOTICE (drift + ASF allow/deny)
+        run: pnpm licenses:bin:check
       - name: Compare source vs. binary LICENSE/NOTICE shape
         run: |
           # Source-flavored LICENSE = repo root; must NOT contain the
           # bundled-dep summary section.
           if grep -q 'Horizon UI Subcomponents' LICENSE; then
             echo "ERROR: repo-root LICENSE contains the bundled-dep summary section."
-            echo "       That section belongs only in dist/LICENSE (binary tarball)."
+            echo "       That section belongs only in the binary LICENSE."
             exit 1
           fi
-          # Binary-flavored LICENSE = generated; must contain the summary.
-          if ! grep -q 'Horizon UI Subcomponents' dist/LICENSE; then
-            echo "ERROR: dist/LICENSE missing 'Horizon UI Subcomponents' section."
-            echo "       collect-dist-licenses.mjs did not run or template drift."
+          # Committed binary-flavored LICENSE must contain the summary.
+          if ! grep -q 'Horizon UI Subcomponents' dist-material/release-docs/LICENSE; then
+            echo "ERROR: committed binary LICENSE missing 'Horizon UI Subcomponents'."
             exit 1
           fi
           # NOTICE: both must exist and start with the same ASF copyright line.
-          test -f NOTICE && test -f dist/NOTICE
+          test -f NOTICE && test -f dist-material/release-docs/NOTICE
           head -1 NOTICE | grep -q 'Apache SkyWalking Horizon UI'
-          head -1 dist/NOTICE | grep -q 'Apache SkyWalking Horizon UI'
+          head -1 dist-material/release-docs/NOTICE | grep -q 'Apache SkyWalking Horizon UI'
           echo "src/bin LICENSE+NOTICE shape OK."
       - name: Upload dependency report
         uses: actions/upload-artifact@v4

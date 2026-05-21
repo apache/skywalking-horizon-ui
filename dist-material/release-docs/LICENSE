@@ -1,0 +1,474 @@
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for describing the origin of the Work and
+      reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Support. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or support.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+
+========================================================================
+   Apache SkyWalking Horizon UI Subcomponents:
+
+   The Apache SkyWalking Horizon UI binary distribution includes a number
+   of subcomponents with separate copyright notices and license terms.
+   Your use of the source code for these subcomponents is subject to the
+   terms and conditions of the licenses listed below. The full text of
+   each license is reproduced in the licenses/ directory of this
+   distribution.
+
+   By license family, the bundled third-party software is:
+========================================================================
+
+
+--- (MPL-2.0 OR Apache-2.0) ---
+
+  * dompurify@3.4.5 (licenses/dompurify-3.4.5/LICENSE)
+
+--- 0BSD ---
+
+  * tslib@2.3.0 (licenses/tslib-2.3.0/LICENSE.txt)
+
+--- Apache-2.0 ---
+
+  * d3-flame-graph@4.1.3 (licenses/d3-flame-graph-4.1.3/LICENSE)
+  * echarts@6.0.0 (licenses/echarts-6.0.0/LICENSE)
+  * typescript@5.6.3 (licenses/typescript-5.6.3/LICENSE.txt)
+
+--- BSD-2-Clause ---
+
+  * entities@7.0.1 (licenses/entities-7.0.1/LICENSE)
+
+--- BSD-3-Clause ---
+
+  * d3-ease@3.0.1 (licenses/d3-ease-3.0.1/LICENSE)
+  * fast-uri@3.1.2 (licenses/fast-uri-3.1.2/LICENSE)
+  * ieee754@1.2.1 (licenses/ieee754-1.2.1/LICENSE)
+  * light-my-request@6.6.0 (licenses/light-my-request-6.6.0/LICENSE)
+  * normalize-wheel-es@1.2.0 (licenses/normalize-wheel-es-1.2.0/LICENSE)
+  * rw@1.3.3 (licenses/rw-1.3.3/LICENSE)
+  * secure-json-parse@2.7.0 (licenses/secure-json-parse-2.7.0/LICENSE.md)
+  * secure-json-parse@4.1.0 (licenses/secure-json-parse-4.1.0/LICENSE)
+  * source-map-js@1.2.1 (licenses/source-map-js-1.2.1/LICENSE)
+  * zrender@6.0.0 (licenses/zrender-6.0.0/LICENSE)
+
+--- BlueOak-1.0.0 ---
+
+  * glob@13.0.6 (licenses/glob-13.0.6/LICENSE.md)
+  * lru-cache@11.3.6 (licenses/lru-cache-11.3.6/LICENSE.md)
+  * minimatch@10.2.5 (licenses/minimatch-10.2.5/LICENSE.md)
+  * minipass@7.1.3 (licenses/minipass-7.1.3/LICENSE.md)
+  * path-scurry@2.0.2 (licenses/path-scurry-2.0.2/LICENSE.md)
+
+--- ISC ---
+
+  * d3@7.9.0 (licenses/d3-7.9.0/LICENSE)
+  * d3-array@3.2.4 (licenses/d3-array-3.2.4/LICENSE)
+  * d3-axis@3.0.0 (licenses/d3-axis-3.0.0/LICENSE)
+  * d3-brush@3.0.0 (licenses/d3-brush-3.0.0/LICENSE)
+  * d3-chord@3.0.1 (licenses/d3-chord-3.0.1/LICENSE)
+  * d3-color@3.1.0 (licenses/d3-color-3.1.0/LICENSE)
+  * d3-contour@4.0.2 (licenses/d3-contour-4.0.2/LICENSE)
+  * d3-delaunay@6.0.4 (licenses/d3-delaunay-6.0.4/LICENSE)
+  * d3-dispatch@3.0.1 (licenses/d3-dispatch-3.0.1/LICENSE)
+  * d3-drag@3.0.0 (licenses/d3-drag-3.0.0/LICENSE)
+  * d3-dsv@3.0.1 (licenses/d3-dsv-3.0.1/LICENSE)
+  * d3-fetch@3.0.1 (licenses/d3-fetch-3.0.1/LICENSE)
+  * d3-force@3.0.0 (licenses/d3-force-3.0.0/LICENSE)
+  * d3-format@3.1.2 (licenses/d3-format-3.1.2/LICENSE)
+  * d3-geo@3.1.1 (licenses/d3-geo-3.1.1/LICENSE)
+  * d3-hierarchy@3.1.2 (licenses/d3-hierarchy-3.1.2/LICENSE)
+  * d3-interpolate@3.0.1 (licenses/d3-interpolate-3.0.1/LICENSE)
+  * d3-path@3.1.0 (licenses/d3-path-3.1.0/LICENSE)
+  * d3-polygon@3.0.1 (licenses/d3-polygon-3.0.1/LICENSE)
+  * d3-quadtree@3.0.1 (licenses/d3-quadtree-3.0.1/LICENSE)
+  * d3-random@3.0.1 (licenses/d3-random-3.0.1/LICENSE)
+  * d3-scale@4.0.2 (licenses/d3-scale-4.0.2/LICENSE)
+  * d3-scale-chromatic@3.1.0 (licenses/d3-scale-chromatic-3.1.0/LICENSE)
+  * d3-selection@3.0.0 (licenses/d3-selection-3.0.0/LICENSE)
+  * d3-shape@3.2.0 (licenses/d3-shape-3.2.0/LICENSE)
+  * d3-time@3.1.0 (licenses/d3-time-3.1.0/LICENSE)
+  * d3-time-format@4.1.0 (licenses/d3-time-format-4.1.0/LICENSE)
+  * d3-timer@3.0.1 (licenses/d3-timer-3.0.1/LICENSE)
+  * d3-transition@3.0.1 (licenses/d3-transition-3.0.1/LICENSE)
+  * d3-zoom@3.0.0 (licenses/d3-zoom-3.0.0/LICENSE)
+  * delaunator@5.1.0 (licenses/delaunator-5.1.0/LICENSE)
+  * fastq@1.20.1 (licenses/fastq-1.20.1/LICENSE)
+  * inherits@2.0.4 (licenses/inherits-2.0.4/LICENSE)
+  * internmap@2.0.3 (licenses/internmap-2.0.3/LICENSE)
+  * once@1.4.0 (licenses/once-1.4.0/LICENSE)
+  * picocolors@1.1.1 (licenses/picocolors-1.1.1/LICENSE)
+  * semver@7.8.0 (licenses/semver-7.8.0/LICENSE)
+  * setprototypeof@1.2.0 (licenses/setprototypeof-1.2.0/LICENSE)
+  * split2@4.2.0 (licenses/split2-4.2.0/LICENSE)
+  * strict-event-emitter-types@2.0.0
+  * wrappy@1.0.2 (licenses/wrappy-1.0.2/LICENSE)
+  * yaml@2.9.0 (licenses/yaml-2.9.0/LICENSE)
+
+--- MIT ---
+
+  * @babel/helper-string-parser@7.27.1 (licenses/@babel__helper-string-parser-7.27.1/LICENSE)
+  * @babel/helper-validator-identifier@7.28.5 (licenses/@babel__helper-validator-identifier-7.28.5/LICENSE)
+  * @babel/parser@7.29.3 (licenses/@babel__parser-7.29.3/LICENSE)
+  * @babel/types@7.29.0 (licenses/@babel__types-7.29.0/LICENSE)
+  * @ctrl/tinycolor@4.2.0 (licenses/@ctrl__tinycolor-4.2.0/LICENSE)
+  * @element-plus/icons-vue@2.3.2 (licenses/@element-plus__icons-vue-2.3.2/LICENSE)
+  * @fastify/accept-negotiator@2.0.1 (licenses/@fastify__accept-negotiator-2.0.1/LICENSE)
+  * @fastify/ajv-compiler@4.0.5 (licenses/@fastify__ajv-compiler-4.0.5/LICENSE)
+  * @fastify/cookie@11.0.2 (licenses/@fastify__cookie-11.0.2/LICENSE)
+  * @fastify/error@4.2.0 (licenses/@fastify__error-4.2.0/LICENSE)
+  * @fastify/fast-json-stringify-compiler@5.0.3 (licenses/@fastify__fast-json-stringify-compiler-5.0.3/LICENSE)
+  * @fastify/forwarded@3.0.1 (licenses/@fastify__forwarded-3.0.1/LICENSE)
+  * @fastify/merge-json-schemas@0.2.1 (licenses/@fastify__merge-json-schemas-0.2.1/LICENSE)
+  * @fastify/proxy-addr@5.1.0 (licenses/@fastify__proxy-addr-5.1.0/LICENSE)
+  * @fastify/send@4.1.0 (licenses/@fastify__send-4.1.0/LICENSE)
+  * @fastify/static@9.1.3 (licenses/@fastify__static-9.1.3/LICENSE)
+  * @floating-ui/core@1.7.5 (licenses/@floating-ui__core-1.7.5/LICENSE)
+  * @floating-ui/dom@1.7.6 (licenses/@floating-ui__dom-1.7.6/LICENSE)
+  * @floating-ui/utils@0.2.11 (licenses/@floating-ui__utils-0.2.11/LICENSE)
+  * @graphql-typed-document-node/core@3.2.0 (licenses/@graphql-typed-document-node__core-3.2.0/LICENSE)
+  * @interactjs/actions@1.10.27 (licenses/@interactjs__actions-1.10.27/LICENSE)
+  * @interactjs/auto-scroll@1.10.27 (licenses/@interactjs__auto-scroll-1.10.27/LICENSE)
+  * @interactjs/auto-start@1.10.27 (licenses/@interactjs__auto-start-1.10.27/LICENSE)
+  * @interactjs/core@1.10.27 (licenses/@interactjs__core-1.10.27/LICENSE)
+  * @interactjs/dev-tools@1.10.27 (licenses/@interactjs__dev-tools-1.10.27/LICENSE)
+  * @interactjs/inertia@1.10.27 (licenses/@interactjs__inertia-1.10.27/LICENSE)
+  * @interactjs/interact@1.10.27 (licenses/@interactjs__interact-1.10.27/LICENSE)
+  * @interactjs/interactjs@1.10.27 (licenses/@interactjs__interactjs-1.10.27/LICENSE)
+  * @interactjs/modifiers@1.10.27 (licenses/@interactjs__modifiers-1.10.27/LICENSE)
+  * @interactjs/offset@1.10.27 (licenses/@interactjs__offset-1.10.27/LICENSE)
+  * @interactjs/pointer-events@1.10.27 (licenses/@interactjs__pointer-events-1.10.27/LICENSE)
+  * @interactjs/reflow@1.10.27 (licenses/@interactjs__reflow-1.10.27/LICENSE)
+  * @interactjs/snappers@1.10.27 (licenses/@interactjs__snappers-1.10.27/LICENSE)
+  * @interactjs/utils@1.10.27 (licenses/@interactjs__utils-1.10.27/LICENSE)
+  * @intlify/core-base@10.0.8 (licenses/@intlify__core-base-10.0.8/LICENSE)
+  * @intlify/message-compiler@10.0.8 (licenses/@intlify__message-compiler-10.0.8/LICENSE)
+  * @intlify/shared@10.0.8 (licenses/@intlify__shared-10.0.8/LICENSE)
+  * @jridgewell/sourcemap-codec@1.5.5 (licenses/@jridgewell__sourcemap-codec-1.5.5/LICENSE)
+  * @lukeed/ms@2.0.2 (licenses/@lukeed__ms-2.0.2/license)
+  * @phc/format@1.0.0 (licenses/@phc__format-1.0.0/license)
+  * @pinojs/redact@0.4.0 (licenses/@pinojs__redact-0.4.0/LICENSE)
+  * @popperjs/core@2.11.8 (licenses/@popperjs__core-2.11.8/LICENSE.md)
+  * @tanstack/match-sorter-utils@8.19.4 (licenses/@tanstack__match-sorter-utils-8.19.4/LICENSE)
+  * @tanstack/query-core@5.100.10 (licenses/@tanstack__query-core-5.100.10/LICENSE)
+  * @tanstack/vue-query@5.100.10 (licenses/@tanstack__vue-query-5.100.10/LICENSE)
+  * @types/lodash@4.17.24 (licenses/@types__lodash-4.17.24/LICENSE)
+  * @types/lodash-es@4.17.12 (licenses/@types__lodash-es-4.17.12/LICENSE)
+  * @types/trusted-types@2.0.7 (licenses/@types__trusted-types-2.0.7/LICENSE)
+  * @types/web-bluetooth@0.0.20 (licenses/@types__web-bluetooth-0.0.20/LICENSE)
+  * @types/web-bluetooth@0.0.21 (licenses/@types__web-bluetooth-0.0.21/LICENSE)
+  * @vue/compiler-core@3.5.34 (licenses/@vue__compiler-core-3.5.34/LICENSE)
+  * @vue/compiler-dom@3.5.34 (licenses/@vue__compiler-dom-3.5.34/LICENSE)
+  * @vue/compiler-sfc@3.5.34 (licenses/@vue__compiler-sfc-3.5.34/LICENSE)
+  * @vue/compiler-ssr@3.5.34 (licenses/@vue__compiler-ssr-3.5.34/LICENSE)
+  * @vue/devtools-api@6.6.4
+  * @vue/reactivity@3.5.34 (licenses/@vue__reactivity-3.5.34/LICENSE)
+  * @vue/runtime-core@3.5.34 (licenses/@vue__runtime-core-3.5.34/LICENSE)
+  * @vue/runtime-dom@3.5.34 (licenses/@vue__runtime-dom-3.5.34/LICENSE)
+  * @vue/server-renderer@3.5.34 (licenses/@vue__server-renderer-3.5.34/LICENSE)
+  * @vue/shared@3.5.34 (licenses/@vue__shared-3.5.34/LICENSE)
+  * @vueuse/core@11.3.0 (licenses/@vueuse__core-11.3.0/LICENSE)
+  * @vueuse/core@14.3.0 (licenses/@vueuse__core-14.3.0/LICENSE)
+  * @vueuse/metadata@11.3.0 (licenses/@vueuse__metadata-11.3.0/LICENSE)
+  * @vueuse/metadata@14.3.0 (licenses/@vueuse__metadata-14.3.0/LICENSE)
+  * @vueuse/shared@11.3.0 (licenses/@vueuse__shared-11.3.0/LICENSE)
+  * @vueuse/shared@14.3.0 (licenses/@vueuse__shared-14.3.0/LICENSE)
+  * abort-controller@3.0.0 (licenses/abort-controller-3.0.0/LICENSE)
+  * abstract-logging@2.0.1
+  * ajv@8.20.0 (licenses/ajv-8.20.0/LICENSE)
+  * ajv-formats@3.0.1 (licenses/ajv-formats-3.0.1/LICENSE)
+  * argon2@0.41.1 (licenses/argon2-0.41.1/LICENSE)
+  * async-validator@4.2.5 (licenses/async-validator-4.2.5/LICENSE.md)
+  * atomic-sleep@1.0.0 (licenses/atomic-sleep-1.0.0/LICENSE)
+  * avvio@9.2.0 (licenses/avvio-9.2.0/LICENSE)
+  * balanced-match@4.0.4 (licenses/balanced-match-4.0.4/LICENSE.md)
+  * base64-js@1.5.1 (licenses/base64-js-1.5.1/LICENSE)
+  * batch-processor@1.0.0 (licenses/batch-processor-1.0.0/LICENSE)
+  * brace-expansion@5.0.6 (licenses/brace-expansion-5.0.6/LICENSE)
+  * buffer@6.0.3 (licenses/buffer-6.0.3/LICENSE)
+  * chokidar@4.0.3 (licenses/chokidar-4.0.3/LICENSE)
+  * colorette@2.0.20 (licenses/colorette-2.0.20/LICENSE.md)
+  * commander@7.2.0 (licenses/commander-7.2.0/LICENSE)
+  * content-disposition@1.1.0 (licenses/content-disposition-1.1.0/LICENSE)
+  * cookie@1.1.1 (licenses/cookie-1.1.1/LICENSE)
+  * csstype@3.2.3 (licenses/csstype-3.2.3/LICENSE)
+  * dateformat@4.6.3 (licenses/dateformat-4.6.3/LICENSE)
+  * dayjs@1.11.20 (licenses/dayjs-1.11.20/LICENSE)
+  * depd@2.0.0 (licenses/depd-2.0.0/LICENSE)
+  * dequal@2.0.3 (licenses/dequal-2.0.3/license)
+  * element-plus@2.14.0 (licenses/element-plus-2.14.0/LICENSE)
+  * element-resize-detector@1.2.4 (licenses/element-resize-detector-1.2.4/LICENSE)
+  * end-of-stream@1.4.5 (licenses/end-of-stream-1.4.5/LICENSE)
+  * escape-html@1.0.3 (licenses/escape-html-1.0.3/LICENSE)
+  * estree-walker@2.0.2 (licenses/estree-walker-2.0.2/LICENSE)
+  * event-target-shim@5.0.1 (licenses/event-target-shim-5.0.1/LICENSE)
+  * events@3.3.0 (licenses/events-3.3.0/LICENSE)
+  * fast-copy@3.0.2 (licenses/fast-copy-3.0.2/LICENSE)
+  * fast-decode-uri-component@1.0.1 (licenses/fast-decode-uri-component-1.0.1/LICENSE)
+  * fast-deep-equal@3.1.3 (licenses/fast-deep-equal-3.1.3/LICENSE)
+  * fast-json-stringify@6.4.0 (licenses/fast-json-stringify-6.4.0/LICENSE)
+  * fast-querystring@1.1.2 (licenses/fast-querystring-1.1.2/LICENSE)
+  * fast-safe-stringify@2.1.1 (licenses/fast-safe-stringify-2.1.1/LICENSE)
+  * fastify@5.8.5 (licenses/fastify-5.8.5/LICENSE)
+  * fastify-plugin@5.1.0 (licenses/fastify-plugin-5.1.0/LICENSE)
+  * find-my-way@9.6.0 (licenses/find-my-way-9.6.0/LICENSE)
+  * graphql@16.14.0 (licenses/graphql-16.14.0/LICENSE)
+  * graphql-request@7.4.0 (licenses/graphql-request-7.4.0/LICENSE)
+  * help-me@5.0.0 (licenses/help-me-5.0.0/LICENSE)
+  * http-errors@2.0.1 (licenses/http-errors-2.0.1/LICENSE)
+  * iconv-lite@0.6.3 (licenses/iconv-lite-0.6.3/LICENSE)
+  * ipaddr.js@2.4.0 (licenses/ipaddr.js-2.4.0/LICENSE)
+  * joycon@3.1.1 (licenses/joycon-3.1.1/LICENSE)
+  * json-schema-ref-resolver@3.0.0 (licenses/json-schema-ref-resolver-3.0.0/LICENSE)
+  * json-schema-traverse@1.0.0 (licenses/json-schema-traverse-1.0.0/LICENSE)
+  * ldapts@8.1.7 (licenses/ldapts-8.1.7/LICENSE)
+  * lodash@4.18.1 (licenses/lodash-4.18.1/LICENSE)
+  * lodash-es@4.18.1 (licenses/lodash-es-4.18.1/LICENSE)
+  * lodash-unified@1.0.3
+  * magic-string@0.30.21 (licenses/magic-string-0.30.21/LICENSE)
+  * marked@14.0.0 (licenses/marked-14.0.0/LICENSE.md)
+  * memoize-one@6.0.0 (licenses/memoize-one-6.0.0/LICENSE)
+  * mime@3.0.0 (licenses/mime-3.0.0/LICENSE)
+  * minimist@1.2.8 (licenses/minimist-1.2.8/LICENSE)
+  * mitt@2.1.0
+  * monaco-editor@0.55.1 (licenses/monaco-editor-0.55.1/LICENSE)
+  * nanoid@3.3.12 (licenses/nanoid-3.3.12/LICENSE)
+  * node-addon-api@8.7.0 (licenses/node-addon-api-8.7.0/LICENSE.md)
+  * node-gyp-build@4.8.4 (licenses/node-gyp-build-4.8.4/LICENSE)
+  * on-exit-leak-free@2.1.2 (licenses/on-exit-leak-free-2.1.2/LICENSE)
+  * pinia@2.3.1 (licenses/pinia-2.3.1/LICENSE)
+  * pino@9.14.0 (licenses/pino-9.14.0/LICENSE)
+  * pino-abstract-transport@2.0.0 (licenses/pino-abstract-transport-2.0.0/LICENSE)
+  * pino-pretty@11.3.0 (licenses/pino-pretty-11.3.0/LICENSE)
+  * pino-std-serializers@7.1.0 (licenses/pino-std-serializers-7.1.0/LICENSE)
+  * postcss@8.5.14 (licenses/postcss-8.5.14/LICENSE)
+  * process@0.11.10 (licenses/process-0.11.10/LICENSE)
+  * process-warning@4.0.1 (licenses/process-warning-4.0.1/LICENSE)
+  * process-warning@5.0.0 (licenses/process-warning-5.0.0/LICENSE)
+  * pump@3.0.4 (licenses/pump-3.0.4/LICENSE)
+  * quick-format-unescaped@4.0.4 (licenses/quick-format-unescaped-4.0.4/LICENSE)
+  * readable-stream@4.7.0 (licenses/readable-stream-4.7.0/LICENSE)
+  * readdirp@4.1.2 (licenses/readdirp-4.1.2/LICENSE)
+  * real-require@0.2.0 (licenses/real-require-0.2.0/LICENSE.md)
+  * remove-accents@0.5.0 (licenses/remove-accents-0.5.0/LICENSE)
+  * require-from-string@2.0.2 (licenses/require-from-string-2.0.2/license)
+  * ret@0.5.0 (licenses/ret-0.5.0/LICENSE)
+  * reusify@1.1.0 (licenses/reusify-1.1.0/LICENSE)
+  * rfdc@1.4.1 (licenses/rfdc-1.4.1/LICENSE)
+  * safe-buffer@5.2.1 (licenses/safe-buffer-5.2.1/LICENSE)
+  * safe-regex2@5.1.1 (licenses/safe-regex2-5.1.1/LICENSE)
+  * safe-stable-stringify@2.5.0 (licenses/safe-stable-stringify-2.5.0/LICENSE)
+  * safer-buffer@2.1.2 (licenses/safer-buffer-2.1.2/LICENSE)
+  * set-cookie-parser@2.7.2 (licenses/set-cookie-parser-2.7.2/LICENSE)
+  * sonic-boom@4.2.1 (licenses/sonic-boom-4.2.1/LICENSE)
+  * statuses@2.0.2 (licenses/statuses-2.0.2/LICENSE)
+  * string_decoder@1.3.0 (licenses/string_decoder-1.3.0/LICENSE)
+  * strip-json-comments@3.1.1 (licenses/strip-json-comments-3.1.1/license)
+  * thread-stream@3.1.0 (licenses/thread-stream-3.1.0/LICENSE)
+  * toad-cache@3.7.0 (licenses/toad-cache-3.7.0/LICENSE)
+  * toidentifier@1.0.1 (licenses/toidentifier-1.0.1/LICENSE)
+  * vue@3.5.34 (licenses/vue-3.5.34/LICENSE)
+  * vue-component-type-helpers@3.2.8 (licenses/vue-component-type-helpers-3.2.8/LICENSE)
+  * vue-demi@0.14.10 (licenses/vue-demi-0.14.10/LICENSE)
+  * vue-grid-layout@3.0.0-beta1 (licenses/vue-grid-layout-3.0.0-beta1/LICENSE)
+  * vue-i18n@10.0.8 (licenses/vue-i18n-10.0.8/LICENSE)
+  * vue-router@4.6.4 (licenses/vue-router-4.6.4/LICENSE)
+  * zod@3.25.76 (licenses/zod-3.25.76/LICENSE)
+
+--- Unlicense ---
+
+  * robust-predicates@3.0.3 (licenses/robust-predicates-3.0.3/LICENSE)

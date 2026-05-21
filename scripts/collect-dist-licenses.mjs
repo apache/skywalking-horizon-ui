@@ -16,25 +16,34 @@
  */
 
 /**
- * Walk the production `dist/node_modules/` tree built by
- * `scripts/package.mjs` and emit the binary-tar's LICENSE / NOTICE /
- * licenses/ subtree.
+ * Generate the BINARY distribution's LICENSE / NOTICE (+ per-dependency
+ * license texts) by enumerating the full PRODUCTION dependency tree the
+ * binary bundles:
  *
- * Apache distribution rule: every bundled third-party module's license
- * is reproduced in the binary tarball. The source tarball ships only
- * first-party source (top-level LICENSE + NOTICE are enough), but the
- * binary bundles npm dependencies and therefore needs an expanded LICENSE
- * (license-family summary) and NOTICE (third-party NOTICE pass-throughs)
- * plus per-package license texts under licenses/<name>-<version>/.
+ *   - the BFF runtime deps (shipped verbatim as dist/node_modules), AND
+ *   - the UI's production deps (compiled into dist/static by Vite).
  *
- * Output (relative to repo `dist/`):
- *   LICENSE                 — Apache-2.0 + grouped third-party summary
- *   NOTICE                  — ASF + concatenated third-party NOTICEs
- *   licenses/<pkg>-<ver>/   — verbatim LICENSE-ish files from each dep
- *   .dependency-report.json — { packages: [...] } for check-dist-licenses
+ * Both are redistributed in the binary tarball, so ASF distribution policy
+ * requires every one of their licenses to be reproduced. We read the tree
+ * via `pnpm list --prod` filtered to the bff + ui workspace packages — so
+ * this runs after a plain `pnpm install`, with NO `pnpm package` step. That
+ * lets CI regenerate and diff cheaply.
  *
- * Run after `pnpm package`. Re-runs are idempotent: the script clears
- * dist/licenses/ first.
+ * Output is deterministic: the NOTICE copyright year is read from the
+ * repo-root NOTICE (not the wall clock) and the dependency report carries no
+ * timestamp, so the committed reference is byte-stable across runs/years.
+ *
+ * Modes:
+ *   (default)            Write dist/LICENSE, dist/NOTICE, dist/licenses/<pkg>/,
+ *                        and dist/.dependency-report.json (consumed by
+ *                        check-dist-licenses.mjs and the release packager).
+ *   --update-reference   Also copy the generated LICENSE + NOTICE into
+ *                        dist-material/release-docs/ — the committed
+ *                        reference. Run after any production-dependency
+ *                        change, then commit the diff.
+ *   --check              Compare the freshly generated LICENSE + NOTICE
+ *                        against the committed reference and exit non-zero on
+ *                        any drift (the CI guard).
  */
 
 import { execSync } from 'node:child_process';
@@ -45,7 +54,6 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -54,16 +62,21 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
 const distDir = resolve(repoRoot, 'dist');
-const nmDir = resolve(distDir, 'node_modules');
 const licensesOutDir = resolve(distDir, 'licenses');
 const templatesDir = resolve(repoRoot, 'dist-material/release-docs');
+// The committed binary LICENSE / NOTICE live next to their .tpl sources.
+const referenceDir = templatesDir;
 
-if (!existsSync(nmDir)) {
-  console.error(
-    `FATAL: ${nmDir} does not exist. Run \`pnpm package\` first.`,
-  );
-  process.exit(1);
-}
+const args = new Set(process.argv.slice(2));
+const CHECK = args.has('--check');
+const UPDATE_REFERENCE = args.has('--update-reference');
+
+// Workspace packages whose PRODUCTION dependencies end up in the binary
+// (bff → node_modules at runtime; ui → compiled into the static bundle).
+const BUNDLED_WORKSPACE_PACKAGES = [
+  '@skywalking-horizon-ui/bff',
+  '@skywalking-horizon-ui/ui',
+];
 
 const LICENSE_FILE_PATTERNS = [
   /^LICENSE$/i,
@@ -85,53 +98,67 @@ function pickFile(dir, patterns) {
   return null;
 }
 
-// Find every realpath-distinct package directory under dist/node_modules.
-// pnpm's layout puts true packages under `.pnpm/<pkg>@<ver>(_<peers>)/node_modules/<pkg>/`,
-// with top-level entries being symlinks into that store. We use `pnpm list`
-// to get the canonical production dep graph and resolve each entry's
-// realpath to get the package.json we should be reading.
+// Enumerate every third-party production package reachable from the bundled
+// workspace packages. `pnpm list --prod --depth Infinity` resolves each
+// entry to its real path in the pnpm store, so license files are readable
+// straight from there — no dist/node_modules required.
 function collectPackages() {
-  // `pnpm list --prod --depth Infinity --json` returns the realized
-  // production dep tree. We flatten it ourselves so first-party workspace
-  // packages can be filtered out by name prefix.
+  const filters = BUNDLED_WORKSPACE_PACKAGES.flatMap((p) => ['--filter', p]);
   const raw = execSync(
-    'pnpm list --prod --depth Infinity --json',
+    ['pnpm', 'list', '--prod', '--depth', 'Infinity', '--json', ...filters].join(' '),
     {
-      cwd: distDir,
-      maxBuffer: 64 * 1024 * 1024,
+      cwd: repoRoot,
+      maxBuffer: 128 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'inherit'],
     },
   ).toString();
   const json = JSON.parse(raw);
-  // pnpm list returns an array of root packages. dist/ has exactly one.
-  const root = Array.isArray(json) ? json[0] : json;
+  const roots = Array.isArray(json) ? json : [json];
 
-  const seen = new Map(); // key: name@version → { path, name, version }
+  const seen = new Map(); // key: name@version → { name, version, path }
   function walk(deps) {
     if (!deps) return;
     for (const [name, info] of Object.entries(deps)) {
-      // Skip first-party workspace packages — they're our own code.
+      // First-party workspace packages are our own code — recurse past
+      // them so their third-party deps are still captured.
       if (name.startsWith('@skywalking-horizon-ui/')) {
         walk(info.dependencies);
         continue;
       }
       const version = info.version;
       const key = `${name}@${version}`;
-      if (seen.has(key)) continue;
-      const pkgPath = info.path;
-      if (!pkgPath || !existsSync(pkgPath)) {
-        console.warn(`WARN: package path missing for ${key}: ${pkgPath}`);
-        continue;
+      if (!seen.has(key)) {
+        const pkgPath = info.path;
+        if (!pkgPath || !existsSync(pkgPath)) {
+          console.warn(`WARN: package path missing for ${key}: ${pkgPath}`);
+        } else {
+          seen.set(key, { name, version, path: pkgPath });
+        }
       }
-      seen.set(key, { name, version, path: pkgPath });
       walk(info.dependencies);
     }
   }
-  walk(root.dependencies);
+  for (const root of roots) walk(root.dependencies);
+
   return Array.from(seen.values()).sort((a, b) =>
     a.name === b.name ? a.version.localeCompare(b.version) : a.name.localeCompare(b.name),
   );
 }
+
+// Human-asserted SPDX licenses for deps whose package.json omits or
+// mis-declares `license`. Verified against each package's own LICENSE file.
+const licenseOverrides = (() => {
+  const p = join(templatesDir, 'license-overrides.json');
+  if (!existsSync(p)) return {};
+  try {
+    const { _comment, ...rest } = JSON.parse(readFileSync(p, 'utf8'));
+    void _comment;
+    return rest;
+  } catch (e) {
+    console.warn(`WARN: cannot parse ${p}: ${e.message}`);
+    return {};
+  }
+})();
 
 function normalizeLicense(pkgJson) {
   const lic = pkgJson.license;
@@ -140,7 +167,6 @@ function normalizeLicense(pkgJson) {
     return lic.type;
   }
   if (Array.isArray(pkgJson.licenses)) {
-    // Deprecated form. Join SPDX-style.
     return pkgJson.licenses.map((l) => l.type || l).filter(Boolean).join(' OR ');
   }
   return 'UNKNOWN';
@@ -157,9 +183,23 @@ function readPkgJson(pkgPath) {
   }
 }
 
+// Read the copyright year from the committed root NOTICE so the generated
+// binary NOTICE is reproducible (a wall-clock year would drift every Jan 1
+// and break the CI diff).
+function noticeYear() {
+  try {
+    const txt = readFileSync(resolve(repoRoot, 'NOTICE'), 'utf8');
+    const m = txt.match(/Copyright\s+(\d{4})/);
+    if (m) return m[1];
+  } catch {
+    /* fall through */
+  }
+  return String(new Date().getUTCFullYear());
+}
+
 const packages = collectPackages();
 
-// Reset output directory
+mkdirSync(distDir, { recursive: true });
 rmSync(licensesOutDir, { recursive: true, force: true });
 mkdirSync(licensesOutDir, { recursive: true });
 
@@ -170,7 +210,7 @@ const noticePieces = [];
 for (const pkg of packages) {
   const pj = readPkgJson(pkg.path);
   if (!pj) continue;
-  const license = normalizeLicense(pj);
+  const license = licenseOverrides[`${pkg.name}@${pkg.version}`] ?? normalizeLicense(pj);
   const homepage = pj.homepage || pj.repository?.url || pj.repository || '';
   const entry = {
     name: pkg.name,
@@ -200,10 +240,7 @@ for (const pkg of packages) {
     cpSync(noticeFile, dest);
     entry.noticeFile = relative(distDir, dest);
     noticePieces.push(
-      `------ ${pkg.name}@${pkg.version} ------\n${readFileSync(
-        noticeFile,
-        'utf8',
-      ).trim()}\n`,
+      `------ ${pkg.name}@${pkg.version} ------\n${readFileSync(noticeFile, 'utf8').trim()}\n`,
     );
   }
 
@@ -229,9 +266,8 @@ writeFileSync(join(distDir, 'LICENSE'), licenseOut);
 
 // Render NOTICE.tpl → dist/NOTICE
 const noticeTpl = readFileSync(join(templatesDir, 'NOTICE.tpl'), 'utf8');
-const year = new Date().getUTCFullYear();
 const noticeOut = noticeTpl
-  .replace('{{ .Year }}', String(year))
+  .replace('{{ .Year }}', noticeYear())
   .replace(
     '{{ .Notices }}',
     noticePieces.length > 0
@@ -240,12 +276,12 @@ const noticeOut = noticeTpl
   );
 writeFileSync(join(distDir, 'NOTICE'), noticeOut);
 
-// Machine-readable report for the check step.
+// Machine-readable report for check-dist-licenses.mjs. No timestamp — the
+// file is an input to a deterministic diff, not an audit log.
 writeFileSync(
   join(distDir, '.dependency-report.json'),
   JSON.stringify(
     {
-      generatedAt: new Date().toISOString(),
       packageCount: report.length,
       packages: report,
       byLicense: Object.fromEntries(
@@ -254,10 +290,50 @@ writeFileSync(
     },
     null,
     2,
-  ),
+  ) + '\n',
 );
 
 console.log(
   `Wrote dist/LICENSE, dist/NOTICE, dist/licenses/ (${report.length} packages, ` +
     `${sortedLicenses.length} license families).`,
 );
+
+// ── Reference sync / drift check ────────────────────────────────────────
+const refLicense = join(referenceDir, 'LICENSE');
+const refNotice = join(referenceDir, 'NOTICE');
+
+if (UPDATE_REFERENCE) {
+  cpSync(join(distDir, 'LICENSE'), refLicense);
+  cpSync(join(distDir, 'NOTICE'), refNotice);
+  console.log(
+    `Updated committed reference: ${relative(repoRoot, refLicense)}, ${relative(repoRoot, refNotice)}.`,
+  );
+}
+
+if (CHECK) {
+  const drift = [];
+  for (const [label, generated, reference] of [
+    ['LICENSE', join(distDir, 'LICENSE'), refLicense],
+    ['NOTICE', join(distDir, 'NOTICE'), refNotice],
+  ]) {
+    if (!existsSync(reference)) {
+      drift.push(`${label}: committed reference ${relative(repoRoot, reference)} is missing.`);
+      continue;
+    }
+    if (readFileSync(generated, 'utf8') !== readFileSync(reference, 'utf8')) {
+      drift.push(`${label}: differs from ${relative(repoRoot, reference)}.`);
+    }
+  }
+  if (drift.length > 0) {
+    console.error('');
+    console.error('Binary LICENSE / NOTICE drift detected:');
+    for (const d of drift) console.error(`  - ${d}`);
+    console.error('');
+    console.error(
+      'Production dependencies changed without regenerating the committed reference.',
+    );
+    console.error('Run:  pnpm licenses:bin:update   then commit dist-material/release-docs/.');
+    process.exit(1);
+  }
+  console.log('Binary LICENSE / NOTICE match the committed reference.');
+}
