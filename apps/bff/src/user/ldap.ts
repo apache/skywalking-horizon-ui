@@ -153,6 +153,10 @@ export async function verifyLdapCredentials(
   username: string,
   password: string,
 ): Promise<LdapVerified | null> {
+  // Service-bound client: used for the user search AND (for the `search`
+  // group strategy) the group lookup. Kept open until after group
+  // resolution — see the note below on why groups are NOT resolved with
+  // the user's own credentials.
   const searchClient = clientFor(cfg);
   let user: FoundUser | null = null;
   try {
@@ -165,32 +169,41 @@ export async function verifyLdapCredentials(
     await safeUnbind(searchClient);
     return null;
   }
-  await safeUnbind(searchClient);
-  if (!user) return null;
+  if (!user) {
+    await safeUnbind(searchClient);
+    return null;
+  }
 
-  // The actual password check — bind as the user.
+  // The actual password check — bind as the user on a separate client.
   const userClient = clientFor(cfg);
   try {
     await userClient.bind(user.dn, password);
   } catch {
     // Wrong password / locked account / disabled user → bind 49.
     await safeUnbind(userClient);
+    await safeUnbind(searchClient);
     return null;
   }
+  await safeUnbind(userClient);
 
-  // Resolve group memberships using the credentials we already have.
+  // Resolve group memberships with the SERVICE bind, not the user's
+  // credentials: directories commonly deny regular users read access to
+  // the group subtree (OpenLDAP's default ACLs hide it), which would
+  // silently yield zero groups and collapse every login to the `*`
+  // fallback role. Using the service bind also keeps login consistent
+  // with the Auth Status username resolver (resolveLdapUser).
   let groups: string[] = [];
   try {
     if (cfg.groupStrategy === 'memberOf') {
       groups = user.memberOfFromEntry;
     } else {
-      groups = await searchGroupsByMember(userClient, cfg, user.dn);
+      groups = await searchGroupsByMember(searchClient, cfg, user.dn);
     }
   } catch (err) {
     logger.warn({ err: errMsg(err), dn: user.dn }, 'ldap group resolution failed');
     groups = [];
   }
-  await safeUnbind(userClient);
+  await safeUnbind(searchClient);
 
   const roles = mapGroupsToRoles(cfg, groups);
   if (roles.length === 0) {

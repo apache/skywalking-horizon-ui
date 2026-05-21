@@ -1,0 +1,50 @@
+dn: ou=people,dc=horizon,dc=test
+objectClass: organizationalUnit
+ou: people
+
+dn: ou=groups,dc=horizon,dc=test
+objectClass: organizationalUnit
+ou: groups
+
+dn: uid=admin,ou=people,dc=horizon,dc=test
+objectClass: inetOrgPerson
+uid: admin
+cn: Admin User
+sn: Admin
+userPassword: admin
+
+dn: uid=operator,ou=people,dc=horizon,dc=test
+objectClass: inetOrgPerson
+uid: operator
+cn: Operator User
+sn: Operator
+userPassword: operator
+
+dn: uid=maintainer,ou=people,dc=horizon,dc=test
+objectClass: inetOrgPerson
+uid: maintainer
+cn: Maintainer User
+sn: Maintainer
+userPassword: maintainer
+
+dn: uid=viewer,ou=people,dc=horizon,dc=test
+objectClass: inetOrgPerson
+uid: viewer
+cn: Viewer User
+sn: Viewer
+userPassword: viewer
+
+dn: cn=horizon-admin,ou=groups,dc=horizon,dc=test
+objectClass: groupOfNames
+cn: horizon-admin
+member: uid=admin,ou=people,dc=horizon,dc=test
+
+dn: cn=sre,ou=groups,dc=horizon,dc=test
+objectClass: groupOfNames
+cn: sre
+member: uid=operator,ou=people,dc=horizon,dc=test
+
+dn: cn=platform,ou=groups,dc=horizon,dc=test
+objectClass: groupOfNames
+cn: platform
+member: uid=maintainer,ou=people,dc=horizon,dc=test

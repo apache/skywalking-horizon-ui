@@ -98,6 +98,51 @@ When invoked as an agent and `OAP_PASSWORD` is not already set, ask the
 developer for it (do not guess, do not hardcode it into a file). The OAP
 network username is fixed as `admin` in `horizon.demo.yaml`.
 
+## Boot against an LDAP directory (test)
+
+`horizon.ldap.yaml` points the BFF at a throwaway OpenLDAP seeded from
+`ldap-seed.ldif`. Stand the directory up, seed it, then boot:
+
+```bash
+REPO="$(git rev-parse --show-toplevel)"
+docker rm -f horizon-ldap 2>/dev/null
+docker run -d --name horizon-ldap -p 389:389 -p 636:636 \
+  --env LDAP_ORGANISATION="Horizon Test" --env LDAP_DOMAIN="horizon.test" \
+  --env LDAP_ADMIN_PASSWORD="admin" osixia/openldap:1.5.0
+# wait for slapd, then seed:
+until docker exec horizon-ldap ldapwhoami -x -H ldap://localhost \
+  -D "cn=admin,dc=horizon,dc=test" -w admin >/dev/null 2>&1; do sleep 1; done
+docker cp "$REPO/.claude/skills/local-boot/ldap-seed.ldif" horizon-ldap:/tmp/seed.ldif
+docker exec horizon-ldap ldapadd -x -H ldap://localhost \
+  -D "cn=admin,dc=horizon,dc=test" -w admin -f /tmp/seed.ldif
+
+pkill -f "tsx watch src/server.ts" 2>/dev/null; pkill -f "tsx/dist/cli.mjs watch" 2>/dev/null
+until ! lsof -nP -iTCP:8081 -sTCP:LISTEN >/dev/null 2>&1; do sleep 1; done
+HORIZON_CONFIG="$REPO/.claude/skills/local-boot/horizon.ldap.yaml" \
+  pnpm --filter @skywalking-horizon-ui/bff run dev &
+```
+
+Test accounts (seeded by `ldap-seed.ldif`). Login users are named after
+their role and **password == username**, mirroring `horizon.local.yaml`:
+
+| Login | Group | Role |
+|---|---|---|
+| `admin` | cn=horizon-admin | admin |
+| `operator` | cn=sre | operator |
+| `maintainer` | cn=platform | maintainer |
+| `viewer` | (none) | viewer (`*` fallback) |
+
+Directory bind account: `cn=admin,dc=horizon,dc=test` / `admin` (override via `LDAP_BIND_PW`).
+
+```bash
+# verify a login resolves the expected role:
+curl -s --noproxy '*' -H 'Content-Type: application/json' -X POST \
+  http://127.0.0.1:8081/api/auth/login -d '{"username":"admin","password":"admin"}'
+```
+
+Note: group resolution runs on the **service bind**, not the user's
+credentials (regular users usually can't read the group subtree).
+
 ## Verify the BFF is healthy (no browser)
 
 ```bash
