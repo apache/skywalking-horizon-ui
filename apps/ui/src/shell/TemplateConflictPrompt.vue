@@ -22,7 +22,7 @@
   session (reset on login). Until chosen, the runtime defaults to remote.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import { useConfigBundle, setTemplateRenderMode } from '@/controls/configBundle';
 import { useTemplatePreference } from '@/controls/templatePreference';
@@ -52,14 +52,19 @@ const divergedItems = computed<string[]>(() => {
 const divergedCount = computed(() => divergedItems.value.length);
 const open = computed(() => pref.mode === null && divergedCount.value > 0);
 
+// Second step shown when the operator picks "use live" — abandoning the
+// local preview for the remote version needs an explicit confirm.
+const confirmingRemote = ref(false);
+
 async function choose(mode: 'local' | 'remote'): Promise<void> {
+  confirmingRemote.value = false;
   await setTemplateRenderMode(mode);
 }
 </script>
 
 <template>
-  <Modal :open="open" title="Local template changes not published">
-    <div class="tcp">
+  <Modal :open="open" :title="confirmingRemote ? 'Use the live version?' : 'Local template changes not published'">
+    <div v-if="!confirmingRemote" class="tcp">
       <p class="tcp__lede">
         <b>{{ divergedCount }}</b> dashboard{{ divergedCount === 1 ? '' : 's' }} differ between your
         <b>local</b> edits and what the OAP cluster currently serves (<b>remote</b>). Which version
@@ -73,9 +78,24 @@ async function choose(mode: 'local' | 'remote'): Promise<void> {
         <li><b>Remote</b> — show the live version everyone else sees. Your local edits stay on disk, unpublished.</li>
       </ul>
     </div>
+    <div v-else class="tcp">
+      <p class="tcp__lede tcp__warn">
+        This session will render the <b>live (remote)</b> version. Your <b>{{ divergedCount }}</b>
+        local change{{ divergedCount === 1 ? '' : 's' }} will <b>not be shown</b> and stay
+        unpublished — publish them with “Sync all to OAP” first if you want to keep them, or they
+        can be lost the next time the bundled templates are regenerated. Continue?
+      </p>
+    </div>
+
     <template #footer>
-      <button class="sw-btn" type="button" @click="choose('remote')">Use remote (live)</button>
-      <button class="sw-btn primary" type="button" @click="choose('local')">Use my local edits</button>
+      <template v-if="!confirmingRemote">
+        <button class="sw-btn" type="button" @click="confirmingRemote = true">Use remote (live)</button>
+        <button class="sw-btn primary" type="button" @click="choose('local')">Use my local edits</button>
+      </template>
+      <template v-else>
+        <button class="sw-btn" type="button" @click="confirmingRemote = false">Back</button>
+        <button class="sw-btn danger" type="button" @click="choose('remote')">Use live, ignore local</button>
+      </template>
     </template>
   </Modal>
 </template>
@@ -83,6 +103,8 @@ async function choose(mode: 'local' | 'remote'): Promise<void> {
 <style scoped>
 .tcp { padding: 4px 2px; }
 .tcp__lede { margin: 0 0 10px; font-size: 12.5px; color: var(--sw-fg-1); line-height: 1.55; }
+.tcp__warn { color: var(--sw-fg-1); }
+.tcp__warn b { color: var(--sw-err); }
 .tcp__list {
   margin: 0 0 12px;
   padding: 8px 10px 8px 24px;
