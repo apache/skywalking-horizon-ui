@@ -274,6 +274,15 @@ function divergedCount(kind: 'layer' | 'overview'): number {
   const badges = bundle.value?.syncStatus?.badges ?? [];
   return badges.filter((b) => b.kind === kind && b.status === 'diverged').length;
 }
+/** True when this layer's template has local edits not yet published to
+ *  OAP (diverged) — drives the yellow warning on its sidebar row. */
+function isLayerDiverged(key: string): boolean {
+  const badges = bundle.value?.syncStatus?.badges ?? [];
+  return badges.some(
+    (b) => b.kind === 'layer' && b.status === 'diverged' && b.key.toUpperCase() === key.toUpperCase(),
+  );
+}
+
 /** Per-route warn badge for the template-admin rows. */
 function syncBadgeFor(to: string): NavRow['badge'] | undefined {
   const kind = to === '/admin/layer-dashboards' ? 'layer' : to === '/admin/overview-templates' ? 'overview' : null;
@@ -404,6 +413,11 @@ watch(
               >
                 <Icon :name="layerIcon(L)" />
                 <span class="layer-name">{{ L.name }}</span>
+                <span
+                  v-if="isLayerDiverged(L.key)"
+                  class="layer-warn"
+                  title="Local changes not published to OAP"
+                ><Icon name="alert" :size="11" /></span>
               </RouterLink>
               <div
                 v-else
@@ -416,6 +430,11 @@ watch(
               >
                 <Icon :name="layerIcon(L)" />
                 <span class="layer-name">{{ L.name }}</span>
+                <span
+                  v-if="isLayerDiverged(L.key)"
+                  class="layer-warn"
+                  title="Local changes not published to OAP"
+                ><Icon name="alert" :size="11" /></span>
                 <span class="caret" :class="{ open: expandedLayer === L.key }">
                   <Icon name="caret" :size="10" />
                 </span>
@@ -923,6 +942,18 @@ watch(
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.layer-warn {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  margin: 0 2px 0 4px;
+}
+.layer-row .layer-warn :deep(svg) {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 12px;
+  color: #facc15;
 }
 .layer-row.direct {
   text-decoration: none;
