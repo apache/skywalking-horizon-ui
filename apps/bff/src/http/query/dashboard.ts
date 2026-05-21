@@ -115,6 +115,14 @@ const bodySchema = z.object({
   // an accidentally-huge template never reaches OAP.
   widgets: z.array(widgetSchema).max(40).optional(),
   scope: scopeSchema.optional(),
+  /** Global time-range, forwarded by the SPA's time picker. When all
+   *  three are present the BFF queries OAP at the requested precision
+   *  and window; otherwise it falls back to the last-hour MINUTE
+   *  default. `step` must match OAP's downsampling tiers and drives the
+   *  date-string format (verifyDateTimeString rejects a mismatch). */
+  step: z.enum(['MINUTE', 'HOUR', 'DAY']).optional(),
+  startMs: z.number().int().positive().optional(),
+  endMs: z.number().int().positive().optional(),
 });
 
 interface MqeOwner {
@@ -174,23 +182,48 @@ const FIND_FIRST_ENDPOINT = /* GraphQL */ `
 
 const DEFAULT_WINDOW_MIN = 60;
 
+export type TimeStep = 'MINUTE' | 'HOUR' | 'DAY';
+
 export interface Window {
   start: string;
   end: string;
+  step: TimeStep;
+}
+function pad(n: number): string {
+  return String(n).padStart(2, '0');
 }
 function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mi = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}${mi}`;
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
+}
+function fmtHour(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}`;
+}
+function fmtDay(d: Date): string {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+/** Format a Date for OAP per the step. OAP's `verifyDateTimeString`
+ *  rejects a string whose precision doesn't match the Duration.step. */
+export function fmtForStep(step: TimeStep, d: Date): string {
+  if (step === 'DAY') return fmtDay(d);
+  if (step === 'HOUR') return fmtHour(d);
+  return fmtMinute(d);
 }
 function defaultWindow(): Window {
   const end = new Date();
   end.setUTCSeconds(0, 0);
   const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
+  return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
+}
+/** Build the OAP window from the SPA-supplied range. All three inputs
+ *  must be present; returns null otherwise so the caller can fall back
+ *  to {@link defaultWindow}. */
+function windowFromRange(step: TimeStep, startMs: number, endMs: number): Window | null {
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  return {
+    start: fmtForStep(step, new Date(startMs)),
+    end: fmtForStep(step, new Date(endMs)),
+    step,
+  };
 }
 
 /** Build one aliased `execExpression` GraphQL fragment for a single
@@ -244,7 +277,7 @@ export function buildFragment(
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(expression)},\n` +
     `      entity: ${entity},\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step} }\n` +
     `    ) {\n` +
     `      type error\n` +
     `      results {\n` +
@@ -383,13 +416,18 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       let normal = true;
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const window = defaultWindow();
+      // Honor the SPA's time picker (step + start/end). Falls back to
+      // the last-hour MINUTE default when the caller omits the range.
+      const window =
+        parsed.data.step && parsed.data.startMs && parsed.data.endMs
+          ? windowFromRange(parsed.data.step, parsed.data.startMs, parsed.data.endMs) ?? defaultWindow()
+          : defaultWindow();
 
       const baseResp: DashboardResponse = {
         layer: layerKey,
         service: serviceName || null,
         generatedAt: Date.now(),
-        step: 'MINUTE',
+        step: window.step,
         durationStart: window.start,
         durationEnd: window.end,
         widgets: [],
@@ -457,7 +495,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             LIST_FIRST_INSTANCE,
             {
               serviceId,
-              duration: { start: window.start, end: window.end, step: 'MINUTE' },
+              duration: { start: window.start, end: window.end, step: window.step },
             },
           );
           selectedInstance = data.instances?.[0]?.name ?? null;
@@ -472,7 +510,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             FIND_FIRST_ENDPOINT,
             {
               serviceId,
-              duration: { start: window.start, end: window.end, step: 'MINUTE' },
+              duration: { start: window.start, end: window.end, step: window.step },
             },
           );
           selectedEndpoint = data.endpoints?.[0]?.name ?? null;

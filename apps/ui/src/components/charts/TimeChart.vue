@@ -111,10 +111,10 @@ const container = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
 
 function buildOption(): echarts.EChartsCoreOption {
-  // Generate equal-spaced bucket indices for the x-axis. We don't have
-  // explicit timestamps from the BFF response (the duration window is
-  // implied to be MINUTE-stepped over the last 15m), so we label the
-  // axis with relative "-Nm" markers.
+  // X-axis labels: callers that know the window (e.g. the layer
+  // dashboard, which reconstructs per-bucket times from the active
+  // step + range) pass explicit `xLabels`. When absent, fall back to
+  // relative "-Nm" markers.
   const length = props.series[0]?.data.length ?? 0;
   const xLabels =
     props.xLabels && props.xLabels.length === length

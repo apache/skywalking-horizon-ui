@@ -26,7 +26,7 @@ import {
   type MqeResultShape,
 } from './dashboard.js';
 
-const W: Window = { start: '2026-05-17 1000', end: '2026-05-17 1100' };
+const W: Window = { start: '2026-05-17 1000', end: '2026-05-17 1100', step: 'MINUTE' };
 
 /** Extract just the `entity: { ... }` literal from a built fragment.
  *  Lets assertions target the actual entity-construction logic without
@@ -132,12 +132,28 @@ describe('buildFragment — entity scope construction', () => {
     const frag = buildFragment('w7', 'service_cpm', 'frontend', true, {
       start: '2026-05-17 1000',
       end: '2026-05-17 1100',
+      step: 'MINUTE',
     });
     expect(frag.trimStart().startsWith('w7: execExpression(')).toBe(true);
     expect(frag).toContain('expression: "service_cpm"');
     expect(frag).toContain('start: "2026-05-17 1000"');
     expect(frag).toContain('end: "2026-05-17 1100"');
     expect(frag).toContain('step: MINUTE');
+  });
+
+  it('duration step follows the window step (HOUR / DAY)', () => {
+    const hour = buildFragment('w8', 'service_cpm', 'frontend', true, {
+      start: '2026-05-17 10',
+      end: '2026-05-18 10',
+      step: 'HOUR',
+    });
+    expect(hour).toContain('step: HOUR');
+    const day = buildFragment('w9', 'service_cpm', 'frontend', true, {
+      start: '2026-04-17',
+      end: '2026-05-17',
+      step: 'DAY',
+    });
+    expect(day).toContain('step: DAY');
   });
 
   it('result block requests metric.labels + owner fields (TopList / relabels support)', () => {
