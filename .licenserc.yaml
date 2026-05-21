@@ -42,6 +42,9 @@ header:
     - '**/dist/**'
     - '**/node_modules/**'
     - 'docs/**'
+    # Agent / dev tooling, not shippable source — skill configs (e.g.
+    # local-boot's horizon.*.yaml) carry no ASF header.
+    - '.claude/**'
     - 'pnpm-lock.yaml'
     - '.browserslistrc'
     - '.prettierrc'

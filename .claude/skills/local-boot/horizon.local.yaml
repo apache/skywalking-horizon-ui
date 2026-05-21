@@ -1,0 +1,111 @@
+# Static local-boot config for the Horizon UI BFF — points at a LOCAL
+# OAP on 127.0.0.1 with NO network auth. Boot via the `local-boot` skill
+# (see SKILL.md) which passes this file through HORIZON_CONFIG as an
+# ABSOLUTE path. The local-user password hashes below are throwaway dev
+# credentials (password == username) — safe to commit; do NOT add real
+# secrets here. For demo-OAP access use horizon.demo.yaml instead, which
+# keeps the OAP password out of git via ${OAP_PASSWORD}.
+
+server:
+  host: 127.0.0.1
+  port: 8081
+
+oap:
+  queryUrl: http://localhost:12800
+  # This OAP serves the debugging/admin REST surface on the SAME port
+  # as GraphQL (12800). Zipkin (9412) may not be exposed locally.
+  adminUrl: http://localhost:12800
+  zipkinUrl: http://localhost:9412/zipkin
+  timeoutMs: 15000
+
+auth:
+  backend: local
+  local:
+    # One account per role for manual menu-RBAC checks. Password == username.
+    users:
+      - username: viewer
+        # password: viewer
+        passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$Gp175hqr+EF2iZ7v1fndvw$w6w9hDI59/UA+CRARChDoGRlR1TkVt6kqzApa021K+0"
+        roles: [viewer]
+      - username: maintainer
+        # password: maintainer
+        passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$w7ULwB3/jzH9FxVoHJ238A$y+qGoX6IPeOoGywLQCpfpAN5VJXcaevoWeJQhaybvQU"
+        roles: [maintainer]
+      - username: operator
+        # password: operator
+        passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$nzoI4RqiobprtzX/mJqe5Q$FY2Hi7mKep0DPHoaE++r/KD++WLUwTgRUFLde87j2Wg"
+        roles: [operator]
+      - username: admin
+        # password: admin
+        passwordHash: "$argon2id$v=19$m=65536,t=3,p=4$joV9AVlyLS3pqq4mLrYokQ$pJLkTKrz9/LzEH6YaFljdz9k8dyBiryjwSB26Diiz9U"
+        roles: [admin]
+
+rbac:
+  enabled: true
+  roles:
+    viewer:
+      - "metrics:read"
+      - "alarms:read"
+      - "traces:read"
+      - "logs:read"
+      - "topology:read"
+      - "profile:read"
+      - "overview:read"
+    maintainer:
+      - "metrics:read"
+      - "alarms:read"
+      - "traces:read"
+      - "logs:read"
+      - "topology:read"
+      - "profile:read"
+      - "overview:read"
+      - "cluster:read"
+      - "inspect:read"
+      - "ttl:read"
+      - "config:read"
+    operator:
+      - "metrics:read"
+      - "alarms:read"
+      - "traces:read"
+      - "logs:read"
+      - "topology:read"
+      - "profile:read"
+      - "cluster:read"
+      - "inspect:read"
+      - "ttl:read"
+      - "config:read"
+      - "overview:read"
+      - "overview:write"
+      - "setup:read"
+      - "setup:write"
+      - "dashboard:read"
+      - "dashboard:write"
+      - "alarm-setup:read"
+      - "alarm-setup:write"
+      - "alarm-rule:read"
+      - "alarm-rule:write"
+      - "rule:read"
+      - "rule:write"
+      - "rule:write:structural"
+      - "rule:delete"
+      - "rule:debug"
+      - "live-debug:read"
+      - "live-debug:write"
+      - "profile:enable"
+    admin:
+      - "*"
+  landingByRole:
+    viewer: /
+    maintainer: /operate/cluster
+    operator: /
+    admin: /
+
+session:
+  ttlMinutes: 60
+  cookieName: horizon_sid
+  cookieSecure: false
+
+audit:    { file: ./horizon-audit.jsonl }
+setup:    { file: ./horizon-setup.json }
+alarms:   { file: ./horizon-alarms.json }
+debugLog: { enabled: false, file: ./horizon-wire.jsonl, maxBodyChars: 8192, redactAuthHeaders: true }
