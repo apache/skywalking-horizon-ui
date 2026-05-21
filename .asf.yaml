@@ -34,10 +34,15 @@ github:
     merge:   false
     rebase:  false
   dependabot_updates: false
-  # Branch protection and PR approval are intentionally OFF during pre-1.0
-  # single-author development to keep the iteration loop tight. The explicit
-  # `~` (YAML null) tells ASF infra to clear any previously-applied
-  # `protected_branches` config — omitting the key would leave prior
-  # protections in place. Re-add status-check + review gating before v1.0
-  # or when a second committer joins.
-  protected_branches: ~
+  protected_branches:
+    main:
+      required_status_checks:
+        # Require branches to be up to date with main before merging.
+        strict: true
+        # The CI "required" job rolls up every check (license-header,
+        # dependency-license, type-check, build-ui, build-bff, test) into a
+        # single "Required" status, so protection gates on one context.
+        contexts:
+          - Required
+      required_pull_request_reviews:
+        required_approving_review_count: 1

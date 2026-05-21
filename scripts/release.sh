@@ -440,7 +440,9 @@ note "Step 14 — Vote email"
 
 SRC_SHA512=$(cat "${SRC_TAR}.sha512")
 BIN_SHA512=$(cat "${BIN_TAR}.sha512")
-VOTE_DATE=$(date +"%B %d, %Y")
+# Force C locale so the month name is English (%B is locale-dependent) —
+# the vote email goes to an English mailing list regardless of the runner's OS language.
+VOTE_DATE=$(LC_ALL=C date +"%B %d, %Y")
 RELEASE_COMMIT=$(git -C "${CLONE_DIR}" rev-parse "${TAG}")
 
 cat <<EOF
