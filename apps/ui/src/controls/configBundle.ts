@@ -36,8 +36,19 @@ import { ref, computed, type ComputedRef, type Ref } from 'vue';
 import { bffClient } from '@/api/client';
 import { pushEvent } from '@/controls/eventLog';
 import { debug } from '@/utils/debug';
+import { useTemplatePreference } from '@/controls/templatePreference';
 import type { ConfigBundle, BundleScopeMap } from '@/api/scopes/configs';
 import type { DashboardWidget, OverviewDashboard } from '@skywalking-horizon-ui/api-client';
+
+/** `local` only when the operator opted to preview unpublished edits;
+ *  otherwise `remote` (the default runtime source of truth). */
+function preferParam(): 'local' | 'remote' {
+  try {
+    return useTemplatePreference().mode === 'local' ? 'local' : 'remote';
+  } catch {
+    return 'remote';
+  }
+}
 
 // Bumped to v2 in 2026-05 when the bundle gained `syncStatus` (OAP
 // UI-template overlay). v1 cached bundles lack the field; loading them
@@ -88,7 +99,7 @@ export function ensureConfigBundle(): Promise<void> {
     }
     pushEvent('preload', 'start', 'Pre-loading dashboard + overview configs…');
     try {
-      const fresh = await bffClient.configs.bundle(cached?.etag);
+      const fresh = await bffClient.configs.bundle(cached?.etag, preferParam());
       if (fresh) {
         state.value = fresh;
         writeStorage(fresh);
@@ -123,7 +134,7 @@ export function ensureConfigBundle(): Promise<void> {
  */
 export async function refreshConfigBundle(): Promise<void> {
   try {
-    const fresh = await bffClient.configs.bundle();
+    const fresh = await bffClient.configs.bundle(undefined, preferParam());
     if (fresh) {
       state.value = fresh;
       writeStorage(fresh);
@@ -131,6 +142,13 @@ export async function refreshConfigBundle(): Promise<void> {
   } catch {
     /* leave the previous bundle in place — badges just stay stale */
   }
+}
+
+/** Set the global local-vs-remote render preference and re-pull the
+ *  bundle so every dashboard re-renders from the chosen source. */
+export async function setTemplateRenderMode(mode: 'local' | 'remote'): Promise<void> {
+  useTemplatePreference().set(mode);
+  await refreshConfigBundle();
 }
 
 /** Sync lookup. Returns null when the bundle hasn't loaded yet OR

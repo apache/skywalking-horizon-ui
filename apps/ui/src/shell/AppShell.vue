@@ -23,6 +23,7 @@ import DebugEventPanel from './DebugEventPanel.vue';
 import GlobalConnectivityBanner from './GlobalConnectivityBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
+import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
 import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
 import { useLayers } from '@/shell/useLayers';
@@ -129,6 +130,9 @@ const { enabled: debugPanelEnabled } = useDebugPanel();
          collision (e.g. an operator drilling into a Zipkin trace from
          a Logs row → trace link on a mesh layer). -->
     <ZipkinTracePopout />
+    <!-- Per-session prompt: when local template edits diverge from OAP,
+         ask once which version to render (local preview vs remote live). -->
+    <TemplateConflictPrompt />
     <!-- Bottom-fixed framework-event panel. Self-hides when the Admin →
          "Debug events" toggle is off (default off in production, on
          when hostname looks local). Always mounted so the toggle

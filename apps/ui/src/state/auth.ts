@@ -18,6 +18,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { BffApiError, bffClient, type MeResponse } from '@/api/client';
+import { useTemplatePreference } from '@/controls/templatePreference';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<MeResponse | null>(null);
@@ -39,6 +40,8 @@ export const useAuthStore = defineStore('auth', () => {
     loginError.value = null;
     try {
       user.value = await bffClient.session.login(username, password);
+      // New login session → re-prompt the local-vs-remote template choice.
+      useTemplatePreference().reset();
       return true;
     } catch (err) {
       if (err instanceof BffApiError && err.status === 401) {

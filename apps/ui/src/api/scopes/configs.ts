@@ -82,16 +82,17 @@ export class ConfigsApi {
    * validation. Returns `null` on a 304 (the caller's cached copy
    * is current); otherwise a full bundle.
    */
-  async bundle(ifNoneMatch?: string): Promise<ConfigBundle | null> {
+  async bundle(ifNoneMatch?: string, prefer?: 'local' | 'remote'): Promise<ConfigBundle | null> {
     const headers: Record<string, string> = {};
     if (ifNoneMatch) headers['If-None-Match'] = ifNoneMatch;
+    const path = prefer === 'local' ? '/api/configs/bundle?prefer=local' : '/api/configs/bundle';
     // Direct fetch (not BffClient.request) because we need 304 to be a
     // non-throwing success path. The error logging that lives in
     // BffClient.request is replicated here so a bundle-load failure
     // still lands in the debug event log.
     let res: Response;
     try {
-      res = await fetch(withBase('/api/configs/bundle'), {
+      res = await fetch(withBase(path), {
         method: 'GET',
         credentials: 'include',
         headers,

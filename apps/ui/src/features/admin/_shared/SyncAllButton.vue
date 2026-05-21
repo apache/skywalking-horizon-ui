@@ -25,13 +25,21 @@
 import { computed, ref } from 'vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
-import { refreshConfigBundle } from '@/controls/configBundle';
+import { refreshConfigBundle, setTemplateRenderMode } from '@/controls/configBundle';
+import { useTemplatePreference } from '@/controls/templatePreference';
 import { bffClient } from '@/api/client';
 import type { TemplateKind } from '@/api/scopes/configs';
 
 const props = defineProps<{ kind: TemplateKind }>();
 
 const sync = useTemplateSync({ kind: props.kind });
+const pref = useTemplatePreference();
+
+// Effective render source for diverged templates (null defaults to remote).
+const renderMode = computed<'local' | 'remote'>(() => (pref.mode === 'local' ? 'local' : 'remote'));
+function setMode(m: 'local' | 'remote'): void {
+  if (renderMode.value !== m) void setTemplateRenderMode(m);
+}
 
 /** Templates whose bundled copy differs from OAP (push targets). */
 const diffNames = computed<string[]>(() => {
@@ -85,6 +93,11 @@ async function confirmSync(): Promise<void> {
 </script>
 
 <template>
+  <span class="sab__display" title="Which version this session renders for templates that differ from OAP.">
+    <span class="sab__display-label">Showing</span>
+    <button class="sab__seg" :class="{ on: renderMode === 'local' }" type="button" @click="setMode('local')">Local</button>
+    <button class="sab__seg" :class="{ on: renderMode === 'remote' }" type="button" @click="setMode('remote')">Remote</button>
+  </span>
   <button
     class="sw-btn"
     type="button"
@@ -141,6 +154,26 @@ async function confirmSync(): Promise<void> {
   font-size: 10px;
   font-weight: 700;
 }
+.sab__display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  font-size: 11px;
+}
+.sab__display-label { color: var(--sw-fg-3); margin-right: 2px; }
+.sab__seg {
+  padding: 2px 8px;
+  border: 1px solid var(--sw-line);
+  background: transparent;
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.sab__seg:first-of-type { border-radius: 5px 0 0 5px; }
+.sab__seg:last-of-type { border-radius: 0 5px 5px 0; border-left: none; }
+.sab__seg.on { background: var(--sw-accent); color: #1a1a1a; border-color: var(--sw-accent); font-weight: 600; }
 .sab__body { padding: 4px 2px; }
 .sab__lede { margin: 0 0 10px; font-size: 12px; color: var(--sw-fg-2); line-height: 1.5; }
 .sab__list {

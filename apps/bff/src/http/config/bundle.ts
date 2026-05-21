@@ -103,7 +103,11 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
     '/api/configs/bundle',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = await buildBundle(deps);
+      // `?prefer=local` renders the LOCAL bundled copy for templates that
+      // diverge from OAP (so an operator can preview unpublished edits);
+      // default `remote` keeps OAP as the runtime source of truth.
+      const preferLocal = (req.query as { prefer?: string }).prefer === 'local';
+      const body = await buildBundle(deps, preferLocal);
       const inm = req.headers['if-none-match'];
       if (typeof inm === 'string' && inm === body.etag) {
         return reply.code(304).send();
@@ -115,7 +119,7 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
   );
 }
 
-async function buildBundle(deps: ConfigBundleDeps): Promise<ConfigBundle> {
+async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise<ConfigBundle> {
   const sync = await getSyncStatus({
     client: deps.uiTemplateClient(),
     bundled: () => iterateBundledTemplates(),
@@ -127,7 +131,7 @@ async function buildBundle(deps: ConfigBundleDeps): Promise<ConfigBundle> {
 
   const layers: Record<string, ScopeMap> = {};
   for (const tpl of allLayerTemplates()) {
-    const effective = pickLayerContent(tpl, remoteByName);
+    const effective = pickLayerContent(tpl, remoteByName, preferLocal);
     if (effective === null) continue; // disabled
     const scopes: ScopeMap = {};
     for (const scope of ['service', 'instance', 'endpoint'] as const) {
@@ -139,7 +143,7 @@ async function buildBundle(deps: ConfigBundleDeps): Promise<ConfigBundle> {
 
   const overviews: OverviewDashboard[] = [];
   for (const dash of loadOverviewDashboards()) {
-    const effective = pickOverviewContent(dash, remoteByName);
+    const effective = pickOverviewContent(dash, remoteByName, preferLocal);
     if (effective === null) continue; // disabled
     overviews.push(effective);
   }
@@ -169,10 +173,14 @@ async function buildBundle(deps: ConfigBundleDeps): Promise<ConfigBundle> {
 function pickLayerContent(
   bundled: LayerTemplate,
   byName: Map<string, TemplateRow>,
+  preferLocal = false,
 ): LayerTemplate | null {
   const row = byName.get(formatName('layer', bundled.key));
   if (!row) return bundled;
   if (row.status === 'disabled') return null;
+  // Operator opted to preview unpublished local edits: bundled wins for
+  // diverged templates (synced rows are byte-equal, so it's a no-op there).
+  if (preferLocal && row.status === 'diverged') return bundled;
   if (row.effective === 'remote' && row.remote) {
     const env = parseEnvelope(row.remote.configuration);
     if (env && isLayerLike(env.content)) {
@@ -185,10 +193,12 @@ function pickLayerContent(
 function pickOverviewContent(
   bundled: OverviewDashboard,
   byName: Map<string, TemplateRow>,
+  preferLocal = false,
 ): OverviewDashboard | null {
   const row = byName.get(formatName('overview', bundled.id));
   if (!row) return bundled;
   if (row.status === 'disabled') return null;
+  if (preferLocal && row.status === 'diverged') return bundled;
   if (row.effective === 'remote' && row.remote) {
     const env = parseEnvelope(row.remote.configuration);
     if (env && isOverviewLike(env.content)) {
