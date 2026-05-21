@@ -225,7 +225,7 @@ if (staticDir && existsSync(staticDir)) {
 
 app.get('/api/health', async () => ({
   status: 'ok',
-  version: process.env.HORIZON_VERSION ?? '0.5.0',
+  version: process.env.HORIZON_VERSION ?? '0.6.0-dev',
   sessions: sessions.size(),
 }));
 
