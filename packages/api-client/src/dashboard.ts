@@ -43,8 +43,14 @@
  *            optional refs (trace id, span id) rather than a metric
  *            sample. The runtime is responsible for the table render;
  *            the admin canvas previews with mock rows.
+ *   table  — key→value table for a LABELED `latest(...)` metric. Each
+ *            label combination becomes a row (name = label values),
+ *            with an optional value column. Mirrors booster-ui's Table
+ *            graph for label-dimensioned meters (pod phase per service,
+ *            node condition, deployment replicas, …) that a scalar card
+ *            or a time-series line cannot represent.
  */
-export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record';
+export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table';
 
 /**
  * Per-entity dashboard scope. Each layer carries an independent widget
@@ -108,6 +114,14 @@ export interface DashboardWidget {
   expressionAxes?: number[];
   /** Suffix unit (`%`, `ms`, `calls / min`). */
   unit?: string;
+  /** `table` widget: column headers `[nameColumn, valueColumn]`. The
+   *  name column labels the label-derived row key; the value column
+   *  labels the metric value. Defaults to `['Name', 'Value']`. */
+  tableHeaders?: [string, string];
+  /** `table` widget: show the value column. `false` renders a
+   *  presence/name-only list (e.g. node conditions, where the value is
+   *  always 1). Defaults to `true`. */
+  showTableValues?: boolean;
   /**
    * Numeric formatting override. Defaults to the SPA's smart
    * compact-readable rule (1 decimal under 100, integer ≥ 100, SI
@@ -178,6 +192,14 @@ export interface DashboardTopItem {
   value: number | null;
 }
 
+/** One row of a `table` widget — a single labeled result of a
+ *  `latest(...)` metric. `name` is built from the result's label
+ *  values (the status / phase / condition / entity dimensions). */
+export interface DashboardTableRow {
+  name: string;
+  value: number | null;
+}
+
 /**
  * One row in a `record` widget. RECORD-typed MQE results (e.g. slow
  * SQL statements) carry a primary name (the statement / endpoint /
@@ -230,6 +252,9 @@ export interface DashboardWidgetResult {
    *  expression drives the list; subsequent expressions are ignored for
    *  now (a future iteration could promote them to extra columns). */
   records?: DashboardRecordItem[];
+  /** `table` payload — one row per labeled result of the first
+   *  expression (a `latest(...)` of a labeled metric). */
+  table?: DashboardTableRow[];
 }
 
 export interface DashboardResponse {

@@ -62,7 +62,7 @@ export const widgetSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
   tip: z.string().optional(),
-  type: z.enum(['card', 'line', 'top', 'record']),
+  type: z.enum(['card', 'line', 'top', 'record', 'table']),
   // Bumped from 8 to 16: JVM Memory Detail carries 11 pool metrics
   // (code cache + young/old/survivor/permgen/metaspace + z-heap +
   // compressed class space + 3 segmented codeheaps), and a few of the
@@ -73,6 +73,8 @@ export const widgetSchema = z.object({
   expressionUnits: z.array(z.string()).max(16).optional(),
   expressionAxes: z.array(z.number().int().min(0).max(1)).max(16).optional(),
   unit: z.string().optional(),
+  tableHeaders: z.tuple([z.string(), z.string()]).optional(),
+  showTableValues: z.boolean().optional(),
   span: z.number().int().min(1).max(12).optional(),
   rowSpan: z.number().int().min(1).max(64).optional(),
   visibleWhen: z.string().optional(),
@@ -386,6 +388,41 @@ export function parseTopList(
   });
 }
 
+/**
+ * Extract `table` rows from a LABELED `latest(...)` MQE response. Each
+ * result is one label combination (e.g. `{phase: Running, service: x}`
+ * or `{condition: Ready, node: y}`); the row name joins the label
+ * VALUES (the status/phase/condition/entity dimensions) and the value
+ * is the latest non-null bucket. Mirrors booster-ui's Table for
+ * label-dimensioned meters that a scalar card / time-series line can't
+ * represent. Rows are sorted by name for a stable render.
+ */
+export function parseTable(
+  r: MqeResultShape | undefined,
+): Array<{ name: string; value: number | null }> | null {
+  if (!r || r.error) return null;
+  const results = r.results ?? [];
+  if (results.length === 0) return null;
+  const rows = results.map((rs) => {
+    const labels = rs.metric?.labels ?? [];
+    const name =
+      labels.length > 0
+        ? labels.map((l) => l.value).join(' · ')
+        : (rs.values?.[0]?.id ?? '—');
+    // `latest(...)` yields one bucket, but be defensive: take the last
+    // non-null value across the result's buckets.
+    let value: number | null = null;
+    for (const v of rs.values ?? []) {
+      if (v.value === null || v.value === undefined) continue;
+      const n = Number(v.value);
+      if (Number.isFinite(n)) value = n;
+    }
+    return { name, value };
+  });
+  rows.sort((a, b) => a.name.localeCompare(b.name));
+  return rows;
+}
+
 export function registerDashboardQueryRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
   const auth = requireAuth(deps);
   app.post(
@@ -638,6 +675,13 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             topGroups: groups,
             topList: groups[0].items,
           };
+        }
+
+        if (widget.type === 'table') {
+          // Labeled latest(...) metric → one row per label combination.
+          const rows = parseTable(data[`w${wIdx}_e0`]);
+          if (!rows) return { id: widget.id, error: 'no data' };
+          return { id: widget.id, table: rows };
         }
 
         if (widget.type === 'record') {

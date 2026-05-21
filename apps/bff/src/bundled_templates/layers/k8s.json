@@ -93,161 +93,247 @@
   "dashboards": {
     "service": [
       {
-        "id": "cpu_resources",
-        "title": "Cluster CPU Resources",
-        "tip": "Allocatable / capacity / requests / limits across the cluster (millicores).",
+        "id": "node_total",
+        "title": "Node Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_node_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "namespace_total",
+        "title": "Namespace Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_namespace_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "deployment_total",
+        "title": "Deployment Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_deployment_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "statefulset_total",
+        "title": "StatefulSet Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_statefulset_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "daemonset_total",
+        "title": "DaemonSet Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_daemonset_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "service_total",
+        "title": "Service Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_service_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "pod_total",
+        "title": "Pod Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_pod_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "container_total",
+        "title": "Container Total",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_cluster_container_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "cpu_res",
+        "title": "CPU Resources",
+        "tip": "Cluster CPU capacity vs requests / limits / allocatable (millicores).",
         "type": "line",
-        "unit": "m",
         "expressions": [
           "k8s_cluster_cpu_cores",
-          "k8s_cluster_cpu_cores_allocatable",
           "k8s_cluster_cpu_cores_requests",
-          "k8s_cluster_cpu_cores_limits"
+          "k8s_cluster_cpu_cores_limits",
+          "k8s_cluster_cpu_cores_allocatable"
         ],
         "expressionLabels": [
-          "total",
-          "allocatable",
-          "requests",
-          "limits"
+          "Capacity",
+          "Requests",
+          "Limits",
+          "Allocatable"
         ],
+        "unit": "m",
         "span": 4,
         "rowSpan": 2
       },
       {
-        "id": "mem_resources",
-        "title": "Cluster Memory Resources",
+        "id": "mem_res",
+        "title": "Memory Resources",
+        "tip": "Cluster memory requests / allocatable / limits / total.",
         "type": "line",
-        "unit": "Gi",
         "expressions": [
-          "k8s_cluster_memory_total/1024/1024/1024",
-          "k8s_cluster_memory_allocatable/1024/1024/1024",
           "k8s_cluster_memory_requests/1024/1024/1024",
-          "k8s_cluster_memory_limits/1024/1024/1024"
+          "k8s_cluster_memory_allocatable/1024/1024/1024",
+          "k8s_cluster_memory_limits/1024/1024/1024",
+          "k8s_cluster_memory_total/1024/1024/1024"
         ],
         "expressionLabels": [
-          "total",
-          "allocatable",
-          "requests",
-          "limits"
+          "Requests",
+          "Allocatable",
+          "Limits",
+          "Total"
         ],
+        "unit": "Gi",
         "span": 4,
         "rowSpan": 2
       },
       {
-        "id": "storage_resources",
-        "title": "Cluster Storage Resources",
+        "id": "storage_res",
+        "title": "Storage Resources",
+        "tip": "Cluster ephemeral-storage total vs allocatable.",
         "type": "line",
-        "unit": "Gi",
         "expressions": [
           "k8s_cluster_storage_total/1024/1024/1024",
           "k8s_cluster_storage_allocatable/1024/1024/1024"
         ],
         "expressionLabels": [
-          "total",
-          "allocatable"
+          "Total",
+          "Allocatable"
         ],
+        "unit": "Gi",
         "span": 4,
         "rowSpan": 2
       },
       {
-        "id": "pod_totals",
-        "title": "Pod / Container Totals",
-        "type": "line",
-        "expressions": [
-          "k8s_cluster_pod_total",
-          "k8s_cluster_container_total"
-        ],
-        "expressionLabels": [
-          "pods",
-          "containers"
-        ],
-        "span": 3,
-        "rowSpan": 2,
-        "format": "int"
-      },
-      {
-        "id": "deployment_replicas",
-        "title": "Deployment Replicas",
-        "tip": "Spec vs ready/status replica counts. Divergence indicates rollout issues.",
-        "type": "line",
-        "expressions": [
-          "latest(k8s_cluster_deployment_spec_replicas)",
-          "latest(k8s_cluster_deployment_status)"
-        ],
-        "expressionLabels": [
-          "spec",
-          "status"
-        ],
-        "span": 3,
-        "rowSpan": 2,
-        "format": "int"
-      },
-      {
-        "id": "pod_waiting",
-        "title": "Pods Waiting",
-        "type": "card",
-        "expressions": [
-          "latest(k8s_cluster_pod_status_waiting)"
-        ],
-        "span": 3,
-        "rowSpan": 1,
-        "format": "int"
-      },
-      {
-        "id": "pod_not_running",
-        "title": "Pods Not Running",
-        "type": "card",
-        "expressions": [
-          "latest(k8s_cluster_pod_status_not_running)"
-        ],
-        "span": 3,
-        "rowSpan": 1,
-        "format": "int"
-      },
-      {
-        "id": "service_pod_status",
-        "title": "Service Pod Status",
-        "tip": "Aggregate health of pods backing K8s Service objects.",
-        "type": "card",
-        "expressions": [
-          "latest(k8s_cluster_service_pod_status)"
-        ],
-        "span": 4,
-        "rowSpan": 1,
-        "format": "int"
-      },
-      {
         "id": "node_status",
         "title": "Node Status",
-        "tip": "Sum of node Ready states.",
-        "type": "card",
+        "tip": "Per-node Kubernetes conditions currently true/unknown (Ready, *Pressure, \u2026).",
+        "type": "table",
         "expressions": [
           "latest(k8s_cluster_node_status)"
         ],
+        "tableHeaders": [
+          "Node \u00b7 Condition",
+          ""
+        ],
+        "showTableValues": false,
         "span": 4,
-        "rowSpan": 1,
-        "format": "int"
+        "rowSpan": 4
       },
       {
-        "id": "namespace_totals",
-        "title": "Workload Totals",
-        "tip": "Namespaces / deployments / statefulsets / daemonsets across the cluster.",
-        "type": "line",
+        "id": "deployment_status",
+        "title": "Deployment Status",
+        "tip": "Deployments reporting the Available condition.",
+        "type": "table",
         "expressions": [
-          "latest(k8s_cluster_namespace_total)",
-          "latest(k8s_cluster_deployment_total)",
-          "latest(k8s_cluster_statefulset_total)",
-          "latest(k8s_cluster_daemonset_total)"
+          "latest(k8s_cluster_deployment_status)"
         ],
-        "expressionLabels": [
-          "namespaces",
-          "deployments",
-          "statefulsets",
-          "daemonsets"
+        "tableHeaders": [
+          "Deployment \u00b7 Available",
+          ""
         ],
+        "showTableValues": false,
         "span": 4,
-        "rowSpan": 2,
-        "format": "int"
+        "rowSpan": 4
+      },
+      {
+        "id": "deployment_replicas",
+        "title": "Deployment Spec Replicas",
+        "tip": "Desired replica count per deployment.",
+        "type": "table",
+        "expressions": [
+          "latest(k8s_cluster_deployment_spec_replicas)"
+        ],
+        "tableHeaders": [
+          "Deployment",
+          "Replicas"
+        ],
+        "showTableValues": true,
+        "span": 4,
+        "rowSpan": 4
+      },
+      {
+        "id": "service_pod_status",
+        "title": "Service Status",
+        "tip": "Pods backing each K8s Service, by phase (Running / Pending / Failed / \u2026).",
+        "type": "table",
+        "expressions": [
+          "latest(k8s_cluster_service_pod_status)"
+        ],
+        "tableHeaders": [
+          "Service \u00b7 Phase",
+          ""
+        ],
+        "showTableValues": false,
+        "span": 4,
+        "rowSpan": 4
+      },
+      {
+        "id": "pod_not_running",
+        "title": "Pod Status Not Running",
+        "tip": "Pods in any non-Running phase.",
+        "type": "table",
+        "expressions": [
+          "latest(k8s_cluster_pod_status_not_running)"
+        ],
+        "tableHeaders": [
+          "Pod \u00b7 Status",
+          ""
+        ],
+        "showTableValues": false,
+        "span": 4,
+        "rowSpan": 4
+      },
+      {
+        "id": "pod_waiting",
+        "title": "Pod Status Waiting",
+        "tip": "Containers in a waiting state, by reason.",
+        "type": "table",
+        "expressions": [
+          "latest(k8s_cluster_pod_status_waiting)"
+        ],
+        "tableHeaders": [
+          "Container \u00b7 Pod \u00b7 Reason",
+          ""
+        ],
+        "showTableValues": false,
+        "span": 4,
+        "rowSpan": 4
       }
     ],
     "instance": [

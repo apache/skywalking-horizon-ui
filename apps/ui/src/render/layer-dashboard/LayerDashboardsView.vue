@@ -31,6 +31,7 @@ import { useRoute } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
+import TableWidget from '@/render/widgets/TableWidget.vue';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
 import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
@@ -471,6 +472,7 @@ function isVisible(
         topList?: Array<unknown>;
         topGroups?: Array<{ items: Array<unknown> }>;
         records?: Array<unknown>;
+        table?: Array<unknown>;
       }
     | undefined,
 ): boolean {
@@ -766,6 +768,17 @@ function isVisible(
               :unit="w.unit"
               :color="widgetColor(w)"
               :title="w.title"
+            />
+            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
+          </template>
+          <template v-else-if="w.type === 'table'">
+            <TableWidget
+              v-if="resultsById.get(w.id)?.table?.length"
+              :rows="resultsById.get(w.id)!.table!"
+              :headers="w.tableHeaders"
+              :show-values="w.showTableValues !== false"
+              :unit="w.unit"
+              :format="w.format"
             />
             <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
           </template>
