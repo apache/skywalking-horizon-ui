@@ -48,7 +48,8 @@ const metricRows = computed<Row[]>(() => {
   const m = metrics.value;
   if (!m) return [];
   return [
-    { label: 'Metadata', hot: m.metadata, hasCold: false },
+    // `metadata` isn't exposed by every OAP deployment; omit when absent.
+    ...(m.metadata !== undefined ? [{ label: 'Metadata', hot: m.metadata, hasCold: false }] : []),
     { label: 'Minute', hot: m.minute, cold: m.coldMinute, hasCold: true },
     { label: 'Hour', hot: m.hour, cold: m.coldHour, hasCold: true },
     { label: 'Day', hot: m.day, cold: m.coldDay, hasCold: true },

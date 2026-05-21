@@ -42,9 +42,15 @@ export interface RecordsTTL {
   coldBrowserErrorLog: number;
 }
 
-/** OAP `MetricsTTL` — retention (days) for metric-class storage. */
+/** OAP `MetricsTTL` — retention (days) for metric-class storage.
+ *  `metadata` (TTL of the service/instance/endpoint/topology inventory)
+ *  is not exposed by every OAP deployment, so it stays optional; the
+ *  TTL query does not request it (matches booster) and the UI renders
+ *  the row only when present. `cold*` is the cold-stage retention, `-1`
+ *  when no cold stage is configured. Do NOT infer the storage backend
+ *  from these fields — read the wire values verbatim and display them. */
 export interface MetricsTTL {
-  metadata: number;
+  metadata?: number;
   minute: number;
   hour: number;
   day: number;

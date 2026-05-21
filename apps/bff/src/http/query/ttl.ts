@@ -41,7 +41,7 @@ const TTL_QUERY = /* GraphQL */ `
       coldNormal coldTrace coldZipkinTrace coldLog coldBrowserErrorLog
     }
     metrics: getMetricsTTL {
-      metadata minute hour day
+      minute hour day
       coldMinute coldHour coldDay
     }
   }
