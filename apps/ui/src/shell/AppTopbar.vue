@@ -25,6 +25,13 @@ import { useTimeRangeStore, TIME_PRESETS, STEP_LIMITS, isValidRange, type TimeSt
 import { useThemeStore, AVAILABLE_THEMES, type ThemeId } from '@/state/theme';
 import { useAuthStore } from '@/state/auth';
 import { useTimeDefaultsStore } from '@/state/timeDefaults';
+import { useSidebar } from '@/controls/sidebar';
+import logoSw from '@/assets/icons/logo-sw.svg?raw';
+
+// When the sidebar is folded its wordmark is hidden; surface the brand
+// (logo + name) here in the topbar's left zone instead.
+const { collapsed: sidebarCollapsed } = useSidebar();
+const logoSwBlue = logoSw.replace(/fill="#fff"/g, 'fill="#1368B3"');
 
 // Per-user "Save as my default" / "Reset to org default" on the time
 // picker. The org default is what the admin set on
@@ -49,6 +56,9 @@ function resetTimeDefaultToOrg(): void {
 // Per CLAUDE.md the theme is a runtime concern, not a feature flag;
 // this is the only surface where end users touch it.
 const themeStore = useThemeStore();
+const isLightAppearance = computed<boolean>(
+  () => AVAILABLE_THEMES.find((t) => t.id === themeStore.active)?.appearance === 'light',
+);
 const themeMenuOpen = ref(false);
 const themeChipEl = ref<HTMLElement | null>(null);
 function toggleThemeMenu(): void { themeMenuOpen.value = !themeMenuOpen.value; }
@@ -391,10 +401,14 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 
 <template>
   <header class="sw-top">
-    <!-- Left zone intentionally empty for now. The framework-event
-         feed moved to a dedicated bottom-fixed panel (gated by the
-         Admin → "Debug events" sidebar toggle) — see
-         `controls/debugPanel.ts` + `shell/DebugEventPanel.vue`. -->
+    <!-- When the sidebar is folded, its wordmark is hidden — show the
+         brand (logo + name) here so the product identity stays visible.
+         Otherwise the left zone stays empty (the framework-event feed
+         moved to the bottom-fixed DebugEventPanel). -->
+    <RouterLink v-if="sidebarCollapsed" to="/" class="top-brand" aria-label="SkyWalking Horizon">
+      <span class="top-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
+      <small>Horizon</small>
+    </RouterLink>
     <div class="sw-top-spacer" />
     <div class="sw-top-actions">
       <component
@@ -625,6 +639,23 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 </template>
 
 <style scoped>
+/* Brand shown in the topbar's left zone only while the sidebar is
+   folded — same wordmark + "Horizon" label as the sidebar header. */
+.top-brand {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: inherit;
+}
+.top-brand-logo { display: inline-flex; align-items: center; }
+.top-brand-logo :deep(svg) { height: 16px; width: auto; display: block; }
+.top-brand small {
+  font-weight: 500;
+  color: var(--sw-fg-2);
+  margin-left: 4px;
+  letter-spacing: 0.02em;
+}
+
 /* Disabled state for global time-range / refresh chips when the
    current page owns its own time range. Greys out without removing
    the chip so the operator still sees the affordance + tooltip. */

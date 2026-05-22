@@ -119,7 +119,7 @@
           "latest(aggregate_labels(meter_activemq_cluster_heap_memory_usage_max,sum))/1024/1024"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "enqueue_dequeue",

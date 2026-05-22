@@ -27,8 +27,11 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useQuery } from '@tanstack/vue-query';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import { bffClient } from '@/api/client';
+import { useAuthStore } from '@/state/auth';
 import Icon from '@/components/icons/Icon.vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import LayerServiceSelector from './LayerServiceSelector.vue';
@@ -36,6 +39,7 @@ import { metricMeta } from '@/utils/metricCatalog';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
+import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
@@ -78,21 +82,55 @@ watch(
   { immediate: true },
 );
 const { layers, isLoading: layersLoading } = useLayers();
-const layer = computed<LayerDef | null>(() => {
-  const found = layers.value.find((l) => l.key === layerKey.value);
-  return found ?? null;
+// Case-insensitive: URL layer keys are lowercase, registry keys UPPER_SNAKE.
+// In preview mode `useLayers` overlays/injects the previewed layer here, so
+// this already reflects the draft's components (tab visibility).
+const menuLayer = computed<LayerDef | null>(
+  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
+);
+
+// Preview mode (`?mode=preview`) — render a configured-but-inactive
+// layer (OAP reports no services, so it's absent from the live menu)
+// instead of the "Layer not found" gate. Admin-only: the fallback is
+// synthesized from the layer template (admin data), so operators /
+// viewers still hit the normal gate. Empty metrics are expected — there
+// are no services to query.
+const auth = useAuthStore();
+const isAdmin = computed<boolean>(() => !!auth.user?.roles?.includes('admin'));
+// Single canonical form: `?mode=preview`. The admin "Open live page"
+// link generates exactly this.
+const previewAllowed = computed<boolean>(() => route.query.mode === 'preview' && isAdmin.value);
+const wantPreviewFallback = computed<boolean>(
+  () => previewAllowed.value && !menuLayer.value && !!layerKey.value,
+);
+const tplQuery = useQuery({
+  queryKey: ['layer-preview-templates'],
+  queryFn: () => bffClient.layerTemplates.list(),
+  enabled: wantPreviewFallback,
+  staleTime: 60_000,
 });
+const previewLoading = computed<boolean>(() => wantPreviewFallback.value && tplQuery.isLoading.value);
+const previewLayer = computed<LayerDef | null>(() => {
+  if (!wantPreviewFallback.value) return null;
+  const t = tplQuery.data.value?.templates.find((x) => x.key.toUpperCase() === layerKey.value.toUpperCase());
+  return t ? layerContentToDef(t as unknown as LayerTemplateContent) : null;
+});
+const layer = computed<LayerDef | null>(() => menuLayer.value ?? previewLayer.value);
+
 // Distinguishes "still loading" from "truly absent" so the "Layer
 // not found" card doesn't flash during a login → layer-URL redirect
 // (the menu fetch is in-flight and `layers.value` is briefly []).
 // We treat the layer as missing only after the menu request has
-// settled AND the layer key still isn't in the result.
-const layerMissing = computed<boolean>(
-  () => !layersLoading.value && layers.value.length > 0 && layer.value === null,
-);
+// settled AND — in preview mode — the template fetch has settled too.
 const menuStillLoading = computed<boolean>(
-  () => !layer.value && (layersLoading.value || layers.value.length === 0),
+  () => !menuLayer.value && (layersLoading.value || layers.value.length === 0),
 );
+const layerMissing = computed<boolean>(() => {
+  if (layer.value) return false;
+  if (menuStillLoading.value) return false;
+  if (previewLoading.value) return false;
+  return true;
+});
 
 // Auto-redirect when the URL targets a sub-route the layer doesn't
 // support — e.g. `/layer/mesh_dp/service` on a layer with
@@ -210,6 +248,17 @@ const selectedName = computed(() => {
 // future component-driven views (dashboards with their own filters,
 // say) can flip the same meta flag without touching this file.
 const viewOwnsServiceSelector = computed(() => Boolean(route.meta?.ownsServiceSelector));
+
+// Zipkin trace mode is a self-contained, cross-service explorer (its
+// own service/duration/annotation filters), so the layer identity +
+// service KPI header adds nothing and crowds it out — hide the shell
+// header there. Mirrors LayerTracesEntry's zipkin decision: the
+// `/zipkin-trace` route always, plus the `/trace` route on a pure-
+// zipkin-source layer (mesh / k8s).
+const isZipkinTrace = computed<boolean>(() => {
+  if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
+  return scopeSegment.value === 'trace' && layer.value?.traces?.source === 'zipkin';
+});
 
 // Keep the URL-backed service selection honest for every page that
 // uses the shell picker. A stale `?service=` can survive navigation or
@@ -373,7 +422,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
 
 <template>
   <div class="layer-shell">
-    <header v-if="layer" class="sw-card layer-head">
+    <header v-if="layer && !isZipkinTrace" class="sw-card layer-head">
       <!-- Row 1: layer identity (left) + LAYER aggregate KPI strip
            (right). The aggregates use sum/avg per the JSON columns'
            aggregation field — sum cpm across services, avg p99 etc. -->
@@ -491,7 +540,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
     <!-- Loading state for the menu fetch — appears in the login →
          layer-URL redirect window where the menu is still in flight
          and we can't yet tell whether the layer exists. -->
-    <div v-if="menuStillLoading" class="missing">
+    <div v-if="menuStillLoading || previewLoading" class="missing">
       <div class="sw-card missing-card">
         <Icon name="event" :size="18" />
         <div>

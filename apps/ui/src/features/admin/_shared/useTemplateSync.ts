@@ -37,6 +37,7 @@
 
 import { computed, type ComputedRef } from 'vue';
 import { useConfigBundle } from '@/controls/configBundle';
+import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import type {
   BundleSyncStatus,
   TemplateBadge,
@@ -54,6 +55,8 @@ export interface SyncBanner {
   detail?: string;
   /** Per-status counts for the kinds owned by this page. */
   counts: Partial<Record<TemplateStatus, number>>;
+  /** Unpublished local browser drafts for this page's kind. */
+  localCount: number;
 }
 
 export interface UseTemplateSyncOptions {
@@ -71,6 +74,12 @@ export interface UseTemplateSyncReturn {
 
 export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncReturn {
   const { bundle } = useConfigBundle();
+  const localEdits = useLocalTemplateEdits();
+
+  // Unpublished local browser drafts for this kind (`horizon.<kind>.*`).
+  const localCount = computed<number>(
+    () => localEdits.names().filter((n) => n.startsWith(`horizon.${opts.kind}.`)).length,
+  );
 
   const status = computed<BundleSyncStatus | null>(() => bundle.value?.syncStatus ?? null);
 
@@ -82,14 +91,21 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
 
   const readOnly = computed<boolean>(() => status.value?.unreachable === true);
 
+  // Shown on diverged + clean banners so the operator always knows what
+  // the two axes mean.
+  const GLOSSARY =
+    'Diverged = the bundled (shipped) default differs from the version live on OAP — OAP wins at render time. ' +
+    'Local = unpublished edits saved only in this browser; publish with “Check diff & push”.';
+  const localSuffix = computed(() =>
+    localCount.value > 0
+      ? ` · ${localCount.value} local draft${localCount.value === 1 ? '' : 's'} in this browser`
+      : '',
+  );
+
   const banner = computed<SyncBanner>(() => {
     const s = status.value;
     if (!s) {
-      return {
-        severity: 'unknown',
-        message: 'Loading template sync status…',
-        counts: {},
-      };
+      return { severity: 'unknown', message: 'Loading template sync status…', counts: {}, localCount: localCount.value };
     }
     const counts: Partial<Record<TemplateStatus, number>> = {};
     for (const b of ownBadges.value) counts[b.status] = (counts[b.status] ?? 0) + 1;
@@ -106,28 +122,32 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
           ? `Last successful sync: ${last}`
           : 'No successful sync yet since this BFF started.',
         counts,
+        localCount: localCount.value,
       };
     }
     const diverged = counts.diverged ?? 0;
     const remoteOnly = counts['remote-only'] ?? 0;
     const disabled = counts.disabled ?? 0;
-    if (diverged + remoteOnly + disabled > 0) {
+    if (diverged + remoteOnly + disabled > 0 || localCount.value > 0) {
       const parts: string[] = [];
       if (diverged > 0) parts.push(`${diverged} diverged`);
       if (remoteOnly > 0) parts.push(`${remoteOnly} remote-only`);
       if (disabled > 0) parts.push(`${disabled} disabled`);
+      if (localCount.value > 0) parts.push(`${localCount.value} local`);
       return {
-        severity: 'diverged',
-        message: `Synced from OAP — ${parts.join(', ')}.`,
-        detail:
-          'Diverged rows can be inspected and reconciled inline. Bundled is the seed; OAP is the source of truth at runtime.',
+        severity: localCount.value > 0 || diverged > 0 ? 'diverged' : 'clean',
+        message: `Synced from OAP — ${parts.length ? parts.join(', ') : 'all match bundled'}.`,
+        detail: GLOSSARY,
         counts,
+        localCount: localCount.value,
       };
     }
     return {
       severity: 'clean',
-      message: `Synced from OAP — all ${ownBadges.value.length} templates match bundled.`,
+      message: `Synced from OAP — all ${ownBadges.value.length} templates match bundled.${localSuffix.value}`,
+      detail: GLOSSARY,
       counts,
+      localCount: localCount.value,
     };
   });
 

@@ -21,6 +21,7 @@ import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import DebugEventPanel from './DebugEventPanel.vue';
 import GlobalConnectivityBanner from './GlobalConnectivityBanner.vue';
+import PreviewModeBanner from './PreviewModeBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
 import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
@@ -28,6 +29,7 @@ import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
 import { useLayers } from '@/shell/useLayers';
 import { useDebugPanel } from '@/controls/debugPanel';
+import { useSidebar } from '@/controls/sidebar';
 import { useThemeStore } from '@/state/theme';
 import { useTimeDefaultsStore } from '@/state/timeDefaults';
 import { useTimeRangeStore } from '@/controls/timeRange';
@@ -100,10 +102,12 @@ const initReady = computed<boolean>(
 // transient overlay (operator dismisses it explicitly) — reserving
 // 260px permanently would waste real estate.
 const { enabled: debugPanelEnabled } = useDebugPanel();
+// Drives the `.sw` grid column width — see `.sw.side-collapsed` below.
+const { collapsed: sidebarCollapsed } = useSidebar();
 </script>
 
 <template>
-  <div class="sw">
+  <div class="sw" :class="{ 'side-collapsed': sidebarCollapsed }">
     <AppSidebar />
     <AppTopbar />
     <main class="sw-main" :class="{ 'has-debug-panel': debugPanelEnabled }">
@@ -111,6 +115,8 @@ const { enabled: debugPanelEnabled } = useDebugPanel();
            (`:12800`) poll reports unreachable. Admin-port (`:17128`)
            failures render per-page via AdminFeatureWarning, not here. -->
       <GlobalConnectivityBanner />
+      <!-- Notice shown only while a page is in ?mode=preview. -->
+      <PreviewModeBanner />
       <!-- Shell-level init placeholder. Visible until the layer
            registry + config bundle have both loaded. Per-page code
            runs against fully-populated state from the first paint. -->
@@ -148,6 +154,13 @@ const { enabled: debugPanelEnabled } = useDebugPanel();
  * explicitly, reserving its full 260px permanently would waste
  * vertical real estate. */
 .sw-main.has-debug-panel { padding-bottom: 26px; }
+
+/* Folded sidebar — collapse the grid's side column to a thin rail that
+ * holds just the expand affordance. The sidebar's own scoped styles
+ * hide the nav/labels at this width (see AppSidebar `.sw-side.collapsed`).
+ * Animates in step with the sidebar's own collapse transition. */
+.sw.side-collapsed { grid-template-columns: 48px 1fr; }
+.sw { transition: grid-template-columns 160ms ease; }
 
 .sw-init {
   padding: 48px 20px;

@@ -33,10 +33,13 @@ import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { useLandingOrder } from '@/shell/useLandingOrder';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { useDebugPanel } from '@/controls/debugPanel';
+import { useSidebar } from '@/controls/sidebar';
 import { useAlarmCount } from '@/shell/useAlarmCount';
 import { useConfigBundle } from '@/controls/configBundle';
 
 const { enabled: debugPanelEnabled, toggle: toggleDebugPanel } = useDebugPanel();
+// Fold the whole menu to a thin rail; the shell grid follows suit.
+const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebar();
 /* Shares the same composable as the topbar badge — one query feeds
  * both, so the two surfaces never disagree and the cache is warm
  * regardless of which renders first. */
@@ -132,14 +135,20 @@ const operateLayers = computed(() =>
 const sidebarEntries = computed<SidebarEntry[]>(() => bucket(publicLayers.value));
 
 const route = useRoute();
+// Case-insensitive: layer keys are UPPER_SNAKE in the menu/links but a
+// URL may arrive lowercased (overview KPI tiles link lowercased, hand-typed
+// URLs, etc.). Without normalising, the active row wouldn't get the accent
+// colour and the auto-scroll couldn't find it.
+const routePathLc = computed(() => route.path.toLowerCase());
 function isActive(path: string): boolean {
-  return route.path === path || route.path.startsWith(path + '/');
+  const p = path.toLowerCase();
+  return routePathLc.value === p || routePathLc.value.startsWith(p + '/');
 }
 /** Use this — not {@link isActive} — for sibling routes where one is
  *  a prefix of another (e.g. `/operate/live-debug` vs
  *  `/operate/live-debug/history`); prefix-match would light both up. */
 function isActiveExact(path: string): boolean {
-  return route.path === path;
+  return routePathLc.value === path.toLowerCase();
 }
 
 // Only the layer the route currently points at is auto-expanded. We do
@@ -147,29 +156,39 @@ function isActiveExact(path: string): boolean {
 // expanding a section is an explicit user action (a click), and a
 // default-open accordion misleads operators into thinking that layer is
 // "selected" when they've navigated nowhere.
+const navRef = ref<HTMLElement | null>(null);
+/** Bring the route's active nav row into view (it may sit below the fold
+ *  on a long sidebar). Waits a tick so the route-driven expand has
+ *  rendered the L2 children that contain the active row. */
+async function scrollActiveIntoView(): Promise<void> {
+  await nextTick();
+  // Both the layer row and its active child carry `.is-active`; scroll to
+  // the LAST (deepest) one — the active tab — so it lands in view.
+  // Exclude `.sw-nav-toggle` (the bottom "Debug events" button is
+  // `.is-active` whenever the panel is on — default on localhost — and
+  // being last in the DOM it would otherwise scroll the sidebar to the
+  // very end on every navigation regardless of the clicked item).
+  const actives = navRef.value?.querySelectorAll('.is-active:not(.sw-nav-toggle)');
+  actives?.[actives.length - 1]?.scrollIntoView({ block: 'nearest' });
+}
+
+// Expand the layer the route points at AND scroll its active item into
+// view — on entering a layer page (deep-link, reload, or in-app nav),
+// not just the first paint. URL keys are lowercase; layer keys are
+// UPPER_SNAKE — match case-insensitively.
 watch(
   [() => route.path, orderedLayers],
   ([path, rows]) => {
     const m = path.match(/^\/layer\/([^/]+)/);
     if (m) {
-      const key = m[1];
-      const L = rows.find((l) => l.key === key);
-      if (L) expandedLayer.value = key;
+      const L = rows.find((l) => l.key.toUpperCase() === m[1]!.toUpperCase());
+      if (L) expandedLayer.value = L.key;
     }
+    void scrollActiveIntoView();
   },
   { immediate: true },
 );
-
-// On first paint, bring the route's selected nav item into view — on a
-// long sidebar the active layer/tab can land below the fold, so landing
-// deep-linked (or after a reload) would otherwise show no visible
-// selection. Wait a tick so the route-driven expand above has rendered
-// the L2 children that may contain the active row.
-const navRef = ref<HTMLElement | null>(null);
-onMounted(async () => {
-  await nextTick();
-  navRef.value?.querySelector('.is-active')?.scrollIntoView({ block: 'nearest' });
-});
+onMounted(scrollActiveIntoView);
 
 interface NavRow {
   icon: IconName;
@@ -347,13 +366,37 @@ watch(
 </script>
 
 <template>
-  <aside class="sw-side">
-    <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
-      <span class="brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
-      <small>Horizon</small>
-    </RouterLink>
+  <aside class="sw-side" :class="{ collapsed: sidebarCollapsed }">
+    <!-- Expanded: original wordmark header (unchanged) + collapse toggle.
+         Folded: the wordmark moves to the topbar (see AppTopbar); the rail
+         keeps just the expand chevron in the same 44px header row. -->
+    <div v-if="!sidebarCollapsed" class="sw-brand-row">
+      <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
+        <span class="brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
+        <small>Horizon</small>
+      </RouterLink>
+      <button
+        type="button"
+        class="side-toggle"
+        title="Collapse menu"
+        aria-label="Collapse menu"
+        @click="toggleSidebar"
+      >
+        <Icon name="caret" :size="12" />
+      </button>
+    </div>
+    <button
+      v-else
+      type="button"
+      class="side-expand"
+      title="Show menu"
+      aria-label="Show menu"
+      @click="toggleSidebar"
+    >
+      <Icon name="caret" :size="12" />
+    </button>
 
-    <nav ref="navRef" class="sw-nav">
+    <nav v-show="!sidebarCollapsed" ref="navRef" class="sw-nav">
       <!-- Overviews are gated by `overview:read`. -->
       <template v-if="auth.hasVerb('overview:read')">
         <div class="sw-nav-section sw-nav-section--icon">
@@ -842,7 +885,7 @@ watch(
       </template>
     </nav>
 
-    <div class="sw-side-foot">
+    <div v-show="!sidebarCollapsed" class="sw-side-foot">
       <div class="sw-avatar">
         {{ auth.user?.username ? auth.user.username.slice(0, 2).toUpperCase() : '?' }}
       </div>
@@ -868,11 +911,58 @@ watch(
 </template>
 
 <style scoped>
+/* Brand + collapse toggle share the 44px top row (aligns with the
+ * topbar). Shown only while expanded; when folded the row is replaced by
+ * the expand chevron and the wordmark moves to the topbar. */
+.sw-brand-row {
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border-bottom: 1px solid var(--sw-line);
+}
 .sw-brand,
 .sw-brand:hover {
   text-decoration: none;
   color: inherit;
+  /* Border + height now live on .sw-brand-row; override the global
+   * .sw-brand so we don't double the border or the height. */
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  border-bottom: none;
+  overflow: hidden;
 }
+.side-toggle {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  margin: 0 9px;
+  display: inline-grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+}
+.side-toggle:hover { background: var(--sw-bg-2); color: var(--sw-fg-1); }
+/* caret base glyph points down — rotate to a left chevron (collapse). */
+.side-toggle :deep(svg) { transition: transform 0.15s; transform: rotate(90deg); }
+/* Folded rail: the expand chevron occupies the 44px header row (aligns
+ * with the topbar, where the wordmark now lives). */
+.side-expand {
+  width: 100%;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--sw-line);
+  color: var(--sw-fg-3);
+  cursor: pointer;
+}
+.side-expand:hover { background: var(--sw-bg-2); color: var(--sw-fg-1); }
+.side-expand :deep(svg) { transform: rotate(-90deg); }
 .brand-logo {
   display: inline-flex;
   align-items: center;

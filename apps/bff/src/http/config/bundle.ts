@@ -142,10 +142,24 @@ async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise
   }
 
   const overviews: OverviewDashboard[] = [];
+  const diskOverviewIds = new Set<string>();
   for (const dash of loadOverviewDashboards()) {
+    diskOverviewIds.add(dash.id);
     const effective = pickOverviewContent(dash, remoteByName, preferLocal);
     if (effective === null) continue; // disabled
     overviews.push(effective);
+  }
+  // Remote-only overviews: dashboards that live on OAP with no on-disk
+  // base — created in the admin UI and pushed. The disk loop can't see
+  // them, so surface them straight from the remote envelope. (Layers can't
+  // be remote-only: every layer ships a bundled template.)
+  for (const row of sync.rows) {
+    if (row.kind !== 'overview' || row.status === 'disabled' || !row.remote) continue;
+    const env = parseEnvelope(row.remote.configuration);
+    if (!env || !isOverviewLike(env.content)) continue;
+    const dash = env.content as OverviewDashboard;
+    if (diskOverviewIds.has(dash.id)) continue; // already handled above
+    overviews.push(dash);
   }
 
   const syncStatus: BundleSyncStatus = {

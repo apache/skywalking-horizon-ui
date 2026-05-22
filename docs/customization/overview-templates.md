@@ -206,30 +206,35 @@ Read-only — Horizon does not support acknowledge / close / silence operations.
 
 ## Admin Editor
 
-Overview templates are editable at runtime via **Dashboard setup → Overview templates** (`/admin/overview-templates`, verb `overview:write`). The editor:
+Overview templates are editable at runtime via **Dashboard setup → Overview templates** (`/admin/overview-templates`, verb `overview:write`). Pick a dashboard from the filterable dropdown (title + id + sync status), then lay it out on a **12-column canvas**: drag a widget to reorder, corner-drag to resize, click a widget to edit it in the right-hand drawer. Section breaks ("text widget" / line break) and the dashboard title are selectable too. The canvas shows **sample data** so you can judge layout; only the live page (Preview ▾) uses real OAP data.
 
-- Lists all bundled overviews + any added ones, with widget count and editable flag.
-- For each overview, shows the widget array with per-widget controls.
-- **Type-aware editor**: per `widget.type`, only the relevant fields are exposed:
+**Per-widget fields** (the drawer shows only what the `widget.type` needs):
 
-  | Type | Fields shown |
-  |---|---|
-  | `section-break` | `title`, `cols` |
-  | `metric` | `layer`, `title`, `tip`, `mqe`, `unit`, `aggregation`, `span`, `rowSpan` |
-  | `topology` | `layer`, `title`, `tip`, `span`, `rowSpan` |
-  | `alarms` | `layer`, `title`, `tip`, `limit`, `span`, `rowSpan` |
-  | `kpi-tile` | `layer`, `title`, `tip`, `showCount`, KPI rows (add / remove), `span`, `rowSpan` |
-  | `metric-composite` | `layer`, `title`, `tip`, KPI rows (mixed MQE + service-count source), `span`, `rowSpan` |
+| Type | Fields shown |
+|---|---|
+| `section-break` | `title`, `cols` |
+| `metric` | `layer`, `title`, `tip`, `mqe`, `unit`, `aggregation`, `span`, `rowSpan` |
+| `topology` | `layer`, `title`, `tip`, `span`, `rowSpan` |
+| `alarms` | `layer`, `title`, `tip`, `limit`, `span`, `rowSpan` |
+| `kpi-tile` | `layer`, `title`, `tip`, `showCount`, KPI rows (add / remove), `span`, `rowSpan` |
+| `metric-composite` | `layer`, `title`, `tip`, KPI rows (each a stacked card: label / source / MQE / unit / aggr / style / max), `span`, `rowSpan` |
 
-- **Add / remove widgets** with the type picker.
-- **Preview** renders the in-progress template against live OAP data.
+### How edits flow: draft → preview → publish
 
-The save/publish model has two steps:
+Same model as [layer templates](/customization/layer-templates): your edit lives **in your browser**, and the live page everyone sees stays on the published OAP version until you publish.
 
-1. **Save locally.** The edit is written to the local bundled copy and renders immediately for preview. OAP is not changed yet.
-2. **Publish.** **Sync all to OAP** pushes diverged overview templates to OAP behind a confirmation that lists the affected templates.
+1. **Save (local).** Stores your draft in this browser only; the dashboard is tagged **local** in the picker.
+2. **Reset to ▾** loads the **Bundled** or **Remote** version into the canvas.
+3. **Preview ▾** opens the real overview page in a new tab rendering **Local** / **Bundled** / **Remote**.
+4. **Check diff & push** shows a *remote → local* diff and publishes to OAP (create-or-update). Enabled only when your draft differs from remote.
 
-If the local copy differs from OAP, Horizon shows the template as **diverged**. Use **Show diff** to compare local and remote, **Keep my local edits** to preview, or **Use live** to discard the local copy and render the OAP version.
+A **+ New dashboard** form (inside the picker) creates a dashboard the same way: it writes a **local draft** (id is the template name, must be unique) — edit and preview it, then **Check diff & push** publishes it to OAP. A pushed dashboard with no bundled default is **remote-only**; the picker, the live page, and the sidebar all show it.
+
+A top banner summarizes state — *Synced from OAP — N diverged, Y local* — with **Diverged** / **Local** filters. Status chips per row: **synced**, **diverged** (OAP wins at render), **remote-only**, **disabled** (deleted), **bundled**.
+
+### Deleting a dashboard
+
+OAP has no hard delete, so the **Delete** button next to the title soft-disables the dashboard on OAP (a disabled dashboard drops from the picker's live state, the sidebar, and the live page). A dashboard that exists only as an unpublished local draft is removed from your browser instead. Either action is confirmed in a dialog first; deletion is irreversible from the UI, but a new dashboard can always be created with the same id.
 
 ## Hot reload
 

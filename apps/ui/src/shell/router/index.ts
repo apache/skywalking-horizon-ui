@@ -17,6 +17,7 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router';
 import { useAuthStore } from '@/state/auth';
 import { pushEvent } from '@/controls/eventLog';
+import { setPreviewMode, usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 
 const placeholder = () => import('@/shell/PlaceholderView.vue');
 
@@ -315,7 +316,27 @@ router.beforeEach(async (to) => {
 // buffer is intentionally NOT cleared on navigation — operators want
 // to see the cross-page history (last 200 events) so they can trace
 // "I clicked here, then services loaded, then I clicked there".
+// Preview mode (`?mode=preview&source=…`) is sticky within layer/overview
+// pages: the sidebar tab links don't carry query params, so without this
+// the overlay would drop the moment you navigate via the menu. We keep the
+// flag on and re-apply the query to the URL so it both propagates AND stays
+// visible. Leaving the layer/overview area turns preview off.
+const previewMode = usePreviewMode();
+const PREVIEWABLE = /^\/(layer|overview)\//;
 router.afterEach((to, from) => {
+  if (to.query.mode === 'preview') {
+    setPreviewMode(true, typeof to.query.source === 'string' ? to.query.source : undefined);
+  } else if (previewMode.value && PREVIEWABLE.test(to.path)) {
+    // Menu navigation dropped the params — re-add them (no history entry).
+    const src = getPreviewSource();
+    void router.replace({
+      path: to.path,
+      query: { ...to.query, mode: 'preview', ...(src ? { source: src } : {}) },
+    });
+    return;
+  } else {
+    setPreviewMode(false);
+  }
   if (to.path === from.path) return;
   pushEvent('route', 'info', `Navigated to ${to.path}`);
 });

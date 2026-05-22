@@ -15,109 +15,112 @@
   limitations under the License.
 -->
 <!--
-  Per-session conflict prompt. When the operator lands with templates
-  that diverge between the local bundled copy and the OAP-stored remote
-  copy, ask once which version to render: their LOCAL (unpublished) edits
-  or the REMOTE (live) version. The choice is global and per login
-  session (reset on login). Until chosen, the runtime defaults to remote.
+  Per-session reminder for EDITORS who have unpublished local template
+  drafts in THIS browser. Live pages always render remote; a draft is only
+  previewed via the editor's "Preview live" entrance (?mode=preview). This
+  prompt just nudges the operator to the relevant edit page so they can
+  publish or discard. No "use local vs remote" choice — remote is always
+  the live source. Shown once per session (dismissible), only to users who
+  can edit the kind of draft they hold.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import Modal from '@/features/operate/_shared/Modal.vue';
-import { useConfigBundle, setTemplateRenderMode, refreshConfigBundle } from '@/controls/configBundle';
-import { useTemplatePreference } from '@/controls/templatePreference';
 import { useLayers } from '@/shell/useLayers';
-import { bffClient } from '@/api/client';
+import { useConfigBundle } from '@/controls/configBundle';
+import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
+import { usePreviewMode } from '@/controls/previewMode';
+import { useAuthStore } from '@/state/auth';
 
-const { bundle } = useConfigBundle();
-const pref = useTemplatePreference();
+const router = useRouter();
+const previewMode = usePreviewMode();
 const { layers } = useLayers();
+const { bundle } = useConfigBundle();
+const auth = useAuthStore();
+const { edits } = useLocalTemplateEdits();
 
-/** Diverged templates named from the operator's MENU perspective —
- *  the layer's sidebar label / overview title, not the template file. */
-const divergedItems = computed<string[]>(() => {
-  const badges = (bundle.value?.syncStatus?.badges ?? []).filter((b) => b.status === 'diverged');
-  const overviews = bundle.value?.overviews ?? [];
-  return badges.map((b) => {
-    if (b.kind === 'layer') {
-      const L = layers.value.find((l) => l.key.toUpperCase() === b.key.toUpperCase());
-      return L?.name ? `Layer · ${L.name}` : `Layer · ${b.key}`;
-    }
-    if (b.kind === 'overview') {
-      const ov = overviews.find((o) => o.id === b.key);
-      return ov?.title ? `Overview · ${ov.title}` : `Overview · ${b.key}`;
-    }
-    return b.key;
-  });
-});
-const divergedCount = computed(() => divergedItems.value.length);
-const open = computed(() => pref.mode === null && divergedCount.value > 0);
+const canEditLayers = computed<boolean>(() => auth.hasVerb('dashboard:read'));
+const canEditOverviews = computed<boolean>(() => auth.hasVerb('overview:write'));
 
-// Second step shown when the operator picks "use live" — overriding the
-// local edits with the remote version is destructive, so it's confirmed.
-const confirmingRemote = ref(false);
-const busy = ref(false);
-
-async function useLocal(): Promise<void> {
-  await setTemplateRenderMode('local');
+interface DraftItem {
+  kind: 'layer' | 'overview';
+  key: string;
+  label: string;
 }
-
-// Override local with remote: discard the local edits (revert bundled to
-// the live version), then render remote.
-async function useLive(): Promise<void> {
-  if (busy.value) return;
-  busy.value = true;
-  try {
-    await bffClient.templateSync.revertLocal();
-    await refreshConfigBundle();
-    pref.set('remote');
-  } finally {
-    busy.value = false;
-    confirmingRemote.value = false;
+/** Unpublished local drafts in this browser, restricted to kinds the
+ *  user can edit, named from the menu perspective. */
+const draftItems = computed<DraftItem[]>(() => {
+  const overviews = bundle.value?.overviews ?? [];
+  const out: DraftItem[] = [];
+  for (const name of Object.keys(edits.value)) {
+    const [, kind, ...rest] = name.split('.');
+    const key = rest.join('.');
+    if (kind === 'layer') {
+      if (!canEditLayers.value) continue;
+      const L = layers.value.find((l) => l.key.toUpperCase() === key.toUpperCase());
+      out.push({ kind, key, label: L?.name ? `Layer · ${L.name}` : `Layer · ${key}` });
+    } else if (kind === 'overview') {
+      if (!canEditOverviews.value) continue;
+      const ov = overviews.find((o) => o.id === key);
+      out.push({ kind, key, label: ov?.title ? `Overview · ${ov.title}` : `Overview · ${key}` });
+    }
   }
+  return out;
+});
+
+const hasLayerDrafts = computed(() => draftItems.value.some((d) => d.kind === 'layer'));
+const hasOverviewDrafts = computed(() => draftItems.value.some((d) => d.kind === 'overview'));
+
+// Dismissed once per browser session so it doesn't nag on every route.
+const SESSION_KEY = 'horizon:localDraftPrompt:dismissed';
+const dismissed = ref<boolean>(
+  typeof sessionStorage !== 'undefined' && sessionStorage.getItem(SESSION_KEY) === '1',
+);
+// Not while previewing — a preview tab shows the dedicated preview banner
+// instead of the editor's unpublished-edits reminder.
+const open = computed(() => !previewMode.value && !dismissed.value && draftItems.value.length > 0);
+
+function dismiss(): void {
+  dismissed.value = true;
+  try {
+    sessionStorage.setItem(SESSION_KEY, '1');
+  } catch {
+    /* private mode — in-memory dismissal still holds for this session */
+  }
+}
+function goLayers(): void {
+  const first = draftItems.value.find((d) => d.kind === 'layer');
+  dismiss();
+  void router.push({ path: '/admin/layer-dashboards', query: first ? { layer: first.key } : {} });
+}
+function goOverviews(): void {
+  dismiss();
+  void router.push({ path: '/admin/overview-templates' });
 }
 </script>
 
 <template>
-  <Modal
-    :open="open"
-    :dismissable="false"
-    :title="confirmingRemote ? 'Use the live version?' : 'Template versions differ from OAP'"
-  >
-    <div v-if="!confirmingRemote" class="tcp">
+  <Modal :open="open" :dismissable="false" title="You have unpublished local edits">
+    <div class="tcp">
       <p class="tcp__lede">
-        <b>{{ divergedCount }}</b> dashboard{{ divergedCount === 1 ? '' : 's' }} differ between the
-        version OAP currently serves (<b>remote / live</b>) and your <b>local</b> copy — OAP may have
-        newer changes, or you have unpublished local edits. Which should this session render?
+        <b>{{ draftItems.length }}</b> dashboard{{ draftItems.length === 1 ? '' : 's' }} ha{{ draftItems.length === 1 ? 's' : 've' }}
+        edits saved only in <b>this browser</b> — they are not live for anyone. Live pages render the
+        remote (OAP) version; preview your drafts from the editor’s <b>Preview live</b> button, then
+        <b>Push local → OAP</b> to publish.
       </p>
       <ul class="tcp__list">
-        <li v-for="(name, i) in divergedItems" :key="i">{{ name }}</li>
-      </ul>
-      <ul class="tcp__opts">
-        <li><b>Local</b> — preview your unpublished edits. Nothing is sent to OAP; publish later with “Sync all to OAP”.</li>
-        <li><b>Remote</b> — show the live version everyone else sees. Your local edits stay on disk, unpublished.</li>
+        <li v-for="(d, i) in draftItems" :key="i">{{ d.label }}</li>
       </ul>
     </div>
-    <div v-else class="tcp">
-      <p class="tcp__lede tcp__warn">
-        OAP holds a different version. Using live will <b>overwrite your
-        {{ divergedCount }} local change{{ divergedCount === 1 ? '' : 's' }}</b> with the remote
-        version — your local edits are <b>discarded and cannot be recovered</b>. Publish them with
-        “Sync all to OAP” instead if you want to keep them. Override local with live?
-      </p>
-    </div>
-
     <template #footer>
-      <template v-if="!confirmingRemote">
-        <button class="sw-btn" type="button" @click="confirmingRemote = true">Use live (remote)</button>
-        <button class="sw-btn primary" type="button" @click="useLocal">Keep my local edits</button>
-      </template>
-      <template v-else>
-        <button class="sw-btn" type="button" :disabled="busy" @click="confirmingRemote = false">Back</button>
-        <button class="sw-btn danger" type="button" :disabled="busy" @click="useLive">
-          {{ busy ? 'Overriding…' : 'Overwrite local with live' }}
-        </button>
-      </template>
+      <button class="sw-btn" type="button" @click="dismiss">Dismiss</button>
+      <button v-if="hasOverviewDrafts" class="sw-btn" type="button" @click="goOverviews">
+        Overview templates →
+      </button>
+      <button v-if="hasLayerDrafts" class="sw-btn is-primary" type="button" @click="goLayers">
+        Layer dashboards →
+      </button>
     </template>
   </Modal>
 </template>
@@ -125,10 +128,8 @@ async function useLive(): Promise<void> {
 <style scoped>
 .tcp { padding: 4px 2px; }
 .tcp__lede { margin: 0 0 10px; font-size: 12.5px; color: var(--sw-fg-1); line-height: 1.55; }
-.tcp__warn { color: var(--sw-fg-1); }
-.tcp__warn b { color: var(--sw-err); }
 .tcp__list {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 8px 10px 8px 24px;
   max-height: 30vh;
   overflow: auto;
@@ -139,6 +140,4 @@ async function useLive(): Promise<void> {
   color: var(--sw-fg-1);
   line-height: 1.6;
 }
-.tcp__opts { margin: 0; padding-left: 18px; font-size: 11.5px; color: var(--sw-fg-2); line-height: 1.6; }
-.tcp__opts b { color: var(--sw-fg-0); }
 </style>

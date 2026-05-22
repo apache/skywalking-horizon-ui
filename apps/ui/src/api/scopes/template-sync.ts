@@ -78,6 +78,16 @@ export class TemplateSyncApi {
     });
   }
 
+  /** "Delete" a template — OAP has no hard DELETE, so this soft-disables
+   *  the remote UI-template. The BFF refuses (409 `bundled_not_deletable`)
+   *  when the template ships a bundled default; only remote-only templates
+   *  are genuinely removable. Returns the fresh sync status. */
+  disable(name: string): Promise<TemplateSyncStatus> {
+    return this.bff.request<TemplateSyncStatus>('POST', '/api/admin/templates/disable', {
+      name,
+    });
+  }
+
   /** Operator wants the bundled JSON to overwrite whatever OAP has for
    *  this name. Used for "adopt my code defaults" from the diff view. */
   pushBundled(name: string): Promise<TemplateSyncStatus> {

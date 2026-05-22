@@ -36,7 +36,8 @@
   decisions, not config tweaks.
 -->
 <script setup lang="ts">
-import { computed, ref, watch, watchEffect } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
+import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
   OverviewDashboard,
@@ -44,13 +45,23 @@ import type {
   OverviewWidget,
 } from '@skywalking-horizon-ui/api-client';
 import { bff } from '@/api/client';
+import type { OverviewTemplateSummary } from '@/api/scopes/overview';
+import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplateEdits';
+import { usePreviewOverride } from '@/controls/previewOverride';
+import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { useLayers } from '@/shell/useLayers';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
-import SyncAllButton from '@/features/admin/_shared/SyncAllButton.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
+import { stableStringify } from '@/utils/stableJson';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
-import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
+// Real overview widget primitives — the preview renders these with mock
+// data so it matches the live page pixel-for-pixel (no bespoke copy).
+import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
+import MetricWidget from '@/render/widgets/MetricWidget.vue';
+import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
+import Modal from '@/features/operate/_shared/Modal.vue';
+import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
 // OAP UI-template sync status for the Overview kind. Drives the
 // page-level banner + read-only mode + per-row badge lookup.
@@ -61,9 +72,115 @@ const listQuery = useQuery({
   queryFn: () => bff.overview.adminList(),
   staleTime: 60_000,
 });
-const dashboards = computed(() => listQuery.data.value?.dashboards ?? []);
+
+// Template sources + local-draft store. Declared here (not lower with the
+// editor-source helpers) because the picker computeds below — read
+// synchronously by the auto-select watchEffect during setup — depend on
+// them; declaring them later would hit a temporal-dead-zone ReferenceError.
+const router = useRouter();
+const localEdits = useLocalTemplateEdits();
+const previewOverride = usePreviewOverride();
+const sources = useTemplateSources('overview');
+
+const OV_PREFIX = 'horizon.overview.';
+function summaryFrom(
+  id: string,
+  content: OverviewDashboard | null | undefined,
+): OverviewTemplateSummary | null {
+  if (!content) return null;
+  return {
+    id,
+    title: content.title || id,
+    ...(content.description ? { description: content.description } : {}),
+    widgetCount: content.widgets?.length ?? 0,
+    editable: true,
+  };
+}
+
+// On-disk dashboards (bundled + overlaid remote), from the BFF.
+const serverDashboards = computed(() => listQuery.data.value?.dashboards ?? []);
+
+// Remote-only: dashboards that live on OAP with no on-disk base — created
+// in this admin and pushed. The server list (disk) can't see them, so
+// surface them from the OAP sync rows.
+const remoteOnlyDashboards = computed<OverviewTemplateSummary[]>(() => {
+  const serverIds = new Set(serverDashboards.value.map((d) => d.id));
+  const out: OverviewTemplateSummary[] = [];
+  for (const name of sources.remoteNames()) {
+    if (!name.startsWith(OV_PREFIX)) continue;
+    const id = name.slice(OV_PREFIX.length);
+    if (serverIds.has(id)) continue;
+    const s = summaryFrom(id, sources.remote<OverviewDashboard>(name));
+    if (s) out.push(s);
+  }
+  return out;
+});
+
+// Local-only drafts: dashboards created in THIS browser that aren't on the
+// server or OAP yet. They surface in the picker like any dashboard —
+// flagged `local` — so create mirrors edit: draft locally, preview, then
+// "Check diff & push" publishes them. Once pushed they become remote-only
+// (then server-backed once OAP serves them) and drop out of this list.
+const localOnlyDrafts = computed<OverviewTemplateSummary[]>(() => {
+  const known = new Set([
+    ...serverDashboards.value.map((d) => d.id),
+    ...remoteOnlyDashboards.value.map((d) => d.id),
+  ]);
+  const out: OverviewTemplateSummary[] = [];
+  for (const name of localEdits.names()) {
+    if (!name.startsWith(OV_PREFIX)) continue;
+    const id = name.slice(OV_PREFIX.length);
+    if (known.has(id)) continue;
+    const s = summaryFrom(id, localEdits.get<OverviewDashboard>(name));
+    if (s) out.push(s);
+  }
+  return out;
+});
+const dashboards = computed(() => [
+  ...serverDashboards.value,
+  ...remoteOnlyDashboards.value,
+  ...localOnlyDrafts.value,
+]);
 
 const selectedId = ref<string>('');
+const selectedDash = computed(() => dashboards.value.find((d) => d.id === selectedId.value) ?? null);
+// True when the selected dashboard exists on the server (disk/remote) — a
+// local-only draft has no server detail to fetch, so the detail query must
+// stay disabled for it (it would 404).
+const isServerBacked = computed(() =>
+  serverDashboards.value.some((d) => d.id === selectedId.value),
+);
+
+// Top dropdown picker (replaces the left list — same pattern as the layer
+// dashboards switcher). Filterable; "+ New dashboard" lives inside it.
+const listDropdownOpen = ref(false);
+const listSearch = ref('');
+const divergedOnly = ref(false);
+const localOnly = ref(false);
+function isDivergedRow(id: string): boolean {
+  const s = sync.badgeFor(`horizon.overview.${id}`);
+  return s === 'diverged' || s === 'bundled-fallback';
+}
+const divergedCount = computed(() => dashboards.value.filter((d) => isDivergedRow(d.id)).length);
+const localDraftCount = computed(() => dashboards.value.filter((d) => hasLocalDraftFor(d.id)).length);
+const filteredDashboards = computed(() => {
+  const q = listSearch.value.trim().toLowerCase();
+  return dashboards.value.filter((d) => {
+    if (divergedOnly.value && !isDivergedRow(d.id)) return false;
+    if (localOnly.value && !hasLocalDraftFor(d.id)) return false;
+    if (!q) return true;
+    return d.title.toLowerCase().includes(q) || d.id.toLowerCase().includes(q);
+  });
+});
+function pickDashboard(id: string): void {
+  selectedId.value = id;
+  listDropdownOpen.value = false;
+}
+/** Whether a dashboard id has an unpublished local browser draft — drives
+ *  the "local" badge in the picker. */
+function hasLocalDraftFor(id: string): boolean {
+  return localEdits.has(overviewEditName(id));
+}
 /* Auto-select rule: if nothing is selected (cold start), pick the
  * first dashboard. If the currently-selected id disappears from the
  * list (just deleted by the operator), fall back to the new first.
@@ -103,7 +220,7 @@ function cancelNewDash(): void {
   newDashOpen.value = false;
   newDashError.value = null;
 }
-async function createDash(): Promise<void> {
+function createDash(): void {
   const id = newDashId.value.trim();
   const title = newDashTitle.value.trim();
   if (!id) {
@@ -118,25 +235,28 @@ async function createDash(): Promise<void> {
     newDashError.value = 'title is required';
     return;
   }
-  if (dashboards.value.some((d) => d.id === id)) {
-    newDashError.value = `dashboard "${id}" already exists`;
+  // The id IS the template name (horizon.overview.<id>) — must be unique
+  // across server, remote-only, and local drafts. Case-insensitive since
+  // OAP keys on the name string.
+  const idLc = id.toLowerCase();
+  if (dashboards.value.some((d) => d.id.toLowerCase() === idLc)) {
+    newDashError.value = `a dashboard with id "${id}" already exists`;
     return;
   }
-  try {
-    const description = newDashDescription.value.trim();
-    await bff.overview.adminCreate({
-      id,
-      title,
-      ...(description ? { description } : {}),
-      widgets: [],
-    });
-    await listQuery.refetch();
-    selectedId.value = id;
-    newDashOpen.value = false;
-    setFlash(`created · ${id}`);
-  } catch (err) {
-    newDashError.value = err instanceof Error ? err.message : 'create failed';
-  }
+  // Create mirrors edit: write a LOCAL browser draft, don't touch the
+  // server. The dashboard is immediately selectable + previewable; "Check
+  // diff & push" publishes it to OAP (create-or-update, server-side).
+  const description = newDashDescription.value.trim();
+  const dash: OverviewDashboard = {
+    id,
+    title,
+    ...(description ? { description } : {}),
+    widgets: [],
+  };
+  localEdits.set(overviewEditName(id), dash);
+  selectedId.value = id;
+  newDashOpen.value = false;
+  setFlash(`created local draft · ${id} — edit, preview, then “Check diff & push”.`);
 }
 
 // ── Preview pane ──────────────────────────────────────────────────
@@ -148,19 +268,96 @@ async function createDash(): Promise<void> {
  * 0..100 for percent / progress-bar). Not pixel-fidelity vs the real
  * widget components — that would require running the orchestrator
  * against mock OAP data — but enough to validate placement + scope. */
-/* Detail-pane view mode — `config` (the per-widget editor) or
- * `preview` (the layout + mock-data sanity board). Tabs in the
- * detail head switch between them. Defaults to config so an
- * operator who lands on the admin sees the editor immediately. */
-const viewMode = ref<'config' | 'preview'>('config');
+// Canvas selection: the editor is one page now — a mock-data widget grid
+// (canvas, left) + a drawer (right) that edits the clicked widget. Mirrors
+// the layer dashboards editor.
+// Sentinel id for the dashboard-meta "widget" (title + description). Real
+// widget ids never collide with it.
+const META_SEL = '__meta__';
+const selectedWidgetId = ref<string | null>(null);
+function selectWidget(id: string): void {
+  selectedWidgetId.value = id;
+}
+// Drop the selection when the dashboard changes.
+watch(selectedId, () => {
+  selectedWidgetId.value = null;
+});
+// Esc closes the editor drawer (deselects) — unless a modal owns Esc.
+function onEditorKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape' && selectedWidgetId.value && !pushDiffOpen.value && !newDashOpen.value) {
+    selectedWidgetId.value = null;
+  }
+}
+onMounted(() => window.addEventListener('keydown', onEditorKey));
+onBeforeUnmount(() => window.removeEventListener('keydown', onEditorKey));
+
+// ── Canvas drag-reorder (HTML5 DnD over the flat widgets array) ─────
+const dragId = ref<string | null>(null);
+function onWidgetDragStart(e: DragEvent, id: string): void {
+  dragId.value = id;
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+}
+function onWidgetDrop(targetId: string): void {
+  const d = draft.value;
+  if (!d || !dragId.value || dragId.value === targetId) {
+    dragId.value = null;
+    return;
+  }
+  const ws = [...d.widgets];
+  const from = ws.findIndex((w) => w.id === dragId.value);
+  const to = ws.findIndex((w) => w.id === targetId);
+  dragId.value = null;
+  if (from < 0 || to < 0) return;
+  const [moved] = ws.splice(from, 1);
+  ws.splice(to, 0, moved!);
+  draft.value = { ...d, widgets: ws };
+}
+
+// ── Canvas corner-resize (drag updates span / rowSpan) ──────────────
+const resize = reactive({ active: false, id: '', startX: 0, startY: 0, startSpan: 4, startRowSpan: 1, cellW: 1, cellH: 96, cols: 12 });
+function onResizeStart(e: MouseEvent, w: OverviewWidget, cols: number): void {
+  e.preventDefault();
+  e.stopPropagation();
+  const grid = (e.target as HTMLElement).closest('.ot__pv-grid') as HTMLElement | null;
+  if (!grid) return;
+  const gap = 6;
+  const cellW = (grid.getBoundingClientRect().width - gap * (cols - 1)) / cols;
+  resize.active = true;
+  resize.id = w.id;
+  resize.startX = e.clientX;
+  resize.startY = e.clientY;
+  resize.startSpan = w.span ?? 4;
+  resize.startRowSpan = w.rowSpan ?? 1;
+  resize.cellW = cellW + gap;
+  resize.cellH = 96 + gap;
+  resize.cols = cols;
+  selectWidget(w.id);
+  window.addEventListener('mousemove', onResizeMove);
+  window.addEventListener('mouseup', onResizeEnd);
+}
+function onResizeMove(e: MouseEvent): void {
+  if (!resize.active || !draft.value) return;
+  const span = Math.max(1, Math.min(resize.cols, resize.startSpan + Math.round((e.clientX - resize.startX) / resize.cellW)));
+  const rowSpan = Math.max(1, Math.min(8, resize.startRowSpan + Math.round((e.clientY - resize.startY) / resize.cellH)));
+  const w = draft.value.widgets.find((x) => x.id === resize.id);
+  if (w && (w.span !== span || w.rowSpan !== rowSpan)) {
+    w.span = span;
+    w.rowSpan = rowSpan;
+  }
+}
+function onResizeEnd(): void {
+  resize.active = false;
+  window.removeEventListener('mousemove', onResizeMove);
+  window.removeEventListener('mouseup', onResizeEnd);
+}
 
 interface PreviewSection {
   cols: number;
-  widgets: typeof draft.value extends infer T
-    ? T extends { widgets: infer W }
-      ? W
-      : never
-    : never;
+  /** The section-break widget that opened this section (its id + title),
+   *  or null for the implicit first section. Lets the canvas render the
+   *  section-break as a selectable header. */
+  sb: OverviewWidget | null;
+  widgets: OverviewWidget[];
 }
 const previewSections = computed<PreviewSection[]>(() => {
   if (!draft.value) return [];
@@ -168,15 +365,15 @@ const previewSections = computed<PreviewSection[]>(() => {
   let cur: PreviewSection | null = null;
   for (const w of draft.value.widgets) {
     if (w.type === 'section-break') {
-      cur = { cols: w.cols ?? 12, widgets: [] as never };
+      cur = { cols: w.cols ?? 12, sb: w, widgets: [] };
       out.push(cur);
       continue;
     }
     if (!cur) {
-      cur = { cols: 12, widgets: [] as never };
+      cur = { cols: 12, sb: null, widgets: [] };
       out.push(cur);
     }
-    (cur.widgets as unknown as OverviewWidget[]).push(w);
+    cur.widgets.push(w);
   }
   return out;
 });
@@ -225,41 +422,79 @@ function mockAlarms(seed: string, n: number): Array<{
   return out;
 }
 
-/** Split a kpi-tile / metric-composite widget's rows into the two
- *  visual partitions the real renderer uses: number tiles (count
- *  grid) vs progress-bar rows. Same rule the runtime uses —
- *  `style === 'progress-bar'` OR `unit === '%'` go to bars. */
-function kpiCountRows(w: OverviewWidget): OverviewKpi[] {
-  return (w.kpis ?? []).filter((k) => k.style !== 'progress-bar' && k.unit !== '%');
-}
-function kpiBarRows(w: OverviewWidget): OverviewKpi[] {
-  return (w.kpis ?? []).filter((k) => k.style === 'progress-bar' || k.unit === '%');
-}
-
-function previewSectionTitle(idx: number): string {
-  if (!draft.value) return '';
-  /* Walk the original widget array up to the idx-th section-break
-   * to recover its title (the preview groups widgets under each
-   * break but only stores cols + widget rows in the section). */
-  let n = 0;
-  for (const w of draft.value.widgets) {
-    if (w.type !== 'section-break') continue;
-    if (n === idx) return w.title;
-    n += 1;
+/** Mock value per KPI label for the real widget components — percent /
+ *  progress-bar rows get a 0-100 value, everything else a plain number.
+ *  Keyed by widget id + label so it's stable across re-renders. */
+function mockKpiValues(w: OverviewWidget): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const k of w.kpis ?? []) {
+    out[k.label] =
+      k.unit === '%' || k.style === 'progress-bar'
+        ? mockPercent(w.id + k.label)
+        : mockNumber(w.id + k.label, k.max ?? 999);
   }
-  return '';
+  return out;
+}
+/** Grid placement for one preview cell — span/rowSpan within the
+ *  section's column count. */
+function previewCellStyle(w: OverviewWidget, cols: number): Record<string, string> {
+  // Same clamps as the live renderer (OverviewDashboardView.widgetStyle):
+  // span ∈ [1, cols], rowSpan ∈ [1, 8].
+  return {
+    gridColumn: `span ${Math.min(cols, Math.max(1, w.span ?? cols))}`,
+    gridRow: `span ${Math.min(8, Math.max(1, w.rowSpan ?? 1))}`,
+  };
 }
 
 // ── Delete current dashboard ───────────────────────────────────────
-async function deleteCurrentDash(): Promise<void> {
+// A local-only draft (never pushed) is truly removed from the browser —
+// a real hard delete, it was never on OAP. Anything on OAP (bundled or
+// remote-only) is soft-disabled, because OAP has no hard DELETE; a
+// disabled template drops out of the bundle, so it vanishes from the UI.
+// Either way it's irreversible from the UI (no re-enable entrance).
+// Styled confirm (replaces window.confirm — native box breaks the dark
+// design). `askDeleteDash` opens it with the right copy; `confirmDeleteDash`
+// runs the actual delete/disable.
+const deleteOpen = ref(false);
+const deleteTitle = ref('');
+const deleteMessage = ref('');
+const deleteConfirmLabel = ref('Delete');
+function askDeleteDash(): void {
   const id = selectedId.value;
-  if (!id) return;
-  if (!window.confirm(`Delete dashboard "${id}"? This removes the JSON file from disk.`)) {
+  if (!id || !editName.value) return;
+  const onOap = remoteAvailable.value || bundledExists.value;
+  if (!onOap) {
+    deleteTitle.value = 'Delete local draft?';
+    deleteMessage.value = `Delete the local draft “${id}”? It was never published, so it's removed from this browser only. This can't be undone.`;
+    deleteConfirmLabel.value = 'Delete draft';
+  } else if (bundledExists.value) {
+    deleteTitle.value = 'Disable built-in dashboard?';
+    deleteMessage.value = `Disable the built-in dashboard “${id}”? OAP has no hard delete, so it's soft-disabled — hidden from everyone. This can't be undone from the UI.`;
+    deleteConfirmLabel.value = 'Disable';
+  } else {
+    deleteTitle.value = 'Delete dashboard?';
+    deleteMessage.value = `Delete the dashboard “${id}”? OAP has no hard delete, so it's soft-disabled — hidden from everyone. This can't be undone from the UI.`;
+    deleteConfirmLabel.value = 'Delete';
+  }
+  deleteOpen.value = true;
+}
+async function confirmDeleteDash(): Promise<void> {
+  const id = selectedId.value;
+  const name = editName.value;
+  deleteOpen.value = false;
+  if (!id || !name) return;
+  const onOap = remoteAvailable.value || bundledExists.value;
+  if (!onOap) {
+    localEdits.remove(name);
+    previewOverride.clear(name);
+    setFlash(`deleted local draft · ${id}`);
     return;
   }
   try {
-    await bff.overview.adminDelete(id);
-    await listQuery.refetch();
+    await bff.templateSync.disable(name);
+    localEdits.remove(name);
+    previewOverride.clear(name);
+    await Promise.all([listQuery.refetch(), sources.refetch(), refreshConfigBundle()]);
     setFlash(`deleted · ${id}`);
   } catch (err) {
     setFlash(err instanceof Error ? `error: ${err.message}` : 'delete failed');
@@ -269,7 +504,9 @@ async function deleteCurrentDash(): Promise<void> {
 const detailQuery = useQuery({
   queryKey: computed(() => ['admin/overview-templates', selectedId.value]),
   queryFn: () => bff.overview.adminGet(selectedId.value),
-  enabled: computed(() => selectedId.value.length > 0),
+  // Don't fetch detail for a local-only draft — there's no server copy
+  // (it would 404); the editor loads it straight from the local draft.
+  enabled: computed(() => selectedId.value.length > 0 && isServerBacked.value),
   staleTime: 60_000,
 });
 
@@ -285,17 +522,73 @@ const layerOptions = computed<string[]>(() => {
   return Array.from(live).sort();
 });
 
+/* ── Editor sources ───────────────────────────────────────────────
+ * Load from LOCAL (browser draft), BUNDLED (shipped), or REMOTE (OAP).
+ * `editorSource` tracks which is loaded; `loadedSnapshot` is the baseline
+ * for `isDirty`. Save always writes LOCAL; publish LOCAL → OAP after.
+ * ─────────────────────────────────────────────────────────────────── */
+const editName = computed(() => (selectedId.value ? overviewEditName(selectedId.value) : ''));
+const hasLocalDraft = computed<boolean>(() => !!editName.value && localEdits.has(editName.value));
+const remoteAvailable = computed<boolean>(() => !!editName.value && sources.hasRemote(editName.value));
+// Ships a bundled default → not deletable (delete would fall back to the
+// bundle). Drives both the disabled delete button and the guard above.
+const bundledExists = computed<boolean>(() => !!editName.value && sources.hasBundled(editName.value));
+
 const draft = ref<OverviewDashboard | null>(null);
-watch(
-  () => detailQuery.data.value,
-  (resp) => {
-    if (!resp) {
-      draft.value = null;
-      return;
-    }
-    draft.value = JSON.parse(JSON.stringify(resp.dashboard)) as OverviewDashboard;
-  },
-);
+const editorSource = ref<'local' | 'bundled' | 'remote'>('bundled');
+const loadedSnapshot = ref<string>('');
+
+function bundledContent(): OverviewDashboard | null {
+  return (
+    sources.bundled<OverviewDashboard>(editName.value) ??
+    detailQuery.data.value?.dashboard ??
+    null
+  );
+}
+function sourceContent(src: 'local' | 'bundled' | 'remote'): OverviewDashboard | null {
+  if (src === 'local') return localEdits.get<OverviewDashboard>(editName.value) ?? null;
+  if (src === 'remote') return sources.remote<OverviewDashboard>(editName.value);
+  return bundledContent();
+}
+function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
+  const c = sourceContent(src);
+  draft.value = c ? (JSON.parse(JSON.stringify(c)) as OverviewDashboard) : null;
+  loadedSnapshot.value = draft.value ? JSON.stringify(draft.value) : '';
+  editorSource.value = src;
+}
+
+/** Write the editor content to the local draft (cleared if it equals
+ *  remote). Drives hasLocalDraft / localDiffersFromRemote reactively. */
+function persistLocal(content: OverviewDashboard): void {
+  const remote = sources.remote<OverviewDashboard>(editName.value);
+  if (remote && stableStringify(content) === stableStringify(remote)) {
+    localEdits.remove(editName.value);
+  } else {
+    localEdits.set(editName.value, JSON.parse(JSON.stringify(content)));
+  }
+  loadedSnapshot.value = JSON.stringify(content);
+}
+
+// "Reset to ▾" dropdown — reload from a source AND adopt it as the local
+// draft (so the choice persists + Push/diff status updates).
+const resetDropdownOpen = ref(false);
+function resetTo(src: 'bundled' | 'remote'): void {
+  loadFrom(src);
+  if (draft.value) persistLocal(draft.value);
+  resetDropdownOpen.value = false;
+}
+
+// "Preview ▾" dropdown — open the real overview page in a new tab
+// rendering the chosen source (writes it to the preview-override store).
+const previewDropdownOpen = ref(false);
+function previewLive(src: 'local' | 'bundled' | 'remote'): void {
+  const content = sourceContent(src);
+  if (!content || !selectedId.value) return;
+  previewOverride.set(editName.value, content);
+  const href = router.resolve({ path: `/overview/${selectedId.value}`, query: { mode: 'preview', source: src } }).href;
+  previewDropdownOpen.value = false;
+  window.open(href, '_blank', 'noopener');
+}
 
 const flash = ref<string | null>(null);
 const saving = ref(false);
@@ -306,49 +599,74 @@ function setFlash(msg: string): void {
   }, 4000);
 }
 
-const isDirty = computed<boolean>(() => {
-  const cur = draft.value;
-  const orig = detailQuery.data.value?.dashboard;
-  if (!cur || !orig) return false;
-  return JSON.stringify(cur) !== JSON.stringify(orig);
-});
-
-// Diverged-row controls: shown only when OAP's copy differs from
-// bundled for the currently-selected dashboard. The "show diff &
-// reset" modal opens a Monaco side-by-side and the destructive
-// confirm UI (operator types the dashboard id to arm Reset).
-const selectedStatus = computed(() =>
-  selectedId.value ? sync.badgeFor(`horizon.overview.${selectedId.value}`) : null,
+const isDirty = computed<boolean>(() =>
+  draft.value ? JSON.stringify(draft.value) !== loadedSnapshot.value : false,
 );
-const isDiverged = computed(() => selectedStatus.value === 'diverged');
-const diffModalOpen = ref(false);
-function openDiffModal(): void { diffModalOpen.value = true; }
-async function onDiffReset(): Promise<void> {
-  await detailQuery.refetch();
-  setFlash('OAP reset to bundled · reload the overview to see widget changes');
+
+// Which source to seed the editor from for the current selection. Local
+// draft wins; then honour an explicit "remote" choice; then bundled if it
+// exists; else remote (a remote-only dashboard has no bundled base, so
+// bundled would load nothing). Falls back to bundled when nothing exists.
+function defaultEditorSource(): 'local' | 'bundled' | 'remote' {
+  if (hasLocalDraft.value) return 'local';
+  if (editorSource.value === 'remote' && remoteAvailable.value) return 'remote';
+  if (bundledContent()) return 'bundled';
+  if (remoteAvailable.value) return 'remote';
+  return 'bundled';
 }
 
-async function onSave(): Promise<void> {
-  if (!draft.value || !selectedId.value) return;
+// Seed the editor when the selected overview (or a background refetch)
+// changes — but never clobber unsaved keystrokes.
+watch(
+  [selectedId, () => detailQuery.data.value, hasLocalDraft, remoteAvailable],
+  () => {
+    if (isDirty.value) return;
+    loadFrom(defaultEditorSource());
+  },
+  { immediate: true },
+);
+
+/** Save the editor to the browser local draft. Never writes OAP. */
+function onSave(): void {
+  if (!draft.value || !editName.value) return;
+  persistLocal(draft.value);
+  editorSource.value = 'local';
+  setFlash('Saved to your browser (local). Publish with “Check diff & push”.');
+}
+
+// Push = publish local → remote. Available only when a local draft exists
+// AND differs from remote. The confirm modal shows the remote→local diff.
+const pushDiffOpen = ref(false);
+// Key-stable so a one-field edit doesn't read as "everything changed".
+function prettyJson(o: unknown): string {
+  return o ? stableStringify(o, 2) : '';
+}
+const localDiffersFromRemote = computed<boolean>(() => {
+  const local = localEdits.get<OverviewDashboard>(editName.value);
+  if (!local) return false;
+  return stableStringify(local) !== stableStringify(sources.remote<OverviewDashboard>(editName.value) ?? null);
+});
+const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
+const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
+
+/** Publish the local draft to OAP, clear it, reload remote. */
+async function pushToOap(): Promise<void> {
+  const local = localEdits.get<OverviewDashboard>(editName.value);
+  if (!local || saving.value) return;
   saving.value = true;
   try {
-    // Save writes the LOCAL bundled template (not OAP). The edit renders
-    // locally and shows as diverged until published to OAP via "Sync all
-    // to OAP". Works even when OAP is unreachable.
-    await bff.templateSync.saveLocal(`horizon.overview.${selectedId.value}`, draft.value);
-    await detailQuery.refetch();
-    await refreshConfigBundle(); // refresh diverged badges + sidebar warning
-    setFlash('Saved locally — not yet live for others. Use “Sync all to OAP” to publish.');
+    await bff.templateSync.save(editName.value, local);
+    localEdits.remove(editName.value);
+    previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    await Promise.all([sources.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
+    loadFrom('remote');
+    pushDiffOpen.value = false;
+    setFlash('Published your local draft to OAP — now live for everyone.');
   } catch (err) {
-    setFlash(err instanceof Error ? `error: ${err.message}` : 'save failed');
+    setFlash(err instanceof Error ? `error: ${err.message}` : 'push failed');
   } finally {
     saving.value = false;
   }
-}
-
-function onReset(): void {
-  const orig = detailQuery.data.value?.dashboard;
-  if (orig) draft.value = JSON.parse(JSON.stringify(orig)) as OverviewDashboard;
 }
 
 // ── KPI row helpers (kpi-tile only) ────────────────────────────────
@@ -387,8 +705,10 @@ function moveWidget(idx: number, dir: -1 | 1): void {
 }
 function removeWidget(idx: number): void {
   if (!draft.value) return;
+  const removed = draft.value.widgets[idx];
   const next = draft.value.widgets.filter((_, i) => i !== idx);
   draft.value = { ...draft.value, widgets: next };
+  if (removed && removed.id === selectedWidgetId.value) selectedWidgetId.value = null;
 }
 
 // ── Add-widget composer ────────────────────────────────────────────
@@ -458,6 +778,7 @@ function createWidget(): void {
   };
   draft.value = { ...draft.value, widgets: [...draft.value.widgets, widget] };
   composerOpen.value = false;
+  selectedWidgetId.value = widget.id; // open the drawer to finish editing it
 }
 
 // ── Widget meta ────────────────────────────────────────────────────
@@ -501,78 +822,94 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 
     <SyncStatusBanner :banner="sync.banner.value" />
 
-    <div class="ot__toolbar">
-      <SyncAllButton kind="overview" />
-    </div>
-
     <div v-if="listQuery.isPending.value" class="ot__empty">loading…</div>
 
-    <div v-else class="ot__split">
-      <ul class="ot__list">
-        <li
-          v-for="d in dashboards"
-          :key="d.id"
-          class="ot__list-item"
-          :class="{ active: d.id === selectedId, readonly: !d.editable }"
-          @click="selectedId = d.id"
-        >
-          <div class="ot__list-title">{{ d.title }}</div>
-          <div v-if="d.description" class="ot__list-desc">{{ d.description }}</div>
-          <div class="ot__list-meta">
-            <code>{{ d.id }}</code>
-            <span>{{ d.widgetCount }} widget{{ d.widgetCount === 1 ? '' : 's' }}</span>
-            <span v-if="!d.editable" class="ot__readonly-tag">no source file</span>
-            <TemplateStatusBadge :status="sync.badgeFor(`horizon.overview.${d.id}`)" />
-          </div>
-        </li>
-        <li v-if="dashboards.length === 0" class="ot__list-empty">No overview templates loaded.</li>
-        <li class="ot__list-add">
-          <button
-            v-if="!newDashOpen"
-            type="button"
-            class="ot__add-trigger ot__add-trigger--list"
-            :disabled="sync.readOnly.value"
-            :title="sync.readOnly.value ? 'OAP unreachable — cannot create' : ''"
-            @click="openNewDash"
-          >+ New dashboard</button>
-          <div v-else class="ot__newdash">
-            <label class="ot__field">
-              <span>Id</span>
-              <input
-                v-model="newDashId"
-                type="text"
-                class="ot__in"
-                placeholder="my-overview"
-                @keyup.enter="createDash"
-              />
-            </label>
-            <label class="ot__field">
-              <span>Title</span>
-              <input
-                v-model="newDashTitle"
-                type="text"
-                class="ot__in"
-                placeholder="My overview"
-                @keyup.enter="createDash"
-              />
-            </label>
-            <label class="ot__field ot__field--wide">
-              <span>Description (optional)</span>
-              <textarea
-                v-model="newDashDescription"
-                class="ot__in ot__in--ta"
-                rows="2"
-                placeholder="Short, one-paragraph description shown under the dashboard title."
-              />
-            </label>
-            <div v-if="newDashError" class="ot__newdash-err">{{ newDashError }}</div>
-            <div class="ot__newdash-foot">
-              <button type="button" class="ot__btn" @click="cancelNewDash">cancel</button>
-              <button type="button" class="ot__btn ot__btn--primary" @click="createDash">create</button>
+    <div v-else class="ot__main">
+      <!-- Top dashboard picker — filterable dropdown (same pattern as the
+           layer dashboards switcher); "+ New" lives inside it. -->
+      <div class="ot__picker-bar">
+        <div class="ot__dd">
+          <button type="button" class="ot__dd-btn" @click="listDropdownOpen = !listDropdownOpen">
+            <span class="ot__dd-title">{{ selectedDash?.title || 'Select dashboard' }}</span>
+            <code v-if="selectedDash" class="ot__dd-id">{{ selectedDash.id }}</code>
+            <span v-if="selectedId && hasLocalDraftFor(selectedId)" class="ot__local-badge" title="Unpublished local draft">local</span>
+            <TemplateStatusBadge v-if="selectedId" :status="sync.badgeFor(`horizon.overview.${selectedId}`)" />
+            <span class="caret" :class="{ open: listDropdownOpen }">›</span>
+          </button>
+          <template v-if="listDropdownOpen">
+            <div class="ot__dd-backdrop" @click="listDropdownOpen = false" />
+            <div class="ot__dd-pop">
+              <!-- Browse mode: search + filters + list. Hidden while the
+                   New-dashboard composer is open so the form stands alone. -->
+              <template v-if="!newDashOpen">
+              <div class="ot__dd-search">
+                <input v-model="listSearch" type="text" placeholder="Search dashboards…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="ot__dd-filters">
+                <label class="ot__dd-filter" :class="{ on: divergedOnly }">
+                  <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
+                  Diverged<span v-if="divergedCount" class="ot__dd-fc">{{ divergedCount }}</span>
+                </label>
+                <label class="ot__dd-filter" :class="{ on: localOnly }">
+                  <input v-model="localOnly" type="checkbox" :disabled="localDraftCount === 0" />
+                  Local<span v-if="localDraftCount" class="ot__dd-fc local">{{ localDraftCount }}</span>
+                </label>
+              </div>
+              <div class="ot__dd-list">
+                <button
+                  v-for="d in filteredDashboards"
+                  :key="d.id"
+                  type="button"
+                  class="ot__dd-item"
+                  :class="{ active: d.id === selectedId }"
+                  @click="pickDashboard(d.id)"
+                >
+                  <span class="ot__dd-item-title">{{ d.title }}</span>
+                  <code>{{ d.id }}</code>
+                  <span class="ot__dd-item-count">{{ d.widgetCount }}w</span>
+                  <span v-if="!d.editable" class="ot__readonly-tag">no source</span>
+                  <span v-if="hasLocalDraftFor(d.id)" class="ot__local-badge" title="Unpublished local draft">local</span>
+                  <TemplateStatusBadge :status="sync.badgeFor(`horizon.overview.${d.id}`)" />
+                </button>
+                <p v-if="filteredDashboards.length === 0" class="ot__dd-empty">No dashboards match.</p>
+              </div>
+              <div class="ot__dd-new">
+                <button
+                  type="button"
+                  class="ot__btn"
+                  :disabled="sync.readOnly.value"
+                  :title="sync.readOnly.value ? 'OAP unreachable — cannot create' : ''"
+                  @click="openNewDash"
+                >+ New dashboard</button>
+              </div>
+              </template>
+
+              <!-- Create mode: self-contained form (replaces the list). -->
+              <div v-else class="ot__newdash">
+                <div class="ot__newdash-head">New dashboard</div>
+                <label class="ot__field ot__field--wide">
+                  <span>Id (used as the name — must be unique)</span>
+                  <input v-model="newDashId" type="text" class="ot__in ot__in--mono" placeholder="my-overview" @keyup.enter="createDash" />
+                </label>
+                <label class="ot__field ot__field--wide">
+                  <span>Title</span>
+                  <input v-model="newDashTitle" type="text" class="ot__in" placeholder="My overview" @keyup.enter="createDash" />
+                </label>
+                <label class="ot__field ot__field--wide">
+                  <span>Description (optional)</span>
+                  <textarea v-model="newDashDescription" class="ot__in ot__in--ta" rows="2" placeholder="Short, one-paragraph description shown under the dashboard title." />
+                </label>
+                <div v-if="newDashError" class="ot__newdash-err">{{ newDashError }}</div>
+                <div class="ot__newdash-foot">
+                  <button type="button" class="ot__btn" @click="cancelNewDash">cancel</button>
+                  <button type="button" class="ot__btn ot__btn--primary" @click="createDash">create</button>
+                </div>
+              </div>
             </div>
-          </div>
-        </li>
-      </ul>
+          </template>
+        </div>
+        <span class="ot__picker-count">{{ dashboards.length }} dashboard{{ dashboards.length === 1 ? '' : 's' }}</span>
+      </div>
 
       <section class="ot__detail">
         <div v-if="detailQuery.isPending.value && !draft" class="ot__empty">loading…</div>
@@ -582,40 +919,87 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             <span class="ot__count mono">
               {{ draft.widgets.length }} widget{{ draft.widgets.length === 1 ? '' : 's' }}
             </span>
-            <!-- Tab strip — Config (editor) / Preview (mock board). -->
-            <div class="ot__tabs" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                class="ot__tab"
-                :class="{ active: viewMode === 'config' }"
-                :aria-selected="viewMode === 'config'"
-                @click="viewMode = 'config'"
-              >Config</button>
-              <button
-                type="button"
-                role="tab"
-                class="ot__tab"
-                :class="{ active: viewMode === 'preview' }"
-                :aria-selected="viewMode === 'preview'"
-                @click="viewMode = 'preview'"
-              >Preview</button>
-            </div>
+            <span v-if="flash" class="ot__flash">{{ flash }}</span>
+            <span v-else-if="isDirty" class="ot__dirty">unsaved changes</span>
+            <span v-else class="ot__clean">saved</span>
+            <!-- Delete. A local-only draft is removed from the browser; a
+                 dashboard on OAP (bundled or remote-only) is soft-disabled
+                 (OAP has no hard delete). Irreversible from the UI. -->
             <button
               type="button"
               class="ot__head-btn ot__head-btn--danger"
-              :disabled="sync.readOnly.value"
-              :title="sync.readOnly.value ? 'OAP unreachable — cannot delete' : `Delete dashboard ${draft.id}`"
-              @click="deleteCurrentDash"
-            >delete</button>
+              :disabled="sync.readOnly.value && (remoteAvailable || bundledExists)"
+              :title="(sync.readOnly.value && (remoteAvailable || bundledExists))
+                ? 'OAP unreachable — cannot delete'
+                : bundledExists
+                  ? `Disable built-in dashboard ${draft.id} (OAP has no hard delete — hidden, irreversible from the UI)`
+                  : remoteAvailable
+                    ? `Delete dashboard ${draft.id} (soft-disabled on OAP — irreversible from the UI)`
+                    : `Delete local draft ${draft.id} (never published)`"
+              @click="askDeleteDash"
+            >{{ bundledExists ? 'disable' : 'delete' }}</button>
+            <!-- Source / save / publish actions, right-aligned (same row as
+                 the title + tabs, mirroring the layer dashboards editor). -->
+            <div class="ot__head-actions">
+              <span class="ot__src" :title="`Editing from: ${editorSource}`">{{ editorSource }}</span>
+              <div class="reset-dd">
+                <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
+                  reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
+                </button>
+                <template v-if="resetDropdownOpen">
+                  <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
+                  <div class="reset-dd-pop">
+                    <button class="reset-dd-item" type="button" title="Discard current edits and reload the bundled default." @click="resetTo('bundled')">Bundled</button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="remoteAvailable ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy yet.'" @click="resetTo('remote')">Remote</button>
+                  </div>
+                </template>
+              </div>
+              <div class="reset-dd">
+                <button type="button" class="ot__btn" @click="previewDropdownOpen = !previewDropdownOpen">
+                  preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
+                </button>
+                <template v-if="previewDropdownOpen">
+                  <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
+                  <div class="reset-dd-pop">
+                    <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="previewLive('local')">Local</button>
+                    <button class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="previewLive('remote')">Remote</button>
+                  </div>
+                </template>
+              </div>
+              <button
+                v-if="!sync.readOnly.value"
+                type="button"
+                class="ot__btn"
+                :disabled="!localDiffersFromRemote || saving"
+                :title="localDiffersFromRemote ? 'Review the local → remote diff, then publish to OAP.' : 'No local changes to publish — local matches remote.'"
+                @click="pushDiffOpen = true"
+              >
+                check diff &amp; push
+              </button>
+              <button
+                type="button"
+                class="ot__btn ot__btn--primary"
+                :disabled="!isDirty || saving"
+                title="Save the editor to your browser (local). Publish later with “Check diff & push”."
+                @click="onSave"
+              >
+                {{ saving ? 'saving…' : 'save (local)' }}
+              </button>
+            </div>
           </header>
 
-          <div v-if="viewMode === 'config'" class="ot__widgets">
-            <!-- Dashboard-level meta: title + description. These show
-                 on every page that references the dashboard (sidebar
-                 list, sub-heading on the page itself, admin list).
-                 Description is optional but recommended. -->
-            <section class="ot__meta">
+          <!-- One-page editor: mock-data widget grid (canvas, left) +
+               drawer (right) that edits the clicked widget. -->
+          <div class="ot__editor-split" :class="{ 'has-sel': !!selectedWidgetId }">
+
+          <aside v-if="selectedWidgetId" class="ot__drawer-pane ot__widgets">
+            <div class="ot__drawer-head">
+              <span class="ot__drawer-title">{{ selectedWidgetId === META_SEL ? 'Dashboard meta' : 'Edit widget' }}</span>
+              <button type="button" class="ot__drawer-close" title="Close (Esc)" @click="selectedWidgetId = null">✕</button>
+            </div>
+            <!-- Dashboard-level meta: title + description. -->
+            <section v-if="selectedWidgetId === META_SEL" class="ot__meta">
               <header class="ot__meta-head">
                 <span class="ot__meta-kicker">Dashboard meta</span>
                 <span class="ot__meta-hint">Shown in the sidebar and as the page sub-heading.</span>
@@ -637,6 +1021,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 
             <article
               v-for="(w, wi) in draft.widgets"
+              v-show="w.id === selectedWidgetId"
               :key="w.id"
               class="ot__widget"
               :class="`ot__widget--${w.type}`"
@@ -757,183 +1142,181 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                   <div v-if="(w.kpis ?? []).length === 0" class="ot__kpis-empty">
                     No KPI rows. Add one to surface a metric on the tile.
                   </div>
-                  <table v-else class="ot__kpi-table">
-                    <thead>
-                      <tr>
-                        <th></th>
-                        <th>Label</th>
-                        <th>Source</th>
-                        <th>MQE</th>
-                        <th>Unit</th>
-                        <th>Aggr</th>
-                        <th>Style</th>
-                        <th>Max</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(k, i) in w.kpis ?? []" :key="i">
-                        <td>
+                  <!-- One card per KPI. The drawer is narrow (sidebar-only),
+                       so fields stack vertically instead of a wide table
+                       row that truncates every column. -->
+                  <ul v-else class="ot__kpi-cards">
+                    <li v-for="(k, i) in w.kpis ?? []" :key="i" class="ot__kpi-card">
+                      <div class="ot__kpi-card-head">
+                        <span class="ot__kpi-card-idx">#{{ i + 1 }}</span>
+                        <div class="ot__kpi-card-ord">
                           <button
                             type="button"
                             class="ot__arrow"
+                            title="Move up"
                             :disabled="i === 0"
                             @click="moveKpi(w, i, -1)"
-                          >‹</button>
+                          >↑</button>
                           <button
                             type="button"
                             class="ot__arrow"
+                            title="Move down"
                             :disabled="i === (w.kpis ?? []).length - 1"
                             @click="moveKpi(w, i, 1)"
-                          >›</button>
-                        </td>
-                        <td><input v-model="k.label" type="text" class="ot__in" /></td>
-                        <td>
-                          <select v-model="k.source" class="ot__in ot__in--narrow">
-                            <option :value="undefined">mqe</option>
-                            <option value="mqe">mqe</option>
-                            <option value="service-count">service-count</option>
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            v-if="(k.source ?? 'mqe') === 'mqe'"
-                            v-model="k.mqe"
-                            type="text"
-                            class="ot__in ot__in--mono"
-                          />
-                          <span v-else class="ot__none">— (listServices)</span>
-                        </td>
-                        <td><input v-model="k.unit" type="text" class="ot__in ot__in--xnarrow" /></td>
-                        <td>
-                          <select v-model="k.aggregation" class="ot__in ot__in--xnarrow">
+                          >↓</button>
+                        </div>
+                        <button type="button" class="ot__del" title="Remove row" @click="removeKpi(w, i)">×</button>
+                      </div>
+                      <label class="ot__field ot__field--full">
+                        <span>Label</span>
+                        <input v-model="k.label" type="text" class="ot__in" />
+                      </label>
+                      <label class="ot__field ot__field--full">
+                        <span>Source</span>
+                        <select v-model="k.source" class="ot__in">
+                          <option :value="undefined">mqe</option>
+                          <option value="mqe">mqe</option>
+                          <option value="service-count">service-count</option>
+                        </select>
+                      </label>
+                      <label v-if="(k.source ?? 'mqe') === 'mqe'" class="ot__field ot__field--full">
+                        <span>MQE</span>
+                        <input v-model="k.mqe" type="text" class="ot__in ot__in--mono" />
+                      </label>
+                      <p v-else class="ot__none">Value comes from the service count (listServices) — no MQE.</p>
+                      <div class="ot__kpi-card-grid">
+                        <label class="ot__field">
+                          <span>Unit</span>
+                          <input v-model="k.unit" type="text" class="ot__in" />
+                        </label>
+                        <label class="ot__field">
+                          <span>Aggr</span>
+                          <select v-model="k.aggregation" class="ot__in">
                             <option :value="undefined">—</option>
                             <option value="avg">avg</option>
                             <option value="sum">sum</option>
                           </select>
-                        </td>
-                        <td>
-                          <select
-                            v-model="k.style"
-                            class="ot__in ot__in--narrow"
-                            @change="onKpiStyleChange(k)"
-                          >
+                        </label>
+                        <label class="ot__field">
+                          <span>Style</span>
+                          <select v-model="k.style" class="ot__in" @change="onKpiStyleChange(k)">
                             <option :value="undefined">number</option>
                             <option value="number">number</option>
                             <option value="progress-bar">progress-bar</option>
                           </select>
-                        </td>
-                        <td>
+                        </label>
+                        <label v-if="k.style === 'progress-bar'" class="ot__field">
+                          <span>Max</span>
                           <input
-                            v-if="k.style === 'progress-bar'"
                             v-model.number="k.max"
                             type="number"
                             min="0"
                             step="any"
-                            class="ot__in ot__in--xnum"
+                            class="ot__in"
                             placeholder="100"
                           />
-                          <span v-else class="ot__none">—</span>
-                        </td>
-                        <td>
-                          <button type="button" class="ot__del" @click="removeKpi(w, i)">×</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                        </label>
+                      </div>
+                    </li>
+                  </ul>
                 </div>
               </template>
             </article>
 
-            <!-- Add-widget composer. Operator picks type + size FIRST
-                 (per the spec); on Create the widget is appended with
-                 sensible defaults and the inline editor handles the
-                 rest (title / layer / MQE / KPI rows / etc.). -->
-            <div class="ot__add-widget">
-              <button
-                v-if="!composerOpen"
-                type="button"
-                class="ot__add-trigger"
-                @click="openComposer"
-              >
-                + Add widget
-              </button>
-              <article v-else class="ot__widget ot__composer">
-                <header class="ot__widget-head">
-                  <span class="ot__widget-kind">New widget</span>
-                </header>
-                <div class="ot__row">
-                  <label class="ot__field">
-                    <span>Type</span>
-                    <select v-model="composerType" class="ot__in ot__in--narrow">
-                      <option v-for="opt in WIDGET_TYPE_OPTIONS" :key="opt.type" :value="opt.type">
-                        {{ opt.label }}
-                      </option>
-                    </select>
-                  </label>
-                  <label v-if="composerType !== 'section-break'" class="ot__field">
-                    <span>Width (span)</span>
-                    <input v-model.number="composerSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
-                  </label>
-                  <label v-if="composerType !== 'section-break'" class="ot__field">
-                    <span>Height (rows)</span>
-                    <input v-model.number="composerRowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
-                  </label>
-                </div>
-                <div class="ot__composer-foot">
-                  <span class="ot__composer-hint">
-                    A default title + content scaffold is generated; you can edit everything below after creating.
-                  </span>
-                  <button type="button" class="ot__btn" @click="cancelComposer">cancel</button>
-                  <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">
-                    create
-                  </button>
-                </div>
-              </article>
-            </div>
-          </div>
+          </aside>
 
-          <!-- Layout + mock-data preview. Sits on its own tab so it
-               gets the full pane width, no scroll-past-editor needed. -->
-          <section v-if="viewMode === 'preview'" class="ot__preview">
-            <header class="ot__preview-head">
-              <h3>Preview</h3>
-              <span class="ot__preview-hint">layout + mock data · not live OAP values</span>
+          <!-- Canvas: mock-data widget grid (left). Click a widget to edit
+               it in the drawer; only the live "Preview ▾" page uses real
+               OAP data. -->
+          <div class="ot__canvas-pane ot__preview">
+            <div class="ot__canvas-hint">layout + mock data · click a widget to edit · the live page uses real data</div>
+            <!-- Page heading preview — the dashboard title + description as
+                 they render on the live overview page. Click to edit the
+                 dashboard meta in the drawer, like any widget. -->
+            <header
+              class="ot__canvas-title"
+              :class="{ 'ot__cw--sel': selectedWidgetId === META_SEL }"
+              @click="selectWidget(META_SEL)"
+            >
+              <h2>{{ draft.title || draft.id }}</h2>
+              <p v-if="draft.description" class="ot__canvas-desc">{{ draft.description }}</p>
             </header>
             <div
               v-for="(sec, si) in previewSections"
               :key="si"
               class="ot__pv-section"
             >
-              <div v-if="previewSectionTitle(si)" class="ot__pv-section-head">
-                {{ previewSectionTitle(si) }}
+              <!-- Section break (a.k.a. line-break / text header) — a real
+                   selectable widget; click to edit its title + columns. -->
+              <div
+                v-if="sec.sb"
+                class="ot__pv-section-head ot__pv-sb"
+                :class="{ 'ot__cw--sel': selectedWidgetId === sec.sb.id, 'ot__cw--drag': dragId === sec.sb.id }"
+                draggable="true"
+                @click="selectWidget(sec.sb.id)"
+                @dragstart="onWidgetDragStart($event, sec.sb.id)"
+                @dragend="dragId = null"
+                @dragover.prevent
+                @drop.prevent="onWidgetDrop(sec.sb.id)"
+              >
+                <span class="ot__pv-sb-tag">section</span>
+                <span class="ot__pv-sb-title">{{ sec.sb.title || '(untitled section)' }}</span>
+                <span class="ot__pv-sb-cols">{{ sec.cols }} cols</span>
               </div>
               <div
                 class="ot__pv-grid"
                 :style="{ gridTemplateColumns: `repeat(${sec.cols}, minmax(0, 1fr))` }"
               >
-                <article
+                <!-- Each widget is wrapped in a selectable cell. The inner
+                     preview (the real overview component, mock data) is
+                     pointer-events:none so a click selects the widget for
+                     editing instead of following KpiTileWidget's link. -->
+                <div
                   v-for="w in sec.widgets"
                   :key="w.id"
-                  class="ot__pv-card"
-                  :style="{
-                    gridColumn: `span ${Math.min(w.span ?? 12, sec.cols)}`,
-                    gridRow: `span ${w.rowSpan ?? 1}`,
-                  }"
+                  class="ot__cw"
+                  :class="{ 'ot__cw--sel': selectedWidgetId === w.id, 'ot__cw--drag': dragId === w.id }"
+                  :style="previewCellStyle(w, sec.cols)"
+                  draggable="true"
+                  @click="selectWidget(w.id)"
+                  @dragstart="onWidgetDragStart($event, w.id)"
+                  @dragend="dragId = null"
+                  @dragover.prevent
+                  @drop.prevent="onWidgetDrop(w.id)"
                 >
-                  <div class="ot__pv-card-head">
-                    <span class="ot__pv-kind">{{ widgetKindLabel(w.type) }}</span>
-                    <span v-if="w.layer" class="ot__pv-layer">{{ w.layer }}</span>
-                  </div>
-                  <div class="ot__pv-title">{{ w.title }}</div>
-                  <!-- Per-type mock body. -->
-                  <template v-if="w.type === 'metric'">
-                    <div class="ot__pv-bignum">
-                      {{ mockNumber(w.id) }}<span v-if="w.unit" class="ot__pv-unit">{{ w.unit }}</span>
+                  <MetricWidget
+                    v-if="w.type === 'metric'"
+                    :title="w.title"
+                    :tip="w.tip"
+                    :value="mockNumber(w.id)"
+                    :unit="w.unit"
+                  />
+                  <KpiTileWidget
+                    v-else-if="w.type === 'kpi-tile'"
+                    :title="w.title"
+                    :tip="w.tip"
+                    :layer="w.layer"
+                    :show-count="w.showCount ?? false"
+                    :count="mockNumber(w.id, 30)"
+                    :kpis="w.kpis ?? []"
+                    :kpi-values="mockKpiValues(w)"
+                  />
+                  <MetricCompositeWidget
+                    v-else-if="w.type === 'metric-composite'"
+                    :title="w.title"
+                    :tip="w.tip"
+                    :layer="w.layer"
+                    :kpis="w.kpis ?? []"
+                    :kpi-values="mockKpiValues(w)"
+                  />
+                  <article v-else class="ot__pv-card">
+                    <div class="ot__pv-card-head">
+                      <span class="ot__pv-kind">{{ widgetKindLabel(w.type) }}</span>
+                      <span v-if="w.layer" class="ot__pv-layer">{{ w.layer }}</span>
                     </div>
-                    <code v-if="w.mqe" class="ot__pv-mqe">{{ w.mqe }}</code>
-                  </template>
-                  <template v-else-if="w.type === 'alarms'">
+                    <div class="ot__pv-title">{{ w.title }}</div>
+                    <!-- Per-type mock body. -->
+                    <template v-if="w.type === 'alarms'">
                     <!-- Mock alarm rows — same shape as AlarmsWidget so
                          the operator sees the rail layout, not just a
                          count. Severity / message / scope all mocked. -->
@@ -973,102 +1356,134 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                     </svg>
                     <div class="ot__pv-sub">topology · {{ w.layer ?? '—' }}</div>
                   </template>
-                  <template v-else-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
-                    <!-- Split layout: number-style → count tiles grid;
-                         progress-bar style → bars grid. Mirrors how the
-                         real MetricCompositeWidget partitions its KPIs. -->
-                    <div v-if="(w.kpis ?? []).length === 0" class="ot__pv-empty">
-                      no KPI rows configured
-                    </div>
-                    <template v-else>
-                      <div
-                        v-if="kpiCountRows(w).length > 0"
-                        class="ot__pv-num-grid"
-                      >
-                        <div
-                          v-for="k in kpiCountRows(w)"
-                          :key="k.label"
-                          class="ot__pv-num-tile"
-                        >
-                          <span class="ot__pv-num-val">
-                            {{ mockNumber(w.id + k.label) }}<span v-if="k.unit" class="ot__pv-num-unit">{{ k.unit }}</span>
-                          </span>
-                          <span class="ot__pv-num-label">{{ k.label }}</span>
-                        </div>
-                      </div>
-                      <div
-                        v-if="kpiBarRows(w).length > 0"
-                        class="ot__pv-bar-grid"
-                      >
-                        <div
-                          v-for="k in kpiBarRows(w)"
-                          :key="k.label"
-                          class="ot__pv-bar-row"
-                        >
-                          <div class="ot__pv-bar-head">
-                            <span class="ot__pv-bar-label">{{ k.label }}</span>
-                            <span class="ot__pv-bar-val">
-                              {{ mockPercent(w.id + k.label) }}{{ k.unit ?? '%' }}
-                            </span>
-                          </div>
-                          <div class="ot__pv-bar">
-                            <span
-                              class="ot__pv-bar-fill"
-                              :style="{ width: mockPercent(w.id + k.label) + '%' }"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </template>
-                  </template>
-                </article>
+                  </article>
+                  <!-- Corner resize handle (drag to change span / rowSpan). -->
+                  <span
+                    class="ot__cw-resize"
+                    title="Drag to resize"
+                    @mousedown="onResizeStart($event, w, sec.cols)"
+                  />
+                </div>
               </div>
             </div>
             <div v-if="previewSections.length === 0" class="ot__pv-empty">
-              No widgets yet — add one above to see the preview.
+              No widgets yet — add one below.
             </div>
-          </section>
-
-          <div class="ot__actions">
-            <span v-if="flash" class="ot__flash">{{ flash }}</span>
-            <span v-else-if="isDirty" class="ot__dirty">unsaved changes</span>
-            <span v-else class="ot__clean">saved</span>
-            <button type="button" class="ot__btn" :disabled="!isDirty || saving" @click="onReset">
-              reset
-            </button>
-            <button
-              v-if="isDiverged && !sync.readOnly.value"
-              type="button"
-              class="ot__btn"
-              title="Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation)."
-              @click="openDiffModal"
-            >
-              show diff &amp; reset
-            </button>
-            <button
-              type="button"
-              class="ot__btn ot__btn--primary"
-              :disabled="!isDirty || saving"
-              title="Save this edit to the local bundled template. Publish it to OAP for everyone with “Sync all to OAP”."
-              @click="onSave"
-            >
-              {{ saving ? 'saving…' : 'save locally' }}
-            </button>
+            <!-- Add-widget composer, on the canvas (the drawer only shows
+                 when a widget is selected). -->
+            <div class="ot__add-widget">
+              <button
+                v-if="!composerOpen"
+                type="button"
+                class="ot__add-trigger"
+                @click="openComposer"
+              >
+                + Add widget
+              </button>
+              <article v-else class="ot__widget ot__composer">
+                <header class="ot__widget-head">
+                  <span class="ot__widget-kind">New widget</span>
+                </header>
+                <div class="ot__row">
+                  <label class="ot__field">
+                    <span>Type</span>
+                    <select v-model="composerType" class="ot__in ot__in--narrow">
+                      <option v-for="opt in WIDGET_TYPE_OPTIONS" :key="opt.type" :value="opt.type">
+                        {{ opt.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label v-if="composerType !== 'section-break'" class="ot__field">
+                    <span>Width (span)</span>
+                    <input v-model.number="composerSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                  <label v-if="composerType !== 'section-break'" class="ot__field">
+                    <span>Height (rows)</span>
+                    <input v-model.number="composerRowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
+                  </label>
+                </div>
+                <div class="ot__composer-foot">
+                  <span class="ot__composer-hint">
+                    A default title + content scaffold is generated; you can edit everything after creating.
+                  </span>
+                  <button type="button" class="ot__btn" @click="cancelComposer">cancel</button>
+                  <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">create</button>
+                </div>
+              </article>
+            </div>
+          </div>
           </div>
         </template>
       </section>
     </div>
 
-    <TemplateDiffModal
-      v-if="selectedId"
-      :open="diffModalOpen"
-      :name="`horizon.overview.${selectedId}`"
-      :confirm-key="selectedId"
-      @close="diffModalOpen = false"
-      @reset="onDiffReset"
-    />
+    <!-- Push confirm: shows the remote → local diff before publishing. -->
+    <Modal :open="pushDiffOpen" title="Publish local → OAP?" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+      <p class="ot__push-lede">
+        This replaces the live (remote) version with your local draft — live for everyone. Review the
+        diff (left = remote, right = your local):
+      </p>
+      <div class="ot__push-diff">
+        <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
+      </div>
+      <template #footer>
+        <button class="sw-btn" type="button" @click="pushDiffOpen = false">Cancel</button>
+        <button class="sw-btn is-primary" type="button" :disabled="saving" @click="pushToOap">
+          {{ saving ? 'Pushing…' : 'Confirm push' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- Delete / disable confirm — styled (not the native confirm box). -->
+    <Modal :open="deleteOpen" :title="deleteTitle" width="min(520px, 92vw)" @close="deleteOpen = false">
+      <p class="ot__confirm-msg">{{ deleteMessage }}</p>
+      <template #footer>
+        <button class="sw-btn" type="button" @click="deleteOpen = false">Cancel</button>
+        <button class="sw-btn is-danger" type="button" @click="confirmDeleteDash">{{ deleteConfirmLabel }}</button>
+      </template>
+    </Modal>
   </div>
 </template>
+
+<style scoped>
+.ot__confirm-msg { margin: 0; font-size: 13px; line-height: 1.55; color: var(--sw-fg-1); }
+.sw-btn.is-danger { border-color: rgba(239, 68, 68, 0.4); color: #f87171; }
+.sw-btn.is-danger:hover { background: var(--sw-err-soft, rgba(239, 68, 68, 0.12)); }
+.reset-dd { position: relative; display: inline-flex; }
+.reset-dd .caret { display: inline-block; transform: rotate(90deg); font-size: 11px; }
+.reset-dd .caret.open { transform: rotate(-90deg); }
+.reset-dd-backdrop { position: fixed; inset: 0; z-index: 40; }
+.reset-dd-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 41;
+  min-width: 130px;
+  padding: 4px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reset-dd-item {
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--sw-fg-1);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reset-dd-item:hover:not(:disabled) { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.reset-dd-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.ot__push-lede { margin: 0 0 10px; font-size: 12px; color: var(--sw-fg-2); line-height: 1.5; }
+.ot__push-diff { height: 50vh; min-height: 320px; border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; }
+</style>
 
 <style scoped>
 .ot { padding: 20px 20px 60px; max-width: 1400px; margin: 0 auto; }
@@ -1086,6 +1501,57 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 .ot__empty { padding: 32px; text-align: center; color: var(--sw-fg-3); font-size: 12px; }
 .ot__toolbar { display: flex; justify-content: flex-end; margin: 8px 0; }
 
+.ot__main { display: flex; flex-direction: column; gap: 12px; }
+.ot__picker-bar { display: flex; align-items: center; gap: 10px; }
+.ot__picker-count { font-size: 10.5px; color: var(--sw-fg-3); }
+.ot__dd { position: relative; display: flex; }
+.ot__dd-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 32px; padding: 0 12px;
+  background: var(--sw-bg-2); border: 1px solid var(--sw-line-2); border-radius: 6px;
+  color: var(--sw-fg-0); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; min-width: 240px;
+}
+.ot__dd-btn:hover { background: var(--sw-bg-3); }
+.ot__dd-btn .ot__dd-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; }
+.ot__dd-btn .ot__dd-id { font-family: var(--sw-mono); font-size: 10px; color: var(--sw-fg-3); background: var(--sw-bg-1); padding: 1px 5px; border-radius: 3px; }
+.ot__dd-btn .caret { margin-left: auto; transform: rotate(90deg); transition: transform 0.15s; font-size: 12px; }
+.ot__dd-btn .caret.open { transform: rotate(-90deg); }
+.ot__dd-backdrop { position: fixed; inset: 0; z-index: 40; }
+.ot__dd-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 41;
+  width: min(80vw, 560px); max-height: 60vh; display: flex; flex-direction: column;
+  background: var(--sw-bg-1); border: 1px solid var(--sw-line); border-radius: 8px;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,0.5); padding: 6px;
+}
+.ot__dd-filters { display: flex; gap: 12px; padding: 2px 4px 8px; border-bottom: 1px solid var(--sw-line); margin-bottom: 4px; }
+.ot__dd-filter { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--sw-fg-2); cursor: pointer; }
+.ot__dd-filter.on { color: var(--sw-fg-0); }
+.ot__dd-filter input:disabled { cursor: not-allowed; }
+.ot__dd-fc { padding: 0 5px; border-radius: 8px; background: var(--sw-warn, var(--sw-accent)); color: #1a1a1a; font-size: 9.5px; font-weight: 700; }
+.ot__dd-search { padding: 2px 2px 6px; }
+.ot__dd-search input {
+  width: 100%; box-sizing: border-box; height: 30px; padding: 0 8px;
+  background: var(--sw-bg-2); border: 1px solid var(--sw-line-2); border-radius: 5px; color: var(--sw-fg-0); font: inherit; font-size: 12px;
+}
+.ot__dd-search input:focus { outline: none; border-color: var(--sw-accent); }
+.ot__dd-list { overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.ot__dd-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 9px; border: none; background: transparent; border-radius: 5px;
+  color: var(--sw-fg-1); font: inherit; font-size: 12px; text-align: left; cursor: pointer;
+}
+.ot__dd-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.ot__dd-item.active { background: var(--sw-accent-soft); color: var(--sw-accent-2); box-shadow: inset 2px 0 0 var(--sw-accent); }
+.ot__dd-item-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ot__dd-item code { font-family: var(--sw-mono); font-size: 10px; color: var(--sw-fg-3); }
+.ot__dd-item-count { font-family: var(--sw-mono); font-size: 10px; color: var(--sw-fg-3); }
+.ot__dd-empty { padding: 10px; font-size: 11px; color: var(--sw-fg-3); }
+.ot__local-badge {
+  flex: 0 0 auto; font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #1a1a1a; background: var(--sw-warn, #f59e0b);
+  padding: 1px 6px; border-radius: 8px;
+}
+.ot__dd-new { border-top: 1px solid var(--sw-line); margin-top: 4px; padding: 8px 2px 2px; }
 .ot__split { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
 .ot__list {
   list-style: none; margin: 0; padding: 0;
@@ -1103,9 +1569,16 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 .ot__list-empty { padding: 24px; text-align: center; font-size: 12px; color: var(--sw-fg-3); }
 .ot__list-add { padding: 8px; border-top: 1px solid var(--sw-line); }
 .ot__add-trigger--list { font-size: 11.5px; padding: 6px; }
-.ot__newdash { display: flex; flex-direction: column; gap: 6px; padding: 6px; }
+.ot__newdash { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; }
+.ot__newdash-head {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sw-fg-2); padding-bottom: 8px; border-bottom: 1px solid var(--sw-line);
+}
 .ot__newdash-err { font-size: 11px; color: var(--sw-err); }
-.ot__newdash-foot { display: flex; gap: 6px; justify-content: flex-end; }
+.ot__newdash-foot {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding-top: 8px; border-top: 1px solid var(--sw-line);
+}
 .ot__head-btn {
   background: transparent;
   border: 1px solid var(--sw-line-2);
@@ -1183,7 +1656,14 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   border-bottom: 1px dashed var(--sw-line);
   margin-bottom: 6px;
 }
-.ot__pv-grid { display: grid; gap: 6px; }
+/* Mirror the live renderer's section grid (OverviewDashboardView): fixed
+   72px auto-rows so `rowSpan` is real height and `span` columns sit
+   side-by-side, instead of collapsing to content height (which stacks a
+   span-9 topology above a span-3 alarms rather than beside it). */
+.ot__pv-grid { display: grid; grid-auto-rows: 72px; gap: 8px; }
+/* Inner widget fills its spanned cell, like the live page (grid items
+   stretch by default; the inner component must take the full height). */
+.ot__cw > *:not(.ot__cw-resize) { height: 100%; box-sizing: border-box; }
 .ot__pv-card {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
@@ -1317,10 +1797,89 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 }
 
 .ot__detail { background: var(--sw-bg-1); border: 1px solid var(--sw-line); border-radius: 8px; padding: 16px; }
-.ot__detail-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+/* One-page editor: canvas (left, mock-data grid) + drawer (right, editor).
+   DOM order is drawer-then-canvas; `order` flips them visually. */
+.ot__editor-split { display: flex; gap: 14px; align-items: flex-start; }
+.ot__canvas-pane { order: 1; flex: 1 1 0; min-width: 0; }
+.ot__drawer-pane {
+  order: 2;
+  flex: 0 0 380px;
+  max-width: 380px;
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 90px);
+  overflow-y: auto;
+  border-left: 1px solid var(--sw-line);
+  padding-left: 14px;
+}
+.ot__canvas-hint { font-size: 10.5px; color: var(--sw-fg-3); margin-bottom: 8px; }
+.ot__canvas-title {
+  margin-bottom: 12px; padding: 4px 6px 10px; cursor: pointer; border-radius: 6px;
+  /* Same selectable hint as the canvas cells. */
+  outline: 1px dashed var(--sw-line-2); outline-offset: 2px;
+}
+.ot__canvas-title:hover { background: var(--sw-bg-2); outline-color: var(--sw-fg-3); }
+.ot__canvas-title h2 { margin: 0; font-size: 17px; font-weight: 600; color: var(--sw-fg-0); }
+.ot__canvas-desc { margin: 4px 0 0; font-size: 12px; color: var(--sw-fg-2); line-height: 1.5; max-width: 760px; }
+.ot__drawer-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--sw-line); }
+.ot__drawer-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--sw-fg-2); font-weight: 600; }
+.ot__drawer-close { margin-left: auto; background: transparent; border: none; color: var(--sw-fg-3); font-size: 14px; cursor: pointer; width: 22px; height: 22px; border-radius: 4px; }
+.ot__drawer-close:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+/* Canvas cell: selectable wrapper. The inner preview is pointer-events:none
+   so clicking selects the widget (instead of following its link). */
+.ot__cw {
+  position: relative;
+  min-width: 0;
+  cursor: grab;
+  border-radius: 8px;
+  /* Dashed hint that the tile is selectable; firms up on hover, becomes a
+     solid accent outline when selected. */
+  outline: 1px dashed var(--sw-line-2);
+  outline-offset: 2px;
+}
+.ot__cw:hover { outline-color: var(--sw-fg-3); }
+.ot__cw:active { cursor: grabbing; }
+.ot__cw > * { pointer-events: none; }
+.ot__cw--sel { outline: 2px solid var(--sw-accent) !important; outline-offset: 1px; border-radius: 8px; }
+.ot__cw--drag { opacity: 0.45; }
+/* Corner resize handle — overrides the cell's pointer-events:none so it
+   can capture its own mousedown. */
+.ot__cw-resize {
+  pointer-events: auto;
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  border-right: 2px solid var(--sw-fg-3);
+  border-bottom: 2px solid var(--sw-fg-3);
+  border-bottom-right-radius: 3px;
+  opacity: 0.5;
+}
+.ot__cw:hover .ot__cw-resize { opacity: 0.9; }
+/* Section-break rendered as a selectable header in the canvas. */
+.ot__pv-sb {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  border-radius: 5px; padding: 5px 8px; margin-bottom: 6px;
+  /* Same selectable hint as the canvas cells. */
+  outline: 1px dashed var(--sw-line-2); outline-offset: 2px;
+}
+.ot__pv-sb:hover { background: var(--sw-bg-2); outline-color: var(--sw-fg-3); }
+.ot__pv-sb-tag {
+  font-size: 8.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--sw-accent); border: 1px solid var(--sw-accent-line, var(--sw-accent));
+  border-radius: 3px; padding: 0 4px;
+}
+.ot__pv-sb-title { flex: 1; font-weight: 600; color: var(--sw-fg-0); text-transform: none; letter-spacing: 0; }
+.ot__pv-sb-cols { font-size: 9.5px; color: var(--sw-fg-3); font-family: var(--sw-mono); }
+.ot__detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.ot__head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.ot__detail-subhead { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-bottom: 12px; }
+.ot__del-note { font-size: 10.5px; color: var(--sw-fg-3); font-style: italic; }
 .ot__detail-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .ot__detail-head h2 code { font-family: var(--sw-mono); color: var(--sw-fg-0); }
-.ot__count { font-size: 11px; color: var(--sw-fg-3); margin-left: auto; }
+.ot__count { font-size: 11px; color: var(--sw-fg-3); }
 
 /* Per-widget card */
 .ot__widgets { display: flex; flex-direction: column; gap: 10px; }
@@ -1451,17 +2010,28 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   padding: 2px 10px; border-radius: 4px; cursor: pointer;
 }
 .ot__add-btn:hover { color: var(--sw-fg-0); border-style: solid; }
-.ot__kpi-table { width: 100%; border-collapse: collapse; }
-.ot__kpi-table thead th {
-  text-align: left; font-size: 9px;
-  text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--sw-fg-3); font-weight: 600;
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--sw-line);
+/* KPI rows as stacked cards (the drawer is sidebar-narrow — a wide table
+   row truncates every column). One bordered card per row; full-width
+   Label/Source/MQE, then a 2-col Unit/Aggr/Style/Max grid. */
+.ot__kpi-cards { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ot__kpi-card {
+  background: var(--sw-bg-2); border: 1px solid var(--sw-line);
+  border-radius: 5px; padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 8px;
 }
-.ot__kpi-table tbody td { padding: 4px; vertical-align: middle; }
-.ot__kpi-table input.ot__in,
-.ot__kpi-table select.ot__in { width: 100%; min-width: 0; }
+.ot__kpi-card-head { display: flex; align-items: center; gap: 6px; }
+.ot__kpi-card-idx {
+  font-size: 10px; font-weight: 700; font-family: var(--sw-mono);
+  color: var(--sw-fg-3);
+}
+.ot__kpi-card-ord { display: inline-flex; gap: 2px; margin-left: auto; }
+.ot__kpi-card-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.ot__kpi-card .ot__field { min-width: 0; }
+.ot__kpi-card .ot__field--full { grid-column: 1 / -1; }
+.ot__kpi-card .ot__in { width: 100%; box-sizing: border-box; }
+.ot__kpi-card .ot__none { margin: 0; }
 .ot__arrow {
   background: transparent; border: 0;
   color: var(--sw-fg-2); font: inherit; font-size: 12px;
@@ -1508,10 +2078,19 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   font-style: italic;
 }
 
-.ot__actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
-.ot__flash { font-size: 11px; color: var(--sw-ok); margin-right: auto; }
-.ot__dirty { font-size: 11px; color: var(--sw-warn); margin-right: auto; }
-.ot__clean { font-size: 11px; color: var(--sw-fg-3); margin-right: auto; }
+.ot__flash { font-size: 11px; color: var(--sw-ok); }
+.ot__dirty { font-size: 11px; color: var(--sw-warn); }
+.ot__src {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-fg-3);
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+.ot__clean { font-size: 11px; color: var(--sw-fg-3); }
 .ot__btn {
   background: var(--sw-bg-1); border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-0); font: inherit; font-size: 12px;

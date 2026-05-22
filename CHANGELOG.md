@@ -9,7 +9,98 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.6.0
 
-(In development — fill in highlights here before cutting the release.)
+### Dashboard authoring — browser-local drafts + preview
+
+The Layer dashboards and Overview templates admin pages now share one
+editing model where your work-in-progress lives in your browser, and the
+live, shared version is whatever OAP serves.
+
+- **Edits are local to your browser.** "Save (local)" stores your draft in
+  this browser only — it is never written to the server and nobody else
+  sees it. Everyone (including you, in normal viewing) keeps seeing the
+  published remote dashboard until you publish.
+- **Load any source into the editor.** A single **Reset to ▾** control loads
+  the **Bundled** (shipped default) or **Remote** (OAP live) version into the
+  editor; editing from there becomes your local draft.
+- **Preview any source on the real page.** A **Preview ▾** control opens the
+  actual layer / overview page in a new tab rendering your **Local** draft,
+  the **Bundled** default, or **Remote** — via `?mode=preview&source=…`,
+  which stays in the URL and propagates as you navigate the menu. A banner
+  names what you're previewing (dismiss with × or Esc).
+- **Publish with a diff.** **Check diff & push** shows a side-by-side
+  local→remote diff and publishes to OAP; it's enabled only when your local
+  draft actually differs from remote. Bundled can also be pushed straight to
+  OAP. Resetting to remote clears the local draft.
+- Preview faithfully reflects your draft's **enabled components / menu
+  labels** — disabled tabs disappear and renamed nouns ("Nodes", "Topics")
+  show through — without pushing anything to the server. Preview works even
+  for layers OAP currently reports no services for.
+- An editors-only reminder lists any unpublished local drafts with quick
+  links to the relevant edit page (no more "use local vs remote" prompt —
+  remote is always the live source).
+- **Create mirrors edit.** "+ New dashboard" writes a local draft (the id
+  is the template name, checked unique) — edit and preview it, then
+  **Check diff & push** publishes it. A pushed dashboard with no bundled
+  default is **remote-only** and now renders everywhere (live page +
+  sidebar), not just in the editor.
+- **Delete = soft-disable** (OAP has no hard delete). A local-only draft is
+  removed from the browser; a dashboard on OAP is disabled — dropped from
+  the picker's live state, the sidebar, and the live page. A **disabled**
+  status chip shows it. Confirmations are styled in-app dialogs, not the
+  browser's native box.
+
+### Layer dashboards editor
+
+- The layer picker is a single filterable dropdown showing alias + key +
+  sync status. A live **menu preview** sits beside the Alias / Components /
+  **Menu labels** (per-layer slot aliases) editor; clicking a menu item
+  jumps to that component's config. Scope tabs and section headings read in
+  the layer's own vocabulary.
+- The service-list metrics editor gains a **sample-data preview** (plus a
+  faithful **landing KPI tile** preview that reuses the real header
+  components), the column remove-button alignment is fixed, and the landing
+  KPI tile config makes clear it just picks which existing column feeds the
+  headline + sparkline.
+- The picker's Diverged / Local filters now sit **inside the dropdown**
+  (next to the search), and the editor header reads on one line —
+  `Layer: <name> <key> <status>` — showing the same sync-status chip the
+  picker does.
+- **Disable / Reactivate a layer.** Disabling soft-disables the layer on
+  OAP and drops it from the sidebar (the menu honors disabled templates);
+  a disabled layer offers **Reactivate**, which re-enables it from the
+  bundled default (the OAP update path clears the disabled flag).
+
+### Overview templates editor
+
+- Rebuilt as a **layer-style canvas**: a 12-column grid you drag to
+  reorder and corner-drag to resize, click-to-edit in a right drawer that
+  appears on selection (Esc / deselect hides it), with section-breaks and
+  the dashboard title selectable and unselected widgets hinted by a dashed
+  outline. The canvas mirrors the live grid (fixed row height), so the
+  layout matches the real page — including side-by-side widgets like
+  topology + alarms.
+- The **composite-metrics** KPI editor stacks each row as a card
+  (label / source / MQE / unit / aggr / style / max) so nothing truncates
+  in the narrow drawer.
+
+### Navigation & shell
+
+- The **main sidebar folds** to a narrow rail to reclaim width; the logo
+  moves into the topbar while folded (the original wordmark is unchanged).
+- The active menu item now reliably expands, highlights, and scrolls into
+  view on entering a page (route matching is case-insensitive). Fixed a
+  regression where the sidebar scrolled to the very bottom on every
+  navigation (the "Debug events" toggle's active state was being treated
+  as the scroll target).
+- **Zipkin trace mode** drops the per-layer service-KPI header — the Zipkin
+  explorer is a self-contained, cross-service view.
+
+### Reliability
+
+- When the BFF is unreachable the UI now shows a clear "Cannot reach the
+  server" message instead of the cryptic "body stream already read" — the
+  API client reads each error response body once and surfaces the real
+  status/text (or a wrapped network error).
 
 ## 0.5.0
 

@@ -37,8 +37,34 @@ import { bffClient } from '@/api/client';
 import { pushEvent } from '@/controls/eventLog';
 import { debug } from '@/utils/debug';
 import { useTemplatePreference } from '@/controls/templatePreference';
+import { useLocalTemplateEdits, layerEditName, overviewEditName } from '@/controls/localTemplateEdits';
+import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
+import { usePreviewOverride } from '@/controls/previewOverride';
 import type { ConfigBundle, BundleScopeMap } from '@/api/scopes/configs';
 import type { DashboardWidget, OverviewDashboard } from '@skywalking-horizon-ui/api-client';
+
+// Browser-side unpublished drafts. Overlaid on live pages ONLY while the
+// route is in `?mode=preview` — the editor's explicit preview entrance.
+// Normal viewing always renders remote; the draft is never shown to other
+// users or in plain review.
+const localEdits = useLocalTemplateEdits();
+const previewMode = usePreviewMode();
+// The Preview dropdown can preview ANY source (local/bundled/remote); it
+// writes the chosen content here and this takes precedence over the draft.
+const previewOverride = usePreviewOverride();
+
+/** Content to overlay for `name` while previewing, or undefined.
+ *  `source=local` reads the LIVE local draft (so it follows Reset/Save —
+ *  no stale snapshot); `bundled`/`remote` read the override snapshot the
+ *  Preview dropdown captured. */
+function previewContentFor<T>(name: string): T | undefined {
+  if (!previewMode.value) return undefined;
+  const src = getPreviewSource();
+  if (src === 'local') return localEdits.get<T>(name);
+  if (src === 'bundled' || src === 'remote') return previewOverride.get<T>(name);
+  // No explicit source (hand-typed ?mode=preview) — override then draft.
+  return previewOverride.get<T>(name) ?? localEdits.get<T>(name);
+}
 
 /** `local` only when the operator opted to preview unpublished edits;
  *  otherwise `remote` (the default runtime source of truth). */
@@ -157,15 +183,40 @@ export function getDashboardConfig(
   layerKey: string,
   scope: 'service' | 'instance' | 'endpoint',
 ): DashboardWidget[] | null {
+  // In preview mode, overlay the previewed source's content for this layer.
+  type LayerContent = { dashboards?: Record<string, DashboardWidget[]>; widgets?: DashboardWidget[] };
+  const draft = previewContentFor<LayerContent>(layerEditName(layerKey));
+  if (draft) {
+    const d = draft.dashboards?.[scope] ?? (scope === 'service' ? draft.widgets : undefined);
+    if (d !== undefined) return d;
+  }
   const b = state.value;
   if (!b) return null;
   const layer = b.layers[layerKey.toLowerCase()] as BundleScopeMap | undefined;
   return layer?.[scope] ?? null;
 }
 
-/** Sync lookup. Returns null when the bundle hasn't loaded yet. */
+/** Sync lookup. Returns null when the bundle hasn't loaded yet. Local
+ *  browser drafts replace the matching overview for the editing operator. */
 export function getOverviews(): OverviewDashboard[] | null {
-  return state.value?.overviews ?? null;
+  const base = state.value?.overviews ?? null;
+  if (!base) return null;
+  if (!previewMode.value) return base;
+  // Overlay each overview with its previewed source's content…
+  const out = base.map((ov) => previewContentFor<OverviewDashboard>(overviewEditName(ov.id)) ?? ov);
+  // …and inject previewed overviews absent from the bundle.
+  const seen = new Set(base.map((o) => o.id));
+  for (const name of [...previewOverride.names(), ...localEdits.names()]) {
+    if (!name.startsWith('horizon.overview.')) continue;
+    const id = name.slice('horizon.overview.'.length);
+    if (seen.has(id)) continue;
+    const content = previewContentFor<OverviewDashboard>(name);
+    if (content) {
+      out.push(content);
+      seen.add(id);
+    }
+  }
+  return out;
 }
 
 export function useConfigBundle(): {

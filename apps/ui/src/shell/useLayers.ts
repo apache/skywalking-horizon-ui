@@ -19,6 +19,10 @@ import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
+import { usePreviewOverride } from '@/controls/previewOverride';
+import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
+import { layerContentToDef, overlayLayerDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 
 /**
  * Live OAP-driven layer + menu state. Fed by `GET /api/menu`. Refetches on
@@ -37,7 +41,51 @@ export function useLayers() {
     refetchOnWindowFocus: true,
   });
 
-  const layers = computed<LayerDef[]>(() => q.data.value?.layers ?? []);
+  const previewMode = usePreviewMode();
+  const previewOverride = usePreviewOverride();
+  const localEdits = useLocalTemplateEdits();
+
+  /** Preview content for a layer key. `source=local` reads the live local
+   *  draft; `bundled`/`remote` read the override snapshot. */
+  function previewContent(key: string): LayerTemplateContent | null {
+    const name = layerEditName(key);
+    const src = getPreviewSource();
+    if (src === 'local') return localEdits.get<LayerTemplateContent>(name) ?? null;
+    if (src === 'bundled' || src === 'remote') return previewOverride.get<LayerTemplateContent>(name) ?? null;
+    return (
+      previewOverride.get<LayerTemplateContent>(name) ??
+      localEdits.get<LayerTemplateContent>(name) ??
+      null
+    );
+  }
+
+  // In preview mode the per-layer tab set must reflect the previewed
+  // template (its `components`/`slots`), so the sidebar overlays caps/slots
+  // from the draft — and injects a previewed layer OAP doesn't list (no
+  // live data) so the operator can navigate its tabs. Nothing is pushed to
+  // OAP; this is browser-side only.
+  const layers = computed<LayerDef[]>(() => {
+    const base = q.data.value?.layers ?? [];
+    if (!previewMode.value) return base;
+    const seen = new Set(base.map((L) => L.key.toUpperCase()));
+    const overlaid = base.map((L) => {
+      const content = previewContent(L.key);
+      return content ? overlayLayerDef(L, content) : L;
+    });
+    // Inject previewed layers absent from the live menu.
+    const injected: LayerDef[] = [];
+    for (const name of [...previewOverride.names(), ...localEdits.names()]) {
+      if (!name.startsWith('horizon.layer.')) continue;
+      const key = name.slice('horizon.layer.'.length);
+      if (seen.has(key.toUpperCase())) continue;
+      const content = previewContent(key);
+      if (content) {
+        injected.push(layerContentToDef(content));
+        seen.add(key.toUpperCase());
+      }
+    }
+    return [...overlaid, ...injected];
+  });
   /**
    * Layers known to OAP (returned by `listLayers`). May include stale
    * registry entries — receivers that ever ingested but currently have no

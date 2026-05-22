@@ -41,3 +41,6 @@ horizon.yaml
 horizon-audit.jsonl
 horizon-wire.jsonl
 horizon-setup.json
+
+# Release
+scripts/.release-work

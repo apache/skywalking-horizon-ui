@@ -46,16 +46,21 @@ import type {
  *  ProcessRelation MQE. */
 type AdminScope = DashboardScope | 'networkProfiling';
 import { bff, bffClient } from '@/api/client';
+import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
+import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
+import { usePreviewOverride } from '@/controls/previewOverride';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
+import Sparkline from '@/components/charts/Sparkline.vue';
 import { fmtMetric } from '@/utils/formatters';
+import { stableStringify } from '@/utils/stableJson';
 import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './widget-mock';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
-import SyncAllButton from '@/features/admin/_shared/SyncAllButton.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
-import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
+import Modal from '@/features/operate/_shared/Modal.vue';
+import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
 // OAP UI-template sync status for layer dashboards. Drives the banner +
 // Save gating + per-row badge below.
@@ -100,25 +105,29 @@ const selectedKey = ref<string>('');
 const activeScope = ref<AdminScope>('service');
 const isSaving = ref(false);
 const saveMsg = ref<string | null>(null);
-/** When false the layers rail collapses to a thin dot-strip so the
- *  editor can claim the full width. The toggle in the rail header
- *  flips this; layer switching still works via dot click. */
-const layerListOpen = ref(true);
+/** When false the browse rail is hidden entirely and layer switching
+ *  moves to the top dropdown inside the editor — the editor claims the
+ *  full width. Defaults collapsed; the rail is an opt-in browse mode.
+ *  Selecting a layer from the rail re-collapses it (see `selectLayer`). */
+const layerListOpen = ref(false);
 /** Free-text filter for the layers rail — matches alias or key. */
 const layerSearch = ref('');
 // When on, the list shows only layers whose bundled copy differs from
 // OAP (diverged) or isn't on OAP yet (bundled-fallback) — i.e. the set
 // "Sync all to OAP" would push. Off shows every layer.
 const divergedOnly = ref(false);
+const localOnly = ref(false);
 function isDivergedRow(key: string): boolean {
   const s = sync.badgeFor(`horizon.layer.${key}`);
   return s === 'diverged' || s === 'bundled-fallback';
 }
 const divergedCount = computed(() => templates.value.filter((t) => isDivergedRow(t.key)).length);
+const localCount = computed(() => templates.value.filter((t) => localEdits.has(layerEditName(t.key))).length);
 const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
   const q = layerSearch.value.trim().toLowerCase();
   return templates.value.filter((t) => {
     if (divergedOnly.value && !isDivergedRow(t.key)) return false;
+    if (localOnly.value && !localEdits.has(layerEditName(t.key))) return false;
     if (!q) return true;
     return (t.alias ?? '').toLowerCase().includes(q) || t.key.toLowerCase().includes(q);
   });
@@ -127,6 +136,15 @@ const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
 /** Working copy — reactively edited. Diffs against `templates` to drive
  *  the Save / Reset state. */
 const draft = reactive<{ template: AdminLayerTemplate | null }>({ template: null });
+
+// Unpublished edits live in THIS browser (localStorage), not on the BFF
+// disk. The editor seeds from the browser draft when one exists, and the
+// config bundle overlays it on live pages — see controls/localTemplateEdits.
+const localEdits = useLocalTemplateEdits();
+// Server-side bundled + remote content for the Reset-to / Preview editor
+// sources. Local (browser draft) comes from `localEdits`.
+const sources = useTemplateSources('layer');
+const previewOverride = usePreviewOverride();
 
 async function loadAll(): Promise<void> {
   isLoading.value = true;
@@ -179,10 +197,124 @@ watch(
   },
 );
 
-function syncDraft(): void {
-  const tpl = templates.value.find((t) => t.key === selectedKey.value);
-  draft.template = tpl ? JSON.parse(JSON.stringify(tpl)) : null;
+/* ── Editor sources ───────────────────────────────────────────────
+ * The editor loads from one of three sources: LOCAL (browser draft),
+ * BUNDLED (shipped default), or REMOTE (OAP live). `editorSource` tracks
+ * which is loaded; `loadedSnapshot` is the content at load/save time and
+ * is the baseline for `dirty` (= unsaved edits since the last load/save).
+ * Saving always writes LOCAL; you then publish LOCAL → OAP.
+ * ─────────────────────────────────────────────────────────────────── */
+const editorSource = ref<'local' | 'bundled' | 'remote'>('bundled');
+const loadedSnapshot = ref<string>('');
+const editName = computed(() => layerEditName(selectedKey.value));
+const hasLocalDraft = computed(() => localEdits.has(editName.value));
+const remoteAvailable = computed(() => sources.hasRemote(editName.value));
+// Ships a bundled default → not deletable (delete would fall back to the
+// bundle, so the row reappears). Drives the disabled delete button + the
+// guard in deleteCurrentLayer. Effectively true for every shipped layer.
+const bundledExists = computed(() => sources.hasBundled(editName.value));
+/** Whether a given layer key has an unpublished local browser draft —
+ *  drives the "local" badge in the picker (the sync badge only reflects
+ *  bundled-vs-remote, not your local draft). */
+function hasLocalDraftFor(key: string): boolean {
+  return localEdits.has(layerEditName(key));
+}
+
+function bundledContent(): AdminLayerTemplate | undefined {
+  return (
+    sources.bundled<AdminLayerTemplate>(editName.value) ??
+    templates.value.find((t) => t.key === selectedKey.value)
+  );
+}
+function sourceContent(src: 'local' | 'bundled' | 'remote'): AdminLayerTemplate | null | undefined {
+  if (src === 'local') return localEdits.get<AdminLayerTemplate>(editName.value);
+  if (src === 'remote') return sources.remote<AdminLayerTemplate>(editName.value);
+  return bundledContent();
+}
+function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
+  const c = sourceContent(src);
+  draft.template = c ? JSON.parse(JSON.stringify(c)) : null;
+  loadedSnapshot.value = draft.template ? JSON.stringify(draft.template) : '';
+  editorSource.value = src;
   saveMsg.value = null;
+}
+/** Seed the editor when the selected layer changes: your local draft if
+ *  you have one, else the bundled default (always available; "Reset to →
+ *  remote" pulls the live version). */
+function syncDraft(): void {
+  loadFrom(hasLocalDraft.value ? 'local' : 'bundled');
+}
+
+/** Write the editor content to the local draft. If it equals remote, the
+ *  draft is cleared instead (no point keeping a draft identical to live) —
+ *  this is what makes "Reset to remote" + an edit back to remote disable
+ *  Push. Drives `hasLocalDraft` / `localDiffersFromRemote` reactively. */
+function persistLocal(content: AdminLayerTemplate): void {
+  const remote = sources.remote<AdminLayerTemplate>(editName.value);
+  if (remote && stableStringify(content) === stableStringify(remote)) {
+    localEdits.remove(editName.value);
+  } else {
+    localEdits.set(editName.value, JSON.parse(JSON.stringify(content)));
+  }
+  loadedSnapshot.value = JSON.stringify(content);
+}
+
+// "Reset to ▾" dropdown — reload the editor from a source AND adopt it as
+// the local draft (so the choice persists + Push/diff status updates).
+const resetDropdownOpen = ref(false);
+function resetTo(src: 'bundled' | 'remote'): void {
+  loadFrom(src);
+  if (draft.template) persistLocal(draft.template);
+  resetDropdownOpen.value = false;
+}
+
+/** Rail click: switch layer and collapse the rail so the editor reclaims
+ *  the full width (subsequent switching uses the top dropdown). */
+function selectLayer(key: string): void {
+  selectedKey.value = key;
+  layerListOpen.value = false;
+}
+
+/** Collapsed-mode switcher dropdown. Reuses the same `layerSearch` +
+ *  `filteredTemplates` as the rail so the two browse surfaces filter
+ *  identically — no native <select>. */
+const layerDropdownOpen = ref(false);
+function pickFromDropdown(key: string): void {
+  selectedKey.value = key;
+  layerDropdownOpen.value = false;
+}
+
+/** First per-layer tab segment for the live route, derived from enabled
+ *  components (mirrors the sidebar's firstLayerTab fallback order). */
+function firstTabFor(tpl: AdminLayerTemplate | null): string {
+  const c = tpl?.components ?? {};
+  if (c.service) return 'service';
+  if (c.instances) return 'instance';
+  if (c.endpoints) return 'endpoint';
+  if (c.topology) return 'topology';
+  if (c.endpointDependency) return 'dependency';
+  if (c.traces) return 'trace';
+  if (c.logs) return 'logs';
+  if (c.traceProfiling) return 'trace-profiling';
+  if (c.ebpfProfiling) return 'ebpf-profiling';
+  if (c.asyncProfiling) return 'async-profiling';
+  return 'service';
+}
+// "Preview ▾" dropdown — open the REAL layer page in a new tab rendering
+// the chosen source (local / bundled / remote). Writes the content to the
+// preview-override store so the new tab's overlay renders exactly it
+// (?mode=preview also lets LayerShell render layers OAP doesn't list).
+const previewDropdownOpen = ref(false);
+function previewLive(src: 'local' | 'bundled' | 'remote'): void {
+  const content = sourceContent(src);
+  if (!content) return;
+  previewOverride.set(editName.value, content);
+  const href = router.resolve({
+    path: `/layer/${selectedKey.value}/${firstTabFor(content)}`,
+    query: { mode: 'preview', source: src },
+  }).href;
+  previewDropdownOpen.value = false;
+  window.open(href, '_blank', 'noopener');
 }
 
 watch(selectedKey, syncDraft);
@@ -222,10 +354,10 @@ watch(visibleScopes, (scopes) => {
   }
 });
 
+// Unsaved keystrokes: editor differs from the content last loaded/saved.
 const dirty = computed(() => {
-  const original = templates.value.find((t) => t.key === selectedKey.value);
-  if (!original || !draft.template) return false;
-  return JSON.stringify(original) !== JSON.stringify(draft.template);
+  if (!draft.template) return false;
+  return JSON.stringify(draft.template) !== loadedSnapshot.value;
 });
 
 function widgetsFor(scope: AdminScope): DashboardWidget[] {
@@ -486,39 +618,49 @@ function textToExpressions(s: string): string[] {
     .filter((x) => x.length > 0);
 }
 
-// Diverged-row diff & reset: when OAP's copy of the selected layer
-// differs from bundled, opening the diff modal shows a side-by-side
-// and lets the operator reset OAP back to bundled (with
-// destructive-confirm — must type the layer key).
-const selectedStatus = computed(() =>
-  selectedKey.value ? sync.badgeFor(`horizon.layer.${selectedKey.value}`) : null,
-);
-const isDiverged = computed(() => selectedStatus.value === 'diverged');
-const diffModalOpen = ref(false);
-function openDiffModal(): void { diffModalOpen.value = true; }
-function onDiffReset(): void {
-  saveMsg.value = 'OAP reset to bundled. Reload to see widget changes.';
-  setTimeout(() => (saveMsg.value = null), 2400);
+
+/** Save the current editor state to the browser local draft. This is the
+ *  only "save" — it never writes OAP. Publish later with "Push local → OAP". */
+function save(): void {
+  if (!draft.template) return;
+  persistLocal(draft.template);
+  editorSource.value = 'local';
+  saveMsg.value = 'Saved to your browser (local). Publish with “Check diff & push”.';
+  setTimeout(() => (saveMsg.value = null), 6000);
 }
 
-async function save(): Promise<void> {
-  if (!draft.template || isSaving.value) return;
+// Push = publish local → remote. Available only when a local draft exists
+// AND differs from remote; the confirm modal shows the remote→local diff.
+const pushDiffOpen = ref(false);
+// Key-stable so a one-field edit doesn't read as "everything changed" —
+// OAP stores keys alphabetically; the local draft is in authored order.
+function prettyJson(o: unknown): string {
+  return o ? stableStringify(o, 2) : '';
+}
+const localDiffersFromRemote = computed<boolean>(() => {
+  const local = localEdits.get<AdminLayerTemplate>(editName.value);
+  if (!local) return false;
+  return stableStringify(local) !== stableStringify(sources.remote<AdminLayerTemplate>(editName.value) ?? null);
+});
+const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
+const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
+
+/** Publish the local draft to OAP (live for everyone), then clear it and
+ *  reload from remote. */
+async function pushToOap(): Promise<void> {
+  const local = localEdits.get<AdminLayerTemplate>(editName.value);
+  if (!local || isSaving.value) return;
   isSaving.value = true;
   saveMsg.value = null;
   try {
-    // Save writes the LOCAL bundled template (not OAP) — the edit
-    // renders locally immediately and shows as diverged until it's
-    // published to OAP via "Sync all to OAP". Works even when OAP is
-    // unreachable.
-    await bff.templateSync.saveLocal(`horizon.layer.${draft.template.key}`, draft.template);
-    const idx = templates.value.findIndex((t) => t.key === selectedKey.value);
-    if (idx >= 0) {
-      templates.value[idx] = JSON.parse(JSON.stringify(draft.template));
-    }
-    syncDraft();
-    await refreshConfigBundle(); // refresh diverged badges + sidebar warning
-    saveMsg.value = 'Saved locally — not yet live for others. Use “Sync all to OAP” to publish this change.';
-    setTimeout(() => (saveMsg.value = null), 7000);
+    await bff.templateSync.save(editName.value, local);
+    localEdits.remove(editName.value);
+    previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    loadFrom('remote');
+    pushDiffOpen.value = false;
+    saveMsg.value = 'Published your local draft to OAP — now live for everyone.';
+    setTimeout(() => (saveMsg.value = null), 6000);
   } catch (err) {
     saveMsg.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -526,8 +668,105 @@ async function save(): Promise<void> {
   }
 }
 
-function reset(): void {
-  syncDraft();
+// ── Disable / reactivate (OAP has no hard DELETE) ──────────────────
+// Disabling soft-disables the layer on OAP: a disabled template drops out
+// of the bundle AND the menu, so the layer disappears from the sidebar.
+// Reactivating re-pushes the bundled default to OAP, which clears the
+// disabled flag and the layer reappears. A purely local draft (no OAP
+// presence) is just removed from the browser.
+//
+// Styled confirm (replaces window.confirm — native box breaks the dark
+// design). One modal serves both actions via a stored `confirmFn`.
+const isLayerDisabled = computed(() => sync.badgeFor(editName.value) === 'disabled');
+const deleteOpen = ref(false);
+const confirmTitle = ref('');
+const confirmMessage = ref('');
+const confirmLabel = ref('');
+const confirmIsDanger = ref(true);
+let confirmFn: (() => void | Promise<void>) | null = null;
+function runConfirm(): void {
+  deleteOpen.value = false;
+  const fn = confirmFn;
+  confirmFn = null;
+  if (fn) void fn();
+}
+function askDeleteLayer(): void {
+  const key = selectedKey.value;
+  if (!key || !editName.value) return;
+  const onOap = remoteAvailable.value || bundledExists.value;
+  if (!onOap) {
+    confirmTitle.value = 'Remove local draft?';
+    confirmMessage.value = `Remove the local draft for “${key}”? It was never published — this clears it from this browser only.`;
+    confirmLabel.value = 'Remove draft';
+  } else if (bundledExists.value) {
+    confirmTitle.value = 'Disable built-in layer?';
+    confirmMessage.value = `Disable the built-in “${key}” layer? It's soft-disabled on OAP and disappears from the sidebar for everyone. You can bring it back later with Reactivate.`;
+    confirmLabel.value = 'Disable';
+  } else {
+    confirmTitle.value = 'Delete layer template?';
+    confirmMessage.value = `Delete the “${key}” layer template? OAP has no hard delete, so it's soft-disabled — hidden from everyone.`;
+    confirmLabel.value = 'Delete';
+  }
+  confirmIsDanger.value = true;
+  confirmFn = doDeleteLayer;
+  deleteOpen.value = true;
+}
+function askReactivateLayer(): void {
+  const key = selectedKey.value;
+  if (!key || !editName.value) return;
+  confirmTitle.value = 'Reactivate layer?';
+  confirmMessage.value = `Reactivate the “${key}” layer? This re-enables it on OAP from the bundled default — it reappears in the sidebar for everyone.`;
+  confirmLabel.value = 'Reactivate';
+  confirmIsDanger.value = false;
+  confirmFn = doReactivateLayer;
+  deleteOpen.value = true;
+}
+async function doDeleteLayer(): Promise<void> {
+  const key = selectedKey.value;
+  const name = editName.value;
+  if (!key || !name) return;
+  const onOap = remoteAvailable.value || bundledExists.value;
+  if (!onOap) {
+    localEdits.remove(name);
+    saveMsg.value = `Removed local draft for "${key}".`;
+    setTimeout(() => (saveMsg.value = null), 6000);
+    return;
+  }
+  isSaving.value = true;
+  saveMsg.value = null;
+  try {
+    await bff.templateSync.disable(name);
+    localEdits.remove(name);
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    saveMsg.value = `Disabled "${key}" on OAP.`;
+    setTimeout(() => (saveMsg.value = null), 6000);
+  } catch (err) {
+    saveMsg.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSaving.value = false;
+  }
+}
+async function doReactivateLayer(): Promise<void> {
+  const key = selectedKey.value;
+  const name = editName.value;
+  if (!key || !name) return;
+  // Re-push the bundled default; the BFF update clears OAP's disabled flag.
+  const content = bundledContent();
+  if (!content) return;
+  isSaving.value = true;
+  saveMsg.value = null;
+  try {
+    await bff.templateSync.save(name, content);
+    localEdits.remove(name);
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    loadFrom('remote');
+    saveMsg.value = `Reactivated "${key}".`;
+    setTimeout(() => (saveMsg.value = null), 6000);
+  } catch (err) {
+    saveMsg.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    isSaving.value = false;
+  }
 }
 
 const selectedTpl = computed(() => draft.template);
@@ -729,6 +968,55 @@ function deleteMetricColumn(i: number): void {
   draft.template.metrics.columns.splice(i, 1);
 }
 
+/** Sample rows for the service-list preview — three fake services with
+ *  deterministic per-column values so the author sees how the configured
+ *  columns render (label, scale, precision, unit, default-sort marker)
+ *  without firing any MQE. */
+const SAMPLE_SERVICES = ['checkout', 'inventory', 'gateway'];
+function previewBase(seed: number): number {
+  return [42.37, 1280.5, 0.918][seed % 3] * (1 + (seed % 5) * 0.35);
+}
+function previewCell(col: { scale?: number; precision?: number; unit?: string }, seed: number): string {
+  const v = previewBase(seed) * (col.scale ?? 1);
+  const num = col.precision != null ? v.toFixed(col.precision) : fmtMetric(v);
+  return col.unit ? `${num} ${col.unit}` : num;
+}
+/** The metric the service list sorts by — explicit `orderBy`, else the
+ *  first column (mirrors the renderer's fallback). */
+const effectiveOrderBy = computed(
+  () => metricsModel.value?.orderBy ?? metricsColumns.value[0]?.metric,
+);
+
+type MetricColumn = NonNullable<NonNullable<AdminLayerTemplate['metrics']>['columns']>[number];
+/** Headline column for the landing KPI tile: explicit `overview.throughput`,
+ *  else the default-sort column. */
+const kpiHeadlineCol = computed<MetricColumn | undefined>(() => {
+  const key = overviewModel.value?.throughput ?? effectiveOrderBy.value;
+  return metricsColumns.value.find((c) => c.metric === key) ?? metricsColumns.value[0];
+});
+/** Trend column for the sparkline: explicit `overview.spark`, else the
+ *  headline column. */
+const kpiSparkCol = computed<MetricColumn | undefined>(() => {
+  const key = overviewModel.value?.spark ?? overviewModel.value?.throughput ?? effectiveOrderBy.value;
+  return metricsColumns.value.find((c) => c.metric === key) ?? kpiHeadlineCol.value;
+});
+/** Headline number — fmtMetric of a mock aggregate for the headline
+ *  column (the real tile shows the value bare; unit lives in the label). */
+const kpiHeadlineValue = computed(() =>
+  kpiHeadlineCol.value ? fmtMetric(previewBase(1) * (kpiHeadlineCol.value.scale ?? 1)) : '—',
+);
+/** Mock sparkline series for the real Sparkline component — deterministic
+ *  per spark-column so the trend reads as real movement without MQE. */
+const kpiSparkValues = computed<number[]>(() => {
+  const seed = (kpiSparkCol.value?.metric ?? 'x').length;
+  const n = 24;
+  const a: number[] = [];
+  for (let i = 0; i < n; i++) a.push(14 + Math.sin(i * 0.7 + seed) * 7 + Math.sin(i * 0.23 + seed) * 4);
+  return a;
+});
+/** Two-letter mark for the header icon tile (mirrors the live header). */
+const previewInitials = computed(() => (selectedTpl.value?.key ?? '??').slice(0, 2).toUpperCase());
+
 /**
  * Scope-aware `visibleWhen` placeholder + hover hint. Two supported
  * predicate forms:
@@ -799,6 +1087,105 @@ function ensureComponents(): AdminLayerTemplate['components'] {
 function toggleComponent(key: ComponentKey): void {
   const c = ensureComponents();
   c[key] = !c[key];
+}
+
+/** Inverse of SCOPE_COMPONENT, narrowed to the toggle keys — maps each
+ *  Components checkbox to the editor scope its config lives under, so a
+ *  menu-preview click can jump straight to that scope's widget editor. */
+const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
+  service: 'service',
+  instances: 'instance',
+  endpoints: 'endpoint',
+  endpointDependency: 'dependency',
+  topology: 'topology',
+  traces: 'trace',
+  logs: 'logs',
+  traceProfiling: 'traceProfiling',
+  ebpfProfiling: 'ebpfProfiling',
+  asyncProfiling: 'asyncProfiling',
+  // Legacy umbrella flag — no checkbox of its own (the three granular
+  // profiling toggles drive the menu), so this entry only satisfies the
+  // exhaustive Record; it is never surfaced as a menu item.
+  profiling: 'traceProfiling',
+};
+/** Component → slot-alias key. The layer's `slots` carry per-layer term
+ *  aliases (services → "ClickHouse clusters", instances → "Nodes", …);
+ *  the menu preview shows these instead of the generic component label,
+ *  matching what the real sidebar renders. */
+const COMPONENT_SLOT: Partial<Record<ComponentKey, keyof NonNullable<AdminLayerTemplate['slots']>>> = {
+  service: 'services',
+  instances: 'instances',
+  endpoints: 'endpoints',
+  endpointDependency: 'endpointDependency',
+};
+/** The layer's sidebar menu as the operator would see it — only the
+ *  enabled components, in COMPONENT_TOGGLES order, labelled with the
+ *  layer's slot aliases where defined. Drives the menu preview. */
+const menuItems = computed(() => {
+  const slots = draft.template?.slots ?? {};
+  return COMPONENT_TOGGLES.filter((t) => !!draft.template?.components?.[t.key]).map((t) => {
+    const slotKey = COMPONENT_SLOT[t.key];
+    return {
+      key: t.key,
+      label: (slotKey && slots[slotKey]) || t.label,
+      scope: COMPONENT_SCOPE[t.key],
+    };
+  });
+});
+/** Menu-preview click: focus the component's scope (if surfaced) and
+ *  scroll the scope editor into view so config + preview follow the
+ *  selection. */
+function jumpToComponent(scope: AdminScope): void {
+  if (visibleScopes.value.includes(scope)) activeScope.value = scope;
+  void nextTick(() => {
+    document.getElementById('scope-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+type SlotKey = keyof NonNullable<AdminLayerTemplate['slots']>;
+/** Scope → slot-alias key, for the scopes that carry a configurable
+ *  noun. Drives alias-aware scope-tab + section-heading labels so the
+ *  admin reads in the layer's own vocabulary (e.g. "Nodes" not
+ *  "instance"). */
+const SCOPE_SLOT: Partial<Record<AdminScope, SlotKey>> = {
+  service: 'services',
+  instance: 'instances',
+  endpoint: 'endpoints',
+  dependency: 'endpointDependency',
+};
+function scopeLabel(s: AdminScope): string {
+  const sk = SCOPE_SLOT[s];
+  return (sk && draft.template?.slots?.[sk]) || SCOPE_LABELS[s];
+}
+
+/** The four configurable slot aliases. Shown for the components the
+ *  layer actually exposes so the editor mirrors the menu. */
+const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string }> = [
+  { slot: 'services', label: 'Services', comp: 'service', def: 'Service' },
+  { slot: 'instances', label: 'Instances', comp: 'instances', def: 'Instance' },
+  { slot: 'endpoints', label: 'Endpoints', comp: 'endpoints', def: 'Endpoint' },
+  { slot: 'endpointDependency', label: 'API dependency', comp: 'endpointDependency', def: 'Dependency' },
+];
+const visibleAliasFields = computed(() =>
+  ALIAS_FIELDS.filter((f) => !!draft.template?.components?.[f.comp]),
+);
+function ensureSlots(): NonNullable<AdminLayerTemplate['slots']> {
+  if (!draft.template) throw new Error('no template selected');
+  if (!draft.template.slots) (draft.template as AdminLayerTemplate).slots = {};
+  return draft.template.slots;
+}
+/** Write a slot alias. `slots` is the canonical field the loader reads;
+ *  mirror to the JSON's legacy `aliases` so the saved file stays
+ *  internally consistent (the loader prefers `slots`, but keeping both
+ *  in step avoids a confusing stale `aliases` block in the bundle). */
+function setSlot(slot: SlotKey, value: string): void {
+  const s = ensureSlots();
+  const v = value.trim();
+  if (v) s[slot] = v;
+  else delete s[slot];
+  const a = ((draft.template as { aliases?: Record<string, string> }).aliases ??= {});
+  if (v) a[slot] = v;
+  else delete a[slot];
 }
 function setVisibility(v: 'public' | 'operate'): void {
   if (!draft.template) return;
@@ -922,116 +1309,243 @@ const namingTest = computed<NamingTestResult>(() => {
 
     <SyncStatusBanner :banner="sync.banner.value" />
 
-    <div class="top-actions">
-      <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? 'No layers differ from OAP' : `${divergedCount} layer(s) differ from OAP`">
-        <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
-        Diverged only<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
-      </label>
-      <SyncAllButton kind="layer" />
-    </div>
-
     <div v-if="error" class="banner err">{{ error }}</div>
     <div v-if="isLoading" class="empty">Loading templates…</div>
     <div v-else-if="templates.length === 0" class="empty">No layer templates loaded.</div>
 
     <div v-else class="grid" :class="{ 'list-collapsed': !layerListOpen }">
-      <aside class="sw-card layer-list" :class="{ collapsed: !layerListOpen }">
+      <!-- Browse rail. Shown only while expanded; selecting a layer
+           collapses it so the editor claims the full width. Once
+           collapsed, layer switching moves to the top dropdown inside
+           the detail pane (no left zone consumed). -->
+      <aside v-if="layerListOpen" class="sw-card layer-list">
         <div class="list-head">
           <button
             class="list-toggle"
             type="button"
-            :title="layerListOpen ? 'Collapse the layers list' : 'Expand the layers list'"
-            @click="layerListOpen = !layerListOpen"
+            title="Collapse the layers list"
+            @click="layerListOpen = false"
           >
-            <span class="caret" :class="{ open: layerListOpen }">›</span>
+            <span class="caret open">›</span>
           </button>
-          <h4 v-if="layerListOpen">Layers</h4>
-          <span v-if="layerListOpen" class="sub">
+          <h4>Layers</h4>
+          <span class="sub">
             {{ layerSearch.trim()
               ? `${filteredTemplates.length} / ${templates.length}`
               : `${templates.length} template${templates.length === 1 ? '' : 's'}` }}
           </span>
         </div>
-        <template v-if="layerListOpen">
-          <div class="list-search">
-            <input
-              v-model="layerSearch"
-              type="text"
-              class="list-search-input"
-              placeholder="Search layers…"
-              autocomplete="off"
-              spellcheck="false"
-            />
-          </div>
-          <button
-            v-for="t in filteredTemplates"
-            :key="t.key"
-            class="layer-row"
-            :class="{ active: selectedKey === t.key }"
-            @click="selectedKey = t.key"
-          >
-            <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
-            <span class="name">{{ t.alias || t.key }}</span>
-            <TemplateStatusBadge :status="sync.badgeFor(`horizon.layer.${t.key}`)" />
-          </button>
-          <p v-if="filteredTemplates.length === 0" class="list-empty">
-            {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
-          </p>
-        </template>
-        <!-- Collapsed mode shows just colored dots for navigation; click
-             a dot to switch layers without expanding. -->
-        <template v-else>
-          <button
-            v-for="t in templates"
-            :key="t.key"
-            class="layer-row collapsed-row"
-            :class="{ active: selectedKey === t.key }"
-            :title="t.alias || t.key"
-            @click="selectedKey = t.key"
-          >
-            <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
-          </button>
-        </template>
+        <div class="list-search">
+          <input
+            v-model="layerSearch"
+            type="text"
+            class="list-search-input"
+            placeholder="Search layers…"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </div>
+        <div class="dd-filters">
+          <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? 'No layers differ from OAP' : `${divergedCount} layer(s) differ from the OAP-stored copy`">
+            <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
+            Diverged<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
+          </label>
+          <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
+            <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
+            Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+          </label>
+        </div>
+        <button
+          v-for="t in filteredTemplates"
+          :key="t.key"
+          class="layer-row"
+          :class="{ active: selectedKey === t.key }"
+          @click="selectLayer(t.key)"
+        >
+          <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
+          <span class="name">{{ t.alias || t.key }}</span>
+          <code v-if="t.alias && t.alias !== t.key" class="key-tag">{{ t.key }}</code>
+          <span v-if="hasLocalDraftFor(t.key)" class="local-badge" title="Unpublished local draft">local</span>
+          <TemplateStatusBadge :status="sync.badgeFor(`horizon.layer.${t.key}`)" />
+        </button>
+        <p v-if="filteredTemplates.length === 0" class="list-empty">
+          {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
+        </p>
       </aside>
 
       <main v-if="selectedTpl" class="detail">
+        <!-- Collapsed-rail layer switcher: a filterable dropdown at the
+             top of the editor so the left zone stays free. Same search +
+             filter as the rail (not a native select). -->
+        <div v-if="!layerListOpen" class="layer-switch-bar">
+            <div class="layer-dd">
+              <button
+                class="layer-dd-btn"
+                type="button"
+                @click="layerDropdownOpen = !layerDropdownOpen"
+              >
+              <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
+              <span class="layer-dd-name">{{ selectedTpl.alias || selectedTpl.key }}</span>
+              <code v-if="selectedTpl.alias && selectedTpl.alias !== selectedTpl.key" class="key-tag">{{ selectedTpl.key }}</code>
+              <span v-if="hasLocalDraftFor(selectedTpl.key)" class="local-badge" title="Unpublished local draft in this browser">local</span>
+              <TemplateStatusBadge :status="sync.badgeFor(`horizon.layer.${selectedTpl.key}`)" />
+              <span class="caret dd-caret" :class="{ open: layerDropdownOpen }">›</span>
+            </button>
+            <template v-if="layerDropdownOpen">
+              <div class="layer-dd-backdrop" @click="layerDropdownOpen = false" />
+              <div class="layer-dd-pop sw-card">
+                <div class="list-search">
+                  <input
+                    v-model="layerSearch"
+                    type="text"
+                    class="list-search-input"
+                    placeholder="Search layers…"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </div>
+                <div class="dd-filters">
+                  <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? 'No layers differ from OAP' : `${divergedCount} layer(s) differ from the OAP-stored copy`">
+                    <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
+                    Diverged<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
+                  </label>
+                  <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
+                    <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
+                    Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+                  </label>
+                </div>
+                <div class="layer-dd-list">
+                  <button
+                    v-for="t in filteredTemplates"
+                    :key="t.key"
+                    class="layer-row"
+                    :class="{ active: selectedKey === t.key }"
+                    @click="pickFromDropdown(t.key)"
+                  >
+                    <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
+                    <span class="name">{{ t.alias || t.key }}</span>
+                    <code v-if="t.alias && t.alias !== t.key" class="key-tag">{{ t.key }}</code>
+                    <span v-if="hasLocalDraftFor(t.key)" class="local-badge" title="Unpublished local draft">local</span>
+                    <TemplateStatusBadge :status="sync.badgeFor(`horizon.layer.${t.key}`)" />
+                  </button>
+                  <p v-if="filteredTemplates.length === 0" class="list-empty">
+                    {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
+                  </p>
+                </div>
+              </div>
+            </template>
+            </div>
+          <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
+        </div>
         <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
           <div class="identity-row">
             <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
-            <div>
+            <!-- Single-line identity: Layer: <name> <key> <local> <status>. -->
+            <div class="identity-title">
+              <span class="identity-label">Layer:</span>
               <h2>{{ selectedTpl.alias || selectedTpl.key }}</h2>
-              <div class="meta">
-                <code>{{ selectedTpl.key }}</code>
-              </div>
+              <code>{{ selectedTpl.key }}</code>
+              <!-- Same sync status the picker shows, so the editor and the
+                   dropdown agree (e.g. both read DISABLED, not one BUNDLED). -->
+              <span v-if="hasLocalDraft" class="local-badge" title="Unpublished local draft in this browser">local</span>
+              <TemplateStatusBadge :status="sync.badgeFor(editName)" />
+            </div>
+            <!-- Disable / Reactivate. Sits by the title, away from the
+                 save/push cluster. A disabled layer offers Reactivate
+                 (re-enable on OAP); otherwise Disable/Delete. -->
+            <div class="identity-delete">
+              <button
+                v-if="isLayerDisabled"
+                class="sw-btn"
+                type="button"
+                :disabled="isSaving || sync.readOnly.value"
+                :title="sync.readOnly.value
+                  ? 'OAP unreachable — cannot reactivate'
+                  : `Reactivate the ${selectedTpl.key} layer (re-enable on OAP)`"
+                @click="askReactivateLayer"
+              >
+                Reactivate
+              </button>
+              <button
+                v-else
+                class="sw-btn danger"
+                type="button"
+                :disabled="isSaving || (sync.readOnly.value && (remoteAvailable || bundledExists))"
+                :title="(sync.readOnly.value && (remoteAvailable || bundledExists))
+                  ? 'OAP unreachable — cannot delete'
+                  : bundledExists
+                    ? `Disable the built-in ${selectedTpl.key} layer (hidden from the sidebar; Reactivate to bring it back)`
+                    : remoteAvailable
+                      ? `Delete the ${selectedTpl.key} layer template (soft-disabled on OAP)`
+                      : `Remove the local draft for ${selectedTpl.key}`"
+                @click="askDeleteLayer"
+              >
+                {{ bundledExists ? 'Disable' : 'Delete' }}
+              </button>
             </div>
             <div class="actions">
               <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
+              <!-- Where the editor content was loaded from — distinct from
+                   the sync-status chip by the title (prefixed "from "). -->
+              <span class="src-tag" :title="`Editing from: ${editorSource}`">from {{ editorSource }}</span>
+              <!-- Reset the editor to a source (discard current content). -->
+              <div class="reset-dd">
+                <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
+                  Reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
+                </button>
+                <template v-if="resetDropdownOpen">
+                  <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
+                  <div class="reset-dd-pop">
+                    <button class="reset-dd-item" type="button" title="Discard current edits and reload the bundled (shipped) default." @click="resetTo('bundled')">
+                      Bundled
+                    </button>
+                    <button
+                      class="reset-dd-item"
+                      type="button"
+                      :disabled="!remoteAvailable"
+                      :title="remoteAvailable ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy of this template yet.'"
+                      @click="resetTo('remote')"
+                    >
+                      Remote
+                    </button>
+                  </div>
+                </template>
+              </div>
+              <!-- Preview the real page rendering a chosen source. -->
+              <div class="reset-dd">
+                <button class="sw-btn" type="button" @click="previewDropdownOpen = !previewDropdownOpen">
+                  Preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
+                </button>
+                <template v-if="previewDropdownOpen">
+                  <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
+                  <div class="reset-dd-pop">
+                    <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="previewLive('local')">Local</button>
+                    <button class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="previewLive('remote')">Remote</button>
+                  </div>
+                </template>
+              </div>
+              <!-- Publish local → remote. Enabled only when local differs
+                   from remote; click shows the diff before pushing. -->
               <button
+                v-if="!sync.readOnly.value"
                 class="sw-btn"
                 type="button"
-                :disabled="!dirty || isSaving"
-                @click="reset"
+                :disabled="!localDiffersFromRemote || isSaving"
+                :title="localDiffersFromRemote ? 'Review the local → remote diff, then publish to OAP.' : 'No local changes to publish — local matches remote.'"
+                @click="pushDiffOpen = true"
               >
-                Reset
-              </button>
-              <button
-                v-if="isDiverged && !sync.readOnly.value"
-                class="sw-btn"
-                type="button"
-                title="Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation)."
-                @click="openDiffModal"
-              >
-                Show diff &amp; reset
+                Check diff &amp; push
               </button>
               <button
                 class="sw-btn is-primary"
                 type="button"
                 :disabled="!dirty || isSaving"
-                title="Save this edit to the local bundled template. Publish it to OAP for everyone with “Sync all to OAP”."
+                title="Save the editor to your browser (local). Publish later with “Push local → OAP”."
                 @click="save"
               >
-                {{ isSaving ? 'Saving…' : 'Save locally' }}
+                {{ isSaving ? 'Saving…' : 'Save (local)' }}
               </button>
             </div>
           </div>
@@ -1081,30 +1595,92 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <!-- Components editor: which per-layer views exist. Each
-             toggle controls a sidebar entry + a route + (where the
-             component is service / instance / endpoint) the matching
-             dashboards.<scope> widget set. -->
-        <section class="sw-card components-card">
-          <div class="card-head">
-            <h4>Components</h4>
-            <span class="sub">which sub-views this layer exposes</span>
-          </div>
-          <div class="comp-grid">
-            <label
-              v-for="t in COMPONENT_TOGGLES"
-              :key="t.key"
-              class="comp-toggle"
-              :class="{ on: !!selectedTpl.components?.[t.key] }"
-              :title="t.hint"
-            >
-              <input
-                type="checkbox"
-                :checked="!!selectedTpl.components?.[t.key]"
-                @change="toggleComponent(t.key)"
-              />
-              <span class="comp-label">{{ t.label }}</span>
-            </label>
+        <!-- Layer setup: left = live menu preview (alias header + the
+             enabled components, in checkbox order — clicking an item
+             jumps to that component's config + preview below). Right =
+             alias edit (before Components, per request) + the Components
+             toggles that drive which menu entries exist. -->
+        <section class="sw-card setup-card">
+          <div class="setup-grid">
+            <div class="menu-preview">
+              <div class="menu-preview-head">
+                <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
+                <span class="menu-preview-title">{{ selectedTpl.alias || selectedTpl.key }}</span>
+                <code v-if="selectedTpl.alias && selectedTpl.alias !== selectedTpl.key" class="key-tag">{{ selectedTpl.key }}</code>
+              </div>
+              <p v-if="menuItems.length === 0" class="menu-preview-empty">
+                No components enabled — toggle one on the right to populate the menu.
+              </p>
+              <button
+                v-for="m in menuItems"
+                :key="m.key"
+                type="button"
+                class="menu-item"
+                :class="{ on: activeScope === m.scope }"
+                :title="`Jump to ${m.label} config`"
+                @click="jumpToComponent(m.scope)"
+              >
+                <span class="menu-item-label">{{ m.label }}</span>
+                <span class="menu-item-arrow">›</span>
+              </button>
+            </div>
+            <div class="setup-right">
+              <label class="alias-field">
+                <span>Alias</span>
+                <input
+                  v-model="selectedTpl.alias"
+                  type="text"
+                  class="alias-input"
+                  :placeholder="selectedTpl.key"
+                  spellcheck="false"
+                />
+                <span class="alias-hint">Display name in the sidebar, layer list, and landing KPI tile. Defaults to the layer key.</span>
+              </label>
+              <div class="setup-section-head">
+                <h4>Components</h4>
+                <span class="sub">which sub-views this layer exposes</span>
+              </div>
+              <div class="comp-grid">
+                <label
+                  v-for="t in COMPONENT_TOGGLES"
+                  :key="t.key"
+                  class="comp-toggle"
+                  :class="{ on: !!selectedTpl.components?.[t.key] }"
+                  :title="t.hint"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="!!selectedTpl.components?.[t.key]"
+                    @change="toggleComponent(t.key)"
+                  />
+                  <span class="comp-label">{{ t.label }}</span>
+                </label>
+              </div>
+              <!-- Menu labels (slot aliases): rename the per-component
+                   nouns the way the layer's own vocabulary reads (e.g.
+                   services → "ClickHouse clusters", instances → "Nodes").
+                   Shown only for enabled components; drives the menu
+                   preview, scope tabs, and section headings live. -->
+              <template v-if="visibleAliasFields.length > 0">
+                <div class="setup-section-head">
+                  <h4>Menu labels</h4>
+                  <span class="sub">rename the nouns shown in the menu &amp; tabs (optional)</span>
+                </div>
+                <div class="alias-grid">
+                  <label v-for="f in visibleAliasFields" :key="f.slot" class="alias-grid-field">
+                    <span>{{ f.label }}</span>
+                    <input
+                      type="text"
+                      class="alias-input sm"
+                      :value="selectedTpl.slots?.[f.slot] ?? ''"
+                      :placeholder="f.def"
+                      spellcheck="false"
+                      @input="setSlot(f.slot, ($event.target as HTMLInputElement).value)"
+                    />
+                  </label>
+                </div>
+              </template>
+            </div>
           </div>
         </section>
 
@@ -1118,7 +1694,11 @@ const namingTest = computed<NamingTestResult>(() => {
              Live tester at the bottom evaluates the current draft
              against a sample name so the operator can see the result
              before saving. -->
-        <section id="topology-cluster" class="sw-card components-card">
+        <section
+          v-if="selectedTpl.components?.topology"
+          id="topology-cluster"
+          class="sw-card components-card"
+        >
           <div class="card-head">
             <h4>Topology cluster setup</h4>
             <span class="sub">parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)</span>
@@ -1278,41 +1858,84 @@ const namingTest = computed<NamingTestResult>(() => {
                 <td><input type="number" step="any" v-model.number="c.scale" placeholder="1" /></td>
                 <td><input type="number" min="0" max="6" v-model.number="c.precision" placeholder="auto" /></td>
                 <td>
-                  <button class="sw-btn danger" type="button" @click="deleteMetricColumn(i)">✕</button>
+                  <button class="sw-btn is-icon danger" type="button" title="Remove column" @click="deleteMetricColumn(i)">✕</button>
                 </td>
               </tr>
             </tbody>
           </table>
-        </section>
-
-        <!-- Overview-tile settings: the per-layer compact tile on the
-             Overview's top strip. Only these two settings live here;
-             they reference metric keys from the service-list columns. -->
-        <section v-if="overviewModel" class="sw-card overview-card">
-          <div class="card-head">
-            <h4>Overview tile</h4>
-            <span class="sub">per-layer compact tile on the Overview's top strip</span>
-          </div>
-          <div class="metrics-keys">
-            <label>
-              <span>Headline (throughput)</span>
-              <select v-model="overviewModel.throughput">
-                <option :value="undefined">(orderBy)</option>
-                <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.metric }}</option>
-              </select>
-            </label>
-            <label>
-              <span>Trend line (spark)</span>
-              <select v-model="overviewModel.spark">
-                <option :value="undefined">(throughput)</option>
-                <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.metric }}</option>
-              </select>
-            </label>
+          <!-- Preview: the per-layer landing KPI tile (headline + trend)
+               at the head — its config picks WHICH service-list column
+               feeds the tile, no new metrics — then the service-list
+               sample table. Mock values, no MQE fired. -->
+          <div v-if="metricsColumns.length > 0" class="metrics-preview">
+            <div class="metrics-preview-head">
+              Preview <span class="sub">how this layer’s landing KPI tile + service list render (sample data)</span>
+            </div>
+            <div v-if="overviewModel" class="kpi-block">
+              <div class="kpi-config">
+                <div class="kpi-config-title">Landing KPI tile <span class="sub">which column is the headline + trend</span></div>
+                <label>
+                  <span>Headline (throughput)</span>
+                  <select v-model="overviewModel.throughput">
+                    <option :value="undefined">(default sort)</option>
+                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Trend line (spark)</span>
+                  <select v-model="overviewModel.spark">
+                    <option :value="undefined">(headline)</option>
+                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
+                  </select>
+                </label>
+              </div>
+              <!-- Faithful copy of the real layer header (LayerShell):
+                   icon tile + identity + the kpi-strip. Reuses the same
+                   class names + the Sparkline component so the preview
+                   matches the live page. -->
+              <header class="sw-card preview-layer-head">
+                <div class="layer-id-row">
+                  <div class="icon-tile" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }">{{ previewInitials }}</div>
+                  <div class="identity-text">
+                    <div class="title-row"><h1>{{ selectedTpl.alias || selectedTpl.key }}</h1></div>
+                    <div class="sub">{{ SAMPLE_SERVICES.length }} {{ (selectedTpl.slots?.services || 'services').toLowerCase() }}</div>
+                  </div>
+                  <div class="kpi-strip">
+                    <div class="kpi">
+                      <div class="kpi-label">
+                        {{ kpiHeadlineCol?.label || kpiHeadlineCol?.metric || '—' }}<span v-if="kpiHeadlineCol?.unit" class="unit">({{ kpiHeadlineCol.unit }})</span>
+                      </div>
+                      <div class="kpi-value">{{ kpiHeadlineValue }}</div>
+                      <Sparkline class="kpi-spark" :values="kpiSparkValues" :width="84" :height="18" color="var(--sw-accent)" :stroke="1.25" />
+                    </div>
+                  </div>
+                </div>
+              </header>
+            </div>
+            <div class="metrics-preview-scroll">
+              <table class="sw-table preview-table">
+                <thead>
+                  <tr>
+                    <th>{{ scopeLabel('service') }}</th>
+                    <th v-for="c in metricsColumns" :key="c.metric" class="num">
+                      {{ c.label || c.metric }}
+                      <span v-if="effectiveOrderBy === c.metric" class="sort-ind" title="default sort">↓</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(svc, r) in SAMPLE_SERVICES" :key="svc">
+                    <td class="svc">{{ svc }}</td>
+                    <td v-for="(c, ci) in metricsColumns" :key="c.metric" class="num">{{ previewCell(c, r + ci) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
 
         <!-- Scope tabs -->
-        <nav class="scope-tabs sw-card">
+        <nav id="scope-editor" class="scope-tabs sw-card">
           <button
             v-for="s in visibleScopes"
             :key="s"
@@ -1321,7 +1944,7 @@ const namingTest = computed<NamingTestResult>(() => {
             type="button"
             @click="activeScope = s"
           >
-            {{ SCOPE_LABELS[s] }}
+            {{ scopeLabel(s) }}
             <span class="count">{{ widgetsFor(s).length }}</span>
           </button>
         </nav>
@@ -1690,7 +2313,7 @@ const namingTest = computed<NamingTestResult>(() => {
           class="sw-card editor-card topo-cfg-card"
         >
           <div class="card-head">
-            <h4>{{ SCOPE_LABELS[activeScope] }} tab</h4>
+            <h4>{{ scopeLabel(activeScope) }} tab</h4>
             <span class="sub">
               {{ activeScope === 'trace'
                 ? 'Pick the trace backend this layer reads from.'
@@ -1720,7 +2343,7 @@ const namingTest = computed<NamingTestResult>(() => {
               </div>
             </div>
             <p v-else class="topo-cfg-help">
-              The <b>{{ SCOPE_LABELS[activeScope] }}</b> tab is a built-in view that uses
+              The <b>{{ scopeLabel(activeScope) }}</b> tab is a built-in view that uses
               SkyWalking-native query-protocol APIs directly. Operators configure filters
               and time range at runtime from the page itself; nothing to wire up here.
             </p>
@@ -1729,7 +2352,7 @@ const namingTest = computed<NamingTestResult>(() => {
 
         <section v-else class="sw-card editor-card">
           <div class="card-head">
-            <h4>{{ SCOPE_LABELS[activeScope] }} widgets</h4>
+            <h4>{{ scopeLabel(activeScope) }} widgets</h4>
             <span class="sub">
               click a widget to edit · drag corner to resize · drag header to reorder
             </span>
@@ -1847,7 +2470,7 @@ const namingTest = computed<NamingTestResult>(() => {
             <aside v-if="selectedWidget" class="drawer">
               <div class="drawer-head">
                 <h4>Edit widget</h4>
-                <span class="sub">{{ SCOPE_LABELS[activeScope] }} · #{{ (selectedIdx ?? 0) + 1 }}</span>
+                <span class="sub">{{ scopeLabel(activeScope) }} · #{{ (selectedIdx ?? 0) + 1 }}</span>
                 <button class="sw-btn ghost close" type="button" title="Close" @click="selectedIdx = null">✕</button>
               </div>
               <div class="drawer-body">
@@ -1984,14 +2607,33 @@ const namingTest = computed<NamingTestResult>(() => {
       </main>
     </div>
 
-    <TemplateDiffModal
-      v-if="selectedKey"
-      :open="diffModalOpen"
-      :name="`horizon.layer.${selectedKey}`"
-      :confirm-key="selectedKey"
-      @close="diffModalOpen = false"
-      @reset="onDiffReset"
-    />
+    <!-- Push confirm: shows the remote → local diff before publishing. -->
+    <Modal :open="pushDiffOpen" title="Publish local → OAP?" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+      <p class="push-lede">
+        This replaces the live (remote) version with your local draft — live for everyone. Review the
+        diff (left = remote, right = your local):
+      </p>
+      <div class="push-diff">
+        <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
+      </div>
+      <template #footer>
+        <button class="sw-btn" type="button" @click="pushDiffOpen = false">Cancel</button>
+        <button class="sw-btn is-primary" type="button" :disabled="isSaving" @click="pushToOap">
+          {{ isSaving ? 'Pushing…' : 'Confirm push' }}
+        </button>
+      </template>
+    </Modal>
+
+    <!-- Disable / delete / reactivate confirm — styled (not native). -->
+    <Modal :open="deleteOpen" :title="confirmTitle" width="min(520px, 92vw)" @close="deleteOpen = false">
+      <p class="confirm-msg">{{ confirmMessage }}</p>
+      <template #footer>
+        <button class="sw-btn" type="button" @click="deleteOpen = false">Cancel</button>
+        <button class="sw-btn" :class="{ danger: confirmIsDanger, 'is-primary': !confirmIsDanger }" type="button" :disabled="isSaving" @click="runConfirm">
+          {{ confirmLabel }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -2050,7 +2692,7 @@ const namingTest = computed<NamingTestResult>(() => {
   transition: grid-template-columns 160ms ease;
 }
 .grid.list-collapsed {
-  grid-template-columns: 36px 1fr;
+  grid-template-columns: 1fr;
 }
 .layer-list {
   padding: 8px;
@@ -2060,9 +2702,6 @@ const namingTest = computed<NamingTestResult>(() => {
   align-self: start;
   position: sticky;
   top: 16px;
-}
-.layer-list.collapsed {
-  padding: 6px 4px;
 }
 .list-toggle {
   flex: 0 0 auto;
@@ -2091,21 +2730,83 @@ const namingTest = computed<NamingTestResult>(() => {
 .list-toggle .caret.open {
   transform: rotate(90deg);
 }
-.collapsed-row {
-  justify-content: center;
-  padding: 6px 4px;
+/* Collapsed-rail layer switcher — a compact dropdown bar at the top of
+   the editor pane so layer switching costs no left-zone width. */
+.layer-switch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.collapsed-row .dot {
-  width: 10px;
-  height: 10px;
-}
-.layer-list.collapsed .list-head {
-  border-bottom: 1px solid var(--sw-line);
-  padding: 4px 0 6px;
-  justify-content: center;
-}
-.layer-list.collapsed .list-toggle {
+.layer-switch-bar .list-toggle {
   margin-right: 0;
+}
+.layer-switch-bar .caret {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1;
+}
+/* Filterable layer dropdown — same search + rows as the pinned rail.
+   The sole layer switcher (no separate expand toggle). */
+.layer-dd { position: relative; display: flex; }
+.layer-dd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 200px;
+  cursor: pointer;
+}
+.layer-dd-btn:hover { background: var(--sw-bg-3); }
+.layer-dd-name {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dd-caret {
+  margin-left: auto;
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+}
+.dd-caret.open { transform: rotate(-90deg); }
+.layer-dd-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.layer-dd-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 41;
+  /* Wide enough to read alias + key + badge on one line per row. */
+  width: min(80vw, 760px);
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.5);
+}
+.layer-dd-pop .list-search { padding: 0 10px 8px; }
+.layer-dd-list {
+  overflow-y: auto;
+  padding: 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.layer-switch-bar .sub {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  margin-left: auto;
 }
 .list-head {
   display: flex;
@@ -2150,14 +2851,18 @@ const namingTest = computed<NamingTestResult>(() => {
   gap: 8px;
   padding: 0 10px 8px;
 }
-/* Page-level display/sync controls, directly under the sync banner. */
-.top-actions {
+/* Diverged / Local filters, co-located with the search inside the layer
+   picker (rail + dropdown), same as the overview dashboards admin —
+   keeps filter + selector + count read as one connected control instead
+   of floating in a separate page-level row. */
+.dd-filters {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 4px;
+  gap: 14px;
+  padding: 0 10px 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--sw-line);
 }
-.top-actions .diverged-filter { margin-right: auto; }
+.layer-dd-pop .dd-filters { padding: 0 10px 8px; }
 .diverged-filter {
   display: inline-flex;
   align-items: center;
@@ -2238,16 +2943,25 @@ const namingTest = computed<NamingTestResult>(() => {
   font-weight: 600;
   color: var(--sw-fg-0);
 }
-.identity-row .meta {
+/* Single-line identity strip: label + name + key + badges all inline. */
+.identity-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-top: 4px;
-  font-size: 10.5px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
-.identity-row .meta code {
+.identity-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  font-weight: 600;
+}
+.identity-title h2 { white-space: nowrap; }
+.identity-title code {
   font-family: var(--sw-mono);
+  font-size: 10.5px;
   background: var(--sw-bg-2);
   padding: 1px 6px;
   border-radius: 3px;
@@ -2306,11 +3020,59 @@ const namingTest = computed<NamingTestResult>(() => {
   gap: 8px;
 }
 .actions .sw-btn { font-size: 11.5px; }
+.src-tag {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-fg-3);
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+/* "Reset to ▾" merged dropdown (Bundled / Remote sources). */
+.reset-dd { position: relative; display: inline-flex; }
+.reset-dd .caret { display: inline-block; transform: rotate(90deg); font-size: 11px; }
+.reset-dd .caret.open { transform: rotate(-90deg); }
+.reset-dd-backdrop { position: fixed; inset: 0; z-index: 40; }
+.reset-dd-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 41;
+  min-width: 130px;
+  padding: 4px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px -8px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reset-dd-item {
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--sw-fg-1);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.reset-dd-item:hover:not(:disabled) { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.reset-dd-item:disabled { opacity: 0.4; cursor: not-allowed; }
+.push-lede { margin: 0 0 10px; font-size: 12px; color: var(--sw-fg-2); line-height: 1.5; }
+.confirm-msg { margin: 0; font-size: 13px; line-height: 1.55; color: var(--sw-fg-1); }
+.push-diff { height: 50vh; min-height: 320px; border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; }
 .actions .sw-btn[disabled] { opacity: 0.4; pointer-events: none; }
 .save-msg {
   font-size: 11px;
   color: var(--sw-ok);
 }
+.identity-delete { display: flex; align-items: center; gap: 8px; }
+.del-note { font-size: 10.5px; color: var(--sw-fg-3); font-style: italic; }
 
 .scope-tabs {
   display: flex;
@@ -2346,6 +3108,140 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-3);
 }
 .scope-tab.on .count { color: var(--sw-accent-2); }
+
+/* Layer setup card — menu preview (left) + alias/components (right). */
+.setup-card { padding: 0; }
+.setup-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  align-items: stretch;
+}
+.menu-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 12px 14px;
+  border-right: 1px solid var(--sw-line);
+  background: var(--sw-bg-1);
+  border-radius: var(--sw-radius, 8px) 0 0 var(--sw-radius, 8px);
+}
+.menu-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.menu-preview-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.menu-preview-empty {
+  margin: 4px 8px;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  line-height: 1.5;
+}
+/* Amber "local" chip — surfaces an unpublished local browser draft in the
+ * picker (the sync badge only reflects bundled-vs-remote). */
+.local-badge {
+  flex: 0 0 auto;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1a1a1a;
+  background: var(--sw-warn, #f59e0b);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+/* Dim mono chip for the raw layer key, shown next to the alias so the
+ * operator sees both the display name and the OAP layer identity. */
+.key-tag {
+  flex: 0 0 auto;
+  font-family: var(--sw-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: var(--sw-fg-3);
+  background: var(--sw-bg-2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-1);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.menu-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.menu-item.on {
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent-2);
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--sw-accent);
+}
+.menu-item-label { flex: 1; }
+.menu-item-arrow { color: var(--sw-fg-3); font-size: 13px; }
+.menu-item.on .menu-item-arrow { color: var(--sw-accent-2); }
+.setup-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px 14px;
+  min-width: 0;
+}
+.alias-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.alias-field > span:first-child {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+}
+.alias-input {
+  height: 30px;
+  padding: 0 10px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 5px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 13px;
+  max-width: 320px;
+}
+.alias-input:focus { outline: none; border-color: var(--sw-accent); }
+.alias-hint { font-size: 10.5px; color: var(--sw-fg-3); line-height: 1.4; }
+.setup-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--sw-line);
+}
+.setup-section-head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+}
+.setup-section-head .sub { font-size: 10.5px; color: var(--sw-fg-3); }
+.setup-right .comp-grid { padding: 0; }
 
 .components-card { padding: 0; }
 .components-card .card-head {
@@ -2617,6 +3513,191 @@ const namingTest = computed<NamingTestResult>(() => {
   border-color: rgba(239, 68, 68, 0.3);
   color: #f87171;
 }
+
+/* Sample-data preview of the service list. */
+.metrics-preview {
+  border-top: 1px solid var(--sw-line);
+  padding: 12px 10px 6px;
+}
+.metrics-preview-head {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  padding: 0 4px 8px;
+}
+.metrics-preview-head .sub {
+  margin-left: 8px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--sw-fg-3);
+}
+.metrics-preview-scroll { overflow-x: auto; }
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.preview-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--sw-fg-2);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sw-line);
+  white-space: nowrap;
+}
+.preview-table th.num,
+.preview-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.preview-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--sw-line);
+  color: var(--sw-fg-1);
+}
+.preview-table td.svc {
+  color: var(--sw-fg-0);
+  font-weight: 500;
+}
+.preview-table tbody tr:last-child td { border-bottom: none; }
+.sort-ind {
+  margin-left: 3px;
+  color: var(--sw-accent-2);
+  font-size: 10px;
+}
+
+/* Landing KPI tile preview: config head + a faithful copy of the real
+ * layer header. The header classes below mirror LayerShell so the
+ * preview matches the live page (kept in sync intentionally). */
+.kpi-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 4px 14px;
+}
+.kpi-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+.kpi-config-title {
+  flex: 1 0 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sw-fg-1);
+}
+.kpi-config-title .sub {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
+.kpi-config label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sw-fg-3);
+}
+.kpi-config select {
+  height: 28px;
+  padding: 0 8px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11.5px;
+}
+.kpi-config select:focus { outline: none; border-color: var(--sw-accent); }
+/* ↓ mirrors LayerShell.vue .layer-head / .layer-id-row / .kpi-strip. */
+.preview-layer-head { padding: 14px; }
+.preview-layer-head .layer-id-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.preview-layer-head .icon-tile {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: -0.02em;
+  flex: 0 0 40px;
+  background-blend-mode: multiply;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.preview-layer-head .identity-text { min-width: 0; }
+.preview-layer-head .title-row h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  letter-spacing: -0.02em;
+}
+.preview-layer-head .sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--sw-fg-3);
+}
+.preview-layer-head .kpi-strip {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-left: auto;
+}
+.preview-layer-head .kpi { text-align: right; min-width: 80px; }
+.preview-layer-head .kpi-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  margin-bottom: 2px;
+}
+.preview-layer-head .kpi-label .unit {
+  text-transform: none;
+  letter-spacing: 0;
+  margin-left: 2px;
+  font-size: 9.5px;
+}
+.preview-layer-head .kpi-value {
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  color: var(--sw-fg-1);
+}
+.preview-layer-head .kpi-spark { display: block; margin-top: 4px; margin-left: auto; }
+
+/* Menu-label (slot alias) editor grid. */
+.alias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.alias-grid-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sw-fg-3);
+}
+.alias-input.sm { height: 28px; font-size: 12px; max-width: none; }
 
 .editor-card { padding: 0; }
 /* Topology / endpoint-dep config preview — read-only JSON view. */

@@ -614,12 +614,16 @@ export class BffClient {
       // fetch() doesn't throw on HTTP-level errors (4xx/5xx) — only on
       // these. They're the "blocked" symptom operators see when the
       // BFF or its upstream is unreachable.
-      pushEvent(
-        'api',
-        'err',
-        `${method} ${path} · network ${err instanceof Error ? err.message : String(err)}`,
+      const detail = err instanceof Error ? err.message : String(err);
+      pushEvent('api', 'err', `${method} ${path} · network ${detail}`);
+      // Wrap into a clear, actionable message — the raw "Failed to fetch" /
+      // "Load failed" reads as a mystery to operators. status 0 = no HTTP
+      // response reached us at all (BFF down / unreachable).
+      throw new BffApiError(
+        0,
+        `Cannot reach the server — the BFF is unreachable (${detail}).`,
+        null,
       );
-      throw err;
     }
     if (res.status === 401) {
       // 401 is normal-ish (session expired) — log at 'info' rather
@@ -630,11 +634,19 @@ export class BffClient {
       throw new BffApiError(401, 'unauthenticated', null);
     }
     if (!res.ok) {
-      let parsed: unknown = null;
-      try {
-        parsed = await res.json();
-      } catch {
-        parsed = await res.text();
+      // Read the body ONCE as text, then try to parse it as JSON. Calling
+      // res.json() then res.text() in a fallback double-reads the stream
+      // ("body stream already read") and masks the real error — which is
+      // exactly what happens when a non-JSON error (e.g. a Vite proxy 502
+      // page when the BFF is down) comes back.
+      const raw = await res.text().catch(() => '');
+      let parsed: unknown = raw;
+      if (raw) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = raw;
+        }
       }
       // Surface the BFF's `code` / `message` envelope when present so
       // the operator gets the actionable reason instead of just "500".

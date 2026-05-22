@@ -76,12 +76,21 @@ Then open **`http://127.0.0.1:9091`** and log in as `admin` / `admin`.
 
 ## Boot against the public demo OAP
 
-The demo OAP needs basic-auth. The password is NOT committed — ask the
-developer for it and export it before booting:
+The demo OAP needs basic-auth (network username `admin`). The password is
+NOT committed — it lives in `oap-password.local` next to this file, which
+is git-ignored via the repo-wide `*.local` rule. Source it before booting;
+if the file is missing, ask the developer and recreate it (one line, the
+password only):
 
 ```bash
 REPO="$(git rev-parse --show-toplevel)"
-read -rsp "Demo OAP password: " OAP_PASSWORD && export OAP_PASSWORD && echo
+SECRET="$REPO/.claude/skills/local-boot/oap-password.local"
+if [ -s "$SECRET" ]; then
+  OAP_PASSWORD="$(cat "$SECRET")"; export OAP_PASSWORD
+else
+  read -rsp "Demo OAP password: " OAP_PASSWORD && export OAP_PASSWORD && echo
+  printf '%s\n' "$OAP_PASSWORD" > "$SECRET" && chmod 600 "$SECRET"  # cache for next boot
+fi
 
 pkill -f "tsx watch src/server.ts" 2>/dev/null
 pkill -f "tsx/dist/cli.mjs watch" 2>/dev/null; pkill -f vite 2>/dev/null
@@ -94,9 +103,10 @@ HORIZON_CONFIG="$REPO/.claude/skills/local-boot/horizon.demo.yaml" \
       node_modules/.bin/vite --host 127.0.0.1 & )
 ```
 
-When invoked as an agent and `OAP_PASSWORD` is not already set, ask the
-developer for it (do not guess, do not hardcode it into a file). The OAP
-network username is fixed as `admin` in `horizon.demo.yaml`.
+The cached `oap-password.local` is git-ignored, so it is safe to keep on
+disk between boots. If it is absent and `OAP_PASSWORD` is unset, ask the
+developer rather than guessing. The OAP network username is fixed as
+`admin` in `horizon.demo.yaml`.
 
 ## Boot against an LDAP directory (test)
 

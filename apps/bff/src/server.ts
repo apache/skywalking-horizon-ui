@@ -145,7 +145,11 @@ registerAuthHealthRoute(app, { config: source, ldapHealth });
 
 // ── Query ──────────────────────────────────────────────────────────
 registerOapInfoRoute(app, { config: source, sessions });
-registerMenuRoute(app, { config: source, sessions });
+registerMenuRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerLandingRoute(app, { config: source, sessions });
 registerInstanceRoute(app, { config: source, sessions });
 registerEndpointRoute(app, { config: source, sessions });

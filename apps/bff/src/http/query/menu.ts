@@ -22,12 +22,16 @@ import type {
   LayerDef,
   LayerSlots,
   MenuResponse,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost, type GraphqlOptions } from '../../client/graphql.js';
 import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags } from '../../logic/layers/loader.js';
+import { getSyncStatus } from '../../logic/templates/sync.js';
+import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
+import { logger } from '../../logger.js';
 
 /**
  * Map the JSON config's `components.*` flags onto the wire `caps`
@@ -63,6 +67,34 @@ export interface MenuRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — lets the menu honor disabled layer templates
+   *  (a layer disabled in the admin disappears from the sidebar). Optional
+   *  so tests can omit it; without it no layer is filtered as disabled. */
+  uiTemplateClient?: () => UITemplateClient;
+}
+
+/** Canonical layer keys disabled on OAP (`horizon.layer.<KEY>` rows flagged
+ *  disabled). Reads the shared 30s sync cache; soft-fails to an empty set so
+ *  the sidebar never breaks because the template status couldn't be read. */
+async function disabledLayerKeys(deps: MenuRouteDeps): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!deps.uiTemplateClient) return out;
+  try {
+    const sync = await getSyncStatus({
+      client: deps.uiTemplateClient(),
+      bundled: () => iterateBundledTemplates(),
+      logger,
+    });
+    if (sync.unreachable) return out;
+    for (const row of sync.rows) {
+      if (row.kind === 'layer' && row.status === 'disabled') {
+        out.add(canonical(row.key.toUpperCase()));
+      }
+    }
+  } catch {
+    // Status unavailable — show every layer rather than hide wrongly.
+  }
+  return out;
 }
 
 // `listLayers` — active layers in this deployment.
@@ -295,8 +327,11 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // feedback. Add more keys here if other internal-only layers
       // need the same treatment.
       const HIDDEN_LAYERS = new Set(['BANYANDB']);
+      // Layers whose template was disabled in the admin — soft-deleted, so
+      // drop them from the sidebar (matches how disabled overviews vanish).
+      const disabled = await disabledLayerKeys(deps);
       const layers = ordered
-        .filter((key) => !HIDDEN_LAYERS.has(key))
+        .filter((key) => !HIDDEN_LAYERS.has(key) && !disabled.has(key))
         .map((key) =>
           deriveLayer(
             key,

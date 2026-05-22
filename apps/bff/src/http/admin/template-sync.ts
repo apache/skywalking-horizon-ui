@@ -328,6 +328,69 @@ export function registerTemplateSyncAdminRoutes(
       });
     }
   });
+
+  /* POST /api/admin/templates/disable — "delete" a template. OAP has no
+   * hard DELETE, so deletion is a soft `disable` of the remote UI-template
+   * (a disabled row is dropped from the bundle, so the template vanishes
+   * from the UI). Irreversible from the UI by design — there is no
+   * re-enable entrance.
+   *
+   *   - remote present       → disable that row.
+   *   - bundled, no remote    → create a remote from the bundled config
+   *     first (so OAP has a row to flag), then disable it; otherwise a
+   *     bundled-fallback has no id to disable and the bundle keeps serving.
+   *   - neither               → nothing on OAP (a local-only browser draft
+   *     is removed client-side); no-op.
+   *
+   * Local-only drafts never reach here — the SPA removes them from the
+   * browser directly (a true hard delete; they were never on OAP). */
+  app.post<{ Body: { name?: string } }>(
+    '/api/admin/templates/disable',
+    { preHandler: auth },
+    async (req, reply) => {
+      const { name } = req.body ?? {};
+      if (typeof name !== 'string') {
+        return reply.code(400).send({
+          code: 'invalid_disable_body',
+          message: 'body must be { name: string }',
+        });
+      }
+      if (!parseName(name)) {
+        return reply.code(400).send({
+          code: 'invalid_template_name',
+          message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
+        });
+      }
+      const status = await loadStatus(deps);
+      if (status.unreachable) {
+        return reply.code(409).send({
+          code: 'oap_unreachable',
+          message: 'OAP admin port unreachable — templates are read-only',
+        });
+      }
+      const row = status.rows.find((r) => r.name === name);
+      if (!row?.remote && !row?.bundled) {
+        // Nothing on OAP and no bundle — already gone.
+        resync();
+        return reply.send(await loadStatus(deps));
+      }
+      try {
+        if (row.remote) {
+          await deps.uiTemplateClient().disable(row.remote.id);
+        } else if (row.bundled) {
+          // Bundled-fallback (no remote yet): materialise a remote from the
+          // bundled config so there's a row to flag disabled.
+          const created = await deps.uiTemplateClient().create(row.bundled.configuration);
+          await deps.uiTemplateClient().disable(created.id);
+        }
+        resync();
+        return reply.send(await loadStatus(deps));
+      } catch (err) {
+        logger.warn({ err: errMsg(err), name }, 'disable on OAP failed');
+        return reply.code(502).send({ code: 'oap_write_failed', message: errMsg(err) });
+      }
+    },
+  );
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {
