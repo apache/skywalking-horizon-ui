@@ -42,6 +42,16 @@ export const useAuthStore = defineStore('auth', () => {
       user.value = await bffClient.session.login(username, password);
       // New login session → re-prompt the local-vs-remote template choice.
       useTemplatePreference().reset();
+      // Clear the per-session "unpublished local edits" prompt dismissal
+      // so a fresh login sees the reminder reliably. Without this, a
+      // dismissal from an earlier session in the same browser tab keeps
+      // the modal hidden across the logout / login boundary — operators
+      // log back in to find drafts they pushed nothing about.
+      try {
+        sessionStorage.removeItem('horizon:localDraftPrompt:dismissed');
+      } catch {
+        /* private mode — module-level state still resets on AppShell re-mount */
+      }
       return true;
     } catch (err) {
       if (err instanceof BffApiError && err.status === 401) {

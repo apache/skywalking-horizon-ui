@@ -40,7 +40,11 @@ const { bundle } = useConfigBundle();
 const auth = useAuthStore();
 const { edits } = useLocalTemplateEdits();
 
-const canEditLayers = computed<boolean>(() => auth.hasVerb('dashboard:read'));
+// Both checks are `:write` for symmetry — the prompt nudges operators
+// who can act on the draft (publish or discard). `dashboard:read` would
+// resolve to the same roles in the default policy today, but a role with
+// read-only dashboard access shouldn't be nagged about edits it can't push.
+const canEditLayers = computed<boolean>(() => auth.hasVerb('dashboard:write'));
 const canEditOverviews = computed<boolean>(() => auth.hasVerb('overview:write'));
 
 interface DraftItem {
