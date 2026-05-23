@@ -38,7 +38,7 @@ Bundled templates: `apps/bff/src/bundled_templates/overviews/<id>.json`. Example
 | `visibility` | `public` \| `operate` | `public` | Sidebar placement. `operate` puts the overview under the Operate group (admin-only by convention). |
 | `icon` | string | — | Sidebar icon name (from Horizon's icon set). |
 | `order` | number | — | Sort order within the visibility bucket (lower = earlier). |
-| `layers` | string[] | — | Layer enums this overview aggregates. Optional — used as a hint by the sidebar and by widgets that want a default layer for MQE evaluation. |
+| `layers` | string[] | — | Layer enums this overview aggregates. Optional — Horizon also unions in every widget's `layer` field, so a dashboard created via "+ New" (no `layers[]`) gates correctly off its widgets alone. See *Sidebar visibility* below. |
 | `widgets` | array | **required** | Ordered widget list. The renderer iterates and lays out per the grid model. |
 
 ## Widget types
@@ -203,6 +203,17 @@ Following widgets render in a **6-column** grid (rather than 12) until the next 
 ```
 
 Read-only — Horizon does not support acknowledge / close / silence operations. Alarm recovery is backend-automatic.
+
+## Sidebar visibility
+
+An overview entry appears in the sidebar only when **at least one of its declared layers is currently reporting services**. Declared layers come from two sources, unioned:
+
+- the explicit `layers[]` field on the dashboard, and
+- every `widget.layer` referenced by its widgets.
+
+A dashboard with no layer reference on either side (no `layers[]` and no widgets with `layer` set — e.g. a future cross-layer "All" overview) is always shown.
+
+This makes the sidebar honest: it stops listing a Services dashboard when nothing is reporting and lights it back up automatically when an agent / receiver does start, on the same 60-second cadence the menu refreshes. It also means a dashboard you create via "+ New" — which has no `layers[]` — gates correctly off its widgets without you having to maintain a separate list.
 
 ## Admin Editor
 

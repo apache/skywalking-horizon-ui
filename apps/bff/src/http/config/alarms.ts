@@ -30,7 +30,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import type { AuditLogger } from '../../audit/logger.js';
 import { requireAuth } from '../../user/middleware.js';
-import type { ServiceLayerMap } from '../../logic/alarms/service-layer-map.js';
+import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import {
   ALARMS_WINDOW_OPTIONS,
   OVERVIEW_ALARMS_LIMIT_MAX,
@@ -44,7 +44,7 @@ export interface AlarmsConfigRouteDeps {
   sessions: SessionStore;
   audit: AuditLogger;
   store: AlarmsStore;
-  serviceLayer: ServiceLayerMap;
+  serviceLayer: ServiceLayerCatalog;
 }
 
 const configSaveSchema = z.object({

@@ -67,11 +67,23 @@ export function useOverviewDashboards() {
     }
     return q.data.value?.dashboards ?? [];
   });
+  // Layers a dashboard touches = union of its explicit `layers[]` field
+  // (kept for back-compat with bundled JSON that lists them by hand) AND
+  // every layer referenced by its widgets. User-created dashboards from
+  // "+ New" don't carry `layers[]`, so widget-derived is what gates them.
+  function dashLayers(d: { layers?: string[]; widgets?: Array<{ layer?: string }> }): string[] {
+    const set = new Set<string>();
+    for (const k of d.layers ?? []) set.add(k.toUpperCase());
+    for (const w of d.widgets ?? []) if (w.layer) set.add(w.layer.toUpperCase());
+    return Array.from(set);
+  }
   const visible = computed(() =>
     all.value.filter((d) => {
-      const layers = d.layers ?? [];
+      const layers = dashLayers(d);
+      // No layer referenced anywhere → always show (e.g. a future fleet
+      // overview that pulls only from cross-layer / All scope).
       if (layers.length === 0) return true;
-      return layers.some((l) => activeLayerKeys.value.has(l.toUpperCase()));
+      return layers.some((l) => activeLayerKeys.value.has(l));
     }),
   );
   const publicOverviews = computed(() =>

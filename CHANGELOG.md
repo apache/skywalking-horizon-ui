@@ -92,6 +92,28 @@ live, shared version is whatever OAP serves.
   regression where the sidebar scrolled to the very bottom on every
   navigation (the "Debug events" toggle's active state was being treated
   as the scroll target).
+- **Overview dashboards appear in the sidebar only when their layers are
+  reporting services.** Visibility is derived from each dashboard's
+  widgets (their `layer` field) ∪ the explicit `layers[]` list, gated
+  against the live `availableLayers`. A dashboard you create via "+ New"
+  inherits this automatically — no need to maintain the `layers[]` field
+  by hand. Polls on the 60s menu cadence + window focus, so entries
+  appear / disappear as services start and stop reporting.
+- **Smarter landing.** Root `/` cascades through a sensible chain so the
+  user never sees a blank page: first available public overview → first
+  layer with services → the **empty landing** (`/landing-empty`). The
+  cascade only lands on destinations that are also in the sidebar — a
+  bundled-but-inactive layer (no services yet) is deliberately not a
+  fallback, since it would put the user on a page they can't navigate
+  back to via the menu. The empty page is also a
+  real bookmarkable route, with two distinct copies — *"No data is
+  flowing yet"* (no agents/receivers reporting) vs *"No dashboard
+  configured yet"* (services exist but no overview is set up) — each
+  with the right operations-team handoff and no action buttons (a
+  viewer's role doesn't include the verbs the old buttons jumped to).
+- **Debug events panel now defaults OFF on every host** (was on for
+  localhost). Same baseline for operators and developers so
+  reproductions match what operators see.
 - **Zipkin trace mode** drops the per-layer service-KPI header — the Zipkin
   explorer is a self-contained, cross-service view.
 
@@ -101,6 +123,13 @@ live, shared version is whatever OAP serves.
   server" message instead of the cryptic "body stream already read" — the
   API client reads each error response body once and surfaces the real
   status/text (or a wrapped network error).
+- **Server-global service-by-layer catalog.** One singleton on the BFF
+  (60s TTL + single-flight) now owns the `listLayers` + aliased
+  `listServices(layer)` fan-out. The sidebar menu's per-layer counts and
+  the alarms layer-tagger share this one cache instead of each running
+  their own poll, so OAP sees at most one fan-out per minute regardless
+  of how many routes are polling — and the two views can no longer drift
+  by 60s relative to each other.
 
 ## 0.5.0
 

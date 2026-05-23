@@ -54,14 +54,15 @@ import type { SessionStore } from '../../user/sessions.js';
 import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
-import type { ServiceLayerMap } from '../../logic/alarms/service-layer-map.js';
+import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
 export interface AlarmsQueryRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
-  /** Shared with config/alarms.ts so a config save can invalidate the
-   *  cache and the next list call picks up the new layers. */
-  serviceLayer: ServiceLayerMap;
+  /** Server-global service-by-layer index (shared with config/alarms.ts +
+   *  the sidebar menu). A config save invalidates it so the next list call
+   *  picks up newly-pinned layers. */
+  serviceLayer: ServiceLayerCatalog;
   fetch?: FetchLike;
 }
 
@@ -117,7 +118,7 @@ export interface AlarmMessage {
   tags: MqeKeyValue[];
   events?: Array<Record<string, unknown>>;
   snapshot: AlarmSnapshot;
-  /** Best-effort layer tag derived from service-layer-map. Null when
+  /** Best-effort layer tag derived from the service-layer catalog. Null when
    *  the entity isn't a known service (instance / endpoint / etc.
    *  fall through if their service prefix doesn't match). */
   layerKey: string | null;
@@ -373,7 +374,7 @@ function buildEntity(q: {
 
 async function tagWithLayer(
   msgsRaw: AlarmMessage[],
-  serviceLayer: ServiceLayerMap,
+  serviceLayer: ServiceLayerCatalog,
 ): Promise<AlarmMessage[]> {
   const layerIdx = await serviceLayer.get();
   return msgsRaw.map((m) => {

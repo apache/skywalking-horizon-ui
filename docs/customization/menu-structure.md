@@ -37,6 +37,27 @@ A layer appears under **Layers** when all of these are true:
 
 If a layer is meant for SkyWalking self-observability rather than application observability, set its template visibility to `operate`; Horizon places it under the Operate area instead of the main Layers list.
 
+## Overview Visibility
+
+An overview dashboard appears under **Overviews** when at least one of the layers it touches is reporting services. Horizon derives "the layers it touches" from two sources, unioned:
+
+- the explicit `layers[]` field on the dashboard, and
+- every `widget.layer` referenced by its widgets.
+
+A dashboard with no layer reference on either side (e.g. a cross-layer "All" view) is always shown. See [Overview templates](/customization/overview-templates).
+
+## Landing Page
+
+When a user opens the app at `/`, Horizon picks a real destination so they never see a blank page:
+
+1. The first available public overview dashboard, or
+2. The first layer with services, or
+3. The empty landing (`/landing-empty`).
+
+The cascade only lands on destinations that also appear in the sidebar. A bundled layer template that has no services is intentionally **not** a fallback — it would put the user on a page that doesn't appear in their menu.
+
+`/landing-empty` is a real route (also reachable directly). It explains the situation in plain language — "No data is flowing yet" or "No dashboard configured yet" — and points the viewer at their operations team. As soon as a service starts reporting or an operator publishes a dashboard, the next visit (or the next 60s menu refresh) replaces the empty landing with the real one.
+
 ## First Tab for a Layer
 
 When a user clicks a layer, Horizon opens the first enabled tab in this order:

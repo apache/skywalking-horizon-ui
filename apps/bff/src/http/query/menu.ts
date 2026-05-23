@@ -27,10 +27,11 @@ import type {
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
-import { buildOapOpts, graphqlPost, type GraphqlOptions } from '../../client/graphql.js';
+import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags } from '../../logic/layers/loader.js';
 import { getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
+import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 
 /**
@@ -71,6 +72,10 @@ export interface MenuRouteDeps {
    *  (a layer disabled in the admin disappears from the sidebar). Optional
    *  so tests can omit it; without it no layer is filtered as disabled. */
   uiTemplateClient?: () => UITemplateClient;
+  /** Server-global service-by-layer index. Single source of truth for
+   *  per-layer counts + `normal` flags (shared with the alarms tagger
+   *  and any future surface that needs the service ↔ layer mapping). */
+  serviceCatalog: ServiceLayerCatalog;
 }
 
 /** Canonical layer keys disabled on OAP (`horizon.layer.<KEY>` rows flagged
@@ -231,44 +236,6 @@ function deriveLayer(
   };
 }
 
-/**
- * Fetch per-layer service counts in a single GraphQL request with aliased
- * `listServices(layer)` queries (one alias per active layer). Returns a
- * map keyed by the layer's RAW (pre-canonical) name.
- */
-async function fetchCountsForLayers(
-  layers: readonly string[],
-  opts: GraphqlOptions,
-): Promise<Map<string, { count: number; normal: boolean | null }>> {
-  const map = new Map<string, { count: number; normal: boolean | null }>();
-  if (layers.length === 0) return map;
-  // GraphQL aliases must be valid identifiers — index-keyed. Also pull
-  // the `normal` flag off the first service so callers can pivot the
-  // MQE entity scope (`{ normal: true|false }`) without a separate
-  // listServices roundtrip on every dashboard hit.
-  const aliased = layers
-    .map((l, i) => `_${i}: listServices(layer: ${JSON.stringify(l)}) { id normal }`)
-    .join('\n');
-  const query = `query HorizonCounts { ${aliased} }`;
-  try {
-    const data = await graphqlPostShim<
-      Record<string, Array<{ id: string; normal?: boolean | null }>>
-    >(opts, query);
-    layers.forEach((l, i) => {
-      const rows = data[`_${i}`] ?? [];
-      const first = rows[0];
-      const normal = first ? (first.normal === false ? false : first.normal === true ? true : null) : null;
-      map.set(l, { count: rows.length, normal });
-    });
-  } catch {
-    // Soft-fail: leave the map empty so deriveLayer falls back to -1 / null.
-  }
-  return map;
-}
-
-// Local re-import to avoid a circular dep — graphqlPost is in the same dir.
-import { graphqlPost as graphqlPostShim } from '../../client/graphql.js';
-
 export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): void {
   const auth = requireAuth(deps);
   app.get('/api/menu', { preHandler: auth }, async (_req: FastifyRequest, reply: FastifyReply) => {
@@ -282,20 +249,24 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const activeCanonical = new Set(raw.layers.map(canonical));
       const levelByCanonical = new Map(raw.levels.map((l) => [canonical(l.layer), l.level]));
 
-      // Service-count batch — uses the RAW layer names from OAP since the
-      // alias collapse is only a presentation concern.
-      const counts = await fetchCountsForLayers(raw.layers, opts);
+      // Service counts + first-row `normal` flag come from the
+      // server-global catalog (60s TTL, shared with alarms + any other
+      // surface needing the service ↔ layer map). RAW layer names since
+      // the canonical alias collapse is presentation-only.
+      const catalog = await deps.serviceCatalog.get();
       const countByCanonical = new Map<string, number>();
       const normalByCanonical = new Map<string, boolean | null>();
       for (const rawLayer of raw.layers) {
         const key = canonical(rawLayer);
-        const c = counts.get(rawLayer);
-        countByCanonical.set(key, (countByCanonical.get(key) ?? 0) + (c?.count ?? 0));
+        const rows = catalog.byLayer.get(rawLayer) ?? [];
+        countByCanonical.set(key, (countByCanonical.get(key) ?? 0) + rows.length);
         // First non-null `normal` value wins for the canonical key —
         // raw layers that fold into one canonical (e.g. mesh / mesh_cp)
         // share the same `normal` in practice, so collisions are safe.
-        if (c?.normal !== undefined && c.normal !== null && !normalByCanonical.has(key)) {
-          normalByCanonical.set(key, c.normal);
+        const first = rows[0];
+        const normal = first ? (first.normal === true ? true : first.normal === false ? false : null) : null;
+        if (normal !== null && !normalByCanonical.has(key)) {
+          normalByCanonical.set(key, normal);
         }
       }
 

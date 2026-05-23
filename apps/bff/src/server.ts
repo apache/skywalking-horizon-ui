@@ -76,7 +76,7 @@ import { registerAuthHealthRoute } from './http/auth-health.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
 import { SetupStore } from './logic/setup/store.js';
-import { ServiceLayerMap } from './logic/alarms/service-layer-map.js';
+import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
 
@@ -126,8 +126,11 @@ const setupStore = new SetupStore(source.current.setup.file);
 await setupStore.load();
 const alarmsStore = new AlarmsStore(source.current.alarms.file);
 await alarmsStore.load();
-// Shared between alarms query (read) + alarms config (write+invalidate).
-const serviceLayer = new ServiceLayerMap({ config: source });
+// Server-global service-by-layer index — shared by the sidebar menu, the
+// alarms tagger, and any other surface that needs the service ↔ layer
+// mapping. 60s TTL + single-flight dedup; one OAP fan-out per minute
+// regardless of how many routes are polling.
+const serviceLayer = serviceLayerCatalog({ config: source });
 
 await app.register(cookie);
 
@@ -149,6 +152,7 @@ registerMenuRoute(app, {
   config: source,
   sessions,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+  serviceCatalog: serviceLayer,
 });
 registerLandingRoute(app, { config: source, sessions });
 registerInstanceRoute(app, { config: source, sessions });

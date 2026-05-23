@@ -15,55 +15,115 @@
   limitations under the License.
 -->
 <!--
-  Root landing. Resolves the first public overview dashboard available
-  in this deployment and redirects there. The cross-layer KPI strip
-  that used to live here has been retired — every overview is now a
-  named dashboard under `/overview/:id`.
+  Root landing. Resolves a sensible first destination via a cascade so
+  the user never sees a blank "nothing to show" screen:
+
+    1. First available public overview (already gated by service
+       availability via `useOverviewDashboards`).
+    2. Else first layer with services (`availableLayers`).
+    3. Else first layer the BFF knows about (bundled template), even
+       with no services yet — gives operators the layer page to land
+       on while data is starting to flow.
+    4. Else fall back to a page the user's verbs allow — `/alarms` is
+       ungated for logged-in users; admins also land on the templates
+       editor where they can configure the empty deployment.
 -->
 <script setup lang="ts">
-import { watchEffect } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
+import { computed, watchEffect } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
-import { useLayers } from '@/shell/useLayers';
+import { firstLayerTab, useLayers } from '@/shell/useLayers';
 
 const router = useRouter();
-const { publicOverviews, isLoading } = useOverviewDashboards();
-const { oapReachable, oapError, availableLayers } = useLayers();
+const route = useRoute();
+const { publicOverviews, isLoading: overviewsLoading } = useOverviewDashboards();
+const {
+  oapReachable,
+  oapError,
+  availableLayers,
+  isLoading: layersLoading,
+} = useLayers();
+
+/** Render the empty card (no redirect cascade) when the route is the
+ *  dedicated `/landing-empty` path — set either by a direct visit or
+ *  by the cascade itself when there's nothing to land on. */
+const forceEmpty = computed<boolean>(() => route.name === 'landing-empty');
 
 watchEffect(() => {
-  if (isLoading.value) return;
-  const first = publicOverviews.value[0];
-  if (first) {
-    void router.replace({ name: 'overview-dashboard', params: { id: first.id } });
+  // Wait for both data sources — without `layers`, a fresh boot would
+  // briefly fall through while the menu is still in flight.
+  if (overviewsLoading.value || layersLoading.value) return;
+  // Direct visit to `/landing-empty` — render the card, no redirect.
+  if (forceEmpty.value) return;
+
+  // 1. First available public overview.
+  const overview = publicOverviews.value[0];
+  if (overview) {
+    void router.replace({ name: 'overview-dashboard', params: { id: overview.id } });
+    return;
   }
+
+  // 2. First layer with services. We deliberately do NOT fall back to a
+  //    bundled-but-inactive layer here: the sidebar filters layers by
+  //    `serviceCount > 0`, so landing on an inactive layer would put
+  //    the user on a page that doesn't appear in their menu (no way
+  //    back). When no service-backed layer exists, the empty landing
+  //    is the honest answer.
+  const layer = availableLayers.value[0];
+  if (layer) {
+    void router.replace({ path: `/layer/${layer.key}/${firstLayerTab(layer)}` });
+    return;
+  }
+
+  // 3. No overview, no service-backed layer — show the empty landing
+  //    automatically. Same component re-mounts with
+  //    `route.name === 'landing-empty'` so the watchEffect short-
+  //    circuits next tick (no redirect loop).
+  void router.replace({ name: 'landing-empty' });
 });
 </script>
 
 <template>
   <div class="landing">
-    <div v-if="!oapReachable && !isLoading" class="banner err">
+    <div v-if="!oapReachable && !overviewsLoading && !layersLoading" class="banner err">
       <strong>OAP unreachable.</strong>
       {{ oapError ?? 'Check that the OAP query host is up and reachable from the BFF.' }}
     </div>
-    <div v-else-if="isLoading" class="empty">Loading…</div>
-    <div v-else-if="publicOverviews.length === 0" class="empty">
-      <div class="empty-card">
-        <h2>No public overview is currently active</h2>
-        <p v-if="availableLayers.length === 0">
-          No layer is reporting services yet. Once data flows through OAP, the relevant
-          overview (Services / Mesh / …) will appear here automatically.
+    <!-- Empty landing — rendered for the dedicated `/landing-empty`
+         route. Cascade lands here automatically when there's no
+         available overview and no available layer dashboard. Two
+         distinct empty states with distinct messaging:
+
+           - no services reported → it's a data problem (agents /
+             receivers), not a dashboard problem.
+           - services reported but no overview configured → it's a
+             dashboard problem.
+    -->
+    <div v-else-if="forceEmpty" class="empty">
+      <div v-if="availableLayers.length === 0" class="empty-card">
+        <h2>No data is flowing yet</h2>
+        <p>
+          OAP hasn't received any service data. The relevant overview will appear here
+          automatically as soon as data starts arriving.
         </p>
-        <p v-else>
-          The deployment is reporting on
-          {{ availableLayers.length }} layer{{ availableLayers.length === 1 ? '' : 's' }},
-          but no overview is set to <code>visibility: public</code>. Operations-only
-          overviews are reachable from the Admin section in the sidebar.
+        <p class="empty-ask">
+          Ask your operations team to verify that the agents or receivers for your
+          services are configured and pointing at this OAP.
         </p>
-        <RouterLink class="sw-btn is-primary" to="/admin/overview-templates">
-          Open Overview templates
-        </RouterLink>
+      </div>
+      <div v-else class="empty-card">
+        <h2>No dashboard configured yet</h2>
+        <p>
+          {{ availableLayers.length }} layer{{ availableLayers.length === 1 ? '' : 's' }}
+          {{ availableLayers.length === 1 ? 'is' : 'are' }} reporting services, but no
+          overview dashboard has been set up for them.
+        </p>
+        <p class="empty-ask">
+          Ask your operations team to set up a dashboard for you.
+        </p>
       </div>
     </div>
+    <div v-else class="empty">Routing…</div>
   </div>
 </template>
 
@@ -87,10 +147,10 @@ watchEffect(() => {
 }
 .empty-card h2 { font-size: 15px; color: var(--sw-fg-0); margin: 0 0 8px; }
 .empty-card p { font-size: 12px; color: var(--sw-fg-2); margin: 0 0 16px; line-height: 1.5; }
-.empty-card code {
-  font-family: var(--sw-mono); font-size: 11px;
-  padding: 0 4px; border-radius: 3px;
-  background: var(--sw-bg-2); color: var(--sw-fg-1);
+.empty-ask {
+  margin-top: 18px !important;
+  font-size: 12.5px !important;
+  color: var(--sw-fg-1) !important;
+  font-weight: 500;
 }
-.empty-card .sw-btn { display: inline-flex; text-decoration: none; }
 </style>

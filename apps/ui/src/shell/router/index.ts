@@ -123,6 +123,13 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'overview-dashboard',
     component: () => import('@/render/overview/OverviewDashboardView.vue'),
   },
+  /* Empty-landing surface. The root `/` cascade always picks a real
+   * destination, so this is the only path that renders the
+   * "nothing-here-yet" card — useful for reviewing the empty state and
+   * as the visible fallback for a viewer in a deployment with no
+   * configured dashboards. Same component as `/`, distinguished by
+   * route name. */
+  { path: 'landing-empty', name: 'landing-empty', component: () => import('@/render/overview/OverviewLanding.vue') },
   /* Legacy `/setup` route — the read-only "Overview dashboards"
    * browser was replaced by `/admin/overview-templates` which both
    * lists AND edits. Redirect rather than 404 so old bookmarks /

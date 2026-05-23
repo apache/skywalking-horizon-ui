@@ -117,8 +117,8 @@ const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []
 const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);
 
 /* In legacy mode the BFF can't server-side-filter by layer, but every
- * row already carries `layerKey` (resolved against the
- * service-layer-map). Filter client-side so the widget shows only
+ * row already carries `layerKey` (resolved against the server-global
+ * service-layer catalog). Filter client-side so the widget shows only
  * the layer the dashboard is scoped to — same observable behavior as
  * the new-API path. Rows whose `layerKey` couldn't be resolved
  * (unknown service prefix, instance/endpoint scopes) drop out

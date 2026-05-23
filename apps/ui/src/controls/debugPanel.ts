@@ -17,21 +17,17 @@
 
 /**
  * Visibility toggle for the bottom-of-page event panel. Defaults to
- * ON for local development hosts (`localhost`, `127.0.0.1`,
- * `0.0.0.0`) and OFF everywhere else, so operators in production
- * don't see the dev-mode framework chatter unless they explicitly
- * flip the Admin → "Debug events" item in the sidebar.
+ * OFF everywhere — even on local dev hosts — so operators (and
+ * developers reproducing operator issues) see the same baseline. Flip
+ * it on via Admin → "Debug events" in the sidebar when needed.
  *
  * The choice is sticky per browser via localStorage so the operator
- * doesn't have to re-enable it on every reload. The hostname
- * default only applies on the very first visit (when storage is
- * empty).
+ * doesn't have to re-enable it on every reload.
  */
 
 import { ref, watch } from 'vue';
 
 const STORAGE_KEY = 'horizon:debugPanel:v1';
-const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
 
 function detectInitial(): boolean {
   if (typeof localStorage !== 'undefined') {
@@ -39,8 +35,9 @@ function detectInitial(): boolean {
     if (raw === '1') return true;
     if (raw === '0') return false;
   }
-  if (typeof window === 'undefined') return false;
-  return LOCAL_HOSTS.has(window.location.hostname);
+  // No stored preference → off. Was previously on for localhost; now
+  // uniform so operator-reported behavior matches what developers see.
+  return false;
 }
 
 const enabled = ref<boolean>(detectInitial());
