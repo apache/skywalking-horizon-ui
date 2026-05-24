@@ -19,6 +19,7 @@ import { computed, type Ref } from 'vue';
 import { useQueries, useQuery } from '@tanstack/vue-query';
 import type { LandingConfig, OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
+import { useTimeRangeStore } from '@/controls/timeRange';
 
 /**
  * Resolved value for one overview widget. The renderer reads
@@ -107,14 +108,27 @@ export function useOverviewDashboard(idRef: Ref<string>) {
   const widgets = computed<OverviewWidget[]>(() => dash.data.value?.dashboard.widgets ?? []);
   const layerRequests = computed(() => groupByLayer(widgets.value));
 
+  // The topbar time picker is part of every overview query so flipping
+  // the time / cold pills refires the per-layer landing calls instead
+  // of serving the previous window's cached aggregates. We forward the
+  // raw step+startMs+endMs to the BFF and also stamp them into the
+  // queryKey for cache scoping.
+  const timeRange = useTimeRangeStore();
+  const rangeKey = computed(() => ({
+    step: timeRange.step,
+    startMs: timeRange.range.startMs,
+    endMs: timeRange.range.endMs,
+  }));
+
   // One landing call per referenced layer. Bundling all that layer's
   // MQEs in one request keeps the round-trip count to N, where N is the
   // distinct layer count in the dashboard — usually 1–3.
   const layerQueries = useQueries({
     queries: computed(() => {
       const entries = Array.from(layerRequests.value.entries());
+      const range = rangeKey.value;
       return entries.map(([layer, reqs]) => ({
-        queryKey: ['overview-dashboard-data', idRef.value, layer],
+        queryKey: ['overview-dashboard-data', idRef.value, layer, range],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
@@ -137,7 +151,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
               unit: r.unit,
             })),
           };
-          return bffClient.layer.landing(layer, cfg).then((res) => ({
+          return bffClient.layer.landing(layer, cfg, range).then((res) => ({
             layer,
             reqs,
             mqeReqs,

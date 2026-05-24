@@ -42,6 +42,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
 
 export interface LogRouteDeps {
   config: ConfigSource;
@@ -194,7 +195,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           ? { keywordsOfContent: body.keywordsOfContent }
           : {}),
         ...(body.tags && body.tags.length > 0 ? { tags: body.tags } : {}),
-        queryDuration: { start: window.start, end: window.end, step: 'MINUTE' },
+        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
         paging: {
           pageNum: body.page ?? 1,
           pageSize: body.pageSize ?? 50,
@@ -286,7 +287,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         // Facet sample intentionally ignores level/tag filters so the
         // counts show the unfiltered distribution; the user picks a
         // level from the breakdown.
-        queryDuration: { start: window.start, end: window.end, step: 'MINUTE' },
+        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
         paging: { pageNum: 1, pageSize: sampleSize },
       };
 

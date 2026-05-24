@@ -59,8 +59,20 @@ export class TraceApi {
   detail(
     traceId: string,
     source: 'native' | 'zipkin' = 'native',
+    /** Approximate window the trace lives in (epoch ms + OAP step).
+     *  Required when the trace is older than ~1 day on BanyanDB —
+     *  `queryTrace` defaults to a 1-day search and an older trace ID
+     *  returns null without it. Callers without a hint (e.g. directly
+     *  pasting a trace ID into the URL) can omit and rely on the
+     *  1-day fallback. The BFF converts ms → OAP-server-TZ format. */
+    range?: { startMs: number; endMs: number; step: 'MINUTE' | 'HOUR' | 'DAY' },
   ): Promise<TraceDetailResponse> {
     const qs = new URLSearchParams({ source });
+    if (range) {
+      qs.set('startMs', String(range.startMs));
+      qs.set('endMs', String(range.endMs));
+      qs.set('step', range.step);
+    }
     return this.bff.request<TraceDetailResponse>(
       'GET',
       `/api/trace/${encodeURIComponent(traceId)}?${qs.toString()}`,

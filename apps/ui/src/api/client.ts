@@ -47,6 +47,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 
 import { pushEvent } from '@/controls/eventLog';
+import { COLD_STAGE_HEADER, readColdStageHeader } from '@/controls/coldStage';
 import { SessionApi } from './scopes/session';
 
 /** Deploy-base prefix for every API call. Pulled from Vite's
@@ -596,11 +597,15 @@ export class BffClient {
     body?: unknown,
     headers?: Record<string, string>,
   ): Promise<T> {
+    // Cold-stage flag is per-request not per-call-site, so the
+    // interceptor reads the persisted toggle here rather than every
+    // sub-client having to forward it. OAP ignores it for non-BanyanDB.
     const init: RequestInit = {
       method,
       credentials: 'include',
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
+        ...(readColdStageHeader() ? { [COLD_STAGE_HEADER]: '1' } : {}),
         ...headers,
       },
     };

@@ -9,7 +9,80 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.6.0
 
-### Dashboard authoring — browser-local drafts + preview
+### BanyanDB cold-stage query
+
+The cold lifecycle stage is now reachable from the UI on BanyanDB
+deployments — operators can query data that has aged past the
+hot + warm window without leaving the page.
+
+- **Topbar `Cold` pill** appears only when the connected OAP is BanyanDB.
+  Toggling it switches every page to read from the cold stage instead
+  of hot + warm — it replaces the read, it does NOT union the two stages,
+  so the pill label flips to `Cold only` while on. The choice is sticky
+  per browser and re-runs every visible query so what you see matches the
+  new mode immediately.
+- **Cold-trap banner.** When the pill is on AND the current time range is
+  within the hot + warm window, a yellow strip appears under the topbar:
+  *"Cold-only read is active — your time range is within the last N d
+  (hot + warm), where the cold stage returns nothing."* A one-click
+  *Turn Cold off* sits on the right.
+- **Trace lookup from a log row** now passes the row's timestamp through
+  the popout so the trace lookup spans a window around that timestamp
+  instead of OAP's default last-1-day search — paired with the Cold pill,
+  a trace that lives in cold resolves from a cold-era log row instead of
+  silently failing to load.
+
+### Data retention page
+
+- **Per-data-class data lifecycle bar.** One row per data class
+  (Normal / Trace / Zipkin trace / Log / Browser error log / Metadata /
+  Minute metric / Hour metric / Day metric) with proportional Hot+Warm
+  and (when configured) Cold segments. Widths are proportional to total
+  retention across all rows, so a class retained longer visibly stretches
+  further than its peers.
+- When every class in a category shares the same TTL pair, the rows
+  collapse to `All records (5)` / `All metrics (4)` — the page never
+  renders nine identical bars.
+- The page **branches sharply by backend.** BanyanDB shows the full
+  lifecycle bar + stage vocabulary; on any other backend, the page
+  renders a single `Retention` pane with per-class values and skips the
+  stage vocabulary entirely.
+- A footer note names the wire-level truth: OAP's TTL response collapses
+  hot + warm into one number per class, BanyanDB migrates between stages
+  in segments so records near a boundary may briefly exist in both, and
+  property data is omitted (forever-retained, no TTL reported).
+
+### Time picker
+
+- **Custom range seeds from the last applied range** when you re-open the
+  picker, instead of resetting to "half the max ending now". Reopening
+  also auto-expands the Custom form on the matching precision tab when
+  the current range is custom.
+- Locale-bleed fix on the alarms page custom-range stamp and the log row
+  date column (was rendering `5月08日` on zh-CN browsers; now uniform
+  `MM-DD`).
+
+### Overview widgets follow the global time picker
+
+- The **Services Dashboard** (and any overview using metric / KPI / table
+  widgets) now honors the topbar time picker. Previously the per-layer
+  landing and topology routes were hardcoded to the last 60 minutes, so
+  picking 12 days back kept showing recent numbers; now picker + Cold pill
+  flow end-to-end. The layer dashboard's header KPIs follow the picker too
+  (was showing live numbers while the body honored the picker).
+- The **Active alarms** widget title now shows the actual window
+  (e.g. `· last 10m`) and the empty-state copy uses the same value
+  instead of a hardcoded "last 60m".
+
+### Polish
+
+- Sentence-case fixes on a couple of leftover Title-Case labels
+  (`DSL management`, `Metrics inspect`) so the menu and roles tables read
+  consistently; acronyms (DSL / OAP / MAL / LAL / OAL) stay uppercase.
+- Public-demo (`demo.skywalking.apache.org`) references removed from
+  setup docs — the demo doesn't accept anonymous traffic.
+
+### Dashboard authoring
 
 The Layer dashboards and Overview templates admin pages now share one
 editing model where your work-in-progress lives in your browser, and the

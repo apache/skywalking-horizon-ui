@@ -44,7 +44,7 @@ When `auth.username` and `auth.password` are set:
 - The header is applied identically to `queryUrl`, `adminUrl`, and `zipkinUrl` — there is no per-port credential.
 - In `horizon-wire.jsonl` (when `debugLog.enabled: true`), the header is redacted by default. See [debugLog](debug-log.md).
 
-The public demo at `demo.skywalking.apache.org` uses `skywalking:skywalking`. Production deployments should pull from environment:
+Production deployments should pull credentials from the environment rather than committing them to `horizon.yaml`:
 
 ```yaml
 oap:

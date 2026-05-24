@@ -54,6 +54,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
+import { withColdStage } from '../../util/duration.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
 export interface AlarmsQueryRouteDeps {
@@ -434,7 +435,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
          * alarms, which looked like "the per-layer filter doesn't
          * work". */
         const condition: Record<string, unknown> = {
-          duration: { start, end, step: 'SECOND' },
+          duration: withColdStage(req, { start, end, step: 'SECOND' }),
           paging: { pageNum: q.pageNum, pageSize: q.pageSize },
         };
         if (q.keyword) condition.keyword = q.keyword;
@@ -451,7 +452,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
          * URL), the BFF silently ignores them rather than 400-ing,
          * matching the spirit of the spec's "drop fake filters". */
         const variables: Record<string, unknown> = {
-          duration: { start, end, step: 'SECOND' },
+          duration: withColdStage(req, { start, end, step: 'SECOND' }),
           paging: { pageNum: q.pageNum, pageSize: q.pageSize },
         };
         if (q.scope) variables.scope = q.scope;
@@ -505,7 +506,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       try {
         if (caps.queryAlarms) {
           const condition = {
-            duration: { start, end, step: 'SECOND' },
+            duration: withColdStage(req, { start, end, step: 'SECOND' }),
             paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
           };
           const raw = await graphqlPost<QueryAlarmsRaw>(opts, COUNT_QUERY_ALARMS_QUERY, { condition });
@@ -516,7 +517,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
           }));
         } else {
           const variables = {
-            duration: { start, end, step: 'SECOND' },
+            duration: withColdStage(req, { start, end, step: 'SECOND' }),
             paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
           };
           const raw = await graphqlPost<GetAlarmRaw>(opts, COUNT_GET_ALARM_QUERY, variables);

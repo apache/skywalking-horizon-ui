@@ -231,7 +231,7 @@ const sections: NavSection[] = [
       { icon: 'alert', label: 'Alerting rules', to: '/operate/alerting-rules', verb: 'alarm-rule:read' },
       {
         icon: 'set',
-        label: 'DSL Management',
+        label: 'DSL management',
         // No standalone landing — `to` jumps to the first rule page so
         // the L1 itself is clickable; activeWhen covers all DSL routes.
         to: '/operate/dsl/otel-rules',
@@ -256,7 +256,7 @@ const sections: NavSection[] = [
         activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal)(\/|$)/.test(p),
       },
       { icon: 'event', label: 'Capture history', to: '/operate/live-debug/history', verb: 'live-debug:read' },
-      { icon: 'metric', label: 'Metrics Inspect', to: '/operate/inspect', verb: 'inspect:read' },
+      { icon: 'metric', label: 'Metrics inspect', to: '/operate/inspect', verb: 'inspect:read' },
     ],
   },
   {

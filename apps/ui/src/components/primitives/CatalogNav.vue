@@ -46,7 +46,7 @@ const sections: NavSection[] = [
     ],
   },
   {
-    kicker: 'DSL Management',
+    kicker: 'DSL management',
     links: [
       {
         label: 'MAL · OTEL',

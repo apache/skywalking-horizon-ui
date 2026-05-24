@@ -50,6 +50,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
+import { defaultMinuteWindow, windowFromRange, type Window } from '../../util/window.js';
 
 export interface LandingRouteDeps {
   config: ConfigSource;
@@ -122,29 +123,17 @@ const bodySchema = z.object({
     .object({ metric: z.string().min(1), height: z.number().int().positive() })
     .optional(),
   throughput: throughputSchema.optional(),
+  // Topbar time picker — same triplet shape the dashboard route accepts.
+  // When all three are present the BFF queries OAP at the requested
+  // window/precision; otherwise it falls back to the last-hour MINUTE
+  // window (DEFAULT_WINDOW_MIN). The Overview composable
+  // (apps/ui/src/render/overview/useOverviewDashboard.ts) forwards
+  // these so flipping the topbar Time / Cold pills actually changes
+  // what the overview KPIs see.
+  step: z.enum(['MINUTE', 'HOUR', 'DAY']).optional(),
+  startMs: z.number().int().positive().optional(),
+  endMs: z.number().int().positive().optional(),
 });
-
-interface Window {
-  start: string;
-  end: string;
-  step: 'MINUTE';
-}
-
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const hh = String(d.getUTCHours()).padStart(2, '0');
-  const mi = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}${mi}`;
-}
-
-function defaultWindow(): Window {
-  const end = new Date();
-  end.setUTCSeconds(0, 0);
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
-}
 
 /**
  * Pick the time-series expression to fire for `(metric, layer)`. We
@@ -242,12 +231,13 @@ interface MqeRequest {
   normal: boolean;
 }
 
-function buildMqeFragment(aliasName: string, req: MqeRequest, w: Window): string {
+function buildMqeFragment(aliasName: string, m: MqeRequest, w: Window, coldStage: boolean): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${aliasName}: execExpression(\n` +
-    `      expression: ${JSON.stringify(req.expression)},\n` +
-    `      entity: { scope: Service, serviceName: ${JSON.stringify(req.serviceName)}, normal: ${req.normal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      expression: ${JSON.stringify(m.expression)},\n` +
+    `      entity: { scope: Service, serviceName: ${JSON.stringify(m.serviceName)}, normal: ${m.normal ? 'true' : 'false'} },\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -271,7 +261,13 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       const oapLayer = layerKey.toUpperCase();
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const window = defaultWindow();
+      // Honor the SPA's topbar time picker when all three triplet fields
+      // are present; otherwise fall back to the last-hour MINUTE window
+      // (legacy callers + the BFF's own service-count probes).
+      const window =
+        cfg.step && cfg.startMs && cfg.endMs
+          ? windowFromRange(cfg.step, cfg.startMs, cfg.endMs) ?? defaultMinuteWindow(DEFAULT_WINDOW_MIN)
+          : defaultMinuteWindow(DEFAULT_WINDOW_MIN);
 
       // Step 1 — service list.
       let services: ListServicesRow[];
@@ -288,7 +284,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           topN: cfg.topN,
           orderBy: cfg.orderBy,
           generatedAt: Date.now(),
-          step: 'MINUTE',
+          step: window.step,
           durationStart: window.start,
           durationEnd: window.end,
           rows: [],
@@ -315,7 +311,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           topN: cfg.topN,
           orderBy: cfg.orderBy,
           generatedAt: Date.now(),
-          step: 'MINUTE',
+          step: window.step,
           durationStart: window.start,
           durationEnd: window.end,
           rows: [],
@@ -332,6 +328,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         expression: resolveMqe(c.metric, c.mqe, layerKey),
       }));
 
+      const coldStage = !!req.coldStage;
       const fragments: string[] = [];
       sampled.forEach((svc, sIdx) => {
         resolved.forEach(({ expression }, cIdx) => {
@@ -341,6 +338,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
               alias(sIdx, cIdx),
               { expression, serviceName: svc.value, normal: svc.normal !== false },
               window,
+              coldStage,
             ),
           );
         });
@@ -420,10 +418,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           if (!svc) return;
           const r: MqeRequest = { expression: '', serviceName: svc.value, normal: svc.normal !== false };
           if (sparkExpr) {
-            sparkFragments.push(buildMqeFragment(`s${i}`, { ...r, expression: sparkExpr }, window));
+            sparkFragments.push(buildMqeFragment(`s${i}`, { ...r, expression: sparkExpr }, window, coldStage));
           }
           if (throughputExpr && throughputExpr !== sparkExpr) {
-            sparkFragments.push(buildMqeFragment(`t${i}`, { ...r, expression: throughputExpr }, window));
+            sparkFragments.push(buildMqeFragment(`t${i}`, { ...r, expression: throughputExpr }, window, coldStage));
           }
         });
         if (sparkFragments.length > 0) {
@@ -512,7 +510,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         topN: cfg.topN,
         orderBy: cfg.orderBy,
         generatedAt: Date.now(),
-        step: 'MINUTE',
+        step: window.step,
         durationStart: window.start,
         durationEnd: window.end,
         rows: topRows,

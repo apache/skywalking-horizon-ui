@@ -51,7 +51,8 @@ export type IconName =
   | 'web'
   | 'fn'
   | 'cache'
-  | 'topic';
+  | 'topic'
+  | 'snowflake';
 </script>
 
 <template>
@@ -213,6 +214,10 @@ export type IconName =
     <template v-else-if="name === 'topic'">
       <circle cx="12" cy="12" r="8" />
       <path d="M4 12h16M12 4v16" opacity="0.6" />
+    </template>
+    <template v-else-if="name === 'snowflake'">
+      <path d="M12 3v18M3 12h18M5 5l14 14M19 5L5 19" />
+      <path d="M9 6l3-3 3 3M15 18l-3 3-3-3M6 9L3 12l3 3M18 9l3 3-3 3" />
     </template>
   </svg>
 </template>

@@ -43,6 +43,14 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
+import {
+  defaultMinuteWindow,
+  fmtForStep,
+  windowFromRange,
+  type TimeStep,
+  type Window,
+} from '../../util/window.js';
 import {
   getLayerTemplate,
   widgetsForScope,
@@ -183,50 +191,13 @@ const FIND_FIRST_ENDPOINT = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-
-export type TimeStep = 'MINUTE' | 'HOUR' | 'DAY';
-
-export interface Window {
-  start: string;
-  end: string;
-  step: TimeStep;
-}
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
-}
-function fmtMinute(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
-}
-function fmtHour(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}`;
-}
-function fmtDay(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-}
-/** Format a Date for OAP per the step. OAP's `verifyDateTimeString`
- *  rejects a string whose precision doesn't match the Duration.step. */
-export function fmtForStep(step: TimeStep, d: Date): string {
-  if (step === 'DAY') return fmtDay(d);
-  if (step === 'HOUR') return fmtHour(d);
-  return fmtMinute(d);
-}
 function defaultWindow(): Window {
-  const end = new Date();
-  end.setUTCSeconds(0, 0);
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
+  return defaultMinuteWindow(DEFAULT_WINDOW_MIN);
 }
-/** Build the OAP window from the SPA-supplied range. All three inputs
- *  must be present; returns null otherwise so the caller can fall back
- *  to {@link defaultWindow}. */
-function windowFromRange(step: TimeStep, startMs: number, endMs: number): Window | null {
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
-  return {
-    start: fmtForStep(step, new Date(startMs)),
-    end: fmtForStep(step, new Date(endMs)),
-    step,
-  };
-}
+// Re-export so the existing `./dashboard.js` consumers (the test file
+// today; future fragment helpers that import Window from here) don't
+// need to know the helpers moved into the shared util.
+export { fmtForStep, type TimeStep, type Window };
 
 /** Build one aliased `execExpression` GraphQL fragment for a single
  *  widget expression. The entity scope flips based on opts:
@@ -249,6 +220,10 @@ export function buildFragment(
     layerScope?: boolean;
     serviceInstanceName?: string | null;
     endpointName?: string | null;
+    /** When true, splice `coldStage: true` into the Duration literal.
+     *  OAP ignores it for non-BanyanDB backends, so callers can pass it
+     *  unconditionally when the request asked for cold-stage data. */
+    coldStage?: boolean;
   } = {},
 ): string {
   // We fetch metric.labels (for multi-series Line widgets — relabels()
@@ -275,11 +250,12 @@ export function buildFragment(
   } else {
     entity = `{ scope: Service, serviceName: ${JSON.stringify(serviceName)}, normal: ${normal ? 'true' : 'false'} }`;
   }
+  const coldFrag = opts.coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(expression)},\n` +
     `      entity: ${entity},\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step} }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) {\n` +
     `      type error\n` +
     `      results {\n` +
@@ -535,7 +511,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             LIST_FIRST_INSTANCE,
             {
               serviceId,
-              duration: { start: window.start, end: window.end, step: window.step },
+              duration: withColdStage(req, { start: window.start, end: window.end, step: window.step }),
             },
           );
           selectedInstance = data.instances?.[0]?.name ?? null;
@@ -550,7 +526,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             FIND_FIRST_ENDPOINT,
             {
               serviceId,
-              duration: { start: window.start, end: window.end, step: window.step },
+              duration: withColdStage(req, { start: window.start, end: window.end, step: window.step }),
             },
           );
           selectedEndpoint = data.endpoints?.[0]?.name ?? null;
@@ -599,6 +575,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
                       widget.layerScope !== true && scopeHonorsInstance ? selectedInstance : null,
                     endpointName:
                       widget.layerScope !== true && scopeHonorsEndpoint ? selectedEndpoint : null,
+                    coldStage: !!req.coldStage,
                   }),
                 );
               });

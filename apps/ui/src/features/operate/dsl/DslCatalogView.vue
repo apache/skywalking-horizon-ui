@@ -251,7 +251,7 @@ function submitNewRule(): void {
 
 <template>
   <div class="catalog">
-    <AdminFeatureWarning module="receiver-runtime-rule" feature-label="DSL Management" />
+    <AdminFeatureWarning module="receiver-runtime-rule" feature-label="DSL management" />
     <header class="catalog__header">
       <h1 class="catalog__h1">
         Catalog · <span class="catalog__catalog">{{ catalog ?? 'unknown' }}</span>

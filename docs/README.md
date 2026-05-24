@@ -27,22 +27,7 @@ Horizon runs as a browser UI plus a Horizon server process. The browser talks on
 | Building a "war room" overview | Customization → Overview Templates. |
 | Diagnosing a "module disabled" warning | Compatibility → Required OAP Modules, then Operate → Cluster Status. |
 
-## Live demo
-
-The Apache SkyWalking project runs a public OAP demo at `demo.skywalking.apache.org/graphql` (basic auth `skywalking:skywalking`). Horizon's `horizon.yaml` can point at it for smoke-testing:
-
-```yaml
-oap:
-  queryUrl: https://demo.skywalking.apache.org
-  auth:
-    username: skywalking
-    password: skywalking
-```
-
-The demo exposes the GraphQL query port only; the admin REST port — and therefore the Cluster, Inspect, DSL Management, and Live Debugger pages — is not reachable from outside.
-
 ## References
 
 - [Apache SkyWalking](https://github.com/apache/skywalking) — the backend Horizon UI consumes.
 - [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) — the previous-generation UI; Horizon is feature-equivalent against the same OAP protocol.
-- [demo.skywalking.apache.org](https://demo.skywalking.apache.org) — public OAP demo (basic auth `skywalking:skywalking`).

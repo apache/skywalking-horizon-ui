@@ -39,6 +39,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
 
 export interface EndpointRouteDeps {
   config: ConfigSource;
@@ -163,7 +164,7 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
           serviceId,
           keyword,
           limit,
-          duration: { start: window.start, end: window.end, step: 'MINUTE' },
+          duration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
         });
         return reply.send({
           layer: layerKey,

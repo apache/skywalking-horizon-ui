@@ -33,11 +33,16 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
-/** Query-string key. Any URL with this key auto-opens the trace
- *  popout — used for shareable links. The trace-tab list-row click
- *  also writes this key, and the global topbar treats opting-out
- *  routes the same way. */
+/** Query-string keys. Any URL with TRACE_POPOUT_QUERY auto-opens the
+ *  trace popout — shareable. TRACE_POPOUT_AT carries the trace's
+ *  approximate timestamp (epoch ms) so the popout can widen the
+ *  BanyanDB lookup window — needed for trace IDs older than the
+ *  default 1-day `queryTrace` search (most often: clicking a trace
+ *  link on a 12d-old log row with the Cold pill on). Callers without
+ *  a timestamp hint (paste-the-ID-in-the-URL flows) omit it; the
+ *  popout falls back to the default 1-day search. */
 export const TRACE_POPOUT_QUERY = 'traceId';
+export const TRACE_POPOUT_AT = 'traceAt';
 
 export function useTracePopout() {
   const route = useRoute();
@@ -47,20 +52,33 @@ export function useTracePopout() {
     const v = route.query[TRACE_POPOUT_QUERY];
     return typeof v === 'string' && v.length > 0 ? v : null;
   });
+  const openTraceAtMs = computed<number | null>(() => {
+    const v = route.query[TRACE_POPOUT_AT];
+    if (typeof v !== 'string') return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  });
 
-  function openTrace(id: string): void {
+  function openTrace(id: string, atMs?: number): void {
     if (!id) return;
-    void router.push({
-      path: route.path,
-      query: { ...route.query, [TRACE_POPOUT_QUERY]: id },
-    });
+    const next: Record<string, string | (string | null)[] | null | undefined> = {
+      ...route.query,
+      [TRACE_POPOUT_QUERY]: id,
+    };
+    if (typeof atMs === 'number' && Number.isFinite(atMs) && atMs > 0) {
+      next[TRACE_POPOUT_AT] = String(atMs);
+    } else {
+      delete next[TRACE_POPOUT_AT];
+    }
+    void router.push({ path: route.path, query: next });
   }
 
   function closeTrace(): void {
     const q = { ...route.query };
     delete q[TRACE_POPOUT_QUERY];
+    delete q[TRACE_POPOUT_AT];
     void router.replace({ path: route.path, query: q });
   }
 
-  return { openTraceId, openTrace, closeTrace };
+  return { openTraceId, openTraceAtMs, openTrace, closeTrace };
 }

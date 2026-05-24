@@ -37,6 +37,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
 
 export interface InstanceRouteDeps {
   config: ConfigSource;
@@ -171,7 +172,7 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {
           serviceId,
-          duration: { start: window.start, end: window.end, step: 'MINUTE' },
+          duration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
         });
         const rows: InstanceRow[] = (data.instances ?? []).map((i) => ({
           id: i.id,

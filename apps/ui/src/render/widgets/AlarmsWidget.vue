@@ -86,6 +86,19 @@ const windowMs = computed<number>(
   () => cfgQuery.data.value?.defaultWindowMs ?? FALLBACK_WINDOW_MS,
 );
 
+/** Compact human label for the resolved window — surfaced in the
+ *  widget title so operators can tell "no alarms in the last 10m"
+ *  apart from "no alarms in the last hour". Sub-minute / sub-hour
+ *  numbers stay round (we never ship odd values like 13m). */
+const windowLabel = computed<string>(() => {
+  const ms = windowMs.value;
+  const min = Math.round(ms / 60_000);
+  if (min < 60) return `last ${min}m`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `last ${h}h`;
+  return `last ${Math.round(h / 24)}d`;
+});
+
 const alarmsQuery = useQuery({
   /* Layer is keyed only in new-API mode — legacy mode ignores it
    * and re-uses a single all-layers cache across every overview.
@@ -178,7 +191,10 @@ function incidentEntity(i: AlarmIncident): string {
 <template>
   <section class="sw-card alarms-widget">
     <header>
-      <h4>{{ title }}</h4>
+      <!-- Title shows the resolved window (e.g. "Active alarms ·
+           last 10m") so an empty rail isn't mistaken for "no
+           alarms" overall — the operator sees the slice. -->
+      <h4>{{ title }} <span class="window-tag">· {{ windowLabel }}</span></h4>
       <span class="total mono" :class="{ active: activeIncidents > 0 }">
         {{ activeIncidents }}{{ truncated ? '+' : '' }} active
       </span>
@@ -191,7 +207,7 @@ function incidentEntity(i: AlarmIncident): string {
     <div class="body">
       <div v-if="alarmsQuery.isPending.value" class="empty">loading…</div>
       <div v-else-if="rows.length === 0" class="empty">
-        No alarms in the last 60m{{ layer ? ` for ${layer}` : '' }}.
+        No alarms in the {{ windowLabel }}{{ layer ? ` for ${layer}` : '' }}.
       </div>
       <div v-else class="rows">
         <div
@@ -220,6 +236,9 @@ header {
   border-bottom: 1px solid var(--sw-line);
 }
 h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
+/* Smaller, muted window suffix so the title still reads as the
+ * widget name (matches the dense topbar/picker vocabulary). */
+.window-tag { font-size: 11px; font-weight: 400; color: var(--sw-fg-3); margin-left: 4px; }
 .total {
   font-size: 11px;
   color: var(--sw-fg-3);

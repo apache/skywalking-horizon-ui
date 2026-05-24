@@ -123,7 +123,7 @@ function refreshAll(): void {
         <p class="lede">
           Two-port view of the OAP backend horizon is connected to.
           Query / GraphQL (<code>:12800</code>) drives every observability page;
-          the admin host (<code>:17128</code>) gates DSL Management, Live Debugger, Inspect, and Dump;
+          the admin host (<code>:17128</code>) gates DSL management, Live debugger, Metrics inspect, and Dump;
           the Zipkin / OTLP endpoint feeds only the Zipkin trace menu.
           All three are polled independently — if one shows red the others can still be green.
         </p>

@@ -73,6 +73,7 @@ import { registerOverviewTemplatesAdminRoutes } from './http/admin/overview-temp
 import { registerAuthStatusRoutes } from './http/admin/auth-status.js';
 import { registerAdminUsersRoute } from './http/admin/users.js';
 import { registerAuthHealthRoute } from './http/auth-health.js';
+import { registerColdStageHook } from './util/duration.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
 import { SetupStore } from './logic/setup/store.js';
@@ -136,6 +137,12 @@ await app.register(cookie);
 
 // Text/plain body parser — the rule editor sends raw YAML to /api/rule.
 app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_req, body, done) => done(null, body));
+
+// Map the UI's cold-stage header (X-Horizon-Cold-Stage) onto
+// `req.coldStage` so every downstream Duration helper sees one boolean
+// instead of re-parsing the header. BanyanDB-only at the OAP layer;
+// other backends silently ignore the resulting Duration.coldStage:true.
+registerColdStageHook(app);
 
 // Auto-apply RBAC pre-handlers to every route as it's registered. Must
 // be added BEFORE the route registrations below — onRoute fires for
