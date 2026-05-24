@@ -36,11 +36,13 @@
 #      (src + bin tarballs + .asc + .sha512) fetched back from SVN release,
 #      with the CHANGELOG section for <v> as the body.
 #
-#   3. Build + push the multi-arch (amd64 + arm64) container image to
-#      Docker Hub apache/skywalking-ui, tagged:
-#         :horizon-<v>     immutable, this release
-#         :latest          moving — newest Horizon release. On this shared
-#                          repo, `latest` serves Horizon (not booster-ui).
+#   3. Verify the Docker Hub multi-arch image — CI's publish-image
+#      workflow mirrors the GHCR image to Docker Hub automatically on
+#      every `v*` tag push (apache/skywalking-ui:horizon-<v> and
+#      apache/skywalking-ui:latest). This step just confirms the two
+#      expected tags are present. Falls back to a manual local mirror
+#      (same `docker buildx imagetools create` CI runs) if CI didn't
+#      publish — needs Docker Hub push rights on apache/skywalking-ui.
 #
 # Usage:  bash scripts/release-finalize.sh
 #
@@ -59,8 +61,6 @@ SVN_RELEASE_URL="https://dist.apache.org/repos/dist/release/skywalking/horizon-u
 
 DOCKERHUB_REPO="apache/skywalking-ui"
 WORK_DIR="${SCRIPT_DIR}/.finalize-work"
-BUILDER_NAME="horizon-release-builder"
-
 # ========================== Helpers ==========================
 
 err() { echo "ERROR: $*" >&2; }
@@ -89,7 +89,8 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 fi
 
 if ! docker buildx version >/dev/null 2>&1; then
-    err "docker buildx is required for the multi-arch image build."
+    err "docker buildx is required (Step 5 uses 'imagetools create' to copy"
+    err "the CI-built multi-arch manifest from GHCR to Docker Hub)."
     exit 1
 fi
 
@@ -248,7 +249,7 @@ else
     if confirm "Create the GitHub release ${TAG} and attach the 6 artifacts?"; then
         gh release create "${TAG}" \
             --repo apache/skywalking-horizon-ui \
-            --title "Apache SkyWalking Horizon UI ${RELEASE_VERSION}" \
+            --title "${RELEASE_VERSION}" \
             --notes-file "${NOTES_FILE}" \
             "${ART_DIR}/${SRC_BASE}" \
             "${ART_DIR}/${SRC_BASE}.asc" \
@@ -265,47 +266,52 @@ fi
 # ========================== Step 5: Docker Hub multi-arch image ==========================
 note "Step 5 — Docker Hub image: ${DOCKERHUB_REPO}"
 
-# Build from a CLEAN checkout of the tag so the image matches the released
-# source exactly (no local uncommitted edits leak in).
-BUILD_SRC="${WORK_DIR}/src"
-echo "Checking out ${TAG} into ${BUILD_SRC}…"
-git -C "${PROJECT_DIR}" archive --format=tar --prefix=src/ "${TAG}" | (cd "${WORK_DIR}" && tar -x)
+# CI (.github/workflows/publish-image.yaml) mirrors the multi-arch image
+# to Docker Hub automatically on every `v*` tag push, so by the time
+# you're finalizing a passed vote this should already be live. We just
+# verify the two expected tags are present.
+#
+# Fallback: if CI didn't publish (workflow failed / secrets missing /
+# tag pushed before this workflow shipped), we fall back to the manual
+# `docker buildx imagetools create` mirror from the GHCR canonical tag
+# — same operation CI does, run locally. That needs Docker Hub push
+# rights on `apache/skywalking-ui`.
+DH_VERSION_TAG="${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}"
+DH_LATEST_TAG="${DOCKERHUB_REPO}:latest"
+GHCR_SRC="ghcr.io/apache/skywalking-horizon-ui:${RELEASE_VERSION}"
 
-# A docker-container builder is required: the default 'docker' driver cannot
-# emit a multi-platform manifest. Create one if absent + ensure QEMU is set
-# up for the foreign-arch emulation.
-if ! docker buildx inspect "${BUILDER_NAME}" >/dev/null 2>&1; then
-    echo "Creating buildx builder '${BUILDER_NAME}' (docker-container driver)…"
-    docker buildx create --name "${BUILDER_NAME}" --driver docker-container --bootstrap
-fi
-docker run --privileged --rm tonistiigi/binfmt --install arm64,amd64 >/dev/null 2>&1 || true
+echo "Expected on Docker Hub:"
+echo "  ${DH_VERSION_TAG}   (immutable, this release)"
+echo "  ${DH_LATEST_TAG}                      (moving — newest Horizon release)"
 
-# Horizon publishes the immutable per-release tag plus the moving `latest`
-# on the shared repo. `latest` here points at the newest Horizon release —
-# pulling `${DOCKERHUB_REPO}:latest` gets Horizon, not booster-ui.
-IMG_TAGS=(-t "${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}" -t "${DOCKERHUB_REPO}:latest")
-echo "Image tags to push:"
-echo "  ${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}   (immutable, this release)"
-echo "  ${DOCKERHUB_REPO}:latest                      (moving — newest Horizon release)"
-
-if confirm "Build linux/amd64+arm64 and push to Docker Hub now? (emulated arch is slow)"; then
-    docker buildx build \
-        --builder "${BUILDER_NAME}" \
-        --platform linux/amd64,linux/arm64 \
-        --file "${PROJECT_DIR}/Dockerfile" \
-        --label "org.opencontainers.image.source=https://github.com/apache/skywalking-horizon-ui" \
-        --label "org.opencontainers.image.revision=$(git -C "${PROJECT_DIR}" rev-parse "${TAG}")" \
-        --label "org.opencontainers.image.version=${RELEASE_VERSION}" \
-        --label "org.opencontainers.image.title=Apache SkyWalking Horizon UI" \
-        --label "org.opencontainers.image.description=Next-generation web UI for Apache SkyWalking." \
-        --label "org.opencontainers.image.licenses=Apache-2.0" \
-        "${IMG_TAGS[@]}" \
-        --push \
-        "${BUILD_SRC}/src"
-    echo "Pushed multi-arch image to ${DOCKERHUB_REPO}."
-    echo "Verify:  docker buildx imagetools inspect ${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}"
+if docker buildx imagetools inspect "${DH_VERSION_TAG}" >/dev/null 2>&1; then
+    echo "✓ ${DH_VERSION_TAG} already on Docker Hub — CI's publish-image mirror succeeded."
+    echo "  Verify:  docker buildx imagetools inspect ${DH_VERSION_TAG}"
 else
-    echo "Skipped Docker Hub push."
+    echo "✗ ${DH_VERSION_TAG} NOT on Docker Hub yet."
+    echo "  This is the expected outcome only if the publish-image workflow"
+    echo "  failed or didn't run on tag ${TAG}. Check:"
+    echo "    https://github.com/apache/skywalking-horizon-ui/actions/workflows/publish-image.yaml"
+    if ! docker buildx imagetools inspect "${GHCR_SRC}" >/dev/null 2>&1; then
+        err "Source ${GHCR_SRC} not on GHCR either — CI didn't produce a multi-arch"
+        err "image to mirror. Re-run publish-image on ${TAG} from the Actions UI"
+        err "and then re-run this script."
+        exit 1
+    fi
+    if confirm "Fall back to a manual local mirror from ${GHCR_SRC}?"; then
+        docker buildx imagetools create \
+            -t "${DH_VERSION_TAG}" \
+            -t "${DH_LATEST_TAG}" \
+            "${GHCR_SRC}"
+        echo "Pushed multi-arch manifest to ${DOCKERHUB_REPO}."
+    else
+        echo "Skipped Docker Hub push — fix CI and re-run, OR run the imagetools"
+        echo "create manually:"
+        echo "  docker buildx imagetools create \\"
+        echo "    -t ${DH_VERSION_TAG} \\"
+        echo "    -t ${DH_LATEST_TAG} \\"
+        echo "    ${GHCR_SRC}"
+    fi
 fi
 
 # ========================== Done ==========================

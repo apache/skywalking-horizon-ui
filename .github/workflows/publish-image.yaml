@@ -14,9 +14,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Publish a multi-arch Horizon UI container image to GHCR on:
-#   - push to `main`  (tagged with `main` + the full commit SHA)
-#   - any `v*` tag    (tagged with the version + the full commit SHA)
+# Publish a multi-arch Horizon UI container image:
+#   - GHCR on every push to `main` and every `v*` tag.
+#   - Docker Hub (`apache/skywalking-ui`) on `v*` tags only — release
+#     mirror, not per-commit. The Docker Hub repo is shared with
+#     booster-ui, so Horizon's tag prefix is `horizon-<v>` and the
+#     `latest` tag on this repo points at the newest Horizon release.
+#
+# Manual trigger
+#   The `workflow_dispatch` accepts an optional `tag` input (e.g.
+#   `v0.5.0`; defaults to the most recent v* tag). Use it to back-fill
+#   a release whose original tag-push pre-dated this workflow's Docker
+#   Hub mirror, or to retry a release whose initial publish failed.
+#   A manual run with a tag is treated identically to a tag-push of
+#   that tag — it (re)publishes GHCR + mirrors to Docker Hub.
 #
 # Architecture story
 #   The Dockerfile builds `dist/` from source inside the image. The
@@ -53,18 +64,28 @@ on:
       - main
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'v-prefixed tag to (re-)publish, e.g. v0.5.0. Leave empty for the most recent v* tag. Treated identically to a tag-push (GHCR + Docker Hub mirror).'
+        required: false
+        default: ''
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: publish-image-${{ github.ref }}
+  # Distinct group per resolved tag (manual + push converge on the same
+  # ref). Don't cancel in flight — release publishes shouldn't race.
+  group: publish-image-${{ github.event.inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  # ── Compute tags once so the per-arch matrix + the manifest job all
-  # ── work from the same set without duplicating the shell math.
+  # ── Resolve sha / tag_name / is_tag ONCE, here, so every downstream
+  # ── job reads from a single source of truth — works the same way
+  # ── whether the trigger is a push (tag or branch) or a manual
+  # ── workflow_dispatch.
   tags:
     if: github.repository == 'apache/skywalking-horizon-ui'
     name: Compute image tags
@@ -72,26 +93,71 @@ jobs:
     outputs:
       base: ${{ steps.tags.outputs.base }}
       moving: ${{ steps.tags.outputs.moving }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      ref: ${{ steps.resolve.outputs.ref }}
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
+      is_tag: ${{ steps.resolve.outputs.is_tag }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: resolve
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          set -eu
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${INPUT_TAG}"
+            if [ -z "$tag" ]; then
+              tag=$(git tag --list 'v*' --sort=-version:refname | head -1)
+              if [ -z "$tag" ]; then
+                echo "::error::no v* tag exists in the repo"; exit 1
+              fi
+              echo "::notice::No tag provided — defaulting to latest: ${tag}"
+            fi
+            if ! git rev-parse "${tag}^{commit}" >/dev/null 2>&1; then
+              echo "::error::tag ${tag} does not exist (must be already pushed to the repo)"; exit 1
+            fi
+            sha=$(git rev-parse "${tag}^{commit}")
+            echo "ref=refs/tags/${tag}" >> "$GITHUB_OUTPUT"
+            echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+            echo "tag_name=${tag}" >> "$GITHUB_OUTPUT"
+            echo "is_tag=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.ref }}" >> "$GITHUB_OUTPUT"
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.ref_type }}" = "tag" ]; then
+              echo "tag_name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+              echo "is_tag=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "tag_name=" >> "$GITHUB_OUTPUT"
+              echo "is_tag=false" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
       - id: tags
         env:
           REGISTRY: ghcr.io
           IMAGE_NAME: ${{ github.repository }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+          IS_TAG: ${{ steps.resolve.outputs.is_tag }}
+          TAG_NAME: ${{ steps.resolve.outputs.tag_name }}
         run: |
           set -eu
           base="${REGISTRY}/${IMAGE_NAME}"
           # lower-case the image path — GHCR rejects mixed-case names.
           base="$(echo "$base" | tr '[:upper:]' '[:lower:]')"
-          sha="${{ github.sha }}"
           # `moving` = the SET of canonical/moving tags the manifest
           # job needs to stitch (one per `imagetools create -t ...`).
           # Space-separated; consumers split on whitespace.
-          moving="${base}:${sha}"
-          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          moving="${base}:${SHA}"
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
             moving="${moving} ${base}:main"
           fi
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            ver="${GITHUB_REF_NAME#v}"
+          if [ "${IS_TAG}" = "true" ]; then
+            ver="${TAG_NAME#v}"
             moving="${moving} ${base}:${ver} ${base}:latest"
             mm="${ver%.*}"
             if [ "${mm}" != "${ver}" ]; then
@@ -100,7 +166,7 @@ jobs:
           fi
           echo "base=${base}" >> "$GITHUB_OUTPUT"
           echo "moving=${moving}" >> "$GITHUB_OUTPUT"
-          echo "::notice::Canonical SHA: ${sha}"
+          echo "::notice::Canonical SHA: ${SHA}"
           echo "::notice::Moving tags: ${moving}"
 
   # ── Per-arch native build. The Dockerfile builds `dist/` from source
@@ -130,9 +196,14 @@ jobs:
             arch: arm64
     env:
       BASE: ${{ needs.tags.outputs.base }}
+      SHA: ${{ needs.tags.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
+          # Build from the resolved ref — a manual dispatch with a tag
+          # checks out THAT tag, not main. For pushes, this is the
+          # event's own ref (no behaviour change).
+          ref: ${{ needs.tags.outputs.ref }}
           persist-credentials: false
 
       - name: Set up Docker Buildx
@@ -152,16 +223,16 @@ jobs:
             --platform ${{ matrix.platform }} \
             --file Dockerfile \
             --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" \
-            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.revision=${SHA}" \
             --label "org.opencontainers.image.title=Apache SkyWalking Horizon UI" \
             --label "org.opencontainers.image.description=Next-generation web UI for Apache SkyWalking." \
             --label "org.opencontainers.image.licenses=Apache-2.0" \
             --cache-from type=gha,scope=${{ matrix.arch }} \
             --cache-to type=gha,mode=max,scope=${{ matrix.arch }} \
-            -t "${BASE}:${{ github.sha }}-${{ matrix.arch }}" \
+            -t "${BASE}:${SHA}-${{ matrix.arch }}" \
             --push \
             .
-          echo "::notice::Pushed ${BASE}:${{ github.sha }}-${{ matrix.arch }}"
+          echo "::notice::Pushed ${BASE}:${SHA}-${{ matrix.arch }}"
 
   # ── Stitch the per-arch tags into a single OCI manifest list per
   # ── canonical/moving tag. Pulling any of these tags from any host
@@ -175,6 +246,9 @@ jobs:
     env:
       BASE: ${{ needs.tags.outputs.base }}
       MOVING: ${{ needs.tags.outputs.moving }}
+      SHA: ${{ needs.tags.outputs.sha }}
+      IS_TAG: ${{ needs.tags.outputs.is_tag }}
+      TAG_NAME: ${{ needs.tags.outputs.tag_name }}
     steps:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
@@ -189,12 +263,48 @@ jobs:
       - name: Create manifest list per moving tag
         run: |
           set -eu
-          amd="${BASE}:${{ github.sha }}-amd64"
-          arm="${BASE}:${{ github.sha }}-arm64"
+          amd="${BASE}:${SHA}-amd64"
+          arm="${BASE}:${SHA}-arm64"
           for tag in ${MOVING}; do
             echo "::group::Stitch ${tag}"
             docker buildx imagetools create -t "${tag}" "${amd}" "${arm}"
             docker buildx imagetools inspect "${tag}" | head -40
             echo "::endgroup::"
           done
-          echo "::notice::Published multi-arch manifest @sha=${{ github.sha }} (amd64+arm64)"
+          echo "::notice::Published multi-arch manifest @sha=${SHA} (amd64+arm64)"
+
+      # ── Mirror to Docker Hub on `v*` tags only (push-tag OR a manual
+      # ── workflow_dispatch with a tag input — both set is_tag=true).
+      #
+      # `apache/skywalking-ui` is shared with booster-ui; Horizon's
+      # release tags are `horizon-<v>` and the `latest` tag (Horizon
+      # owns `latest` on this repo as the newest Horizon release —
+      # booster-ui uses its own dated tags).
+      #
+      # `docker buildx imagetools create` does a manifest-level copy of
+      # the GHCR canonical sha tag (already multi-arch from the loop
+      # above) into the two Docker Hub tags. No rebuild, copies blobs
+      # across registries via the registry-to-registry mount API.
+      - name: Log in to Docker Hub (release only)
+        if: needs.tags.outputs.is_tag == 'true'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Mirror multi-arch manifest to Docker Hub (release only)
+        if: needs.tags.outputs.is_tag == 'true'
+        env:
+          DOCKERHUB_IMAGE: apache/skywalking-ui
+        run: |
+          set -eu
+          ver="${TAG_NAME#v}"
+          src="${BASE}:${SHA}"
+          echo "::group::Mirror ${src} → ${DOCKERHUB_IMAGE}:horizon-${ver} + :latest"
+          docker buildx imagetools create \
+            -t "${DOCKERHUB_IMAGE}:horizon-${ver}" \
+            -t "${DOCKERHUB_IMAGE}:latest" \
+            "${src}"
+          docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:horizon-${ver}" | head -40
+          echo "::endgroup::"
+          echo "::notice::Mirrored to ${DOCKERHUB_IMAGE}:{horizon-${ver},latest}"

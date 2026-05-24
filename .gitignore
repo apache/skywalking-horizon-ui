@@ -44,3 +44,4 @@ horizon-setup.json
 
 # Release
 scripts/.release-work
+scripts/.finalize-work
