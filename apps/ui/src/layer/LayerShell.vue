@@ -38,6 +38,7 @@ import LayerServiceSelector from './LayerServiceSelector.vue';
 import { metricMeta } from '@/utils/metricCatalog';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerLanding } from '@/layer/useLayerLanding';
+import { useTimeRangeStore } from '@/controls/timeRange';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -202,7 +203,20 @@ const safeCfg = computed(() => cfg.value?.landing ?? {
   columns: [],
   style: 'table' as const,
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// Header KPIs honor the topbar time picker so they line up with what
+// the dashboard widgets below are showing — without this, the header
+// always queried the BFF's last-60min fallback while the body honored
+// the picker, leaving the operator with two contradicting summaries
+// (see "Cascade-clear, then load" in CLAUDE.md). On per-tab opt-out
+// pages (traces, profiling) the picker is greyed but still carries its
+// last value; the header summarizes the layer for that value.
+const timeRange = useTimeRangeStore();
+const headerRange = computed(() => ({
+  step: timeRange.step,
+  startMs: timeRange.range.startMs,
+  endMs: timeRange.range.endMs,
+}));
+const landing = useLayerLanding(safeLayer, safeCfg, headerRange);
 
 // Cascade-clear for the header: the instant the layer changes (menu
 // click), reset to "no data" so the KPI strip + selected-service values

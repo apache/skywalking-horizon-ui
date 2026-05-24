@@ -19,6 +19,7 @@ import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import {
   parseOapTimezoneMinutes,
+  type OapBackend,
   type OapCapabilities,
   type OapInfo,
 } from '@skywalking-horizon-ui/api-client';
@@ -88,6 +89,11 @@ export function useOapInfo() {
     queryAlarms: info.value?.capabilities?.queryAlarms ?? false,
   }));
 
+  /** Storage backend probed via TTL response shape. `unknown` until the
+   *  first poll lands, so cold-stage UI affordances stay hidden during
+   *  bootstrap rather than flashing on then disappearing. */
+  const backend = computed<OapBackend>(() => info.value?.backend ?? 'unknown');
+
   /** Health status pill colour: ok / warn / err / unknown. */
   const healthState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
     if (!reachable.value) return 'err';
@@ -107,6 +113,7 @@ export function useOapInfo() {
     healthScore,
     healthState,
     capabilities,
+    backend,
     toServerTzString,
     refetch: q.refetch,
   };

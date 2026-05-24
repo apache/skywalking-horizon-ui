@@ -18,9 +18,11 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
+import { useQueryClient } from '@tanstack/vue-query';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAlarmCount } from '@/shell/useAlarmCount';
 import { useAutoRefreshStore } from '@/controls/autoRefresh';
+import { useColdStageStore } from '@/controls/coldStage';
 import { useTimeRangeStore, TIME_PRESETS, STEP_LIMITS, isValidRange, type TimeStep } from '@/controls/timeRange';
 import { useThemeStore, AVAILABLE_THEMES, type ThemeId } from '@/state/theme';
 import { useAuthStore } from '@/state/auth';
@@ -79,8 +81,34 @@ function onThemeChipBlur(e: FocusEvent): void {
 
 const route = useRoute();
 
-const { info, reachable, tzOffsetLabel, healthState } = useOapInfo();
+const { info, reachable, tzOffsetLabel, healthState, backend } = useOapInfo();
 const auth = useAuthStore();
+
+// "Query cold stage" — BanyanDB-only. The chip renders only when the
+// connected OAP uses BanyanDB.
+//
+// IMPORTANT SEMANTICS: OAP's `Duration.coldStage: true` REPLACES the
+// hot+warm read, it does not augment it (see the comment on
+// `Duration.coldStage` in OAP's query-protocol). Turning the pill on
+// while looking at a recent dashboard makes every widget go empty,
+// because the recent window doesn't exist in cold yet. Only flip it
+// on when the operator is asking for data older than the hot+warm
+// TTL boundary (Operate → Time To Live shows the values per class).
+//
+// Flipping invalidates every tanstack-query cache so subscribers
+// refetch with the new header instead of serving stale data from
+// the previous stage.
+const cold = useColdStageStore();
+const queryClient = useQueryClient();
+const showColdChip = computed<boolean>(() => backend.value === 'banyandb');
+function toggleCold(): void {
+  cold.toggle(queryClient);
+}
+const coldChipTooltip = computed<string>(() =>
+  cold.enabled
+    ? 'Reading cold-stage data only. ⚠ Recent windows return empty — cold doesn\'t hold recent data. Click to switch back to hot+warm.'
+    : 'Reading hot+warm data (default). Click to switch to the cold stage instead — use only when the time range is older than the hot+warm TTL (see Operate → Time To Live).',
+);
 // The Cluster Status page is maintainer-tier; only link the chip there
 // when the user can actually read it (matches the route's verb gate).
 const canViewCluster = computed(() => auth.hasVerb('cluster:read'));
@@ -346,6 +374,27 @@ function draftToMs(step: TimeStep, side: 'start' | 'end'): number | null {
   const dt = new Date(v);
   return Number.isNaN(dt.getTime()) ? null : dt.getTime();
 }
+/** Seed the custom-range form for `step`. Pulls from the currently
+ *  applied range when the step matches and the window fits; otherwise
+ *  falls back to "half the step's max, ending now". Called both from
+ *  the manual "Custom range…" click AND from the auto-expand on
+ *  picker-open path below — keeps the seed logic in one place. */
+function seedCustomDraft(step: TimeStep): void {
+  const lim = STEP_LIMITS[step];
+  let endMs: number;
+  let startMs: number;
+  const cur = timeRange.range;
+  const fits = step === timeRange.step && cur.endMs > cur.startMs && cur.endMs - cur.startMs <= lim.maxMs;
+  if (fits) {
+    startMs = cur.startMs;
+    endMs = cur.endMs;
+  } else {
+    endMs = Date.now();
+    startMs = endMs - Math.floor(lim.maxMs / 2);
+  }
+  setDraftFromMs(step, 'start', startMs);
+  setDraftFromMs(step, 'end', endMs);
+}
 function openCustom(step: TimeStep): void {
   customError.value = null;
   if (customOpenStep.value === step) {
@@ -353,15 +402,24 @@ function openCustom(step: TimeStep): void {
     return;
   }
   customOpenStep.value = step;
-  // Seed the form with a sensible default range for the precision —
-  // half the max, ending now. Operators then nudge whichever bound
-  // they actually care about.
-  const lim = STEP_LIMITS[step];
-  const endMs = Date.now();
-  const startMs = endMs - Math.floor(lim.maxMs / 2);
-  setDraftFromMs(step, 'start', startMs);
-  setDraftFromMs(step, 'end', endMs);
+  seedCustomDraft(step);
 }
+
+// Auto-expand the custom-range form whenever the picker opens AND the
+// currently-applied range is a custom one — so re-opening lands the
+// operator straight on the inputs they last edited, on the matching
+// precision tab. For preset ranges (Last 15m, etc.) we leave the
+// custom form collapsed so the preset list is the focal point.
+watch(timeMenuOpen, (open) => {
+  if (!open) return;
+  activeStepTab.value = timeRange.step;
+  if (timeRange.presetId === 'custom') {
+    customOpenStep.value = timeRange.step;
+    seedCustomDraft(timeRange.step);
+  } else {
+    customOpenStep.value = null;
+  }
+});
 function submitCustom(step: TimeStep): void {
   const startMs = draftToMs(step, 'start');
   const endMs = draftToMs(step, 'end');
@@ -428,6 +486,17 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
              shows it prominently. Non-cluster:read users get a static
              chip (no link to the maintainer-only Cluster page). -->
       </component>
+      <button
+        v-if="showColdChip"
+        type="button"
+        class="sw-btn cold-chip"
+        :class="{ 'is-on': cold.enabled }"
+        :title="coldChipTooltip"
+        @click="toggleCold"
+      >
+        <Icon name="snowflake" :size="11" />
+        <span>{{ cold.enabled ? 'Cold only' : 'Cold' }}</span>
+      </button>
       <div ref="timeClusterEl" class="time-cluster">
         <button
           type="button"
@@ -728,6 +797,34 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 }
 .rf-menu-enter-active, .rf-menu-leave-active {
   transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+/* ── Cold-stage chip (BanyanDB only) ─────────────────────────── */
+/* Snowflake pill that sits to the left of the time picker. Off state
+ * is muted (matches the other off-state chips); on state uses a cool
+ * cyan tint so it visually pops — operators are intentionally drawn
+ * to "you are currently including cold data" because it changes which
+ * window of history is in play. */
+.cold-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 0 8px;
+  cursor: pointer;
+  color: var(--sw-fg-2);
+}
+.cold-chip:hover {
+  color: var(--sw-fg-0);
+}
+.cold-chip.is-on {
+  background: var(--sw-accent-soft);
+  border-color: var(--sw-accent);
+  color: var(--sw-accent);
+  font-weight: 600;
+}
+.cold-chip.is-on :deep(svg) {
+  color: var(--sw-accent);
 }
 
 /* ── Global time-range picker ─────────────────────────────────── */

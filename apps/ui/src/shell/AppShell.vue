@@ -21,6 +21,7 @@ import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import DebugEventPanel from './DebugEventPanel.vue';
 import GlobalConnectivityBanner from './GlobalConnectivityBanner.vue';
+import ColdStageTrapBanner from './ColdStageTrapBanner.vue';
 import PreviewModeBanner from './PreviewModeBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
@@ -115,6 +116,12 @@ const { collapsed: sidebarCollapsed } = useSidebar();
            (`:12800`) poll reports unreachable. Admin-port (`:17128`)
            failures render per-page via AdminFeatureWarning, not here. -->
       <GlobalConnectivityBanner />
+      <!-- Cold-only-with-recent-range warning. Renders only on BanyanDB
+           when the operator has the Cold pill ON AND the picked time
+           range overlaps hot+warm (where cold returns empty). Loudly
+           tells the operator why widgets went blank and offers a
+           one-click "turn Cold off". -->
+      <ColdStageTrapBanner />
       <!-- Notice shown only while a page is in ?mode=preview. -->
       <PreviewModeBanner />
       <!-- Shell-level init placeholder. Visible until the layer

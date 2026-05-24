@@ -113,10 +113,37 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
   };
 }
 
-export function useTraceDetail(traceId: Ref<string | null>, source: Ref<'native' | 'zipkin'>) {
+/** Wide search window around a timestamp hint (12 hours on either
+ *  side, HOUR step). Wide enough to absorb agent clock drift and the
+ *  log-record vs trace-span timing gap, narrow enough to stay inside
+ *  BanyanDB's HOUR-precision cap. */
+const TRACE_LOOKUP_HALF_WINDOW_MS = 12 * 60 * 60 * 1000;
+
+export function useTraceDetail(
+  traceId: Ref<string | null>,
+  source: Ref<'native' | 'zipkin'>,
+  /** Optional timestamp the trace is known to live near (e.g. a log
+   *  row's timestamp). When present, the BFF widens the BanyanDB
+   *  lookup to ±12h around it; paired with the cold-stage header,
+   *  this lets cold-tier trace IDs resolve. When null, the BFF
+   *  defaults to OAP's last-1-day `queryTrace` window. */
+  atMs?: Ref<number | null>,
+) {
+  const rangeKey = computed(() => atMs?.value ?? null);
   const q = useQuery<TraceDetailResponse>({
-    queryKey: ['trace-detail', traceId, source],
-    queryFn: () => bffClient.trace.detail(traceId.value!, source.value),
+    queryKey: ['trace-detail', traceId, source, rangeKey],
+    queryFn: () => {
+      const at = atMs?.value;
+      const range =
+        typeof at === 'number' && at > 0
+          ? {
+              startMs: at - TRACE_LOOKUP_HALF_WINDOW_MS,
+              endMs: at + TRACE_LOOKUP_HALF_WINDOW_MS,
+              step: 'HOUR' as const,
+            }
+          : undefined;
+      return bffClient.trace.detail(traceId.value!, source.value, range);
+    },
     enabled: computed(() => !!traceId.value),
     staleTime: 60_000,
   });

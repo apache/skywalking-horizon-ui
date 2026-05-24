@@ -534,9 +534,18 @@ function formatRelative(ts: number): string {
   return `${d}d ${h % 24}h ago`;
 }
 
+/** Compact, locale-independent stamp for the custom window. Same
+ *  `MM-DD HH:mm` shape as the topbar time chip — keeps the dense UI
+ *  consistent and avoids `toLocaleString` picking up zh-CN / locale-
+ *  specific formats (the bug fixed earlier on log timestamps). */
+function fmtStamp(ms: number): string {
+  const d = new Date(ms);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function formatWindowLabel(): string {
   if (windowMode.value === 'custom') {
-    return `${new Date(customStart.value).toLocaleString()} → ${new Date(customEnd.value).toLocaleString()}`;
+    return `${fmtStamp(customStart.value)} → ${fmtStamp(customEnd.value)}`;
   }
   return `last ${windowMode.value}`;
 }

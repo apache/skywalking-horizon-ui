@@ -46,6 +46,8 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
+import { defaultMinuteWindow, windowFromRange, type TimeStep, type Window } from '../../util/window.js';
 import { getLayerTemplate, topologyConfigFor } from '../../logic/layers/loader.js';
 
 export interface TopologyRouteDeps {
@@ -91,19 +93,6 @@ const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const HH = String(d.getUTCHours()).padStart(2, '0');
-  const MM = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
-}
-function defaultWindow(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
-}
 
 interface MqeValueRow {
   value: string | number | null;
@@ -122,14 +111,16 @@ function nodeFragment(
   m: TopologyMetricDef,
   serviceName: string,
   normal: boolean,
-  w: { start: string; end: string },
+  w: Window,
+  coldStage: boolean,
 ): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
     `      entity: { scope: Service, serviceName: ${JSON.stringify(serviceName)},` +
     ` normal: ${normal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -151,8 +142,10 @@ function relationFragment(
   sourceNormal: boolean,
   destName: string,
   destNormal: boolean,
-  w: { start: string; end: string },
+  w: Window,
+  coldStage: boolean,
 ): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
@@ -161,7 +154,7 @@ function relationFragment(
     ` normal: ${sourceNormal ? 'true' : 'false'},` +
     ` destServiceName: ${JSON.stringify(destName)},` +
     ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -260,7 +253,13 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string; depth?: string };
+      const q = req.query as {
+        service?: string;
+        depth?: string;
+        step?: string;
+        startMs?: string;
+        endMs?: string;
+      };
       const serviceArg = (q.service ?? '').trim();
       const depth = Math.max(1, Math.min(3, Number(q.depth) || 1));
 
@@ -269,9 +268,23 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const window = defaultWindow();
+      // Honor the SPA's topbar time picker when all three triplet
+      // query-params are present; otherwise fall back to the last-hour
+      // MINUTE window. The Overview "topology" widget + per-layer
+      // service map both forward the picker so the topology metrics
+      // line up with whatever window the operator is looking at.
+      const stepArg = (q.step ?? '').toUpperCase() as TimeStep;
+      const startMs = Number(q.startMs);
+      const endMs = Number(q.endMs);
+      const window: Window =
+        (stepArg === 'MINUTE' || stepArg === 'HOUR' || stepArg === 'DAY') &&
+        Number.isFinite(startMs) &&
+        Number.isFinite(endMs)
+          ? windowFromRange(stepArg, startMs, endMs) ?? defaultMinuteWindow(DEFAULT_WINDOW_MIN)
+          : defaultMinuteWindow(DEFAULT_WINDOW_MIN);
       const oapLayer = layerKey.toUpperCase();
-      const durationVar = { start: window.start, end: window.end, step: 'MINUTE' };
+      const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
+      const coldStage = !!req.coldStage;
 
       // ── Resolve seed service ids.
       let seedIds: string[] = [];
@@ -386,7 +399,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           topoCfg.nodeMetrics.forEach((m, j) => {
             const alias = `n${i}_${j}`;
             aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(nodeFragment(alias, m, n.name, normal, window));
+            fragments.push(nodeFragment(alias, m, n.name, normal, window, coldStage));
           });
         });
         const CHUNK = 150;
@@ -459,7 +472,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
             linkSrv.forEach((m, j) => {
               const alias = `s${i}_${j}`;
               aliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
-              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window));
+              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
             });
           }
           // Client metrics live on the SOURCE — fetch only when the
@@ -468,7 +481,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
             linkCli.forEach((m, j) => {
               const alias = `c${i}_${j}`;
               aliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
-              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window));
+              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
             });
           }
         });

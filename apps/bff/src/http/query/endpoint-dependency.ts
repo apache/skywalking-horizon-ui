@@ -41,6 +41,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
 import { endpointDependencyConfigFor, getLayerTemplate } from '../../logic/layers/loader.js';
 
 export interface EndpointDependencyRouteDeps {
@@ -127,7 +128,9 @@ function endpointFragment(
   endpointName: string,
   normal: boolean,
   w: { start: string; end: string },
+  coldStage: boolean,
 ): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
@@ -135,7 +138,7 @@ function endpointFragment(
     ` serviceName: ${JSON.stringify(serviceName)},` +
     ` endpointName: ${JSON.stringify(endpointName)},` +
     ` normal: ${normal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -155,7 +158,9 @@ function endpointRelationFragment(
   destEndpointName: string,
   destNormal: boolean,
   w: { start: string; end: string },
+  coldStage: boolean,
 ): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(m.mqe)},\n` +
@@ -166,7 +171,7 @@ function endpointRelationFragment(
     ` destServiceName: ${JSON.stringify(destServiceName)},` +
     ` destEndpointName: ${JSON.stringify(destEndpointName)},` +
     ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -268,7 +273,8 @@ export function registerEndpointDependencyRoute(
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const window = defaultWindow();
       const oapLayer = layerKey.toUpperCase();
-      const durationVar = { start: window.start, end: window.end, step: 'MINUTE' };
+      const durationVar = withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' });
+      const coldStage = !!req.coldStage;
 
       // ── Resolve service name → id.
       let serviceId = serviceArg;
@@ -370,7 +376,7 @@ export function registerEndpointDependencyRoute(
           epCfg.nodeMetrics.forEach((m, j) => {
             const alias = `e${i}_${j}`;
             aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(endpointFragment(alias, m, n.serviceName, n.name, useNormal, window));
+            fragments.push(endpointFragment(alias, m, n.serviceName, n.name, useNormal, window, coldStage));
           });
         });
         const CHUNK = 150;
@@ -442,6 +448,7 @@ export function registerEndpointDependencyRoute(
                 dst.name,
                 dstNormal,
                 window,
+                coldStage,
               ),
             );
           });

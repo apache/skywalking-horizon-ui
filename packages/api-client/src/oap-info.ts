@@ -42,6 +42,10 @@ export interface OapInfo {
    *  Routes / pages branch on this to choose between legacy + new
    *  query shapes (e.g. `getAlarm` vs `queryAlarms`). */
   capabilities?: OapCapabilities;
+  /** Storage backend probed via the TTL response shape (`getRecordsTTL`
+   *  / `getMetricsTTL`). Cached BFF-side for ~5 min — the storage choice
+   *  doesn't change at OAP runtime. Absent when `reachable === false`. */
+  backend?: OapBackend;
   error?: string;
   /** OAP's Zipkin v2 REST base URL (`oap.zipkinUrl`). Only the Zipkin /
    *  OTLP trace menu reads from it — an unreachable Zipkin endpoint does
@@ -62,6 +66,13 @@ export interface OapCapabilities {
    *  scope+keyword+tags-only `getAlarm`. */
   queryAlarms: boolean;
 }
+
+/** Storage backend the connected OAP runs on, as far as the BFF can
+ *  tell from the TTL response shape. `banyandb` ⇒ the UI exposes the
+ *  cold-stage query toggle; `other` ⇒ the toggle is hidden because OAP
+ *  ignores `Duration.coldStage` for non-BanyanDB storage. `unknown` is
+ *  the conservative default until the first probe lands. */
+export type OapBackend = 'banyandb' | 'other' | 'unknown';
 
 /**
  * Convert OAP's `±HHmm` timezone string to signed minutes-from-UTC.

@@ -36,11 +36,16 @@ import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
 
-const { openTraceId, openTrace, closeTrace } = useTracePopout();
+const { openTraceId, openTraceAtMs, openTrace, closeTrace } = useTracePopout();
 
 const sourceRef = computed<'native'>(() => 'native');
 const traceIdRef = computed<string | null>(() => openTraceId.value);
-const { nativeDetail, isFetching } = useTraceDetail(traceIdRef, sourceRef);
+// `openTraceAtMs` is set by callers that know the trace's approximate
+// time (e.g. clicking the trace icon on a log row). The detail
+// composable widens the BanyanDB lookup window around it so cold-tier
+// trace IDs resolve.
+const traceAtRef = computed<number | null>(() => openTraceAtMs.value);
+const { nativeDetail, isFetching } = useTraceDetail(traceIdRef, sourceRef, traceAtRef);
 
 const spans = computed<NativeSpan[]>(() => nativeDetail.value?.spans ?? []);
 

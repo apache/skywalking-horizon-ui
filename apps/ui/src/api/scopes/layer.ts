@@ -181,10 +181,20 @@ export class LayerApi {
     );
   }
 
-  topology(layerKey: string, service?: string, depth = 1): Promise<TopologyResponse> {
+  topology(
+    layerKey: string,
+    service?: string,
+    depth = 1,
+    range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
+  ): Promise<TopologyResponse> {
     const qs = new URLSearchParams();
     if (service) qs.set('service', service);
     qs.set('depth', String(depth));
+    if (range) {
+      qs.set('step', range.step);
+      qs.set('startMs', String(range.startMs));
+      qs.set('endMs', String(range.endMs));
+    }
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/topology?${qs.toString()}`,

@@ -52,6 +52,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { withColdStage } from '../../util/duration.js';
 import { getLayerTemplate, processTopologyConfigFor } from '../../logic/layers/loader.js';
 
 export interface EBPFRouteDeps {
@@ -252,7 +253,9 @@ function processRelationFragment(
   src: ProcessRelationEndpointRef,
   dst: ProcessRelationEndpointRef,
   w: { start: string; end: string },
+  coldStage: boolean,
 ): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
   return (
     `${alias}: execExpression(\n` +
     `      expression: ${JSON.stringify(expr)},\n` +
@@ -265,7 +268,7 @@ function processRelationFragment(
     ` destNormal: ${dst.normal === false ? 'false' : 'true'},` +
     ` destServiceInstanceName: ${JSON.stringify(dst.serviceInstanceName)},` +
     ` destProcessName: ${JSON.stringify(dst.processName)} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
     `    ) { error results { values { value } } }`
   );
 }
@@ -460,7 +463,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
           topology: { nodes: ProcessTopologyResponse['nodes']; calls: ProcessTopologyResponse['calls'] };
         }>(opts, GET_PROCESS_TOPOLOGY, {
           serviceInstanceId: instance,
-          duration: { start: fmt(start), end: fmt(end), step: 'MINUTE' },
+          duration: withColdStage(req, { start: fmt(start), end: fmt(end), step: 'MINUTE' }),
         });
         payload.nodes = data.topology?.nodes ?? [];
         payload.calls = data.topology?.calls ?? [];
@@ -607,7 +610,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         list.forEach((m, i) => {
           const alias = `${side}_${i}`;
           aliasMap.set(alias, { side, metric: m });
-          fragments.push(processRelationFragment(alias, m.mqe, src, dst, w));
+          fragments.push(processRelationFragment(alias, m.mqe, src, dst, w, !!req.coldStage));
         });
       };
       push('client', cfg.edgeClientMetrics);

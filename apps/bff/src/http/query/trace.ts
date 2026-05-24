@@ -54,6 +54,8 @@ import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { getLayerTemplate, tracesConfigFor } from '../../logic/layers/loader.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
+import { withColdStage } from '../../util/duration.js';
+import { windowFromRange } from '../../util/window.js';
 import { zipkinFetchTraces, zipkinFetchTraceById, summariseZipkinTrace } from '../../client/zipkin.js';
 
 export interface TraceRouteDeps {
@@ -176,9 +178,16 @@ const QUERY_TRACES = /* GraphQL */ `
   }
 `;
 
+/* `duration` is BanyanDB-only and optional. When the caller passes a
+ * window (start/end/step), OAP scopes the trace lookup to that window
+ * — necessary for IDs older than 1 day, since the default search is
+ * "last 1 day" only. Pair with `Duration.coldStage: true` (spliced by
+ * the `withColdStage` helper) for trace IDs whose data has migrated
+ * past hot+warm. Older OAP versions ignore the unknown variable;
+ * older non-BanyanDB backends ignore the Duration entirely. */
 const QUERY_TRACE_DETAIL = /* GraphQL */ `
-  query QueryTrace($traceId: ID!) {
-    trace: queryTrace(traceId: $traceId) {
+  query QueryTrace($traceId: ID!, $duration: Duration) {
+    trace: queryTrace(traceId: $traceId, duration: $duration) {
       spans {
         traceId
         segmentId
@@ -233,7 +242,12 @@ async function resolveServiceId(
   );
 }
 
-function buildTraceCondition(body: TraceListBody, resolvedServiceId: string | null, w: { start: string; end: string }) {
+function buildTraceCondition(
+  body: TraceListBody,
+  resolvedServiceId: string | null,
+  w: { start: string; end: string },
+  coldStage: boolean,
+) {
   return {
     ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
     ...(body.instanceId ? { serviceInstanceId: body.instanceId } : {}),
@@ -242,7 +256,12 @@ function buildTraceCondition(body: TraceListBody, resolvedServiceId: string | nu
     ...(body.tags && body.tags.length > 0 ? { tags: body.tags } : {}),
     ...(typeof body.minTraceDuration === 'number' ? { minTraceDuration: body.minTraceDuration } : {}),
     ...(typeof body.maxTraceDuration === 'number' ? { maxTraceDuration: body.maxTraceDuration } : {}),
-    queryDuration: { start: w.start, end: w.end, step: 'MINUTE' },
+    queryDuration: {
+      start: w.start,
+      end: w.end,
+      step: 'MINUTE',
+      ...(coldStage ? { coldStage: true } : {}),
+    },
     traceState: (body.traceState ?? 'ALL') as TraceQueryState,
     queryOrder: (body.queryOrder ?? 'BY_START_TIME') as TraceQueryOrder,
     paging: {
@@ -256,6 +275,7 @@ async function fetchNativeList(
   opts: GraphqlOptions,
   body: TraceListBody,
   layerKey: string,
+  coldStage: boolean,
 ): Promise<NativeTraceListResponse> {
   const api = await detectTraceQueryApi(opts);
   // Explicit start+end takes precedence over windowMinutes; falling
@@ -278,7 +298,7 @@ async function fetchNativeList(
       error: err instanceof Error ? err.message : String(err),
     };
   }
-  const condition = buildTraceCondition(body, serviceId, window);
+  const condition = buildTraceCondition(body, serviceId, window, coldStage);
   try {
     if (api === 'queryTraces') {
       const env = await graphqlPost<{
@@ -380,7 +400,7 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       // Fan out in parallel; partial failures don't drop the whole
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([
-        wantNative ? fetchNativeList(opts, body, layerKey) : Promise.resolve(undefined),
+        wantNative ? fetchNativeList(opts, body, layerKey, !!req.coldStage) : Promise.resolve(undefined),
         wantZipkin ? fetchZipkinList(opts, body) : Promise.resolve(undefined),
       ]);
 
@@ -399,17 +419,44 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const params = req.params as { traceId: string };
-      const q = req.query as { source?: 'native' | 'zipkin' };
+      const q = req.query as {
+        source?: 'native' | 'zipkin';
+        /** Approximate window the trace lives in (epoch ms + OAP step).
+         *  When provided, the BFF spells the window in OAP-server TZ
+         *  via `windowFromRange` and forwards it as `queryTrace.duration`
+         *  so BanyanDB looks beyond its default 1-day search. Paired
+         *  with the cold-stage header, this lets a trace ID from a log
+         *  row resolve even when the trace data lives in the cold tier. */
+        startMs?: string;
+        endMs?: string;
+        step?: 'MINUTE' | 'HOUR' | 'DAY';
+      };
       const source: 'native' | 'zipkin' = q.source === 'zipkin' ? 'zipkin' : 'native';
       const opts = buildOapOpts(deps.config.current, deps.fetch);
 
       if (source === 'native') {
         const api = await detectTraceQueryApi(opts);
         try {
+          // When the caller supplies an approximate window, forward it
+          // as the optional `duration` so BanyanDB looks beyond its
+          // default 1-day window. `withColdStage` adds `coldStage: true`
+          // when the operator has the Cold pill on, letting trace IDs
+          // whose data lives in the cold tier resolve from log rows.
+          const startMs = Number(q.startMs);
+          const endMs = Number(q.endMs);
+          let duration: { start: string; end: string; step: string; coldStage?: true } | undefined;
+          if (
+            (q.step === 'MINUTE' || q.step === 'HOUR' || q.step === 'DAY') &&
+            Number.isFinite(startMs) &&
+            Number.isFinite(endMs)
+          ) {
+            const w = windowFromRange(q.step, startMs, endMs);
+            if (w) duration = withColdStage(req, { start: w.start, end: w.end, step: w.step });
+          }
           const env = await graphqlPost<{ trace: { spans: NativeSpan[] } }>(
             opts,
             QUERY_TRACE_DETAIL,
-            { traceId: params.traceId },
+            { traceId: params.traceId, duration },
           );
           const detail: NativeTraceDetailResponse = {
             source: 'native',

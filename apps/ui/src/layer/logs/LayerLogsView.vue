@@ -466,8 +466,14 @@ function fmtTime(ts: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
 }
 function fmtDate(ts: number): string {
+  // Numeric MM-DD in the operator's browser-local TZ. Matches the
+  // topbar's compact date chip (`05-12 03h → 06h`) and stays
+  // locale-independent — `toLocaleDateString` without an explicit
+  // locale picks up the system locale (e.g. `5月08日` on zh-CN), which
+  // looked inconsistent next to the rest of the dense English UI.
   const d = new Date(ts);
-  return d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 /**
  * Render a one-line inline preview. Length is NOT capped here — the
@@ -616,9 +622,12 @@ function fmtAxisTime(ts: number): string {
 /** Open the trace in the global popout overlay rather than navigating
  *  to the Traces tab — keeps the operator in the log stream, lets them
  *  scan the waterfall + close it back to where they were without
- *  losing the keyword filter / pagination state. */
-function jumpToTrace(traceId: string): void {
-  openTrace(traceId);
+ *  losing the keyword filter / pagination state. The row's timestamp
+ *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
+ *  window — without this, OAP searches only the last 1 day and any
+ *  trace older than that (cold-tier, etc.) silently fails to load. */
+function jumpToTrace(traceId: string, ts?: number): void {
+  openTrace(traceId, ts);
 }
 </script>
 
@@ -868,7 +877,7 @@ function jumpToTrace(traceId: string): void {
                 >{{ parseServiceName(r.serviceName).group }}</span>
                 {{ r.serviceName ? parseServiceName(r.serviceName).base : '—' }}
               </span>
-              <span v-if="r.traceId" class="lg-trace mono" @click.stop="jumpToTrace(r.traceId!)">↗ trace</span>
+              <span v-if="r.traceId" class="lg-trace mono" @click.stop="jumpToTrace(r.traceId!, r.timestamp)">↗ trace</span>
               <!-- Format chip + flat content preview. Chip is always
                    rendered so the operator can tell at-a-glance which
                    rows are JSON / YAML / plain text. Preview is single
@@ -919,7 +928,7 @@ function jumpToTrace(traceId: string): void {
               v-if="popoutRow.traceId"
               class="sw-btn small"
               type="button"
-              @click="jumpToTrace(popoutRow.traceId!)"
+              @click="jumpToTrace(popoutRow.traceId!, popoutRow.timestamp)"
             >↗ trace</button>
             <button class="sw-btn small ghost" type="button" @click="closePopout">×</button>
           </div>

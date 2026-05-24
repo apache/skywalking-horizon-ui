@@ -17,13 +17,18 @@
 
 /**
  * vue-query wrapper around `GET /api/layer/:key/topology`. The query
- * fires whenever the selected service or BFS depth changes; rerouting
- * a layer (e.g. via the picker) is enough to refresh.
+ * fires whenever the selected service, BFS depth, OR the global
+ * topbar time picker changes — the picker is part of the queryKey so
+ * the operator sees topology metrics that line up with whatever
+ * window they're looking at (including cold-stage windows when the
+ * Cold pill is on; the X-Horizon-Cold-Stage header is appended by
+ * the api-client interceptor).
  */
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
+import { useTimeRangeStore } from '../../controls/timeRange';
 import { bffClient } from '@/api/client';
 
 export function useLayerTopology(
@@ -31,10 +36,24 @@ export function useLayerTopology(
   service: Ref<string | null>,
   depth: Ref<number>,
 ) {
+  const timeRange = useTimeRangeStore();
+  // Re-resolve range / step on every read so the queryKey changes on
+  // picker flips. A stable triplet (step + ms-rounded bounds) prevents
+  // identity-thrash on every store tick.
+  const rangeKey = computed(() => ({
+    step: timeRange.step,
+    startMs: timeRange.range.startMs,
+    endMs: timeRange.range.endMs,
+  }));
   const q = useQuery({
-    queryKey: ['layer-topology', layerKey, service, depth],
+    queryKey: ['layer-topology', layerKey, service, depth, rangeKey],
     queryFn: () =>
-      bffClient.layer.topology(layerKey.value, service.value ?? undefined, depth.value),
+      bffClient.layer.topology(
+        layerKey.value,
+        service.value ?? undefined,
+        depth.value,
+        rangeKey.value,
+      ),
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 30_000,
   });

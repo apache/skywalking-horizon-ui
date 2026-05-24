@@ -22,6 +22,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader, buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
+import { getOapBackend } from '../../logic/oap/backend.js';
 
 /**
  * One round-trip combining `version`, `getTimeInfo`, and `checkHealth`.
@@ -106,9 +107,10 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
        * round-trip latency to every poll without changing semantics.
        * The probe is internally cached for 5 min so the wire traffic
        * is one-off per OAP restart, not per call. */
-      const [raw, capabilities, zipkin] = await Promise.all([
+      const [raw, capabilities, backend, zipkin] = await Promise.all([
         graphqlPost<InfoRaw>(buildOapOpts(cfg, deps.fetch), INFO_QUERY),
         getOapCapabilities(cfg, deps.fetch),
+        getOapBackend(cfg, deps.fetch),
         zipkinP,
       ]);
       const body: OapInfo = {
@@ -120,6 +122,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
         healthScore: raw.health?.score ?? undefined,
         healthDetails: raw.health?.details ?? undefined,
         capabilities,
+        backend,
         zipkinUrl,
         zipkinReachable: zipkin.reachable,
         zipkinError: zipkin.error,

@@ -28,7 +28,10 @@
  */
 
 /** OAP `RecordsTTL` — retention (days) for record-class storage.
- *  cold* fields are `-1` when the backend has no cold stage. */
+ *  The plain fields (`normal`/`trace`/…) cover **hot + warm** for BanyanDB
+ *  (already summed by the OAP-side resolver); for non-BanyanDB they're
+ *  just the uniform `coreRecordDataTTL`. `cold*` is the cold-stage
+ *  retention, `-1` when no cold stage is configured. */
 export interface RecordsTTL {
   normal: number;
   trace: number;
@@ -43,12 +46,12 @@ export interface RecordsTTL {
 }
 
 /** OAP `MetricsTTL` — retention (days) for metric-class storage.
- *  `metadata` (TTL of the service/instance/endpoint/topology inventory)
- *  is not exposed by every OAP deployment, so it stays optional; the
- *  TTL query does not request it (matches booster) and the UI renders
- *  the row only when present. `cold*` is the cold-stage retention, `-1`
- *  when no cold stage is configured. Do NOT infer the storage backend
- *  from these fields — read the wire values verbatim and display them. */
+ *  Same hot+warm vs cold semantics as {@link RecordsTTL}. `metadata`
+ *  (service/instance/endpoint/topology inventory) is not exposed by
+ *  every deployment, so it stays optional; the row is rendered only
+ *  when present. Do NOT infer the storage backend directly from these
+ *  fields — the BFF computes {@link OapTtlResponse.backend} once and
+ *  the UI reads that. */
 export interface MetricsTTL {
   metadata?: number;
   minute: number;
@@ -59,14 +62,53 @@ export interface MetricsTTL {
   coldDay: number;
 }
 
+/** Storage backend the connected OAP runs on, as far as the TTL probe
+ *  can tell. `banyandb` enables the cold-stage UI affordances (the
+ *  topbar Cold pill, the TTL page's cold pane); `other` hides them.
+ *  `unknown` is the conservative result when OAP is unreachable or the
+ *  probe hasn't landed yet. */
+export type OapBackend = 'banyandb' | 'other' | 'unknown';
+
+/** One stage's per-class retention in days. Mirrors {@link RecordsTTL}
+ *  / {@link MetricsTTL} but flattened into a single "stage" so the UI
+ *  can render hot+warm and cold with one component shape. */
+export interface TtlStageBreakdown {
+  records: {
+    normal: number;
+    trace: number;
+    zipkinTrace: number;
+    log: number;
+    browserErrorLog: number;
+  };
+  metrics: {
+    metadata?: number;
+    minute: number;
+    hour: number;
+    day: number;
+  };
+}
+
 /** Wire shape of `GET /api/oap/ttl`. Never throws on an unreachable OAP
  *  — `reachable: false` + `error` carries the diagnostic so the page can
- *  render a degraded state instead of a hard failure. */
+ *  render a degraded state instead of a hard failure.
+ *
+ *  `backend` and `stages` are derived from `records`/`metrics` by the
+ *  BFF; both are present when `reachable === true`. `stages.cold` is
+ *  `null` when no `cold*` field is configured (covers non-BanyanDB
+ *  always, and BanyanDB without a cold lifecycle stage). */
 export interface OapTtlResponse {
   reachable: boolean;
   error?: string;
   records?: RecordsTTL;
   metrics?: MetricsTTL;
+  backend?: OapBackend;
+  stages?: {
+    /** Hot + warm — queried by default. */
+    hot: TtlStageBreakdown;
+    /** Cold — opt-in per query via `Duration.coldStage: true`. `null`
+     *  when no cold stage is configured for any class. */
+    cold: TtlStageBreakdown | null;
+  };
 }
 
 /** A single resolved config key→value from `/debugging/config/dump`. */
