@@ -39,7 +39,9 @@ import { useQueryClient } from '@tanstack/vue-query';
 import Icon from '@/components/icons/Icon.vue';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, i18n, type Locale } from '@/i18n';
 import { refreshConfigBundle } from '@/controls/configBundle';
+import { useAuthStore } from '@/state/auth';
 
+const auth = useAuthStore();
 const queryClient = useQueryClient();
 const locale = computed<Locale>(() => i18n.global.locale.value as Locale);
 const tLanguage = computed<string>(() => i18n.global.t('Language'));
@@ -56,11 +58,19 @@ async function pick(next: Locale, e: Event): Promise<void> {
   e.stopPropagation();
   open.value = false;
   if (next === locale.value) return;
+  // Synchronous chrome flip — this MUST succeed regardless of auth.
   await setLocale(next);
+  // Server-state refresh only when authenticated. On the pre-auth
+  // login page the BFF returns 401, which fires
+  // `bffClient.handleUnauthorized()` → `auth.$patch({user: null})`
+  // — touching Pinia auth state for no good reason and (depending on
+  // surrounding subscribers) potentially re-rendering the LoginView
+  // in a way that masks the chrome locale switch. Just skip it.
+  if (!auth.isAuthenticated) return;
   try {
     await refreshConfigBundle();
   } catch {
-    /* pre-auth / BFF down — chrome still switched */
+    /* BFF down — chrome still switched */
   }
   void queryClient.invalidateQueries();
 }
