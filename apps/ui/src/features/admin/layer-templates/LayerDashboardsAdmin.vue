@@ -1495,19 +1495,21 @@ const namingTest = computed<NamingTestResult>(() => {
                     {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
                   </p>
                 </div>
+                <div class="layer-dd-foot">
+                  <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
+                  <button
+                    type="button"
+                    class="sw-btn refresh-btn"
+                    :disabled="refreshingFromRemote || sync.readOnly.value"
+                    :title="sync.readOnly.value
+                      ? 'OAP unreachable — cannot refresh'
+                      : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+                    @click="refreshFromRemote"
+                  >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
+                </div>
               </div>
             </template>
             </div>
-          <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
-          <button
-            type="button"
-            class="sw-btn refresh-btn"
-            :disabled="refreshingFromRemote || sync.readOnly.value"
-            :title="sync.readOnly.value
-              ? 'OAP unreachable — cannot refresh'
-              : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
-            @click="refreshFromRemote"
-          >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
         </div>
         <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
@@ -2875,13 +2877,19 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   gap: 2px;
 }
-.layer-switch-bar .sub {
+.layer-dd-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--sw-line-2);
+}
+.layer-dd-foot .sub {
   font-size: 10.5px;
   color: var(--sw-fg-3);
-  margin-left: auto;
 }
-.layer-switch-bar .refresh-btn {
-  margin-left: 0;
+.layer-dd-foot .refresh-btn {
+  margin-left: auto;
   font-size: 11px;
   height: 24px;
   padding: 0 8px;

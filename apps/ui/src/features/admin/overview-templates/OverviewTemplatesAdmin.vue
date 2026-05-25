@@ -946,6 +946,18 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                   @click="openNewDash"
                 >+ New dashboard</button>
               </div>
+              <div class="ot__dd-foot">
+                <span class="ot__picker-count">{{ dashboards.length }} dashboard{{ dashboards.length === 1 ? '' : 's' }}</span>
+                <button
+                  type="button"
+                  class="ot__btn ot__refresh-btn"
+                  :disabled="refreshingFromRemote || sync.readOnly.value"
+                  :title="sync.readOnly.value
+                    ? 'OAP unreachable — cannot refresh'
+                    : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+                  @click="refreshFromRemote"
+                >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
+              </div>
               </template>
 
               <!-- Create mode: self-contained form (replaces the list). -->
@@ -972,16 +984,6 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             </div>
           </template>
         </div>
-        <span class="ot__picker-count">{{ dashboards.length }} dashboard{{ dashboards.length === 1 ? '' : 's' }}</span>
-        <button
-          type="button"
-          class="ot__btn ot__refresh-btn"
-          :disabled="refreshingFromRemote || sync.readOnly.value"
-          :title="sync.readOnly.value
-            ? 'OAP unreachable — cannot refresh'
-            : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
-          @click="refreshFromRemote"
-        >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
       </div>
 
       <section class="ot__detail">
@@ -1577,7 +1579,14 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 .ot__main { display: flex; flex-direction: column; gap: 12px; }
 .ot__picker-bar { display: flex; align-items: center; gap: 10px; }
 .ot__picker-count { font-size: 10.5px; color: var(--sw-fg-3); }
-.ot__refresh-btn { margin-left: auto; }
+.ot__dd-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--sw-line-2);
+}
+.ot__dd-foot .ot__refresh-btn { margin-left: auto; font-size: 11px; height: 24px; padding: 0 8px; }
 .ot__dd { position: relative; display: flex; }
 .ot__dd-btn {
   display: inline-flex; align-items: center; gap: 8px;
