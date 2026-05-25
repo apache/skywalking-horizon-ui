@@ -52,21 +52,35 @@ const rootEl = ref<HTMLElement | null>(null);
 function toggle(e: Event): void {
   e.stopPropagation();
   open.value = !open.value;
+  // eslint-disable-next-line no-console
+  console.log('[LocaleChip] toggle, open=', open.value, 'locale=', locale.value);
 }
 
 async function pick(next: Locale, e: Event): Promise<void> {
   e.stopPropagation();
+  // eslint-disable-next-line no-console
+  console.log('[LocaleChip] pick CLICKED', next, 'current=', locale.value);
   open.value = false;
-  if (next === locale.value) return;
+  if (next === locale.value) {
+    // eslint-disable-next-line no-console
+    console.log('[LocaleChip] same locale, early return');
+    return;
+  }
   // Synchronous chrome flip — this MUST succeed regardless of auth.
   await setLocale(next);
+  // eslint-disable-next-line no-console
+  console.log('[LocaleChip] after setLocale, locale=', locale.value, 'i18n.global=', i18n.global.locale.value);
   // Server-state refresh only when authenticated. On the pre-auth
   // login page the BFF returns 401, which fires
   // `bffClient.handleUnauthorized()` → `auth.$patch({user: null})`
   // — touching Pinia auth state for no good reason and (depending on
   // surrounding subscribers) potentially re-rendering the LoginView
   // in a way that masks the chrome locale switch. Just skip it.
-  if (!auth.isAuthenticated) return;
+  if (!auth.isAuthenticated) {
+    // eslint-disable-next-line no-console
+    console.log('[LocaleChip] not authenticated, skipping BFF refresh');
+    return;
+  }
   try {
     await refreshConfigBundle();
   } catch {

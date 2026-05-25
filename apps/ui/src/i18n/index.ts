@@ -70,11 +70,13 @@ const STORAGE_KEY = 'horizon:locale';
 
 /** Resolve the operator's locale at first paint.
  *   1. localStorage (returning user on this device).
- *   2. navigator.languages (browser preference, q-ordered).
- *   3. 'en'.
+ *   2. 'en'.
  *
- *  Run synchronously so the very first render — even the pre-auth
- *  login page — lands in the right language. */
+ *  Browser `navigator.languages` is intentionally NOT consulted —
+ *  the project policy is "English by default; opt in to other
+ *  locales via the picker". A user on a Chinese browser visiting
+ *  for the first time sees English, picks their language, and the
+ *  choice persists for them on this device. */
 export function detectInitialLocale(): Locale {
   if (typeof window !== 'undefined') {
     try {
@@ -84,35 +86,11 @@ export function detectInitialLocale(): Locale {
       /* private mode / disabled storage — fall through */
     }
   }
-  const nav = typeof navigator !== 'undefined' ? navigator : null;
-  if (nav && Array.isArray(nav.languages)) {
-    for (const tag of nav.languages) {
-      const match = matchSupported(tag);
-      if (match) return match;
-    }
-  }
-  if (nav && typeof nav.language === 'string') {
-    const match = matchSupported(nav.language);
-    if (match) return match;
-  }
   return 'en';
 }
 
 function isSupported(v: string): v is Locale {
   return (SUPPORTED_LOCALES as readonly string[]).includes(v);
-}
-
-function matchSupported(tag: string): Locale | null {
-  const lower = tag.toLowerCase();
-  const exact = SUPPORTED_LOCALES.find((l) => l.toLowerCase() === lower);
-  if (exact) return exact;
-  const base = lower.split('-')[0];
-  // Prefer a non-English variant that shares the base — `zh` should
-  // match `zh-CN` rather than fall through to `en`.
-  const variant = SUPPORTED_LOCALES.find(
-    (l) => l !== 'en' && l.toLowerCase().split('-')[0] === base,
-  );
-  return variant ?? null;
 }
 
 /** Persist the operator's pick — survives logout / browser restart on
