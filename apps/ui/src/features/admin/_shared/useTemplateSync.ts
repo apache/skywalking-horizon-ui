@@ -41,11 +41,12 @@ import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import type {
   BundleSyncStatus,
   TemplateBadge,
+  TemplateConflict,
   TemplateKind,
   TemplateStatus,
 } from '@/api/scopes/configs';
 
-export type BannerSeverity = 'unreachable' | 'diverged' | 'clean' | 'unknown';
+export type BannerSeverity = 'unreachable' | 'conflict' | 'diverged' | 'clean' | 'unknown';
 
 export interface SyncBanner {
   severity: BannerSeverity;
@@ -57,6 +58,11 @@ export interface SyncBanner {
   counts: Partial<Record<TemplateStatus, number>>;
   /** Unpublished local browser drafts for this page's kind. */
   localCount: number;
+  /** Per-name multi-enabled OAP conflicts for this kind. The banner
+   *  surfaces these as a `conflict` severity above any diverged /
+   *  clean state — they're a higher-priority "something needs
+   *  attention". */
+  conflicts: TemplateConflict[];
 }
 
 export interface UseTemplateSyncOptions {
@@ -89,6 +95,12 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return s.badges.filter((b) => b.kind === opts.kind);
   });
 
+  const ownConflicts = computed<TemplateConflict[]>(() => {
+    const s = status.value;
+    if (!s) return [];
+    return (s.conflicts ?? []).filter((c) => c.kind === opts.kind);
+  });
+
   const readOnly = computed<boolean>(() => status.value?.unreachable === true);
 
   // Shown on diverged + clean banners so the operator always knows what
@@ -105,7 +117,13 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
   const banner = computed<SyncBanner>(() => {
     const s = status.value;
     if (!s) {
-      return { severity: 'unknown', message: 'Loading template sync status…', counts: {}, localCount: localCount.value };
+      return {
+        severity: 'unknown',
+        message: 'Loading template sync status…',
+        counts: {},
+        localCount: localCount.value,
+        conflicts: [],
+      };
     }
     const counts: Partial<Record<TemplateStatus, number>> = {};
     for (const b of ownBadges.value) counts[b.status] = (counts[b.status] ?? 0) + 1;
@@ -123,6 +141,20 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
           : 'No successful sync yet since this BFF started.',
         counts,
         localCount: localCount.value,
+        conflicts: [],
+      };
+    }
+    if (ownConflicts.value.length > 0) {
+      const names = ownConflicts.value.map((c) => c.name).join(', ');
+      return {
+        severity: 'conflict',
+        message: `${ownConflicts.value.length} template${
+          ownConflicts.value.length === 1 ? '' : 's'
+        } on OAP have multiple enabled records — using the lowest-id row for each.`,
+        detail: `Affected: ${names}. Open the affected row's diff modal and disable the extras to clean up.`,
+        counts,
+        localCount: localCount.value,
+        conflicts: ownConflicts.value,
       };
     }
     const diverged = counts.diverged ?? 0;
@@ -140,6 +172,7 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
         detail: GLOSSARY,
         counts,
         localCount: localCount.value,
+        conflicts: [],
       };
     }
     return {
@@ -148,6 +181,7 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
       detail: GLOSSARY,
       counts,
       localCount: localCount.value,
+      conflicts: [],
     };
   });
 

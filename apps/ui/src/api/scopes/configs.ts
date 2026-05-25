@@ -55,6 +55,18 @@ export interface TemplateBadge {
   status: TemplateStatus;
 }
 
+/** A template name where OAP has >1 enabled row. The BFF picks the
+ *  lowest-id row as the live one (deterministic across instances);
+ *  the admin surfaces the rest so an operator can disable them. */
+export interface TemplateConflict {
+  name: string;
+  kind: TemplateKind;
+  key: string;
+  /** UUIDs of every enabled OAP row for this name, sorted ASC. The
+   *  first element is the winner; the rest are extras to clean up. */
+  enabledIds: string[];
+}
+
 /** Bundle-level sync envelope. When `unreachable`, all rows fall back to
  *  bundled and the admin pages render the global read-only banner. */
 export interface BundleSyncStatus {
@@ -62,6 +74,7 @@ export interface BundleSyncStatus {
   lastSuccessfulSyncAt: number | null;
   generatedAt: number;
   badges: TemplateBadge[];
+  conflicts: TemplateConflict[];
 }
 
 export interface ConfigBundle {

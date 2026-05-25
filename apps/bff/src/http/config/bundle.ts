@@ -95,6 +95,14 @@ export interface BundleSyncStatus {
     key: string;
     status: TemplateRow['status'];
   }>;
+  /** Names where >1 enabled OAP record exists. Empty when clean.
+   *  Admin pages render a banner so the operator can disable extras. */
+  conflicts: Array<{
+    name: string;
+    kind: TemplateKind;
+    key: string;
+    enabledIds: string[];
+  }>;
 }
 
 export interface ConfigBundle {
@@ -201,6 +209,7 @@ async function buildBundle(
       key: r.key,
       status: r.status,
     })),
+    conflicts: sync.conflicts ?? [],
   };
 
   const body = { layers, overviews, syncStatus };

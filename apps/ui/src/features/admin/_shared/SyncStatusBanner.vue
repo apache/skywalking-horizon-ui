@@ -47,6 +47,8 @@ function chipLabel(s: SyncBanner['severity']): string {
   switch (s) {
     case 'unreachable':
       return 'READ-ONLY';
+    case 'conflict':
+      return 'CONFLICT';
     case 'diverged':
       return 'EDIT MODE';
     case 'clean':
@@ -71,6 +73,10 @@ export default { chipLabel };
 .sbb--unreachable {
   border-color: var(--sw-danger, #c0392b);
   background: rgba(192, 57, 43, 0.08);
+}
+.sbb--conflict {
+  border-color: var(--sw-danger, #c0392b);
+  background: rgba(192, 57, 43, 0.06);
 }
 .sbb--diverged {
   border-color: var(--sw-warn, #b88500);
@@ -102,6 +108,7 @@ export default { chipLabel };
   white-space: nowrap;
 }
 .sbb--unreachable .sbb__chip { background: var(--sw-danger, #c0392b); color: #fff; }
+.sbb--conflict .sbb__chip    { background: var(--sw-danger, #c0392b); color: #fff; }
 .sbb--diverged .sbb__chip    { background: var(--sw-warn, #b88500); color: #1a1a1a; }
 .sbb--clean .sbb__chip       { background: var(--sw-ok, #2e7d4e); color: #fff; }
 .sbb__text {

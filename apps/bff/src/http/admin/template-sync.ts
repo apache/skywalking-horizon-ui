@@ -57,7 +57,9 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
   createAndConfirm,
-  CreateNotVisibleError,
+  updateAndConfirm,
+  disableAndConfirm,
+  WriteNotVisibleError,
   getSyncStatus,
   resync,
   type SyncStatus,
@@ -145,7 +147,7 @@ export function registerTemplateSyncAdminRoutes(
       }
       try {
         if (row.remote) {
-          await deps.uiTemplateClient().update(row.remote.id, row.bundled.configuration);
+          await updateAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled.configuration, logger);
         } else {
           await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
         }
@@ -153,7 +155,7 @@ export function registerTemplateSyncAdminRoutes(
         const fresh = await loadStatus(deps);
         return reply.send(fresh);
       } catch (err) {
-        if (err instanceof CreateNotVisibleError) {
+        if (err instanceof WriteNotVisibleError) {
           logger.warn({ name, id: err.id }, 'push-bundled propagation timeout');
           return reply.code(504).send({
             code: 'oap_propagation_timeout',
@@ -200,7 +202,7 @@ export function registerTemplateSyncAdminRoutes(
     for (const row of targets) {
       try {
         if (row.remote) {
-          await deps.uiTemplateClient().update(row.remote.id, row.bundled!.configuration);
+          await updateAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled!.configuration, logger);
         } else {
           await createAndConfirm(deps.uiTemplateClient(), row.bundled!.configuration, logger);
         }
@@ -333,7 +335,7 @@ export function registerTemplateSyncAdminRoutes(
     const existing = status.rows.find((r) => r.name === name);
     try {
       if (existing?.remote) {
-        await deps.uiTemplateClient().update(existing.remote.id, configuration);
+        await updateAndConfirm(deps.uiTemplateClient(), existing.remote.id, configuration, logger);
       } else {
         await createAndConfirm(deps.uiTemplateClient(), configuration, logger);
       }
@@ -341,7 +343,7 @@ export function registerTemplateSyncAdminRoutes(
       const fresh = await loadStatus(deps);
       return reply.send(fresh);
     } catch (err) {
-      if (err instanceof CreateNotVisibleError) {
+      if (err instanceof WriteNotVisibleError) {
         logger.warn({ name, id: err.id }, 'save propagation timeout');
         return reply.code(504).send({
           code: 'oap_propagation_timeout',
@@ -404,17 +406,17 @@ export function registerTemplateSyncAdminRoutes(
       }
       try {
         if (row.remote) {
-          await deps.uiTemplateClient().disable(row.remote.id);
+          await disableAndConfirm(deps.uiTemplateClient(), row.remote.id, logger);
         } else if (row.bundled) {
           // Bundled-fallback (no remote yet): materialise a remote from the
           // bundled config so there's a row to flag disabled.
           const id = await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
-          await deps.uiTemplateClient().disable(id);
+          await disableAndConfirm(deps.uiTemplateClient(), id, logger);
         }
         resync();
         return reply.send(await loadStatus(deps));
       } catch (err) {
-        if (err instanceof CreateNotVisibleError) {
+        if (err instanceof WriteNotVisibleError) {
           logger.warn({ name, id: err.id }, 'disable bundled-fallback create propagation timeout');
           return reply.code(504).send({
             code: 'oap_propagation_timeout',

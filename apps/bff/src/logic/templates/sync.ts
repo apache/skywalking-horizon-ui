@@ -75,6 +75,19 @@ export interface TemplateRow {
   bundled: { configuration: string } | null;
 }
 
+export interface ConflictRow {
+  /** Envelope name (e.g. `horizon.layer.ACTIVEMQ`) seen on >1 enabled
+   *  OAP record. The BFF picks the lowest-id row as the live one and
+   *  surfaces this list so the operator can disable the extras. */
+  name: string;
+  kind: TemplateKind;
+  key: string;
+  /** UUIDs of every enabled OAP row that shares this name, sorted
+   *  ASC so picks are deterministic across BFF instances. The first
+   *  element is the winner; the rest are losers. */
+  enabledIds: string[];
+}
+
 export interface SyncStatus {
   /** When true, OAP admin was unreachable at the time this status was
    *  computed. `rows` will be a bundled-only view (every bundled row marked
@@ -86,6 +99,10 @@ export interface SyncStatus {
   /** When this status snapshot was generated. */
   generatedAt: number;
   rows: TemplateRow[];
+  /** Per-name multi-enabled conflicts — extras the dedup couldn't auto-
+   *  collapse (e.g. byte-different configurations). Empty list = no
+   *  conflicts. The admin UI renders a banner per entry. */
+  conflicts: ConflictRow[];
 }
 
 export interface SyncDeps {
@@ -169,14 +186,15 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       lastSuccessfulSyncAt,
       generatedAt: now,
       rows: bundledOnlyRows(bundledRows, 'bundled-fallback'),
+      conflicts: [],
     };
   }
 
   lastSuccessfulSyncAt = (deps.now ?? Date.now)();
-  const parsedRemote = parseRemoteRows(oapRows, deps.logger);
+  let parsedRemote = parseRemoteRows(oapRows, deps.logger);
 
   if (opts.write) {
-    const seedCount = await seedMissing(deps, bundledRows, parsedRemote);
+    const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
     // Post-seed reconciliation. Any race-created duplicate (peer
     // Horizon instance seeding the same OAP simultaneously, or a
     // BanyanDB read-after-write window that hid an existing row from
@@ -192,8 +210,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     if (seedCount > 0 || disabledDupes.length > 0) {
       try {
         const refreshed = await deps.client.list();
-        parsedRemote.clear();
-        for (const [k, v] of parseRemoteRows(refreshed, deps.logger)) parsedRemote.set(k, v);
+        parsedRemote = parseRemoteRows(refreshed, deps.logger);
         deps.logger.info(
           { seedCount, collapsedDuplicates: disabledDupes.length },
           'OAP UI-template boot reconcile complete',
@@ -207,41 +224,59 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     }
   }
 
-  const rows = mergeRows(bundledRows, parsedRemote);
+  const rows = mergeRows(bundledRows, parsedRemote.byName);
   return {
     unreachable: false,
     lastSuccessfulSyncAt,
     generatedAt: now,
     rows,
+    conflicts: parsedRemote.conflicts,
   };
 }
 
-/** Thrown when a `create()` succeeded on OAP but the new row didn't
- *  become visible to `list()` within the polling window. The created
- *  id is preserved so callers can include it in the response — the UI
- *  uses it to clean up speculative local state. */
-export class CreateNotVisibleError extends Error {
+/** Thrown when a write to OAP succeeded but the resulting row state
+ *  didn't become visible to `list()` within the polling window. Routes
+ *  catch this and return 504. */
+export class WriteNotVisibleError extends Error {
+  readonly kind: 'create' | 'update';
   readonly id: string;
   readonly timeoutMs: number;
-  constructor(id: string, timeoutMs: number) {
-    super(`OAP create id=${id} not visible within ${timeoutMs}ms`);
-    this.name = 'CreateNotVisibleError';
+  constructor(kind: 'create' | 'update', id: string, timeoutMs: number) {
+    super(`OAP ${kind} id=${id} not visible within ${timeoutMs}ms`);
+    this.name = 'WriteNotVisibleError';
+    this.kind = kind;
     this.id = id;
     this.timeoutMs = timeoutMs;
   }
 }
+/** Back-compat re-export — the create-specific error type was the
+ *  original name. */
+export const CreateNotVisibleError = WriteNotVisibleError;
 
-const CREATE_VISIBILITY_TIMEOUT_MS = 5000;
+const WRITE_VISIBILITY_TIMEOUT_MS = 5000;
+
+async function pollUntilVisible<T>(
+  fetch: () => Promise<T | null>,
+  timeoutMs: number,
+): Promise<T | null> {
+  const deadline = Date.now() + timeoutMs;
+  let delay = 50;
+  while (Date.now() < deadline) {
+    try {
+      const hit = await fetch();
+      if (hit !== null) return hit;
+    } catch {
+      /* transient — retry */
+    }
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 2, 500);
+  }
+  return null;
+}
 
 /**
  * Create + wait for the new row to become visible to `client.list()`.
- * OAP's BanyanDB backend has a read-after-write window; without this
- * guard a `create()` followed immediately by a `list()` can miss the
- * new row, and the next admin action would see "no remote" and write
- * a second row.
- *
- * Throws {@link CreateNotVisibleError} on timeout — callers turn this
- * into a 504-style response so the UI can show "timeout, refetching".
+ * Throws {@link WriteNotVisibleError} on timeout.
  */
 export async function createAndConfirm(
   client: UITemplateClient,
@@ -253,19 +288,60 @@ export async function createAndConfirm(
     throw new Error(`OAP rejected create: ${ack.message || 'no message'}`);
   }
   const id = ack.id;
-  const deadline = Date.now() + CREATE_VISIBILITY_TIMEOUT_MS;
-  let delay = 50;
-  while (Date.now() < deadline) {
-    try {
-      const rows = await client.list();
-      if (rows.some((r) => r.id === id)) return id;
-    } catch {
-      /* transient list failure — retry until deadline */
-    }
-    await new Promise((r) => setTimeout(r, delay));
-    delay = Math.min(delay * 2, 500);
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    return rows.some((r) => r.id === id) ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('create', id, WRITE_VISIBILITY_TIMEOUT_MS);
+  return id;
+}
+
+/**
+ * Update + wait for the new configuration to become visible to
+ * `client.list()`. Same read-after-write guard as createAndConfirm —
+ * without this, an immediate re-read can return the OLD content and
+ * a follow-up decision races on stale state.
+ */
+export async function updateAndConfirm(
+  client: UITemplateClient,
+  id: string,
+  configuration: string,
+  _logger: Logger,
+): Promise<void> {
+  const ack = await client.update(id, configuration);
+  if (!ack.status) {
+    throw new Error(`OAP rejected update: ${ack.message || 'no message'}`);
   }
-  throw new CreateNotVisibleError(id, CREATE_VISIBILITY_TIMEOUT_MS);
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    const found = rows.find((r) => r.id === id);
+    return found && found.configuration === configuration ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('update', id, WRITE_VISIBILITY_TIMEOUT_MS);
+}
+
+/**
+ * Disable + wait for `disabled: true` to become visible to
+ * `client.list()`. Same read-after-write guard as the other write
+ * helpers — keeps subsequent decisions (e.g. reactivate flow,
+ * conflict reconcile) from acting on stale state where the row
+ * still looks enabled.
+ */
+export async function disableAndConfirm(
+  client: UITemplateClient,
+  id: string,
+  _logger: Logger,
+): Promise<void> {
+  const ack = await client.disable(id);
+  if (!ack.status) {
+    throw new Error(`OAP rejected disable: ${ack.message || 'no message'}`);
+  }
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    const found = rows.find((r) => r.id === id);
+    return found && found.disabled ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('update', id, WRITE_VISIBILITY_TIMEOUT_MS);
 }
 
 /**
@@ -307,7 +383,7 @@ async function reconcileDuplicates(
     for (const r of list) {
       if (r.id === winner.id || r.disabled) continue;
       try {
-        await deps.client.disable(r.id);
+        await disableAndConfirm(deps.client, r.id, deps.logger);
         deps.logger.info(
           { name, droppedId: r.id, keptId: winner.id },
           'collapsed duplicate UI-template',
@@ -356,35 +432,37 @@ function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, Bundl
   return out;
 }
 
+interface ParsedRemote {
+  byName: Map<string, RemoteRow>;
+  /** Names where >1 ENABLED row exists. The BFF picks the lowest-id
+   *  winner deterministically; the admin UI surfaces the rest. */
+  conflicts: ConflictRow[];
+}
+
 function parseRemoteRows(
   rows: Array<{ id: string; configuration: string; disabled: boolean }>,
   logger: Logger,
-): Map<string, RemoteRow> {
-  const out = new Map<string, RemoteRow>();
-  let skipped = 0;
-  /* OAP enforces uniqueness on the storage UUID, NOT on the inner
-   * envelope `name`. A name collision happens whenever a template was
-   * disabled (soft-delete) then re-created from the bundled default —
-   * the old disabled row sticks around alongside the new enabled one,
-   * both claiming `horizon.layer.<KEY>`. The order OAP returns them in
-   * isn't stable, so a naive `.set(name, row)` flips the rendered
-   * state every other fetch (the symptom: a layer apparently toggling
-   * between disabled and synced under steady-state).
+): ParsedRemote {
+  /* OAP doesn't enforce uniqueness on envelope name (only on its own
+   * storage UUID), so duplicates happen — typically a disabled
+   * tombstone + a current enabled record, but occasionally two
+   * enabled rows from a concurrent-boot race.
    *
-   * Resolution: prefer the row that's NOT disabled. The enabled record
-   * is what an operator would consider "live"; the disabled one is a
-   * tombstone that OAP can't delete because the UI-template REST
-   * surface has no DELETE. Ties (both disabled, or both enabled) fall
-   * to first-seen — deterministic but rare. */
-  const duplicates: string[] = [];
+   * Resolution rules:
+   *   - Enabled beats disabled.
+   *   - Multiple enabled → pick the lowest-id deterministically (so
+   *     every BFF instance and every fetch picks the same winner).
+   *     Surface the rest as `conflicts` so the admin UI can prompt
+   *     a manual reconcile. */
+  const groups = new Map<string, Array<RemoteRow>>();
+  let skipped = 0;
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
     if (!env) {
       skipped++;
       continue;
     }
-    const existing = out.get(env.name);
-    const candidate: RemoteRow = {
+    const row: RemoteRow = {
       name: env.name,
       kind: env.kind,
       key: env.name.split('.').slice(2).join('.'),
@@ -392,15 +470,23 @@ function parseRemoteRows(
       configuration: r.configuration,
       disabled: r.disabled,
     };
-    if (!existing) {
-      out.set(env.name, candidate);
-      continue;
-    }
-    // Collision: prefer enabled over disabled. Otherwise keep existing
-    // (first-seen wins among same-disabled rows).
-    duplicates.push(env.name);
-    if (existing.disabled && !candidate.disabled) {
-      out.set(env.name, candidate);
+    const list = groups.get(env.name) ?? [];
+    list.push(row);
+    groups.set(env.name, list);
+  }
+  const out = new Map<string, RemoteRow>();
+  const conflicts: ConflictRow[] = [];
+  for (const [name, list] of groups) {
+    const enabled = list.filter((r) => !r.disabled).sort((a, b) => a.id.localeCompare(b.id));
+    const winner = enabled[0] ?? list.slice().sort((a, b) => a.id.localeCompare(b.id))[0];
+    out.set(name, winner);
+    if (enabled.length > 1) {
+      conflicts.push({
+        name,
+        kind: winner.kind,
+        key: winner.key,
+        enabledIds: enabled.map((r) => r.id),
+      });
     }
   }
   if (skipped > 0) {
@@ -409,13 +495,13 @@ function parseRemoteRows(
       'OAP UI-template rows ignored (not Horizon-namespaced) — operator may have other tools writing to this OAP',
     );
   }
-  if (duplicates.length > 0) {
+  if (conflicts.length > 0) {
     logger.warn(
-      { names: Array.from(new Set(duplicates)) },
-      'OAP UI-template duplicate names — kept the enabled row per name; operator should manually consolidate via OAP admin',
+      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
+      'OAP UI-template name conflicts (>1 enabled row) — kept the lowest-id row per name; operator should disable the rest via admin',
     );
   }
-  return out;
+  return { byName: out, conflicts };
 }
 
 async function seedMissing(
