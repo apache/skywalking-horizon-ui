@@ -366,6 +366,12 @@ function previewLive(src: 'local' | 'bundled' | 'remote'): void {
 
 watch(selectedKey, syncDraft);
 onMounted(loadAll);
+// Force-refresh the cached config bundle on mount so per-row badges
+// (`synced` / `diverged` / `disabled`) reflect actual OAP state. Without
+// this, the badges would surface whatever a prior session persisted to
+// localStorage. `force: true` also flushes the BFF's 30s OAP sync cache
+// so even a fresh fetch sees live OAP state.
+onMounted(() => void refreshConfigBundle({ force: true }));
 
 /**
  * Map each DashboardScope to its corresponding `components.*` flag.

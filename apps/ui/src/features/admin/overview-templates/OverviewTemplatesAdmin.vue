@@ -291,6 +291,14 @@ function onEditorKey(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onEditorKey));
 onBeforeUnmount(() => window.removeEventListener('keydown', onEditorKey));
 
+// Force-refresh the cached config bundle on mount so per-row badges
+// (`synced` / `diverged` / `disabled`) reflect actual OAP state. The
+// bundle's `syncStatus` is what `useTemplateSync.badgeFor` reads, and
+// without this it would surface whatever a prior session persisted to
+// localStorage. `force: true` also flushes the BFF's 30s OAP sync
+// cache so even a fresh fetch sees live OAP state.
+onMounted(() => void refreshConfigBundle({ force: true }));
+
 // ── Canvas drag-reorder (HTML5 DnD over the flat widgets array) ─────
 const dragId = ref<string | null>(null);
 function onWidgetDragStart(e: DragEvent, id: string): void {

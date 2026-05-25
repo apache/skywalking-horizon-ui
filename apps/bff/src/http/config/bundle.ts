@@ -63,6 +63,7 @@ import {
 import type { TemplateKind } from '../../logic/templates/names.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
+import { resync as resyncTemplates } from '../../logic/templates/sync.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import {
@@ -114,6 +115,12 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
       // diverge from OAP (so an operator can preview unpublished edits);
       // default `remote` keeps OAP as the runtime source of truth.
       const preferLocal = (req.query as { prefer?: string }).prefer === 'local';
+      // `?force=true` bypasses the 30s OAP sync cache — admin pages
+      // pass this on mount so their `synced` / `diverged` / `disabled`
+      // badges reflect the actual OAP state, not a stale snapshot from
+      // the cached bundle the SPA persisted in localStorage.
+      const force = (req.query as { force?: string }).force === 'true';
+      if (force) resyncTemplates();
       const locale = localeFromRequest(req);
       const body = await buildBundle(deps, preferLocal, locale);
       const inm = req.headers['if-none-match'];

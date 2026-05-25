@@ -82,10 +82,21 @@ export class ConfigsApi {
    * validation. Returns `null` on a 304 (the caller's cached copy
    * is current); otherwise a full bundle.
    */
-  async bundle(ifNoneMatch?: string, prefer?: 'local' | 'remote'): Promise<ConfigBundle | null> {
+  async bundle(
+    ifNoneMatch?: string,
+    prefer?: 'local' | 'remote',
+    force?: boolean,
+  ): Promise<ConfigBundle | null> {
     const headers: Record<string, string> = {};
     if (ifNoneMatch) headers['If-None-Match'] = ifNoneMatch;
-    const path = prefer === 'local' ? '/api/configs/bundle?prefer=local' : '/api/configs/bundle';
+    const params: string[] = [];
+    if (prefer === 'local') params.push('prefer=local');
+    // `force=true` makes the BFF invalidate its 30s OAP sync cache
+    // before computing the bundle's `syncStatus`. Admin pages pass
+    // this on mount so their badges reflect live OAP state, not a
+    // stale snapshot from a prior session's localStorage cache.
+    if (force) params.push('force=true');
+    const path = `/api/configs/bundle${params.length ? '?' + params.join('&') : ''}`;
     // Direct fetch (not BffClient.request) because we need 304 to be a
     // non-throwing success path. The error logging that lives in
     // BffClient.request is replicated here so a bundle-load failure
