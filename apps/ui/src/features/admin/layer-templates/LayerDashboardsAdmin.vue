@@ -121,12 +121,35 @@ async function refreshFromRemote(): Promise<void> {
   try {
     await bff.templateSync.resync();
     await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    reconcileLocalDrafts();
     saveMsg.value = 'Refreshed from OAP.';
     setTimeout(() => (saveMsg.value = null), 4000);
   } catch (err) {
     saveMsg.value = err instanceof Error ? err.message : 'refresh failed';
   } finally {
     refreshingFromRemote.value = false;
+  }
+}
+
+/** Walk every local-only draft for this kind and remove any whose
+ *  content now equals the fresh remote — those are no longer "local-
+ *  only" edits, they're already on OAP and the `local` badge would
+ *  be misleading. Called after every refresh / push so the badge
+ *  state stays honest across sessions and browsers (another operator
+ *  may have pushed the same change first, or this operator may have
+ *  edited the draft on a different device). */
+function reconcileLocalDrafts(): void {
+  for (const name of localEdits.names()) {
+    if (!name.startsWith('horizon.layer.')) continue;
+    const local = localEdits.get(name);
+    const remote = sources.remote(name);
+    if (
+      local !== undefined &&
+      remote !== null &&
+      stableStringify(local) === stableStringify(remote)
+    ) {
+      localEdits.remove(name);
+    }
   }
 }
 /** When false the browse rail is hidden entirely and layer switching
@@ -691,6 +714,7 @@ async function pushToOap(): Promise<void> {
     }
     await bff.templateSync.resync();
     await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    reconcileLocalDrafts();
     loadFrom('remote');
     saveMsg.value = 'Published your local draft to OAP — now live for everyone.';
     setTimeout(() => (saveMsg.value = null), 6000);
