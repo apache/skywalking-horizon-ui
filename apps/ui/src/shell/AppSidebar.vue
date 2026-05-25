@@ -280,6 +280,7 @@ const sections = computed<NavSection[]>(() => [
     links: [
       { icon: 'set', label: t('Overview templates'), to: '/admin/overview-templates', verb: 'overview:write' },
       { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'dashboard:read' },
+      { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'overview:write' },
       { icon: 'alert', label: t('Alert page'), to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
       { icon: 'set', label: t('Global defaults'), to: '/admin/global-defaults', verb: 'setup:read' },
     ],

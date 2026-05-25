@@ -251,6 +251,12 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'overview:write' },
   },
   {
+    path: 'admin/translations',
+    name: 'translations',
+    component: () => import('@/features/admin/translations/TranslationsView.vue'),
+    meta: { verb: 'overview:write' },
+  },
+  {
     path: 'admin/users',
     name: 'admin-users',
     component: () => import('@/features/admin/users/UsersAdminView.vue'),
