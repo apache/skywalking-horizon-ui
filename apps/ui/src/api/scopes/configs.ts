@@ -20,6 +20,7 @@ import type {
   OverviewDashboard,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
+import { currentLocale } from '@/i18n';
 import { withBase, type BffClient } from '../client';
 
 export type BundleScopeMap = Partial<
@@ -87,7 +88,12 @@ export class ConfigsApi {
     prefer?: 'local' | 'remote',
     force?: boolean,
   ): Promise<ConfigBundle | null> {
-    const headers: Record<string, string> = {};
+    // X-Horizon-Locale is added explicitly here because this path
+    // bypasses BffClient.request (304 needs to be a non-throwing
+    // success), and bundle content varies by locale — without it,
+    // the BFF falls through to browser Accept-Language and a
+    // locale switch in the UI doesn't change overview / layer text.
+    const headers: Record<string, string> = { 'X-Horizon-Locale': currentLocale() };
     if (ifNoneMatch) headers['If-None-Match'] = ifNoneMatch;
     const params: string[] = [];
     if (prefer === 'local') params.push('prefer=local');
