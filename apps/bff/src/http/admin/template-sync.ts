@@ -89,7 +89,14 @@ export function registerTemplateSyncAdminRoutes(
   app.get(
     '/api/admin/templates/sync-status',
     { preHandler: auth },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      // `?force=true` bypasses the 30s sync cache and re-reads OAP
+      // before responding. Admin views pass this so the operator sees
+      // their own writes reflected without having to hit the explicit
+      // "refresh from remote" button — config edits should always see
+      // fresh state. The render-side bundle endpoint stays cached.
+      const force = (req.query as { force?: string })?.force === 'true';
+      if (force) resync();
       const status = await loadStatus(deps);
       return reply.send(status);
     },

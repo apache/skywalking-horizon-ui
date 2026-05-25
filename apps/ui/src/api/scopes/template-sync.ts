@@ -47,9 +47,12 @@ export class TemplateSyncApi {
   constructor(private readonly bff: BffClient) {}
 
   /** Full merged status for ALL template kinds. Admin pages filter to
-   *  the kind they own. */
-  syncStatus(): Promise<TemplateSyncStatus> {
-    return this.bff.request<TemplateSyncStatus>('GET', '/api/admin/templates/sync-status');
+   *  the kind they own. `force` bypasses the BFF's 30s sync cache and
+   *  re-reads OAP before responding — admin views default to forced so
+   *  operator edits round-trip without seeing stale state. */
+  syncStatus(force = false): Promise<TemplateSyncStatus> {
+    const qs = force ? '?force=true' : '';
+    return this.bff.request<TemplateSyncStatus>('GET', `/api/admin/templates/sync-status${qs}`);
   }
 
   /** Force the BFF to invalidate its 30s cache + refetch from OAP. */

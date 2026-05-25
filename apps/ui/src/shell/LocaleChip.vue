@@ -33,6 +33,7 @@ import { useQueryClient } from '@tanstack/vue-query';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, type Locale } from '@/i18n';
+import { refreshConfigBundle } from '@/controls/configBundle';
 
 const { t, locale } = useI18n();
 const queryClient = useQueryClient();
@@ -49,9 +50,15 @@ async function pick(next: Locale): Promise<void> {
   if (next === locale.value) return;
   const applied = await setLocale(next);
   if (applied !== next) return; // load failed; setLocale already logged
-  // Server-rendered text (layer templates, overviews, menu) is keyed
-  // by the locale header — invalidate every active query so the next
-  // poll fetches the localized payload.
+  // Server-rendered text is keyed by the locale header. Two refresh
+  // paths because two stores hold it:
+  //   1. The configBundle (custom state + localStorage cache for
+  //      layer / overview dashboards) — explicit refresh, since its
+  //      etag would otherwise serve the cached pre-switch payload.
+  //   2. vue-query consumers (sidebar menu, alarms, feature pages) —
+  //      invalidate fires every active query through its normal
+  //      refetch path with the new X-Horizon-Locale header.
+  await refreshConfigBundle();
   void queryClient.invalidateQueries();
 }
 

@@ -45,7 +45,12 @@ function envelopeContent<T>(configuration: string | undefined | null): T | null 
 export function useTemplateSources(kind: TemplateKind) {
   const q = useQuery({
     queryKey: ['admin/template-sources', kind],
-    queryFn: () => bff.templateSync.syncStatus(),
+    // `force: true` — admin pages always read past the BFF's 30s sync
+    // cache. Operators edit content here; serving them a 25-second-old
+    // view of OAP would surface stale `synced` / `diverged` badges
+    // moments after their own pushes. The render-side bundle endpoint
+    // stays cached.
+    queryFn: () => bff.templateSync.syncStatus(true),
     staleTime: 30_000,
   });
 
