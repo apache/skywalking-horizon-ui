@@ -42,7 +42,9 @@ import { useTimeRangeStore } from '@/controls/timeRange';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerSelectionStore } from '@/state/layerSelection';
+import Modal from '@/features/operate/_shared/Modal.vue';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName } from '@/utils/serviceName';
@@ -237,6 +239,59 @@ const aggregates = computed(() =>
 
 // Page-wide selected service — URL-backed, shared with every tab body.
 const { selectedId, setSelected } = useSelectedService();
+
+// ──────────────────────────────────────────────────────────────────
+// URL-pinned service validation
+// ──────────────────────────────────────────────────────────────────
+// Validate the URL-hydrated `?service=<id>` against the layer's
+// REAL service roster (independent of landing's top-N rollup, which
+// can miss low-traffic services and used to silently switch the
+// operator's pick to an unrelated service). Three outcomes:
+//
+//   1. URL service is in the roster → trust the pick; no notice.
+//   2. URL service is NOT in the roster AND the roster is non-empty
+//      → pop the "service not found" modal, offer to auto-pick the
+//      first service in the layer; operator can also cancel and pick
+//      manually.
+//   3. Roster failed to load (BFF / OAP outage) → silent fallback to
+//      first landing service via the existing dashboard-view watch;
+//      no modal (the OAP-unreachable banner is the real signal).
+const { services: layerServices, isFetching: servicesFetching } = useLayerServices(layerKey);
+/** True once we've validated the current selectedId against the
+ *  roster — gated so we don't re-pop the modal on every reactive
+ *  trigger of the same id. Reset when layer / id changes. */
+const validatedFor = ref<string | null>(null);
+/** Modal state: which URL service id the modal is about (null = closed). */
+const missingServiceId = ref<string | null>(null);
+const missingServiceFallbackId = computed<string | null>(() =>
+  layerServices.value[0]?.id ?? null,
+);
+const missingServiceFallbackName = computed<string | null>(() =>
+  layerServices.value[0]?.name ?? null,
+);
+
+watch(
+  [layerServices, selectedId, layerKey, servicesFetching],
+  ([roster, sid, lkey, fetching]) => {
+    if (!lkey || !sid) return;
+    if (fetching) return;              // wait for the roster to finish loading
+    if (roster.length === 0) return;   // outage / empty layer — handled elsewhere
+    const tag = `${lkey}::${sid}`;
+    if (validatedFor.value === tag) return;
+    validatedFor.value = tag;
+    if (roster.some((s) => s.id === sid)) return; // valid — trust the URL pick
+    missingServiceId.value = sid;
+  },
+);
+
+function acceptFallback(): void {
+  const next = missingServiceFallbackId.value;
+  missingServiceId.value = null;
+  if (next) setSelected(next);
+}
+function dismissMissing(): void {
+  missingServiceId.value = null;
+}
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const selectorColumns = computed(() => safeCfg.value.columns);
 const selectedRow = computed(
@@ -584,6 +639,49 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
     <div v-if="layer" class="tab-body">
       <RouterView />
     </div>
+
+    <!-- URL-pinned-service-not-found dialog. Fires when a deep link
+         (or hierarchy peer click) lands with a `?service=<id>` that
+         isn't in the layer's actual service roster. Operator can
+         accept the fallback to the first available service or
+         dismiss and pick manually. -->
+    <Modal
+      :open="missingServiceId !== null"
+      title="Service not found in this layer"
+      width="440px"
+      @close="dismissMissing"
+    >
+      <p style="margin: 0 0 12px 0; line-height: 1.5;">
+        The service id
+        <code style="font-family: var(--sw-mono); color: var(--sw-fg-1);">{{ missingServiceId }}</code>
+        is not in the
+        <b>{{ layer?.name ?? layerKey }}</b>
+        layer's current roster.
+      </p>
+      <p
+        v-if="missingServiceFallbackName"
+        style="margin: 0 0 12px 0; color: var(--sw-fg-2); font-size: 12px;"
+      >
+        Use the layer's first available service instead — <b>{{ missingServiceFallbackName }}</b> — or dismiss and pick one manually from the service header.
+      </p>
+      <p
+        v-else
+        style="margin: 0 0 12px 0; color: var(--sw-fg-2); font-size: 12px;"
+      >
+        This layer has no services to fall back to. Dismiss to stay on the empty view.
+      </p>
+      <template #footer>
+        <button type="button" class="sw-btn" @click="dismissMissing">Dismiss</button>
+        <button
+          v-if="missingServiceFallbackId"
+          type="button"
+          class="sw-btn is-primary"
+          @click="acceptFallback"
+        >
+          Use {{ missingServiceFallbackName }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 

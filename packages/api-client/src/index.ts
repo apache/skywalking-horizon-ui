@@ -67,6 +67,13 @@ export type {
   EndpointDependencyResponse,
 } from './topology.js';
 export type {
+  LayerLevel,
+  HierarchyPeer,
+  HierarchyPeerRole,
+  HierarchyLayerGroup,
+  ServiceHierarchyResponse,
+} from './service-hierarchy.js';
+export type {
   TraceSource,
   TracesConfig,
   TraceQueryApi,

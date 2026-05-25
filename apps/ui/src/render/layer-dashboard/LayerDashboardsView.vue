@@ -44,6 +44,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetricAs } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
@@ -117,10 +118,22 @@ function xLabelsForLen(len: number): string[] {
   );
 }
 const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
+// The layer's REAL service roster (id + name), independent of the
+// landing top-N. The cascade prefers landing rows when they include
+// the selectedId (so the display name has the same casing / cluster
+// suffix the landing rollup uses), but falls back to the full roster
+// for low-traffic services that never make landing's sample. Without
+// the roster fallback the dashboard would sit on "Resolving service…"
+// forever for any deep-link / hierarchy-peer entry whose service
+// isn't in landing's top-N.
+const { services: layerServices } = useLayerServices(layerKey);
 const serviceName = computed<string | null>(() => {
   const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
   const match = rows.find((r) => r.serviceId === selectedId.value);
-  return match?.serviceName ?? null;
+  if (match) return match.serviceName;
+  const fromRoster = layerServices.value.find((s) => s.id === selectedId.value);
+  if (fromRoster) return fromRoster.name;
+  return null;
 });
 // Dev-only escape hatch: appending `?mockTop=10` to the page URL pads
 // every TopList result to N synthetic rows. Helps operators verify
@@ -164,22 +177,15 @@ const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.ro
 watch(landingRows, (rows) => {
   const first = rows[0];
   if (!first) return;
-  // First-visit (no ?service= in URL) → quietly auto-pick. Stale
-  // URL pick (id present but not in the layer) → log a debug
-  // event so the operator sees the fallback in the event panel,
-  // THEN auto-pick. Distinguishes the two so the silent default
-  // isn't conflated with a fallback in the timeline.
+  // First-visit (no ?service= in URL) → quietly auto-pick the first
+  // landing service so the page renders something. Stale-id recovery
+  // for URL-pinned services is handled at the shell level
+  // (LayerShell pops a "service not found" modal against the full
+  // roster) so the dashboard doesn't second-guess a valid id that
+  // simply missed landing's top-N rollup.
   if (!selectedId.value) {
     setSelectedService(first.serviceId);
     return;
-  }
-  if (!rows.some((r) => r.serviceId === selectedId.value)) {
-    pushEvent(
-      'fallback',
-      'info',
-      `URL service "${selectedId.value}" not in ${layerKey.value} · falling back to "${first.serviceName}"`,
-    );
-    setSelectedService(first.serviceId);
   }
 }, { immediate: true });
 // Drop the stale instance whenever the service ACTUALLY changes —

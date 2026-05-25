@@ -71,6 +71,9 @@ import {
 } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import { isUserNode } from '@/layer/service-map/useTopologyIcons';
+import ServiceHierarchyOverlay from '@/layer/service-map/ServiceHierarchyOverlay.vue';
+import { useHierarchyOverlayStore } from '@/layer/service-map/hierarchyStore';
+import { useServiceHierarchy } from '@/layer/service-map/useServiceHierarchy';
 
 /** When embedded as a widget (e.g. inside the Services / Mesh overview
  *  dashboards) the host passes the layer key directly and asks for the
@@ -1241,6 +1244,58 @@ function zoomBy(factor: number): void {
   d3.select(svgEl.value).transition().duration(160).call(zoomBehaviour.scaleBy, factor);
 }
 
+// ────────────────────────────────────────────────────────────────────
+// Smartscape hierarchy overlay — lazy-probed on node-select; chip on
+// the focused hex's right edge opens the focus+context+suggestions
+// overlay. The store gates the global auto-refresh ticker so the
+// background topology doesn't shift while the operator pans through
+// peers. Disabled in embedded (widget) mode — the snapshot widget is
+// intentionally non-interactive.
+// ────────────────────────────────────────────────────────────────────
+const hierarchy = useHierarchyOverlayStore();
+const { hasPeers: hierarchyHasPeers } = useServiceHierarchy(layerKey, selectedNodeId);
+
+function openHierarchy(): void {
+  if (embedded.value) return;
+  const sel = selectedNode.value;
+  if (!sel) return;
+  // Snapshot the live zoom so the overlay anchors peers on the same
+  // screen position as the focused hex underneath.
+  hierarchy.open({
+    serviceId: sel.id,
+    serviceName: identity(sel.name).display,
+    layer: layerKey.value,
+    zoom: { k: zoomT.value.k, x: zoomT.value.x, y: zoomT.value.y },
+  });
+}
+
+/** Resolver passed to the overlay so it can place peers relative to
+ *  the focused node's current topology coords. */
+function resolveNodePos(id: string): { cx: number; cy: number } | null {
+  const p = nodePos.value.get(id);
+  return p ? { cx: p.cx, cy: p.cy } : null;
+}
+
+// Peer clicks in the overlay open the destination layer in a NEW
+// BROWSER TAB (so the source tab keeps its overlay state), which means
+// no `?hierarchy=1` URL coordination is needed here.
+
+// Mirror live pan/zoom into the overlay's snapshot — the overlay
+// re-draws the focused hex at its underlying topology position +
+// scale, so it must follow whatever pan/zoom the operator does
+// while the overlay is up (otherwise the "focus" hex drifts away
+// from the hex it's supposed to overlap).
+watch(zoomT, (z) => {
+  if (hierarchy.isOpen) hierarchy.updateZoom({ k: z.k, x: z.x, y: z.y });
+});
+
+// Tear down the overlay (and re-enable the ticker) on unmount —
+// otherwise leaving the tab while open would freeze refresh
+// indefinitely.
+onBeforeUnmount(() => {
+  if (hierarchy.isOpen) hierarchy.close();
+});
+
 function installZoom(): void {
   if (!svgEl.value || !zoomLayerEl.value) return;
   const sel = d3.select(svgEl.value);
@@ -1750,6 +1805,27 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 <animate attributeName="opacity" values="1;0.2;1" dur="2s" repeatCount="indefinite" />
               </circle>
 
+              <!-- Smartscape hierarchy chip — anchored on the right
+                   vertex of the selected hex. Visible only once the
+                   lazy probe confirms cross-layer peers exist; click
+                   opens the focus+context+suggestions overlay. -->
+              <g
+                v-if="selectedNodeId === n.id && hierarchyHasPeers && !embedded"
+                transform="translate(48, 0)"
+                class="sm-h-chip"
+                @click.stop="openHierarchy()"
+              >
+                <title>Show service hierarchy (cross-layer peers)</title>
+                <circle r="11" fill="var(--sw-accent)" />
+                <circle r="11" fill="none" stroke="var(--sw-bg-0)" stroke-width="2" />
+                <!-- Stacked-layers glyph — three offset chevrons -->
+                <g stroke="var(--sw-bg-0)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M-4 -3 L0 -1 L4 -3" />
+                  <path d="M-4 0 L0 2 L4 0" />
+                  <path d="M-4 3 L0 5 L4 3" />
+                </g>
+              </g>
+
               <!-- RPM (center metric) above the hex body. No label —
                    the unit chip on the right is enough to disambiguate
                    it from the latency line beneath the name. Hidden
@@ -1801,6 +1877,18 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         <div v-else class="loader">
           No services with metric data in this layer for the last 15 minutes.
         </div>
+
+        <!-- Smartscape hierarchy overlay — focus + context + suggestions.
+             Mounted inside .sm-graph so it overlays the topology
+             container exactly; gated on `embedded` so the widget
+             snapshot view never grows a dimmed canvas. -->
+        <ServiceHierarchyOverlay
+          v-if="!embedded"
+          :view-box-w="W"
+          :view-box-h="H"
+          :resolve-node-pos="resolveNodePos"
+          :show-legacy-group="showLegacyGroup"
+        />
 
         <!-- Floating zoom controls — top-right, mirror the map
              toolbar's affordance vocabulary (small ghost buttons).
@@ -2588,6 +2676,22 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
 .lg-swatch { width: 18px; height: 3px; border-radius: 1px; display: block; }
 .lg-aside { color: var(--sw-fg-3); font-size: 9.5px; }
 .lg-swatch-other { background: var(--sw-line-3); }
+
+/* Smartscape hierarchy chip — anchored on the right side of the
+   selected hex. Click opens the focus+context+suggestions overlay.
+   Visible only when the lazy probe found at least one cross-layer
+   peer (see `hierarchyHasPeers`). */
+.sm-h-chip {
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.sm-h-chip:hover {
+  transform: translate(48px, 0) scale(1.1);
+}
+.sm-h-chip:hover circle:first-child {
+  filter: drop-shadow(0 0 6px var(--sw-accent));
+}
+
 /* Floating zoom + fit controls at the top-right of the map area.
    Absolute-positioned over the SVG so they ride above any node /
    edge without taking layout space. */

@@ -49,6 +49,7 @@ import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, windowFromRange, type TimeStep, type Window } from '../../util/window.js';
 import { getLayerTemplate, topologyConfigFor } from '../../logic/layers/loader.js';
+import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
 
 export interface TopologyRouteDeps {
   config: ConfigSource;
@@ -593,6 +594,37 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         calls: liveCalls,
         reachable: true,
       } satisfies TopologyResponse);
+    },
+  );
+
+  // ── Service hierarchy probe — Smartscape overlay on the service map.
+  //
+  // The UI calls this lazily on node-select (one round-trip per selected
+  // node) to decide whether to render the "expand hierarchy" chip and to
+  // populate the focus+context+suggestions overlay when the operator
+  // opens it. Not used by the overview topology widget (intentionally
+  // non-interactive there).
+  app.get(
+    '/api/layer/:key/service-hierarchy',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const params = req.params as { key: string };
+      const layerKey = params.key;
+      if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
+        return reply.code(400).send({ error: 'invalid_layer_key' });
+      }
+      const q = req.query as { service?: string };
+      const serviceId = (q.service ?? '').trim();
+      if (!serviceId) {
+        return reply.code(400).send({ error: 'missing_service' });
+      }
+      const result = await getServiceHierarchy(
+        deps.config.current,
+        serviceId,
+        layerKey,
+        deps.fetch,
+      );
+      return reply.send(result);
     },
   );
 }

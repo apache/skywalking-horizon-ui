@@ -22,6 +22,7 @@ import type {
   EndpointDependencyResponse,
   LandingConfig,
   LandingResponse,
+  ServiceHierarchyResponse,
   TopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
@@ -210,6 +211,38 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/endpoint-dependency?${qs.toString()}`,
+    );
+  }
+
+  /** Probe a service's cross-layer hierarchy peers. Called lazily by
+   *  the service-map view on node-select to decide whether to render
+   *  the Smartscape expand chip, then re-used to populate the focus +
+   *  context + suggestions overlay when the operator opens it. */
+  serviceHierarchy(
+    layerKey: string,
+    service: string,
+  ): Promise<ServiceHierarchyResponse> {
+    const qs = new URLSearchParams({ service });
+    return this.bff.request(
+      'GET',
+      `/api/layer/${encodeURIComponent(layerKey)}/service-hierarchy?${qs.toString()}`,
+    );
+  }
+
+  /** Full service roster for a layer (id + name + normal-flag), read
+   *  from the BFF's cached `listServices` snapshot. The layer shell
+   *  uses this to validate a URL-pinned `?service=<id>` against the
+   *  layer's real catalog — independent of landing's top-N rollup
+   *  which can miss low-traffic services. */
+  services(layerKey: string): Promise<{
+    reachable: boolean;
+    layer: string;
+    services: Array<{ id: string; name: string; normal: boolean | null }>;
+    error?: string;
+  }> {
+    return this.bff.request(
+      'GET',
+      `/api/layer/${encodeURIComponent(layerKey)}/services`,
     );
   }
 }

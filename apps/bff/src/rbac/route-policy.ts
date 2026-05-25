@@ -98,6 +98,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // ── Topology (read) ──────────────────────────────────────────────
   'GET /api/layer/:key/topology':                  'topology:read',
   'GET /api/layer/:key/endpoint-dependency':       'topology:read',
+  'GET /api/layer/:key/service-hierarchy':         'topology:read',
 
   // ── Metrics & layer-level reads ──────────────────────────────────
   'POST /api/layer/:key/dashboard':                'metrics:read',
@@ -105,6 +106,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/layer/:key/landing':                  'metrics:read',
   'GET /api/layer/:key/instances':                 'metrics:read',
   'GET /api/layer/:key/endpoints':                 'metrics:read',
+  'GET /api/layer/:key/services':                  'metrics:read',
 
   // ── Profiling — agent / async / pprof / eBPF / eBPF network ──────
   // GETs + analyze are reads; POST <family>/tasks creates a task.

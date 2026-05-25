@@ -9,6 +9,49 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.6.0
 
+### Smartscape service hierarchy
+
+OAP 10's cross-layer service hierarchy is now reachable from any layer's
+service map — a logical service projected across observation layers
+(GENERAL agent ↔ MESH sidecar ↔ MESH_DP data-plane ↔ K8S_SERVICE pod) is
+one click away on every selected hex.
+
+- **Lazy-probed chip on the selected hex.** Picking a node fires one
+  `getServiceHierarchy` call; if the service has cross-layer peers, a
+  small chevron-stack chip clips to the hex's right edge. No probe, no
+  chip on services with no peers.
+- **Focus + context + suggestions overlay.** Click the chip and the
+  topology dims under a transparent canvas; the focused hex re-renders
+  bright at the exact same screen position and scale as the underlying
+  hex (the topology's d3 zoom transform is mirrored onto the overlay).
+  Peers fan vertically from the focus column using OAP's
+  `listLayerLevels` order — higher-level (request-near) layers above,
+  lower-level (infra-near) layers below, matching booster-ui's
+  hierarchy rendering rule.
+- **Auto-refresh pauses while the overlay is open** so the background
+  topology and KPI panels don't shift under the operator. Closing the
+  overlay (`×` button, ESC, or click-on-dim) resumes the ticker and
+  fires one immediate tick so the page snaps back to live data.
+- **Two-step peer open.** First click on a peer hex arms it (selection
+  halo + side `↗ Open in <Layer>` action chip); second click on the
+  chip opens the destination layer in a new browser tab, pre-selecting
+  the peer service. Peers in layers Horizon has no template for render
+  dimmed with a `cursor: not-allowed`; clicking them logs *"No layer
+  template configured for &lt;Layer&gt;"* to the event log instead.
+- **URL-pinned service validator on the destination tab.** Every
+  per-layer page now validates the URL-hydrated `?service=<id>`
+  against the layer's real service roster (the new
+  `GET /api/layer/:key/services`, served from the BFF's 60s catalog
+  cache so it adds no extra OAP traffic). A genuinely missing id pops
+  a `Service not found in this layer` modal with a one-click fallback
+  to the first available service; a valid id is trusted even when
+  landing's top-N rollup doesn't sample it (the cause of the previous
+  silent service-swap on low-traffic deep links).
+- **Service-name resolution** on the layer dashboard now consults the
+  roster after landing's top-N, so deep links to low-traffic services
+  no longer sit on *"Resolving service…"* forever waiting for a row
+  that won't arrive.
+
 ### BanyanDB cold-stage query
 
 The cold lifecycle stage is now reachable from the UI on BanyanDB
