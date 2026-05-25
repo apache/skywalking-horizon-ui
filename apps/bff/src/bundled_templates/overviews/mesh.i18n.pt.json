@@ -9,9 +9,15 @@
       "title": "Serviços gerenciados pelo Istio",
       "tip": "Serviços roteados pelo plano de dados do Istio.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "Serviços" },
+        {
+          "label": "Serviços"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "Capacidade e utilização do cluster",
       "tip": "Nós / namespaces / workloads e o uso de CPU, memória e disco em todo o cluster.",
       "kpis": [
-        { "label": "Nós" },
+        {
+          "label": "Nós"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Serviços" },
-        { "label": "Contêineres" },
-        { "label": "CPU" },
-        { "label": "Memória" },
-        { "label": "Armazenamento" }
+        {
+          "label": "Serviços"
+        },
+        {
+          "label": "Contêineres"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memória"
+        },
+        {
+          "label": "Armazenamento"
+        }
       ]
     }
   ]

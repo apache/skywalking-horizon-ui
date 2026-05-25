@@ -9,9 +9,15 @@
       "title": "Istio 管理サービス",
       "tip": "Istio データプレーンを経由するサービス。",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "サービス" },
+        {
+          "label": "サービス"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "クラスタのキャパシティと利用率",
       "tip": "ノード / 名前空間 / ワークロード、およびクラスタ全体の CPU・メモリ・ディスク使用状況。",
       "kpis": [
-        { "label": "ノード" },
+        {
+          "label": "ノード"
+        },
         null,
         null,
         null,
         null,
-        { "label": "サービス" },
-        { "label": "コンテナ" },
-        { "label": "CPU" },
-        { "label": "メモリ" },
-        { "label": "ストレージ" }
+        {
+          "label": "サービス"
+        },
+        {
+          "label": "コンテナ"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "メモリ"
+        },
+        {
+          "label": "ストレージ"
+        }
       ]
     }
   ]

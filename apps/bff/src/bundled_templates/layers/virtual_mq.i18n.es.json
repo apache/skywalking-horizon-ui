@@ -18,5 +18,7 @@
   },
   "slots": {
     "endpoints": "Topics"
-  }
+  },
+  "alias": "Cola de mensajes virtual",
+  "group": "Destinos virtuales"
 }

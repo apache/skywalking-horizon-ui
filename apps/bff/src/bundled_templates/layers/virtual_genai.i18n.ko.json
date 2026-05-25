@@ -57,5 +57,6 @@
   },
   "slots": {
     "instances": "모델"
-  }
+  },
+  "group": "가상 대상"
 }

@@ -145,5 +145,6 @@
     "instances": "Instancias",
     "endpoints": "API",
     "endpointDependency": "Dependencias de API"
-  }
+  },
+  "alias": "Servicio general"
 }

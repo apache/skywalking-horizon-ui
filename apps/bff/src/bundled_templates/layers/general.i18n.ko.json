@@ -145,5 +145,6 @@
     "instances": "인스턴스",
     "endpoints": "API",
     "endpointDependency": "API 의존성"
-  }
+  },
+  "alias": "일반 서비스"
 }

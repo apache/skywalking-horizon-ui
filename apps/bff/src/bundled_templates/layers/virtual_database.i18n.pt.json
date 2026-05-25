@@ -44,5 +44,7 @@
   },
   "slots": {
     "services": "Bancos de dados"
-  }
+  },
+  "alias": "Banco de dados virtual",
+  "group": "Alvos virtuais"
 }

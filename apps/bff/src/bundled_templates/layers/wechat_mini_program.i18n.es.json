@@ -29,5 +29,7 @@
   "slots": {
     "instances": "Versiones",
     "endpoints": "Páginas"
-  }
+  },
+  "alias": "Mini programa de WeChat",
+  "group": "Móvil"
 }

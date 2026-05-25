@@ -29,5 +29,7 @@
   "slots": {
     "instances": "Versões",
     "endpoints": "Páginas"
-  }
+  },
+  "alias": "Mini Programa do Alipay",
+  "group": "Móvel"
 }

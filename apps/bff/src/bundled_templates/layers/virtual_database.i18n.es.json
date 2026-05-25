@@ -44,5 +44,7 @@
   },
   "slots": {
     "services": "Bases de datos"
-  }
+  },
+  "alias": "Base de datos virtual",
+  "group": "Destinos virtuales"
 }

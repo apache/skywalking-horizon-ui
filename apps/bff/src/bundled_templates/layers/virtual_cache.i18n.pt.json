@@ -31,5 +31,7 @@
   },
   "slots": {
     "services": "Caches"
-  }
+  },
+  "alias": "Cache virtual",
+  "group": "Alvos virtuais"
 }

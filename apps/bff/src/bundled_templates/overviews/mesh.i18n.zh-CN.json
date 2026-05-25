@@ -9,9 +9,15 @@
       "title": "Istio 管理的服务",
       "tip": "通过 Istio 数据面路由的服务。",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "服务" },
+        {
+          "label": "服务"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "集群容量与利用率",
       "tip": "节点 / 命名空间 / 工作负载，以及集群范围内的 CPU、内存与磁盘占用。",
       "kpis": [
-        { "label": "节点" },
+        {
+          "label": "节点"
+        },
         null,
         null,
         null,
         null,
-        { "label": "服务" },
-        { "label": "容器" },
-        { "label": "CPU" },
-        { "label": "内存" },
-        { "label": "存储" }
+        {
+          "label": "服务"
+        },
+        {
+          "label": "容器"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "内存"
+        },
+        {
+          "label": "存储"
+        }
       ]
     }
   ]

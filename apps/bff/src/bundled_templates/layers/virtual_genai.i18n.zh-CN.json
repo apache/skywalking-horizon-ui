@@ -57,5 +57,6 @@
   },
   "slots": {
     "instances": "模型"
-  }
+  },
+  "group": "虚拟目标"
 }

@@ -8,5 +8,6 @@
   },
   "slots": {
     "instances": "노드"
-  }
+  },
+  "group": "게이트웨이"
 }

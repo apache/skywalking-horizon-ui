@@ -48,5 +48,6 @@
   "slots": {
     "instances": "버전",
     "endpoints": "페이지"
-  }
+  },
+  "alias": "브라우저"
 }

@@ -96,5 +96,6 @@
     "services": "K8s 서비스",
     "instances": "Pod",
     "endpoints": "엔드포인트"
-  }
+  },
+  "alias": "Kubernetes 서비스"
 }

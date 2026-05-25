@@ -11,5 +11,6 @@
   },
   "slots": {
     "instances": "Nodos"
-  }
+  },
+  "group": "Gateways"
 }

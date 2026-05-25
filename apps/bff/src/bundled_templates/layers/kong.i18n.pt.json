@@ -30,5 +30,6 @@
   },
   "slots": {
     "instances": "Nós"
-  }
+  },
+  "group": "Gateways"
 }

@@ -31,5 +31,7 @@
   },
   "slots": {
     "services": "Cachés"
-  }
+  },
+  "alias": "Caché virtual",
+  "group": "Destinos virtuales"
 }

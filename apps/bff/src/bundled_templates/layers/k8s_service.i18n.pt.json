@@ -96,5 +96,6 @@
     "services": "Serviços do K8s",
     "instances": "Pods",
     "endpoints": "Endpoints"
-  }
+  },
+  "alias": "Serviços do Kubernetes"
 }

@@ -145,5 +145,6 @@
     "instances": "实例",
     "endpoints": "API",
     "endpointDependency": "API 依赖"
-  }
+  },
+  "alias": "通用服务"
 }

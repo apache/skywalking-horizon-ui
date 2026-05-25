@@ -113,5 +113,6 @@
     "services": "서비스",
     "instances": "Sidecar",
     "endpoints": "엔드포인트"
-  }
+  },
+  "alias": "Istio가 관리하는 서비스"
 }

@@ -113,5 +113,6 @@
     "services": "服务",
     "instances": "Sidecar",
     "endpoints": "端点"
-  }
+  },
+  "alias": "Istio 管理的服务"
 }

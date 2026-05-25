@@ -18,5 +18,7 @@
   },
   "slots": {
     "endpoints": "Topic"
-  }
+  },
+  "alias": "가상 메시지 큐",
+  "group": "가상 대상"
 }

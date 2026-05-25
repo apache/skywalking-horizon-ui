@@ -30,5 +30,6 @@
   },
   "slots": {
     "instances": "节点"
-  }
+  },
+  "group": "网关"
 }

@@ -9,45 +9,75 @@
       "title": "Servicios generales",
       "tip": "Servicios de aplicación trazados en la capa General.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latencia" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latencia"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Bases de datos virtuales",
       "tip": "Bases de datos observadas mediante spans del lado del cliente.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latencia" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latencia"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Cachés virtuales",
       "tip": "Cachés (Redis / Memcached / …) observadas mediante spans del lado del cliente.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latencia" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latencia"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Colas de mensajes virtuales",
       "tip": "Colas de mensajes observadas mediante spans de consumo + producción.",
       "kpis": [
-        { "label": "Consumo" },
-        { "label": "Producción" },
-        { "label": "Latencia de consumo" }
+        {
+          "label": "Consumo"
+        },
+        {
+          "label": "Producción"
+        },
+        {
+          "label": "Latencia de consumo"
+        }
       ]
     },
     {
       "title": "GenAI virtual",
       "tip": "Backends de GenAI observados mediante spans instrumentados del cliente.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latencia" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latencia"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -68,16 +98,28 @@
       "title": "Capacidad y utilización del clúster",
       "tip": "Nodos / espacios de nombres / cargas de trabajo, más el uso de CPU, memoria y disco a nivel de clúster.",
       "kpis": [
-        { "label": "Nodos" },
+        {
+          "label": "Nodos"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Servicios" },
-        { "label": "Contenedores" },
-        { "label": "CPU" },
-        { "label": "Memoria" },
-        { "label": "Almacenamiento" }
+        {
+          "label": "Servicios"
+        },
+        {
+          "label": "Contenedores"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memoria"
+        },
+        {
+          "label": "Almacenamiento"
+        }
       ]
     }
   ]

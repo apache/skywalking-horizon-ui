@@ -48,5 +48,6 @@
   "slots": {
     "instances": "版本",
     "endpoints": "页面"
-  }
+  },
+  "alias": "浏览器"
 }

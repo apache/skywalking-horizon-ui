@@ -18,5 +18,7 @@
   },
   "slots": {
     "endpoints": "Topic"
-  }
+  },
+  "alias": "仮想メッセージキュー",
+  "group": "仮想ターゲット"
 }

@@ -9,9 +9,15 @@
       "title": "Servicios gestionados por Istio",
       "tip": "Servicios que pasan por el plano de datos de Istio.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "Servicios" },
+        {
+          "label": "Servicios"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "Capacidad y utilización del clúster",
       "tip": "Nodos / espacios de nombres / cargas de trabajo, más el uso de CPU, memoria y disco a nivel de clúster.",
       "kpis": [
-        { "label": "Nodos" },
+        {
+          "label": "Nodos"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Servicios" },
-        { "label": "Contenedores" },
-        { "label": "CPU" },
-        { "label": "Memoria" },
-        { "label": "Almacenamiento" }
+        {
+          "label": "Servicios"
+        },
+        {
+          "label": "Contenedores"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memoria"
+        },
+        {
+          "label": "Almacenamiento"
+        }
       ]
     }
   ]

@@ -29,5 +29,7 @@
   "slots": {
     "instances": "版本",
     "endpoints": "页面"
-  }
+  },
+  "alias": "支付宝小程序",
+  "group": "移动"
 }

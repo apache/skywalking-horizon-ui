@@ -18,5 +18,7 @@
   },
   "slots": {
     "endpoints": "Topic"
-  }
+  },
+  "alias": "虚拟消息队列",
+  "group": "虚拟目标"
 }

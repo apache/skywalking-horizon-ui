@@ -1,5 +1,6 @@
 {
   "slots": {
     "instances": "Sidecar"
-  }
+  },
+  "alias": "Istio 데이터 플레인"
 }

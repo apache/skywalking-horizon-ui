@@ -29,5 +29,7 @@
   "slots": {
     "instances": "バージョン",
     "endpoints": "ページ"
-  }
+  },
+  "alias": "Alipay ミニプログラム",
+  "group": "モバイル"
 }

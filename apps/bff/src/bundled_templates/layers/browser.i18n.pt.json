@@ -48,5 +48,6 @@
   "slots": {
     "instances": "Versões",
     "endpoints": "Páginas"
-  }
+  },
+  "alias": "Navegador"
 }

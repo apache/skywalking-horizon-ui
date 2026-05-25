@@ -39,5 +39,6 @@
       null,
       null
     ]
-  }
+  },
+  "alias": "Istio 컨트롤 플레인"
 }

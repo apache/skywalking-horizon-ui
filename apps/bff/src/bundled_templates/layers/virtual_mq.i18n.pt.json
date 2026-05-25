@@ -18,5 +18,7 @@
   },
   "slots": {
     "endpoints": "Topics"
-  }
+  },
+  "alias": "Fila de mensagens virtual",
+  "group": "Alvos virtuais"
 }

@@ -145,5 +145,6 @@
     "instances": "インスタンス",
     "endpoints": "API",
     "endpointDependency": "API 依存関係"
-  }
+  },
+  "alias": "汎用サービス"
 }

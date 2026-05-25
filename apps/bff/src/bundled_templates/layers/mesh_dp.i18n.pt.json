@@ -1,5 +1,6 @@
 {
   "slots": {
     "instances": "Sidecars"
-  }
+  },
+  "alias": "Plano de dados do Istio"
 }

@@ -9,9 +9,15 @@
       "title": "Istio가 관리하는 서비스",
       "tip": "Istio 데이터 플레인을 거치는 서비스.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "서비스" },
+        {
+          "label": "서비스"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "클러스터 용량 및 사용률",
       "tip": "노드 / 네임스페이스 / 워크로드, 그리고 클러스터 전체의 CPU·메모리·디스크 사용량.",
       "kpis": [
-        { "label": "노드" },
+        {
+          "label": "노드"
+        },
         null,
         null,
         null,
         null,
-        { "label": "서비스" },
-        { "label": "컨테이너" },
-        { "label": "CPU" },
-        { "label": "메모리" },
-        { "label": "스토리지" }
+        {
+          "label": "서비스"
+        },
+        {
+          "label": "컨테이너"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "메모리"
+        },
+        {
+          "label": "스토리지"
+        }
       ]
     }
   ]
