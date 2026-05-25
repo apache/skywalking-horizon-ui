@@ -134,58 +134,54 @@ function widgetRowSpan(w: DashboardWidget): number {
             :style="{ gridTemplateColumns: `repeat(${sec.cols}, minmax(0, 1fr))` }"
           >
             <template v-for="w in sec.widgets" :key="w.id">
-              <MetricWidget
-                v-if="w.type === 'metric'"
-                :title="w.title"
-                :tip="w.tip"
-                :value="null"
-                :unit="w.unit"
-                :style="gridStyle(w.span, w.rowSpan, sec.cols)"
-                class="ovw-card"
-                @click="emit('select-widget', w.id)"
-              />
-              <KpiTileWidget
-                v-else-if="w.type === 'kpi-tile'"
-                :title="w.title"
-                :tip="w.tip"
-                :layer="w.layer"
-                :show-count="w.showCount"
-                :count="null"
-                :kpis="w.kpis ?? []"
-                :kpi-values="{}"
-                :style="gridStyle(w.span, w.rowSpan, sec.cols)"
-                class="ovw-card"
-                @click="emit('select-widget', w.id)"
-              />
-              <AlarmsWidget
-                v-else-if="w.type === 'alarms'"
-                :title="w.title"
-                :tip="w.tip"
-                :limit="w.limit"
-                :layer="w.layer"
-                :style="gridStyle(w.span, w.rowSpan, sec.cols)"
-                class="ovw-card"
-                @click="emit('select-widget', w.id)"
-              />
+              <!-- Intercept clicks in the CAPTURE phase. The overview
+                   widget primitives (KpiTileWidget,
+                   MetricCompositeWidget, AlarmsWidget) contain
+                   RouterLinks that would navigate to /layer/... or
+                   /alarms. We don't want any navigation off this page;
+                   capture-prevent stops the inner link from firing
+                   and lets us emit `select-widget` instead. -->
               <div
-                v-else-if="w.type === 'topology'"
-                class="topo-host sw-card ovw-card"
+                class="ovw-cell"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
-                @click="emit('select-widget', w.id)"
+                @click.capture.prevent.stop="emit('select-widget', w.id)"
               >
-                <span class="topo-host__label">{{ w.title || 'Topology' }}</span>
+                <MetricWidget
+                  v-if="w.type === 'metric'"
+                  :title="w.title"
+                  :tip="w.tip"
+                  :value="null"
+                  :unit="w.unit"
+                />
+                <KpiTileWidget
+                  v-else-if="w.type === 'kpi-tile'"
+                  :title="w.title"
+                  :tip="w.tip"
+                  :layer="w.layer"
+                  :show-count="w.showCount"
+                  :count="null"
+                  :kpis="w.kpis ?? []"
+                  :kpi-values="{}"
+                />
+                <AlarmsWidget
+                  v-else-if="w.type === 'alarms'"
+                  :title="w.title"
+                  :tip="w.tip"
+                  :limit="w.limit"
+                  :layer="w.layer"
+                />
+                <div v-else-if="w.type === 'topology'" class="topo-host sw-card">
+                  <span class="topo-host__label">{{ w.title || 'Topology' }}</span>
+                </div>
+                <MetricCompositeWidget
+                  v-else-if="w.type === 'metric-composite'"
+                  :title="w.title"
+                  :tip="w.tip"
+                  :layer="w.layer"
+                  :kpis="w.kpis"
+                  :kpi-values="{}"
+                />
               </div>
-              <MetricCompositeWidget
-                v-else-if="w.type === 'metric-composite'"
-                :title="w.title"
-                :tip="w.tip"
-                :layer="w.layer"
-                :kpis="w.kpis"
-                :kpi-values="{}"
-                :style="gridStyle(w.span, w.rowSpan, sec.cols)"
-                class="ovw-card"
-                @click="emit('select-widget', w.id)"
-              />
             </template>
           </div>
         </section>
@@ -309,10 +305,15 @@ function widgetRowSpan(w: DashboardWidget): number {
 .section { display: flex; flex-direction: column; gap: 6px; }
 .section-grid { display: grid; grid-auto-rows: 72px; gap: 10px; }
 
-/* Overview cards — same primitives, but flag them clickable so clicks
-   propagate the select-widget signal up without triggering the
-   widget's internal interactions. */
-.ovw-card { cursor: pointer; }
+/* Each cell wraps the real widget primitive. Capture-phase click
+   handler on the wrapper swallows nav clicks before they reach
+   the widget's inner RouterLink. The wrapper also forwards the
+   grid-position style so the layout matches OverviewDashboardView. */
+.ovw-cell { cursor: pointer; display: contents; }
+.ovw-cell > * { cursor: pointer; }
+/* Restore the grid placement on the actual widget (display:contents
+   above means the inner element is the grid item). */
+.ovw-cell { display: block; }
 
 .hdr-strip { display: flex; gap: 8px; flex-wrap: wrap; }
 .hdr-col {
@@ -339,7 +340,12 @@ function widgetRowSpan(w: DashboardWidget): number {
 .widget-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-auto-rows: 120px;
+  /* `auto` rather than a fixed track height so the grid grows to fit
+     widgets with longer content (long top-N lists, dense record
+     widgets, wide line charts). Each widget's `rowSpan` still spans
+     the right number of rows, but each row sizes to its largest
+     occupant rather than to a hard-coded 120 px. */
+  grid-auto-rows: minmax(120px, auto);
   gap: 10px;
 }
 .canvas-widget {

@@ -419,7 +419,7 @@ const localized = computed<{ overview?: OverviewDashboard; layer?: AdminLayerTem
 </template>
 
 <style scoped>
-.tv { padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 12px; max-width: 1600px; margin: 0 auto; height: 100%; min-height: 0; }
+.tv { padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 12px; max-width: 1600px; margin: 0 auto; }
 .tv__head h1 { margin: 2px 0 4px; font-size: 20px; color: var(--sw-fg-0); }
 .tv__kicker { font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sw-warn); }
 .tv__lede { margin: 0; max-width: 880px; font-size: 12.5px; line-height: 1.55; color: var(--sw-fg-2); }
@@ -439,14 +439,21 @@ const localized = computed<{ overview?: OverviewDashboard; layer?: AdminLayerTem
 
 .tv__empty { padding: 60px 20px; text-align: center; color: var(--sw-fg-3); font-size: 13px; }
 
+/* Both panes grow to fit their content; the preview is as tall as
+   the widget grid demands, the editor is as tall as the field list
+   demands. The two panes start at the same row but each ends at its
+   own natural height. `align-items: start` keeps them top-aligned
+   when their heights differ. */
 .tv__split {
-  flex: 1 1 auto; min-height: 0;
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 .tv__pane {
-  display: flex; flex-direction: column; min-height: 0;
+  display: flex; flex-direction: column;
   border: 1px solid var(--sw-line-2); border-radius: 6px;
-  background: var(--sw-bg-0); overflow: hidden;
+  background: var(--sw-bg-0);
 }
 .tv__pane-head {
   padding: 6px 12px;
@@ -454,7 +461,6 @@ const localized = computed<{ overview?: OverviewDashboard; layer?: AdminLayerTem
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3);
   background: var(--sw-bg-1);
 }
-.tv__pane--preview > :nth-child(2) { flex: 1 1 auto; min-height: 0; }
 .tv__pane--editor { padding-bottom: 8px; }
-.tv__pane--editor > :nth-child(2) { flex: 1 1 auto; min-height: 0; padding: 8px 10px; overflow: hidden; }
+.tv__pane--editor > :nth-child(2) { padding: 8px 10px; }
 </style>

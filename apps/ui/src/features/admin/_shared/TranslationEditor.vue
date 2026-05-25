@@ -260,9 +260,6 @@ const isDirty = computed<boolean>(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  overflow: auto;
-  flex: 1 1 auto;
-  min-height: 0;
 }
 .te__group {
   border: 1px solid var(--sw-line-2);
@@ -281,11 +278,12 @@ const isDirty = computed<boolean>(() => {
 }
 .te__row {
   display: grid;
-  grid-template-columns: 240px 1fr 1fr;
+  grid-template-columns: minmax(140px, 1fr) minmax(160px, 1.4fr) minmax(160px, 1.4fr);
   gap: 10px;
   align-items: center;
-  padding: 6px 12px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--sw-line-2);
+  min-height: 32px;
 }
 .te__row:last-child { border-bottom: none; }
 .te__row--focus {
