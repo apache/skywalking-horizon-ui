@@ -16,18 +16,18 @@
 -->
 <!--
   Translation-time preview pane. Renders the picked template with the
-  in-progress overlay applied, no MQE / topology fetch.
+  in-progress overlay applied; no live MQE — chart bodies come from
+  the same deterministic mock generators the LayerDashboards admin
+  editor uses, so the preview here matches that view's chart shapes.
 
-  Two render paths, dispatched by `kind`:
-  - overview: reuses the same widget primitives as OverviewDashboardView,
-    passing empty data so every numeric / chart slot shows the widgets'
-    own muted placeholder. Layout (sections, grid columns, span,
-    rowSpan) matches production.
-  - layer: schematic preview. Renders the layer-header columns + overview
-    tile groups + scoped widget cards as static placeholders. Sized to
-    the production layout. Production renderer for layer dashboards has
-    too many data-bound branches to reuse cleanly without a deeper
-    preview-mode pass — that's a Phase 2 follow-up.
+  Overview kind reuses the actual overview widget primitives with empty
+  data. Layer kind renders per-scope widgets via TimeChart / TopList /
+  inline card / record, all mock-fed. Clicking any widget emits
+  `select-widget` so the parent can focus the corresponding row in the
+  editor.
+
+  Nothing in this pane navigates — RouterLink isn't used and clicks
+  don't escape the preview surface.
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
@@ -41,16 +41,29 @@ import MetricWidget from '@/render/widgets/MetricWidget.vue';
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import AlarmsWidget from '@/render/widgets/AlarmsWidget.vue';
 import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
+import TimeChart from '@/components/charts/TimeChart.vue';
+import TopList from '@/components/charts/TopList.vue';
+import { fmtMetric } from '@/utils/formatters';
+import {
+  mockCardValue,
+  mockLineSeries,
+  mockRecordRows,
+  mockTopGroups,
+} from '@/features/admin/layer-templates/widget-mock';
 
 type AdminScope = 'service' | 'instance' | 'endpoint';
 
 const props = defineProps<{
   kind: 'overview' | 'layer';
-  /** The localized template — operator's in-progress overlay already merged onto the source. */
   overview?: OverviewDashboard;
   layer?: AdminLayerTemplate;
-  /** Only meaningful for `kind === 'layer'`. */
   scope?: AdminScope;
+}>();
+
+const emit = defineEmits<{
+  /** Operator clicked a widget — the parent should focus the
+   *  corresponding row in the editor. */
+  'select-widget': [widgetId: string];
 }>();
 
 interface OverviewSection {
@@ -95,15 +108,19 @@ const scopeWidgets = computed<DashboardWidget[]>(() => {
 
 const headerColumns = computed(() => props.layer?.metrics?.columns ?? []);
 const overviewGroups = computed(() => {
-  const ov = props.layer?.overview as { groups?: Array<{ title: string; metrics: Array<{ label: string; tip?: string; unit?: string }> }> } | undefined;
+  const ov = props.layer?.overview as
+    | { groups?: Array<{ title: string; metrics: Array<{ label: string; tip?: string; unit?: string }> }> }
+    | undefined;
   return ov?.groups ?? [];
 });
+
+function widgetRowSpan(w: DashboardWidget): number {
+  return Math.min(8, Math.max(1, w.rowSpan ?? 1));
+}
 </script>
 
 <template>
   <div class="prev">
-    <!-- Overview-kind: reuse the actual widget primitives with empty
-         data so they show their muted placeholders. -->
     <template v-if="kind === 'overview' && overview">
       <header class="prev-head">
         <h2>{{ overview.title }}</h2>
@@ -124,6 +141,8 @@ const overviewGroups = computed(() => {
                 :value="null"
                 :unit="w.unit"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
+                class="ovw-card"
+                @click="emit('select-widget', w.id)"
               />
               <KpiTileWidget
                 v-else-if="w.type === 'kpi-tile'"
@@ -135,6 +154,8 @@ const overviewGroups = computed(() => {
                 :kpis="w.kpis ?? []"
                 :kpi-values="{}"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
+                class="ovw-card"
+                @click="emit('select-widget', w.id)"
               />
               <AlarmsWidget
                 v-else-if="w.type === 'alarms'"
@@ -143,11 +164,14 @@ const overviewGroups = computed(() => {
                 :limit="w.limit"
                 :layer="w.layer"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
+                class="ovw-card"
+                @click="emit('select-widget', w.id)"
               />
               <div
                 v-else-if="w.type === 'topology'"
-                class="topo-host sw-card"
+                class="topo-host sw-card ovw-card"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
+                @click="emit('select-widget', w.id)"
               >
                 <span class="topo-host__label">{{ w.title || 'Topology' }}</span>
               </div>
@@ -159,6 +183,8 @@ const overviewGroups = computed(() => {
                 :kpis="w.kpis"
                 :kpi-values="{}"
                 :style="gridStyle(w.span, w.rowSpan, sec.cols)"
+                class="ovw-card"
+                @click="emit('select-widget', w.id)"
               />
             </template>
           </div>
@@ -166,11 +192,6 @@ const overviewGroups = computed(() => {
       </div>
     </template>
 
-    <!-- Layer-kind: schematic widget cards. Production renderer for
-         per-scope dashboards is data-coupled enough that reusing it
-         here would force a deeper preview-mode pass; the schematic
-         shows every translatable string in its rendered context which
-         is what the operator needs to verify. -->
     <template v-else-if="kind === 'layer' && layer">
       <header class="prev-head">
         <h2>{{ layer.alias || layer.key }}</h2>
@@ -180,7 +201,7 @@ const overviewGroups = computed(() => {
       <section v-if="headerColumns.length > 0" class="section">
         <div class="prev-subhead">Service header</div>
         <div class="hdr-strip">
-          <div v-for="c in headerColumns" :key="c.metric" class="hdr-col">
+          <div v-for="c in headerColumns" :key="c.metric" class="hdr-col" @click="emit('select-widget', `header:${c.metric}`)">
             <span class="hdr-label">{{ c.label }}</span>
             <span class="hdr-unit">{{ c.unit ?? '—' }}</span>
           </div>
@@ -191,7 +212,7 @@ const overviewGroups = computed(() => {
         <div class="prev-subhead">Overview tiles</div>
         <div class="ov-grid">
           <div v-for="(g, gi) in overviewGroups" :key="gi" class="ov-group sw-card">
-            <div class="ov-title">{{ g.title || ' ' }}</div>
+            <div class="ov-title">{{ g.title || ' ' }}</div>
             <div class="ov-metrics">
               <div v-for="m in g.metrics" :key="m.label" class="ov-metric">
                 <span class="ov-label">{{ m.label }}</span>
@@ -208,20 +229,50 @@ const overviewGroups = computed(() => {
           <div
             v-for="w in scopeWidgets"
             :key="w.id"
-            class="widget-card sw-card"
+            class="canvas-widget"
             :style="gridStyle(w.span, w.rowSpan, 12)"
+            @click="emit('select-widget', w.id)"
           >
-            <header>
-              <h4>{{ w.title }}</h4>
-              <span v-if="w.tip" class="tip" :title="w.tip">?</span>
+            <header class="cw-head">
+              <h5>{{ w.title }}</h5>
+              <span class="cw-type" :class="`t-${w.type}`">{{ w.type }}</span>
             </header>
-            <div v-if="w.expressionLabels?.length" class="tabs">
-              <span v-for="(l, i) in w.expressionLabels" :key="i" class="tab">{{ l }}</span>
+            <div class="cw-body">
+              <template v-if="w.type === 'line' && w.expressions.length > 0">
+                <TimeChart
+                  :series="mockLineSeries(w)"
+                  :unit="w.unit"
+                  :height="Math.max(60, widgetRowSpan(w) * 120 - 50)"
+                />
+              </template>
+              <template v-else-if="w.type === 'top' && w.expressions.length > 0">
+                <TopList
+                  :groups="mockTopGroups(w, Math.max(4, widgetRowSpan(w) * 3))"
+                  :unit="w.unit"
+                />
+              </template>
+              <template v-else-if="w.type === 'card'">
+                <div class="cw-card-value">
+                  <span class="num">{{ fmtMetric(mockCardValue(w)) }}</span>
+                  <span v-if="w.unit" class="unit">{{ w.unit }}</span>
+                </div>
+              </template>
+              <template v-else-if="w.type === 'record' && w.expressions.length > 0">
+                <ul class="cw-records">
+                  <li
+                    v-for="(r, ri) in mockRecordRows(w, Math.max(3, widgetRowSpan(w) * 2))"
+                    :key="ri"
+                    class="cw-record-row"
+                  >
+                    <span class="rec-name">{{ r.name }}</span>
+                    <span class="rec-value">
+                      {{ fmtMetric(r.value ?? null) }}<span v-if="w.unit" class="unit">{{ w.unit }}</span>
+                    </span>
+                  </li>
+                </ul>
+              </template>
+              <p v-else class="cw-empty">No preview shape for this widget type.</p>
             </div>
-            <div v-if="w.tableHeaders?.length" class="tbl-head">
-              <span v-for="(h, i) in w.tableHeaders" :key="i" class="tbl-h">{{ h }}</span>
-            </div>
-            <div class="widget-stub">—</div>
           </div>
         </div>
       </section>
@@ -248,40 +299,69 @@ const overviewGroups = computed(() => {
 .section { display: flex; flex-direction: column; gap: 6px; }
 .section-grid { display: grid; grid-auto-rows: 72px; gap: 10px; }
 
+/* Overview cards — same primitives, but flag them clickable so clicks
+   propagate the select-widget signal up without triggering the
+   widget's internal interactions. */
+.ovw-card { cursor: pointer; }
+
 .hdr-strip { display: flex; gap: 8px; flex-wrap: wrap; }
 .hdr-col {
   flex: 1 1 auto; min-width: 90px;
   background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 4px;
   padding: 6px 10px; display: flex; flex-direction: column; gap: 2px;
+  cursor: pointer;
 }
+.hdr-col:hover { border-color: var(--sw-accent); }
 .hdr-label { font-size: 11px; font-weight: 600; color: var(--sw-fg-1); }
 .hdr-unit { font-size: 10px; color: var(--sw-fg-3); font-family: var(--sw-mono); }
 
 .ov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-.ov-group { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.ov-group { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
 .ov-title { font-size: 11px; font-weight: 600; color: var(--sw-fg-1); }
 .ov-metrics { display: flex; flex-direction: column; gap: 3px; }
 .ov-metric { display: flex; justify-content: space-between; font-size: 11.5px; }
 .ov-label { color: var(--sw-fg-2); }
 .ov-value { color: var(--sw-fg-3); font-family: var(--sw-mono); }
 
-.widget-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: 78px; gap: 10px; }
-.widget-card { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow: hidden; }
-.widget-card header { display: flex; align-items: center; gap: 6px; }
-.widget-card h4 { margin: 0; font-size: 11.5px; font-weight: 600; color: var(--sw-fg-1); }
-.widget-card .tip {
-  font-size: 9px; color: var(--sw-fg-3); border: 1px solid var(--sw-line-2);
-  border-radius: 50%; width: 13px; height: 13px;
-  display: inline-flex; align-items: center; justify-content: center; cursor: help;
+/* Layer widget cards — copy of LayerDashboardsAdmin's `.canvas-widget`
+   visual vocabulary so this preview looks indistinguishable from the
+   admin editor's canvas. Mock data via the shared widget-mock helpers. */
+.widget-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 120px;
+  gap: 10px;
 }
-.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.tab {
-  font-size: 10.5px; padding: 1px 6px; border-radius: 3px;
-  background: var(--sw-bg-2); color: var(--sw-fg-2);
+.canvas-widget {
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  min-height: 0;
 }
-.tbl-head { display: flex; gap: 12px; font-size: 10.5px; color: var(--sw-fg-3); }
-.tbl-h { font-family: var(--sw-mono); }
-.widget-stub { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--sw-fg-3); font-size: 18px; }
+.canvas-widget:hover { border-color: var(--sw-accent); }
+.cw-head { display: flex; align-items: center; gap: 8px; }
+.cw-head h5 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-1); flex: 1; }
+.cw-type {
+  font-size: 9.5px; padding: 1px 6px; border-radius: 3px; text-transform: uppercase;
+  background: var(--sw-bg-2); color: var(--sw-fg-3);
+  letter-spacing: 0.05em;
+}
+.cw-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.cw-card-value { display: flex; align-items: baseline; gap: 6px; padding: 12px 4px; }
+.cw-card-value .num { font-size: 22px; font-weight: 600; color: var(--sw-fg-0); }
+.cw-card-value .unit { font-size: 11px; color: var(--sw-fg-3); }
+.cw-records { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; overflow: auto; }
+.cw-record-row { display: flex; justify-content: space-between; gap: 8px; font-size: 11.5px; }
+.rec-name { color: var(--sw-fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-value { color: var(--sw-fg-1); font-family: var(--sw-mono); }
+.rec-value .unit { color: var(--sw-fg-3); margin-left: 2px; }
+.cw-empty { color: var(--sw-fg-3); font-size: 11px; padding: 16px; text-align: center; margin: 0; }
 
 .topo-host {
   padding: 12px;
@@ -290,6 +370,7 @@ const overviewGroups = computed(() => {
   justify-content: center;
   color: var(--sw-fg-3);
   font-size: 12px;
+  cursor: pointer;
 }
 .topo-host__label { font-style: italic; }
 

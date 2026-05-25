@@ -26,7 +26,7 @@
   (templateSync.save / save-local).
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, type Locale } from '@/i18n';
 import {
   walkTranslatable,
@@ -45,6 +45,10 @@ const props = defineProps<{
   /** True while the parent is publishing this editor's edits. Disables
    *  the save button + greys the inputs. */
   saving?: boolean;
+  /** When set, rows whose path starts with this prefix get a `.focused`
+   *  highlight and the first match scrolls into view. Driven by the
+   *  preview pane's click-to-focus signal. */
+  focusPrefix?: string;
 }>();
 
 const emit = defineEmits<{
@@ -99,6 +103,29 @@ const groupedFields = computed<Array<{ section: string; rows: TranslatableField[
   }
   return Array.from(groups, ([section, rows]) => ({ section, rows }));
 });
+
+function isFocused(f: TranslatableField): boolean {
+  const p = props.focusPrefix;
+  return !!p && (f.path === p || f.path.startsWith(`${p}.`) || f.path.startsWith(`${p}[`));
+}
+
+const rowRefs = ref<Map<string, HTMLElement>>(new Map());
+function setRowRef(path: string, el: HTMLElement | null): void {
+  if (el) rowRefs.value.set(path, el);
+  else rowRefs.value.delete(path);
+}
+
+watch(
+  () => props.focusPrefix,
+  async (prefix) => {
+    if (!prefix) return;
+    await nextTick();
+    const first = fields.value.find((f) => isFocused(f));
+    if (!first) return;
+    const el = rowRefs.value.get(first.path);
+    if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  },
+);
 
 function onSave(): void {
   const overlay: Record<string, unknown> = {};
@@ -163,7 +190,13 @@ const isDirty = computed<boolean>(() => {
           <span class="te__col-src">English (source)</span>
           <span class="te__col-tgt">{{ LOCALE_NATIVE_LABEL[target] }}</span>
         </div>
-        <div v-for="f in g.rows" :key="f.path" class="te__row">
+        <div
+          v-for="f in g.rows"
+          :key="f.path"
+          :ref="(el) => setRowRef(f.path, el as HTMLElement | null)"
+          class="te__row"
+          :class="{ 'te__row--focus': isFocused(f) }"
+        >
           <code class="te__col-path" :title="f.path">{{ f.path }}</code>
           <span class="te__col-src">{{ f.source }}</span>
           <input
@@ -255,6 +288,11 @@ const isDirty = computed<boolean>(() => {
   border-bottom: 1px solid var(--sw-line-2);
 }
 .te__row:last-child { border-bottom: none; }
+.te__row--focus {
+  background: rgba(255, 152, 0, 0.08);
+  border-left: 2px solid var(--sw-accent);
+  padding-left: 10px;
+}
 .te__row--header {
   font-size: 10.5px;
   text-transform: uppercase;

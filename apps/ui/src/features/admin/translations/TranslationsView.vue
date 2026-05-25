@@ -222,6 +222,40 @@ function deepMerge(src: unknown, ovl: unknown): unknown {
 const saveMsg = ref<string | null>(null);
 const saving = ref(false);
 
+/** When the operator clicks a widget in the preview pane, this drops
+ *  the field-path prefix that selects its translatable rows. The
+ *  editor highlights matches and scrolls the first one into view. */
+const focusPrefix = ref<string | null>(null);
+
+function onSelectWidget(widgetId: string): void {
+  const eff = effective.value;
+  if (!eff) return;
+  // `header:<metric>` — clicked a service-header column. The translatable
+  // rows for it sit under `header.columns[N].label`.
+  if (widgetId.startsWith('header:')) {
+    const metric = widgetId.slice('header:'.length);
+    const layer = eff.source as AdminLayerTemplate;
+    const idx = (layer.metrics?.columns ?? []).findIndex((c) => c.metric === metric);
+    if (idx >= 0) focusPrefix.value = `metrics.columns[${idx}]`;
+    return;
+  }
+  if (selectedKind.value === 'overview') {
+    const dash = eff.source as { widgets?: Array<{ id?: string }> };
+    const idx = (dash.widgets ?? []).findIndex((w) => w.id === widgetId);
+    if (idx >= 0) focusPrefix.value = `widgets[${idx}]`;
+    return;
+  }
+  // Layer: look up the widget inside dashboards[scope].
+  const tpl = eff.source as AdminLayerTemplate & { dashboards?: Record<string, Array<{ id?: string }>> };
+  const list = tpl.dashboards?.[scope.value] ?? tpl.widgets ?? [];
+  const idx = list.findIndex((w) => w.id === widgetId);
+  if (idx >= 0) {
+    focusPrefix.value = tpl.dashboards
+      ? `dashboards.${scope.value}[${idx}]`
+      : `widgets[${idx}]`;
+  }
+}
+
 async function onSaveFromEditor(next: Record<string, unknown>): Promise<void> {
   // Editor emits the whole i18n map after its own merge. Splice into
   // the draft state so the preview reflects what was just saved.
@@ -350,12 +384,13 @@ const localized = computed<{ overview?: OverviewDashboard; layer?: AdminLayerTem
 
     <div v-else class="tv__split">
       <div class="tv__pane tv__pane--preview">
-        <div class="tv__pane-head">Live preview ({{ target }})</div>
+        <div class="tv__pane-head">Live preview ({{ target }}) · click a widget to focus its translation row</div>
         <TranslationPreview
           :kind="selectedKind"
           :overview="localized.overview"
           :layer="localized.layer"
           :scope="scope"
+          @select-widget="onSelectWidget"
         />
       </div>
       <div class="tv__pane tv__pane--editor">
@@ -364,6 +399,7 @@ const localized = computed<{ overview?: OverviewDashboard; layer?: AdminLayerTem
           :source="effective.source"
           :i18n="editorI18n"
           :saving="saving"
+          :focus-prefix="focusPrefix ?? undefined"
           @save="onSaveFromEditor"
         />
       </div>
