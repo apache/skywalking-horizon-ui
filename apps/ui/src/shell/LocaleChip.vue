@@ -15,26 +15,19 @@
   limitations under the License.
 -->
 <!--
-  Locale picker chip. Used in both the topbar (post-auth) and the
-  login page (pre-auth) — same component, same styling vocabulary
-  as the theme chip.
+  Locale picker. Mounted in both the topbar (post-auth) and the
+  login page (pre-auth). Pre-auth `pick()` stops at `setLocale`;
+  the BFF-state refresh would 401 and the 401 handler patches
+  Pinia auth state, masking the chrome switch.
 
-  Outside-click closes the menu via a document-level listener (not
-  `focusout`). The earlier `focusout`-based pattern was unreliable
-  on the pre-auth login page: clicking a non-focusable `<li>` could
-  fire focusout in some browser/race combinations BEFORE the click
-  reached the `<li>`, removing the element from the DOM and
-  cancelling the click. The document-click pattern is symmetrical
-  for inside vs outside and always fires after the inside click.
-
-  `locale` and `t` are read straight off `i18n.global` rather than
-  through `useI18n()` so reactivity always tracks the global state
-  regardless of how the surrounding component is scoped. This
-  matters when the same component is mounted both pre-auth (no
-  parent supplying scope) and post-auth (inside AppShell).
+  The menu is teleported to <body> — its in-flow position would
+  otherwise sit inside the login page's `.top` stacking context,
+  which `.center` (the form column, same z-index, later in
+  document order) covers. Clicks on dropdown items would land on
+  the form instead of the menu.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import Icon from '@/components/icons/Icon.vue';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, i18n, type Locale } from '@/i18n';
@@ -48,65 +41,71 @@ const tLanguage = computed<string>(() => i18n.global.t('Language'));
 
 const open = ref(false);
 const rootEl = ref<HTMLElement | null>(null);
+const buttonEl = ref<HTMLElement | null>(null);
+const menuEl = ref<HTMLElement | null>(null);
+const menuPos = ref<{ top: number; right: number }>({ top: 0, right: 0 });
+
+function recomputeMenuPos(): void {
+  const btn = buttonEl.value;
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+  menuPos.value = { top: rect.bottom + 6, right: window.innerWidth - rect.right };
+}
+
+watch(open, async (isOpen) => {
+  if (!isOpen) return;
+  await nextTick();
+  recomputeMenuPos();
+});
 
 function toggle(e: Event): void {
   e.stopPropagation();
   open.value = !open.value;
-  // eslint-disable-next-line no-console
-  console.log('[LocaleChip] toggle, open=', open.value, 'locale=', locale.value);
 }
 
 async function pick(next: Locale, e: Event): Promise<void> {
   e.stopPropagation();
-  // eslint-disable-next-line no-console
-  console.log('[LocaleChip] pick CLICKED', next, 'current=', locale.value);
   open.value = false;
-  if (next === locale.value) {
-    // eslint-disable-next-line no-console
-    console.log('[LocaleChip] same locale, early return');
-    return;
-  }
-  // Synchronous chrome flip — this MUST succeed regardless of auth.
+  if (next === locale.value) return;
   await setLocale(next);
-  // eslint-disable-next-line no-console
-  console.log('[LocaleChip] after setLocale, locale=', locale.value, 'i18n.global=', i18n.global.locale.value);
-  // Server-state refresh only when authenticated. On the pre-auth
-  // login page the BFF returns 401, which fires
-  // `bffClient.handleUnauthorized()` → `auth.$patch({user: null})`
-  // — touching Pinia auth state for no good reason and (depending on
-  // surrounding subscribers) potentially re-rendering the LoginView
-  // in a way that masks the chrome locale switch. Just skip it.
-  if (!auth.isAuthenticated) {
-    // eslint-disable-next-line no-console
-    console.log('[LocaleChip] not authenticated, skipping BFF refresh');
-    return;
-  }
+  if (!auth.isAuthenticated) return;
   try {
     await refreshConfigBundle();
   } catch {
-    /* BFF down — chrome still switched */
+    /* */
   }
   void queryClient.invalidateQueries();
 }
 
 function onDocClick(e: MouseEvent): void {
   if (!open.value) return;
-  if (!rootEl.value || !rootEl.value.contains(e.target as Node)) {
-    open.value = false;
-  }
+  const target = e.target as Node;
+  const inside =
+    (rootEl.value && rootEl.value.contains(target)) ||
+    (menuEl.value && menuEl.value.contains(target));
+  if (!inside) open.value = false;
+}
+
+function onWindowChange(): void {
+  if (open.value) recomputeMenuPos();
 }
 
 onMounted(() => {
   document.addEventListener('click', onDocClick);
+  window.addEventListener('resize', onWindowChange);
+  window.addEventListener('scroll', onWindowChange, true);
 });
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick);
+  window.removeEventListener('resize', onWindowChange);
+  window.removeEventListener('scroll', onWindowChange, true);
 });
 </script>
 
 <template>
   <div ref="rootEl" class="locale-chip-cluster">
     <button
+      ref="buttonEl"
       type="button"
       class="sw-btn locale-chip"
       :title="tLanguage"
@@ -117,18 +116,26 @@ onBeforeUnmount(() => {
       <span class="locale-chip-label">{{ LOCALE_NATIVE_LABEL[locale] }}</span>
       <Icon name="caret" :size="10" />
     </button>
-    <ul v-if="open" class="locale-menu" role="menu">
-      <li class="locale-menu-head">{{ tLanguage }}</li>
-      <li
-        v-for="loc in SUPPORTED_LOCALES"
-        :key="loc"
-        :class="{ on: locale === loc }"
-        role="menuitem"
-        @click="pick(loc, $event)"
+    <Teleport to="body">
+      <ul
+        v-if="open"
+        ref="menuEl"
+        class="locale-menu"
+        role="menu"
+        :style="{ top: menuPos.top + 'px', right: menuPos.right + 'px' }"
       >
-        {{ LOCALE_NATIVE_LABEL[loc] }}
-      </li>
-    </ul>
+        <li class="locale-menu-head">{{ tLanguage }}</li>
+        <li
+          v-for="loc in SUPPORTED_LOCALES"
+          :key="loc"
+          :class="{ on: locale === loc }"
+          role="menuitem"
+          @click="pick(loc, $event)"
+        >
+          {{ LOCALE_NATIVE_LABEL[loc] }}
+        </li>
+      </ul>
+    </Teleport>
   </div>
 </template>
 
@@ -150,14 +157,12 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 .locale-chip:hover { color: var(--sw-fg-1); }
-.locale-chip-label {
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
+.locale-chip-label { white-space: nowrap; }
+</style>
+
+<style>
 .locale-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
   z-index: 1000;
   min-width: 168px;
   margin: 0;
