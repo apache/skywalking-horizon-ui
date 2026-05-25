@@ -17,57 +17,46 @@
 <!--
   Locale picker chip. Used in both the topbar (post-auth) and the
   login page (pre-auth) — same component, same styling vocabulary
-  as the theme chip. Locale picks are persisted to localStorage and
-  immediately propagate:
-    - vue-i18n's active locale switches (English chrome → translated chrome).
-    - vue-query caches are invalidated so BFF-localized payloads
-      (sidebar menu, layer templates, overviews) refetch in the new
-      locale on the next interaction.
-  The native-script label is always shown (中文, 日本語, …) so the operator
-  can find their language regardless of which locale is currently
-  active. Closing on outside-blur matches the theme chip's behavior.
+  as the theme chip.
+
+  Outside-click closes the menu via a document-level listener (not
+  `focusout`). The earlier `focusout`-based pattern was unreliable
+  on the pre-auth login page: clicking a non-focusable `<li>` could
+  fire focusout in some browser/race combinations BEFORE the click
+  reached the `<li>`, removing the element from the DOM and
+  cancelling the click. The document-click pattern is symmetrical
+  for inside vs outside and always fires after the inside click.
+
+  `locale` and `t` are read straight off `i18n.global` rather than
+  through `useI18n()` so reactivity always tracks the global state
+  regardless of how the surrounding component is scoped. This
+  matters when the same component is mounted both pre-auth (no
+  parent supplying scope) and post-auth (inside AppShell).
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useQueryClient } from '@tanstack/vue-query';
-import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
-import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, type Locale } from '@/i18n';
+import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, i18n, type Locale } from '@/i18n';
 import { refreshConfigBundle } from '@/controls/configBundle';
 
-// `useScope: 'global'` binds this composable to the global i18n
-// instance so `locale.value = next` (in setLocale) propagates here AND
-// to every other `useI18n({ useScope: 'global' })` consumer in the
-// tree. Without it, components get a component-scoped i18n that doesn't
-// follow global locale changes.
-const { t, locale } = useI18n({ useScope: 'global' });
 const queryClient = useQueryClient();
+const locale = computed<Locale>(() => i18n.global.locale.value as Locale);
+const tLanguage = computed<string>(() => i18n.global.t('Language'));
 
 const open = ref(false);
 const rootEl = ref<HTMLElement | null>(null);
 
-function toggle(): void {
+function toggle(e: Event): void {
+  e.stopPropagation();
   open.value = !open.value;
 }
 
-async function pick(next: Locale): Promise<void> {
+async function pick(next: Locale, e: Event): Promise<void> {
+  e.stopPropagation();
   open.value = false;
   if (next === locale.value) return;
-  // setLocale is synchronous (all locale catalogs are pre-bundled) so
-  // the chrome flips language before the next paint regardless of any
-  // server-state refresh below.
   await setLocale(next);
-  // Server-rendered text is keyed by the locale header. Two refresh
-  // paths because two stores hold it:
-  //   1. configBundle (custom state + localStorage cache for layer /
-  //      overview dashboards) — explicit refresh, since its etag
-  //      would otherwise serve the cached pre-switch payload.
-  //   2. vue-query consumers (sidebar menu, alarms, feature pages) —
-  //      invalidate fires every active query through its normal
-  //      refetch path with the new X-Horizon-Locale header.
-  // Both are best-effort: on the pre-auth login page they 401 and
-  // no-op silently. The chrome locale switch above doesn't depend on
-  // either.
   try {
     await refreshConfigBundle();
   } catch {
@@ -76,45 +65,52 @@ async function pick(next: Locale): Promise<void> {
   void queryClient.invalidateQueries();
 }
 
-function onBlur(e: FocusEvent): void {
-  const next = e.relatedTarget as HTMLElement | null;
-  if (!rootEl.value?.contains(next)) open.value = false;
+function onDocClick(e: MouseEvent): void {
+  if (!open.value) return;
+  if (!rootEl.value || !rootEl.value.contains(e.target as Node)) {
+    open.value = false;
+  }
 }
+
+onMounted(() => {
+  document.addEventListener('click', onDocClick);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick);
+});
 </script>
 
 <template>
-  <div ref="rootEl" class="locale-chip-cluster" tabindex="-1" @focusout="onBlur">
+  <div ref="rootEl" class="locale-chip-cluster">
     <button
       type="button"
       class="sw-btn locale-chip"
-      :title="t('Language')"
-      :aria-label="t('Language')"
+      :title="tLanguage"
+      :aria-label="tLanguage"
       @click="toggle"
     >
       <Icon name="web" :size="14" />
-      <span class="locale-chip-label">{{ LOCALE_NATIVE_LABEL[locale as Locale] }}</span>
+      <span class="locale-chip-label">{{ LOCALE_NATIVE_LABEL[locale] }}</span>
       <Icon name="caret" :size="10" />
     </button>
-    <transition name="rf-menu">
-      <ul v-if="open" class="locale-menu">
-        <li class="locale-menu-head">{{ t('Language') }}</li>
-        <li
-          v-for="loc in SUPPORTED_LOCALES"
-          :key="loc"
-          :class="{ on: locale === loc }"
-          @click="pick(loc)"
-        >
-          {{ LOCALE_NATIVE_LABEL[loc] }}
-        </li>
-      </ul>
-    </transition>
+    <ul v-if="open" class="locale-menu" role="menu">
+      <li class="locale-menu-head">{{ tLanguage }}</li>
+      <li
+        v-for="loc in SUPPORTED_LOCALES"
+        :key="loc"
+        :class="{ on: locale === loc }"
+        role="menuitem"
+        @click="pick(loc, $event)"
+      >
+        {{ LOCALE_NATIVE_LABEL[loc] }}
+      </li>
+    </ul>
   </div>
 </template>
 
 <style scoped>
 .locale-chip-cluster {
   position: relative;
-  outline: none;
 }
 .locale-chip {
   display: inline-flex;
@@ -127,6 +123,7 @@ function onBlur(e: FocusEvent): void {
   color: var(--sw-fg-2);
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line-2);
+  cursor: pointer;
 }
 .locale-chip:hover { color: var(--sw-fg-1); }
 .locale-chip-label {
@@ -137,7 +134,7 @@ function onBlur(e: FocusEvent): void {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  z-index: 50;
+  z-index: 1000;
   min-width: 168px;
   margin: 0;
   padding: 6px 0;
@@ -153,19 +150,18 @@ function onBlur(e: FocusEvent): void {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--sw-fg-3);
+  cursor: default;
 }
 .locale-menu li:not(.locale-menu-head) {
   padding: 6px 12px;
   font-size: 12.5px;
   color: var(--sw-fg-2);
   cursor: pointer;
+  user-select: none;
 }
 .locale-menu li:not(.locale-menu-head):hover {
   background: var(--sw-bg-2);
   color: var(--sw-fg-1);
 }
 .locale-menu li.on { color: var(--sw-accent); font-weight: 500; }
-
-.rf-menu-enter-active, .rf-menu-leave-active { transition: opacity 0.12s, transform 0.12s; }
-.rf-menu-enter-from, .rf-menu-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>
