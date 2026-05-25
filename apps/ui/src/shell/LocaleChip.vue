@@ -53,17 +53,26 @@ function toggle(): void {
 async function pick(next: Locale): Promise<void> {
   open.value = false;
   if (next === locale.value) return;
-  const applied = await setLocale(next);
-  if (applied !== next) return; // load failed; setLocale already logged
+  // setLocale is synchronous (all locale catalogs are pre-bundled) so
+  // the chrome flips language before the next paint regardless of any
+  // server-state refresh below.
+  await setLocale(next);
   // Server-rendered text is keyed by the locale header. Two refresh
   // paths because two stores hold it:
-  //   1. The configBundle (custom state + localStorage cache for
-  //      layer / overview dashboards) — explicit refresh, since its
-  //      etag would otherwise serve the cached pre-switch payload.
+  //   1. configBundle (custom state + localStorage cache for layer /
+  //      overview dashboards) — explicit refresh, since its etag
+  //      would otherwise serve the cached pre-switch payload.
   //   2. vue-query consumers (sidebar menu, alarms, feature pages) —
   //      invalidate fires every active query through its normal
   //      refetch path with the new X-Horizon-Locale header.
-  await refreshConfigBundle();
+  // Both are best-effort: on the pre-auth login page they 401 and
+  // no-op silently. The chrome locale switch above doesn't depend on
+  // either.
+  try {
+    await refreshConfigBundle();
+  } catch {
+    /* pre-auth / BFF down — chrome still switched */
+  }
   void queryClient.invalidateQueries();
 }
 

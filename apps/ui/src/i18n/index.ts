@@ -39,7 +39,19 @@
  */
 
 import { createI18n } from 'vue-i18n';
+// All six locale catalogs are bundled statically (~30 KB total). The
+// gain over lazy-loading is that locale switching is synchronous and
+// failure-free: no network fetch can fail between the user's click on
+// "中文" and the page actually rendering in 中文. The previous
+// dynamic-import scheme silently caught load failures, which made
+// "the dropdown does nothing" the only visible symptom of any glitch
+// in Vite's chunk resolution.
 import en from './locales/en.json';
+import zhCN from './locales/zh-CN.json';
+import es from './locales/es.json';
+import pt from './locales/pt.json';
+import ja from './locales/ja.json';
+import ko from './locales/ko.json';
 
 export type Locale = 'en' | 'zh-CN' | 'es' | 'pt' | 'ja' | 'ko';
 
@@ -117,8 +129,6 @@ export function persistLocale(locale: Locale): void {
 
 export const i18n = createI18n({
   legacy: false,
-  // English source ships in the main bundle (sync import above);
-  // other locales are loaded on demand by `loadLocale()` below.
   locale: detectInitialLocale(),
   fallbackLocale: 'en',
   // Empty / missing key in the active locale falls through to English
@@ -126,47 +136,25 @@ export const i18n = createI18n({
   // operator can't act on.
   missingWarn: false,
   fallbackWarn: false,
-  messages: { en } as Record<string, Record<string, string>>,
+  messages: {
+    en,
+    'zh-CN': zhCN,
+    es,
+    pt,
+    ja,
+    ko,
+  } as Record<string, Record<string, string>>,
 });
 
-const loaded = new Set<string>(['en']);
-
-/** Switch the active locale, fetching its catalog on demand. Returns
- *  the locale that ended up active (may differ from `next` if the
- *  catalog fetch fails — in which case we stay on the previous locale
- *  rather than render with a half-loaded message map). */
+/** Switch the active locale. Synchronous because every catalog is
+ *  pre-bundled — no fetch, no failure mode. The async signature is
+ *  kept so callers awaiting it (post-switch refetch chains) don't
+ *  need restructuring. */
 export async function setLocale(next: Locale): Promise<Locale> {
   if (i18n.global.locale.value === next) return next;
-  if (!loaded.has(next)) {
-    try {
-      const mod = await loadLocale(next);
-      i18n.global.setLocaleMessage(next, mod);
-      loaded.add(next);
-    } catch (err) {
-      console.warn(`i18n: failed to load locale "${next}"`, err);
-      return i18n.global.locale.value as Locale;
-    }
-  }
   i18n.global.locale.value = next;
   persistLocale(next);
   return next;
-}
-
-async function loadLocale(locale: Locale): Promise<Record<string, string>> {
-  switch (locale) {
-    case 'zh-CN':
-      return (await import('./locales/zh-CN.json')).default as Record<string, string>;
-    case 'es':
-      return (await import('./locales/es.json')).default as Record<string, string>;
-    case 'pt':
-      return (await import('./locales/pt.json')).default as Record<string, string>;
-    case 'ja':
-      return (await import('./locales/ja.json')).default as Record<string, string>;
-    case 'ko':
-      return (await import('./locales/ko.json')).default as Record<string, string>;
-    case 'en':
-      return en as Record<string, string>;
-  }
 }
 
 /** Active locale as a plain value — usable outside Vue components
