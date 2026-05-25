@@ -177,13 +177,27 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
 
   if (opts.write) {
     const seedCount = await seedMissing(deps, bundledRows, parsedRemote);
-    if (seedCount > 0) {
-      // Re-list so the merged view reflects the freshly-seeded UUIDs.
+    // Post-seed reconciliation. Any race-created duplicate (peer
+    // Horizon instance seeding the same OAP simultaneously, or a
+    // BanyanDB read-after-write window that hid an existing row from
+    // our seedMissing check) gets collapsed here: enabled wins,
+    // identical-content losers are disabled. Self-healing on every
+    // boot.
+    let disabledDupes: string[] = [];
+    try {
+      disabledDupes = await reconcileDuplicates(deps, bundledRows);
+    } catch (err) {
+      deps.logger.warn({ err: errMsg(err) }, 'duplicate reconciliation failed');
+    }
+    if (seedCount > 0 || disabledDupes.length > 0) {
       try {
         const refreshed = await deps.client.list();
         parsedRemote.clear();
         for (const [k, v] of parseRemoteRows(refreshed, deps.logger)) parsedRemote.set(k, v);
-        deps.logger.info({ seedCount }, 'OAP UI-template boot seed complete');
+        deps.logger.info(
+          { seedCount, collapsedDuplicates: disabledDupes.length },
+          'OAP UI-template boot reconcile complete',
+        );
       } catch (err) {
         deps.logger.warn(
           { err: errMsg(err) },
@@ -200,6 +214,114 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     generatedAt: now,
     rows,
   };
+}
+
+/** Thrown when a `create()` succeeded on OAP but the new row didn't
+ *  become visible to `list()` within the polling window. The created
+ *  id is preserved so callers can include it in the response — the UI
+ *  uses it to clean up speculative local state. */
+export class CreateNotVisibleError extends Error {
+  readonly id: string;
+  readonly timeoutMs: number;
+  constructor(id: string, timeoutMs: number) {
+    super(`OAP create id=${id} not visible within ${timeoutMs}ms`);
+    this.name = 'CreateNotVisibleError';
+    this.id = id;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+const CREATE_VISIBILITY_TIMEOUT_MS = 5000;
+
+/**
+ * Create + wait for the new row to become visible to `client.list()`.
+ * OAP's BanyanDB backend has a read-after-write window; without this
+ * guard a `create()` followed immediately by a `list()` can miss the
+ * new row, and the next admin action would see "no remote" and write
+ * a second row.
+ *
+ * Throws {@link CreateNotVisibleError} on timeout — callers turn this
+ * into a 504-style response so the UI can show "timeout, refetching".
+ */
+export async function createAndConfirm(
+  client: UITemplateClient,
+  configuration: string,
+  _logger: Logger,
+): Promise<string> {
+  const ack = await client.create(configuration);
+  if (!ack.status) {
+    throw new Error(`OAP rejected create: ${ack.message || 'no message'}`);
+  }
+  const id = ack.id;
+  const deadline = Date.now() + CREATE_VISIBILITY_TIMEOUT_MS;
+  let delay = 50;
+  while (Date.now() < deadline) {
+    try {
+      const rows = await client.list();
+      if (rows.some((r) => r.id === id)) return id;
+    } catch {
+      /* transient list failure — retry until deadline */
+    }
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 2, 500);
+  }
+  throw new CreateNotVisibleError(id, CREATE_VISIBILITY_TIMEOUT_MS);
+}
+
+/**
+ * Group OAP rows by envelope name. For any name with more than one
+ * row, keep one and disable the rest. Tie-breaking: enabled wins
+ * over disabled; if multiple enabled, prefer the one whose
+ * configuration byte-matches the bundled (operator-edited
+ * divergences are kept over plain seeds); ties beyond that go to
+ * first-seen. Already-disabled losers are left alone (no need to
+ * re-disable an existing tombstone).
+ *
+ * Returns the list of UUIDs the BFF disabled in this pass.
+ */
+async function reconcileDuplicates(
+  deps: SyncDeps,
+  bundled: Map<string, BundledRow>,
+): Promise<string[]> {
+  const rows = await deps.client.list();
+  const byName = new Map<string, Array<{ id: string; disabled: boolean; configuration: string }>>();
+  for (const r of rows) {
+    const env = parseEnvelope(r.configuration);
+    if (!env) continue;
+    const list = byName.get(env.name) ?? [];
+    list.push({ id: r.id, disabled: r.disabled, configuration: r.configuration });
+    byName.set(env.name, list);
+  }
+  const disabled: string[] = [];
+  for (const [name, list] of byName) {
+    if (list.length <= 1) continue;
+    const bundledConfig = bundled.get(name)?.configuration ?? null;
+    const enabled = list.filter((r) => !r.disabled);
+    // Pick the winner the dedup logic in parseRemoteRows would also
+    // pick — bundled-match first, then any enabled, then any.
+    let winner = enabled[0] ?? list[0];
+    if (bundledConfig) {
+      const match = enabled.find((r) => r.configuration === bundledConfig);
+      if (match) winner = match;
+    }
+    for (const r of list) {
+      if (r.id === winner.id || r.disabled) continue;
+      try {
+        await deps.client.disable(r.id);
+        deps.logger.info(
+          { name, droppedId: r.id, keptId: winner.id },
+          'collapsed duplicate UI-template',
+        );
+        disabled.push(r.id);
+      } catch (err) {
+        deps.logger.warn(
+          { name, id: r.id, err: errMsg(err) },
+          'failed to disable duplicate UI-template',
+        );
+      }
+    }
+  }
+  return disabled;
 }
 
 interface BundledRow {
@@ -305,16 +427,9 @@ async function seedMissing(
   for (const [name, b] of bundled) {
     if (remote.has(name)) continue;
     try {
-      const ack = await deps.client.create(b.configuration);
-      if (!ack.status) {
-        deps.logger.warn(
-          { name, message: ack.message },
-          'OAP UI-template seed rejected — name conflict on OAP side, manual reconcile needed',
-        );
-        continue;
-      }
+      const id = await createAndConfirm(deps.client, b.configuration, deps.logger);
       count++;
-      deps.logger.info({ name, id: ack.id }, 'OAP UI-template seeded');
+      deps.logger.info({ name, id }, 'OAP UI-template seeded');
     } catch (err) {
       deps.logger.warn(
         { name, err: errMsg(err) },

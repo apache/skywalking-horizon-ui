@@ -56,6 +56,8 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
+  createAndConfirm,
+  CreateNotVisibleError,
   getSyncStatus,
   resync,
   type SyncStatus,
@@ -126,6 +128,7 @@ export function registerTemplateSyncAdminRoutes(
           message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
         });
       }
+      resync(); // bypass the 30 s sync cache so create/update is decided on fresh OAP state
       const status = await loadStatus(deps);
       if (status.unreachable) {
         return reply.code(409).send({
@@ -144,12 +147,20 @@ export function registerTemplateSyncAdminRoutes(
         if (row.remote) {
           await deps.uiTemplateClient().update(row.remote.id, row.bundled.configuration);
         } else {
-          await deps.uiTemplateClient().create(row.bundled.configuration);
+          await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
         }
         resync();
         const fresh = await loadStatus(deps);
         return reply.send(fresh);
       } catch (err) {
+        if (err instanceof CreateNotVisibleError) {
+          logger.warn({ name, id: err.id }, 'push-bundled propagation timeout');
+          return reply.code(504).send({
+            code: 'oap_propagation_timeout',
+            message: err.message,
+            id: err.id,
+          });
+        }
         logger.warn({ err: errMsg(err), name }, 'push-bundled to OAP failed');
         return reply.code(502).send({
           code: 'oap_write_failed',
@@ -170,6 +181,7 @@ export function registerTemplateSyncAdminRoutes(
     Body: { kind?: TemplateKind };
   }>('/api/admin/templates/sync-all', { preHandler: auth }, async (req, reply) => {
     const kind = req.body?.kind;
+    resync(); // ensure the diff set comes from a fresh OAP read
     const status = await loadStatus(deps);
     if (status.unreachable) {
       return reply.code(409).send({
@@ -190,7 +202,7 @@ export function registerTemplateSyncAdminRoutes(
         if (row.remote) {
           await deps.uiTemplateClient().update(row.remote.id, row.bundled!.configuration);
         } else {
-          await deps.uiTemplateClient().create(row.bundled!.configuration);
+          await createAndConfirm(deps.uiTemplateClient(), row.bundled!.configuration, logger);
         }
         synced.push(row.name);
       } catch (err) {
@@ -308,6 +320,7 @@ export function registerTemplateSyncAdminRoutes(
         message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
       });
     }
+    resync(); // fresh OAP read before deciding create-vs-update — peers / past races shouldn't leave us writing duplicates
     const status = await loadStatus(deps);
     if (status.unreachable) {
       return reply.code(409).send({
@@ -322,12 +335,20 @@ export function registerTemplateSyncAdminRoutes(
       if (existing?.remote) {
         await deps.uiTemplateClient().update(existing.remote.id, configuration);
       } else {
-        await deps.uiTemplateClient().create(configuration);
+        await createAndConfirm(deps.uiTemplateClient(), configuration, logger);
       }
       resync();
       const fresh = await loadStatus(deps);
       return reply.send(fresh);
     } catch (err) {
+      if (err instanceof CreateNotVisibleError) {
+        logger.warn({ name, id: err.id }, 'save propagation timeout');
+        return reply.code(504).send({
+          code: 'oap_propagation_timeout',
+          message: err.message,
+          id: err.id,
+        });
+      }
       logger.warn({ err: errMsg(err), name }, 'save to OAP failed');
       return reply.code(502).send({
         code: 'oap_write_failed',
@@ -368,6 +389,7 @@ export function registerTemplateSyncAdminRoutes(
           message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
         });
       }
+      resync(); // disable picks bundled-fallback vs remote based on status — must be fresh, or we create a duplicate
       const status = await loadStatus(deps);
       if (status.unreachable) {
         return reply.code(409).send({
@@ -378,7 +400,6 @@ export function registerTemplateSyncAdminRoutes(
       const row = status.rows.find((r) => r.name === name);
       if (!row?.remote && !row?.bundled) {
         // Nothing on OAP and no bundle — already gone.
-        resync();
         return reply.send(await loadStatus(deps));
       }
       try {
@@ -387,12 +408,20 @@ export function registerTemplateSyncAdminRoutes(
         } else if (row.bundled) {
           // Bundled-fallback (no remote yet): materialise a remote from the
           // bundled config so there's a row to flag disabled.
-          const created = await deps.uiTemplateClient().create(row.bundled.configuration);
-          await deps.uiTemplateClient().disable(created.id);
+          const id = await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
+          await deps.uiTemplateClient().disable(id);
         }
         resync();
         return reply.send(await loadStatus(deps));
       } catch (err) {
+        if (err instanceof CreateNotVisibleError) {
+          logger.warn({ name, id: err.id }, 'disable bundled-fallback create propagation timeout');
+          return reply.code(504).send({
+            code: 'oap_propagation_timeout',
+            message: err.message,
+            id: err.id,
+          });
+        }
         logger.warn({ err: errMsg(err), name }, 'disable on OAP failed');
         return reply.code(502).send({ code: 'oap_write_failed', message: errMsg(err) });
       }

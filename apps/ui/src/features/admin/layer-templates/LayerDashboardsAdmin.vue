@@ -45,7 +45,7 @@ import type {
  *  scope-tab strip surfaces it as an editable config tab for the
  *  ProcessRelation MQE. */
 type AdminScope = DashboardScope | 'networkProfiling';
-import { bff, bffClient } from '@/api/client';
+import { bff, bffClient, BffApiError } from '@/api/client';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { usePreviewOverride } from '@/controls/previewOverride';
@@ -698,21 +698,26 @@ const localDiffersFromRemote = computed<boolean>(() => {
 const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
-/** Publish the local draft to OAP, then count down 10s before reading
- *  the sync state back. OAP propagates UI-template writes through its
- *  cluster lazily; a 10s buffer keeps the next read from beating the
- *  write to its own backing storage and showing stale `diverged` /
- *  `bundled-fallback` badges. The countdown is visible in the save
- *  message so the wait isn't a silent freeze. */
+/** Publish the local draft to OAP. The BFF waits for the new row to
+ *  become visible to OAP's own list (BanyanDB has a read-after-write
+ *  window — up to ~5s). A live count-up is shown while we're waiting.
+ *  On the BFF's 504 propagation-timeout, refetch sync state anyway —
+ *  the row may have appeared moments later. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<AdminLayerTemplate>(editName.value);
   if (!local || isSaving.value) return;
   isSaving.value = true;
-  saveMsg.value = null;
+  saveMsg.value = 'Saving to OAP…';
+  let elapsed = 0;
+  const ticker = setInterval(() => {
+    elapsed++;
+    saveMsg.value = `Saving to OAP… ${elapsed}s`;
+  }, 1000);
   try {
     await bff.templateSync.save(editName.value, local);
+    clearInterval(ticker);
     localEdits.remove(editName.value);
-    previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    previewOverride.clear(editName.value);
     pushDiffOpen.value = false;
     for (let n = 10; n > 0; n--) {
       saveMsg.value = `Pushed. Refreshing in ${n}s…`;
@@ -725,7 +730,21 @@ async function pushToOap(): Promise<void> {
     saveMsg.value = 'Published your local draft to OAP — now live for everyone.';
     setTimeout(() => (saveMsg.value = null), 6000);
   } catch (err) {
-    saveMsg.value = err instanceof Error ? err.message : String(err);
+    clearInterval(ticker);
+    if (err instanceof BffApiError && err.status === 504) {
+      saveMsg.value = 'Timeout waiting for OAP propagation. Refetching…';
+      try {
+        await bff.templateSync.resync();
+        await Promise.all([sources.refetch(), refreshConfigBundle()]);
+        reconcileLocalDrafts();
+      } catch {
+        /* refetch best-effort */
+      }
+      saveMsg.value = 'Refetched after timeout — the push may have completed; please verify.';
+      setTimeout(() => (saveMsg.value = null), 10000);
+    } else {
+      saveMsg.value = err instanceof Error ? err.message : String(err);
+    }
   } finally {
     isSaving.value = false;
   }

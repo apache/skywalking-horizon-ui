@@ -44,7 +44,7 @@ import type {
   OverviewKpi,
   OverviewWidget,
 } from '@skywalking-horizon-ui/api-client';
-import { bff } from '@/api/client';
+import { bff, BffApiError } from '@/api/client';
 import type { OverviewTemplateSummary } from '@/api/scopes/overview';
 import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplateEdits';
 import { usePreviewOverride } from '@/controls/previewOverride';
@@ -702,20 +702,26 @@ const localDiffersFromRemote = computed<boolean>(() => {
 const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
-/** Publish the local draft to OAP, then count down 10s before reading
- *  the sync state back. OAP propagates UI-template writes through its
- *  cluster lazily; a 10s buffer keeps the next read from beating the
- *  write to its own backing storage and showing stale `diverged` /
- *  `bundled-fallback` badges. The countdown is visible in the flash
- *  line so the wait isn't a silent freeze. */
+/** Publish the local draft to OAP. The BFF waits for the new row to
+ *  become visible (BanyanDB read-after-write window, ~5s). A live
+ *  count-up is shown while waiting. On 504 propagation-timeout the
+ *  client still refetches — the row may have propagated moments
+ *  later. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<OverviewDashboard>(editName.value);
   if (!local || saving.value) return;
   saving.value = true;
+  flash.value = 'Saving to OAP…';
+  let elapsed = 0;
+  const ticker = setInterval(() => {
+    elapsed++;
+    flash.value = `Saving to OAP… ${elapsed}s`;
+  }, 1000);
   try {
     await bff.templateSync.save(editName.value, local);
+    clearInterval(ticker);
     localEdits.remove(editName.value);
-    previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    previewOverride.clear(editName.value);
     pushDiffOpen.value = false;
     for (let n = 10; n > 0; n--) {
       flash.value = `Pushed. Refreshing in ${n}s…`;
@@ -727,7 +733,20 @@ async function pushToOap(): Promise<void> {
     loadFrom('remote');
     setFlash('Published your local draft to OAP — now live for everyone.');
   } catch (err) {
-    setFlash(err instanceof Error ? `error: ${err.message}` : 'push failed');
+    clearInterval(ticker);
+    if (err instanceof BffApiError && err.status === 504) {
+      flash.value = 'Timeout waiting for OAP propagation. Refetching…';
+      try {
+        await bff.templateSync.resync();
+        await Promise.all([sources.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
+        reconcileLocalDrafts();
+      } catch {
+        /* refetch best-effort */
+      }
+      setFlash('Refetched after timeout — the push may have completed; please verify.');
+    } else {
+      setFlash(err instanceof Error ? `error: ${err.message}` : 'push failed');
+    }
   } finally {
     saving.value = false;
   }
