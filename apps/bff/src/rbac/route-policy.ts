@@ -205,6 +205,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // the only path that mutates OAP UI-templates.
   'GET /api/admin/templates/sync-status':          'overview:read',
   'POST /api/admin/templates/resync':              'overview:write',
+  'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save':                'overview:write',
   'POST /api/admin/templates/save-local':          'overview:write',
   'POST /api/admin/templates/disable':             'overview:write',

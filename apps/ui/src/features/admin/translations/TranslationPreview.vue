@@ -211,10 +211,20 @@ function widgetRowSpan(w: DashboardWidget): number {
       <section v-if="overviewGroups.length > 0" class="section">
         <div class="prev-subhead">Overview tiles</div>
         <div class="ov-grid">
-          <div v-for="(g, gi) in overviewGroups" :key="gi" class="ov-group sw-card">
+          <div
+            v-for="(g, gi) in overviewGroups"
+            :key="gi"
+            class="ov-group sw-card"
+            @click="emit('select-widget', `ovgroup:${gi}`)"
+          >
             <div class="ov-title">{{ g.title || ' ' }}</div>
             <div class="ov-metrics">
-              <div v-for="m in g.metrics" :key="m.label" class="ov-metric">
+              <div
+                v-for="(m, mi) in g.metrics"
+                :key="m.label"
+                class="ov-metric"
+                @click.stop="emit('select-widget', `ovmetric:${gi}:${mi}`)"
+              >
                 <span class="ov-label">{{ m.label }}</span>
                 <span class="ov-value">—</span>
               </div>

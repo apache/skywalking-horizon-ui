@@ -25,9 +25,33 @@
   Composables drive the content; this component is dumb display.
 -->
 <script setup lang="ts">
+import { ref } from 'vue';
+import { bff } from '@/api/client';
+import { refreshConfigBundle } from '@/controls/configBundle';
 import type { SyncBanner } from './useTemplateSync';
 
 defineProps<{ banner: SyncBanner }>();
+const emit = defineEmits<{ resolved: [] }>();
+
+const resolving = ref(false);
+const resolveErr = ref<string | null>(null);
+
+async function onResolve(): Promise<void> {
+  if (resolving.value) return;
+  resolving.value = true;
+  resolveErr.value = null;
+  try {
+    await bff.templateSync.resolveConflicts();
+    // Pull the fresh bundle so the banner clears + the parent page's
+    // sync-derived state (badges, conflict counts) all update at once.
+    await refreshConfigBundle({ force: true });
+    emit('resolved');
+  } catch (err) {
+    resolveErr.value = err instanceof Error ? err.message : String(err);
+  } finally {
+    resolving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -37,7 +61,15 @@ defineProps<{ banner: SyncBanner }>();
       <div class="sbb__text">
         <div class="sbb__msg">{{ banner.message }}</div>
         <div v-if="banner.detail" class="sbb__detail">{{ banner.detail }}</div>
+        <div v-if="resolveErr" class="sbb__err">{{ resolveErr }}</div>
       </div>
+      <button
+        v-if="banner.severity === 'conflict'"
+        type="button"
+        class="sbb__action"
+        :disabled="resolving"
+        @click="onResolve"
+      >{{ resolving ? 'Resolving…' : 'Disable extras' }}</button>
     </div>
   </div>
 </template>
@@ -122,5 +154,26 @@ export default { chipLabel };
   margin-top: 2px;
   color: var(--sw-text-muted, #8a93a0);
   font-size: 11px;
+}
+.sbb__err {
+  margin-top: 4px;
+  color: var(--sw-danger, #c0392b);
+  font-size: 11px;
+}
+.sbb__action {
+  flex: 0 0 auto;
+  align-self: center;
+  background: var(--sw-danger, #c0392b);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.sbb__action:disabled {
+  opacity: 0.5;
+  cursor: wait;
 }
 </style>

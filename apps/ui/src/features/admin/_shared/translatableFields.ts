@@ -27,6 +27,13 @@ const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 
 const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots']);
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);
 
+/** Paths under which the `alias` field is a regex-replacement
+ *  template (e.g. `$1`, `$<service>`), NOT a translatable label.
+ *  Operators editing translations should not see these — they would
+ *  type a Chinese / Spanish / etc. replacement that would silently
+ *  break service-name parsing at render time. */
+const EXCLUDE_PATH_PREFIXES = ['naming'];
+
 export interface TranslatableField {
   /** Dot/bracket path from the source root, e.g. `overview.groups[0].title`. */
   path: string;
@@ -50,7 +57,7 @@ export interface TranslatableField {
 export function walkTranslatable(source: unknown): TranslatableField[] {
   const out: TranslatableField[] = [];
   walk(source, [], '', out);
-  return out;
+  return out.filter((f) => !EXCLUDE_PATH_PREFIXES.some((p) => f.path === p || f.path.startsWith(`${p}.`) || f.path.startsWith(`${p}[`)));
 }
 
 function walk(node: unknown, segments: Array<string | number>, section: string, out: TranslatableField[]): void {

@@ -230,13 +230,24 @@ const focusPrefix = ref<string | null>(null);
 function onSelectWidget(widgetId: string): void {
   const eff = effective.value;
   if (!eff) return;
-  // `header:<metric>` — clicked a service-header column. The translatable
-  // rows for it sit under `header.columns[N].label`.
+  // header:<metric> — a service-header column on a layer template.
   if (widgetId.startsWith('header:')) {
     const metric = widgetId.slice('header:'.length);
     const layer = eff.source as AdminLayerTemplate;
     const idx = (layer.metrics?.columns ?? []).findIndex((c) => c.metric === metric);
     if (idx >= 0) focusPrefix.value = `metrics.columns[${idx}]`;
+    return;
+  }
+  // ovgroup:<gi> — clicked an overview-tile group on a layer template.
+  // ovmetric:<gi>:<mi> — clicked a specific metric row inside a group.
+  if (widgetId.startsWith('ovgroup:')) {
+    const gi = Number(widgetId.slice('ovgroup:'.length));
+    if (Number.isFinite(gi)) focusPrefix.value = `overview.groups[${gi}]`;
+    return;
+  }
+  if (widgetId.startsWith('ovmetric:')) {
+    const [, gi, mi] = widgetId.split(':');
+    if (gi && mi) focusPrefix.value = `overview.groups[${gi}].metrics[${mi}]`;
     return;
   }
   if (selectedKind.value === 'overview') {
@@ -245,7 +256,7 @@ function onSelectWidget(widgetId: string): void {
     if (idx >= 0) focusPrefix.value = `widgets[${idx}]`;
     return;
   }
-  // Layer: look up the widget inside dashboards[scope].
+  // Layer scope widget.
   const tpl = eff.source as AdminLayerTemplate & { dashboards?: Record<string, Array<{ id?: string }>> };
   const list = tpl.dashboards?.[scope.value] ?? tpl.widgets ?? [];
   const idx = list.findIndex((w) => w.id === widgetId);
