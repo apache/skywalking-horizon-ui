@@ -240,25 +240,57 @@ function parseRemoteRows(
 ): Map<string, RemoteRow> {
   const out = new Map<string, RemoteRow>();
   let skipped = 0;
+  /* OAP enforces uniqueness on the storage UUID, NOT on the inner
+   * envelope `name`. A name collision happens whenever a template was
+   * disabled (soft-delete) then re-created from the bundled default —
+   * the old disabled row sticks around alongside the new enabled one,
+   * both claiming `horizon.layer.<KEY>`. The order OAP returns them in
+   * isn't stable, so a naive `.set(name, row)` flips the rendered
+   * state every other fetch (the symptom: a layer apparently toggling
+   * between disabled and synced under steady-state).
+   *
+   * Resolution: prefer the row that's NOT disabled. The enabled record
+   * is what an operator would consider "live"; the disabled one is a
+   * tombstone that OAP can't delete because the UI-template REST
+   * surface has no DELETE. Ties (both disabled, or both enabled) fall
+   * to first-seen — deterministic but rare. */
+  const duplicates: string[] = [];
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
     if (!env) {
       skipped++;
       continue;
     }
-    out.set(env.name, {
+    const existing = out.get(env.name);
+    const candidate: RemoteRow = {
       name: env.name,
       kind: env.kind,
       key: env.name.split('.').slice(2).join('.'),
       id: r.id,
       configuration: r.configuration,
       disabled: r.disabled,
-    });
+    };
+    if (!existing) {
+      out.set(env.name, candidate);
+      continue;
+    }
+    // Collision: prefer enabled over disabled. Otherwise keep existing
+    // (first-seen wins among same-disabled rows).
+    duplicates.push(env.name);
+    if (existing.disabled && !candidate.disabled) {
+      out.set(env.name, candidate);
+    }
   }
   if (skipped > 0) {
     logger.debug(
       { skipped },
       'OAP UI-template rows ignored (not Horizon-namespaced) — operator may have other tools writing to this OAP',
+    );
+  }
+  if (duplicates.length > 0) {
+    logger.warn(
+      { names: Array.from(new Set(duplicates)) },
+      'OAP UI-template duplicate names — kept the enabled row per name; operator should manually consolidate via OAP admin',
     );
   }
   return out;
