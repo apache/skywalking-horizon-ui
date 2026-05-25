@@ -17,7 +17,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
+
+const { t } = useI18n();
 // Full "SkyWalking" wordmark + moon. The shipped file is white-fill
 // (designed for dark backgrounds). For light-appearance themes we
 // derive a blue (`#1368B3` — the official SkyWalking brand blue)
@@ -378,8 +381,8 @@ watch(
       <button
         type="button"
         class="side-toggle"
-        title="Collapse menu"
-        aria-label="Collapse menu"
+        :title="t('Collapse menu')"
+        :aria-label="t('Collapse menu')"
         @click="toggleSidebar"
       >
         <Icon name="caret" :size="12" />
@@ -389,8 +392,8 @@ watch(
       v-else
       type="button"
       class="side-expand"
-      title="Show menu"
-      aria-label="Show menu"
+      :title="t('Show menu')"
+      :aria-label="t('Show menu')"
       @click="toggleSidebar"
     >
       <Icon name="caret" :size="12" />
@@ -459,7 +462,7 @@ watch(
                 <span
                   v-if="isLayerDiverged(L.key)"
                   class="layer-warn"
-                  title="Local changes not published to OAP"
+                  :title="t('Local changes not published to OAP')"
                 ><Icon name="alert" :size="11" /></span>
               </RouterLink>
               <div
@@ -476,7 +479,7 @@ watch(
                 <span
                   v-if="isLayerDiverged(L.key)"
                   class="layer-warn"
-                  title="Local changes not published to OAP"
+                  :title="t('Local changes not published to OAP')"
                 ><Icon name="alert" :size="11" /></span>
                 <span class="caret" :class="{ open: expandedLayer === L.key }">
                   <Icon name="caret" :size="10" />
@@ -903,7 +906,7 @@ watch(
         </div>
         <div>{{ auth.user?.roles?.join(' · ') ?? 'not signed in' }}</div>
       </div>
-      <button v-if="auth.isAuthenticated" class="sw-btn is-icon" title="Sign out" @click="signOut">
+      <button v-if="auth.isAuthenticated" class="sw-btn is-icon" :title="t('Sign out')" @click="signOut">
         <Icon name="share" :size="12" />
       </button>
     </div>

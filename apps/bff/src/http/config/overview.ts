@@ -32,6 +32,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type {
+  OverviewDashboard,
   OverviewDashboardListResponse,
   OverviewDashboardResponse,
 } from '@skywalking-horizon-ui/api-client';
@@ -39,6 +40,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { getOverviewDashboard, loadOverviewDashboards } from '../../logic/overview/loader.js';
+import { localize, getOverviewOverlay, localeFromRequest } from '../../i18n/index.js';
 
 export interface OverviewRouteDeps {
   config: ConfigSource;
@@ -48,20 +50,24 @@ export interface OverviewRouteDeps {
 export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRouteDeps): void {
   const auth = requireAuth(deps);
 
-  app.get('/api/overview/dashboards', { preHandler: auth }, async (_req, reply) => {
+  app.get('/api/overview/dashboards', { preHandler: auth }, async (req, reply) => {
+    const locale = localeFromRequest(req);
     const dashboards = loadOverviewDashboards();
     const body: OverviewDashboardListResponse = {
       generatedAt: Date.now(),
-      dashboards: dashboards.map((d) => ({
-        id: d.id,
-        title: d.title,
-        description: d.description,
-        visibility: d.visibility,
-        icon: d.icon,
-        order: d.order,
-        layers: d.layers,
-        widgetCount: d.widgets.length,
-      })),
+      dashboards: dashboards.map((d) => {
+        const ld = localize<OverviewDashboard>(d, getOverviewOverlay(d.id, locale), locale);
+        return {
+          id: ld.id,
+          title: ld.title,
+          description: ld.description,
+          visibility: ld.visibility,
+          icon: ld.icon,
+          order: ld.order,
+          layers: ld.layers,
+          widgetCount: ld.widgets.length,
+        };
+      }),
     };
     return reply.send(body);
   });
@@ -81,9 +87,10 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
         };
         return reply.code(404).send(body);
       }
+      const locale = localeFromRequest(req);
       const body: OverviewDashboardResponse = {
         generatedAt: Date.now(),
-        dashboard: dash,
+        dashboard: localize<OverviewDashboard>(dash, getOverviewOverlay(dash.id, locale), locale),
         reachable: true,
       };
       return reply.send(body);

@@ -1,0 +1,23 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

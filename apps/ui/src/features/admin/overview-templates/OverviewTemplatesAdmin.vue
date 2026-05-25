@@ -599,6 +599,28 @@ function setFlash(msg: string): void {
   }, 4000);
 }
 
+// Manual "refresh from remote" affordance + post-push countdown share
+// the same in-flight flag so concurrent clicks can't race each other.
+const refreshingFromRemote = ref(false);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Force OAP re-read: invalidate the BFF's 30s sync cache + refetch
+ *  everything the page consults. Used by the picker-bar button and as
+ *  the tail of `pushToOap` after the propagation countdown. */
+async function refreshFromRemote(): Promise<void> {
+  if (refreshingFromRemote.value) return;
+  refreshingFromRemote.value = true;
+  try {
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), listQuery.refetch(), refreshConfigBundle()]);
+    setFlash('Refreshed from OAP.');
+  } catch (err) {
+    setFlash(err instanceof Error ? `error: ${err.message}` : 'refresh failed');
+  } finally {
+    refreshingFromRemote.value = false;
+  }
+}
+
 const isDirty = computed<boolean>(() =>
   draft.value ? JSON.stringify(draft.value) !== loadedSnapshot.value : false,
 );
@@ -649,7 +671,12 @@ const localDiffersFromRemote = computed<boolean>(() => {
 const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
-/** Publish the local draft to OAP, clear it, reload remote. */
+/** Publish the local draft to OAP, then count down 10s before reading
+ *  the sync state back. OAP propagates UI-template writes through its
+ *  cluster lazily; a 10s buffer keeps the next read from beating the
+ *  write to its own backing storage and showing stale `diverged` /
+ *  `bundled-fallback` badges. The countdown is visible in the flash
+ *  line so the wait isn't a silent freeze. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<OverviewDashboard>(editName.value);
   if (!local || saving.value) return;
@@ -658,9 +685,14 @@ async function pushToOap(): Promise<void> {
     await bff.templateSync.save(editName.value, local);
     localEdits.remove(editName.value);
     previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    pushDiffOpen.value = false;
+    for (let n = 10; n > 0; n--) {
+      flash.value = `Pushed. Refreshing in ${n}s…`;
+      await sleep(1000);
+    }
+    await bff.templateSync.resync();
     await Promise.all([sources.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
     loadFrom('remote');
-    pushDiffOpen.value = false;
     setFlash('Published your local draft to OAP — now live for everyone.');
   } catch (err) {
     setFlash(err instanceof Error ? `error: ${err.message}` : 'push failed');
@@ -909,6 +941,15 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
           </template>
         </div>
         <span class="ot__picker-count">{{ dashboards.length }} dashboard{{ dashboards.length === 1 ? '' : 's' }}</span>
+        <button
+          type="button"
+          class="ot__btn ot__refresh-btn"
+          :disabled="refreshingFromRemote || sync.readOnly.value"
+          :title="sync.readOnly.value
+            ? 'OAP unreachable — cannot refresh'
+            : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+          @click="refreshFromRemote"
+        >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
       </div>
 
       <section class="ot__detail">
@@ -1504,6 +1545,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 .ot__main { display: flex; flex-direction: column; gap: 12px; }
 .ot__picker-bar { display: flex; align-items: center; gap: 10px; }
 .ot__picker-count { font-size: 10.5px; color: var(--sw-fg-3); }
+.ot__refresh-btn { margin-left: auto; }
 .ot__dd { position: relative; display: flex; }
 .ot__dd-btn {
   display: inline-flex; align-items: center; gap: 8px;

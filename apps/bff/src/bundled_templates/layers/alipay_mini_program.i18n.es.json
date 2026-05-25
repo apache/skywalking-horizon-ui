@@ -1,0 +1,33 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      null,
+      null,
+      {
+        "label": "Errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          null,
+          null,
+          {
+            "label": "Errores"
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versiones",
+    "endpoints": "Páginas"
+  }
+}

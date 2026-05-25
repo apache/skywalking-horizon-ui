@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシ"
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "インスタンス",
+          null
+        ]
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

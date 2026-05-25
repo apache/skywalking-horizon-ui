@@ -1,0 +1,16 @@
+{
+  "group": "Bases de datos",
+  "overview": {
+    "groups": [
+      {
+        "title": "Estado"
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

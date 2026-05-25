@@ -1,0 +1,109 @@
+{
+  "widgets": [
+    {
+      "title": "서비스"
+    },
+    {
+      "title": "일반 서비스",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "지연 시간"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "가상 데이터베이스",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "지연 시간"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "가상 캐시",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "지연 시간"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "가상 메시지 큐",
+      "kpis": [
+        {
+          "label": "소비"
+        },
+        {
+          "label": "생산"
+        },
+        {
+          "label": "소비 지연 시간"
+        }
+      ]
+    },
+    {
+      "title": "가상 GenAI",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "지연 시간"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "활성 경보"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "노드"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "서비스"
+        },
+        {
+          "label": "컨테이너"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "메모리"
+        },
+        {
+          "label": "스토리지"
+        }
+      ]
+    }
+  ]
+}

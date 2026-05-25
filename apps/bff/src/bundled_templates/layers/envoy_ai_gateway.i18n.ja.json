@@ -1,0 +1,23 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシ"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

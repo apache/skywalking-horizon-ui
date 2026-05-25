@@ -1,0 +1,64 @@
+{
+  "group": "데이터베이스",
+  "overview": {
+    "groups": [
+      {
+        "title": "용량"
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "데이터베이스",
+          null
+        ]
+      },
+      {
+        "tableHeaders": [
+          "데이터베이스",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "노드",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

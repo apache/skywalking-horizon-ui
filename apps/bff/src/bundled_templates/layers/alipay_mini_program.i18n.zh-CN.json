@@ -1,0 +1,33 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      null,
+      null,
+      {
+        "label": "错误"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          null,
+          null,
+          {
+            "label": "错误"
+          }
+        ]
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "版本",
+    "endpoints": "页面"
+  }
+}

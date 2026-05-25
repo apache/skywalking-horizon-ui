@@ -49,6 +49,9 @@ export function registerLayerTemplateRoutes(
   deps: LayerTemplateConfigDeps,
 ): void {
   const auth = requireAuth(deps);
+  // English source by design — the admin Layer-Dashboards page uses this
+  // route to drive an editor; translations are managed through the
+  // dedicated translation editor and shipped separately as overlays.
   app.get('/api/admin/layer-templates', { preHandler: auth }, async (_req, reply) => {
     return reply.send({ templates: allLayerTemplates() });
   });

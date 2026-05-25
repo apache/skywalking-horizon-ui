@@ -1,0 +1,22 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topic"
+  }
+}

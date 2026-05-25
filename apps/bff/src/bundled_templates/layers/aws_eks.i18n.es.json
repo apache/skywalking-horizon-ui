@@ -1,0 +1,30 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Nodos"
+      },
+      null,
+      null,
+      {
+        "label": "Servicios"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Nodos"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clústeres",
+    "instances": "Nodos"
+  }
+}

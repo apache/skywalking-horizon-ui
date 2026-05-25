@@ -1,0 +1,61 @@
+{
+  "alias": "仮想 GenAI",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          null,
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "平均応答時間"
+      },
+      {
+        "title": "成功率"
+      },
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "title": "成功率"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "モデル"
+  }
+}

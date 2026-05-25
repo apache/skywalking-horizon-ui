@@ -1,0 +1,22 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "延迟"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "错误"
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  }
+}

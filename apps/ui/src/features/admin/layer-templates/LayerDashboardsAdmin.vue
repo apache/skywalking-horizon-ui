@@ -105,6 +105,30 @@ const selectedKey = ref<string>('');
 const activeScope = ref<AdminScope>('service');
 const isSaving = ref(false);
 const saveMsg = ref<string | null>(null);
+
+// Picker-bar "refresh from remote" button + post-push 10s countdown
+// share this in-flight flag so concurrent clicks can't race.
+const refreshingFromRemote = ref(false);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Force OAP re-read: invalidates the BFF's 30s sync cache + refetches
+ *  every source the page consults. Bound to the picker-bar button so the
+ *  operator can flush stale `synced/diverged` badges without reloading
+ *  the SPA. */
+async function refreshFromRemote(): Promise<void> {
+  if (refreshingFromRemote.value) return;
+  refreshingFromRemote.value = true;
+  try {
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    saveMsg.value = 'Refreshed from OAP.';
+    setTimeout(() => (saveMsg.value = null), 4000);
+  } catch (err) {
+    saveMsg.value = err instanceof Error ? err.message : 'refresh failed';
+  } finally {
+    refreshingFromRemote.value = false;
+  }
+}
 /** When false the browse rail is hidden entirely and layer switching
  *  moves to the top dropdown inside the editor — the editor claims the
  *  full width. Defaults collapsed; the rail is an opt-in browse mode.
@@ -645,8 +669,12 @@ const localDiffersFromRemote = computed<boolean>(() => {
 const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
-/** Publish the local draft to OAP (live for everyone), then clear it and
- *  reload from remote. */
+/** Publish the local draft to OAP, then count down 10s before reading
+ *  the sync state back. OAP propagates UI-template writes through its
+ *  cluster lazily; a 10s buffer keeps the next read from beating the
+ *  write to its own backing storage and showing stale `diverged` /
+ *  `bundled-fallback` badges. The countdown is visible in the save
+ *  message so the wait isn't a silent freeze. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<AdminLayerTemplate>(editName.value);
   if (!local || isSaving.value) return;
@@ -656,9 +684,14 @@ async function pushToOap(): Promise<void> {
     await bff.templateSync.save(editName.value, local);
     localEdits.remove(editName.value);
     previewOverride.clear(editName.value); // drop the now-stale preview snapshot
+    pushDiffOpen.value = false;
+    for (let n = 10; n > 0; n--) {
+      saveMsg.value = `Pushed. Refreshing in ${n}s…`;
+      await sleep(1000);
+    }
+    await bff.templateSync.resync();
     await Promise.all([sources.refetch(), refreshConfigBundle()]);
     loadFrom('remote');
-    pushDiffOpen.value = false;
     saveMsg.value = 'Published your local draft to OAP — now live for everyone.';
     setTimeout(() => (saveMsg.value = null), 6000);
   } catch (err) {
@@ -1436,6 +1469,15 @@ const namingTest = computed<NamingTestResult>(() => {
             </template>
             </div>
           <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
+          <button
+            type="button"
+            class="sw-btn refresh-btn"
+            :disabled="refreshingFromRemote || sync.readOnly.value"
+            :title="sync.readOnly.value
+              ? 'OAP unreachable — cannot refresh'
+              : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+            @click="refreshFromRemote"
+          >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
         </div>
         <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
@@ -2807,6 +2849,12 @@ const namingTest = computed<NamingTestResult>(() => {
   font-size: 10.5px;
   color: var(--sw-fg-3);
   margin-left: auto;
+}
+.layer-switch-bar .refresh-btn {
+  margin-left: 0;
+  font-size: 11px;
+  height: 24px;
+  padding: 0 8px;
 }
 .list-head {
   display: flex;

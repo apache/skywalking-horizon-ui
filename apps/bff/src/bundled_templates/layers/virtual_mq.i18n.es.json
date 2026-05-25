@@ -1,0 +1,22 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topics"
+  }
+}

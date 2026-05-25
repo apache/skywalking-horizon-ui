@@ -1,0 +1,109 @@
+{
+  "widgets": [
+    {
+      "title": "服务"
+    },
+    {
+      "title": "通用服务",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟数据库",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟缓存",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟消息队列",
+      "kpis": [
+        {
+          "label": "消费"
+        },
+        {
+          "label": "生产"
+        },
+        {
+          "label": "消费延迟"
+        }
+      ]
+    },
+    {
+      "title": "虚拟 GenAI",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "活动告警"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "节点"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "服务"
+        },
+        {
+          "label": "容器"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "内存"
+        },
+        {
+          "label": "存储"
+        }
+      ]
+    }
+  ]
+}

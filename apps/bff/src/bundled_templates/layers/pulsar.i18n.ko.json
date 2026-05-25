@@ -1,0 +1,36 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topic"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "처리량"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Broker"
+  }
+}

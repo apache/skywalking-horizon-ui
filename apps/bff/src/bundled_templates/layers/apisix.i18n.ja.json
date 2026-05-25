@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

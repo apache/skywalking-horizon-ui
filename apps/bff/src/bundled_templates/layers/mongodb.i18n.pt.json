@@ -1,0 +1,64 @@
+{
+  "group": "Bancos de dados",
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidade"
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Banco de dados",
+          null
+        ]
+      },
+      {
+        "tableHeaders": [
+          "Banco de dados",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Nó",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "group": "데이터베이스",
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "instance": [
+      null,
+      {
+        "title": "버전"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

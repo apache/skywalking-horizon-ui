@@ -1,0 +1,64 @@
+{
+  "group": "データベース",
+  "overview": {
+    "groups": [
+      {
+        "title": "キャパシティ"
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "データベース",
+          null
+        ]
+      },
+      {
+        "tableHeaders": [
+          "データベース",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "ノード",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

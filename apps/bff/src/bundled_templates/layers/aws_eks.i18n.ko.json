@@ -1,0 +1,30 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "노드"
+      },
+      null,
+      null,
+      {
+        "label": "서비스"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "노드"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "클러스터",
+    "instances": "노드"
+  }
+}

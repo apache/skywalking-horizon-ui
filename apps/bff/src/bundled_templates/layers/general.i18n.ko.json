@@ -1,0 +1,149 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "오류율"
+          }
+        ]
+      },
+      {
+        "title": "상태",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "상위 20 API",
+        "expressionLabels": [
+          "트래픽",
+          "느린 요청",
+          "성공률"
+        ]
+      },
+      {
+        "title": "트래픽"
+      },
+      {
+        "title": "오류율"
+      },
+      {
+        "title": "Apdex"
+      },
+      null,
+      {
+        "title": "평균 응답 시간"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "endpoint": [
+      {
+        "title": "트래픽"
+      },
+      {
+        "title": "응답 시간"
+      },
+      {
+        "title": "성공률"
+      },
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "서비스",
+    "instances": "인스턴스",
+    "endpoints": "API",
+    "endpointDependency": "API 의존성"
+  }
+}

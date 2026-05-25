@@ -1,0 +1,35 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Latencia"
+      },
+      null,
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Cachés"
+  }
+}

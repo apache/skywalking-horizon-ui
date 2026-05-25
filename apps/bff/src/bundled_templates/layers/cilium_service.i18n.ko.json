@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "성공률"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          null,
+          {
+            "label": "성공률"
+          }
+        ]
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      null,
+      {
+        "label": "지연 시간"
+      }
+    ]
+  },
+  "slots": {
+    "services": "서비스",
+    "instances": "Pod",
+    "endpoints": "엔드포인트"
+  }
+}

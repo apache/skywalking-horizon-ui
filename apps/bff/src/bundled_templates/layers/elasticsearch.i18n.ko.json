@@ -1,0 +1,66 @@
+{
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "상태"
+      },
+      null,
+      {
+        "label": "노드"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터",
+        "metrics": [
+          {
+            "label": "상태"
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "노드"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "네트워크"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

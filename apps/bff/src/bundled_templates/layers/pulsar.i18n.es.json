@@ -1,0 +1,36 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Rendimiento"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Brokers"
+  }
+}

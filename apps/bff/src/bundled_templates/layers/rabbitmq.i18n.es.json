@@ -1,0 +1,38 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Colas"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Colas"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

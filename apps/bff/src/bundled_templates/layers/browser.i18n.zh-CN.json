@@ -1,0 +1,52 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "错误率"
+      },
+      {
+        "label": "错误"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "错误率"
+          }
+        ]
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          null,
+          "错误",
+          "错误率"
+        ]
+      },
+      {
+        "expressionLabels": [
+          null,
+          "错误",
+          "错误率"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "版本",
+    "endpoints": "页面"
+  }
+}

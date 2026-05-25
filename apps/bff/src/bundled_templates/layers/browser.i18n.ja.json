@@ -1,0 +1,52 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "エラー率"
+      },
+      {
+        "label": "エラー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          null,
+          "エラー",
+          "エラー率"
+        ]
+      },
+      {
+        "expressionLabels": [
+          null,
+          "エラー",
+          "エラー率"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "バージョン",
+    "endpoints": "ページ"
+  }
+}

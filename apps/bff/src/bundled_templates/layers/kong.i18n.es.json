@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia"
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Instancia",
+          null
+        ]
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      null,
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "성공률"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "RPM"
+          },
+          {
+            "label": "지연 시간"
+          },
+          {
+            "label": "오류율"
+          }
+        ]
+      },
+      {
+        "title": "상태",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Pod",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "성공률"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      }
+    ]
+  },
+  "slots": {
+    "services": "K8s 서비스",
+    "instances": "Pod",
+    "endpoints": "엔드포인트"
+  }
+}

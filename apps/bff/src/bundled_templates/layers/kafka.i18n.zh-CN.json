@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "集群"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker"
+  }
+}

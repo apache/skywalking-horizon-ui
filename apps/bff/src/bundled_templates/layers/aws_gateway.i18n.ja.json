@@ -1,0 +1,22 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "レイテンシ"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "エラー"
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  }
+}

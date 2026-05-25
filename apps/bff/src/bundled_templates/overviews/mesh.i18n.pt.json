@@ -1,0 +1,60 @@
+{
+  "widgets": [
+    null,
+    {
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        null
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "Alarmes ativos"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "Nós"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        {
+          "label": "Contêineres"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memória"
+        },
+        {
+          "label": "Armazenamento"
+        }
+      ]
+    }
+  ]
+}

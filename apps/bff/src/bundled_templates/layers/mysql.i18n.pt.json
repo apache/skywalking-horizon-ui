@@ -1,0 +1,13 @@
+{
+  "group": "Bancos de dados",
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

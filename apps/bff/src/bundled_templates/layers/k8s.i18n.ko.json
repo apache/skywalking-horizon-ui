@@ -1,0 +1,65 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "노드"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "용량",
+        "metrics": [
+          {
+            "label": "Pod"
+          },
+          {
+            "label": "노드"
+          },
+          {
+            "label": "서비스"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "용량",
+          null,
+          null,
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "클러스터",
+    "instances": "노드"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

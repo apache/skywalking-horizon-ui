@@ -23,6 +23,7 @@ import router from './shell/router/index';
 import { bffClient } from './api/client';
 import { useAuthStore } from './state/auth';
 import { useThemeStore } from './state/theme';
+import { i18n } from './i18n';
 
 import '@skywalking-horizon-ui/design-tokens/tokens.css';
 // The theme-variant overrides — `[data-theme="<id>"]` selectors that swap
@@ -48,6 +49,11 @@ const pinia = createPinia();
 app.use(pinia);
 app.use(router);
 app.use(VueQueryPlugin, { queryClient });
+// i18n is registered AFTER Pinia so locale-aware stores can read the
+// initial locale (resolved from localStorage / navigator) at construction
+// time, but BEFORE the router and any feature views render — every
+// `t(...)` call in the tree resolves through this instance.
+app.use(i18n);
 
 // Instantiate the theme store eagerly so its `watch(immediate:true)`
 // fires once at bootstrap. That writes `<html data-theme="…">` and

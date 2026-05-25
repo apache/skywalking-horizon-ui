@@ -1,0 +1,15 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "错误"
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

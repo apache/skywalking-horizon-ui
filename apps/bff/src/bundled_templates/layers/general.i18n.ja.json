@@ -1,0 +1,149 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "上位 20 API",
+        "expressionLabels": [
+          "トラフィック",
+          "低速",
+          "成功率"
+        ]
+      },
+      {
+        "title": "トラフィック"
+      },
+      {
+        "title": "エラー率"
+      },
+      {
+        "title": "Apdex"
+      },
+      null,
+      {
+        "title": "平均応答時間"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "endpoint": [
+      {
+        "title": "トラフィック"
+      },
+      {
+        "title": "応答時間"
+      },
+      {
+        "title": "成功率"
+      },
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "サービス",
+    "instances": "インスタンス",
+    "endpoints": "API",
+    "endpointDependency": "API 依存関係"
+  }
+}

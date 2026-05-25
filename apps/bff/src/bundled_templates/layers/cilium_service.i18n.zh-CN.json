@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "成功率"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          null,
+          {
+            "label": "成功率"
+          }
+        ]
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      null,
+      {
+        "label": "延迟"
+      }
+    ]
+  },
+  "slots": {
+    "services": "服务",
+    "instances": "Pod",
+    "endpoints": "端点"
+  }
+}

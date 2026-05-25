@@ -1,0 +1,33 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      null,
+      null,
+      {
+        "label": "エラー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          null,
+          null,
+          {
+            "label": "エラー"
+          }
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "バージョン",
+    "endpoints": "ページ"
+  }
+}

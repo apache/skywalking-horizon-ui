@@ -1,0 +1,52 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Tasa de errores"
+      },
+      {
+        "label": "Errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          null,
+          "Errores",
+          "Tasa de errores"
+        ]
+      },
+      {
+        "expressionLabels": [
+          null,
+          "Errores",
+          "Tasa de errores"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versiones",
+    "endpoints": "Páginas"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "健全性"
+      },
+      null,
+      {
+        "label": "ノード"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          {
+            "label": "健全性"
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "ノード"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "ネットワーク"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

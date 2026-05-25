@@ -1,0 +1,65 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Nós"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidade",
+        "metrics": [
+          {
+            "label": "Pods"
+          },
+          {
+            "label": "Nós"
+          },
+          {
+            "label": "Serviços"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "Capacidade",
+          null,
+          null,
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nós"
+  }
+}

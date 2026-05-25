@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

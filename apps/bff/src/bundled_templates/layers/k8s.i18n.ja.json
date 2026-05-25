@@ -1,0 +1,65 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "ノード"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "キャパシティ",
+        "metrics": [
+          {
+            "label": "Pod"
+          },
+          {
+            "label": "ノード"
+          },
+          {
+            "label": "サービス"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "キャパシティ",
+          null,
+          null,
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "クラスタ",
+    "instances": "ノード"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "지연 시간"
+      },
+      null,
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "오류율"
+          }
+        ]
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "평균 응답 시간"
+      },
+      {
+        "title": "성공률"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "데이터베이스"
+  }
+}

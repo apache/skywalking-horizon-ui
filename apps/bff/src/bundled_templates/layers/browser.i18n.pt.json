@@ -1,0 +1,52 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Taxa de erros"
+      },
+      {
+        "label": "Erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Taxa de erros"
+          }
+        ]
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          null,
+          "Erros",
+          "Taxa de erros"
+        ]
+      },
+      {
+        "expressionLabels": [
+          null,
+          "Erros",
+          "Taxa de erros"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versões",
+    "endpoints": "Páginas"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "group": "Bancos de dados",
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "instance": [
+      null,
+      {
+        "title": "Versão"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

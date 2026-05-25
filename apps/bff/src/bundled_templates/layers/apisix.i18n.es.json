@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

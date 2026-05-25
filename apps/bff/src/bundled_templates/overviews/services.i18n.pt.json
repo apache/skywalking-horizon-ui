@@ -1,0 +1,109 @@
+{
+  "widgets": [
+    {
+      "title": "Serviços"
+    },
+    {
+      "title": "Serviços gerais",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Bancos de dados virtuais",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Caches virtuais",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Filas de mensagens virtuais",
+      "kpis": [
+        {
+          "label": "Consumo"
+        },
+        {
+          "label": "Produção"
+        },
+        {
+          "label": "Latência de consumo"
+        }
+      ]
+    },
+    {
+      "title": "GenAI virtual",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "Alarmes ativos"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "Nós"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        {
+          "label": "Contêineres"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memória"
+        },
+        {
+          "label": "Armazenamento"
+        }
+      ]
+    }
+  ]
+}

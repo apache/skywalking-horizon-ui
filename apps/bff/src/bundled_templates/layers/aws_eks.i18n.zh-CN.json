@@ -1,0 +1,30 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "节点"
+      },
+      null,
+      null,
+      {
+        "label": "服务"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "节点"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "集群",
+    "instances": "节点"
+  }
+}

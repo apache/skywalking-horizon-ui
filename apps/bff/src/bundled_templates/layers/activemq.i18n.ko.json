@@ -1,0 +1,13 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker",
+    "endpoints": "대상"
+  }
+}

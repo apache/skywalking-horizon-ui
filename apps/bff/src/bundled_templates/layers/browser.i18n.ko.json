@@ -1,0 +1,52 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "오류율"
+      },
+      {
+        "label": "오류"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "오류율"
+          }
+        ]
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          null,
+          "오류",
+          "오류율"
+        ]
+      },
+      {
+        "expressionLabels": [
+          null,
+          "오류",
+          "오류율"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "버전",
+    "endpoints": "페이지"
+  }
+}

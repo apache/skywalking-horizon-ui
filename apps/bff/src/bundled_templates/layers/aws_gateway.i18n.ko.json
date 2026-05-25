@@ -1,0 +1,22 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "지연 시간"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "오류"
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  }
+}

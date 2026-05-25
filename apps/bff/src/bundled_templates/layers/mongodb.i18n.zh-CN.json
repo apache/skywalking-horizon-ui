@@ -1,0 +1,64 @@
+{
+  "group": "数据库",
+  "overview": {
+    "groups": [
+      {
+        "title": "容量"
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "数据库",
+          null
+        ]
+      },
+      {
+        "tableHeaders": [
+          "数据库",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "节点",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

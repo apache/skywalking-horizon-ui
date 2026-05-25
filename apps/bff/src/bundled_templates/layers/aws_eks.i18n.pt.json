@@ -1,0 +1,30 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Nós"
+      },
+      null,
+      null,
+      {
+        "label": "Serviços"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Nós"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nós"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker"
+  }
+}

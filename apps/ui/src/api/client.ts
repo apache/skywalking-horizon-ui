@@ -48,7 +48,13 @@ import type {
 
 import { pushEvent } from '@/controls/eventLog';
 import { COLD_STAGE_HEADER, readColdStageHeader } from '@/controls/coldStage';
+import { currentLocale } from '@/i18n';
 import { SessionApi } from './scopes/session';
+
+/** Header the BFF reads to localize template responses. UI sends this
+ *  on every request; the BFF falls back to Accept-Language only when
+ *  it's absent (pre-bootstrap / non-SPA callers). */
+const LOCALE_HEADER = 'X-Horizon-Locale';
 
 /** Deploy-base prefix for every API call. Pulled from Vite's
  *  `BASE_URL` so the same build artifact works whether served at
@@ -606,6 +612,11 @@ export class BffClient {
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(readColdStageHeader() ? { [COLD_STAGE_HEADER]: '1' } : {}),
+        // Stamp every request with the active UI locale. The BFF uses
+        // this to localize template responses (layer dashboards,
+        // overviews, sidebar menu); endpoints with no localized
+        // content ignore the header at zero cost.
+        [LOCALE_HEADER]: currentLocale(),
         ...headers,
       },
     };

@@ -1,0 +1,23 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

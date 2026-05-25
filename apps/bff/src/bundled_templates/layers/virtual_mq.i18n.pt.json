@@ -1,0 +1,22 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topics"
+  }
+}

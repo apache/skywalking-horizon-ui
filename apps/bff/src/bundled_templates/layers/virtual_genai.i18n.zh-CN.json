@@ -1,0 +1,61 @@
+{
+  "alias": "虚拟 GenAI",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "延迟"
+      },
+      {
+        "label": "成功率"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          null,
+          {
+            "label": "错误率"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "平均响应时间"
+      },
+      {
+        "title": "成功率"
+      },
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "title": "成功率"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "模型"
+  }
+}

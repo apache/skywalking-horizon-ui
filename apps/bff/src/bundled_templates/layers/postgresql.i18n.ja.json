@@ -1,0 +1,16 @@
+{
+  "group": "データベース",
+  "overview": {
+    "groups": [
+      {
+        "title": "健全性"
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "group": "Bases de datos",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Estado"
+      },
+      null,
+      {
+        "label": "Nodos"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Clúster",
+        "metrics": [
+          {
+            "label": "Estado"
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "Nodos"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Red"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "group": "Bases de datos",
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

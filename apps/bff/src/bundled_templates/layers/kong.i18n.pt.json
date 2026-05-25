@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência"
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Instância",
+          null
+        ]
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Brokers",
+    "endpoints": "Destinos"
+  }
+}

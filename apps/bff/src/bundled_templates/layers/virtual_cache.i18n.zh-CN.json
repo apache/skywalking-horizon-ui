@@ -1,0 +1,35 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "延迟"
+      },
+      null,
+      {
+        "label": "错误率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "错误率"
+          }
+        ]
+      },
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "slots": {
+    "services": "缓存"
+  }
+}

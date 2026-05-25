@@ -1,0 +1,65 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Nodos"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidad",
+        "metrics": [
+          {
+            "label": "Pods"
+          },
+          {
+            "label": "Nodos"
+          },
+          {
+            "label": "Servicios"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "Capacidad",
+          null,
+          null,
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "Clústeres",
+    "instances": "Nodos"
+  }
+}

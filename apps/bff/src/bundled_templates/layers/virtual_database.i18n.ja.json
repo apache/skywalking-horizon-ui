@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "レイテンシ"
+      },
+      null,
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "平均応答時間"
+      },
+      {
+        "title": "成功率"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "データベース"
+  }
+}

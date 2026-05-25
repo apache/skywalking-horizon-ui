@@ -1,0 +1,22 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topic"
+  }
+}

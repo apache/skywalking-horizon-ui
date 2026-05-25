@@ -1,0 +1,60 @@
+{
+  "widgets": [
+    null,
+    {
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "サービス"
+        },
+        null
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "アクティブなアラーム"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "ノード"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "サービス"
+        },
+        {
+          "label": "コンテナ"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "メモリ"
+        },
+        {
+          "label": "ストレージ"
+        }
+      ]
+    }
+  ]
+}

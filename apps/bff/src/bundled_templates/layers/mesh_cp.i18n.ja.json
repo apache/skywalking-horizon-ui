@@ -1,0 +1,43 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      null,
+      null,
+      {
+        "label": "サービス"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "CPU"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

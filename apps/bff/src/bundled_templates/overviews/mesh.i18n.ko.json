@@ -1,0 +1,60 @@
+{
+  "widgets": [
+    null,
+    {
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "서비스"
+        },
+        null
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "활성 경보"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "노드"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "서비스"
+        },
+        {
+          "label": "컨테이너"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "메모리"
+        },
+        {
+          "label": "스토리지"
+        }
+      ]
+    }
+  ]
+}

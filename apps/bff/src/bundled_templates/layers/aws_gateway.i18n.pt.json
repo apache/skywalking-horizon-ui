@@ -1,0 +1,22 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Latência"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erros"
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Latencia"
+      },
+      null,
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      {
+        "title": "Tasa de éxito"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "Bases de datos"
+  }
+}

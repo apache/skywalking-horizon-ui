@@ -1,0 +1,66 @@
+{
+  "group": "数据库",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "健康度"
+      },
+      null,
+      {
+        "label": "节点"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          {
+            "label": "健康度"
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "节点"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "网络"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

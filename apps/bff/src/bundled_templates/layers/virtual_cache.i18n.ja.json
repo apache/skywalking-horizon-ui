@@ -1,0 +1,35 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "レイテンシ"
+      },
+      null,
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "services": "キャッシュ"
+  }
+}

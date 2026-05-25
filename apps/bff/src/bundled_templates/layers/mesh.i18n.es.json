@@ -1,0 +1,117 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Tráfico"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Estado",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "expressionLabels": [
+          "Tráfico",
+          "Lentas",
+          "Tasa de éxito"
+        ]
+      },
+      {
+        "title": "Tráfico"
+      },
+      {
+        "title": "Tasa de errores"
+      },
+      {
+        "title": "Apdex"
+      },
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "Tráfico",
+          "Lentas",
+          "Tasa de éxito"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios",
+    "instances": "Sidecars",
+    "endpoints": "Endpoints"
+  }
+}

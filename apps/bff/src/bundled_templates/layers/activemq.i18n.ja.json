@@ -1,0 +1,13 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker",
+    "endpoints": "宛先"
+  }
+}

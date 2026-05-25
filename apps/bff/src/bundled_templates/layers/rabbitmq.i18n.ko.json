@@ -1,0 +1,38 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "큐"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "큐"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

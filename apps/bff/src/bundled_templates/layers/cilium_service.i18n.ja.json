@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          null,
+          {
+            "label": "成功率"
+          }
+        ]
+      },
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      null,
+      {
+        "label": "レイテンシ"
+      }
+    ]
+  },
+  "slots": {
+    "services": "サービス",
+    "instances": "Pod",
+    "endpoints": "エンドポイント"
+  }
+}

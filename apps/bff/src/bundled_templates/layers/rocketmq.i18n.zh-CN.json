@@ -1,0 +1,44 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      null,
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "Broker"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Topic"
+      },
+      {
+        "title": "Broker"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker",
+    "endpoints": "Topic"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "group": "数据库",
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "dashboards": {
+    "instance": [
+      null,
+      {
+        "title": "版本"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

@@ -18,6 +18,7 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
+import LocaleChip from '@/shell/LocaleChip.vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAlarmCount } from '@/shell/useAlarmCount';
@@ -703,6 +704,13 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
           </ul>
         </transition>
       </div>
+
+      <!-- Locale picker. Sits next to the theme chip so the two
+           operator-overridable surfaces (theme + language) cluster
+           together. Pick is persisted to localStorage and invalidates
+           every active vue-query so BFF-localized payloads (menu /
+           layer dashboards / overviews) refetch in the new locale. -->
+      <LocaleChip />
     </div>
   </header>
 </template>

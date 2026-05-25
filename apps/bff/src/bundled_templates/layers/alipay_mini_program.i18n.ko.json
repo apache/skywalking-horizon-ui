@@ -1,0 +1,33 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      null,
+      null,
+      {
+        "label": "오류"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          null,
+          null,
+          {
+            "label": "오류"
+          }
+        ]
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "버전",
+    "endpoints": "페이지"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "group": "Bancos de dados",
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde"
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

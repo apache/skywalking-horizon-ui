@@ -1,0 +1,36 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topic"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "スループット"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Broker"
+  }
+}

@@ -1,0 +1,64 @@
+{
+  "group": "Bases de datos",
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidad"
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Base de datos",
+          null
+        ]
+      },
+      {
+        "tableHeaders": [
+          "Base de datos",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Nodo",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nodos"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Filas"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Filas"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

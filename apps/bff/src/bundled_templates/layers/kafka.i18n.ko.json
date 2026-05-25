@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Broker"
+  }
+}

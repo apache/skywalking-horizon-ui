@@ -1,0 +1,65 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "节点"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "容量",
+        "metrics": [
+          {
+            "label": "Pod"
+          },
+          {
+            "label": "节点"
+          },
+          {
+            "label": "服务"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "expressionLabels": [
+          "容量",
+          null,
+          null,
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "services": "集群",
+    "instances": "节点"
+  }
+}

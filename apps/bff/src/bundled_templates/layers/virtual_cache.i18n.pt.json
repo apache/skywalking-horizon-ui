@@ -1,0 +1,35 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Latência"
+      },
+      null,
+      {
+        "label": "Taxa de erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "Taxa de erros"
+          }
+        ]
+      },
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Caches"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      null,
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de éxito"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "RPM"
+          },
+          {
+            "label": "Latencia"
+          },
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Estado",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Pod",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tasa de éxito"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios de K8s",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de éxito"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          null,
+          {
+            "label": "Tasa de éxito"
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      null,
+      {
+        "label": "Latencia"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  }
+}

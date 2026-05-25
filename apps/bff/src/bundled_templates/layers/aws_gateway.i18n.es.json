@@ -1,0 +1,22 @@
+{
+  "layer-header": {
+    "columns": [
+      null,
+      {
+        "label": "Latencia"
+      },
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Errores"
+      },
+      {
+        "title": "Rendimiento"
+      }
+    ]
+  }
+}

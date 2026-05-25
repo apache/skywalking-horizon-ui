@@ -1,0 +1,36 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Vazão"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Brokers"
+  }
+}

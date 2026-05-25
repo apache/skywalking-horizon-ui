@@ -1,0 +1,30 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "ノード"
+      },
+      null,
+      null,
+      {
+        "label": "サービス"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "ノード"
+          },
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "クラスタ",
+    "instances": "ノード"
+  }
+}

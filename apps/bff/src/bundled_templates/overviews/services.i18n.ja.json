@@ -1,0 +1,109 @@
+{
+  "widgets": [
+    {
+      "title": "サービス"
+    },
+    {
+      "title": "汎用サービス",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "レイテンシ"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "仮想データベース",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "レイテンシ"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "仮想キャッシュ",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "レイテンシ"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "仮想メッセージキュー",
+      "kpis": [
+        {
+          "label": "消費"
+        },
+        {
+          "label": "生産"
+        },
+        {
+          "label": "消費レイテンシ"
+        }
+      ]
+    },
+    {
+      "title": "仮想 GenAI",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "レイテンシ"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    null,
+    null,
+    {
+      "title": "アクティブなアラーム"
+    },
+    null,
+    {
+      "kpis": [
+        {
+          "label": "ノード"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "サービス"
+        },
+        {
+          "label": "コンテナ"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "メモリ"
+        },
+        {
+          "label": "ストレージ"
+        }
+      ]
+    }
+  ]
+}

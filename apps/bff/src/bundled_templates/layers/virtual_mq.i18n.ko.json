@@ -1,0 +1,22 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          null,
+          null
+        ]
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topic"
+  }
+}

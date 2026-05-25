@@ -1,0 +1,34 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간"
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "인스턴스",
+          null
+        ]
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

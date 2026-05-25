@@ -1,0 +1,38 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "キュー"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "キュー"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "ノード"
+  }
+}

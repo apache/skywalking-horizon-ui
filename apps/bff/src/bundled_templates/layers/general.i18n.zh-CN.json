@@ -1,0 +1,149 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "错误率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "错误率"
+          }
+        ]
+      },
+      {
+        "title": "健康度",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "前 20 API",
+        "expressionLabels": [
+          "流量",
+          "慢请求",
+          "成功率"
+        ]
+      },
+      {
+        "title": "流量"
+      },
+      {
+        "title": "错误率"
+      },
+      {
+        "title": "Apdex"
+      },
+      null,
+      {
+        "title": "平均响应时间"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "endpoint": [
+      {
+        "title": "流量"
+      },
+      {
+        "title": "响应时间"
+      },
+      {
+        "title": "成功率"
+      },
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "延迟"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均响应时间"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均响应时间"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "延迟"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均响应时间"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "服务",
+    "instances": "实例",
+    "endpoints": "API",
+    "endpointDependency": "API 依赖"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "alias": "GenAI virtual",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "Taxa de sucesso"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          null,
+          {
+            "label": "Taxa de erros"
+          }
+        ]
+      },
+      null
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "Tempo médio de resposta"
+      },
+      {
+        "title": "Taxa de sucesso"
+      },
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      {
+        "title": "Taxa de sucesso"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Modelos"
+  }
+}

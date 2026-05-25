@@ -1,0 +1,16 @@
+{
+  "group": "데이터베이스",
+  "overview": {
+    "groups": [
+      {
+        "title": "상태"
+      },
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}

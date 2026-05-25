@@ -1,0 +1,149 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95"
+          },
+          {
+            "label": "Tasa de errores"
+          }
+        ]
+      },
+      {
+        "title": "Estado",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "expressionLabels": [
+          "Tráfico",
+          "Lentas",
+          "Tasa de éxito"
+        ]
+      },
+      {
+        "title": "Tráfico"
+      },
+      {
+        "title": "Tasa de errores"
+      },
+      {
+        "title": "Apdex"
+      },
+      null,
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "endpoint": [
+      {
+        "title": "Tráfico"
+      },
+      {
+        "title": "Tiempo de respuesta"
+      },
+      {
+        "title": "Tasa de éxito"
+      },
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      null,
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios",
+    "instances": "Instancias",
+    "endpoints": "API",
+    "endpointDependency": "Dependencias de API"
+  }
+}

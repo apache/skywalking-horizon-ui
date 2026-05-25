@@ -1,0 +1,66 @@
+{
+  "group": "Bancos de dados",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Saúde"
+      },
+      null,
+      {
+        "label": "Nós"
+      },
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Saúde"
+          },
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      {
+        "title": "Nós"
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "instance": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "Rede"
+      },
+      null
+    ]
+  },
+  "slots": {
+    "instances": "Nós"
+  }
+}

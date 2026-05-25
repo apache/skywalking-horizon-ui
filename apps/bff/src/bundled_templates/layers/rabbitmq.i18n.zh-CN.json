@@ -1,0 +1,38 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "队列"
+      },
+      null,
+      null,
+      null
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      {
+        "title": "队列"
+      },
+      null,
+      null
+    ]
+  },
+  "slots": {
+    "instances": "节点"
+  }
+}

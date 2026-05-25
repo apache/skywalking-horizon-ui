@@ -1,0 +1,100 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      null,
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "RPM"
+          },
+          {
+            "label": "レイテンシ"
+          },
+          {
+            "label": "エラー率"
+          }
+        ]
+      },
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "Apdex"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      null,
+      null,
+      {
+        "tableHeaders": [
+          "Pod",
+          null
+        ]
+      },
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      }
+    ]
+  },
+  "slots": {
+    "services": "K8s サービス",
+    "instances": "Pod",
+    "endpoints": "エンドポイント"
+  }
+}

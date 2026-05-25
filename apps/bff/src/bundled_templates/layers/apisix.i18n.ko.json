@@ -1,0 +1,12 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "노드"
+  }
+}
