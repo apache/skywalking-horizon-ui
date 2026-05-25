@@ -35,7 +35,12 @@ import Icon from '@/components/icons/Icon.vue';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, setLocale, type Locale } from '@/i18n';
 import { refreshConfigBundle } from '@/controls/configBundle';
 
-const { t, locale } = useI18n();
+// `useScope: 'global'` binds this composable to the global i18n
+// instance so `locale.value = next` (in setLocale) propagates here AND
+// to every other `useI18n({ useScope: 'global' })` consumer in the
+// tree. Without it, components get a component-scoped i18n that doesn't
+// follow global locale changes.
+const { t, locale } = useI18n({ useScope: 'global' });
 const queryClient = useQueryClient();
 
 const open = ref(false);

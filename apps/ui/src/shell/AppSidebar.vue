@@ -20,7 +20,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
 
-const { t } = useI18n();
+const { t } = useI18n({ useScope: 'global' });
 // Full "SkyWalking" wordmark + moon. The shipped file is white-fill
 // (designed for dark backgrounds). For light-appearance themes we
 // derive a blue (`#1368B3` — the official SkyWalking brand blue)

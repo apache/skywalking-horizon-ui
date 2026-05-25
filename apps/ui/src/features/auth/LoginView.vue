@@ -30,7 +30,12 @@ import { bff } from '@/api/client';
 import type { AuthHealth } from '@/api/scopes/admin-auth';
 import LocaleChip from '@/shell/LocaleChip.vue';
 
-const { t } = useI18n();
+// `useScope: 'global'` binds `t` to the global i18n instance so a
+// `locale` change in the top-bar / login locale chip reactively
+// re-renders this view. Without it, `<script setup>` components get a
+// component-scoped i18n whose `locale` ref is separate from the global
+// one — the chrome flips language only on a remount.
+const { t } = useI18n({ useScope: 'global' });
 
 const auth = useAuthStore();
 const router = useRouter();
