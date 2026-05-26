@@ -83,6 +83,10 @@ const router = useRouter();
 const localEdits = useLocalTemplateEdits();
 const previewOverride = usePreviewOverride();
 const sources = useTemplateSources('overview');
+// See LayerDashboardsAdmin: the source pill stays hidden until the
+// config-bundle settles so the initial pill state isn't a guess that
+// flips moments later.
+const sourcesReady = computed(() => !sources.isLoading.value);
 
 const OV_PREFIX = 'horizon.overview.';
 function summaryFrom(
@@ -165,6 +169,15 @@ function isDivergedRow(id: string): boolean {
 }
 const divergedCount = computed(() => dashboards.value.filter((d) => isDivergedRow(d.id)).length);
 const localDraftCount = computed(() => dashboards.value.filter((d) => hasLocalDraftFor(d.id)).length);
+
+// Auto-uncheck the picker filter when its underlying set drops to
+// zero. Without this the operator can hit Reset / Push / Sync — which
+// removes the matching row from the filtered set — and end up stuck
+// on an empty list with the checkbox itself disabled (since
+// divergedCount / localDraftCount === 0). Same guard as the Layer
+// Dashboards admin page.
+watch(divergedCount, (n) => { if (n === 0) divergedOnly.value = false; });
+watch(localDraftCount, (n) => { if (n === 0) localOnly.value = false; });
 const filteredDashboards = computed(() => {
   const q = listSearch.value.trim().toLowerCase();
   return dashboards.value.filter((d) => {
@@ -553,7 +566,13 @@ const isSynced = computed<boolean>(
 );
 
 const draft = ref<OverviewDashboard | null>(null);
-const editorSource = ref<'local' | 'bundled' | 'remote'>('bundled');
+// Remote is the canonical baseline. The editor opens from remote on
+// every (re-)mount (`defaultEditorSource` returns 'remote' whenever
+// remote is reachable + no local draft exists) and stays there until
+// the operator explicitly hits "Reset to bundled" or saves a local
+// draft. The initial ref matches so the source pill can stay hidden
+// on the default path.
+const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
 const loadedSnapshot = ref<string>('');
 
 function bundledContent(): OverviewDashboard | null {
@@ -587,12 +606,15 @@ function persistLocal(content: OverviewDashboard): void {
   loadedSnapshot.value = JSON.stringify(content);
 }
 
-// "Reset to ▾" dropdown — reload from a source AND adopt it as the local
-// draft (so the choice persists + Push/diff status updates).
+// "Reset to ▾" dropdown — discard the current local draft and reload
+// the editor from the picked source. Symmetric with the layer
+// dashboards editor: reset is "discard, reload", not "re-stage as a
+// new draft" (which would trigger TemplateConflictPrompt right after
+// every reset). Subsequent edits re-create a local draft naturally.
 const resetDropdownOpen = ref(false);
 function resetTo(src: 'bundled' | 'remote'): void {
   loadFrom(src);
-  if (draft.value) persistLocal(draft.value);
+  if (editName.value) localEdits.remove(editName.value);
   resetDropdownOpen.value = false;
 }
 
@@ -667,38 +689,42 @@ const isDirty = computed<boolean>(() =>
 );
 
 // Which source to seed the editor from for the current selection.
-// Priority mirrors what the operator sees on the live overview pages:
+// Remote is the canonical baseline — it's what `pickOverviewContent`
+// in the runtime bundle serves to end users — so the editor opens
+// from remote on every re-mount when remote is reachable. Priority:
 //   1. Local draft — unpublished in-progress edits in this browser.
-//   2. Remote — when bundled and remote diverged (or the row is
-//      remote-only), OAP is the source of truth and the runtime bundle
-//      loads remote via `pickOverviewContent` (bundle.ts). Loading
-//      bundled here silently disagrees with the live UI.
-//   3. Bundled — synced rows are byte-equal anyway; bundled-fallback is
-//      the bundle's only source.
-//   4. Last resort: remote when there's no bundled at all
-//      (defensive — every overview ships a bundled default today).
+//   2. Remote — the default for every re-entry when remote exists.
+//   3. Bundled — fallback for bundled-only overviews (no OAP row).
 function defaultEditorSource(): 'local' | 'bundled' | 'remote' {
   if (hasLocalDraft.value) return 'local';
-  if (editorSource.value === 'remote' && remoteAvailable.value) return 'remote';
-  const badge = editName.value ? sync.badgeFor(editName.value) : null;
-  if ((badge === 'diverged' || badge === 'remote-only') && remoteAvailable.value) {
-    return 'remote';
-  }
-  if (bundledContent()) return 'bundled';
   if (remoteAvailable.value) return 'remote';
+  if (bundledContent()) return 'bundled';
   return 'bundled';
 }
 
 // Seed the editor when the selected overview (or a background refetch)
-// changes — but never clobber unsaved keystrokes.
+// changes — but never clobber unsaved keystrokes OR an operator-driven
+// load (Reset to bundled / local draft). Defer the initial seed until
+// `sourcesReady` so the editor doesn't visibly flip from bundled to
+// remote on first mount. Once sources are ready the watcher runs
+// every time the operator picks a different overview.
 watch(
-  [selectedId, () => detailQuery.data.value, hasLocalDraft, remoteAvailable],
+  [selectedId, () => detailQuery.data.value],
   () => {
+    if (!sourcesReady.value) return;
     if (isDirty.value) return;
     loadFrom(defaultEditorSource());
   },
   { immediate: true },
 );
+
+// First-mount deferred seed. The moment sources transition to ready,
+// run the seed for the currently-selected overview once.
+watch(sourcesReady, (ready, wasReady) => {
+  if (ready && !wasReady && selectedId.value && !isDirty.value) {
+    loadFrom(defaultEditorSource());
+  }
+});
 
 /** Save the editor to the browser local draft. Never writes OAP. */
 function onSave(): void {
@@ -1058,24 +1084,26 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             <!-- Source / save / publish actions, right-aligned (same row as
                  the title + tabs, mirroring the layer dashboards editor). -->
             <div class="ot__head-actions">
-              <!-- Source pill. Mirrors the layer dashboards editor wording
-                   ("from <source>") so operators get the same hint about
-                   which bytes are currently in the buffer:
-                     - local   = unpublished browser draft
-                     - remote  = OAP-live (default for diverged / remote-
-                                 only rows so the editor agrees with what
-                                 the live menu renders)
-                     - bundled = shipped default (only when the row is
-                                 bundled-fallback or the operator just
-                                 hit "Reset to bundled")
-                   Hidden when the row is "synced" (bundled === remote) and
-                   no local draft exists, because in that case "from
-                   anything" is unambiguous noise. -->
+              <!-- Source pill — three visible states gated on
+                   `sourcesReady` so the initial render doesn't flash
+                   "from bundled" while the config bundle is still
+                   resolving (see Layer Dashboards admin for the
+                   parallel fix). -->
               <span
-                v-if="editorSource === 'local' || !isSynced"
-                class="ot__src"
-                :title="`Editing from: ${editorSource}`"
-              >from {{ editorSource }}</span>
+                v-if="sourcesReady && editorSource === 'local'"
+                class="ot__src is-local"
+                :title="t('Unpublished local edits — Push to publish to OAP.')"
+              >{{ t('from local') }}</span>
+              <span
+                v-else-if="sourcesReady && editorSource === 'bundled'"
+                class="ot__src is-bundled"
+                :title="t('Showing the shipped bundled default — Push to overwrite OAP with bundled.')"
+              >{{ t('from bundled') }}</span>
+              <span
+                v-else-if="sourcesReady && editorSource === 'remote'"
+                class="ot__src is-remote"
+                :title="t('Showing the OAP-live version. End users render the same bytes.')"
+              >{{ t('from remote') }}</span>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
                   reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -1083,8 +1111,20 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                 <template v-if="resetDropdownOpen">
                   <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
                   <div class="reset-dd-pop">
-                    <button v-if="!isSynced" class="reset-dd-item" type="button" title="Discard current edits and reload the bundled default." @click="resetTo('bundled')">Bundled</button>
-                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="remoteAvailable ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy yet.'" @click="resetTo('remote')">Remote</button>
+                    <!-- Bundled stays visible when synced; disabled
+                         with "(synced)" tail so the option is
+                         recognizable but the operator knows there's
+                         nothing meaningful to reset to. -->
+                    <button
+                      class="reset-dd-item"
+                      type="button"
+                      :disabled="isSynced"
+                      :title="isSynced
+                        ? t('Bundled equals OAP-live for this row — nothing to reset to.')
+                        : t('Discard current edits and reload the bundled default.')"
+                      @click="resetTo('bundled')"
+                    >{{ t('Bundled') }}<span v-if="isSynced" class="reset-dd-suffix"> {{ t('(synced)') }}</span></button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="remoteAvailable ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy yet.')" @click="resetTo('remote')">{{ t('Remote') }}</button>
                   </div>
                 </template>
               </div>
@@ -2222,16 +2262,22 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 
 .ot__flash { font-size: 11px; color: var(--sw-ok); }
 .ot__dirty { font-size: 11px; color: var(--sw-warn); }
+/* Source pill — per-state theme matched across all three editors
+ * (Layer Dashboards, Overview Templates, Translations):
+ *   local   → warn  : unpublished edits, action recommended
+ *   bundled → info  : informational (showing disk default)
+ *   remote  → dim   : canonical baseline, quiet */
 .ot__src {
-  font-size: 9.5px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
+  letter-spacing: var(--sw-ls-caps);
   border-radius: 4px;
   padding: 2px 7px;
 }
+.ot__src.is-local   { color: var(--sw-warn); background: var(--sw-warn-soft); border: 1px solid transparent; }
+.ot__src.is-bundled { color: var(--sw-info); background: var(--sw-info-soft); border: 1px solid transparent; }
+.ot__src.is-remote  { color: var(--sw-fg-3); background: var(--sw-bg-2);     border: 1px solid var(--sw-line-2); }
 .ot__clean { font-size: 11px; color: var(--sw-fg-3); }
 .ot__btn {
   background: var(--sw-bg-1); border: 1px solid var(--sw-line-2);

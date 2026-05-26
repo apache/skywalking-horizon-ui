@@ -171,6 +171,15 @@ function isDivergedRow(key: string): boolean {
 }
 const divergedCount = computed(() => templates.value.filter((t) => isDivergedRow(t.key)).length);
 const localCount = computed(() => templates.value.filter((t) => localEdits.has(layerEditName(t.key))).length);
+
+// Auto-uncheck the picker filter whenever its underlying set goes to
+// zero. Without this the operator can hit Reset / Push / Sync — which
+// drops the matching row out of the filter — and then be stranded on
+// an empty picker with no way to navigate to another layer (the
+// filter checkbox would also be disabled since divergedCount === 0).
+// Catches every path that depletes the set, not just reset.
+watch(divergedCount, (n) => { if (n === 0) divergedOnly.value = false; });
+watch(localCount, (n) => { if (n === 0) localOnly.value = false; });
 const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
   const q = layerSearch.value.trim().toLowerCase();
   return templates.value.filter((t) => {
@@ -192,6 +201,13 @@ const localEdits = useLocalTemplateEdits();
 // Server-side bundled + remote content for the Reset-to / Preview editor
 // sources. Local (browser draft) comes from `localEdits`.
 const sources = useTemplateSources('layer');
+// Settled-state flag for the source pill: until the config-bundle
+// fetch resolves, `hasRemote(name)` returns false for every name, so
+// any pill we render reflects the boot fallback (bundled) and then
+// flips to its real value when the bundle lands — a visual flash on
+// every page open. The pill v-if's on `sourcesReady` so it stays
+// hidden until the data is real.
+const sourcesReady = computed(() => !sources.isLoading.value);
 const previewOverride = usePreviewOverride();
 
 async function loadAll(): Promise<void> {
@@ -214,7 +230,14 @@ async function loadAll(): Promise<void> {
     if (SCOPES.includes(queryScope as AdminScope)) {
       activeScope.value = queryScope as AdminScope;
     }
-    syncDraft();
+    // Seed the editor only once the config-bundle (and hence
+    // `remoteAvailable` / `hasLocalDraft`) has resolved — otherwise
+    // syncDraft falls through to bundled and the editor visibly
+    // re-loads as the bundle lands. Two paths: (a) sources are
+    // already ready (warm cache) → run synchronously; (b) still
+    // loading → handed off to the corrective watcher below, which
+    // fires syncDraft on the false → true transition.
+    if (sourcesReady.value) syncDraft();
   } catch (err) {
     error.value = err instanceof Error ? err.message : String(err);
   } finally {
@@ -253,7 +276,14 @@ watch(
  * is the baseline for `dirty` (= unsaved edits since the last load/save).
  * Saving always writes LOCAL; you then publish LOCAL → OAP.
  * ─────────────────────────────────────────────────────────────────── */
-const editorSource = ref<'local' | 'bundled' | 'remote'>('bundled');
+// Remote is the canonical baseline (what the runtime menu renders for
+// synced + diverged + remote-only rows). The editor opens from remote
+// on every (re-)mount and stays there until the operator explicitly
+// loads bundled (Reset to bundled) or saves a local draft. The default
+// `'remote'` here matches what `syncDraft()` will pick on the first
+// pass — pre-seeding the same value lets the source pill stay hidden
+// (labelling the default would be noise).
+const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
 const loadedSnapshot = ref<string>('');
 const editName = computed(() => layerEditName(selectedKey.value));
 const hasLocalDraft = computed(() => localEdits.has(editName.value));
@@ -293,22 +323,22 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
   editorSource.value = src;
   saveMsg.value = null;
 }
-/** Seed the editor when the selected layer changes. Priority mirrors
- *  what the operator actually sees in the live menu / dashboards:
+/** Seed the editor when the selected layer changes. Remote is the
+ *  canonical baseline — it's what `pickLayerContent` in the runtime
+ *  bundle serves to end users for synced / diverged / remote-only
+ *  rows, so the editor opens from remote whenever remote is reachable.
+ *  Priority:
  *    1. Local draft — unpublished in-progress edits in this browser.
- *    2. Remote — when bundled and remote diverged (or the layer is
- *       remote-only), OAP is the source of truth and the runtime
- *       bundle loads it via `pickLayerContent` (bundle.ts). Showing
- *       bundled here would silently disagree with the live UI.
- *    3. Bundled — synced rows are byte-equal anyway; bundled-fallback
- *       is the bundle's only source. */
+ *    2. Remote — the default for every re-mount when remote exists.
+ *    3. Bundled — only when remote is absent (bundled-fallback). The
+ *       operator can also hit "Reset to bundled" explicitly to swap;
+ *       that path goes through `resetTo`, not this seed function. */
 function syncDraft(): void {
   if (hasLocalDraft.value) {
     loadFrom('local');
     return;
   }
-  const badge = sync.badgeFor(editName.value);
-  if ((badge === 'diverged' || badge === 'remote-only') && remoteAvailable.value) {
+  if (remoteAvailable.value) {
     loadFrom('remote');
     return;
   }
@@ -329,12 +359,17 @@ function persistLocal(content: AdminLayerTemplate): void {
   loadedSnapshot.value = JSON.stringify(content);
 }
 
-// "Reset to ▾" dropdown — reload the editor from a source AND adopt it as
-// the local draft (so the choice persists + Push/diff status updates).
+// "Reset to ▾" dropdown — discard the current local draft and reload the
+// editor from the picked source. The op-facing tooltip says "Discard
+// current edits and reload …", so the action must DROP the local draft
+// rather than re-stage the new content as a fresh draft (which the
+// previous implementation did via persistLocal, triggering the
+// TemplateConflictPrompt right after every reset). Subsequent edits in
+// the editor re-create a local draft naturally on the next change.
 const resetDropdownOpen = ref(false);
 function resetTo(src: 'bundled' | 'remote'): void {
   loadFrom(src);
-  if (draft.template) persistLocal(draft.template);
+  localEdits.remove(editName.value);
   resetDropdownOpen.value = false;
 }
 
@@ -387,7 +422,21 @@ function previewLive(src: 'local' | 'bundled' | 'remote'): void {
   window.open(href, '_blank', 'noopener');
 }
 
-watch(selectedKey, syncDraft);
+watch(selectedKey, () => {
+  if (sourcesReady.value) syncDraft();
+});
+
+// First-mount deferred sync. When the page opens on a cold cache
+// `loadAll()` returns before the config-bundle has settled, so the
+// initial syncDraft is skipped (see loadAll). The moment sources
+// transition to ready, run syncDraft for the currently-selected
+// layer — once. No clobber on later transitions: this only fires on
+// the false → true edge.
+watch(sourcesReady, (ready, wasReady) => {
+  if (ready && !wasReady && selectedKey.value) {
+    syncDraft();
+  }
+});
 onMounted(loadAll);
 // Force-refresh the cached config bundle on mount so per-row badges
 // (`synced` / `diverged` / `disabled`) reflect actual OAP state. Without
@@ -1599,13 +1648,29 @@ const namingTest = computed<NamingTestResult>(() => {
             </div>
             <div class="actions">
               <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
-              <!-- Where the editor content was loaded from — distinct from
-                   the sync-status chip by the title (prefixed "from "). -->
+              <!-- Source pill — three visible states, one per
+                   `editorSource`. The pill is gated on
+                   `sourcesReady` to suppress the flash on initial
+                   load: until the config-bundle settles we can't tell
+                   whether the row is remote-backed or bundled-only,
+                   so showing anything is a guess that flips moments
+                   later. Once the bundle resolves the right pill
+                   renders directly. -->
               <span
-                v-if="editorSource === 'local' || !isSynced"
-                class="src-tag"
-                :title="`Editing from: ${editorSource}`"
-              >from {{ editorSource }}</span>
+                v-if="sourcesReady && editorSource === 'local'"
+                class="src-tag is-local"
+                :title="t('Unpublished local edits — Push to publish to OAP.')"
+              >{{ t('from local') }}</span>
+              <span
+                v-else-if="sourcesReady && editorSource === 'bundled'"
+                class="src-tag is-bundled"
+                :title="t('Showing the shipped bundled default — Push to overwrite OAP with bundled.')"
+              >{{ t('from bundled') }}</span>
+              <span
+                v-else-if="sourcesReady && editorSource === 'remote'"
+                class="src-tag is-remote"
+                :title="t('Showing the OAP-live version. End users render the same bytes.')"
+              >{{ t('from remote') }}</span>
               <!-- Reset the editor to a source (discard current content). -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
@@ -1614,23 +1679,32 @@ const namingTest = computed<NamingTestResult>(() => {
                 <template v-if="resetDropdownOpen">
                   <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
                   <div class="reset-dd-pop">
+                    <!-- "Reset to → Bundled" stays visible even when
+                         the row is synced (bundled === remote). The
+                         button is disabled in that case with a
+                         "(synced)" tail so the operator can tell the
+                         option still exists but there's nothing
+                         meaningful to reset to — Bundled equals what
+                         Remote would already give them. -->
                     <button
-                      v-if="!isSynced"
                       class="reset-dd-item"
                       type="button"
-                      title="Discard current edits and reload the bundled (shipped) default."
+                      :disabled="isSynced"
+                      :title="isSynced
+                        ? t('Bundled equals OAP-live for this row — nothing to reset to.')
+                        : t('Discard current edits and reload the bundled (shipped) default.')"
                       @click="resetTo('bundled')"
                     >
-                      Bundled
+                      {{ t('Bundled') }}<span v-if="isSynced" class="reset-dd-suffix"> {{ t('(synced)') }}</span>
                     </button>
                     <button
                       class="reset-dd-item"
                       type="button"
                       :disabled="!remoteAvailable"
-                      :title="remoteAvailable ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy of this template yet.'"
+                      :title="remoteAvailable ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy of this template yet.')"
                       @click="resetTo('remote')"
                     >
-                      Remote
+                      {{ t('Remote') }}
                     </button>
                   </div>
                 </template>
@@ -3155,16 +3229,24 @@ const namingTest = computed<NamingTestResult>(() => {
   gap: 8px;
 }
 .actions .sw-btn { font-size: 11.5px; }
+/* Source pill — per-state theme matched across all three editors
+ * (Layer Dashboards, Overview Templates, Translations):
+ *   local   → warn  : unpublished edits, action recommended
+ *   bundled → info  : informational (showing disk default)
+ *   remote  → dim   : canonical baseline, quiet
+ * Geometry stays from the original `.src-tag` so widget metrics
+ * don't shift; only colour swaps per modifier class. */
 .src-tag {
-  font-size: 9.5px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
+  letter-spacing: var(--sw-ls-caps);
   border-radius: 4px;
   padding: 2px 7px;
 }
+.src-tag.is-local   { color: var(--sw-warn); background: var(--sw-warn-soft); border: 1px solid transparent; }
+.src-tag.is-bundled { color: var(--sw-info); background: var(--sw-info-soft); border: 1px solid transparent; }
+.src-tag.is-remote  { color: var(--sw-fg-3); background: var(--sw-bg-2);     border: 1px solid var(--sw-line-2); }
 /* "Reset to ▾" merged dropdown (Bundled / Remote sources). */
 .reset-dd { position: relative; display: inline-flex; }
 .reset-dd .caret { display: inline-block; transform: rotate(90deg); font-size: 11px; }
