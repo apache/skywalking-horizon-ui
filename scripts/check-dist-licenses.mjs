@@ -77,6 +77,13 @@ const ALLOWED = new Set(
     'BlueOak-1.0.0',
     'Zlib',
     'Artistic-2.0',
+    // SIL Open Font License 1.1 — Apache Category A, explicitly allowed
+    // for redistribution alongside Apache-licensed work (see
+    // https://www.apache.org/legal/resolved.html#category-a). Carried in
+    // via @fontsource-variable/inter + @fontsource-variable/jetbrains-mono;
+    // the two TTF/WOFF2 font payloads ship under OFL while the
+    // @fontsource wrapper code itself is MIT.
+    'OFL-1.1',
   ].map((s) => s.toLowerCase()),
 );
 
