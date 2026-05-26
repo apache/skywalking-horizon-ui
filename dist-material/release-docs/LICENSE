@@ -469,6 +469,11 @@
   * vue-router@4.6.4 (licenses/vue-router-4.6.4/LICENSE)
   * zod@3.25.76 (licenses/zod-3.25.76/LICENSE)
 
+--- OFL-1.1 ---
+
+  * @fontsource-variable/inter@5.2.8 (licenses/@fontsource-variable__inter-5.2.8/LICENSE)
+  * @fontsource-variable/jetbrains-mono@5.2.8 (licenses/@fontsource-variable__jetbrains-mono-5.2.8/LICENSE)
+
 --- Unlicense ---
 
   * robust-predicates@3.0.3 (licenses/robust-predicates-3.0.3/LICENSE)

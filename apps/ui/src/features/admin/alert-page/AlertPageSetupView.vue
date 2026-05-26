@@ -26,6 +26,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import { useLayers } from '@/shell/useLayers';
 import {
@@ -40,6 +41,8 @@ import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 
+const { t } = useI18n({ useScope: 'global' });
+
 // OAP UI-template sync status for the alert page-setup template
 // (`horizon.alert.page-setup`). Drives the read-only banner + Save
 // gating + the diff-and-reset modal (defined later, after the local
@@ -50,11 +53,11 @@ const sync = useTemplateSync({ kind: 'alert' });
  * row from wrapping into a second line at typical widths. */
 const MAX_PINNED = 8;
 
-const WINDOW_LABELS: Record<number, string> = {
-  [20 * 60_000]: '20 minutes',
-  [2 * 60 * 60_000]: '2 hours',
-  [4 * 60 * 60_000]: '4 hours',
-};
+const WINDOW_LABELS = computed<Record<number, string>>(() => ({
+  [20 * 60_000]: t('20 minutes'),
+  [2 * 60 * 60_000]: t('2 hours'),
+  [4 * 60 * 60_000]: t('4 hours'),
+}));
 
 const layersList = useLayers();
 const knownLayerKeys = computed<string[]>(() =>
@@ -87,11 +90,11 @@ watch(
 function validateLimit(): boolean {
   const v = Number(draftLimit.value);
   if (!Number.isInteger(v)) {
-    limitError.value = 'must be an integer';
+    limitError.value = t('must be an integer');
     return false;
   }
   if (v < OVERVIEW_ALARMS_LIMIT_MIN || v > OVERVIEW_ALARMS_LIMIT_MAX) {
-    limitError.value = `must be between ${OVERVIEW_ALARMS_LIMIT_MIN} and ${OVERVIEW_ALARMS_LIMIT_MAX}`;
+    limitError.value = t('must be between {min} and {max}', { min: OVERVIEW_ALARMS_LIMIT_MIN, max: OVERVIEW_ALARMS_LIMIT_MAX });
     return false;
   }
   limitError.value = null;
@@ -115,7 +118,7 @@ const alertDiverged = computed(() => alertStatus.value === 'diverged');
 const diffModalOpen = ref(false);
 function openDiffModal(): void { diffModalOpen.value = true; }
 function onDiffReset(): void {
-  setFlash('OAP reset to bundled · reload to see header changes');
+  setFlash(t('OAP reset to bundled · reload to see header changes'));
   void q.refetch();
 }
 
@@ -150,7 +153,7 @@ function moveLayer(i: number, dir: -1 | 1): void {
 async function onSave(): Promise<void> {
   if (!validateLimit()) return;
   if (sync.readOnly.value) {
-    setFlash('cannot save — OAP is unreachable, page is read-only');
+    setFlash(t('cannot save — OAP is unreachable, page is read-only'));
     return;
   }
   saving.value = true;
@@ -170,10 +173,14 @@ async function onSave(): Promise<void> {
     draftWindowMs.value = next.defaultWindowMs;
     draftLimit.value = next.overviewAlarmsLimit;
     setFlash(
-      `saved · ${next.pinnedLayers.length} pinned · ${WINDOW_LABELS[next.defaultWindowMs] ?? '—'} · limit ${next.overviewAlarmsLimit}`,
+      t('saved · {pinned} pinned · {window} · limit {limit}', {
+        pinned: next.pinnedLayers.length,
+        window: WINDOW_LABELS.value[next.defaultWindowMs] ?? '—',
+        limit: next.overviewAlarmsLimit,
+      }),
     );
   } catch (err) {
-    setFlash(err instanceof Error ? `error: ${err.message}` : 'save failed');
+    setFlash(err instanceof Error ? t('error: {msg}', { msg: err.message }) : t('save failed'));
   } finally {
     saving.value = false;
   }
@@ -214,29 +221,35 @@ function prettyLayer(k: string): string {
   <div class="aps">
     <header class="aps__head">
       <div>
-        <div class="aps__kicker">Dashboard setup · Alert page</div>
-        <h1>Alert page setup</h1>
+        <div class="aps__kicker">{{ t('Dashboard setup · Alert page') }}</div>
+        <h1>{{ t('Alert page setup') }}</h1>
         <p class="aps__lede">
-          Pin the OAP layers that get their own KPI tile at the top of
-          <RouterLink to="/alarms">Alarms</RouterLink>. Defaults are <code>GENERAL</code> + <code>MESH</code>.
-          Every other layer with at least one firing alarm appears
-          in the overflow chip row underneath. Reorder with the
-          arrows — left-to-right matches the page header. Up to {{ MAX_PINNED }} layers.
+          <!-- Single translation unit so non-English locales see one coherent
+               sentence; the agent's earlier split-into-three-t-calls left
+               operators on zh-CN/de seeing English prose with one Chinese
+               word in the middle. -->
+          <i18n-t keypath="Pin the OAP layers that get their own KPI tile at the top of {alarms}. Defaults are {general} + {mesh}." tag="span" scope="global">
+            <template #alarms><RouterLink to="/alarms">{{ t('Alarms') }}</RouterLink></template>
+            <template #general><code>GENERAL</code></template>
+            <template #mesh><code>MESH</code></template>
+          </i18n-t>
+          {{ ' ' }}
+          {{ t('Every other layer with at least one firing alarm appears in the overflow chip row underneath. Reorder with the arrows — left-to-right matches the page header. Up to {n} layers.', { n: MAX_PINNED }) }}
         </p>
       </div>
     </header>
 
     <SyncStatusBanner :banner="sync.banner.value" />
 
-    <div v-if="q.isPending.value" class="aps__empty">loading…</div>
+    <div v-if="q.isPending.value" class="aps__empty">{{ t('loading…') }}</div>
 
     <template v-else>
       <section class="aps__panel">
         <header class="aps__panel-head">
-          <h3>Pinned ({{ draft.length }} / {{ MAX_PINNED }})</h3>
+          <h3>{{ t('Pinned ({n} / {max})', { n: draft.length, max: MAX_PINNED }) }}</h3>
         </header>
         <div v-if="draft.length === 0" class="aps__empty-row">
-          No pinned layers. Add one from the palette below.
+          {{ t('No pinned layers. Add one from the palette below.') }}
         </div>
         <ol v-else class="aps__pinned">
           <li v-for="(key, i) in draft" :key="key" class="aps__pin">
@@ -244,7 +257,7 @@ function prettyLayer(k: string): string {
               type="button"
               class="aps__pin-arrow"
               :disabled="i === 0"
-              :title="'Move left'"
+              :title="t('Move left')"
               @click="moveLayer(i, -1)"
             >‹</button>
             <span class="aps__pin-pos mono">{{ i + 1 }}</span>
@@ -254,13 +267,13 @@ function prettyLayer(k: string): string {
               type="button"
               class="aps__pin-arrow"
               :disabled="i === draft.length - 1"
-              :title="'Move right'"
+              :title="t('Move right')"
               @click="moveLayer(i, 1)"
             >›</button>
             <button
               type="button"
               class="aps__pin-del"
-              :title="'Unpin'"
+              :title="t('Unpin')"
               @click="removeLayer(i)"
             >×</button>
           </li>
@@ -269,13 +282,11 @@ function prettyLayer(k: string): string {
 
       <section class="aps__panel">
         <header class="aps__panel-head">
-          <h3>Default time window</h3>
+          <h3>{{ t('Default time window') }}</h3>
         </header>
         <div class="aps__win">
           <p class="aps__win-lede">
-            Time window applied to all three alarm surfaces — the topbar alarm badge, the
-            alarms page's first load, and the overview "Active alarms" widget. Unified
-            here so the counts reconcile across pages.
+            {{ t('Time window applied to all three alarm surfaces — the topbar alarm badge, the alarms page\'s first load, and the overview "Active alarms" widget. Unified here so the counts reconcile across pages.') }}
           </p>
           <div class="aps__win-options">
             <label
@@ -298,20 +309,17 @@ function prettyLayer(k: string): string {
 
       <section class="aps__panel">
         <header class="aps__panel-head">
-          <h3>Overview alarms widget</h3>
+          <h3>{{ t('Overview alarms widget') }}</h3>
         </header>
         <div class="aps__win">
           <p class="aps__win-lede">
-            Per-poll fetch cap for the "Active alarms" widget on overview dashboards.
-            The widget merges the fetched events into incidents client-side and surfaces
-            the top N by recency. Higher caps catch more variety in noisy installs;
-            smaller caps cut the per-poll payload. Range
+            {{ t('Per-poll fetch cap for the "Active alarms" widget on overview dashboards. The widget merges the fetched events into incidents client-side and surfaces the top N by recency. Higher caps catch more variety in noisy installs; smaller caps cut the per-poll payload. Range') }}
             <code>{{ OVERVIEW_ALARMS_LIMIT_MIN }}</code>–<code>{{ OVERVIEW_ALARMS_LIMIT_MAX }}</code>,
-            default <code>{{ OVERVIEW_ALARMS_LIMIT_DEFAULT }}</code>.
+            {{ t('default') }} <code>{{ OVERVIEW_ALARMS_LIMIT_DEFAULT }}</code>.
           </p>
           <div class="aps__limit">
             <label>
-              <span>Fetch cap</span>
+              <span>{{ t('Fetch cap') }}</span>
               <input
                 v-model.number="draftLimit"
                 type="number"
@@ -329,10 +337,10 @@ function prettyLayer(k: string): string {
 
       <section class="aps__panel">
         <header class="aps__panel-head">
-          <h3>Add layer</h3>
+          <h3>{{ t('Add layer') }}</h3>
         </header>
         <div v-if="addableLayers.length === 0" class="aps__empty-row">
-          Every OAP-known layer is already pinned.
+          {{ t('Every OAP-known layer is already pinned.') }}
         </div>
         <div v-else class="aps__add">
           <button
@@ -352,28 +360,28 @@ function prettyLayer(k: string): string {
 
     <div class="aps__actions">
       <span v-if="flash" class="aps__flash">{{ flash }}</span>
-      <span v-else-if="isDirty" class="aps__dirty">unsaved changes</span>
-      <span v-else class="aps__clean">saved</span>
+      <span v-else-if="isDirty" class="aps__dirty">{{ t('unsaved changes') }}</span>
+      <span v-else class="aps__clean">{{ t('saved') }}</span>
       <button
         type="button"
         class="aps__btn"
         :disabled="!isDirty || saving"
         @click="onReset"
-      >reset</button>
+      >{{ t('reset') }}</button>
       <button
         v-if="alertDiverged && !sync.readOnly.value"
         type="button"
         class="aps__btn"
-        title="Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation)."
+        :title="t('Show side-by-side diff vs OAP, and reset OAP back to bundled (with confirmation).')"
         @click="openDiffModal"
-      >show diff &amp; reset</button>
+      >{{ t('show diff & reset') }}</button>
       <button
         type="button"
         class="aps__btn aps__btn--primary"
         :disabled="!isDirty || saving || sync.readOnly.value"
-        :title="sync.readOnly.value ? 'OAP unreachable — page is read-only' : ''"
+        :title="sync.readOnly.value ? t('OAP unreachable — page is read-only') : ''"
         @click="onSave"
-      >{{ saving ? 'saving…' : sync.readOnly.value ? 'read-only' : 'save to OAP' }}</button>
+      >{{ saving ? t('saving…') : sync.readOnly.value ? t('read-only') : t('save to OAP') }}</button>
     </div>
 
     <TemplateDiffModal
@@ -395,16 +403,22 @@ function prettyLayer(k: string): string {
 .aps__head {
   margin-bottom: 18px;
 }
+/* Page-title kicker. Same uppercase typography as `.sw-uplabel`, but
+ * accent-coloured so the kicker reads as a branded crumb above the
+ * page title (matches the Layer Dashboards + Overview Templates admin
+ * pages). The standardised uppercase-label colour `--sw-fg-3` is too
+ * muted for a top-of-page kicker. */
 .aps__kicker {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-accent);
   margin-bottom: 4px;
 }
 .aps h1 {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
   letter-spacing: -0.02em;
   color: var(--sw-fg-0);
   margin: 0 0 8px;
@@ -425,7 +439,7 @@ function prettyLayer(k: string): string {
 }
 .aps__lede code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   padding: 1px 5px;
@@ -435,7 +449,7 @@ function prettyLayer(k: string): string {
   padding: 24px;
   text-align: center;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .aps__panel {
@@ -451,18 +465,18 @@ function prettyLayer(k: string): string {
   border-bottom: 1px solid var(--sw-line);
 }
 .aps__panel-head h3 {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sw-fg-1);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   margin: 0;
 }
 .aps__empty-row {
   padding: 20px 14px;
   text-align: center;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .aps__pinned {
@@ -483,18 +497,18 @@ function prettyLayer(k: string): string {
   border-radius: 6px;
 }
 .aps__pin-pos {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-accent);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 .aps__pin-label {
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-medium);
   color: var(--sw-fg-0);
 }
 .aps__pin-key {
   font-family: var(--sw-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-2);
   background: var(--sw-bg-1);
   padding: 1px 5px;
@@ -506,7 +520,7 @@ function prettyLayer(k: string): string {
   border: 0;
   color: var(--sw-fg-2);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--sw-fs-lg);
   line-height: 1;
   width: 20px;
   height: 20px;
@@ -529,7 +543,7 @@ function prettyLayer(k: string): string {
 .aps__win { padding: 10px 14px 12px; }
 .aps__win-lede {
   margin: 0 0 8px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
   line-height: 1.5;
 }
@@ -546,7 +560,7 @@ function prettyLayer(k: string): string {
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
   cursor: pointer;
 }
@@ -566,11 +580,11 @@ function prettyLayer(k: string): string {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
-  font-weight: 600;
 }
 .aps__in--num {
   width: 100px;
@@ -579,13 +593,13 @@ function prettyLayer(k: string): string {
   border: 1px solid var(--sw-line);
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   padding: 5px 8px;
   border-radius: 4px;
 }
 .aps__limit-err {
   color: var(--sw-err);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .aps__add {
@@ -602,7 +616,7 @@ function prettyLayer(k: string): string {
   border: 1px solid var(--sw-line);
   color: var(--sw-fg-1);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 4px 10px;
   border-radius: 4px;
   cursor: pointer;
@@ -618,7 +632,7 @@ function prettyLayer(k: string): string {
 }
 .aps__add-chip code {
   font-family: var(--sw-mono);
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
 }
 
@@ -628,17 +642,17 @@ function prettyLayer(k: string): string {
   gap: 10px;
 }
 .aps__flash {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-ok);
   margin-right: auto;
 }
 .aps__dirty {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-warn);
   margin-right: auto;
 }
 .aps__clean {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
   margin-right: auto;
 }
@@ -647,7 +661,7 @@ function prettyLayer(k: string): string {
   border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   padding: 6px 14px;
   border-radius: 4px;
   cursor: pointer;
@@ -663,7 +677,7 @@ function prettyLayer(k: string): string {
   background: var(--sw-accent);
   border-color: var(--sw-accent);
   color: #0a0d12;
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 .aps__btn--primary:not(:disabled):hover {
   background: var(--sw-accent-light, #fb923c);

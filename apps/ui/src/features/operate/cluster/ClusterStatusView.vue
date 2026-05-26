@@ -132,7 +132,7 @@ function refreshAll(): void {
     <!-- ── Pane A · Query / GraphQL port (:12800) ────────────────── -->
     <section class="pane">
       <header class="pane-head">
-        <h2>Query / GraphQL <span class="port">:12800</span></h2>
+        <h2>{{ t('Query / GraphQL') }} <span class="port">:12800</span></h2>
         <span class="sw-badge" :class="`is-${healthState}`">
           <span class="state-dot" />{{ healthLabel }}
         </span>
@@ -229,7 +229,7 @@ function refreshAll(): void {
     <!-- ── Pane C · Zipkin / OTLP trace endpoint ─────────────────── -->
     <section class="pane">
       <header class="pane-head">
-        <h2>Zipkin / OTLP traces <span class="port">v2 REST</span></h2>
+        <h2>{{ t('Zipkin / OTLP traces') }} <span class="port">{{ t('v2 REST') }}</span></h2>
         <span class="sw-badge" :class="`is-${zipkinBadgeState}`">
           <span class="state-dot" />{{ zipkinBadgeLabel }}
         </span>
@@ -276,23 +276,24 @@ function refreshAll(): void {
   flex: 1;
 }
 .kicker {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-accent);
   margin-bottom: 6px;
 }
 .page-head h1 {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
   letter-spacing: -0.02em;
   color: var(--sw-fg-0);
   margin: 0 0 8px;
 }
 .lede {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
   margin: 0;
   max-width: 760px;
 }
@@ -301,13 +302,13 @@ function refreshAll(): void {
   background: var(--sw-bg-1);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 .refresh {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-1);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -327,29 +328,29 @@ function refreshAll(): void {
   margin-bottom: 10px;
 }
 .pane-head h2 {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
   margin: 0;
   letter-spacing: -0.01em;
 }
 .pane-head .port {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
   margin-left: 6px;
-  font-weight: 400;
+  font-weight: var(--sw-fw-regular);
 }
 .pane-head .generated {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
 }
 .pane-lede {
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-2);
   margin: 0 0 12px;
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
   max-width: 720px;
 }
 
@@ -370,8 +371,8 @@ function refreshAll(): void {
   padding: 14px 12px;
 }
 .kpi-value {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
   letter-spacing: -0.02em;
   color: var(--sw-fg-0);
   font-variant-numeric: tabular-nums;
@@ -379,12 +380,12 @@ function refreshAll(): void {
 }
 .kpi-value.mono {
   font-family: var(--sw-mono);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--sw-fs-lg);
+  font-weight: var(--sw-fw-medium);
 }
 .kpi-label {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
 }
 
@@ -394,7 +395,7 @@ function refreshAll(): void {
   background: var(--sw-err-soft);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
   display: flex;
   align-items: baseline;
@@ -402,14 +403,14 @@ function refreshAll(): void {
 }
 .last-error strong {
   color: var(--sw-err);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--sw-fs-xs);
+  letter-spacing: var(--sw-ls-caps);
 }
 .last-error code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   word-break: break-all;
 }
@@ -420,9 +421,9 @@ function refreshAll(): void {
 }
 .last-error .hint {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
 }
 .last-error .hint code {
   font-family: var(--sw-mono);
@@ -434,7 +435,7 @@ function refreshAll(): void {
 .empty {
   padding: 14px;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   background: var(--sw-bg-1);
   border: 1px dashed var(--sw-line-2);
   border-radius: 6px;
@@ -447,14 +448,14 @@ function refreshAll(): void {
   border: 1px solid var(--sw-line);
   border-radius: 8px;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 .mod-table thead th {
   text-align: left;
-  font-weight: 600;
-  font-size: 10.5px;
+  font-weight: var(--sw-fw-bold);
+  font-size: var(--sw-fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
   padding: 8px 12px;
   border-bottom: 1px solid var(--sw-line);
@@ -476,11 +477,11 @@ function refreshAll(): void {
 .modname code,
 .modenv code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
 }
 .modaffects {
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
   color: var(--sw-fg-2);
   max-width: 540px;
 }

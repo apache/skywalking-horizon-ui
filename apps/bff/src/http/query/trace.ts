@@ -55,7 +55,7 @@ import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/gr
 import { getLayerTemplate, tracesConfigFor } from '../../logic/layers/loader.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
-import { windowFromRange } from '../../util/window.js';
+import { fmtSecond, getServerOffsetMinutes, windowFromRange } from '../../util/window.js';
 import { zipkinFetchTraces, zipkinFetchTraceById, summariseZipkinTrace } from '../../client/zipkin.js';
 
 export interface TraceRouteDeps {
@@ -66,27 +66,38 @@ export interface TraceRouteDeps {
 
 const DEFAULT_WINDOW_MIN = 30;
 const MAX_WINDOW_MIN = 60 * 24 * 7; // 1 week guard
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const HH = String(d.getUTCHours()).padStart(2, '0');
-  const MM = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
+/** OAP feeds `paging.pageSize` straight to its storage layer as a
+ *  LIMIT clause (PaginationUtils.java). A direct API caller could
+ *  otherwise pass `pageSize: 100000` and exhaust the backend. The UI
+ *  picker caps at 200 — match that server-side, allowing graceful
+ *  defaulting when the body omits or mangles the field. */
+const MAX_TRACE_PAGE_SIZE = 200;
+function clampPageSize(requested: number | undefined, fallback: number): number {
+  if (!Number.isFinite(requested as number) || (requested as number) < 1) return fallback;
+  return Math.min(MAX_TRACE_PAGE_SIZE, Math.round(requested as number));
 }
-function rollingWindow(minutes: number): { start: string; end: string } {
+// Traces are RECORD-style data and have no metric-bucket cap on OAP
+// (`DurationUtils.MAX_TIME_RANGE` only applies to metric queries via
+// `assembleDurationPoints()`). Trace queries use SECOND precision so a
+// span that just finished still falls inside the window — MINUTE rounding
+// would chop off the most recent (most interesting) traces during triage.
+function rollingWindow(minutes: number, offsetMinutes: number): { start: string; end: string } {
   const m = Math.max(1, Math.min(MAX_WINDOW_MIN, Math.round(minutes)));
-  const end = new Date();
-  const start = new Date(end.getTime() - m * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
+  const endMs = Date.now();
+  const startMs = endMs - m * 60_000;
+  return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
-function explicitWindow(startIso: string, endIso: string): { start: string; end: string } | null {
+function explicitWindow(
+  startIso: string,
+  endIso: string,
+  offsetMinutes: number,
+): { start: string; end: string } | null {
   const s = new Date(startIso);
   const e = new Date(endIso);
   if (!Number.isFinite(s.getTime()) || !Number.isFinite(e.getTime()) || e.getTime() < s.getTime()) {
     return null;
   }
-  return { start: fmtMinute(s), end: fmtMinute(e) };
+  return { start: fmtSecond(s.getTime(), offsetMinutes), end: fmtSecond(e.getTime(), offsetMinutes) };
 }
 
 // ── Wire request shape ─────────────────────────────────────────────
@@ -259,14 +270,17 @@ function buildTraceCondition(
     queryDuration: {
       start: w.start,
       end: w.end,
-      step: 'MINUTE',
+      step: 'SECOND',
       ...(coldStage ? { coldStage: true } : {}),
     },
     traceState: (body.traceState ?? 'ALL') as TraceQueryState,
     queryOrder: (body.queryOrder ?? 'BY_START_TIME') as TraceQueryOrder,
     paging: {
-      pageNum: body.pageNum ?? 1,
-      pageSize: body.pageSize ?? 20,
+      pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
+      // OAP forwards `pageSize` straight to storage as a LIMIT
+      // (PaginationUtils.java). The UI picker caps at 200; mirror that
+      // server-side so the cap holds against direct API callers.
+      pageSize: clampPageSize(body.pageSize, 20),
     },
   };
 }
@@ -276,12 +290,13 @@ async function fetchNativeList(
   body: TraceListBody,
   layerKey: string,
   coldStage: boolean,
+  offsetMinutes: number,
 ): Promise<NativeTraceListResponse> {
   const api = await detectTraceQueryApi(opts);
   // Explicit start+end takes precedence over windowMinutes; falling
   // back to the rolling default when the explicit range is invalid.
-  const explicit = body.start && body.end ? explicitWindow(body.start, body.end) : null;
-  const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN);
+  const explicit = body.start && body.end ? explicitWindow(body.start, body.end, offsetMinutes) : null;
+  const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
   let serviceId: string | null = null;
   try {
     serviceId = body.serviceId
@@ -362,7 +377,7 @@ async function fetchZipkinList(
       serviceName: body.service,
       minDuration: body.minTraceDuration,
       maxDuration: body.maxTraceDuration,
-      limit: body.pageSize ?? 20,
+      limit: clampPageSize(body.pageSize, 20),
     });
     return { source: 'zipkin', traces, reachable: true };
   } catch (err) {
@@ -394,13 +409,16 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       const tracesCfg: TracesConfig = tracesConfigFor(template);
       const requestedSource: TraceSource = body.source ?? tracesCfg.source;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
 
       const wantNative = requestedSource === 'both' || requestedSource === 'native';
       const wantZipkin = requestedSource === 'both' || requestedSource === 'zipkin';
       // Fan out in parallel; partial failures don't drop the whole
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([
-        wantNative ? fetchNativeList(opts, body, layerKey, !!req.coldStage) : Promise.resolve(undefined),
+        wantNative
+          ? fetchNativeList(opts, body, layerKey, !!req.coldStage, offset)
+          : Promise.resolve(undefined),
         wantZipkin ? fetchZipkinList(opts, body) : Promise.resolve(undefined),
       ]);
 
@@ -450,7 +468,8 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
             Number.isFinite(startMs) &&
             Number.isFinite(endMs)
           ) {
-            const w = windowFromRange(q.step, startMs, endMs);
+            const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+            const w = windowFromRange(q.step, startMs, endMs, offset);
             if (w) duration = withColdStage(req, { start: w.start, end: w.end, step: w.step });
           }
           const env = await graphqlPost<{ trace: { spans: NativeSpan[] } }>(

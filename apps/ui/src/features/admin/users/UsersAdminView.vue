@@ -17,8 +17,11 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import type { AdminUsersResponse } from '@/api/scopes/admin-users';
+
+const { t } = useI18n();
 
 const data = ref<AdminUsersResponse | null>(null);
 const loading = ref(true);
@@ -69,12 +72,12 @@ const filtered = computed(() => {
 });
 
 function fmtSeen(ms: number | null): string {
-  if (ms === null) return 'never';
+  if (ms === null) return t('never');
   const diff = Math.round((Date.now() - ms) / 1000);
-  if (diff < 60) return diff <= 5 ? 'now' : `${diff}s ago`;
-  if (diff < 3600) return `${Math.round(diff / 60)}m ago`;
-  if (diff < 24 * 3600) return `${Math.round(diff / 3600)}h ago`;
-  return `${Math.round(diff / (24 * 3600))}d ago`;
+  if (diff < 60) return diff <= 5 ? t('now') : t('{n}s ago', { n: diff });
+  if (diff < 3600) return t('{n}m ago', { n: Math.round(diff / 60) });
+  if (diff < 24 * 3600) return t('{n}h ago', { n: Math.round(diff / 3600) });
+  return t('{n}d ago', { n: Math.round(diff / (24 * 3600)) });
 }
 function initials(u: string): string {
   return u.slice(0, 2).toUpperCase();
@@ -91,103 +94,115 @@ function rolePill(role: string): string {
   <div class="page">
     <header class="page-head">
       <div class="crumbs">
-        <span>Admin</span><span class="sep">/</span><span class="crumb-cur">Users</span>
+        <span>{{ t('Admin') }}</span><span class="sep">/</span><span class="crumb-cur">{{ t('Users') }}</span>
       </div>
       <div class="head-actions">
-        <button class="sw-btn" type="button" @click="load">Refresh</button>
+        <button class="sw-btn" type="button" @click="load">{{ t('Refresh') }}</button>
       </div>
     </header>
 
-    <div v-if="loading" class="loading">Loading users…</div>
-    <div v-else-if="error" class="error">Failed to load: {{ error }}</div>
+    <div v-if="loading" class="loading">{{ t('Loading users…') }}</div>
+    <div v-else-if="error" class="error">{{ t('Failed to load: {msg}', { msg: error }) }}</div>
     <template v-else-if="data">
       <!-- LDAP hint banner -->
       <div v-if="data.backend === 'ldap'" class="hint hint-info">
         <span class="hint-icon">ⓘ</span>
         <div class="hint-body">
-          <b>Users come from LDAP.</b>
-          This list is read-only. Roles are resolved from LDAP group membership via
-          <code>auth.ldap.groupMappings</code> in horizon.yaml. To add or remove a user, change
-          their group in the directory — they'll appear here on next login. Local accounts shown
-          below are break-glass only and ignored while LDAP is reachable.
+          <b>{{ t('Users come from LDAP.') }}</b>
+          <i18n-t
+            keypath="This list is read-only. Roles are resolved from LDAP group membership via {groupMappings} in horizon.yaml. To add or remove a user, change their group in the directory — they'll appear here on next login. Local accounts shown below are break-glass only and ignored while LDAP is reachable."
+            tag="span"
+            scope="global"
+          >
+            <template #groupMappings><code>auth.ldap.groupMappings</code></template>
+          </i18n-t>
         </div>
       </div>
       <div v-else class="hint hint-info">
         <span class="hint-icon">ⓘ</span>
         <div class="hint-body">
-          <b>Local users backend.</b>
-          This list mirrors <code>auth.local.users</code> in horizon.yaml. Edits to the file
-          are picked up on hot-reload. Add users via the YAML +
-          <code>pnpm --filter bff cli:hash</code> for password hashes.
+          <b>{{ t('Local users backend.') }}</b>
+          <i18n-t
+            keypath="This list mirrors {localUsers} in horizon.yaml. Edits to the file are picked up on hot-reload. Add users via the YAML + {hashCli} for password hashes."
+            tag="span"
+            scope="global"
+          >
+            <template #localUsers><code>auth.local.users</code></template>
+            <template #hashCli><code>pnpm --filter bff cli:hash</code></template>
+          </i18n-t>
         </div>
       </div>
 
       <!-- KPI cards -->
       <div class="kpi-grid">
         <div class="kpi-card">
-          <div class="kpi-label">Total</div>
+          <div class="kpi-label">{{ t('Total') }}</div>
           <div class="kpi-value">{{ data.counts.total }}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">From LDAP</div>
+          <div class="kpi-label">{{ t('From LDAP') }}</div>
           <div class="kpi-value info">{{ data.counts.fromLdap }}</div>
         </div>
         <div class="kpi-card">
-          <div class="kpi-label">Local / break-glass</div>
+          <div class="kpi-label">{{ t('Local / break-glass') }}</div>
           <div class="kpi-value">{{ data.counts.local }}</div>
         </div>
         <div class="kpi-card">
           <div
             class="kpi-label"
-            title="Last-seen activity is tracked in each BFF replica's own memory and is NOT shared across the cluster. This count reflects only the node that served this page."
+            :title="t('Last-seen activity is tracked in each BFF replica\'s own memory and is NOT shared across the cluster. This count reflects only the node that served this page.')"
           >
-            Active (24h) <span class="kpi-scope">· this node</span>
+            {{ t('Active (24h)') }} <span class="kpi-scope">· {{ t('this node') }}</span>
           </div>
           <div class="kpi-value ok">{{ data.counts.activeLast24h }}</div>
         </div>
       </div>
-      <p class="node-note">
-        Last-seen &amp; Active (24h) are tracked per BFF node (in-memory, not cluster-shared) —
-        served by <code>{{ data.node }}</code>. In a multi-replica deploy these reflect this node only.
-      </p>
+      <i18n-t
+        keypath="Last-seen & Active (24h) are tracked per BFF node (in-memory, not cluster-shared) — served by {node}. In a multi-replica deploy these reflect this node only."
+        tag="p"
+        class="node-note"
+        scope="global"
+      >
+        <template #node><code>{{ data.node }}</code></template>
+      </i18n-t>
 
       <!-- Users table -->
       <section class="sw-card">
         <header class="card-head">
-          <h3>Users</h3>
-          <span class="muted">read-only · {{ data.backend === 'ldap' ? 'LDAP + local fallback' : 'local file' }}</span>
+          <h3>{{ t('Users') }}</h3>
+          <span class="muted">{{ t('read-only') }} · {{ data.backend === 'ldap' ? t('LDAP + local fallback') : t('local file') }}</span>
           <div class="card-actions">
             <input
               v-model="filterText"
               type="text"
               class="filter-input"
-              placeholder="filter username…"
+              :placeholder="t('filter username…')"
             />
             <select v-model="sourceFilter" class="filter-select">
-              <option value="all">Source: All</option>
-              <option value="ldap">Source: LDAP</option>
-              <option value="local">Source: Local</option>
+              <option value="all">{{ t('Source: All') }}</option>
+              <option value="ldap">{{ t('Source: LDAP') }}</option>
+              <option value="local">{{ t('Source: Local') }}</option>
             </select>
             <select v-model="roleFilter" class="filter-select">
-              <option value="all">Role: All</option>
-              <option v-for="r in allRoles" :key="r" :value="r">Role: {{ r }}</option>
+              <option value="all">{{ t('Role: All') }}</option>
+              <option v-for="r in allRoles" :key="r" :value="r">{{ t('Role: {role}', { role: r }) }}</option>
             </select>
           </div>
         </header>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Username</th>
-              <th>Source</th>
-              <th>Roles</th>
-              <th title="Per-node: tracked in this BFF replica's memory only, not shared across the cluster.">Last seen <span class="th-scope">· this node</span></th>
-              <th>IP</th>
-              <th>Note</th>
+              <th>{{ t('Username') }}</th>
+              <th>{{ t('Source') }}</th>
+              <th>{{ t('Roles') }}</th>
+              <th :title="t('Per-node: tracked in this BFF replica\'s memory only, not shared across the cluster.')">{{ t('Last seen') }} <span class="th-scope">· {{ t('this node') }}</span></th>
+              <th>{{ t('IP') }}</th>
+              <th>{{ t('Note') }}</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!filtered.length">
-              <td colspan="6" class="empty">No users match the current filter.</td>
+              <td colspan="6" class="empty">{{ t('No users match the current filter.') }}</td>
             </tr>
             <tr v-for="u in filtered" :key="u.username">
               <td>
@@ -215,7 +230,7 @@ function rolePill(role: string): string {
               <td>
                 <div class="role-row">
                   <span v-for="r in u.roles" :key="r" class="pill" :class="rolePill(r)">{{ r }}</span>
-                  <span v-if="!u.roles.length" class="muted">none</span>
+                  <span v-if="!u.roles.length" class="muted">{{ t('none') }}</span>
                 </div>
               </td>
               <td class="mono" :class="{ 'muted-cell': u.lastSeenAt === null }">
@@ -223,22 +238,24 @@ function rolePill(role: string): string {
               </td>
               <td class="mono">{{ u.lastIp ?? '—' }}</td>
               <td class="muted small">
-                <template v-if="u.fallbackOnly">break-glass · file fallback</template>
-                <template v-else-if="u.staticOnly">never signed in</template>
+                <template v-if="u.fallbackOnly">{{ t('break-glass · file fallback') }}</template>
+                <template v-else-if="u.staticOnly">{{ t('never signed in') }}</template>
               </td>
             </tr>
           </tbody>
         </table>
         <footer class="table-foot">
           <span>
-            {{ filtered.length }} shown of {{ data.counts.total }} total ·
-            {{ data.counts.fromLdap }} from LDAP, {{ data.counts.local }} local · refreshed
-            {{ fmtSeen(data.generatedAt) }}
+            {{ t('{shown} shown of {total} total · {ldap} from LDAP, {local} local · refreshed {when}', { shown: filtered.length, total: data.counts.total, ldap: data.counts.fromLdap, local: data.counts.local, when: fmtSeen(data.generatedAt) }) }}
           </span>
-          <span class="muted small">
-            See what each role can do →
-            <RouterLink to="/admin/roles" class="foot-link">Roles &amp; permissions</RouterLink>
-          </span>
+          <i18n-t
+            keypath="See what each role can do → {link}"
+            tag="span"
+            class="muted small"
+            scope="global"
+          >
+            <template #link><RouterLink to="/admin/roles" class="foot-link">{{ t('Roles & permissions') }}</RouterLink></template>
+          </i18n-t>
         </footer>
       </section>
     </template>
@@ -255,9 +272,9 @@ function rolePill(role: string): string {
   align-items: center;
   margin-bottom: 16px;
 }
-.crumbs { font-size: 12px; color: var(--sw-fg-2); }
+.crumbs { font-size: var(--sw-fs-base); color: var(--sw-fg-2); }
 .crumbs .sep { margin: 0 6px; color: var(--sw-fg-3); }
-.crumb-cur { color: var(--sw-fg-0); font-weight: 600; }
+.crumb-cur { color: var(--sw-fg-0); font-weight: var(--sw-fw-semibold); }
 .head-actions { margin-left: auto; display: flex; gap: 8px; }
 
 .loading, .error {
@@ -269,19 +286,19 @@ function rolePill(role: string): string {
   display: flex; gap: 10px;
   padding: 12px 14px;
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   margin-bottom: 14px;
   /* Align the leading icon to the first line of the body text (the two
    * differ in size/weight, so `start` left them on different baselines). */
   align-items: baseline;
 }
-.hint-body { line-height: 1.55; }
+.hint-body { line-height: var(--sw-lh-relaxed); }
 .hint-info {
   background: rgba(56,189,248,0.06);
   border: 1px solid rgba(56,189,248,0.3);
   color: var(--sw-fg-1);
 }
-.hint-icon { color: var(--sw-info); font-size: 14px; font-weight: 700; }
+.hint-icon { color: var(--sw-info); font-size: var(--sw-fs-lg); font-weight: var(--sw-fw-bold); }
 .hint-body b { color: var(--sw-fg-0); }
 .hint-body code { font-family: var(--sw-mono); color: var(--sw-fg-0); }
 
@@ -298,9 +315,10 @@ function rolePill(role: string): string {
   padding: 12px 14px;
 }
 .kpi-label {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
 }
 .kpi-scope {
@@ -311,7 +329,7 @@ function rolePill(role: string): string {
 }
 .node-note {
   margin: -4px 0 14px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   line-height: 1.5;
   color: var(--sw-fg-3);
 }
@@ -322,13 +340,13 @@ function rolePill(role: string): string {
 .th-scope {
   text-transform: none;
   letter-spacing: 0;
-  font-weight: 400;
+  font-weight: var(--sw-fw-regular);
   color: var(--sw-warn);
   cursor: help;
 }
 .kpi-value {
-  font-size: 22px;
-  font-weight: 700;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-bold);
   color: var(--sw-fg-0);
   margin-top: 4px;
 }
@@ -349,9 +367,9 @@ function rolePill(role: string): string {
   border-bottom: 1px solid var(--sw-line);
   background: var(--sw-bg-2);
 }
-.card-head h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
-.muted { color: var(--sw-fg-3); font-size: 11px; }
-.muted.small { font-size: 10.5px; }
+.card-head h3 { margin: 0; font-size: var(--sw-fs-base); font-weight: var(--sw-fw-semibold); color: var(--sw-fg-0); }
+.muted { color: var(--sw-fg-3); font-size: var(--sw-fs-sm); }
+.muted.small { font-size: var(--sw-fs-xs); }
 .card-actions {
   margin-left: auto;
   display: flex;
@@ -364,7 +382,7 @@ function rolePill(role: string): string {
   border: 1px solid var(--sw-line-2);
   border-radius: 5px;
   color: var(--sw-fg-0);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   outline: none;
   width: 180px;
 }
@@ -376,7 +394,7 @@ function rolePill(role: string): string {
   border: 1px solid var(--sw-line-2);
   border-radius: 5px;
   color: var(--sw-fg-0);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
 }
 
@@ -388,17 +406,17 @@ function rolePill(role: string): string {
   text-align: left;
   padding: 8px 14px;
   background: var(--sw-bg-2);
-  color: var(--sw-fg-2);
-  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: var(--sw-ls-caps);
+  font-weight: var(--sw-fw-bold);
   border-bottom: 1px solid var(--sw-line);
 }
 .data-table td {
   padding: 8px 14px;
   border-bottom: 1px solid var(--sw-line);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
 }
 .data-table tr:last-child td { border-bottom: none; }
@@ -420,8 +438,8 @@ function rolePill(role: string): string {
   width: 22px; height: 22px;
   border-radius: 50%;
   display: grid; place-items: center;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   color: #0a0d12;
 }
 .avatar-ldap {
@@ -439,8 +457,8 @@ function rolePill(role: string): string {
   padding: 1px 7px;
   height: 18px;
   border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   border: 1px solid;
 }
 .pill-ok    { color: var(--sw-ok);    background: rgba(34,197,94,0.14);  border-color: rgba(34,197,94,0.33); }
@@ -455,7 +473,7 @@ function rolePill(role: string): string {
   align-items: center;
   padding: 8px 14px;
   border-top: 1px solid var(--sw-line);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
 }
 .table-foot .muted {

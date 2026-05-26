@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import {
@@ -32,7 +33,9 @@ import RuleCard from '@/features/operate/_shared/RuleCard.vue';
 import Pill from '@/components/primitives/Pill.vue';
 import Btn from '@/components/primitives/Btn.vue';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
+import { catalogLabel } from './catalog-labels';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -170,11 +173,11 @@ const statusFacets = computed<StatusFacet[]>(() => {
     if (matchesStatus(r, 'modified')) counts.modified += 1;
   }
   return [
-    { id: 'all', label: 'all', count: counts.all },
-    { id: 'active', label: 'active', count: counts.active },
-    { id: 'inactive', label: 'inactive', count: counts.inactive },
-    { id: 'bundled', label: 'bundled', count: counts.bundled },
-    { id: 'modified', label: 'modified', count: counts.modified },
+    { id: 'all', label: t('all'), count: counts.all },
+    { id: 'active', label: t('active'), count: counts.active },
+    { id: 'inactive', label: t('inactive'), count: counts.inactive },
+    { id: 'bundled', label: t('bundled'), count: counts.bundled },
+    { id: 'modified', label: t('modified'), count: counts.modified },
   ];
 });
 
@@ -226,19 +229,23 @@ function submitNewRule(): void {
   if (!c) return;
   const name = newRuleName.value.trim();
   if (!name) {
-    newRuleError.value = 'name is required';
+    newRuleError.value = t('name is required');
     return;
   }
   if (!NEW_RULE_NAME_RE.test(name)) {
-    newRuleError.value =
-      'name must use letters, digits, dots, underscores, dashes, or slashes';
+    newRuleError.value = t(
+      'name must use letters, digits, dots, underscores, dashes, or slashes',
+    );
     return;
   }
   // Collision check against the merged list — ACTIVE/INACTIVE rows
   // and bundled rows alike. Operator should hit "edit" on an existing
   // rule rather than overwrite via the new-rule path.
   if (mergedRules.value.some((r) => r.name === name)) {
-    newRuleError.value = `rule "${name}" already exists — open it from the grid to edit`;
+    newRuleError.value = t(
+      'rule "{name}" already exists — open it from the grid to edit',
+      { name },
+    );
     return;
   }
   showNewForm.value = false;
@@ -251,19 +258,23 @@ function submitNewRule(): void {
 
 <template>
   <div class="catalog">
-    <AdminFeatureWarning module="receiver-runtime-rule" feature-label="DSL management" />
+    <AdminFeatureWarning module="receiver-runtime-rule" :feature-label="t('DSL management')" />
     <header class="catalog__header">
       <h1 class="catalog__h1">
-        Catalog · <span class="catalog__catalog">{{ catalog ?? 'unknown' }}</span>
+        <!-- Full catalog label (e.g. "Metrics Analysis Language - OpenTelemetry Rules")
+             instead of the URL slug ("otel-rules") — operators reading the page
+             header shouldn't have to translate slug-to-language in their head.
+             Sidebar still abbreviates (MAL · OTEL, …) for space. -->
+        <span class="catalog__catalog">{{ catalog ? t(catalogLabel(catalog)) : t('Unknown catalog') }}</span>
       </h1>
-      <Pill v-if="ruleCount > 0" tone="dim">{{ ruleCount }} rules</Pill>
-      <Pill v-if="bundledCount > 0" tone="dim">{{ bundledCount }} bundled</Pill>
+      <Pill v-if="ruleCount > 0" tone="dim">{{ t('{n} rules', { n: ruleCount }) }}</Pill>
+      <Pill v-if="bundledCount > 0" tone="dim">{{ t('{n} bundled', { n: bundledCount }) }}</Pill>
       <Btn
         size="sm"
         :disabled="isPending"
-        title="re-pull this catalog from OAP"
+        :title="t('re-pull this catalog from OAP')"
         @click="refetch()"
-      >{{ isPending ? 'refreshing…' : 'refresh' }}</Btn>
+      >{{ isPending ? t('refreshing…') : t('refresh') }}</Btn>
       <span v-if="isWritableCatalog" class="catalog__newslot">
         <Btn
           v-if="!showNewForm"
@@ -271,7 +282,7 @@ function submitNewRule(): void {
           size="sm"
           data-testid="catalog-new-rule"
           @click="startNewRule"
-        >+ new rule</Btn>
+        >{{ t('+ new rule') }}</Btn>
         <form
           v-else
           class="catalog__newform"
@@ -281,12 +292,12 @@ function submitNewRule(): void {
             v-model="newRuleName"
             class="catalog__newinput"
             type="text"
-            placeholder="new rule name…"
+            :placeholder="t('new rule name…')"
             autofocus
             data-testid="catalog-new-rule-name"
           />
-          <Btn kind="primary" size="sm" type="submit">create</Btn>
-          <Btn kind="ghost" size="sm" type="button" @click="cancelNewRule">cancel</Btn>
+          <Btn kind="primary" size="sm" type="submit">{{ t('create') }}</Btn>
+          <Btn kind="ghost" size="sm" type="button" @click="cancelNewRule">{{ t('cancel') }}</Btn>
         </form>
       </span>
     </header>
@@ -294,7 +305,7 @@ function submitNewRule(): void {
     <p v-if="newRuleError" class="catalog__newerr">{{ newRuleError }}</p>
 
     <div v-if="catalog === null" class="catalog__empty">
-      Unknown catalog. Pick one from the left nav.
+      {{ t('Unknown catalog. Pick one from the left nav.') }}
     </div>
 
     <div v-else-if="isPending" class="catalog__skeletons">
@@ -302,15 +313,19 @@ function submitNewRule(): void {
     </div>
 
     <div v-else-if="isError" class="catalog__error">
-      Could not load <code>{{ catalog }}</code>.
-      <button class="catalog__retry" type="button" @click="refetch()">retry</button>
+      <i18n-t keypath="Could not load {catalog}." tag="span" scope="global">
+        <template #catalog><code>{{ catalog }}</code></template>
+      </i18n-t>
+      <button class="catalog__retry" type="button" @click="refetch()">{{ t('retry') }}</button>
     </div>
 
     <div v-else-if="ruleCount === 0" class="catalog__empty">
-      <p>No rules in this catalog yet.</p>
+      <p>{{ t('No rules in this catalog yet.') }}</p>
       <p class="catalog__hint">
-        Push one with <code>POST /runtime/rule/addOrUpdate</code> or its
-        <code>swctl</code> equivalent.
+        <i18n-t keypath="Push one with {endpoint} or its {cli} equivalent." tag="span" scope="global">
+          <template #endpoint><code>POST /runtime/rule/addOrUpdate</code></template>
+          <template #cli><code>swctl</code></template>
+        </i18n-t>
       </p>
     </div>
 
@@ -321,7 +336,7 @@ function submitNewRule(): void {
             v-model="search"
             class="catalog__search"
             type="search"
-            placeholder="filter by name…"
+            :placeholder="t('filter by name…')"
             data-testid="catalog-search"
           />
           <span v-if="search" class="catalog__searchcount">
@@ -347,11 +362,11 @@ function submitNewRule(): void {
           type="button"
           class="catalog__clear"
           @click="clearFilters"
-        >clear</button>
+        >{{ t('clear') }}</button>
       </div>
 
       <div v-if="filteredCount === 0" class="catalog__empty">
-        No rules match the current filter.
+        {{ t('No rules match the current filter.') }}
       </div>
 
       <section v-for="g in groups" :key="g.group" class="group">
@@ -393,7 +408,7 @@ function submitNewRule(): void {
   border-radius: var(--rr-radius-md);
   padding: 5px 10px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   min-width: 260px;
 }
 .catalog__newinput:focus {
@@ -405,7 +420,7 @@ function submitNewRule(): void {
 .catalog__newerr {
   margin: 0;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-err);
 }
 
@@ -437,7 +452,7 @@ function submitNewRule(): void {
   border-radius: var(--rr-radius-md);
   padding: 5px 10px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 .catalog__search:focus {
   outline: 1px solid var(--rr-active);
@@ -447,7 +462,7 @@ function submitNewRule(): void {
 
 .catalog__searchcount {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   letter-spacing: 0.4px;
 }
@@ -463,7 +478,7 @@ function submitNewRule(): void {
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 3px 10px;
   cursor: pointer;
   border-radius: var(--rr-radius-md);
@@ -487,7 +502,7 @@ function submitNewRule(): void {
 }
 .catalog__facetcount {
   color: var(--rr-dim);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 .catalog__facet--active .catalog__facetcount {
   color: var(--rr-active);
@@ -498,7 +513,7 @@ function submitNewRule(): void {
   border: 0;
   color: var(--rr-dim);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
   padding: 3px 6px;
   text-decoration: underline;
@@ -516,8 +531,8 @@ function submitNewRule(): void {
 .catalog__h1 {
   margin: 0;
   font-family: var(--rr-font-ui);
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: var(--sw-fw-medium);
+  font-size: var(--sw-fs-lg);
   color: var(--rr-heading);
 }
 
@@ -529,13 +544,13 @@ function submitNewRule(): void {
 .catalog__empty,
 .catalog__error {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
   padding: 32px 0;
 }
 
 .catalog__hint {
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
@@ -554,7 +569,7 @@ function submitNewRule(): void {
   border-radius: var(--rr-radius-md);
   cursor: pointer;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 .catalog__retry:hover {
   background: color-mix(in oklch, var(--rr-active) 15%, transparent);
@@ -605,15 +620,16 @@ function submitNewRule(): void {
 
 .group__kicker {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
+  letter-spacing: var(--sw-ls-caps);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  color: var(--sw-fg-3);
 }
 
 .group__count {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 

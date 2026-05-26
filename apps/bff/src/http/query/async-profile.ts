@@ -72,6 +72,44 @@ function clampTaskListLimit(raw: string | undefined): number {
   return Math.min(Math.floor(n), MAX_TASK_LIST_LIMIT);
 }
 
+/** Per-task caps for async-profiler / pprof bodies. OAP itself only
+ *  rejects `duration <= 0`, so without these a caller with `profile:enable`
+ *  could submit an hours-long profile that pegs the target instance's
+ *  CPU. Caps match the booster-ui defaults: 600s = 10 min duration; up
+ *  to 32 target instances per task; up to 8 event types. */
+const MAX_ASYNC_DURATION_SEC = 600;
+const MAX_PPROF_DURATION_SEC = 600;
+const MAX_PPROF_DUMP_PERIOD_SEC = 60;
+const MAX_TARGET_INSTANCES = 32;
+const MAX_EVENTS_PER_TASK = 8;
+const MAX_EXEC_ARGS_LEN = 256;
+
+function clampPositiveInt(v: unknown, max: number, fallback: number | null): number | null {
+  if (v == null) return fallback;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback;
+  return Math.min(max, Math.round(v));
+}
+
+function clampInstanceIds(ids: unknown): string[] {
+  if (!Array.isArray(ids)) return [];
+  return ids
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .slice(0, MAX_TARGET_INSTANCES);
+}
+
+function clampEvents<E extends string>(events: unknown): E[] {
+  if (Array.isArray(events)) {
+    return events.filter((s): s is E => typeof s === 'string').slice(0, MAX_EVENTS_PER_TASK);
+  }
+  if (typeof events === 'string') return [events as E];
+  return [];
+}
+
+function clampExecArgs(v: unknown): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  return v.slice(0, MAX_EXEC_ARGS_LEN);
+}
+
 // ── Async profiler queries ──────────────────────────────────────────
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
@@ -239,17 +277,31 @@ export function registerAsyncProfileRoutes(
     '/api/layer/:key/async/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as AsyncProfilingTaskCreationRequest | undefined;
+      const raw = (req.body ?? {}) as Partial<AsyncProfilingTaskCreationRequest>;
       const payload: AsyncProfilingTaskCreationResponse = { reachable: true };
-      if (!body?.serviceId) {
+      if (typeof raw.serviceId !== 'string' || !raw.serviceId) {
         payload.errorReason = 'missing serviceId';
         return reply.send(payload);
       }
+      const duration = clampPositiveInt(raw.duration, MAX_ASYNC_DURATION_SEC, null);
+      if (duration === null) {
+        payload.errorReason = `duration is required and must be 1..${MAX_ASYNC_DURATION_SEC} seconds`;
+        return reply.send(payload);
+      }
+      // Sanitised body — OAP gets exactly the fields it expects, all
+      // bounded. Unknown keys are dropped.
+      const sanitised: AsyncProfilingTaskCreationRequest = {
+        serviceId: raw.serviceId,
+        serviceInstanceIds: clampInstanceIds(raw.serviceInstanceIds),
+        duration,
+        events: clampEvents<AsyncProfilingEvent>(raw.events),
+        ...(clampExecArgs(raw.execArgs) !== undefined ? { execArgs: clampExecArgs(raw.execArgs)! } : {}),
+      };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const data = await graphqlPost<{
           task: { id?: string; errorReason?: string; code?: string };
-        }>(opts, CREATE_ASYNC_TASK, { asyncProfilerTaskCreationRequest: body });
+        }>(opts, CREATE_ASYNC_TASK, { asyncProfilerTaskCreationRequest: sanitised });
         payload.id = data.task?.id;
         payload.code = data.task?.code;
         payload.errorReason = data.task?.errorReason;
@@ -329,17 +381,35 @@ export function registerAsyncProfileRoutes(
     '/api/layer/:key/pprof/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as PprofTaskCreationRequest | undefined;
+      const raw = (req.body ?? {}) as Partial<PprofTaskCreationRequest>;
       const payload: PprofTaskCreationResponse = { reachable: true };
-      if (!body?.serviceId) {
+      if (typeof raw.serviceId !== 'string' || !raw.serviceId) {
         payload.errorReason = 'missing serviceId';
         return reply.send(payload);
       }
+      // pprof events that require a duration: CPU / BLOCK / MUTEX. Other
+      // events (HEAP / GOROUTINE / ALLOCS / THREADCREATE) are point-in-
+      // time and don't carry duration. Forward whatever the caller sent,
+      // clamped when present so the same upper bound applies.
+      const sanitised: PprofTaskCreationRequest = {
+        serviceId: raw.serviceId,
+        serviceInstanceIds: clampInstanceIds(raw.serviceInstanceIds),
+        events: typeof raw.events === 'string' ? raw.events : '',
+        ...(raw.duration !== undefined
+          ? { duration: clampPositiveInt(raw.duration, MAX_PPROF_DURATION_SEC, null) ?? 0 }
+          : {}),
+        ...(raw.dumpPeriod !== undefined
+          ? {
+              dumpPeriod:
+                clampPositiveInt(raw.dumpPeriod, MAX_PPROF_DUMP_PERIOD_SEC, null) ?? 1,
+            }
+          : {}),
+      };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const data = await graphqlPost<{
           task: { id?: string; errorReason?: string; code?: string };
-        }>(opts, CREATE_PPROF_TASK, { pprofTaskCreationRequest: body });
+        }>(opts, CREATE_PPROF_TASK, { pprofTaskCreationRequest: sanitised });
         payload.id = data.task?.id;
         payload.code = data.task?.code;
         payload.errorReason = data.task?.errorReason;

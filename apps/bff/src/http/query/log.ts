@@ -43,6 +43,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
+import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface LogRouteDeps {
   config: ConfigSource;
@@ -51,27 +52,47 @@ export interface LogRouteDeps {
 }
 
 const DEFAULT_WINDOW_MIN = 30;
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const HH = String(d.getUTCHours()).padStart(2, '0');
-  const MM = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
+/** OAP feeds `paging.pageSize` straight to its storage layer as a
+ *  LIMIT clause. The UI picker caps at 100; mirror that server-side so
+ *  the cap holds against direct API callers. */
+const MAX_LOG_PAGE_SIZE = 100;
+function clampPageSize(requested: number | undefined, fallback: number): number {
+  if (!Number.isFinite(requested as number) || (requested as number) < 1) return fallback;
+  return Math.min(MAX_LOG_PAGE_SIZE, Math.round(requested as number));
 }
+
+/** Build the log query window as SECOND-precision strings. Logs are
+ *  RECORD-style data (no metric bucket-cap) — using MINUTE step would
+ *  round off the most recent log lines for up to a minute, which is
+ *  exactly when an operator is triaging.
+ *
+ *  Three input shapes:
+ *    - explicit MINUTE form `YYYY-MM-DD HHmm` (legacy UI custom-range) —
+ *      padded to seconds with `00`. The UI emits these in its current TZ;
+ *      OAP reads them in OAP-TZ. (Same convention as booster-ui.)
+ *    - explicit SECOND form `YYYY-MM-DD HHmmss` — forwarded verbatim.
+ *    - no explicit form → rolling fallback, formatted OAP-local at
+ *      SECOND precision using the cached server offset. */
 function defaultWindow(
+  offsetMinutes: number,
   minutes?: number,
   explicit?: { startTime?: string; endTime?: string },
 ): { start: string; end: string } {
   if (explicit?.startTime && explicit.endTime) {
-    return { start: explicit.startTime, end: explicit.endTime };
+    return { start: toSecond(explicit.startTime), end: toSecond(explicit.endTime) };
   }
   const m = Number.isFinite(minutes) && (minutes as number) > 0
     ? Math.min(60 * 24 * 7, Math.round(minutes as number))
     : DEFAULT_WINDOW_MIN;
-  const end = new Date();
-  const start = new Date(end.getTime() - m * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
+  const endMs = Date.now();
+  const startMs = endMs - m * 60_000;
+  return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
+}
+
+function toSecond(s: string): string {
+  // Pad MINUTE-precision strings ("YYYY-MM-DD HHmm") to seconds. Pass
+  // SECOND-precision strings through unchanged.
+  return /\s\d{4}$/.test(s) ? `${s}00` : s;
 }
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
@@ -168,7 +189,11 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       }
       const body = (req.body ?? {}) as LogBody;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
-      const window = defaultWindow(body.windowMinutes, { startTime: body.startTime, endTime: body.endTime });
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const window = defaultWindow(offset, body.windowMinutes, {
+        startTime: body.startTime,
+        endTime: body.endTime,
+      });
 
       // Resolve a service NAME to an id if the caller used one.
       let serviceId = body.serviceId ?? null;
@@ -195,10 +220,10 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           ? { keywordsOfContent: body.keywordsOfContent }
           : {}),
         ...(body.tags && body.tags.length > 0 ? { tags: body.tags } : {}),
-        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
+        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
         paging: {
-          pageNum: body.page ?? 1,
-          pageSize: body.pageSize ?? 50,
+          pageNum: Math.max(1, Math.round(body.page ?? 1)),
+          pageSize: clampPageSize(body.pageSize, 50),
         },
       };
 
@@ -259,7 +284,11 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       const body = (req.body ?? {}) as LogBody & { sampleSize?: number };
       const sampleSize = Math.max(50, Math.min(1000, body.sampleSize ?? 200));
       const opts = buildOapOpts(deps.config.current, deps.fetch);
-      const window = defaultWindow(body.windowMinutes, { startTime: body.startTime, endTime: body.endTime });
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const window = defaultWindow(offset, body.windowMinutes, {
+        startTime: body.startTime,
+        endTime: body.endTime,
+      });
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {
         try {
@@ -287,7 +316,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         // Facet sample intentionally ignores level/tag filters so the
         // counts show the unfiltered distribution; the user picks a
         // level from the breakdown.
-        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
+        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
         paging: { pageNum: 1, pageSize: sampleSize },
       };
 

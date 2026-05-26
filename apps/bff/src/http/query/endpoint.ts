@@ -40,6 +40,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
+import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface EndpointRouteDeps {
   config: ConfigSource;
@@ -67,20 +68,6 @@ const FIND_ENDPOINTS = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const HH = String(d.getUTCHours()).padStart(2, '0');
-  const MM = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
-}
-function defaultWindow(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
-}
 
 export interface EndpointRow {
   id: string;
@@ -117,7 +104,8 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const window = defaultWindow();
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
       // OAP service-id shape: `<base64>.<digits>`. Anything else
       // (including names like `mesh-svr::r3-load.sample-services` that

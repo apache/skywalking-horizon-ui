@@ -9,6 +9,12 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.6.0
 
+This release is the production-readiness pass for Horizon UI: every page
+now renders correctly across the eight supported languages on non-UTC
+OAP deployments, with deliberate caps and validation on the load
+surfaces that operators reach. The pillars below describe the operator-
+visible result.
+
 ### Eight-locale internationalization
 
 Horizon now ships with eight first-class UI languages — English (source)
@@ -16,11 +22,17 @@ plus zh-CN, ja, ko, es, pt, de, fr — selectable from the top-bar locale
 chip on every page (including the pre-auth login). The choice persists
 per device.
 
-- **UI chrome.** Every routed page (31) and every shared sub-component
-  (24) renders through `vue-i18n`. The English catalog is the source
-  of truth at 531 keys; every other locale carries 531 native
-  translations. Missing keys fall back to English at the leaf, so
-  partial catalogs are valid and degradation is invisible.
+- **UI chrome.** Every routed page and every shared sub-component
+  renders through `vue-i18n`; non-English locales now cover every
+  admin page (Roles, Users, Auth status, Alert page setup, Global
+  defaults), every operate page (Alerting rules, DSL catalog / editor /
+  dump, OAL catalog, Live debugger + MAL / LAL / OAL, Capture history,
+  Metrics inspect, OAP config, TTL), the alarms surface, and the
+  shared modals. Long lede paragraphs that previously rendered as
+  `English | one translated word | English` mid-sentence are now
+  single translation units — inline `<code>` and links interpolate
+  without splitting the prose. Missing leaves still fall back to
+  English so partial catalogs degrade invisibly.
 - **BFF-shipped templates.** All 42 layer dashboards and both overview
   dashboards carry per-locale overlay catalogs alongside the source
   template. Coverage is ~2,300 translatable leaves per non-English
@@ -53,6 +65,108 @@ per device.
   and empty `{}` overlays are now a finding (used to pass silently —
   surfaced as "structurally complete" while every translatable string
   still rendered in English).
+
+### Typography + self-hosted fonts
+
+- **Inter + JetBrains Mono are now self-hosted.** The Google Fonts
+  CDN dependency is gone — air-gapped or firewalled deployments
+  render the intended typography instead of silently falling back
+  to system fonts.
+- **One typescale across every page.** Older admin pages that drifted
+  to a mixed pixel palette (9.5 / 10 / 10.5 / 11 / 11.5 / 12 / 14 /
+  18 / 20 / 22) now share the same six-step scale + uppercase-label
+  vocabulary as the newer dashboards. Sidebar, kpi labels, table
+  headers, kickers all line up.
+
+### Wire-correctness on non-UTC OAP
+
+Every BFF query route now spells `Duration.start` / `end` in the OAP
+server's timezone (probed once per minute, cached). Previously only
+the alarms route did this; dashboards / landing / topology / endpoint /
+endpoint-dependency / instance / eBPF / traces / logs / trace-tag all
+emitted UTC, which silently shifted every query on non-UTC OAP
+installs by the server's offset.
+
+Traces and logs additionally query at SECOND precision now (records,
+not metric buckets) — a trace that just finished falls inside the
+window instead of getting rounded off the MINUTE boundary.
+
+### Performance hardening
+
+- **Landing batches no longer 5xx on wide layers.** The per-layer
+  landing route used to build one GraphQL with up to 250 aliased
+  fragments (25 services × 10 metric columns) and trip OAP's
+  per-request complexity ceiling, blanking every cell. Chunks at 6
+  services per round-trip and fires them in parallel — same pattern
+  the dashboard route already uses.
+- **Trace waterfall opens fast on huge traces.** Rows render lazily
+  via the browser's `content-visibility` window — a 5000-span trace
+  no longer freezes the main thread on open.
+- **Backgrounded tabs stop polling.** The shared auto-refresh ticker
+  pauses when the tab is hidden and resumes (with one immediate
+  tick) on return. An unattended browser no longer streams queries
+  at the topbar interval × every subscribed widget.
+
+### RBAC + input-validation hardening
+
+- **`/api/health` no longer leaks the active session count** to
+  unauthenticated callers — the public liveness probe returns only
+  status + version. The authenticated `/api/auth/health` surface
+  still carries detail.
+- **`pageSize` capped server-side** on every trace / log route
+  (trace 200, log 100). OAP forwards `paging.pageSize` straight to
+  the storage `LIMIT`, so a client posting `pageSize: 50000`
+  previously cascaded the load to OAP. The UI picker's matching cap
+  is now defended at the BFF boundary too.
+- **Profiling task bodies validated.** Async-profiler, pprof, eBPF
+  fixed-task, and network-profiling create routes now sanitize and
+  bound their bodies — duration caps, target-instance and event-list
+  caps, payload-size clamps. Closes a DoS vector where a user with
+  `profile:enable` could submit a multi-hour profile that pegs the
+  target instance's CPU.
+
+### Diff modal console error fixed
+
+The four admin "Check diff & push" modals (Layer dashboards, Overview
+templates, Translations, the shared TemplateDiffModal) used to log
+`Uncaught (in promise) Error: Missing requestHandler or method:
+resetSchema` (two per modal — one per diff pane) the moment the
+operator opened them. Monaco's JSON language service was sending the
+message to a worker that didn't know how to handle it. Now wired
+correctly — the diff itself rendered all along, but the console is
+quiet again.
+
+### DSL / OAL catalog renames + admin editor seeding
+
+- **Catalog pages spell out the language name** in the header:
+  `Metrics Analysis Language - OpenTelemetry Rules` (and `…
+  - Telegraf Rules` / `… - Log MAL Rules`); LAL renders as `Log
+  Analysis Language`; the OAL browse as `Observability Analysis
+  Language`. The sidebar keeps the abbreviated MAL · OTEL form for
+  space.
+- **Layer Dashboards + Overview Templates editor opens REMOTE on
+  diverged rows.** The runtime menu already renders remote content
+  when the row is diverged, but the editor used to seed from
+  bundled — so operators were editing a copy that silently
+  disagreed with what end users saw. Priority is now local →
+  remote (diverged / remote-only) → bundled; the source pill on
+  both editors reads `from local / from remote / from bundled`
+  consistently.
+- **Rule card arrow stays next to the rule name.** Short names like
+  `default` / `mesh-dp` / `vm` used to float in the middle of the
+  card with a big gap from the ▶ run arrow — the arrow + name
+  are now grouped on the left, with the status pill alone pushed
+  right.
+
+### Sync-status counters don't include translation rows
+
+Per-locale overlay rows on OAP share their parent template's kind,
+so they were inflating the `remote-only` and `diverged` counts on
+the Overview Templates and Layer Dashboards admin pages (the
+banners would read `14 remote-only` / `294 remote-only` when most
+of those entries were translation rows that belong on the
+Translations page only). Filtered at bundle assembly so the
+sync-status banners count source rows only.
 
 ### Cluster Status + admin polish
 

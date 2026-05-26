@@ -51,8 +51,11 @@ import type {
   SessionResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { computed, type Ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Pill from '@/components/primitives/Pill.vue';
 import NodeCoverage from './NodeCoverage.vue';
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -171,7 +174,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
 
     <section v-if="effectiveSession" class="dv__capture">
       <header class="dv__captureh">
-        <span class="dv__sid2">session {{ effectiveSession.sessionId }}</span>
+        <span class="dv__sid2">{{ t('session {id}', { id: effectiveSession.sessionId }) }}</span>
       </header>
 
       <div v-if="sourceVisible" class="dv__sourcepane">
@@ -184,12 +187,12 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
             <span class="dv__nodeid">{{ nodeKey(node) }}</span>
             <Pill :tone="nodeStatusTone(node.status)">{{ node.status }}</Pill>
             <span v-if="node.totalBytes !== undefined" class="dv__bytes">
-              {{ node.totalBytes }} bytes
+              {{ t('{n} bytes', { n: node.totalBytes }) }}
             </span>
           </header>
           <slot name="node-body" :node="node">
             <slot name="empty" :node="node">
-              <div class="dv__nodeempty">no records from this node</div>
+              <div class="dv__nodeempty">{{ t('no records from this node') }}</div>
             </slot>
           </slot>
         </div>
@@ -199,11 +202,10 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
              explicitly so the view doesn't look broken. -->
         <div v-if="nodeViews.length === 0" class="dv__nodeempty dv__sessionempty">
           <template v-if="isHistorical">
-            This capture has no records — the session was archived
-            before any data arrived. Try a longer-running capture.
+            {{ t('This capture has no records — the session was archived before any data arrived. Try a longer-running capture.') }}
           </template>
           <template v-else>
-            Waiting for the first poll to return records…
+            {{ t('Waiting for the first poll to return records…') }}
           </template>
         </div>
       </div>
@@ -211,8 +213,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
 
     <p v-else-if="dbg.state.value === 'idle'" class="dv__hint">
       <slot name="idle-hint">
-        pick a rule and hit start. each session captures one rule's
-        pipeline stages on every cluster node simultaneously.
+        {{ t("pick a rule and hit start. each session captures one rule's pipeline stages on every cluster node simultaneously.") }}
       </slot>
     </p>
   </div>
@@ -244,7 +245,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
 
 .dv__sid {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
@@ -253,7 +254,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
   background: var(--rr-bg2);
   border: 1px solid var(--rr-err, #f44);
   color: var(--rr-err, #f44);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   margin: 0;
 }
 
@@ -275,7 +276,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
 .dv__sid2 {
   font-family: var(--rr-font-mono);
   color: var(--rr-heading);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .dv__sourcepane {
@@ -308,20 +309,20 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
 
 .dv__nodeid {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-heading);
 }
 
 .dv__bytes {
   margin-left: auto;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
 .dv__nodeempty {
   padding: 14px;
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   font-style: italic;
 }
@@ -331,7 +332,7 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
   background: var(--rr-bg2);
   border: 1px solid var(--rr-border);
   color: var(--rr-dim);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   margin: 0;
 }
 </style>

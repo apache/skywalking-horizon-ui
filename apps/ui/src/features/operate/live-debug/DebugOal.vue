@@ -472,10 +472,16 @@ const allFolded = computed<boolean>(
     <template #banner>
       <div v-if="historicalEntry" class="oal__histbanner">
         <span class="oal__histbicon">⟲</span>
-        <span>
-          {{ t('viewing saved capture from') }} <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
-          · {{ historicalEntry.catalog }} · {{ historicalEntry.name }} · {{ historicalEntry.ruleName }}
-        </span>
+        <i18n-t
+          keypath="Viewing saved capture from {time} · {catalog} · {name} · {rule}"
+          tag="span"
+          scope="global"
+        >
+          <template #time><strong>{{ formatTime(historicalEntry.savedAt) }}</strong></template>
+          <template #catalog>{{ historicalEntry.catalog }}</template>
+          <template #name>{{ historicalEntry.name }}</template>
+          <template #rule>{{ historicalEntry.ruleName }}</template>
+        </i18n-t>
         <button type="button" class="oal__histback" @click="clearHistorical">{{ t('back to live') }}</button>
       </div>
     </template>
@@ -486,12 +492,18 @@ const allFolded = computed<boolean>(
         <button type="button" @click="sourcesQuery.refetch()">{{ t('retry') }}</button>
       </p>
       <p v-if="sources.length > 0" class="oal__hint">
-        {{ t('OAP has') }}
-        <strong>{{ sources.length }}</strong>
-        {{ t('OAL source classes registered across {n} .oal files.', { n: files.length }) }}
-        {{ t('Browse them in') }}
-        <router-link to="/operate/oal" class="oal__link">{{ t('OAL catalog') }}</router-link>
-        — {{ t('every') }} <code>metric = from(Source…)</code> {{ t('line has a green ▶ that deep-links here with the picker pre-filled.') }}
+        <i18n-t
+          keypath="OAP has {count} OAL source classes registered across {files} .oal files. Browse them in {link} — every {syntax} line has a green ▶ that deep-links here with the picker pre-filled."
+          tag="span"
+          scope="global"
+        >
+          <template #count><strong>{{ sources.length }}</strong></template>
+          <template #files>{{ files.length }}</template>
+          <template #link>
+            <router-link to="/operate/oal" class="oal__link">{{ t('OAL catalog') }}</router-link>
+          </template>
+          <template #syntax><code>metric = from(Source…)</code></template>
+        </i18n-t>
       </p>
       <div v-if="totalRecordCount > 0" class="oal__subhead">
         <span class="oal__subheadct">{{ t('{n} records · {folded} folded', { n: totalRecordCount, folded: foldedRecords.size }) }}</span>
@@ -635,10 +647,11 @@ const allFolded = computed<boolean>(
 
 .ctl__lbl {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .ctl__select {
@@ -652,7 +665,7 @@ const allFolded = computed<boolean>(
   border: 1px solid var(--rr-border);
   padding: 4px 8px;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .ctl__input {
@@ -661,7 +674,7 @@ const allFolded = computed<boolean>(
 
 .ctl__editlink {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
   text-decoration: none;
   padding: 2px 8px;
@@ -692,11 +705,11 @@ const allFolded = computed<boolean>(
   background: var(--rr-bg2);
   border: 1px solid var(--rr-err, #f44);
   color: var(--rr-err, #f44);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   margin: 0;
 }
 .oal__hint {
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   line-height: 1.55;
   color: var(--rr-ink2);
   margin: 0;
@@ -710,7 +723,7 @@ const allFolded = computed<boolean>(
 .oal__link {
   color: var(--rr-accent, var(--sw-accent, #38bdf8));
   text-decoration: none;
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 .oal__link:hover {
   text-decoration: underline;
@@ -718,7 +731,7 @@ const allFolded = computed<boolean>(
 
 .oal__empty {
   padding: 14px;
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   font-style: italic;
 }
@@ -755,7 +768,7 @@ const allFolded = computed<boolean>(
   width: 12px;
   text-align: center;
   color: var(--rr-dim);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .oal__group--folded .oal__grouph {
@@ -771,7 +784,7 @@ const allFolded = computed<boolean>(
 
 .oal__subheadct {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   letter-spacing: 0.4px;
 }
@@ -787,9 +800,10 @@ const allFolded = computed<boolean>(
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 3px 10px;
   cursor: pointer;
 }
@@ -806,27 +820,27 @@ const allFolded = computed<boolean>(
 
 .oal__groupid {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-heading);
 }
 
 .oal__groupline {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
 .oal__rulename {
   margin-left: auto;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
 }
 
 .oal__waterfall {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .oal__waterfall th,
@@ -839,10 +853,11 @@ const allFolded = computed<boolean>(
 
 .oal__waterfall th {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .oal__source {
@@ -868,14 +883,14 @@ const allFolded = computed<boolean>(
   margin-right: 6px;
   font-family: var(--rr-font-mono);
   color: var(--rr-dim);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   vertical-align: middle;
   cursor: help;
 }
 
 .oal__flow--stopped {
   color: var(--rr-warn, #d6a96d);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 
 .oal__row {
@@ -904,7 +919,7 @@ const allFolded = computed<boolean>(
   background: var(--rr-bg2);
   border-bottom: 1px solid var(--rr-border);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink);
   white-space: pre-wrap;
   word-break: break-word;
@@ -926,7 +941,7 @@ const allFolded = computed<boolean>(
 
 .oal__result {
   font-family: var(--rr-font-mono);
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
 }
 
@@ -936,15 +951,16 @@ const allFolded = computed<boolean>(
   gap: 8px;
   align-items: baseline;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   line-height: 1.5;
 }
 
 .oal__lbl {
-  color: var(--rr-dim);
-  font-size: 11px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--sw-ls-caps);
   white-space: nowrap;
 }
 
@@ -955,7 +971,7 @@ const allFolded = computed<boolean>(
 
 .oal__decoded {
   color: var(--rr-dim);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   margin-left: 4px;
 }
 
@@ -968,13 +984,13 @@ const allFolded = computed<boolean>(
   border: 1px solid var(--rr-warn, #d6a96d);
   border-left-width: 3px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
 }
 
 .oal__histbicon {
   color: var(--rr-warn, #d6a96d);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
 }
 
 .oal__histback {
@@ -983,9 +999,10 @@ const allFolded = computed<boolean>(
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 3px 10px;
   cursor: pointer;
 }

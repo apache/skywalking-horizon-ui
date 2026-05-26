@@ -30,6 +30,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
@@ -37,6 +38,8 @@ import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { AVAILABLE_THEMES, useThemeStore, type ThemeId } from '@/state/theme';
 import ThemePreviewCard from './ThemePreviewCard.vue';
+
+const { t } = useI18n();
 
 // Theme store — for distinguishing the currently-ACTIVE theme (what the
 // renderer is showing right now, combining user override + org default
@@ -134,7 +137,7 @@ const dirty = computed(() => themeDirty.value || timeDirty.value);
 async function onSave(): Promise<void> {
   if (!dirty.value || saving.value) return;
   if (readOnly.value) {
-    setFlash('cannot save — OAP is unreachable, page is read-only');
+    setFlash(t('cannot save — OAP is unreachable, page is read-only'));
     return;
   }
   saving.value = true;
@@ -151,9 +154,9 @@ async function onSave(): Promise<void> {
       });
     }
     await loadFromOap();
-    setFlash('saved to OAP');
+    setFlash(t('saved to OAP'));
   } catch (err) {
-    setFlash(err instanceof Error ? `save failed: ${err.message}` : 'save failed');
+    setFlash(err instanceof Error ? t('save failed: {msg}', { msg: err.message }) : t('save failed'));
   } finally {
     saving.value = false;
   }
@@ -206,7 +209,7 @@ const themeDiffOpen = ref(false);
 const timeDiffOpen = ref(false);
 async function onDiffReset(): Promise<void> {
   await loadFromOap();
-  setFlash('OAP reset to bundled — reload to pick up the change');
+  setFlash(t('OAP reset to bundled — reload to pick up the change'));
 }
 </script>
 
@@ -214,40 +217,34 @@ async function onDiffReset(): Promise<void> {
   <div class="gd">
     <header class="gd__head">
       <div>
-        <div class="gd__kicker">Dashboard setup · Global defaults</div>
-        <h1>Global defaults</h1>
+        <div class="gd__kicker">{{ t('Dashboard setup · Global defaults') }}</div>
+        <h1>{{ t('Global defaults') }}</h1>
         <p class="gd__lede">
-          Org-wide defaults for the UI theme and the topbar's default time
-          window. Both can be overridden per-user in the browser (theme chip
-          in the topbar, "Save as my default" in the time picker). Edits here
-          write to OAP; bundled JSON is the seed + read-only fallback.
+          {{ t('Org-wide defaults for the UI theme and the topbar\'s default time window. Both can be overridden per-user in the browser (theme chip in the topbar, "Save as my default" in the time picker). Edits here write to OAP; bundled JSON is the seed + read-only fallback.') }}
         </p>
       </div>
     </header>
 
     <SyncStatusBanner :banner="themeSync.banner.value" />
 
-    <div v-if="loading" class="gd__empty">Loading from OAP…</div>
+    <div v-if="loading" class="gd__empty">{{ t('Loading from OAP…') }}</div>
     <div v-else-if="loadError" class="gd__err">{{ loadError }}</div>
 
     <template v-else>
       <!-- ── Theme ───────────────────────────────────────────────── -->
       <section class="gd__section">
         <header class="gd__sec-head">
-          <h2>Theme</h2>
+          <h2>{{ t('Theme') }}</h2>
           <TemplateStatusBadge :status="themeStatus" />
           <button
             v-if="themeDiverged && !readOnly"
             type="button"
             class="gd__small"
             @click="themeDiffOpen = true"
-          >show diff &amp; reset</button>
+          >{{ t('show diff & reset') }}</button>
         </header>
         <p class="gd__sec-lede">
-          Five bundled themes ship with Horizon. The org default is the
-          starting theme every user sees on first visit. Each user can
-          override locally via the topbar theme chip (stored in
-          <code>localStorage['horizon:theme:user']</code>).
+          {{ t('Five bundled themes ship with Horizon. The org default is the starting theme every user sees on first visit. Each user can override locally via the topbar theme chip (stored in {key}).', { key: "localStorage['horizon:theme:user']" }) }}
         </p>
         <div class="gd__theme-grid">
           <ThemePreviewCard
@@ -264,31 +261,47 @@ async function onDiffReset(): Promise<void> {
       <!-- ── Time defaults ──────────────────────────────────────── -->
       <section class="gd__section">
         <header class="gd__sec-head">
-          <h2>Default time window</h2>
+          <h2>{{ t('Default time window') }}</h2>
           <TemplateStatusBadge :status="timeStatus" />
           <button
             v-if="timeDiverged && !readOnly"
             type="button"
             class="gd__small"
             @click="timeDiffOpen = true"
-          >show diff &amp; reset</button>
+          >{{ t('show diff & reset') }}</button>
         </header>
         <p class="gd__sec-lede">
-          Default window for the topbar time picker, which feeds
-          <strong>dashboards and overviews only</strong>. The OAP
-          <code>step</code> precision is derived from the window — you
-          don't pick it separately:
+          <i18n-t keypath="Default window for the topbar time picker, which feeds {scope}. The OAP {step} precision is derived from the window — you don't pick it separately:" tag="span">
+            <template #scope><strong>{{ t('dashboards and overviews only') }}</strong></template>
+            <template #step><code>step</code></template>
+          </i18n-t>
         </p>
         <ul class="gd__sec-lede gd__sec-lede--list">
-          <li><strong>≤ 4 hours</strong> → <code>MINUTE</code> step (one bucket per minute)</li>
-          <li><strong>6 hours … 14 days</strong> → <code>HOUR</code> step (one bucket per hour)</li>
-          <li><strong>≥ 30 days</strong> → <code>DAY</code> step (one bucket per day)</li>
+          <li>
+            <i18n-t keypath="{range} → {step} step (one bucket per minute)" tag="span" scope="global">
+              <template #range><strong>{{ t('≤ 4 hours') }}</strong></template>
+              <template #step><code>MINUTE</code></template>
+            </i18n-t>
+          </li>
+          <li>
+            <i18n-t keypath="{range} → {step} step (one bucket per hour)" tag="span" scope="global">
+              <template #range><strong>{{ t('6 hours … 14 days') }}</strong></template>
+              <template #step><code>HOUR</code></template>
+            </i18n-t>
+          </li>
+          <li>
+            <i18n-t keypath="{range} → {step} step (one bucket per day)" tag="span" scope="global">
+              <template #range><strong>{{ t('≥ 30 days') }}</strong></template>
+              <template #step><code>DAY</code></template>
+            </i18n-t>
+          </li>
         </ul>
         <p class="gd__sec-lede">
-          <strong>Triage pages</strong> (alarms / traces / logs /
-          live-debugger) own their own time range and always query at
-          <code>SECOND</code> precision — they are <em>not</em>
-          affected by this setting.
+          <i18n-t keypath="{triage} (alarms / traces / logs / live-debugger) own their own time range and always query at {sec} precision — they are {not} affected by this setting." tag="span">
+            <template #triage><strong>{{ t('Triage pages') }}</strong></template>
+            <template #sec><code>SECOND</code></template>
+            <template #not><em>{{ t('not') }}</em></template>
+          </i18n-t>
         </p>
         <div class="gd__presets">
           <button
@@ -301,7 +314,7 @@ async function onDiffReset(): Promise<void> {
             @click="timeDraftMinutes = p.value"
           >{{ p.label }}</button>
           <label class="gd__custom">
-            custom (min)
+            {{ t('custom (min)') }}
             <input
               v-model.number="timeDraftMinutes"
               type="number"
@@ -312,30 +325,32 @@ async function onDiffReset(): Promise<void> {
           </label>
         </div>
         <p class="gd__resolved">
-          <strong>{{ timeDraftMinutes }} min</strong> →
-          <code>{{ draftPrecision }}</code> step,
-          {{ draftBucketCount }} bucket{{ draftBucketCount === 1 ? '' : 's' }} per query.
+          <i18n-t keypath="{minutes} → {precision} step, {buckets} per query." tag="span">
+            <template #minutes><strong>{{ t('{n} min', { n: timeDraftMinutes }) }}</strong></template>
+            <template #precision><code>{{ draftPrecision }}</code></template>
+            <template #buckets>{{ draftBucketCount === 1 ? t('{n} bucket', { n: draftBucketCount }) : t('{n} buckets', { n: draftBucketCount }) }}</template>
+          </i18n-t>
         </p>
       </section>
 
       <!-- ── Actions ────────────────────────────────────────────── -->
       <footer class="gd__actions">
         <span v-if="flash" class="gd__flash">{{ flash }}</span>
-        <span v-else-if="dirty" class="gd__dirty">unsaved changes</span>
-        <span v-else class="gd__clean">saved</span>
+        <span v-else-if="dirty" class="gd__dirty">{{ t('unsaved changes') }}</span>
+        <span v-else class="gd__clean">{{ t('saved') }}</span>
         <button
           type="button"
           class="gd__btn"
           :disabled="!dirty || saving"
           @click="onReset"
-        >reset</button>
+        >{{ t('reset') }}</button>
         <button
           type="button"
           class="gd__btn gd__btn--primary"
           :disabled="!dirty || saving || readOnly"
-          :title="readOnly ? 'OAP unreachable — page is read-only' : ''"
+          :title="readOnly ? t('OAP unreachable — page is read-only') : ''"
           @click="onSave"
-        >{{ saving ? 'saving…' : readOnly ? 'read-only' : 'save to OAP' }}</button>
+        >{{ saving ? t('saving…') : readOnly ? t('read-only') : t('save to OAP') }}</button>
       </footer>
     </template>
 
@@ -364,29 +379,34 @@ async function onDiffReset(): Promise<void> {
   color: var(--sw-fg-1);
 }
 .gd__head { margin-bottom: 14px; }
+/* Page-title kicker. Accent-coloured to match the rest of the admin
+ * surface (Overview templates, Layer dashboards, Alert page setup);
+ * the standardised uppercase-label grey `--sw-fg-3` is for in-page
+ * labels (table headers, kpi captions), not the top-of-page kicker. */
 .gd__kicker {
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  color: var(--sw-fg-3);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-accent);
   margin-bottom: 4px;
 }
 .gd h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: var(--sw-fs-xl);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
 }
 .gd__lede {
   margin: 6px 0 0;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--sw-fs-base);
+  line-height: var(--sw-lh-normal);
   color: var(--sw-fg-2);
   max-width: 880px;
 }
 .gd__empty, .gd__err {
   padding: 20px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-2);
 }
 .gd__err { color: var(--sw-err); }
@@ -404,14 +424,14 @@ async function onDiffReset(): Promise<void> {
 }
 .gd__sec-head h2 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
 }
 .gd__sec-lede {
   margin: 0 0 12px;
-  font-size: 11.5px;
-  line-height: 1.55;
+  font-size: var(--sw-fs-sm);
+  line-height: var(--sw-lh-normal);
   color: var(--sw-fg-2);
 }
 .gd__sec-lede--list {
@@ -424,7 +444,7 @@ async function onDiffReset(): Promise<void> {
 .gd__sec-lede code,
 .gd__resolved code {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   padding: 1px 4px;
   background: var(--sw-bg-2);
   border-radius: 3px;
@@ -432,7 +452,7 @@ async function onDiffReset(): Promise<void> {
 }
 .gd__resolved {
   margin: 10px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
   padding: 6px 10px;
   border-left: 2px solid var(--sw-accent-line);
@@ -458,7 +478,7 @@ async function onDiffReset(): Promise<void> {
   background: var(--sw-bg-2);
   color: var(--sw-fg-1);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
 }
 .gd__preset.active {
@@ -470,7 +490,7 @@ async function onDiffReset(): Promise<void> {
 
 .gd__custom {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
   margin-left: 6px;
 }
@@ -481,7 +501,7 @@ async function onDiffReset(): Promise<void> {
   background: var(--sw-bg-2);
   color: var(--sw-fg-0);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .gd__actions {
@@ -489,29 +509,29 @@ async function onDiffReset(): Promise<void> {
   display: flex; align-items: center; gap: 10px;
   justify-content: flex-end;
 }
-.gd__flash { font-size: 11px; color: var(--sw-ok); }
-.gd__dirty { font-size: 11px; color: var(--sw-warn); }
-.gd__clean { font-size: 11px; color: var(--sw-fg-3); }
+.gd__flash { font-size: var(--sw-fs-sm); color: var(--sw-ok); }
+.gd__dirty { font-size: var(--sw-fs-sm); color: var(--sw-warn); }
+.gd__clean { font-size: var(--sw-fs-sm); color: var(--sw-fg-3); }
 .gd__btn {
   padding: 5px 14px;
   border: 1px solid var(--sw-line);
   background: var(--sw-bg-2);
   color: var(--sw-fg-1);
   border-radius: 3px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
 }
 .gd__btn--primary {
   background: var(--sw-accent);
   border-color: var(--sw-accent);
   color: #fff;
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 .gd__btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 
 .gd__small {
   padding: 2px 8px;
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   border: 1px solid var(--sw-line);
   background: var(--sw-bg-2);
   color: var(--sw-fg-2);

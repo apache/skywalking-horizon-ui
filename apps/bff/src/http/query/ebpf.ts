@@ -53,6 +53,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
+import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
 import { getLayerTemplate, processTopologyConfigFor } from '../../logic/layers/loader.js';
 
 export interface EBPFRouteDeps {
@@ -217,6 +218,76 @@ function softErr<T extends { reachable: boolean; error?: string }>(p: T, e: unkn
   return p;
 }
 
+/* ── Task-creation body caps ────────────────────────────────────────
+ *
+ * OAP's `EBPFProfilingMutationService.java` only enforces a *minimum*
+ * duration (~5 min); without a server-side maximum a caller with
+ * `profile:enable` could submit a 24-hour profile that pegs the target
+ * instance's CPU. The bounds below match the booster-ui defaults and
+ * the order of magnitude eBPF profiling is intended for.
+ *
+ *   eBPF fixed-time task     — duration in SECONDS, capped at 30 min.
+ *   Network profiling samples — bounded list (max 8 entries), each
+ *                               with optional size caps clamped to 64
+ *                               KiB so a stray large value can't blow
+ *                               OAP's serializer.
+ */
+const MAX_EBPF_DURATION_SEC = 30 * 60;
+const MAX_PROCESS_LABELS = 32;
+const MAX_LABEL_LEN = 128;
+const VALID_EBPF_TARGETS = new Set(['ON_CPU', 'OFF_CPU', 'NETWORK']);
+
+const MAX_NETWORK_SAMPLINGS = 8;
+const MAX_URI_REGEX_LEN = 256;
+const MAX_PAYLOAD_BYTES = 64 * 1024;
+const MAX_MIN_DURATION_MS = 60 * 60 * 1000;
+
+function clampPositiveInt(v: unknown, max: number, fallback: number | null): number | null {
+  if (v == null) return fallback;
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback;
+  return Math.min(max, Math.round(v));
+}
+
+function clampNonNegativeInt(v: unknown, max: number): number | undefined {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return undefined;
+  return Math.min(max, Math.round(v));
+}
+
+function sanitiseProcessLabels(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((s): s is string => typeof s === 'string' && s.length > 0)
+    .map((s) => s.slice(0, MAX_LABEL_LEN))
+    .slice(0, MAX_PROCESS_LABELS);
+}
+
+function sanitiseNetworkSamplings(
+  raw: unknown,
+): NetworkProfilingCreateRequest['samplings'] {
+  if (!Array.isArray(raw)) return [];
+  return raw.slice(0, MAX_NETWORK_SAMPLINGS).map((entry) => {
+    const e = (entry ?? {}) as Record<string, unknown>;
+    const s = (e.settings ?? {}) as Record<string, unknown>;
+    const settings: NetworkProfilingCreateRequest['samplings'][number]['settings'] = {
+      requireCompleteRequest: s.requireCompleteRequest === true,
+      requireCompleteResponse: s.requireCompleteResponse === true,
+    };
+    const maxReq = clampNonNegativeInt(s.maxRequestSize, MAX_PAYLOAD_BYTES);
+    if (maxReq !== undefined) settings.maxRequestSize = maxReq;
+    const maxResp = clampNonNegativeInt(s.maxResponseSize, MAX_PAYLOAD_BYTES);
+    if (maxResp !== undefined) settings.maxResponseSize = maxResp;
+    const out: NetworkProfilingCreateRequest['samplings'][number] = { settings };
+    if (typeof e.uriRegex === 'string') {
+      out.uriRegex = (e.uriRegex as string).slice(0, MAX_URI_REGEX_LEN);
+    }
+    if (typeof e.when4xx === 'boolean') out.when4xx = e.when4xx;
+    if (typeof e.when5xx === 'boolean') out.when5xx = e.when5xx;
+    const minDur = clampNonNegativeInt(e.minDuration, MAX_MIN_DURATION_MS);
+    if (minDur !== undefined) out.minDuration = minDur;
+    return out;
+  });
+}
+
 async function resolveServiceId(
   opts: ReturnType<typeof buildOapOpts>,
   layerKey: string,
@@ -333,17 +404,40 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as EBPFTaskCreationRequest | undefined;
+      const raw = (req.body ?? {}) as Partial<EBPFTaskCreationRequest>;
       const payload: EBPFTaskCreationResponse = { status: false, reachable: true };
-      if (!body?.serviceId) {
+      if (typeof raw.serviceId !== 'string' || !raw.serviceId) {
         payload.errorReason = 'missing serviceId';
         return reply.send(payload);
       }
+      const targetType = typeof raw.targetType === 'string' && VALID_EBPF_TARGETS.has(raw.targetType)
+        ? (raw.targetType as EBPFTaskCreationRequest['targetType'])
+        : null;
+      if (!targetType) {
+        payload.errorReason = 'targetType must be ON_CPU, OFF_CPU, or NETWORK';
+        return reply.send(payload);
+      }
+      const duration = clampPositiveInt(raw.duration, MAX_EBPF_DURATION_SEC, null);
+      if (duration === null) {
+        payload.errorReason = `duration is required and must be 1..${MAX_EBPF_DURATION_SEC} seconds`;
+        return reply.send(payload);
+      }
+      const startTime =
+        typeof raw.startTime === 'number' && Number.isFinite(raw.startTime) && raw.startTime > 0
+          ? Math.round(raw.startTime)
+          : Date.now();
+      const sanitised: EBPFTaskCreationRequest = {
+        serviceId: raw.serviceId,
+        processLabels: sanitiseProcessLabels(raw.processLabels),
+        startTime,
+        duration,
+        targetType,
+      };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const data = await graphqlPost<{
           createTaskData: { status: boolean; errorReason?: string; id?: string };
-        }>(opts, CREATE_EBPF_FIXED_TASK, { request: body });
+        }>(opts, CREATE_EBPF_FIXED_TASK, { request: sanitised });
         payload.status = data.createTaskData?.status ?? false;
         payload.errorReason = data.createTaskData?.errorReason;
         payload.id = data.createTaskData?.id;
@@ -441,29 +535,30 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       // instance only had eBPF processes reporting during that window,
       // and may since have been replaced). Falls back to a rolling
       // window for the live view when no task is selected.
-      const startMs = Number(q.startTime);
-      const endMs = Number(q.endTime);
-      let start: Date;
-      let end: Date;
-      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
-        start = new Date(startMs);
-        end = new Date(endMs);
+      const startMsArg = Number(q.startTime);
+      const endMsArg = Number(q.endTime);
+      let startMs: number;
+      let endMs: number;
+      if (Number.isFinite(startMsArg) && Number.isFinite(endMsArg) && endMsArg > startMsArg) {
+        startMs = startMsArg;
+        endMs = endMsArg;
       } else {
         const minutes = Math.max(5, Math.min(180, Number(q.windowMinutes) || 30));
-        end = new Date();
-        start = new Date(end.getTime() - minutes * 60_000);
+        endMs = Date.now();
+        startMs = endMs - minutes * 60_000;
       }
-      const fmt = (d: Date) => {
-        const z = (n: number) => String(n).padStart(2, '0');
-        return `${d.getUTCFullYear()}-${z(d.getUTCMonth() + 1)}-${z(d.getUTCDate())} ${z(d.getUTCHours())}${z(d.getUTCMinutes())}`;
-      };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       try {
         const data = await graphqlPost<{
           topology: { nodes: ProcessTopologyResponse['nodes']; calls: ProcessTopologyResponse['calls'] };
         }>(opts, GET_PROCESS_TOPOLOGY, {
           serviceInstanceId: instance,
-          duration: withColdStage(req, { start: fmt(start), end: fmt(end), step: 'MINUTE' }),
+          duration: withColdStage(req, {
+            start: fmtMinute(startMs, offset),
+            end: fmtMinute(endMs, offset),
+            step: 'MINUTE',
+          }),
         });
         payload.nodes = data.topology?.nodes ?? [];
         payload.calls = data.topology?.calls ?? [];
@@ -479,17 +574,21 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     '/api/ebpf/network/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = req.body as NetworkProfilingCreateRequest | undefined;
+      const raw = (req.body ?? {}) as Partial<NetworkProfilingCreateRequest>;
       const payload: NetworkProfilingCreateResponse = { status: false, reachable: true };
-      if (!body?.instanceId) {
+      if (typeof raw.instanceId !== 'string' || !raw.instanceId) {
         payload.errorReason = 'missing instanceId';
         return reply.send(payload);
       }
+      const sanitised: NetworkProfilingCreateRequest = {
+        instanceId: raw.instanceId,
+        samplings: sanitiseNetworkSamplings(raw.samplings),
+      };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const data = await graphqlPost<{
           createEBPFNetworkProfiling: { status: boolean; errorReason?: string; id?: string };
-        }>(opts, NEW_NETWORK_PROFILING, { request: body });
+        }>(opts, NEW_NETWORK_PROFILING, { request: sanitised });
         payload.status = data.createEBPFNetworkProfiling?.status ?? false;
         payload.errorReason = data.createEBPFNetworkProfiling?.errorReason;
         payload.id = data.createEBPFNetworkProfiling?.id;
@@ -594,14 +693,10 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         endMs = Date.now();
         startMs = endMs - minutes * 60_000;
       }
-      // Match the network-topology route's UTC formatting so the edge
-      // metrics window lines up with the rendered graph window.
-      const fmt = (ms: number) => {
-        const d = new Date(ms);
-        const z = (n: number) => String(n).padStart(2, '0');
-        return `${d.getUTCFullYear()}-${z(d.getUTCMonth() + 1)}-${z(d.getUTCDate())} ${z(d.getUTCHours())}${z(d.getUTCMinutes())}`;
-      };
-      const w = { start: fmt(startMs), end: fmt(endMs) };
+      // Match the network-topology route's OAP-local formatting so the
+      // edge metrics window lines up with the rendered graph window.
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const w = { start: fmtMinute(startMs, offset), end: fmtMinute(endMs, offset) };
 
       // Build one aliased execExpression per metric across both sides.
       const aliasMap = new Map<string, { side: 'client' | 'server'; metric: TopologyMetricDef }>();

@@ -34,6 +34,7 @@
  * endpoints so the BFF rebuilds its attribution / dump caches.
  */
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import * as echarts from 'echarts';
 import {
@@ -49,6 +50,8 @@ import { bff, describeApiError, type InspectCatalogEntry, type InspectServerTime
 import Btn from '@/components/primitives/Btn.vue';
 import Pill from '@/components/primitives/Pill.vue';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 // ─── Types local to the page ────────────────────────────────────────
 
@@ -119,6 +122,12 @@ const PRESETS: Preset[] = [
   { label: 'last 5h', step: 'HOUR', back: 5 * 3_600_000 },
   { label: 'last 2d', step: 'DAY', back: 2 * 86_400_000 },
 ];
+/** Preset labels are stable identifiers (used for localStorage persistence
+ *  and `activePreset` comparison). Render them through this helper so the
+ *  button text translates while the underlying key stays English. */
+function presetLabel(label: string): string {
+  return t(label);
+}
 
 const step = ref<InspectStep>('MINUTE');
 const start = ref<Date>(new Date(Date.now() - PRESETS[0]!.back));
@@ -540,7 +549,10 @@ function resetBoard(): void {
 function onReset(): void {
   if (widgets.value.length === 0) return;
   const n = widgets.value.length;
-  if (!window.confirm(`Remove ${n} widget${n === 1 ? '' : 's'} from the board and clear the saved layout?`)) {
+  const msg = n === 1
+    ? t('Remove {n} widget from the board and clear the saved layout?', { n })
+    : t('Remove {n} widgets from the board and clear the saved layout?', { n });
+  if (!window.confirm(msg)) {
     return;
   }
   resetBoard();
@@ -703,7 +715,7 @@ function decodedLabel(e: EntityRow): string {
 async function resolveEntitiesFor(w: Widget): Promise<void> {
   if (!rangeValid.value) return;
   if (bucketOverflow.value) {
-    w.error = `range produces ${bucketCount.value} buckets · OAP cap is ${INSPECT_MAX_BUCKETS}. Use a smaller range or coarser step.`;
+    w.error = t('range produces {n} buckets · OAP cap is {cap}. Use a smaller range or coarser step.', { n: bucketCount.value, cap: INSPECT_MAX_BUCKETS });
     return;
   }
   w.error = null;
@@ -741,7 +753,7 @@ async function execWidget(w: Widget): Promise<void> {
   }
   if (bucketOverflow.value) {
     w.result = null;
-    w.error = `range produces ${bucketCount.value} buckets · OAP cap is ${INSPECT_MAX_BUCKETS}. Use a smaller range or coarser step.`;
+    w.error = t('range produces {n} buckets · OAP cap is {cap}. Use a smaller range or coarser step.', { n: bucketCount.value, cap: INSPECT_MAX_BUCKETS });
     return;
   }
   w.loading = true;
@@ -897,7 +909,7 @@ function addCustomEntity(w: Widget) {
   const fs = fieldsFor(scope);
   for (const k of [...fs.primary, ...fs.dest]) {
     if (!f[k].trim()) {
-      editorErr.value = `${k} is required for scope ${scope}`;
+      editorErr.value = t('{field} is required for scope {scope}', { field: k, scope });
       return;
     }
   }
@@ -1146,47 +1158,53 @@ function scopeShort(scope: InspectScope): string {
   <div class="ins">
     <AdminFeatureWarning module="inspect" feature-label="Inspect" />
     <header class="ins__header">
-      <h1 class="ins__h1">Inspect</h1>
+      <h1 class="ins__h1">{{ t('Inspect') }}</h1>
       <div class="ins__spacer" />
-      <span v-if="catalogQuery.isFetching.value" class="ins__refreshing">refreshing…</span>
-      <Btn @click="refreshEverything">refresh</Btn>
+      <span v-if="catalogQuery.isFetching.value" class="ins__refreshing">{{ t('refreshing…') }}</span>
+      <Btn @click="refreshEverything">{{ t('refresh') }}</Btn>
       <Btn
         :disabled="widgets.length === 0"
-        title="remove every widget on the board and clear the saved layout"
+        :title="t('remove every widget on the board and clear the saved layout')"
         @click="onReset"
-      >reset</Btn>
-      <Btn kind="primary" :disabled="catalogQuery.isPending.value" @click="openDrawer">+ add metric</Btn>
+      >{{ t('reset') }}</Btn>
+      <Btn kind="primary" :disabled="catalogQuery.isPending.value" @click="openDrawer">{{ t('+ add metric') }}</Btn>
     </header>
 
     <!-- INSPECT_NOT_ENABLED banner -->
     <div v-if="inspectNotEnabled" class="ins__banner ins__banner--err">
-      <strong>Inspect API not enabled on OAP.</strong>
-      Set <code>SW_INSPECT=default</code> on the admin-server, then click refresh.
+      <strong>{{ t('Inspect API not enabled on OAP.') }}</strong>
+      <i18n-t keypath="Set {flag} on the admin-server, then click refresh." tag="span">
+        <template #flag><code>SW_INSPECT=default</code></template>
+      </i18n-t>
     </div>
     <div v-else-if="catalogQuery.isError.value" class="ins__banner ins__banner--err">
-      Catalog load failed: {{ describeApiError(catalogQuery.error.value) }}
-      <Btn @click="catalogQuery.refetch()">retry</Btn>
+      <i18n-t keypath="Catalog load failed: {err}" tag="span" scope="global">
+        <template #err>{{ describeApiError(catalogQuery.error.value) }}</template>
+      </i18n-t>
+      <Btn @click="catalogQuery.refetch()">{{ t('retry') }}</Btn>
     </div>
 
     <!-- Filters / time range / capacity -->
     <section class="ins__filters">
       <header class="ins__sectionhead">
-        range &amp; capacity
+        {{ t('range & capacity') }}
         <span class="ins__sectionhint" :title="serverTimeInfo?.error ?? ''">
-          inputs are browser-local · sent to OAP in {{
-            serverTimeInfo
-              ? (serverTimeInfo.source === 'oap'
-                ? `server TZ (${signedMins(serverOffsetMinutes)})`
-                : 'browser TZ (server unreachable)')
-              : 'resolving server TZ…'
-          }}
-          · <span :class="bucketOverflow ? 'ins__buckets--err' : 'ins__buckets'">{{ bucketCount }} buckets</span>
-          <span v-if="bucketOverflow" class="ins__buckets--err"> · over OAP cap ({{ INSPECT_MAX_BUCKETS }})</span>
+          <i18n-t keypath="inputs are browser-local · sent to OAP in {tz}" tag="span" scope="global">
+            <template #tz>{{
+              serverTimeInfo
+                ? (serverTimeInfo.source === 'oap'
+                  ? t('server TZ ({tz})', { tz: signedMins(serverOffsetMinutes) })
+                  : t('browser TZ (server unreachable)'))
+                : t('resolving server TZ…')
+            }}</template>
+          </i18n-t>
+          · <span :class="bucketOverflow ? 'ins__buckets--err' : 'ins__buckets'">{{ t('{n} buckets', { n: bucketCount }) }}</span>
+          <span v-if="bucketOverflow" class="ins__buckets--err"> {{ t('· over OAP cap ({cap})', { cap: INSPECT_MAX_BUCKETS }) }}</span>
         </span>
       </header>
       <div class="ins__filters-body">
         <div class="ins__group">
-          <span class="ins__lbl">preset</span>
+          <span class="ins__lbl">{{ t('preset') }}</span>
           <div class="seg">
             <button
               v-for="p in PRESETS"
@@ -1194,11 +1212,11 @@ function scopeShort(scope: InspectScope): string {
               class="seg__btn"
               :class="{ 'seg__btn--on': activePreset === p.label }"
               @click="applyPreset(p)"
-            >{{ p.label }}</button>
+            >{{ presetLabel(p.label) }}</button>
           </div>
         </div>
         <div class="ins__group">
-          <span class="ins__lbl">range</span>
+          <span class="ins__lbl">{{ t('range') }}</span>
           <input v-model="startStr" :class="{ 'ins__input--bad': !startValid }" class="ins__input ins__input--time" spellcheck="false" @change="onStartInput" @blur="onStartInput" />
           <span class="ins__sep">→</span>
           <input v-model="endStr" :class="{ 'ins__input--bad': !endValid }" class="ins__input ins__input--time" spellcheck="false" @change="onEndInput" @blur="onEndInput" />
@@ -1207,17 +1225,17 @@ function scopeShort(scope: InspectScope): string {
           </select>
         </div>
         <div class="ins__group">
-          <span class="ins__lbl">board cap</span>
+          <span class="ins__lbl">{{ t('board cap') }}</span>
           <input v-model.number="boardCap" type="number" min="1" max="40" class="ins__input ins__input--num" />
-          <span class="ins__hint">{{ widgets.length }} / {{ boardCap }} widgets</span>
+          <span class="ins__hint">{{ t('{n} / {cap} widgets', { n: widgets.length, cap: boardCap }) }}</span>
         </div>
         <div class="ins__group">
-          <span class="ins__lbl">inspector top-n</span>
+          <span class="ins__lbl">{{ t('inspector top-n') }}</span>
           <input v-model.number="inspectorTopN" type="number" min="1" max="300" class="ins__input ins__input--num" />
-          <span class="ins__hint">backend /inspect/entities cap is 300</span>
+          <span class="ins__hint">{{ t('backend /inspect/entities cap is 300') }}</span>
         </div>
         <div class="ins__group">
-          <span class="ins__lbl">per row</span>
+          <span class="ins__lbl">{{ t('per row') }}</span>
           <div class="seg">
             <button
               v-for="d in DENSITY_OPTIONS"
@@ -1234,17 +1252,17 @@ function scopeShort(scope: InspectScope): string {
     <!-- MQE target -->
     <section class="ins__mqe">
       <header class="ins__sectionhead">
-        mqe target
+        {{ t('mqe target') }}
         <span class="ins__sectionhint">
-          where execExpression fires · resolved via /debugging/config/dump on the admin server
+          {{ t('where execExpression fires · resolved via /debugging/config/dump on the admin server') }}
         </span>
       </header>
       <div class="mqe">
         <div class="mqe__row">
-          <span class="ins__lbl">effective</span>
+          <span class="ins__lbl">{{ t('effective') }}</span>
           <code v-if="mqeTargetQuery.data.value" class="mqe__url">{{ mqeTargetQuery.data.value.baseUrl }}</code>
-          <code v-else-if="mqeTargetQuery.isPending.value" class="mqe__url">resolving…</code>
-          <code v-else class="mqe__url mqe__url--err">unresolved</code>
+          <code v-else-if="mqeTargetQuery.isPending.value" class="mqe__url">{{ t('resolving…') }}</code>
+          <code v-else class="mqe__url mqe__url--err">{{ t('unresolved') }}</code>
           <span v-if="mqeTargetQuery.data.value" class="mqe__via">{{ mqeTargetQuery.data.value.via }}</span>
           <span v-else-if="mqeTargetQuery.isError.value" class="mqe__via">{{ describeApiError(mqeTargetQuery.error.value) }}</span>
         </div>
@@ -1254,14 +1272,16 @@ function scopeShort(scope: InspectScope): string {
     <!-- Board -->
     <section class="ins__board-section">
       <header class="ins__sectionhead">
-        board
+        {{ t('board') }}
         <span class="ins__sectionhint">
-          5 per row · per-widget entity defaults to top-1 from /inspect/entities
+          {{ t('5 per row · per-widget entity defaults to top-1 from /inspect/entities') }}
         </span>
       </header>
 
       <div v-if="widgets.length === 0" class="ins__empty">
-        no metrics on the board — use <em>+ add metric</em> to open the catalog drawer.
+        <i18n-t keypath="no metrics on the board — use {action} to open the catalog drawer." tag="span">
+          <template #action><em>{{ t('+ add metric') }}</em></template>
+        </i18n-t>
       </div>
 
       <div
@@ -1276,19 +1296,19 @@ function scopeShort(scope: InspectScope): string {
           <header class="card__head">
             <div class="card__title" :title="w.metric.name">{{ w.metric.name }}</div>
             <div class="card__actions">
-              <button class="iconbtn" :title="`chart: ${w.chart} (click to cycle)`" @click="cycleChart(w)">{{ w.chart }}</button>
-              <button class="iconbtn iconbtn--x" title="remove from board" @click="removeWidget(w.id)">×</button>
+              <button class="iconbtn" :title="t('chart: {kind} (click to cycle)', { kind: w.chart })" @click="cycleChart(w)">{{ w.chart }}</button>
+              <button class="iconbtn iconbtn--x" :title="t('remove from board')" @click="removeWidget(w.id)">×</button>
             </div>
             <div class="card__pills">
               <Pill :tone="sourcePillTone(w.metric.attribution.source as Source)">{{ w.metric.attribution.source }}</Pill>
-              <Pill tone="ok" :title="`entity type: ${w.metric.scope}`">{{ scopeShort(w.metric.scope) }}</Pill>
+              <Pill tone="ok" :title="t('entity type: {scope}', { scope: w.metric.scope })">{{ scopeShort(w.metric.scope) }}</Pill>
             </div>
           </header>
 
           <div class="card__entity">
             <button
               class="entity-nav"
-              title="previous entity"
+              :title="t('previous entity')"
               :disabled="widgetAllEntities(w).length < 2"
               @click="stepEntity(w, -1)"
             >◀</button>
@@ -1301,44 +1321,46 @@ function scopeShort(scope: InspectScope): string {
                 </span>
               </template>
               <template v-else-if="w.selectedIds.size > 1">
-                <span class="entity__decoded">{{ w.selectedIds.size }} entities</span>
-                <span class="entity__idx">multi · edit</span>
+                <span class="entity__decoded">{{ t('{n} entities', { n: w.selectedIds.size }) }}</span>
+                <span class="entity__idx">{{ t('multi · edit') }}</span>
               </template>
               <template v-else>
-                <span class="entity__decoded entity__decoded--empty">{{ w.resolvedFetched ? 'no entity' : 'click to load' }}</span>
+                <span class="entity__decoded entity__decoded--empty">{{ w.resolvedFetched ? t('no entity') : t('click to load') }}</span>
               </template>
             </button>
             <button
               class="entity-nav"
-              title="next entity"
+              :title="t('next entity')"
               :disabled="widgetAllEntities(w).length < 2"
               @click="stepEntity(w, 1)"
             >▶</button>
             <button
               class="entity-nav"
-              title="refresh entities + replot from this metric"
+              :title="t('refresh entities + replot from this metric')"
               :disabled="w.loading"
               @click="rerunInspectFor(w)"
             >↻</button>
-            <button class="link" title="copy mqeEntity JSON" @click="copyMqeEntity(w)">copy</button>
+            <button class="link" :title="t('copy mqeEntity JSON')" @click="copyMqeEntity(w)">{{ t('copy') }}</button>
 
             <div v-if="editorForWidget === w.id" class="editor" @click.stop>
               <header class="editor__head">
-                <span>entities · <code>{{ w.metric.name }}</code></span>
-                <button class="link" @click="closeEditor">close</button>
+                <i18n-t keypath="entities · {metric}" tag="span">
+                  <template #metric><code>{{ w.metric.name }}</code></template>
+                </i18n-t>
+                <button class="link" @click="closeEditor">{{ t('close') }}</button>
               </header>
 
               <div class="editor__toolbar">
-                <Btn @click="selectAll(w)">all</Btn>
-                <Btn @click="selectNone(w)">none</Btn>
-                <Btn @click="selectTop(w, 5)">top 5</Btn>
-                <Btn @click="selectTop(w, inspectorTopN)">top {{ inspectorTopN }}</Btn>
-                <Btn @click="rerunInspectFor(w)">refetch</Btn>
+                <Btn @click="selectAll(w)">{{ t('all') }}</Btn>
+                <Btn @click="selectNone(w)">{{ t('none') }}</Btn>
+                <Btn @click="selectTop(w, 5)">{{ t('top {n}', { n: 5 }) }}</Btn>
+                <Btn @click="selectTop(w, inspectorTopN)">{{ t('top {n}', { n: inspectorTopN }) }}</Btn>
+                <Btn @click="rerunInspectFor(w)">{{ t('refetch') }}</Btn>
               </div>
 
               <div v-if="w.error" class="editor__err">{{ w.error }}</div>
 
-              <div class="editor__sectionhead">resolved · {{ w.resolvedEntities.length }} from /inspect/entities</div>
+              <div class="editor__sectionhead">{{ t('resolved · {n} from /inspect/entities', { n: w.resolvedEntities.length }) }}</div>
               <ul class="editor__list">
                 <li v-for="e in w.resolvedEntities" :key="e.entityId">
                   <label class="editor__row">
@@ -1348,27 +1370,29 @@ function scopeShort(scope: InspectScope): string {
                   </label>
                 </li>
                 <li v-if="w.resolvedEntities.length === 0" class="editor__empty">
-                  /inspect/entities returned no rows in the selected range
+                  {{ t('/inspect/entities returned no rows in the selected range') }}
                 </li>
               </ul>
 
-              <div v-if="w.customEntities.length > 0" class="editor__sectionhead">custom · {{ w.customEntities.length }} added by hand</div>
+              <div v-if="w.customEntities.length > 0" class="editor__sectionhead">{{ t('custom · {n} added by hand', { n: w.customEntities.length }) }}</div>
               <ul v-if="w.customEntities.length > 0" class="editor__list">
                 <li v-for="e in w.customEntities" :key="e.entityId">
                   <label class="editor__row">
                     <input type="checkbox" :checked="w.selectedIds.has(e.entityId)" @change="toggleEntity(w, e)" />
                     <span class="editor__decoded">{{ decodedLabel(e) }}</span>
-                    <button class="link editor__remove" @click.prevent="removeCustom(w, e)">remove</button>
+                    <button class="link editor__remove" @click.prevent="removeCustom(w, e)">{{ t('remove') }}</button>
                   </label>
                 </li>
               </ul>
 
-              <div class="editor__sectionhead">add · custom entity</div>
+              <div class="editor__sectionhead">{{ t('add · custom entity') }}</div>
               <div class="editor__form">
                 <div class="editor__formrow">
-                  <span class="editor__formlabel">scope</span>
+                  <span class="editor__formlabel">{{ t('scope') }}</span>
                   <Pill tone="dim">{{ w.metric.scope }}</Pill>
-                  <span class="editor__formhint">fixed by /inspect/metrics for <code>{{ w.metric.name }}</code></span>
+                  <i18n-t keypath="fixed by /inspect/metrics for {metric}" tag="span" class="editor__formhint">
+                    <template #metric><code>{{ w.metric.name }}</code></template>
+                  </i18n-t>
                 </div>
 
                 <template v-for="k in fieldsFor(w.metric.scope).primary" :key="`p-${k}`">
@@ -1379,15 +1403,15 @@ function scopeShort(scope: InspectScope): string {
                 </template>
 
                 <div class="editor__formrow">
-                  <span class="editor__formlabel">normal</span>
+                  <span class="editor__formlabel">{{ t('normal') }}</span>
                   <label class="editor__check">
                     <input v-model="editorForm.normal" type="checkbox" />
-                    <span>real · agent-instrumented (uncheck for virtual entities)</span>
+                    <span>{{ t('real · agent-instrumented (uncheck for virtual entities)') }}</span>
                   </label>
                 </div>
 
                 <template v-if="fieldsFor(w.metric.scope).dest.length > 0">
-                  <div class="editor__formdivider">→ destination</div>
+                  <div class="editor__formdivider">{{ t('→ destination') }}</div>
                   <template v-for="k in fieldsFor(w.metric.scope).dest" :key="`d-${k}`">
                     <div class="editor__formrow">
                       <span class="editor__formlabel">{{ k }}</span>
@@ -1398,22 +1422,22 @@ function scopeShort(scope: InspectScope): string {
                     <span class="editor__formlabel">destNormal</span>
                     <label class="editor__check">
                       <input v-model="editorForm.destNormal" type="checkbox" />
-                      <span>real · agent-instrumented</span>
+                      <span>{{ t('real · agent-instrumented') }}</span>
                     </label>
                   </div>
                 </template>
               </div>
               <div v-if="editorErr" class="editor__err">{{ editorErr }}</div>
               <div class="editor__footer">
-                <span class="editor__hint">use for entities /inspect/entities did not surface.</span>
-                <Btn kind="primary" @click="addCustomEntity(w)">add entity</Btn>
+                <span class="editor__hint">{{ t('use for entities /inspect/entities did not surface.') }}</span>
+                <Btn kind="primary" @click="addCustomEntity(w)">{{ t('add entity') }}</Btn>
               </div>
             </div>
           </div>
 
           <div class="card__chartwrap">
             <div v-if="w.loading" class="card__empty">
-              <div class="card__empty-text">loading…</div>
+              <div class="card__empty-text">{{ t('loading…') }}</div>
             </div>
             <div v-else-if="w.error" class="card__empty card__empty--err">
               <div class="card__empty-text">{{ w.error }}</div>
@@ -1426,13 +1450,15 @@ function scopeShort(scope: InspectScope): string {
             <div v-else class="card__empty">
               <div class="card__empty-icon">∅</div>
               <div class="card__empty-text">
-                <template v-if="!w.resolvedFetched">resolving entities…</template>
+                <template v-if="!w.resolvedFetched">{{ t('resolving entities…') }}</template>
                 <template v-else-if="widgetAllEntities(w).length === 0">
-                  no entity for <code>{{ w.metric.name }}</code> in this range
-                  <div class="card__empty-sub">try a wider range or a coarser step (current: {{ step }})</div>
+                  <i18n-t keypath="no entity for {metric} in this range" tag="span">
+                    <template #metric><code>{{ w.metric.name }}</code></template>
+                  </i18n-t>
+                  <div class="card__empty-sub">{{ t('try a wider range or a coarser step (current: {step})', { step }) }}</div>
                 </template>
-                <template v-else-if="w.selectedIds.size === 0">pick an entity</template>
-                <template v-else>no values in range</template>
+                <template v-else-if="w.selectedIds.size === 0">{{ t('pick an entity') }}</template>
+                <template v-else>{{ t('no values in range') }}</template>
               </div>
             </div>
           </div>
@@ -1446,14 +1472,14 @@ function scopeShort(scope: InspectScope): string {
         <div class="drawer__panel">
           <header class="drawer__head">
             <div>
-              <div class="drawer__kicker">catalog · /inspect/metrics</div>
-              <h2 class="drawer__title">Add metrics to the board</h2>
+              <div class="drawer__kicker">{{ t('catalog · /inspect/metrics') }}</div>
+              <h2 class="drawer__title">{{ t('Add metrics to the board') }}</h2>
             </div>
             <button class="iconbtn iconbtn--x" @click="drawerOpen = false">×</button>
           </header>
 
           <div class="drawer__sources">
-            <span class="ins__lbl">source</span>
+            <span class="ins__lbl">{{ t('source') }}</span>
             <button
               v-for="s in (['OAL','MAL·OTEL','MAL·Telegraf','LAL→MAL','unknown'] as Source[])"
               :key="s"
@@ -1464,8 +1490,8 @@ function scopeShort(scope: InspectScope): string {
           </div>
 
           <div class="drawer__search">
-            <input v-model="drawerQuery" placeholder="regex over metric name" class="ins__input" spellcheck="false" />
-            <span class="drawer__count">{{ drawerMetrics.length }} of {{ activeFileNode?.metricCount ?? 0 }} match</span>
+            <input v-model="drawerQuery" :placeholder="t('regex over metric name')" class="ins__input" spellcheck="false" />
+            <span class="drawer__count">{{ t('{n} of {total} match', { n: drawerMetrics.length, total: activeFileNode?.metricCount ?? 0 }) }}</span>
           </div>
 
           <div class="drawer__panes">
@@ -1487,9 +1513,9 @@ function scopeShort(scope: InspectScope): string {
                     </button>
                     <button
                       class="drawer__fileAdd"
-                      :title="`select all ${f.metricCount} metrics in this file`"
+                      :title="t('select all {n} metrics in this file', { n: f.metricCount })"
                       @click.stop="selectAllInFile(f)"
-                    >+ all</button>
+                    >{{ t('+ all') }}</button>
                   </div>
                 </div>
               </template>
@@ -1500,12 +1526,12 @@ function scopeShort(scope: InspectScope): string {
                 <span class="dim">{{ activeFileNode.source }} ·</span>
                 <code>{{ activeFileNode.file }}</code>
                 <template v-if="activeFileNode.scopes.length > 1">
-                  <span class="dim"> · narrow:</span>
+                  <span class="dim"> {{ t('· narrow:') }}</span>
                   <button
                     class="chip chip--sm"
                     :class="{ 'chip--on': drawerScopeNarrow === null }"
                     @click="drawerScopeNarrow = null"
-                  >all</button>
+                  >{{ t('all') }}</button>
                   <button
                     v-for="sc in activeFileNode.scopes"
                     :key="sc"
@@ -1516,9 +1542,9 @@ function scopeShort(scope: InspectScope): string {
                 </template>
                 <span class="drawer__bcSpacer" />
                 <button class="link" :disabled="drawerMetrics.length === 0" @click="selectAllVisible">
-                  select all {{ drawerMetrics.length }}
+                  {{ t('select all {n}', { n: drawerMetrics.length }) }}
                 </button>
-                <button class="link" @click="clearVisible">clear</button>
+                <button class="link" @click="clearVisible">{{ t('clear') }}</button>
               </header>
 
               <ul class="drawer__list">
@@ -1542,11 +1568,11 @@ function scopeShort(scope: InspectScope): string {
                   <Pill tone="dim">{{ m.type }}</Pill>
                   <Pill tone="ok">{{ scopeShort(m.scope) }}</Pill>
                   <span v-if="!isMqeQueryable(m.type)" class="drawer__why">
-                    not MQE-queryable · /inspect/entities accepts REGULAR_VALUE + LABELED_VALUE
+                    {{ t('not MQE-queryable · /inspect/entities accepts REGULAR_VALUE + LABELED_VALUE') }}
                   </span>
                 </li>
                 <li v-if="drawerMetrics.length === 0" class="drawer__listEmpty">
-                  no metric matches the current filters
+                  {{ t('no metric matches the current filters') }}
                 </li>
               </ul>
             </div>
@@ -1554,16 +1580,16 @@ function scopeShort(scope: InspectScope): string {
 
           <footer class="drawer__foot">
             <span class="drawer__count">
-              {{ drawerSelection.size }} selected · {{ widgets.length + drawerSelection.size }} / {{ boardCap }} after add
+              {{ t('{n} selected · {after} / {cap} after add', { n: drawerSelection.size, after: widgets.length + drawerSelection.size, cap: boardCap }) }}
             </span>
             <div class="drawer__foot-btns">
-              <Btn @click="drawerOpen = false">Cancel</Btn>
+              <Btn @click="drawerOpen = false">{{ t('Cancel') }}</Btn>
               <Btn
                 kind="primary"
                 :disabled="drawerSelection.size === 0 || widgets.length >= boardCap"
                 @click="commitDrawer"
               >
-                Add {{ Math.min(drawerSelection.size, Math.max(0, boardCap - widgets.length)) }} to board
+                {{ t('Add {n} to board', { n: Math.min(drawerSelection.size, Math.max(0, boardCap - widgets.length)) }) }}
               </Btn>
             </div>
           </footer>
@@ -1583,11 +1609,11 @@ function scopeShort(scope: InspectScope): string {
 }
 
 .ins__header { display: flex; align-items: center; gap: 12px; }
-.ins__h1 { margin: 0; font-family: var(--rr-font-ui); font-weight: 500; font-size: 14px; color: var(--rr-heading); }
+.ins__h1 { margin: 0; font-family: var(--rr-font-ui); font-weight: var(--sw-fw-medium); font-size: var(--sw-fs-lg); color: var(--rr-heading); }
 .ins__spacer { flex: 1 1 auto; }
 .ins__refreshing {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
 }
 
@@ -1595,7 +1621,7 @@ function scopeShort(scope: InspectScope): string {
   padding: 10px 14px;
   border-radius: var(--rr-radius-sm);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1611,10 +1637,11 @@ function scopeShort(scope: InspectScope): string {
   display: flex;
   align-items: center;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   border-bottom: 1px solid var(--rr-border);
   padding-bottom: 4px;
   margin-bottom: 8px;
@@ -1622,8 +1649,8 @@ function scopeShort(scope: InspectScope): string {
 .ins__sectionhint {
   margin-left: 8px;
   font-family: var(--rr-font-ui);
-  font-weight: 400;
-  font-size: 11.5px;
+  font-weight: var(--sw-fw-regular);
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   text-transform: none;
   letter-spacing: 0;
@@ -1643,17 +1670,18 @@ function scopeShort(scope: InspectScope): string {
 .ins__group { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
 .ins__lbl {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
-  letter-spacing: 1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
-.ins__hint { font-family: var(--rr-font-mono); font-size: 11.5px; color: var(--rr-dim); }
+.ins__hint { font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-dim); }
 .ins__buckets { font-family: var(--rr-font-mono); color: var(--rr-ink2); }
-.ins__buckets--err { font-family: var(--rr-font-mono); color: var(--rr-err); font-weight: 600; }
+.ins__buckets--err { font-family: var(--rr-font-mono); color: var(--rr-err); font-weight: var(--sw-fw-semibold); }
 .ins__input {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 4px 8px;
   background: var(--rr-bg);
   color: var(--rr-ink);
@@ -1667,7 +1695,7 @@ function scopeShort(scope: InspectScope): string {
 .ins__input--bad { border-color: var(--rr-err); }
 .ins__select {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 4px 8px;
   background: var(--rr-bg);
   color: var(--rr-ink);
@@ -1678,7 +1706,7 @@ function scopeShort(scope: InspectScope): string {
 
 .chip {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 3px 9px;
   background: transparent;
   color: var(--rr-ink2);
@@ -1686,7 +1714,7 @@ function scopeShort(scope: InspectScope): string {
   border-radius: 999px;
   cursor: pointer;
 }
-.chip--sm { padding: 2px 8px; font-size: 11.5px; }
+.chip--sm { padding: 2px 8px; font-size: var(--sw-fs-sm); }
 .chip:hover { color: var(--rr-heading); border-color: var(--rr-border2); }
 .chip--on { background: color-mix(in oklab, var(--rr-accent) 18%, transparent); border-color: var(--rr-accent); color: var(--rr-heading); }
 
@@ -1698,7 +1726,7 @@ function scopeShort(scope: InspectScope): string {
 }
 .seg__btn {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 4px 12px;
   background: var(--rr-bg);
   color: var(--rr-ink2);
@@ -1722,7 +1750,7 @@ function scopeShort(scope: InspectScope): string {
 .mqe__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
 .mqe__url {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-heading);
   background: var(--rr-bg);
   padding: 3px 8px;
@@ -1730,7 +1758,7 @@ function scopeShort(scope: InspectScope): string {
   border: 1px solid var(--rr-border);
 }
 .mqe__url--err { color: var(--rr-err); }
-.mqe__via { font-family: var(--rr-font-mono); font-size: 12px; color: var(--rr-dim); flex: 1; }
+.mqe__via { font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); flex: 1; }
 
 .ins__empty {
   padding: 24px;
@@ -1739,7 +1767,7 @@ function scopeShort(scope: InspectScope): string {
   border: 1px dashed var(--rr-border);
   border-radius: var(--rr-radius-sm);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 .ins__empty em { font-style: normal; color: var(--rr-ink2); }
@@ -1780,9 +1808,9 @@ function scopeShort(scope: InspectScope): string {
 .card__title {
   grid-area: title;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-heading);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1800,7 +1828,7 @@ function scopeShort(scope: InspectScope): string {
 }
 .iconbtn {
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   padding: 1px 6px;
   background: transparent;
   color: var(--rr-ink2);
@@ -1811,7 +1839,7 @@ function scopeShort(scope: InspectScope): string {
   line-height: 1.5;
 }
 .iconbtn:hover { color: var(--rr-heading); border-color: var(--rr-border2); }
-.iconbtn--x { font-size: 11.5px; line-height: 1; padding: 0 6px; }
+.iconbtn--x { font-size: var(--sw-fs-sm); line-height: 1; padding: 0 6px; }
 
 .card__entity {
   position: relative;
@@ -1829,7 +1857,7 @@ function scopeShort(scope: InspectScope): string {
   justify-content: space-between;
   gap: 10px;
   font-family: var(--rr-font-mono);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
   padding: 4px 9px;
   background: var(--rr-bg);
   color: var(--rr-ink);
@@ -1850,14 +1878,14 @@ function scopeShort(scope: InspectScope): string {
   letter-spacing: 0.01em;
 }
 .entity__decoded--empty { color: var(--rr-dim); font-style: italic; }
-.entity__idx { font-size: 11px; color: var(--rr-dim); flex-shrink: 0; }
+.entity__idx { font-size: var(--sw-fs-sm); color: var(--rr-dim); flex-shrink: 0; }
 /* Clickable = bright + accent border (high-emphasis affordance);
  * disabled = dim/gray with a faint border. The earlier styling read
  * inverted — muted ink for live arrows, which looked like the
  * disabled state. */
 .entity-nav {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   padding: 3px 8px;
   background: transparent;
   color: var(--rr-heading);
@@ -1880,7 +1908,7 @@ function scopeShort(scope: InspectScope): string {
   background: transparent;
   border: 0;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-accent);
   cursor: pointer;
   padding: 0;
@@ -1900,13 +1928,13 @@ function scopeShort(scope: InspectScope): string {
   border: 1px dashed var(--rr-border);
   border-radius: var(--rr-radius-sm);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   text-align: center;
   padding: 8px;
 }
 .card__empty--err { color: var(--rr-err); border-color: var(--rr-err); }
-.card__empty-icon { font-size: 18px; color: var(--rr-border2); }
-.card__empty-sub { margin-top: 4px; color: var(--rr-dim); font-size: 10.5px; }
+.card__empty-icon { font-size: var(--sw-fs-xl); color: var(--rr-border2); }
+.card__empty-sub { margin-top: 4px; color: var(--rr-dim); font-size: var(--sw-fs-xs); }
 .card__empty code { color: var(--rr-ink); }
 
 .editor {
@@ -1927,17 +1955,18 @@ function scopeShort(scope: InspectScope): string {
   justify-content: space-between;
   align-items: center;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
   border-bottom: 1px solid var(--rr-border);
 }
 .editor__toolbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--rr-border); }
 .editor__sectionhead {
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   padding: 8px 10px 2px;
 }
 .editor__list { list-style: none; padding: 0; margin: 0; max-height: 180px; overflow-y: auto; }
@@ -1948,7 +1977,7 @@ function scopeShort(scope: InspectScope): string {
   padding: 4px 10px;
   cursor: pointer;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink);
 }
 .editor__row:hover { background: var(--rr-bg2); color: var(--rr-heading); }
@@ -1960,20 +1989,21 @@ function scopeShort(scope: InspectScope): string {
   text-overflow: ellipsis;
   min-width: 0;
 }
-.editor__id { color: var(--rr-dim); font-size: 10.5px; }
+.editor__id { color: var(--rr-dim); font-size: var(--sw-fs-xs); }
 .editor__remove { margin-left: auto; }
-.editor__empty { padding: 8px 10px; font-size: 11.5px; color: var(--rr-dim); text-align: center; }
+.editor__empty { padding: 8px 10px; font-size: var(--sw-fs-sm); color: var(--rr-dim); text-align: center; }
 .editor__form { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 4px; }
 .editor__formrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.editor__formlabel { font-family: var(--rr-font-mono); font-size: 11px; color: var(--rr-dim); min-width: 132px; }
-.editor__input { flex: 1; min-width: 160px; font-size: 11.5px; padding: 3px 7px; }
-.editor__formhint { font-family: var(--rr-font-mono); font-size: 10.5px; color: var(--rr-dim); }
+.editor__formlabel { font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-dim); min-width: 132px; }
+.editor__input { flex: 1; min-width: 160px; font-size: var(--sw-fs-sm); padding: 3px 7px; }
+.editor__formhint { font-family: var(--rr-font-mono); font-size: var(--sw-fs-xs); color: var(--rr-dim); }
 .editor__formdivider {
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   padding-top: 4px;
   border-top: 1px dashed var(--rr-border);
   margin-top: 2px;
@@ -1983,14 +2013,14 @@ function scopeShort(scope: InspectScope): string {
   align-items: center;
   gap: 6px;
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
   cursor: pointer;
 }
 .editor__err {
   margin: 4px 10px;
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-err);
 }
 .editor__footer {
@@ -2001,7 +2031,7 @@ function scopeShort(scope: InspectScope): string {
   gap: 10px;
   flex-wrap: wrap;
 }
-.editor__hint { font-family: var(--rr-font-mono); font-size: 11px; color: var(--rr-dim); flex: 1; min-width: 200px; }
+.editor__hint { font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-dim); flex: 1; min-width: 200px; }
 
 /* Drawer */
 .drawer {
@@ -2030,22 +2060,23 @@ function scopeShort(scope: InspectScope): string {
 }
 .drawer__kicker {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 .drawer__title {
   margin: 4px 0 0;
   font-family: var(--rr-font-ui);
-  font-weight: 500;
-  font-size: 13.5px;
+  font-weight: var(--sw-fw-medium);
+  font-size: var(--sw-fs-md);
   color: var(--rr-heading);
 }
 .drawer__sources { padding: 10px 18px 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .drawer__search { padding: 10px 18px; display: flex; gap: 12px; align-items: center; }
 .drawer__search .ins__input { flex: 1; }
-.drawer__count { font-family: var(--rr-font-mono); font-size: 12px; color: var(--rr-dim); }
+.drawer__count { font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); }
 .drawer__panes {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -2057,10 +2088,11 @@ function scopeShort(scope: InspectScope): string {
 .drawer__treeGroup { padding: 6px 0 10px; }
 .drawer__treeKicker {
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   padding: 4px 14px;
 }
 .drawer__file { display: flex; align-items: stretch; border-left: 2px solid transparent; }
@@ -2078,7 +2110,7 @@ function scopeShort(scope: InspectScope): string {
   border: 0;
   cursor: pointer;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
   text-align: left;
   min-width: 0;
@@ -2086,13 +2118,13 @@ function scopeShort(scope: InspectScope): string {
 .drawer__fileBtn:hover { color: var(--rr-heading); }
 .drawer__fileName { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .drawer__fileMeta { display: flex; align-items: center; gap: 6px; }
-.drawer__fileCount { font-size: 11px; color: var(--rr-dim); min-width: 18px; text-align: right; }
+.drawer__fileCount { font-size: var(--sw-fs-sm); color: var(--rr-dim); min-width: 18px; text-align: right; }
 .drawer__fileAdd {
   background: transparent;
   border: 0;
   padding: 0 12px 0 4px;
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--rr-dim);
   cursor: pointer;
   flex-shrink: 0;
@@ -2107,7 +2139,7 @@ function scopeShort(scope: InspectScope): string {
   gap: 6px;
   flex-wrap: wrap;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
   border-bottom: 1px solid var(--rr-border);
 }
@@ -2122,7 +2154,7 @@ function scopeShort(scope: InspectScope): string {
  * scale (~11.5 px), no effect on Pills elsewhere in the app. */
 .drawer__list :deep(.pill),
 .drawer__tree :deep(.pill) {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   padding: 1px 6px;
   letter-spacing: 0.3px;
 }
@@ -2138,9 +2170,9 @@ function scopeShort(scope: InspectScope): string {
 .drawer__row:hover { background: var(--rr-bg2); }
 .drawer__row--on { background: color-mix(in oklab, var(--rr-accent) 12%, transparent); }
 .drawer__row--off { cursor: not-allowed; opacity: 0.55; }
-.drawer__name { font-family: var(--rr-font-mono); font-size: 11.5px; color: var(--rr-heading); flex: 1; min-width: 200px; }
-.drawer__why { flex-basis: 100%; padding-left: 26px; font-family: var(--rr-font-mono); font-size: 11px; color: var(--rr-dim); }
-.drawer__listEmpty { padding: 20px; text-align: center; font-family: var(--rr-font-mono); font-size: 12px; color: var(--rr-dim); }
+.drawer__name { font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-heading); flex: 1; min-width: 200px; }
+.drawer__why { flex-basis: 100%; padding-left: 26px; font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-dim); }
+.drawer__listEmpty { padding: 20px; text-align: center; font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); }
 .drawer__foot {
   padding: 12px 18px;
   border-top: 1px solid var(--rr-border);

@@ -16,8 +16,11 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Modal from './Modal.vue';
 import Btn from '@/components/primitives/Btn.vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   open: boolean;
@@ -50,13 +53,18 @@ const armed = computed<boolean>(() => typed.value === props.ruleName);
 <template>
   <Modal :open="open" :title="title" @close="emit('close')">
     <p class="dc__intent">
-      You are about to <strong>{{ intent }}</strong> <code>{{ ruleName }}</code>.
+      <i18n-t keypath="You are about to {intent} {ruleName}." tag="span">
+        <template #intent><strong>{{ intent }}</strong></template>
+        <template #ruleName><code>{{ ruleName }}</code></template>
+      </i18n-t>
     </p>
     <ul class="dc__warning">
       <li v-for="(line, i) in warning" :key="i">{{ line }}</li>
     </ul>
     <label class="dc__label">
-      Type <code>{{ ruleName }}</code> to confirm:
+      <i18n-t keypath="Type {ruleName} to confirm:" tag="span">
+        <template #ruleName><code>{{ ruleName }}</code></template>
+      </i18n-t>
       <input
         v-model="typed"
         type="text"
@@ -67,14 +75,14 @@ const armed = computed<boolean>(() => typed.value === props.ruleName);
     </label>
 
     <template #footer>
-      <Btn @click="emit('close')">cancel</Btn>
+      <Btn @click="emit('close')">{{ t('cancel') }}</Btn>
       <Btn
         kind="danger"
         :disabled="!armed || busy"
         :data-testid="'destructive-confirm'"
         @click="emit('confirm')"
       >
-        {{ busy ? 'applying…' : 'confirm' }}
+        {{ busy ? t('applying…') : t('confirm') }}
       </Btn>
     </template>
   </Modal>
@@ -83,8 +91,8 @@ const armed = computed<boolean>(() => typed.value === props.ruleName);
 <style scoped>
 .dc__intent {
   margin: 0 0 12px;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--sw-fs-md);
+  line-height: var(--sw-lh-relaxed);
   color: var(--rr-ink);
 }
 
@@ -92,14 +100,14 @@ const armed = computed<boolean>(() => typed.value === props.ruleName);
 .dc__label code {
   font-family: var(--rr-font-mono);
   color: var(--rr-active);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .dc__warning {
   margin: 0 0 16px;
   padding-left: 18px;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--sw-fs-md);
+  line-height: var(--sw-lh-relaxed);
   color: var(--rr-warn);
 }
 
@@ -111,7 +119,7 @@ const armed = computed<boolean>(() => typed.value === props.ruleName);
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
 }

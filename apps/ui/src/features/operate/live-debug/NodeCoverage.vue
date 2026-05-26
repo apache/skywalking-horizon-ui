@@ -30,6 +30,7 @@
  * - collect status: ok | captured | not_local | unreachable.
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type {
   InstallSummary,
   NodeSlice,
@@ -37,6 +38,8 @@ import type {
   PriorCleanup,
 } from '@skywalking-horizon-ui/api-client';
 import Pill from '@/components/primitives/Pill.vue';
+
+const { t } = useI18n();
 
 const props = defineProps<{
   peerAcks: PeerInstallAck[];
@@ -133,35 +136,35 @@ const cleanupSummary = computed<string>(() => {
     if (p.stoppedSessionIds) ids.push(...p.stoppedSessionIds);
   }
   return ids.length > 0
-    ? `replaced ${total} prior session${total === 1 ? '' : 's'}: ${ids.join(', ')}`
-    : `replaced ${total} prior session${total === 1 ? '' : 's'}`;
+    ? t('replaced {n} prior sessions: {ids}', { n: total, ids: ids.join(', ') })
+    : t('replaced {n} prior sessions', { n: total });
 });
 </script>
 
 <template>
   <div class="cov">
     <div v-if="installed" class="cov__rollup">
-      <span class="cov__label">installed</span>
+      <span class="cov__label">{{ t('installed') }}</span>
       <Pill :tone="installed.created === 0 ? 'err' : installed.created === installed.total ? 'ok' : 'warn'">
         {{ installed.created }} / {{ installed.total }}
       </Pill>
       <span class="cov__rollupnote">
         {{ installed.created === installed.total
-          ? 'session live on every reachable OAP'
+          ? t('session live on every reachable OAP')
           : installed.created === 0
-            ? 'no node accepted'
-            : `live on ${installed.created} of ${installed.total} nodes` }}
+            ? t('no node accepted')
+            : t('live on {created} of {total} nodes', { created: installed.created, total: installed.total }) }}
       </span>
     </div>
-    <div v-if="rows.length === 0" class="cov__empty">no peers reported</div>
+    <div v-if="rows.length === 0" class="cov__empty">{{ t('no peers reported') }}</div>
     <div v-for="row in rows" :key="row.key" class="cov__row">
       <span class="cov__nodeid">{{ row.label }}</span>
       <span class="cov__pair">
-        <span class="cov__label">install</span>
+        <span class="cov__label">{{ t('install') }}</span>
         <Pill :tone="installTone(row.install)">{{ row.install ?? '—' }}</Pill>
       </span>
       <span class="cov__pair">
-        <span class="cov__label">collect</span>
+        <span class="cov__label">{{ t('collect') }}</span>
         <Pill :tone="collectTone(row.collect)">{{ row.collect ?? '—' }}</Pill>
       </span>
     </div>
@@ -177,7 +180,7 @@ const cleanupSummary = computed<string>(() => {
   padding: 8px 12px;
   background: var(--rr-bg2);
   border: 1px solid var(--rr-border);
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
 }
 
 .cov__empty {
@@ -204,17 +207,18 @@ const cleanupSummary = computed<string>(() => {
 }
 
 .cov__label {
-  color: var(--rr-dim);
+  color: var(--sw-fg-3);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .cov__cleanup {
   flex-basis: 100%;
   color: var(--rr-dim);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   font-family: var(--rr-font-mono);
 }
 
@@ -223,12 +227,12 @@ const cleanupSummary = computed<string>(() => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
 }
 
 .cov__rollupnote {
   color: var(--rr-dim);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 </style>

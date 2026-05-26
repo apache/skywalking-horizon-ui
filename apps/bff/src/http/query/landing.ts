@@ -50,7 +50,12 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { expressionForServiceMetricSeries } from '../../util/mqe-catalog.js';
-import { defaultMinuteWindow, windowFromRange, type Window } from '../../util/window.js';
+import {
+  defaultMinuteWindow,
+  getServerOffsetMinutes,
+  windowFromRange,
+  type Window,
+} from '../../util/window.js';
 
 export interface LandingRouteDeps {
   config: ConfigSource;
@@ -261,13 +266,15 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       const oapLayer = layerKey.toUpperCase();
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar time picker when all three triplet fields
       // are present; otherwise fall back to the last-hour MINUTE window
       // (legacy callers + the BFF's own service-count probes).
       const window =
         cfg.step && cfg.startMs && cfg.endMs
-          ? windowFromRange(cfg.step, cfg.startMs, cfg.endMs) ?? defaultMinuteWindow(DEFAULT_WINDOW_MIN)
-          : defaultMinuteWindow(DEFAULT_WINDOW_MIN);
+          ? windowFromRange(cfg.step, cfg.startMs, cfg.endMs, offset) ??
+            defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
+          : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
       // Step 1 — service list.
       let services: ListServicesRow[];
@@ -329,26 +336,48 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       }));
 
       const coldStage = !!req.coldStage;
-      const fragments: string[] = [];
-      sampled.forEach((svc, sIdx) => {
-        resolved.forEach(({ expression }, cIdx) => {
-          if (!expression) return;
-          fragments.push(
-            buildMqeFragment(
-              alias(sIdx, cIdx),
-              { expression, serviceName: svc.value, normal: svc.normal !== false },
-              window,
-              coldStage,
-            ),
-          );
-        });
-      });
-
+      // Chunk services × columns into batches of N services per
+      // round-trip, fired in parallel. OAP's GraphQL server enforces a
+      // per-request complexity ceiling — same reason the dashboard route
+      // pins at 6 widgets per trip (see dashboard.ts:555). A 25-service
+      // × 10-column landing in one batch is 250 fragments and reliably
+      // 5xx'd on busy backends, blanking every cell. Chunked +
+      // Promise.all keeps wall-clock close to a single round-trip.
+      const MAX_SERVICES_PER_BATCH = 6;
+      const serviceChunks: { svc: (typeof sampled)[number]; sIdx: number }[][] = [];
+      for (let i = 0; i < sampled.length; i += MAX_SERVICES_PER_BATCH) {
+        serviceChunks.push(
+          sampled.slice(i, i + MAX_SERVICES_PER_BATCH).map((svc, idxInChunk) => ({
+            svc,
+            sIdx: i + idxInChunk,
+          })),
+        );
+      }
       let mqeData: Record<string, MqeResultShape> = {};
-      if (fragments.length > 0) {
-        const batchQuery = `query LandingMqe { ${fragments.join('\n    ')} }`;
+      if (sampled.length > 0 && resolved.some((r) => !!r.expression)) {
         try {
-          mqeData = await graphqlPost<Record<string, MqeResultShape>>(opts, batchQuery);
+          const chunkResults = await Promise.all(
+            serviceChunks.map(async (chunk) => {
+              const fragments: string[] = [];
+              for (const { svc, sIdx } of chunk) {
+                resolved.forEach(({ expression }, cIdx) => {
+                  if (!expression) return;
+                  fragments.push(
+                    buildMqeFragment(
+                      alias(sIdx, cIdx),
+                      { expression, serviceName: svc.value, normal: svc.normal !== false },
+                      window,
+                      coldStage,
+                    ),
+                  );
+                });
+              }
+              if (fragments.length === 0) return {} as Record<string, MqeResultShape>;
+              const query = `query LandingMqe { ${fragments.join('\n    ')} }`;
+              return graphqlPost<Record<string, MqeResultShape>>(opts, query);
+            }),
+          );
+          for (const chunk of chunkResults) Object.assign(mqeData, chunk);
         } catch {
           mqeData = {};
         }

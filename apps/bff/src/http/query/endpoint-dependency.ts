@@ -42,6 +42,7 @@ import type {
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
+import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 import { endpointDependencyConfigFor, getLayerTemplate } from '../../logic/layers/loader.js';
 
 export interface EndpointDependencyRouteDeps {
@@ -95,19 +96,6 @@ const ENDPOINT_DEPENDENCY = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-function fmtMinute(d: Date): string {
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  const HH = String(d.getUTCHours()).padStart(2, '0');
-  const MM = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${HH}${MM}`;
-}
-function defaultWindow(): { start: string; end: string } {
-  const end = new Date();
-  const start = new Date(end.getTime() - DEFAULT_WINDOW_MIN * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end) };
-}
 
 interface MqeValueRow {
   value: string | number | null;
@@ -271,7 +259,8 @@ export function registerEndpointDependencyRoute(
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
-      const window = defaultWindow();
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
       const oapLayer = layerKey.toUpperCase();
       const durationVar = withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' });
       const coldStage = !!req.coldStage;

@@ -227,12 +227,19 @@ async function buildBundle(
     unreachable: sync.unreachable,
     lastSuccessfulSyncAt: sync.lastSuccessfulSyncAt,
     generatedAt: sync.generatedAt,
-    badges: sync.rows.map((r) => ({
-      name: r.name,
-      kind: r.kind,
-      key: r.key,
-      status: r.status,
-    })),
+    // Source rows only. Per-locale overlay rows (`…i18n.<locale>`) share
+    // their parent's kind, so without this filter they inflate the
+    // overview/layer remote-only/diverged counts that drive the admin
+    // sync banners. Translations have their own admin page; they must
+    // not count toward overview or layer dashboard status.
+    badges: sync.rows
+      .filter((r) => r.locale === undefined)
+      .map((r) => ({
+        name: r.name,
+        kind: r.kind,
+        key: r.key,
+        status: r.status,
+      })),
     conflicts: sync.conflicts ?? [],
   };
 
