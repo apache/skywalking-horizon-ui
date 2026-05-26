@@ -27,7 +27,7 @@ server:
   port: 8081
 ```
 
-Run `pnpm --filter ui dev` separately. Vite dev server (default port 5173) proxies `/api/*` to the BFF.
+Run `pnpm --filter ui dev` separately. The Vite dev server listens on port 9091 and proxies `/api/*` to the BFF.
 
 ### Production (single port)
 
