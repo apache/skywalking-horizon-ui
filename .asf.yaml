@@ -46,3 +46,6 @@ github:
           - Required
       required_pull_request_reviews:
         required_approving_review_count: 1
+        # Drop stale approvals when a PR gets new commits, so a reviewer's
+        # LGTM doesn't carry over to code they haven't seen.
+        dismiss_stale_reviews: true
