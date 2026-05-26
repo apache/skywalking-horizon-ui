@@ -9,6 +9,132 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.6.0
 
+### Eight-locale internationalization
+
+Horizon now ships with eight first-class UI languages — English (source)
+plus zh-CN, ja, ko, es, pt, de, fr — selectable from the top-bar locale
+chip on every page (including the pre-auth login). The choice persists
+per device.
+
+- **UI chrome.** Every routed page (31) and every shared sub-component
+  (24) renders through `vue-i18n`. The English catalog is the source
+  of truth at 531 keys; every other locale carries 531 native
+  translations. Missing keys fall back to English at the leaf, so
+  partial catalogs are valid and degradation is invisible.
+- **BFF-shipped templates.** All 42 layer dashboards and both overview
+  dashboards carry per-locale overlay catalogs alongside the source
+  template. Coverage is ~2,300 translatable leaves per non-English
+  locale across the layer set. The BFF picks the locale from the
+  request's `X-Horizon-Locale` header (auto-set by the SPA), merges
+  the overlay onto the source, and serves the localised template to
+  the renderer — translation resolves once on the BFF, never on
+  every chart mount.
+- **Operator-runnable Translations page.** A new admin surface
+  (Dashboard setup → Translations) edits the per-locale overlays
+  through the live preview: pick a target language, click any widget
+  in the rendered dashboard, type the translation. Per-locale status
+  chips on the template picker show at a glance which dashboards have
+  drafts, which are synced, which diverge from disk, and which are
+  empty for a given locale. Push writes the sibling overlay row on
+  OAP; pushing zh-CN never touches ja.
+- **Tech-term policy.** Product, project, and protocol names
+  (SkyWalking, Kubernetes, OAP, MQE, eBPF, Zipkin, OpenTelemetry,
+  Istio, GraphQL, etc.), OAP scope enums (Service, ServiceInstance,
+  Endpoint, Process), layer keys, MQE function names, env vars, HTTP
+  status codes, and per-language runtimes (JVM, Go, Python, …) stay
+  verbatim in every locale per CLAUDE.md. Phrases containing tech
+  terms are translated around the term (`HTTP Connections` →
+  `HTTP 连接` / `HTTP 接続`), not transliterated.
+- **OAP-supplied data is never translated.** Service names, alarm
+  rule names, trace span operation names, log messages — anything
+  arriving over the OAP wire — render verbatim regardless of locale.
+- **Validator gate.** `i18n:validate` is stricter: every source
+  template must have a sibling overlay file per advertised locale,
+  and empty `{}` overlays are now a finding (used to pass silently —
+  surfaced as "structurally complete" while every translatable string
+  still rendered in English).
+
+### Cluster Status + admin polish
+
+- **Cluster Status — Pane B + Pane C fully translatable.** Module
+  column headers, gate descriptions (the SWIP-13 affects strings),
+  per-row enabled/missing badges, the admin-host status badge
+  (`loading…` / `unreachable` / `all selectors on` / `{n} selectors
+  off`), the admin-host-unreachable hint, the Zipkin / OTLP pane
+  lede, the Endpoint card heading, the Zipkin badge and the
+  Zipkin-unreachable hint all now render in the active locale.
+- **Hide redundant BUNDLED chrome when synced.** On the Overview
+  templates and Layer dashboards admin pages, when the row's sync
+  badge is `synced` the BUNDLED and REMOTE versions are byte-equal,
+  so the `from {source}` pill and the `Reset to / Preview Bundled`
+  dropdown items add no information and are hidden. LOCAL drafts
+  always show; BUNDLED resurfaces the moment the row diverges.
+- **Translations picker prefers the English bundle.** REMOTE-only
+  rows with non-English titles (legacy duplicates from prior import
+  cycles) no longer appear as separate dashboards in the picker — the
+  picker lists the canonical English bundled dashboards once each,
+  and the preview renders the English source as the baseline.
+
+### Live debugger fixes
+
+A clutch of small but visible bugs were caught while exercising the
+i18n surfaces:
+
+- **History → debug deep-link rendered blank.** MAL and LAL views
+  crashed silently on `?historyId=…` because `loadHistorical` reset
+  refs (`selectedRow`, `expandedEntities`, `foldedRecords`;
+  `selectedCell` for LAL) that the file declared further down. The
+  `watch(historyId, …, { immediate: true })` fires during setup, so
+  the TDZ ReferenceError aborted setup before the page rendered, with
+  no console trace. Resettable refs are now hoisted above their
+  consumer.
+- **Captured records wiped on stop.** After `stop()`, the per-DSL
+  view did one final `session()` refresh against an already-cleaned-
+  up OAP, which returned nodes-only-with-empty-records and
+  overwrote the rich live snapshot in localStorage. `save()` now
+  refuses to shrink an existing entry's `recordCount` for the same
+  `sessionId` — only metadata (`retentionDeadline`, `retentionMillis`)
+  updates.
+- **Stable node ordering.** MAL / LAL / OAL node cards now sort by
+  `nodeId ?? peer` so they don't reshuffle between polls.
+- **Tab buttons jumped nowhere.** `LiveDebuggerView.selectTab` pushed
+  `/debug/<tab>` (a path that doesn't exist); fixed to
+  `/operate/live-debug/<tab>`. Same correction in
+  `DebugHistoryView.loadEntry` deep-links and surrounding
+  doc-comments in `RuleCard.vue` / `DslEditorView.vue`.
+- **Empty-capture placeholder.** When a saved session has zero
+  populated nodes, `DebugView` now shows an explicit "This capture
+  has no records" rather than rendering blank, so an honest empty
+  capture is visibly different from a bug.
+- **Per-locale lookup widened.** Per-DSL views look up the historyId
+  via `history.all` (not the widget-filtered `history.entries`); the
+  route already pinned us to the right widget, and double-filtering
+  by `widget` was a silent way for a stale field to drop the entry.
+
+### Other small fixes
+
+- **MAL / LAL editor gutter glyph.** The green ▶ live-debug entrance
+  on every `- name:` row was referencing an unstyled CSS class —
+  Monaco reserved the gutter and wired clicks, but the icon was
+  invisible. Restored.
+- **Rule catalog cards.** Duplicate BUNDLED pill removed; the header
+  status pill already conveyed it.
+- **K8s instance Node Status.** Switched from a single-scalar card
+  (rendering just `1`) to a table of currently-true Kubernetes
+  conditions, matching the cluster-scope sibling and aligning widget
+  heights.
+
+### Upstream `ui-management` compatibility
+
+Aligned with upstream [skywalking#13884](https://github.com/apache/skywalking/pull/13884)
+("remove auto generate id for UI templates"): Horizon now sends
+`id = <envelope name>` on `POST /ui-management/templates`. Current
+OAP requires it (POSTs without `id` are rejected); legacy OAP
+releases ignored the field and auto-generated UUIDs, so the same
+payload works against both. Horizon already treated `r.id` as
+opaque; mixed-id deployments self-heal via `reconcileDuplicates` on
+the next boot.
+
 ### Smartscape service hierarchy
 
 OAP 10's cross-layer service hierarchy is now reachable from any layer's
