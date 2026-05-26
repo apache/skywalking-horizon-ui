@@ -31,6 +31,7 @@ import { useRoute } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
+import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
@@ -704,10 +705,20 @@ function isVisible(
         class="widget sw-card"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"
       >
-        <div class="w-head" :title="w.tip">
-          <h4>{{ w.title }}</h4>
+        <div class="w-head">
+          <!-- Title + tip group, kept adjacent so the tip chip sits
+               next to the title text rather than floating away when
+               the right-side affordances exist. -->
+          <div class="w-head-title">
+            <h4>{{ w.title }}</h4>
+            <WidgetTip :tip="w.tip" />
+          </div>
           <div class="w-head-right">
-            <span v-if="w.unit" class="unit">{{ w.unit }}</span>
+            <!-- Card widgets render the unit beneath the big value;
+                 surfacing it here too is a duplicate. Other types
+                 (line / top / record) need the unit hint here because
+                 their bodies don't reprint it. -->
+            <span v-if="w.unit && w.type !== 'card'" class="unit">{{ w.unit }}</span>
             <button
               v-if="(w.type === 'top' || w.type === 'record') && hasTopData(w)"
               type="button"
@@ -1091,14 +1102,20 @@ function isVisible(
 }
 .w-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 8px;
   padding: 5px 10px;
   border-bottom: 1px solid var(--sw-line);
   /* Subtle left-edge accent tinted to the widget's primary metric
    * color — ties each card to the matching KPI in the layer header. */
   border-left: 3px solid var(--widget-accent, var(--sw-accent));
+}
+.w-head-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
 }
 .w-head h4 {
   margin: 0;
@@ -1114,6 +1131,7 @@ function isVisible(
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-left: auto;
   flex: 0 0 auto;
 }
 .w-head .unit {

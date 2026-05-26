@@ -1,0 +1,139 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Vistas de página"
+      },
+      {
+        "label": "Tasa de errores"
+      },
+      {
+        "label": "Errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Tasa de errores",
+            "tip": "Porcentaje de cargas de página que produjeron un error."
+          }
+        ],
+        "title": "Estado de la página"
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "PV / min",
+            "tip": "Vistas de página por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Carga de la app (PV)"
+      },
+      {
+        "title": "Tasa de errores de la app"
+      },
+      {
+        "title": "Conteo de errores de la app"
+      },
+      {
+        "expressionLabels": [
+          "PV",
+          "Errores",
+          "Tasa de errores"
+        ],
+        "title": "Páginas más populares",
+        "tip": "Páginas ordenadas por vistas, errores y tasa de errores."
+      },
+      {
+        "expressionLabels": [
+          "PV",
+          "Errores",
+          "Tasa de errores"
+        ],
+        "title": "Versiones top",
+        "tip": "Desglose por versión de la app — carga + errores + tasa de errores."
+      }
+    ],
+    "instance": [
+      {
+        "title": "PV por versión"
+      },
+      {
+        "title": "Tasa de errores de versión"
+      },
+      {
+        "title": "Conteo de errores de versión"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Percentil de First Meaningful Paint",
+        "tip": "p50–p99 de latencia FMP para la página seleccionada. Por debajo de 1s en p75 es un objetivo común."
+      },
+      {
+        "title": "Percentil de carga de página"
+      },
+      {
+        "title": "Percentil de Time-to-Live"
+      },
+      {
+        "title": "Percentil de latencia del primer paquete"
+      },
+      {
+        "title": "Desglose de rendimiento de página",
+        "tip": "Tiempo medio en cada fase de la carga de página — resolución, redirección, DNS, TCP, TTFB, transferencia, análisis del DOM, DOM listo, FPT, carga completa.",
+        "expressionLabels": [
+          "dns",
+          "redirección",
+          "tcp",
+          "ttfb",
+          "transferencia",
+          "análisis dom",
+          "dom listo",
+          "fpt",
+          "carga",
+          "recurso"
+        ]
+      },
+      {
+        "title": "Errores de página por tipo",
+        "tip": "Contadores de errores Resource / JS / AJAX / unknown por minuto.",
+        "expressionLabels": [
+          "recurso",
+          "js",
+          "ajax",
+          "desconocido"
+        ]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "Core Web Vitals — FMP, LCP, CLS (media por minuto). CLS se divide por 1000 para llevarlo al rango típico 0–1.",
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
+      },
+      {
+        "title": "Percentil de Interaction to Next Paint",
+        "tip": "INP — métrica de responsividad que reemplaza a FID."
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versiones",
+    "endpoints": "Páginas",
+    "services": "Apps"
+  },
+  "alias": "Navegador"
+}

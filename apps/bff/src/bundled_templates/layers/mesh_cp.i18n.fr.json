@@ -1,0 +1,109 @@
+{
+  "alias": "Plan de contrôle Istio",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutines"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "Services"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé Istio",
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "CPU du processus du plan de contrôle Istio."
+          },
+          {
+            "label": "Goroutines",
+            "tip": "Goroutines Go vivantes."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "Versions Istio"
+      },
+      {
+        "title": "Mémoire (Mo)",
+        "expressionLabels": [
+          "alloc",
+          "heap utilisé",
+          "stack utilisée",
+          "virtuel",
+          "résidente"
+        ]
+      },
+      {
+        "title": "Erreurs Pilot",
+        "expressionLabels": [
+          "cds rejeté",
+          "eds rejeté",
+          "rds rejeté",
+          "lds rejeté",
+          "timeout d'écriture"
+        ]
+      },
+      {
+        "title": "Temps de push du proxy (centile)"
+      },
+      {
+        "title": "Pushes Pilot"
+      },
+      {
+        "title": "Succès d'injection du sidecar"
+      },
+      {
+        "title": "Surveillance ADS",
+        "expressionLabels": [
+          "xds",
+          "services",
+          "services virt"
+        ]
+      },
+      {
+        "title": "Validation de configuration",
+        "expressionLabels": [
+          "réussites",
+          "échec"
+        ]
+      },
+      {
+        "title": "Conflits Pilot",
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Plans de contrôle"
+  }
+}

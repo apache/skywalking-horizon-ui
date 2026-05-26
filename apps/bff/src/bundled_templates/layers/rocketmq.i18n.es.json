@@ -1,0 +1,156 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "TPS de producción"
+      },
+      {
+        "label": "TPS de consumo"
+      },
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Brokers"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "TPS de producción",
+            "tip": "Mensajes producidos por segundo en el clúster."
+          },
+          {
+            "label": "TPS de consumo",
+            "tip": "Mensajes consumidos por segundo."
+          },
+          {
+            "label": "Latencia máxima del consumidor",
+            "tip": "Peor latencia de consumidor en el clúster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Producido hoy"
+      },
+      {
+        "title": "Consumido hoy"
+      },
+      {
+        "title": "Producido ayer"
+      },
+      {
+        "title": "Consumido ayer"
+      },
+      {
+        "title": "TPS productor / consumidor",
+        "expressionLabels": [
+          "productor",
+          "consumidor"
+        ]
+      },
+      {
+        "title": "Tamaño de mensaje productor / consumidor (MB)",
+        "expressionLabels": [
+          "producidos",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Latencia máxima del consumidor"
+      },
+      {
+        "title": "Ratio de disco de CommitLog (%)",
+        "expressionLabels": [
+          "actual",
+          "máx"
+        ]
+      },
+      {
+        "title": "Espera en cabeza de cola del ThreadPool (ms)",
+        "expressionLabels": [
+          "pull",
+          "envío"
+        ]
+      },
+      {
+        "title": "Topics"
+      },
+      {
+        "title": "Brokers"
+      }
+    ],
+    "instance": [
+      {
+        "title": "TPS de producción"
+      },
+      {
+        "title": "QPS de consumo"
+      },
+      {
+        "title": "Tamaño de mensaje del productor (MB)"
+      },
+      {
+        "title": "Tamaño de mensaje del consumidor (MB)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "TPS de grupos productor / consumidor",
+        "expressionLabels": [
+          "productor",
+          "grupo de consumo"
+        ]
+      },
+      {
+        "title": "Tamaño de mensaje (MB)",
+        "expressionLabels": [
+          "producidos",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Tamaño máximo de mensaje (MB)",
+        "expressionLabels": [
+          "productor",
+          "consumidor"
+        ]
+      },
+      {
+        "title": "Latencia del consumidor (s)"
+      },
+      {
+        "title": "Offsets productor / consumidor",
+        "expressionLabels": [
+          "productor",
+          "grupo de consumo"
+        ]
+      },
+      {
+        "title": "Mensajes acumulados",
+        "tip": "Offset del productor menos offset del grupo de consumo — el lag del topic."
+      },
+      {
+        "title": "Conteo de grupos de consumo"
+      },
+      {
+        "title": "Conteo de brokers"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Brokers",
+    "endpoints": "Topics",
+    "services": "Clústeres de RocketMQ"
+  },
+  "alias": "RocketMQ",
+  "group": "MQ"
+}

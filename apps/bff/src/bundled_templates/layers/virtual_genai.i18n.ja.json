@@ -1,0 +1,129 @@
+{
+  "alias": "仮想 GenAI",
+  "group": "仮想ターゲット",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "出力トークン"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "平均レイテンシ",
+            "tip": "GenAI プロバイダへの平均コールレイテンシ。"
+          },
+          {
+            "label": "エラー率",
+            "tip": "100 − プロバイダ SLA。"
+          }
+        ]
+      },
+      {
+        "title": "コスト",
+        "metrics": [
+          {
+            "label": "推定コスト合計",
+            "tip": "プロバイダコスト推定の累積。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "コール / 分"
+      },
+      {
+        "title": "平均応答時間"
+      },
+      {
+        "title": "成功率"
+      },
+      {
+        "title": "レイテンシパーセンタイル"
+      },
+      {
+        "title": "入力トークン",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      },
+      {
+        "title": "出力トークン",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      },
+      {
+        "title": "推定コスト",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "コール / 分"
+      },
+      {
+        "title": "平均レイテンシ"
+      },
+      {
+        "title": "成功率"
+      },
+      {
+        "title": "レイテンシパーセンタイル"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "平均",
+          "パーセンタイル"
+        ]
+      },
+      {
+        "title": "入力トークン",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      },
+      {
+        "title": "出力トークン",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      },
+      {
+        "title": "推定コスト",
+        "expressionLabels": [
+          "合計",
+          "平均"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "GenAI プロバイダ",
+    "instances": "モデル"
+  }
+}

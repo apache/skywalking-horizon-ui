@@ -1,0 +1,156 @@
+{
+  "alias": "Istio Control Plane",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutines"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "Dienste"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Istio-Status",
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "CPU des Istio-Control-Plane-Prozesses."
+          },
+          {
+            "label": "Goroutines",
+            "tip": "Aktive Go-Goroutines."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Goroutines",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Istio-Versionen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "alloc",
+          "heap inuse",
+          "stack inuse",
+          "virtuell",
+          "resident"
+        ]
+      },
+      {
+        "title": "Pilot-Fehler",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "cds reject",
+          "eds reject",
+          "rds reject",
+          "lds reject",
+          "write timeout"
+        ]
+      },
+      {
+        "title": "Proxy-Push-Zeit (Perzentil)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pilot-Pushes",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sidecar-Injection-Erfolg",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ADS-Überwachung",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "xds",
+          "dienste",
+          "virt dienste"
+        ]
+      },
+      {
+        "title": "Konfigurationsvalidierung",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "passed",
+          "fehlgeschlagen"
+        ]
+      },
+      {
+        "title": "Pilot-Konflikte",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Control Planes"
+  }
+}

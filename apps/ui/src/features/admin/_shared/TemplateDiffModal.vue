@@ -32,11 +32,14 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import type { TemplateSyncRow } from '@/api/scopes/template-sync';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 import Btn from '@/components/primitives/Btn.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   /** Full OAP UI-template name, e.g. `horizon.layer.GENERAL`. */
@@ -80,7 +83,7 @@ async function load(): Promise<void> {
     const status = await bff.templateSync.syncStatus();
     const found = status.rows.find((r) => r.name === props.name) ?? null;
     if (!found) {
-      loadError.value = `No template named ${props.name} in OAP sync status.`;
+      loadError.value = t('No template named {name} in OAP sync status.', { name: props.name });
     }
     row.value = found;
   } catch (err) {
@@ -126,28 +129,23 @@ async function onReset(): Promise<void> {
 </script>
 
 <template>
-  <Modal :open="open" :title="`Template diff — ${name}`" width="80vw" fit-body @close="emit('close')">
-    <div v-if="loading" class="tdm__loading">Loading sync status…</div>
+  <Modal :open="open" :title="t('Template diff — {name}', { name })" width="80vw" fit-body @close="emit('close')">
+    <div v-if="loading" class="tdm__loading">{{ t('Loading sync status…') }}</div>
     <div v-else-if="loadError" class="tdm__err">{{ loadError }}</div>
     <template v-else-if="row">
       <p class="tdm__about">
-        This is the dashboard definition for <code>{{ name }}</code>. It drives the rendered
-        page for this scope — the <strong>widget layout</strong>, each widget's
-        <strong>metric (MQE) expression</strong>, and which <strong>components / tabs</strong>
-        appear. A difference means the template stored on OAP was edited (by an operator or
-        another UI) and no longer matches the JSON bundled in this build; the live UI follows
-        the right (OAP-stored) side until you reset.
+        {{ t('This is the dashboard definition for') }} <code>{{ name }}</code>. {{ t("It drives the rendered page for this scope — the widget layout, each widget's metric (MQE) expression, and which components / tabs appear. A difference means the template stored on OAP was edited (by an operator or another UI) and no longer matches the JSON bundled in this build; the live UI follows the right (OAP-stored) side until you reset.") }}
       </p>
       <div class="tdm__cols">
         <div class="tdm__col tdm__col--l">
-          <span class="tdm__col-side">◀ LEFT</span>
-          <span class="tdm__col-name">bundled</span>
-          <span class="tdm__col-note">the build's seed JSON (source of truth)</span>
+          <span class="tdm__col-side">{{ t('◀ LEFT') }}</span>
+          <span class="tdm__col-name">{{ t('bundled') }}</span>
+          <span class="tdm__col-note">{{ t("the build's seed JSON (source of truth)") }}</span>
         </div>
         <div class="tdm__col tdm__col--r">
-          <span class="tdm__col-side">RIGHT ▶</span>
-          <span class="tdm__col-name">OAP-stored</span>
-          <span class="tdm__col-note">what's live now (operator-edited)</span>
+          <span class="tdm__col-side">{{ t('RIGHT ▶') }}</span>
+          <span class="tdm__col-name">{{ t('OAP-stored') }}</span>
+          <span class="tdm__col-note">{{ t("what's live now (operator-edited)") }}</span>
         </div>
       </div>
       <div class="tdm__diff">
@@ -155,14 +153,12 @@ async function onReset(): Promise<void> {
       </div>
 
       <div class="tdm__reset">
-        <h4>Reset to bundled</h4>
+        <h4>{{ t('Reset to bundled') }}</h4>
         <p class="tdm__reset-lede">
-          This overwrites <code>{{ name }}</code> on OAP with the bundled JSON shown on the
-          left. The operator's edits on OAP are <strong>lost</strong>. The bundle is
-          considered the source of truth after this action.
+          {{ t('This overwrites') }} <code>{{ name }}</code> {{ t("on OAP with the bundled JSON shown on the left. The operator's edits on OAP are lost. The bundle is considered the source of truth after this action.") }}
         </p>
         <label class="tdm__reset-label">
-          <span>Type <code class="tdm__reset-key">{{ confirmKey }}</code> to arm the Reset button:</span>
+          <span>{{ t('Type') }} <code class="tdm__reset-key">{{ confirmKey }}</code> {{ t('to arm the Reset button:') }}</span>
           <input
             v-model="typed"
             type="text"
@@ -176,14 +172,14 @@ async function onReset(): Promise<void> {
     </template>
 
     <template #footer>
-      <Btn @click="emit('close')">close</Btn>
+      <Btn @click="emit('close')">{{ t('close') }}</Btn>
       <Btn
         v-if="row"
         kind="danger"
         :disabled="!armed || resetBusy"
         @click="onReset"
       >
-        {{ resetBusy ? 'resetting…' : 'reset OAP to bundled' }}
+        {{ resetBusy ? t('resetting…') : t('reset OAP to bundled') }}
       </Btn>
     </template>
   </Modal>

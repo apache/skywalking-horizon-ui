@@ -1,0 +1,178 @@
+{
+  "alias": "MongoDB",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS de documents"
+      },
+      {
+        "label": "QPS d'opérations"
+      },
+      {
+        "label": "Connexions"
+      },
+      {
+        "label": "Lag de réplication"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacité",
+        "metrics": [
+          {
+            "label": "Taille des données (Go)",
+            "tip": "Taille totale des données à l'échelle du cluster."
+          },
+          {
+            "label": "Collections",
+            "tip": "Nombre de collections sur l'ensemble du cluster."
+          },
+          {
+            "label": "Objets",
+            "tip": "Nombre d'objets documents."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "QPS de documents",
+            "tip": "Opérations sur documents / seconde."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Disponibilité du cluster (jours)"
+      },
+      {
+        "title": "Taille des données (Go)"
+      },
+      {
+        "title": "Nombre de collections"
+      },
+      {
+        "title": "Nombre d'objets"
+      },
+      {
+        "title": "QPS de documents"
+      },
+      {
+        "title": "QPS d'opérations"
+      },
+      {
+        "title": "Connexions totales"
+      },
+      {
+        "title": "Total des curseurs"
+      },
+      {
+        "title": "Lag de réplication (ms)"
+      },
+      {
+        "title": "Données totales DB (Go)",
+        "tableHeaders": [
+          "Base de données",
+          "Données (Go)"
+        ]
+      },
+      {
+        "title": "Index total DB (Go)",
+        "tableHeaders": [
+          "Base de données",
+          "Index (Go)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Disponibilité (jours)"
+      },
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "État du ReplSet",
+        "tableHeaders": [
+          "Nœud",
+          "État du ReplSet"
+        ]
+      },
+      {
+        "title": "Connexions"
+      },
+      {
+        "title": "Utilisation CPU (%)"
+      },
+      {
+        "title": "Utilisation mémoire"
+      },
+      {
+        "title": "Mémoire libre (Go)",
+        "expressionLabels": [
+          "mem",
+          "swap"
+        ]
+      },
+      {
+        "title": "Disque (Go)",
+        "expressionLabels": [
+          "utilisé",
+          "total"
+        ]
+      },
+      {
+        "title": "Réseau (Ko/s)",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Clients actifs",
+        "expressionLabels": [
+          "total",
+          "écrivains",
+          "lecteurs"
+        ]
+      },
+      {
+        "title": "QPS de documents"
+      },
+      {
+        "title": "QPS d'opérations"
+      },
+      {
+        "title": "Latence d'opération (µs)"
+      },
+      {
+        "title": "Transactions",
+        "expressionLabels": [
+          "actifs",
+          "inactifs"
+        ]
+      },
+      {
+        "title": "Buffer de réplication",
+        "expressionLabels": [
+          "nombre",
+          "taille (Mo)"
+        ]
+      },
+      {
+        "title": "Opérations en file"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters MongoDB",
+    "instances": "Nœuds"
+  }
+}

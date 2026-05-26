@@ -1,0 +1,254 @@
+{
+  "alias": "OAP",
+  "group": "Selbstbeobachtung",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "CPU (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicher (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "GC-Anzahl / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "GC-Zeit (ms / min)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Buffer Pool (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Thread-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "live",
+          "spitze",
+          "daemon"
+        ]
+      },
+      {
+        "title": "Thread-Zustände",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "runnable",
+          "timed-waiting",
+          "blockiert",
+          "wartend"
+        ]
+      },
+      {
+        "title": "Klassen-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "geladen",
+          "entladen gesamt",
+          "geladen gesamt"
+        ]
+      },
+      {
+        "title": "Aggregation / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Persistenz-Anzahl / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "prepare",
+          "execute"
+        ]
+      },
+      {
+        "title": "Persistenter Cache / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Persistenz-Prepare-Latenz (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Persistenz-Ausführungs-Latenz (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "GraphQL-Latenz (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "GraphQL-Query-Anzahl",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "queries",
+          "fehler"
+        ]
+      },
+      {
+        "title": "Trace-Analyse / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "fehler"
+        ]
+      },
+      {
+        "title": "Trace-Analyse-Latenz (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mesh-Analyse / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "fehler"
+        ]
+      },
+      {
+        "title": "Mesh-Analyse-Latenz (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "OTEL empfangen / s",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "metriken",
+          "logs",
+          "spans"
+        ]
+      },
+      {
+        "title": "K8S ALS",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "verworfen",
+          "streams",
+          "err streams"
+        ]
+      },
+      {
+        "title": "Watermark Circuit Breaker",
+        "tip": "Kumulative Break- + Recover-Zähler pro Listener.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "break",
+          "recover"
+        ]
+      },
+      {
+        "title": "Aggregations-Queue-Nutzung (%)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
+      },
+      {
+        "title": "BanyanDB Schreib-Latenz (ms)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "measure bulk",
+          "stream bulk",
+          "trace bulk",
+          "stream single",
+          "property"
+        ]
+      },
+      {
+        "title": "Elasticsearch Schreib-Latenz (ms)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "single",
+          "bulk"
+        ]
+      },
+      {
+        "title": "Zipkin-Spans verworfen",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "OAP-Dienste",
+    "instances": "OAP-Knoten"
+  }
+}

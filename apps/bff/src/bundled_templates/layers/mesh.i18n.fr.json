@@ -1,0 +1,252 @@
+{
+  "alias": "Services gérés par Istio",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Trafic"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "Taux d'erreur"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Temps de réponse au 95e centile routé par le sidecar sur l'ensemble du mesh."
+          },
+          {
+            "label": "Taux d'erreur",
+            "tip": "100 − SLA du mesh. Appels avec un statut non-2xx remonté par les ALS du sidecar."
+          }
+        ]
+      },
+      {
+        "title": "Santé",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Score de satisfaction utilisateur sur une échelle de 0 à 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "tip": "Top endpoints sous le service sélectionné. Changer d'onglet pour classer par trafic, temps de réponse ou pire taux de succès.",
+        "expressionLabels": [
+          "Trafic",
+          "Lentes",
+          "Taux de succès"
+        ]
+      },
+      {
+        "title": "Trafic",
+        "tip": "Requêtes par minute à l'échelle du mesh observées par les sidecars Envoy."
+      },
+      {
+        "title": "Taux d'erreur"
+      },
+      {
+        "title": "Apdex",
+        "tip": "Score de satisfaction utilisateur sur une échelle de 0 à 1."
+      },
+      {
+        "title": "Temps de réponse moyen"
+      },
+      {
+        "title": "Centile du temps de réponse",
+        "tip": "Latence p50 / p75 / p90 / p95 / p99 — la queue de la distribution des temps de réponse."
+      },
+      {
+        "title": "Débit du service",
+        "tip": "Octets par minute à travers le sidecar — envoyés + reçus.",
+        "expressionLabels": [
+          "reçus",
+          "envoyés"
+        ]
+      },
+      {
+        "title": "Latence interne du sidecar",
+        "tip": "Latence requête + réponse interne Envoy, en nanosecondes. Utile lorsqu'un overhead du sidecar est suspecté.",
+        "expressionLabels": [
+          "requête",
+          "réponse"
+        ]
+      },
+      {
+        "title": "Top 10 sidecars",
+        "tip": "Classement parmi les instances sidecar du service sélectionné.",
+        "expressionLabels": [
+          "Trafic",
+          "Lentes",
+          "Taux de succès"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Charge du sidecar",
+        "tip": "Appels par minute vers l'instance sidecar sélectionnée."
+      },
+      {
+        "title": "Latence du sidecar"
+      },
+      {
+        "title": "Taux de succès du sidecar"
+      },
+      {
+        "title": "Débit du sidecar",
+        "tip": "Octets à travers le sidecar — reçus + envoyés.",
+        "expressionLabels": [
+          "reçus",
+          "envoyés"
+        ]
+      },
+      {
+        "title": "Latence interne du sidecar",
+        "expressionLabels": [
+          "requête",
+          "réponse"
+        ]
+      },
+      {
+        "title": "Requêtes upstream actives Envoy",
+        "tip": "Requêtes upstream en vol par cluster. S'affiche pour les sidecars instrumentés par Envoy."
+      },
+      {
+        "title": "Augmentation des requêtes upstream Envoy",
+        "tip": "Requêtes upstream ajoutées par minute."
+      },
+      {
+        "title": "En attente upstream actives Envoy",
+        "tip": "Requêtes upstream en attente — indique de la back-pressure sur le connection-pool."
+      },
+      {
+        "title": "Connexions upstream actives Envoy"
+      },
+      {
+        "title": "Augmentation des connexions upstream Envoy"
+      },
+      {
+        "title": "Membres sains du cluster Envoy",
+        "tip": "Membres upstream sains par cluster — une chute non triviale signale un churn upstream."
+      },
+      {
+        "title": "Connexions totales Envoy",
+        "expressionLabels": [
+          "total",
+          "parent"
+        ]
+      },
+      {
+        "title": "Mémoire heap Envoy",
+        "tip": "Utilisation mémoire Envoy. Heap vs physique, alloué vs max, en Mo.",
+        "expressionLabels": [
+          "heap utilisé",
+          "heap max",
+          "alloué",
+          "max alloué",
+          "physique",
+          "physique max"
+        ]
+      },
+      {
+        "title": "Worker threads Envoy",
+        "expressionLabels": [
+          "vivantes",
+          "max"
+        ]
+      },
+      {
+        "title": "Échecs (bug) Envoy",
+        "tip": "Compteur d'assertions / bugs propre à Envoy. Devrait être nul sur les clusters sains."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Trafic de l'endpoint"
+      },
+      {
+        "title": "Temps de réponse moyen de l'endpoint"
+      },
+      {
+        "title": "Taux de succès de l'endpoint"
+      },
+      {
+        "title": "Centile du temps de réponse de l'endpoint"
+      },
+      {
+        "title": "Latence interne du sidecar (scope endpoint)",
+        "tip": "Latence requête + réponse interne Envoy sur cet endpoint, en nanosecondes.",
+        "expressionLabels": [
+          "requête",
+          "réponse"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latence"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Temps de réponse moyen"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Temps de réponse moyen"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services",
+    "instances": "Sidecars",
+    "endpoints": "Endpoints"
+  }
+}

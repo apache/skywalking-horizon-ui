@@ -1,0 +1,133 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nós",
+    "endpoints": "Serviços do EKS"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Nós"
+      },
+      {
+        "label": "Nós com falha"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Serviços"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Recurso",
+        "metrics": [
+          {
+            "label": "Nós",
+            "tip": "Quantidade de nós do cluster EKS."
+          },
+          {
+            "label": "Nós com falha",
+            "tip": "Nós EKS com falha reportados pelo cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Quantidade de nós"
+      },
+      {
+        "title": "Nós com falha"
+      },
+      {
+        "title": "Quantidade de namespaces"
+      },
+      {
+        "title": "Quantidade de serviços EKS"
+      },
+      {
+        "title": "Erros de rede do cluster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "title": "Pacotes descartados na rede do cluster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Utilização de CPU do Pod (%)"
+      },
+      {
+        "title": "Utilização de memória do Pod (%)"
+      },
+      {
+        "title": "Rede RX do Pod (KB/s)"
+      },
+      {
+        "title": "Erros RX do Pod / s"
+      },
+      {
+        "title": "Rede TX do Pod (KB/s)"
+      },
+      {
+        "title": "Erros TX do Pod / s"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Quantidade de Pods"
+      },
+      {
+        "title": "Utilização de CPU (%)"
+      },
+      {
+        "title": "Utilização de memória (%)"
+      },
+      {
+        "title": "Utilização do FS (%)"
+      },
+      {
+        "title": "Rede RX (KB/s)",
+        "expressionLabels": [
+          "bytes",
+          "erros"
+        ]
+      },
+      {
+        "title": "Rede TX (KB/s)",
+        "expressionLabels": [
+          "bytes",
+          "erros"
+        ]
+      },
+      {
+        "title": "IO de disco (B/s)",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "CPU do Pod no nó"
+      },
+      {
+        "title": "Memória do Pod no nó"
+      }
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Requêtes"
+      },
+      {
+        "label": "Latence moyenne"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erreurs",
+        "metrics": [
+          {
+            "label": "Nombre de 4xx",
+            "tip": "Erreurs client observées par CloudWatch."
+          },
+          {
+            "label": "Nombre de 5xx",
+            "tip": "Erreurs serveur observées par CloudWatch."
+          },
+          {
+            "label": "Latence moyenne",
+            "tip": "Latence moyenne des requêtes."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Nombre total de requêtes"
+      },
+      {
+        "title": "Nombre de requêtes GET"
+      },
+      {
+        "title": "Nombre de requêtes PUT"
+      },
+      {
+        "title": "Nombre de requêtes DELETE"
+      },
+      {
+        "title": "Nombre de 4xx"
+      },
+      {
+        "title": "Nombre de 5xx"
+      },
+      {
+        "title": "Latence moyenne des requêtes"
+      },
+      {
+        "title": "Latence moyenne du premier octet"
+      },
+      {
+        "title": "Téléchargés (Ko)"
+      },
+      {
+        "title": "Téléversés (Ko)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Buckets S3"
+  }
+}

@@ -1,0 +1,324 @@
+{
+  "alias": "Elasticsearch",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Status"
+      },
+      {
+        "label": "Shards"
+      },
+      {
+        "label": "Knoten"
+      },
+      {
+        "label": "Nicht zugewiesen"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Status",
+            "tip": "0 grün / 1 gelb / 2 rot."
+          },
+          {
+            "label": "Nicht zugewiesene Shards",
+            "tip": "Shards, die noch keinem Knoten zugewiesen sind."
+          },
+          {
+            "label": "Ausgelöste Breaker",
+            "tip": "Kumulative Circuit-Breaker-Auslösungen — hohe Werte deuten auf Speicherdruck hin."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Cluster-Status",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Status",
+          "Wert"
+        ]
+      },
+      {
+        "title": "Knoten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausstehende Aufgaben",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Primary Shards",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Aktive Shards",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Initialisierend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Relocating",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nicht zugewiesen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verzögert nicht zugewiesen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausgelöste Breaker",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cluster CPU-Mittel",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicher mittlere Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Offene Dateien Mittel",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Prozess-CPU (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "OS-CPU (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Load Average",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "JVM-Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "heap used",
+          "heap max",
+          "non-heap"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "zeit (ms/min)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Translog",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "operationen",
+          "größe (MB)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Breaker",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ausgelöst",
+          "geschätzt (MB)"
+        ]
+      },
+      {
+        "title": "Segmente",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "speicher (MB)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Disk-Nutzung",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "GB",
+          "%"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Netzwerk",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "senden",
+          "empfangen"
+        ]
+      },
+      {
+        "title": "Offene Dateien",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Indexierungsrate",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Suchrate",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Indexgröße (alle Shards)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Indexgröße (Primary)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Dokumente",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "alle",
+          "primary",
+          "gelöscht"
+        ]
+      },
+      {
+        "title": "Mittlere Suchzeit / Anf. (s)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "fetch",
+          "query",
+          "scroll",
+          "suggest"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ES-Cluster",
+    "instances": "Knoten",
+    "endpoints": "Indizes"
+  }
+}

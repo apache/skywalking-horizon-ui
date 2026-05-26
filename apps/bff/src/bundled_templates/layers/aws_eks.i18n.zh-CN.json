@@ -1,0 +1,66 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "slots": {
+    "services": "集群",
+    "instances": "节点",
+    "endpoints": "EKS 服务"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "节点" },
+      { "label": "失败节点" },
+      { "label": "命名空间" },
+      { "label": "服务" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "资源",
+        "metrics": [
+          { "label": "节点", "tip": "EKS 集群节点数。" },
+          { "label": "失败节点", "tip": "集群上报的失败 EKS 节点数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "节点数" },
+      { "title": "失败节点" },
+      { "title": "命名空间数" },
+      { "title": "EKS 服务数" },
+      { "title": "集群网络错误", "expressionLabels": ["rx", "tx"] },
+      { "title": "集群网络丢包", "expressionLabels": ["rx", "tx"] }
+    ],
+    "endpoint": [
+      { "title": "Pod CPU 使用率（%）" },
+      { "title": "Pod 内存使用率（%）" },
+      { "title": "Pod 网络 RX（KB/s）" },
+      { "title": "Pod RX 错误 / 秒" },
+      { "title": "Pod 网络 TX（KB/s）" },
+      { "title": "Pod TX 错误 / 秒" }
+    ],
+    "instance": [
+      { "title": "Pod 数量" },
+      { "title": "CPU 使用率（%）" },
+      { "title": "内存使用率（%）" },
+      { "title": "文件系统使用率（%）" },
+      {
+        "title": "网络 RX（KB/s）",
+        "expressionLabels": ["bytes", "errors"]
+      },
+      {
+        "title": "网络 TX（KB/s）",
+        "expressionLabels": ["bytes", "errors"]
+      },
+      {
+        "title": "磁盘 IO（B/s）",
+        "expressionLabels": ["read", "write"]
+      },
+      { "title": "节点上的 Pod CPU" },
+      { "title": "节点上的 Pod 内存" }
+    ]
+  }
+}

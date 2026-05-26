@@ -1,0 +1,141 @@
+{
+  "alias": "Kong",
+  "group": "Passerelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence",
+        "metrics": [
+          {
+            "label": "Latence Kong",
+            "tip": "Temps passé par Kong lui-même par requête, p50/p95."
+          },
+          {
+            "label": "Latence upstream",
+            "tip": "Temps d'attente sur le service upstream."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Requêtes par seconde à travers Kong."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Latence Kong"
+      },
+      {
+        "title": "Latence des requêtes"
+      },
+      {
+        "title": "Latence upstream"
+      },
+      {
+        "title": "Connexions Nginx"
+      },
+      {
+        "title": "Timers Nginx"
+      },
+      {
+        "title": "Datastore accessible",
+        "tableHeaders": [
+          "Instance",
+          "Joignable"
+        ]
+      },
+      {
+        "title": "Erreurs de métriques Nginx"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Latence Kong"
+      },
+      {
+        "title": "Latence des requêtes"
+      },
+      {
+        "title": "Latence upstream"
+      },
+      {
+        "title": "Datastore accessible"
+      },
+      {
+        "title": "Connexions Nginx"
+      },
+      {
+        "title": "Timers Nginx"
+      },
+      {
+        "title": "Utilisation de la mémoire partagée"
+      },
+      {
+        "title": "Utilisation de la VM Lua worker"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Bande passante totale"
+      },
+      {
+        "title": "Latence Kong"
+      },
+      {
+        "title": "Latence des requêtes"
+      },
+      {
+        "title": "Latence upstream"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services Kong",
+    "instances": "Nœuds",
+    "endpoints": "Routes"
+  }
+}

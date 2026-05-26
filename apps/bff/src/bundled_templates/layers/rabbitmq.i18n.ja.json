@@ -1,0 +1,162 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "キュー"
+      },
+      {
+        "label": "Channel"
+      },
+      {
+        "label": "接続"
+      },
+      {
+        "label": "未確認"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "発行 / 分",
+            "tip": "1分あたりの発行メッセージ数。"
+          },
+          {
+            "label": "未確認",
+            "tip": "Publisher Confirm を待っているメッセージ。"
+          },
+          {
+            "label": "ルーティング不可破棄",
+            "tip": "Exchange ルートにマッチせず破棄されたメッセージ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "ブロック前のメモリ利用可能量 (MB)"
+      },
+      {
+        "title": "ブロック前のディスク利用可能量 (GB)"
+      },
+      {
+        "title": "ファイルディスクリプタ + ソケット",
+        "expressionLabels": [
+          "FD",
+          "ソケット"
+        ]
+      },
+      {
+        "title": "Ready メッセージ"
+      },
+      {
+        "title": "Ack 待ち"
+      },
+      {
+        "title": "発行パイプライン",
+        "expressionLabels": [
+          "発行",
+          "確認",
+          "ルーティング済み",
+          "未確認"
+        ]
+      },
+      {
+        "title": "ルーティング不可メッセージ",
+        "expressionLabels": [
+          "破棄",
+          "返却"
+        ]
+      },
+      {
+        "title": "キュー",
+        "expressionLabels": [
+          "合計",
+          "宣言",
+          "作成",
+          "削除"
+        ]
+      },
+      {
+        "title": "Channel",
+        "expressionLabels": [
+          "合計",
+          "オープン",
+          "クローズ"
+        ]
+      },
+      {
+        "title": "接続",
+        "expressionLabels": [
+          "合計",
+          "オープン",
+          "クローズ"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Ready メッセージ"
+      },
+      {
+        "title": "受信メッセージ"
+      },
+      {
+        "title": "送信メッセージ"
+      },
+      {
+        "title": "未確認メッセージ"
+      },
+      {
+        "title": "接続 / Publisher / Consumer",
+        "expressionLabels": [
+          "接続",
+          "パブリッシャー",
+          "コンシューマー"
+        ]
+      },
+      {
+        "title": "Channel + キュー",
+        "expressionLabels": [
+          "channel",
+          "キュー"
+        ]
+      },
+      {
+        "title": "アロケート使用率 %"
+      },
+      {
+        "title": "メモリ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "未使用",
+          "常駐",
+          "合計"
+        ]
+      },
+      {
+        "title": "タイプ別アロケート (MB)"
+      },
+      {
+        "title": "Multi/Single-block メモリ (MB)",
+        "expressionLabels": [
+          "multi 使用中",
+          "multi 未使用",
+          "single 使用中",
+          "single 未使用"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "RabbitMQ クラスタ",
+    "instances": "ノード"
+  }
+}

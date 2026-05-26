@@ -1,0 +1,162 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "큐"
+      },
+      {
+        "label": "채널"
+      },
+      {
+        "label": "연결"
+      },
+      {
+        "label": "미확인"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "게시 / 분",
+            "tip": "분당 게시된 메시지 수입니다."
+          },
+          {
+            "label": "미확인",
+            "tip": "게시자 확인을 기다리는 메시지입니다."
+          },
+          {
+            "label": "라우팅 불가 드롭",
+            "tip": "일치하는 익스체인지 라우트가 없어 버려진 메시지입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "차단 전 사용 가능 메모리 (MB)"
+      },
+      {
+        "title": "차단 전 사용 가능 디스크 (GB)"
+      },
+      {
+        "title": "파일 디스크립터 + 소켓",
+        "expressionLabels": [
+          "fds",
+          "소켓"
+        ]
+      },
+      {
+        "title": "대기 중인 메시지"
+      },
+      {
+        "title": "미확인 응답"
+      },
+      {
+        "title": "게시 파이프라인",
+        "expressionLabels": [
+          "published",
+          "confirmed",
+          "routed",
+          "unconfirmed"
+        ]
+      },
+      {
+        "title": "라우팅 불가 메시지",
+        "expressionLabels": [
+          "dropped",
+          "returned"
+        ]
+      },
+      {
+        "title": "큐",
+        "expressionLabels": [
+          "전체",
+          "declared",
+          "created",
+          "deleted"
+        ]
+      },
+      {
+        "title": "채널",
+        "expressionLabels": [
+          "전체",
+          "opened",
+          "closed"
+        ]
+      },
+      {
+        "title": "연결",
+        "expressionLabels": [
+          "전체",
+          "opened",
+          "closed"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "대기 중인 메시지"
+      },
+      {
+        "title": "수신 메시지"
+      },
+      {
+        "title": "송신 메시지"
+      },
+      {
+        "title": "확인되지 않은 메시지"
+      },
+      {
+        "title": "연결 / 게시자 / 소비자",
+        "expressionLabels": [
+          "연결",
+          "게시자",
+          "소비자"
+        ]
+      },
+      {
+        "title": "채널 + 큐",
+        "expressionLabels": [
+          "채널",
+          "큐"
+        ]
+      },
+      {
+        "title": "할당 사용 %"
+      },
+      {
+        "title": "메모리 (MB)",
+        "expressionLabels": [
+          "사용",
+          "미사용",
+          "resident",
+          "전체"
+        ]
+      },
+      {
+        "title": "유형별 할당량 (MB)"
+      },
+      {
+        "title": "다중/단일 블록 메모리 (MB)",
+        "expressionLabels": [
+          "multi 사용",
+          "multi 미사용",
+          "single 사용",
+          "single 미사용"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "RabbitMQ 클러스터",
+    "instances": "노드"
+  }
+}

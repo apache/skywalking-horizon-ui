@@ -1,0 +1,129 @@
+{
+  "alias": "GenAI virtuel",
+  "group": "Cibles virtuelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "Taux de succès"
+      },
+      {
+        "label": "Tokens sortants"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "Latence moyenne",
+            "tip": "Latence moyenne des appels au fournisseur GenAI."
+          },
+          {
+            "label": "Taux d'erreur",
+            "tip": "100 − SLA du fournisseur."
+          }
+        ]
+      },
+      {
+        "title": "Coût",
+        "metrics": [
+          {
+            "label": "Coût total estimé",
+            "tip": "Estimation cumulée du coût du fournisseur."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Appels / min"
+      },
+      {
+        "title": "Temps de réponse moyen"
+      },
+      {
+        "title": "Taux de succès"
+      },
+      {
+        "title": "Centile de latence"
+      },
+      {
+        "title": "Tokens entrants",
+        "expressionLabels": [
+          "somme",
+          "moy"
+        ]
+      },
+      {
+        "title": "Tokens sortants",
+        "expressionLabels": [
+          "somme",
+          "moy"
+        ]
+      },
+      {
+        "title": "Coût estimé",
+        "expressionLabels": [
+          "total",
+          "moy"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Appels / min"
+      },
+      {
+        "title": "Latence moyenne"
+      },
+      {
+        "title": "Taux de succès"
+      },
+      {
+        "title": "Centile de latence"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "moy",
+          "centile"
+        ]
+      },
+      {
+        "title": "Tokens entrants",
+        "expressionLabels": [
+          "somme",
+          "moy"
+        ]
+      },
+      {
+        "title": "Tokens sortants",
+        "expressionLabels": [
+          "somme",
+          "moy"
+        ]
+      },
+      {
+        "title": "Coût estimé",
+        "expressionLabels": [
+          "total",
+          "moy"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Fournisseurs GenAI",
+    "instances": "Modèles"
+  }
+}

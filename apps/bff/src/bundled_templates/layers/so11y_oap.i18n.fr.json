@@ -1,0 +1,153 @@
+{
+  "alias": "OAP",
+  "group": "Auto-observabilité",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "Mémoire JVM (Mo)"
+      },
+      {
+        "title": "Nombre de GC / min"
+      },
+      {
+        "title": "Temps GC (ms / min)"
+      },
+      {
+        "title": "Buffer Pool (Mo)"
+      },
+      {
+        "title": "Nombre de threads",
+        "expressionLabels": [
+          "vivantes",
+          "pic",
+          "daemon"
+        ]
+      },
+      {
+        "title": "États des threads",
+        "expressionLabels": [
+          "exécutable",
+          "timed-waiting",
+          "bloqué",
+          "en attente"
+        ]
+      },
+      {
+        "title": "Nombre de classes",
+        "expressionLabels": [
+          "chargées",
+          "total déchargées",
+          "total chargées"
+        ]
+      },
+      {
+        "title": "Agrégation / min"
+      },
+      {
+        "title": "Nombre de persistances / min",
+        "expressionLabels": [
+          "préparation",
+          "exécution"
+        ]
+      },
+      {
+        "title": "Cache persistant / min"
+      },
+      {
+        "title": "Latence de préparation de persistance (ms)"
+      },
+      {
+        "title": "Latence d'exécution de persistance (ms)"
+      },
+      {
+        "title": "Latence GraphQL (ms)"
+      },
+      {
+        "title": "Nombre de requêtes GraphQL",
+        "expressionLabels": [
+          "requêtes",
+          "erreurs"
+        ]
+      },
+      {
+        "title": "Analyse de traces / min",
+        "expressionLabels": [
+          "total",
+          "erreurs"
+        ]
+      },
+      {
+        "title": "Latence d'analyse de traces (ms)"
+      },
+      {
+        "title": "Analyse mesh / min",
+        "expressionLabels": [
+          "total",
+          "erreurs"
+        ]
+      },
+      {
+        "title": "Latence d'analyse mesh (ms)"
+      },
+      {
+        "title": "OTEL reçus / s",
+        "expressionLabels": [
+          "métriques",
+          "logs",
+          "spans"
+        ]
+      },
+      {
+        "title": "K8S ALS",
+        "expressionLabels": [
+          "nombre",
+          "rejetés",
+          "flux",
+          "flux d'erreurs"
+        ]
+      },
+      {
+        "title": "Watermark Circuit Breaker",
+        "tip": "Compteurs cumulés rupture + récupération par listener.",
+        "expressionLabels": [
+          "rupture",
+          "récupération"
+        ]
+      },
+      {
+        "title": "Utilisation de la file d'agrégation (%)",
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
+      },
+      {
+        "title": "Latence d'écriture BanyanDB (ms)",
+        "expressionLabels": [
+          "mesure bulk",
+          "flux bulk",
+          "trace bulk",
+          "flux simple",
+          "propriété"
+        ]
+      },
+      {
+        "title": "Latence d'écriture Elasticsearch (ms)",
+        "expressionLabels": [
+          "simple",
+          "bulk"
+        ]
+      },
+      {
+        "title": "Spans Zipkin rejetés"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services OAP",
+    "instances": "Nœuds OAP"
+  }
+}

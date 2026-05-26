@@ -1,0 +1,205 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Nodos"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Deployments"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidad",
+        "metrics": [
+          {
+            "label": "Pods",
+            "tip": "Pods totales reportados en el clúster."
+          },
+          {
+            "label": "Nodos",
+            "tip": "Conteo de nodos."
+          },
+          {
+            "label": "Servicios",
+            "tip": "Objetos Service de K8s."
+          }
+        ]
+      },
+      {
+        "title": "Problemas",
+        "metrics": [
+          {
+            "label": "Pods no running",
+            "tip": "Pods en cualquier estado distinto de Running — pending, failed, unknown."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Total de nodos"
+      },
+      {
+        "title": "Total de namespaces"
+      },
+      {
+        "title": "Total de deployments"
+      },
+      {
+        "title": "Total de StatefulSets"
+      },
+      {
+        "title": "Total de DaemonSets"
+      },
+      {
+        "title": "Total de servicios"
+      },
+      {
+        "title": "Total de pods"
+      },
+      {
+        "title": "Total de contenedores"
+      },
+      {
+        "expressionLabels": [
+          "Capacidad",
+          "Peticiones",
+          "Límites",
+          "Asignable"
+        ],
+        "title": "Recursos de CPU",
+        "tip": "Capacidad de CPU del clúster vs requests / limits / asignable (millicores)."
+      },
+      {
+        "title": "Recursos de memoria",
+        "tip": "Memoria del clúster: requests / asignable / limits / total.",
+        "expressionLabels": [
+          "Peticiones",
+          "Asignable",
+          "Límites",
+          "Total"
+        ]
+      },
+      {
+        "title": "Recursos de almacenamiento",
+        "tip": "Almacenamiento efímero total del clúster vs asignable.",
+        "expressionLabels": [
+          "Total",
+          "Asignable"
+        ]
+      },
+      {
+        "title": "Estado del nodo",
+        "tip": "Condiciones de Kubernetes por nodo actualmente verdaderas/desconocidas (Ready, *Pressure, …).",
+        "tableHeaders": [
+          "Nodo · Condición",
+          null
+        ]
+      },
+      {
+        "title": "Estado del deployment",
+        "tip": "Deployments que reportan la condición Available.",
+        "tableHeaders": [
+          "Deployment · Disponible",
+          null
+        ]
+      },
+      {
+        "title": "Réplicas especificadas del deployment",
+        "tip": "Conteo de réplicas deseado por deployment.",
+        "tableHeaders": [
+          "Deployment",
+          "Réplicas"
+        ]
+      },
+      {
+        "title": "Estado del servicio",
+        "tip": "Pods que respaldan cada K8s Service, por fase (Running / Pending / Failed / …).",
+        "tableHeaders": [
+          "Servicio · Fase",
+          null
+        ]
+      },
+      {
+        "title": "Pods en estado no Running",
+        "tip": "Pods en cualquier fase distinta de Running.",
+        "tableHeaders": [
+          "Pod · Estado",
+          null
+        ]
+      },
+      {
+        "title": "Pods en estado Waiting",
+        "tip": "Contenedores en estado de espera, por motivo.",
+        "tableHeaders": [
+          "Contenedor · Pod · Motivo",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Estado del nodo"
+      },
+      {
+        "title": "Pods en el nodo"
+      },
+      {
+        "title": "Uso de CPU del nodo",
+        "tip": "Uso de CPU en millicores."
+      },
+      {
+        "title": "Recursos de CPU del nodo",
+        "expressionLabels": [
+          "total",
+          "asignable",
+          "peticiones",
+          "limits"
+        ]
+      },
+      {
+        "title": "Uso de memoria del nodo"
+      },
+      {
+        "title": "Recursos de memoria del nodo",
+        "expressionLabels": [
+          "total",
+          "asignable",
+          "peticiones",
+          "limits"
+        ]
+      },
+      {
+        "title": "I/O de red del nodo",
+        "expressionLabels": [
+          "recepción",
+          "transmisión"
+        ]
+      },
+      {
+        "title": "Recursos de almacenamiento del nodo",
+        "expressionLabels": [
+          "total",
+          "asignable"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clústeres",
+    "instances": "Nodos"
+  },
+  "alias": "Kubernetes",
+  "group": "Kubernetes"
+}

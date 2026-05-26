@@ -1,0 +1,78 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Errores",
+        "metrics": [
+          {
+            "label": "Conteo 4xx",
+            "tip": "Errores de cliente observados por CloudWatch."
+          },
+          {
+            "label": "Conteo 5xx",
+            "tip": "Errores de servidor observados por CloudWatch."
+          },
+          {
+            "label": "Latencia media",
+            "tip": "Latencia media de petición."
+          }
+        ]
+      }
+    ]
+  },
+  "alias": "AWS S3",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Peticiones"
+      },
+      {
+        "label": "Latencia media"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Conteo de todas las peticiones"
+      },
+      {
+        "title": "Conteo de peticiones GET"
+      },
+      {
+        "title": "Conteo de peticiones PUT"
+      },
+      {
+        "title": "Conteo de peticiones DELETE"
+      },
+      {
+        "title": "Conteo 4xx"
+      },
+      {
+        "title": "Conteo 5xx"
+      },
+      {
+        "title": "Latencia media de petición"
+      },
+      {
+        "title": "Latencia media del primer byte"
+      },
+      {
+        "title": "Descargado (KB)"
+      },
+      {
+        "title": "Subido (KB)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Buckets de S3"
+  }
+}

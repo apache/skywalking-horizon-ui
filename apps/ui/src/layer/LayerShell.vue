@@ -26,7 +26,7 @@
       default entry; the cross-layer Overview lives at `/`.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
@@ -42,9 +42,7 @@ import { useTimeRangeStore } from '@/controls/timeRange';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerSelectionStore } from '@/state/layerSelection';
-import Modal from '@/features/operate/_shared/Modal.vue';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName } from '@/utils/serviceName';
@@ -66,23 +64,38 @@ const scopeSegment = computed<string>(() => {
   const m = route.path.match(/^\/layer\/[^/]+\/([^/?]+)/);
   return m ? m[1] : 'service';
 });
+// Reset the picker state on LAYER change only. Scope/tab navigation
+// within the same layer keeps the operator's pick sticky — they
+// browse every tab against the service they chose. On a real layer
+// change `resetForLayer` reads `?service=` / `?instance=` / `?endpoint=`
+// from the new URL so shared / bookmarked deep links land on the
+// right service. `flush: 'sync'` makes the reset land before any
+// downstream watch can read the previous layer's id.
+//
+// On unmount (operator leaves the layer to a non-layer page like
+// /alarms) we also `clear()` the store so the next visit to the
+// same layer re-hydrates from URL instead of resuming the prior
+// selection. Browsing tabs within a layer keeps LayerShell mounted,
+// so this only fires on real exits.
+onBeforeUnmount(() => {
+  selectionStore.clear();
+});
 watch(
-  [layerKey, scopeSegment],
-  ([key, scope]) => {
+  layerKey,
+  (key) => {
     if (!key) return;
-    selectionStore.hydrateFromQuery(key, scope, route.query);
-    // Strip the seeded selection params from the address bar so the
-    // displayed URL stays a clean dashboard link. The store now owns
-    // the live state; the params were only ever a one-shot seed for
-    // shared/pasted links. Other query keys (none today, but room for
-    // future per-route flags) are preserved.
+    selectionStore.resetForLayer(key, route.query);
+    // After hydrating, strip the seed params so the address bar reads
+    // as a clean `/layer/<key>/<scope>` URL. The store now owns the
+    // live selection; the params were a one-shot seed.
     const q = route.query;
     if (q.service != null || q.instance != null || q.endpoint != null) {
       const { service: _s, instance: _i, endpoint: _e, ...rest } = q;
+      void _s; void _i; void _e;
       void router.replace({ path: route.path, query: rest });
     }
   },
-  { immediate: true },
+  { immediate: true, flush: 'sync' },
 );
 const { layers, isLoading: layersLoading } = useLayers();
 // Case-insensitive: URL layer keys are lowercase, registry keys UPPER_SNAKE.
@@ -237,61 +250,12 @@ const aggregates = computed(() =>
   landingFresh.value ? (landing.data.value?.aggregates ?? null) : null,
 );
 
-// Page-wide selected service — URL-backed, shared with every tab body.
+// Page-wide selected service — in-memory, shared with every tab body
+// within the layer. Reset to null on cross-layer navigation via the
+// `resetForLayer` watch above; the dashboard view's auto-pick watch
+// (further down) sets the first roster entry when the selection is
+// null or no longer in the roster.
 const { selectedId, setSelected } = useSelectedService();
-
-// ──────────────────────────────────────────────────────────────────
-// URL-pinned service validation
-// ──────────────────────────────────────────────────────────────────
-// Validate the URL-hydrated `?service=<id>` against the layer's
-// REAL service roster (independent of landing's top-N rollup, which
-// can miss low-traffic services and used to silently switch the
-// operator's pick to an unrelated service). Three outcomes:
-//
-//   1. URL service is in the roster → trust the pick; no notice.
-//   2. URL service is NOT in the roster AND the roster is non-empty
-//      → pop the "service not found" modal, offer to auto-pick the
-//      first service in the layer; operator can also cancel and pick
-//      manually.
-//   3. Roster failed to load (BFF / OAP outage) → silent fallback to
-//      first landing service via the existing dashboard-view watch;
-//      no modal (the OAP-unreachable banner is the real signal).
-const { services: layerServices, isFetching: servicesFetching } = useLayerServices(layerKey);
-/** True once we've validated the current selectedId against the
- *  roster — gated so we don't re-pop the modal on every reactive
- *  trigger of the same id. Reset when layer / id changes. */
-const validatedFor = ref<string | null>(null);
-/** Modal state: which URL service id the modal is about (null = closed). */
-const missingServiceId = ref<string | null>(null);
-const missingServiceFallbackId = computed<string | null>(() =>
-  layerServices.value[0]?.id ?? null,
-);
-const missingServiceFallbackName = computed<string | null>(() =>
-  layerServices.value[0]?.name ?? null,
-);
-
-watch(
-  [layerServices, selectedId, layerKey, servicesFetching],
-  ([roster, sid, lkey, fetching]) => {
-    if (!lkey || !sid) return;
-    if (fetching) return;              // wait for the roster to finish loading
-    if (roster.length === 0) return;   // outage / empty layer — handled elsewhere
-    const tag = `${lkey}::${sid}`;
-    if (validatedFor.value === tag) return;
-    validatedFor.value = tag;
-    if (roster.some((s) => s.id === sid)) return; // valid — trust the URL pick
-    missingServiceId.value = sid;
-  },
-);
-
-function acceptFallback(): void {
-  const next = missingServiceFallbackId.value;
-  missingServiceId.value = null;
-  if (next) setSelected(next);
-}
-function dismissMissing(): void {
-  missingServiceId.value = null;
-}
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const selectorColumns = computed(() => safeCfg.value.columns);
 const selectedRow = computed(
@@ -364,16 +328,16 @@ function pickService(id: string): void {
   }, 140);
 }
 
-// Share button — copies a URL that re-creates the current header
-// selection (service/instance/endpoint) when pasted. The store owns
-// the live state and the URL stays frozen on landing, so we have to
-// assemble the link on demand from `selectionStore.shareQuery`. The
-// `copied` chip is the only feedback channel; we have no toast system
-// and don't want one for a single action.
+// Share button — copies the bare layer URL. Per-page selection state
+// is in-memory only and intentionally not encoded in the URL (each
+// operator picks their own service on landing; cross-link carryover
+// fires the "service not found in this layer" modal on layers where
+// the id is invalid). The `copied` chip is the only feedback channel;
+// we have no toast system and don't want one for a single action.
 const shareCopied = ref(false);
 let shareCopiedTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyShareLink(): Promise<void> {
-  const url = window.location.origin + window.location.pathname + selectionStore.shareQuery;
+  const url = window.location.origin + window.location.pathname;
   try {
     await navigator.clipboard.writeText(url);
   } catch {
@@ -640,48 +604,6 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       <RouterView />
     </div>
 
-    <!-- URL-pinned-service-not-found dialog. Fires when a deep link
-         (or hierarchy peer click) lands with a `?service=<id>` that
-         isn't in the layer's actual service roster. Operator can
-         accept the fallback to the first available service or
-         dismiss and pick manually. -->
-    <Modal
-      :open="missingServiceId !== null"
-      title="Service not found in this layer"
-      width="440px"
-      @close="dismissMissing"
-    >
-      <p style="margin: 0 0 12px 0; line-height: 1.5;">
-        The service id
-        <code style="font-family: var(--sw-mono); color: var(--sw-fg-1);">{{ missingServiceId }}</code>
-        is not in the
-        <b>{{ layer?.name ?? layerKey }}</b>
-        layer's current roster.
-      </p>
-      <p
-        v-if="missingServiceFallbackName"
-        style="margin: 0 0 12px 0; color: var(--sw-fg-2); font-size: 12px;"
-      >
-        Use the layer's first available service instead — <b>{{ missingServiceFallbackName }}</b> — or dismiss and pick one manually from the service header.
-      </p>
-      <p
-        v-else
-        style="margin: 0 0 12px 0; color: var(--sw-fg-2); font-size: 12px;"
-      >
-        This layer has no services to fall back to. Dismiss to stay on the empty view.
-      </p>
-      <template #footer>
-        <button type="button" class="sw-btn" @click="dismissMissing">Dismiss</button>
-        <button
-          v-if="missingServiceFallbackId"
-          type="button"
-          class="sw-btn is-primary"
-          @click="acceptFallback"
-        >
-          Use {{ missingServiceFallbackName }}
-        </button>
-      </template>
-    </Modal>
   </div>
 </template>
 

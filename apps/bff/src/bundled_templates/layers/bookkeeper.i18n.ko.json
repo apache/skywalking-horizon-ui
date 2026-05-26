@@ -1,0 +1,130 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "원장"
+      },
+      {
+        "label": "Entries"
+      },
+      {
+        "label": "쓰기 가능 디렉토리"
+      },
+      {
+        "label": "디렉토리 사용량"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "쓰기 B/s",
+            "tip": "클러스터 전체의 Bookie 쓰기 처리량입니다."
+          },
+          {
+            "label": "읽기 B/s",
+            "tip": "클러스터 전체의 Bookie 읽기 처리량입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Bookie 원장"
+      },
+      {
+        "title": "Bookie 엔트리"
+      },
+      {
+        "title": "쓰기 가능 원장 디렉토리"
+      },
+      {
+        "title": "쓰기 캐시",
+        "expressionLabels": [
+          "크기 (MB)",
+          "entries"
+        ]
+      },
+      {
+        "title": "읽기 캐시",
+        "expressionLabels": [
+          "크기 (MB)",
+          "entries"
+        ]
+      },
+      {
+        "title": "읽기 / 쓰기 비율 (B/s)",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "원장 디렉토리 사용량"
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM 메모리 풀 (MB)"
+      },
+      {
+        "title": "JVM 메모리 (MB)",
+        "expressionLabels": [
+          "사용",
+          "committed",
+          "init"
+        ]
+      },
+      {
+        "title": "JVM 스레드",
+        "expressionLabels": [
+          "current",
+          "daemon",
+          "피크",
+          "deadlocked"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "초",
+          "count"
+        ]
+      },
+      {
+        "title": "스레드 실행기",
+        "expressionLabels": [
+          "completed",
+          "완료된 작업",
+          "rejected",
+          "실패"
+        ]
+      },
+      {
+        "title": "풀링된 스레드",
+        "expressionLabels": [
+          "높은 우선순위",
+          "read"
+        ]
+      },
+      {
+        "title": "풀 최대 큐 크기",
+        "expressionLabels": [
+          "높은 우선순위",
+          "read"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "BookKeeper 클러스터",
+    "instances": "Bookie"
+  }
+}

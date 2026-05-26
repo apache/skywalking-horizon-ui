@@ -1,0 +1,283 @@
+{
+  "alias": "AWS DynamoDB",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Lese-Drosselung"
+      },
+      {
+        "label": "Schreib-Drosselung"
+      },
+      {
+        "label": "Lese-Systemfehler"
+      },
+      {
+        "label": "Schreib-Systemfehler"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Drosselung",
+        "metrics": [
+          {
+            "label": "Lese-Drosselung",
+            "tip": "Drosselung der Leseanfragen — Kapazitätserschöpfung."
+          },
+          {
+            "label": "Schreib-Drosselung",
+            "tip": "Schreibanfragen gedrosselt."
+          },
+          {
+            "label": "Benutzerfehler",
+            "tip": "Benutzerfehler vom Typ Bad Request."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Gedrosselte Anfragen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Drosselungs-Ereignisse",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Systemfehler",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Benutzerfehler",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Conditional Check fehlgeschlagen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Transaktionskonflikt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lesekapazität (Einheit/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "provisioned",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Schreibkapazität (Einheit/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "provisioned",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Erfolgreiche Anfrage-Latenz (ms)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "TTL gelöschte Items",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Scan zurückgegebene Items",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Query zurückgegebene Items",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Konto Max. Lesen / Schreiben",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "table-level reads",
+          "table-level writes",
+          "reads",
+          "schreibvorgänge"
+        ]
+      },
+      {
+        "title": "Konto-Kapazitätsauslastung",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Gedrosselte Anfragen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Drosselungs-Ereignisse",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Systemfehler",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Conditional Check fehlgeschlagen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Transaktionskonflikt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TTL gelöschte Items",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lesekapazität",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "provisioned",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Schreibkapazität",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "provisioned",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Erfolgreiche Anfrage-Latenz (ms)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "Scan zurückgegebene Items",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Query zurückgegebene Items",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "DynamoDB-Konten",
+    "endpoints": "Tabellen"
+  }
+}

@@ -17,7 +17,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 // Full "SkyWalking" wordmark + moon. The shipped file is white-fill
 // (designed for dark backgrounds). For light-appearance themes we
 // derive a blue (`#1368B3` — the official SkyWalking brand blue)
@@ -207,31 +210,43 @@ interface NavRow {
 
 interface NavSection {
   kicker: string;
+  /** Stable identifier independent of locale — used by render-side
+   *  filters that pick a specific section (e.g. the platform-monitoring
+   *  block which is hoisted to the top of the operate area). Defaults
+   *  to `'default'` for sections that don't need to be singled out. */
+  kind?: 'platform' | 'operate' | 'setup' | 'admin' | 'default';
   links: NavRow[];
 }
 
 // Each static menu carries the read verb its page's primary data route
 // requires (see apps/bff/src/rbac/route-policy.ts). The sidebar removes
 // rows the user can't read; the BFF enforces the same verbs server-side.
-const sections: NavSection[] = [
+//
+// `sections` is a `computed`, not a module-level constant, so `t(...)`
+// resolves against the CURRENT locale — otherwise label / kicker text
+// would freeze at first render and a locale switch would only update
+// strings used directly in the template, not these object-embedded ones.
+const sections = computed<NavSection[]>(() => [
   // OAP self-observability diagnostics (the backend itself, not the
   // observed services). Rendered above the per-layer self-observability
   // dashboards. All three are read-only and gated on maintainer-tier verbs.
   {
-    kicker: 'Platform monitoring',
+    kind: 'platform',
+    kicker: t('Platform monitoring'),
     links: [
-      { icon: 'svc', label: 'Cluster status', to: '/operate/cluster', verb: 'cluster:read' },
-      { icon: 'clock', label: 'Data retention', to: '/operate/ttl', verb: 'ttl:read' },
-      { icon: 'db', label: 'OAP configuration', to: '/operate/config', verb: 'config:read' },
+      { icon: 'svc', label: t('Cluster status'), to: '/operate/cluster', verb: 'cluster:read' },
+      { icon: 'clock', label: t('Data retention'), to: '/operate/ttl', verb: 'ttl:read' },
+      { icon: 'db', label: t('OAP configuration'), to: '/operate/config', verb: 'config:read' },
     ],
   },
   {
-    kicker: 'Operate',
+    kind: 'operate',
+    kicker: t('Operate'),
     links: [
-      { icon: 'alert', label: 'Alerting rules', to: '/operate/alerting-rules', verb: 'alarm-rule:read' },
+      { icon: 'alert', label: t('Alerting rules'), to: '/operate/alerting-rules', verb: 'alarm-rule:read' },
       {
         icon: 'set',
-        label: 'DSL management',
+        label: t('DSL management'),
         // No standalone landing — `to` jumps to the first rule page so
         // the L1 itself is clickable; activeWhen covers all DSL routes.
         to: '/operate/dsl/otel-rules',
@@ -242,41 +257,44 @@ const sections: NavSection[] = [
           { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules', verb: 'rule:read' },
           { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
           { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
-          { icon: 'trace', label: 'OAL · read-only', to: '/operate/oal', verb: 'rule:read' },
-          { icon: 'download', label: 'Dump & restore', to: '/operate/dsl/dump', verb: 'rule:read' },
+          { icon: 'trace', label: t('OAL · read-only'), to: '/operate/oal', verb: 'rule:read' },
+          { icon: 'download', label: t('Dump & restore'), to: '/operate/dsl/dump', verb: 'rule:read' },
         ],
       },
       {
         icon: 'flame',
-        label: 'Live debugger',
+        label: t('Live debugger'),
         to: '/operate/live-debug',
         verb: 'live-debug:read',
         // Match the tab variants only; the history sibling at
         // /operate/live-debug/history must NOT highlight this row.
         activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal)(\/|$)/.test(p),
       },
-      { icon: 'event', label: 'Capture history', to: '/operate/live-debug/history', verb: 'live-debug:read' },
-      { icon: 'metric', label: 'Metrics inspect', to: '/operate/inspect', verb: 'inspect:read' },
+      { icon: 'event', label: t('Capture history'), to: '/operate/live-debug/history', verb: 'live-debug:read' },
+      { icon: 'metric', label: t('Metrics inspect'), to: '/operate/inspect', verb: 'inspect:read' },
     ],
   },
   {
-    kicker: 'Dashboard setup',
+    kind: 'setup',
+    kicker: t('Dashboard setup'),
     links: [
-      { icon: 'set', label: 'Overview templates', to: '/admin/overview-templates', verb: 'overview:write' },
-      { icon: 'metric', label: 'Layer dashboards', to: '/admin/layer-dashboards', verb: 'dashboard:read' },
-      { icon: 'alert', label: 'Alert page', to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
-      { icon: 'set', label: 'Global defaults', to: '/admin/global-defaults', verb: 'setup:read' },
+      { icon: 'set', label: t('Overview templates'), to: '/admin/overview-templates', verb: 'overview:write' },
+      { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'dashboard:read' },
+      { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'overview:write' },
+      { icon: 'alert', label: t('Alert page'), to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
+      { icon: 'set', label: t('Global defaults'), to: '/admin/global-defaults', verb: 'setup:read' },
     ],
   },
   {
-    kicker: 'Admin',
+    kind: 'admin',
+    kicker: t('Admin'),
     links: [
-      { icon: 'user', label: 'Users', to: '/admin/users', verb: 'user:read' },
-      { icon: 'set', label: 'Auth status', to: '/admin/auth-status', verb: 'auth:read' },
-      { icon: 'set', label: 'Roles & permissions', to: '/admin/roles', verb: 'role:read' },
+      { icon: 'user', label: t('Users'), to: '/admin/users', verb: 'user:read' },
+      { icon: 'set', label: t('Auth status'), to: '/admin/auth-status', verb: 'auth:read' },
+      { icon: 'set', label: t('Roles & permissions'), to: '/admin/roles', verb: 'role:read' },
     ],
   },
-];
+]);
 
 /**
  * Verb-filtered view of `sections`: rows with a `verb` the current user
@@ -312,7 +330,7 @@ function syncBadgeFor(to: string): NavRow['badge'] | undefined {
 
 const visibleSections = computed<NavSection[]>(() => {
   const out: NavSection[] = [];
-  for (const sec of sections) {
+  for (const sec of sections.value) {
     const links = sec.links
       .filter((r) => !r.verb || auth.hasVerb(r.verb))
       .map((r) => {
@@ -320,19 +338,20 @@ const visibleSections = computed<NavSection[]>(() => {
         return badge ? { ...r, badge } : r;
       });
     if (links.length === 0) continue;
-    out.push({ kicker: sec.kicker, links });
+    out.push({ kind: sec.kind, kicker: sec.kicker, links });
   }
   return out;
 });
 
 // Platform monitoring (OAP self-observability) renders at the top of the
 // operate area — above the per-layer self-observability dashboards — so
-// it's pulled out of the generic section loop below.
+// it's pulled out of the generic section loop below. Identified by the
+// locale-independent `kind` tag so the filter survives a language switch.
 const platformSection = computed<NavSection | undefined>(() =>
-  visibleSections.value.find((s) => s.kicker === 'Platform monitoring'),
+  visibleSections.value.find((s) => s.kind === 'platform'),
 );
 const menuSections = computed<NavSection[]>(() =>
-  visibleSections.value.filter((s) => s.kicker !== 'Platform monitoring'),
+  visibleSections.value.filter((s) => s.kind !== 'platform'),
 );
 
 const openNavL1 = ref<Set<string>>(new Set());
@@ -348,7 +367,7 @@ function toggleNavL1(row: NavRow): void {
 watch(
   () => route.path,
   (path) => {
-    for (const sec of sections) {
+    for (const sec of sections.value) {
       for (const row of sec.links) {
         if (!row.children) continue;
         const childActive = row.children.some((c) =>
@@ -378,8 +397,8 @@ watch(
       <button
         type="button"
         class="side-toggle"
-        title="Collapse menu"
-        aria-label="Collapse menu"
+        :title="t('Collapse menu')"
+        :aria-label="t('Collapse menu')"
         @click="toggleSidebar"
       >
         <Icon name="caret" :size="12" />
@@ -389,8 +408,8 @@ watch(
       v-else
       type="button"
       class="side-expand"
-      title="Show menu"
-      aria-label="Show menu"
+      :title="t('Show menu')"
+      :aria-label="t('Show menu')"
       @click="toggleSidebar"
     >
       <Icon name="caret" :size="12" />
@@ -401,7 +420,7 @@ watch(
       <template v-if="auth.hasVerb('overview:read')">
         <div class="sw-nav-section sw-nav-section--icon">
           <Icon :name="sectionIcon('Overviews')" />
-          <span>Overviews</span>
+          <span>{{ t('Overviews') }}</span>
         </div>
         <RouterLink
           v-for="ov in publicOverviews"
@@ -419,7 +438,7 @@ watch(
         class="sw-nav-item"
         :class="{ 'is-active': isActive('/alarms') }"
       >
-        <Icon name="alert" /><span>Alarms</span>
+        <Icon name="alert" /><span>{{ t('Alarms') }}</span>
         <span
           v-if="alarmCount.activeIncidents.value > 0"
           class="sw-badge err"
@@ -429,7 +448,7 @@ watch(
 
       <div class="sw-nav-section sw-nav-section--icon" style="justify-content: space-between">
         <Icon :name="sectionIcon('Layers')" />
-        <span style="flex: 1">Layers</span>
+        <span style="flex: 1">{{ t('Layers') }}</span>
         <span class="sw-nav-section-count">{{ publicLayers.length }} with services</span>
       </div>
       <div v-if="!oapReachable && oapError" class="oap-banner" :title="oapError">
@@ -459,7 +478,7 @@ watch(
                 <span
                   v-if="isLayerDiverged(L.key)"
                   class="layer-warn"
-                  title="Local changes not published to OAP"
+                  :title="t('Local changes not published to OAP')"
                 ><Icon name="alert" :size="11" /></span>
               </RouterLink>
               <div
@@ -476,7 +495,7 @@ watch(
                 <span
                   v-if="isLayerDiverged(L.key)"
                   class="layer-warn"
-                  title="Local changes not published to OAP"
+                  :title="t('Local changes not published to OAP')"
                 ><Icon name="alert" :size="11" /></span>
                 <span class="caret" :class="{ open: expandedLayer === L.key }">
                   <Icon name="caret" :size="10" />
@@ -742,7 +761,7 @@ watch(
       <template v-if="platformSection || (operateLayers.length > 0 && auth.hasVerb('cluster:read'))">
         <div class="sw-nav-section sw-nav-section--icon">
           <Icon :name="sectionIcon('Platform monitoring')" />
-          <span>Platform monitoring</span>
+          <span>{{ t('Platform monitoring') }}</span>
         </div>
         <template v-if="platformSection">
           <RouterLink
@@ -877,7 +896,7 @@ watch(
           @click="toggleDebugPanel"
         >
           <Icon name="event" />
-          <span>Debug events</span>
+          <span>{{ t('Debug events') }}</span>
           <span class="sw-badge" :class="debugPanelEnabled ? 'ok' : ''" style="margin-left: auto">
             {{ debugPanelEnabled ? 'on' : 'off' }}
           </span>
@@ -903,7 +922,7 @@ watch(
         </div>
         <div>{{ auth.user?.roles?.join(' · ') ?? 'not signed in' }}</div>
       </div>
-      <button v-if="auth.isAuthenticated" class="sw-btn is-icon" title="Sign out" @click="signOut">
+      <button v-if="auth.isAuthenticated" class="sw-btn is-icon" :title="t('Sign out')" @click="signOut">
         <Icon name="share" :size="12" />
       </button>
     </div>

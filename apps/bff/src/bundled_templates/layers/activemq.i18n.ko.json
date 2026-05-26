@@ -1,0 +1,174 @@
+{
+  "alias": "ActiveMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Enqueue/s"
+      },
+      {
+        "label": "Dequeue/s"
+      },
+      {
+        "label": "시스템 부하"
+      },
+      {
+        "label": "스레드"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "Enqueue/s",
+            "tip": "초당 Enqueue 된 메시지 수입니다."
+          },
+          {
+            "label": "Dequeue/s",
+            "tip": "초당 Dequeue 된 메시지 수입니다."
+          },
+          {
+            "label": "Expired/s",
+            "tip": "소비되기 전에 만료된 메시지입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "시스템 부하 평균"
+      },
+      {
+        "title": "스레드 수"
+      },
+      {
+        "title": "Heap 사용 (MB)"
+      },
+      {
+        "title": "Heap 최대 (MB)"
+      },
+      {
+        "title": "Enqueue / Dequeue / Dispatch /s",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch"
+        ]
+      },
+      {
+        "title": "만료 /s"
+      },
+      {
+        "title": "Enqueue 시간",
+        "expressionLabels": [
+          "평균",
+          "최대"
+        ]
+      },
+      {
+        "title": "GC 수 (G1+Parallel)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      },
+      {
+        "title": "GC 시간 (ms)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "연결",
+        "tip": "이 브로커에 대한 현재 TCP/JMS 연결 수입니다."
+      },
+      {
+        "title": "생산자 수",
+        "tip": "이 브로커의 활성 생산자 세션 수입니다."
+      },
+      {
+        "title": "소비자 수",
+        "tip": "이 브로커의 활성 소비자 세션 수입니다."
+      },
+      {
+        "title": "가동 시간",
+        "tip": "마지막 재시작 이후 브로커 가동 시간(시간 단위)입니다."
+      },
+      {
+        "title": "연결 (추세)"
+      },
+      {
+        "title": "Enqueue / Dequeue 수",
+        "tip": "이 브로커의 대상별 분당 Enqueue + Dequeue 입니다.",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue"
+        ]
+      },
+      {
+        "title": "생산자 / 소비자 증가",
+        "tip": "분당 새로 열리는 생산자 + 소비자 세션 수입니다.",
+        "expressionLabels": [
+          "새 생산자",
+          "새 소비자"
+        ]
+      },
+      {
+        "title": "메모리 사용량",
+        "tip": "대상별 총 메모리 사용량 (MB)입니다."
+      },
+      {
+        "title": "메모리 제한",
+        "tip": "대상별로 설정된 메모리 상한 (GB)입니다."
+      },
+      {
+        "title": "평균 메시지 크기",
+        "tip": "대상 간 평균 메시지 크기입니다."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "생산자 수"
+      },
+      {
+        "title": "소비자 수"
+      },
+      {
+        "title": "큐 크기"
+      },
+      {
+        "title": "메모리 사용량 (MB)"
+      },
+      {
+        "title": "메시지 수",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch",
+          "만료",
+          "inflight"
+        ]
+      },
+      {
+        "title": "Enqueue 시간 (s)",
+        "expressionLabels": [
+          "평균",
+          "최대"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ActiveMQ 클러스터",
+    "instances": "Broker",
+    "endpoints": "대상"
+  }
+}

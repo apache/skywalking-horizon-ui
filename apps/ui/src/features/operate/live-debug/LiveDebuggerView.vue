@@ -21,10 +21,10 @@
  * operator can have all three running in parallel from the same
  * tab.
  *
- * The active tab is **URL-driven** (`/debug/{mal|lal|oal}`) so deep
- * links from elsewhere (catalog rule cards, OAL file viewer's gutter
- * arrow) land on the right tab with their query params intact for
- * the per-DSL picker to read.
+ * The active tab is **URL-driven** (`/operate/live-debug/{mal|lal|oal}`)
+ * so deep links from elsewhere (catalog rule cards, OAL file viewer's
+ * gutter arrow) land on the right tab with their query params intact
+ * for the per-DSL picker to read.
  */
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -55,7 +55,7 @@ const activeHint = computed(() => tabs.find((t) => t.id === tab.value)?.hint ?? 
 function selectTab(t: Tab): void {
   // Tab clicks clear deep-link query params — they were specific to
   // the prior tab's picker and shouldn't leak across.
-  void router.push({ path: `/debug/${t}` });
+  void router.push({ path: `/operate/live-debug/${t}` });
 }
 </script>
 

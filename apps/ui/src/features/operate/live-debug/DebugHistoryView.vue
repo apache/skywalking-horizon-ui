@@ -21,7 +21,7 @@
  * a per-widget filter chip-row.
  *
  * Loading an entry deep-links into the matching debugger via
- * `/debug/{widget}?historyId=<id>` — the per-DSL view picks the id off
+ * `/operate/live-debug/{widget}?historyId=<id>` — the per-DSL view picks the id off
  * the route on mount and hands it to its `loadHistorical(entry)`.
  * That keeps the storage logic centralised here while the rendering
  * stays in the DSL views that already understand each shape.
@@ -102,12 +102,12 @@ function formatDateTime(ms: number): string {
 function loadEntry(entry: HistoryEntry): void {
   if (isActive(entry, nowMs.value)) {
     void router.push({
-      path: `/debug/${entry.widget}`,
+      path: `/operate/live-debug/${entry.widget}`,
       query: { resumeSessionId: entry.session.sessionId },
     });
   } else {
     void router.push({
-      path: `/debug/${entry.widget}`,
+      path: `/operate/live-debug/${entry.widget}`,
       query: { historyId: entry.id },
     });
   }
@@ -160,7 +160,7 @@ function clearAll(): void {
     <div v-if="filteredEntries.length === 0" class="dh__empty">
       <template v-if="history.all.value.length === 0">
         no saved captures yet — run a session in the
-        <router-link to="/debug">live debugger</router-link>; finished
+        <router-link to="/operate/live-debug">live debugger</router-link>; finished
         sessions auto-save here.
       </template>
       <template v-else>

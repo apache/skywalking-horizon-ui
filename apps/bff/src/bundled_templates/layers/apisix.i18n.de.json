@@ -1,0 +1,184 @@
+{
+  "alias": "APISIX",
+  "group": "Gateways",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "503/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Anfragen pro Sekunde, die von APISIX-Routen getroffen wurden."
+          },
+          {
+            "label": "5xx",
+            "tip": "Upstream- / Gateway-Fehlerklasse."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Status-Trend ohne Treffer",
+        "tip": "Anfragen ohne passende APISIX-Route.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Latenz ohne Treffer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Bandbreite ohne Treffer",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Shared Dict",
+        "tip": "Kapazität vs. freier Speicher.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "kapazität",
+          "frei"
+        ]
+      },
+      {
+        "title": "etcd",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "indizes",
+          "erreichbar"
+        ]
+      },
+      {
+        "title": "Traffic ohne Treffer",
+        "tip": "Status + Latenz + Bandbreite für Anfragen ohne passende Route.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "status",
+          "latenz (ms)",
+          "bandbreite (KB)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "APISIX-Dienste",
+    "instances": "Knoten",
+    "endpoints": "Routes"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "alias": "Java 探针",
+  "group": "自我观测",
+  "slots": {
+    "services": "Agent 服务",
+    "instances": "Agent"
+  },
+  "dashboards": {
+    "instance": [
+      { "title": "追踪上下文创建 / 分钟" },
+      {
+        "title": "追踪创建 + 完成 / 分钟",
+        "expressionLabels": ["created", "finished"]
+      },
+      { "title": "Ignored 上下文创建 / 分钟" },
+      {
+        "title": "Ignored 创建 + 完成 / 分钟",
+        "expressionLabels": ["created", "finished"]
+      },
+      { "title": "可能泄漏的上下文 / 分钟" },
+      { "title": "拦截器错误数 / 分钟" },
+      { "title": "追踪上下文执行时间（ms）" }
+    ]
+  }
+}

@@ -1,0 +1,226 @@
+{
+  "alias": "Kafka",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Partitionen"
+      },
+      {
+        "label": "Offline-Partitionen"
+      },
+      {
+        "label": "Max. Lag"
+      },
+      {
+        "label": "Leader"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Offline-Partitionen",
+            "tip": "Partitionen ohne aktiven Leader."
+          },
+          {
+            "label": "Unter-repliziert",
+            "tip": "Partitionen, deren ISR-Set unter dem Replikationsfaktor liegt."
+          },
+          {
+            "label": "Max. Lag",
+            "tip": "Größter beobachteter Verbraucher-Lag."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Partition-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Leader-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Aktive Controller",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Max. Lag",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Unter-replizierte Partitionen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Offline-Partitionen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Leader-Wahlrate",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "wahlen",
+          "unclean"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "CPU-Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Eingehende Nachrichten / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Bytes ein / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Bytes aus / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Purgatory-Größe",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ISR-Shrink/s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ISR-Expand/s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speichernutzung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Unter-replizierte Partitionen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Unter Min-ISR Partitionen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Partitionen + Leader",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "partitionen",
+          "leader"
+        ]
+      },
+      {
+        "title": "Queue- / Sende-Zeiten",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "request q",
+          "response q",
+          "antwort senden",
+          "remote"
+        ]
+      },
+      {
+        "title": "Topic-Raten",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "produce req/s",
+          "fetch req/s",
+          "bytes-ein/s"
+        ]
+      },
+      {
+        "title": "Replikation",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "bytes ein",
+          "bytes aus"
+        ]
+      },
+      {
+        "title": "GC-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Max. Lag (Broker)",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kafka-Cluster",
+    "instances": "Broker"
+  }
+}

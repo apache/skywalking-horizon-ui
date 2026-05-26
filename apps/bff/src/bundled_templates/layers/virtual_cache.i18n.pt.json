@@ -1,0 +1,97 @@
+{
+  "alias": "Cache virtual",
+  "group": "Alvos virtuais",
+  "slots": {
+    "services": "Caches"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acesso"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Taxa de erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latência de acesso ao cache no percentil 95."
+          },
+          {
+            "label": "Taxa de erros",
+            "tip": "100 − taxa de sucesso de acesso ao cache. Exceções de cache capturadas pelo agente do serviço chamador."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPM de acesso",
+            "tip": "Operações de cache por minuto (leitura + escrita)."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tráfego de acesso"
+      },
+      {
+        "title": "Latência média de acesso"
+      },
+      {
+        "title": "Taxa de sucesso de acesso"
+      },
+      {
+        "title": "Percentil de latência de acesso"
+      },
+      {
+        "title": "Tráfego de leitura"
+      },
+      {
+        "title": "Latência média de leitura"
+      },
+      {
+        "title": "Tráfego de escrita"
+      },
+      {
+        "title": "Latência média de escrita"
+      },
+      {
+        "title": "Taxa de sucesso de leitura"
+      },
+      {
+        "title": "Taxa de sucesso de escrita"
+      },
+      {
+        "title": "Percentil de latência de leitura"
+      },
+      {
+        "title": "Percentil de latência de escrita"
+      },
+      {
+        "title": "Comandos de leitura lentos",
+        "tip": "Top 10 comandos de leitura mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+      },
+      {
+        "title": "Comandos de escrita lentos",
+        "tip": "Top 10 comandos de escrita mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+      }
+    ]
+  }
+}

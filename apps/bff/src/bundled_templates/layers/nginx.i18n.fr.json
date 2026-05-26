@@ -1,0 +1,122 @@
+{
+  "alias": "Nginx",
+  "group": "Passerelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erreurs",
+        "metrics": [
+          {
+            "label": "Taux de 5xx",
+            "tip": "Pourcentage de requêtes retournant 5xx par minute."
+          },
+          {
+            "label": "Taux de 4xx",
+            "tip": "Pourcentage de requêtes retournant 4xx par minute."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Requêtes par seconde sur le service Nginx."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Connexions HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      },
+      {
+        "title": "Nombre de logs d'erreur"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Connexions HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      },
+      {
+        "title": "Nombre de logs d'erreur"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services Nginx",
+    "instances": "Nœuds",
+    "endpoints": "Routes"
+  }
+}

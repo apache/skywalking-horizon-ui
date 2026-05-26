@@ -1,0 +1,123 @@
+{
+  "alias": "APISIX",
+  "group": "Passerelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "503/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Requêtes par seconde matchées par les routes APISIX."
+          },
+          {
+            "label": "5xx",
+            "tip": "Classe d'erreur upstream / passerelle."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Connexions HTTP"
+      },
+      {
+        "title": "Tendance des statuts non matchés",
+        "tip": "Requêtes sans route APISIX correspondante."
+      },
+      {
+        "title": "Latence non matchée"
+      },
+      {
+        "title": "Bande passante non matchée"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendance des requêtes HTTP"
+      },
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      },
+      {
+        "title": "Connexions HTTP"
+      },
+      {
+        "title": "Dict partagé",
+        "tip": "Capacité vs espace libre.",
+        "expressionLabels": [
+          "capacité",
+          "libre"
+        ]
+      },
+      {
+        "title": "etcd",
+        "expressionLabels": [
+          "index",
+          "joignable"
+        ]
+      },
+      {
+        "title": "Trafic non matché",
+        "tip": "Statut + latence + bande passante pour les requêtes sans route correspondante.",
+        "expressionLabels": [
+          "statut",
+          "latence (ms)",
+          "bande passante (Ko)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendance des statuts HTTP"
+      },
+      {
+        "title": "Latence HTTP"
+      },
+      {
+        "title": "Bande passante HTTP"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services APISIX",
+    "instances": "Nœuds",
+    "endpoints": "Routes"
+  }
+}

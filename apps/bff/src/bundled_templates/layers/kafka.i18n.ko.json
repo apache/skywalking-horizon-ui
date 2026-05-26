@@ -1,0 +1,146 @@
+{
+  "alias": "Kafka",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "파티션"
+      },
+      {
+        "label": "오프라인 파티션"
+      },
+      {
+        "label": "최대 랙"
+      },
+      {
+        "label": "리더"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터",
+        "metrics": [
+          {
+            "label": "오프라인 파티션",
+            "tip": "활성 리더가 없는 파티션입니다."
+          },
+          {
+            "label": "복제 부족",
+            "tip": "ISR 집합이 복제 계수보다 작은 파티션입니다."
+          },
+          {
+            "label": "최대 랙",
+            "tip": "관찰된 최대 소비자 랙입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "파티션 수"
+      },
+      {
+        "title": "리더 수"
+      },
+      {
+        "title": "활성 컨트롤러"
+      },
+      {
+        "title": "최대 랙"
+      },
+      {
+        "title": "복제 부족 파티션"
+      },
+      {
+        "title": "오프라인 파티션"
+      },
+      {
+        "title": "리더 선출 비율",
+        "expressionLabels": [
+          "선출",
+          "unclean"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "CPU 사용률"
+      },
+      {
+        "title": "수신 메시지 / s"
+      },
+      {
+        "title": "바이트 In / s"
+      },
+      {
+        "title": "바이트 Out / s"
+      },
+      {
+        "title": "요청 / s"
+      },
+      {
+        "title": "퍼거토리 크기"
+      },
+      {
+        "title": "ISR 축소/s"
+      },
+      {
+        "title": "ISR 확장/s"
+      },
+      {
+        "title": "메모리 사용량 (%)"
+      },
+      {
+        "title": "복제 부족 파티션"
+      },
+      {
+        "title": "Min-ISR 미만 파티션"
+      },
+      {
+        "title": "파티션 + 리더",
+        "expressionLabels": [
+          "partition",
+          "leader"
+        ]
+      },
+      {
+        "title": "큐 / 전송 시간",
+        "expressionLabels": [
+          "request q",
+          "response q",
+          "response send",
+          "remote"
+        ]
+      },
+      {
+        "title": "토픽 비율",
+        "expressionLabels": [
+          "produce req/s",
+          "fetch req/s",
+          "bytes-in/s"
+        ]
+      },
+      {
+        "title": "복제",
+        "expressionLabels": [
+          "바이트 in",
+          "바이트 out"
+        ]
+      },
+      {
+        "title": "GC 수"
+      },
+      {
+        "title": "최대 랙 (브로커)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kafka 클러스터",
+    "instances": "Broker"
+  }
+}

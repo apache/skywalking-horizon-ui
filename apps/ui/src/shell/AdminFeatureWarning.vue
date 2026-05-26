@@ -32,8 +32,11 @@
  * `useAdminFeatures()` state and the `module` prop.
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
 import Icon from '@/components/icons/Icon.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   /** OAP module name this page depends on. One of:
@@ -75,49 +78,47 @@ const moduleEnvVar = computed<string | undefined>(() => mod.value?.envVar);
     <div class="body">
       <!-- Admin host unreachable: full-stop, network / port issue -->
       <template v-if="kind === 'host'">
-        <h3>Admin host unreachable</h3>
+        <h3>{{ t('Admin host unreachable') }}</h3>
         <p>
-          <strong>{{ featureLabel }}</strong> talks to OAP on the admin port
-          (<code>{{ adminUrl ?? ':17128' }}</code>). The page below is rendered
-          read-only and will fail any save / debug action.
+          <strong>{{ featureLabel }}</strong> {{ t('talks to OAP on the admin port') }}
+          (<code>{{ adminUrl ?? ':17128' }}</code>). {{ t('The page below is rendered read-only and will fail any save / debug action.') }}
         </p>
         <p v-if="adminError" class="err">
-          Last error: <code>{{ adminError }}</code>
+          {{ t('Last error') }}: <code>{{ adminError }}</code>
         </p>
         <ul class="hints">
           <li>
-            Confirm OAP's <code>admin-server</code> module is on
-            (<code>SW_ADMIN_SERVER=default</code>) and the OAP pod has been restarted.
+            {{ t("Confirm OAP's") }} <code>admin-server</code> {{ t('module is on') }}
+            (<code>SW_ADMIN_SERVER=default</code>) {{ t('and the OAP pod has been restarted.') }}
           </li>
           <li>
-            Confirm the admin port (default <code>17128</code>) is exposed on the
-            network / k8s Service / ingress and reachable from this BFF.
+            {{ t('Confirm the admin port (default') }} <code>17128</code>) {{ t('is exposed on the network / k8s Service / ingress and reachable from this BFF.') }}
           </li>
           <li>
-            See <RouterLink to="/operate/cluster">Cluster status</RouterLink>
-            for the full module preflight.
+            {{ t('See') }} <RouterLink to="/operate/cluster">{{ t('Cluster status') }}</RouterLink>
+            {{ t('for the full module preflight.') }}
           </li>
         </ul>
       </template>
 
       <!-- Admin host fine, but this feature's specific module is off -->
       <template v-else>
-        <h3>Module <code>{{ module }}</code> is off on OAP</h3>
+        <h3>{{ t('Module') }} <code>{{ module }}</code> {{ t('is off on OAP') }}</h3>
         <p>
-          <strong>{{ featureLabel }}</strong> requires the
-          <code>{{ module }}</code> module. Enable it on OAP and restart:
+          <strong>{{ featureLabel }}</strong> {{ t('requires the') }}
+          <code>{{ module }}</code> {{ t('module. Enable it on OAP and restart:') }}
         </p>
         <pre class="env">{{ moduleEnvVar }}=default</pre>
         <p class="hint">
-          Until then this page renders read-only — every API call to
-          <code>{{ adminUrl }}</code> for this feature returns 404.
-          See <RouterLink to="/operate/cluster">Cluster status</RouterLink>
-          for the full module preflight.
+          {{ t('Until then this page renders read-only — every API call to') }}
+          <code>{{ adminUrl }}</code> {{ t('for this feature returns 404.') }}
+          {{ t('See') }} <RouterLink to="/operate/cluster">{{ t('Cluster status') }}</RouterLink>
+          {{ t('for the full module preflight.') }}
         </p>
       </template>
     </div>
 
-    <button type="button" class="recheck" @click="() => refetch()">re-check</button>
+    <button type="button" class="recheck" @click="() => refetch()">{{ t('re-check') }}</button>
   </div>
 </template>
 

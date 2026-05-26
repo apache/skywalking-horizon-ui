@@ -1,0 +1,78 @@
+{
+  "alias": "OAP",
+  "group": "自我观测",
+  "slots": {
+    "services": "OAP 服务",
+    "instances": "OAP 节点"
+  },
+  "dashboards": {
+    "instance": [
+      { "title": "CPU（%）" },
+      { "title": "JVM 内存（MB）" },
+      { "title": "GC 次数 / 分钟" },
+      { "title": "GC 时间（ms / 分钟）" },
+      { "title": "Buffer Pool（MB）" },
+      {
+        "title": "线程数",
+        "expressionLabels": ["live", "peak", "daemon"]
+      },
+      {
+        "title": "线程状态",
+        "expressionLabels": ["runnable", "timed-waiting", "blocked", "waiting"]
+      },
+      {
+        "title": "类数量",
+        "expressionLabels": ["loaded", "unloaded total", "loaded total"]
+      },
+      { "title": "聚合 / 分钟" },
+      {
+        "title": "持久化次数 / 分钟",
+        "expressionLabels": ["prepare", "execute"]
+      },
+      { "title": "持久化缓存 / 分钟" },
+      { "title": "持久化 Prepare 延迟（ms）" },
+      { "title": "持久化 Execute 延迟（ms）" },
+      { "title": "GraphQL 延迟（ms）" },
+      {
+        "title": "GraphQL 查询数",
+        "expressionLabels": ["queries", "errors"]
+      },
+      {
+        "title": "Trace 分析 / 分钟",
+        "expressionLabels": ["total", "errors"]
+      },
+      { "title": "Trace 分析延迟（ms）" },
+      {
+        "title": "Mesh 分析 / 分钟",
+        "expressionLabels": ["total", "errors"]
+      },
+      { "title": "Mesh 分析延迟（ms）" },
+      {
+        "title": "OTel 接收 / 秒",
+        "expressionLabels": ["metrics", "logs", "spans"]
+      },
+      {
+        "title": "K8s ALS",
+        "expressionLabels": ["count", "dropped", "streams", "err streams"]
+      },
+      {
+        "title": "Watermark 熔断器",
+        "tip": "每个监听器累计 break + recover 计数。",
+        "expressionLabels": ["break", "recover"]
+      },
+      {
+        "title": "聚合队列使用率（%）",
+        "expressionLabels": ["L1", "L2"]
+      },
+      {
+        "title": "BanyanDB 写延迟（ms）",
+        "expressionLabels": ["measure bulk", "stream bulk", "trace bulk", "stream single", "property"]
+      },
+      {
+        "title": "Elasticsearch 写延迟（ms）",
+        "expressionLabels": ["single", "bulk"]
+      },
+      { "title": "Zipkin Span 丢弃数" }
+    ]
+  }
+}

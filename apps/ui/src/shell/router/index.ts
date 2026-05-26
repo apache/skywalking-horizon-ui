@@ -90,11 +90,12 @@ function layerRoute(): RouteRecordRaw {
         redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
       },
       {
+        // Legacy /layer/<key>/services/<id> URLs from before the
+        // selection model became per-page. The service id is no
+        // longer URL-pinned (operators pick on landing), so we
+        // forward to the bare service tab and drop the id.
         path: 'services/:serviceId',
-        redirect: (to) => ({
-          path: `/layer/${to.params.layerKey}/service`,
-          query: { service: String(to.params.serviceId) },
-        }),
+        redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }),
       },
       {
         path: 'dashboards',
@@ -248,6 +249,12 @@ const shellRoutes: RouteRecordRaw[] = [
     path: 'admin/overview-templates',
     name: 'overview-templates',
     component: () => import('@/features/admin/overview-templates/OverviewTemplatesAdmin.vue'),
+    meta: { verb: 'overview:write' },
+  },
+  {
+    path: 'admin/translations',
+    name: 'translations',
+    component: () => import('@/features/admin/translations/TranslationsView.vue'),
     meta: { verb: 'overview:write' },
   },
   {

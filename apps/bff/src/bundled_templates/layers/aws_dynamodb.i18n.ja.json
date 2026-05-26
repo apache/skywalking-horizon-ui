@@ -1,0 +1,188 @@
+{
+  "alias": "AWS DynamoDB",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "読み取りスロットリング"
+      },
+      {
+        "label": "書き込みスロットリング"
+      },
+      {
+        "label": "読み取りシステムエラー"
+      },
+      {
+        "label": "書き込みシステムエラー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スロットリング",
+        "metrics": [
+          {
+            "label": "読み取りスロットリング",
+            "tip": "読み取りリクエストのスロットリング — キャパシティ枯渇。"
+          },
+          {
+            "label": "書き込みスロットリング",
+            "tip": "書き込みリクエストのスロットリング。"
+          },
+          {
+            "label": "ユーザーエラー",
+            "tip": "Bad-request 系のユーザーエラー。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "スロットリクエスト",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "スロットルイベント",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "システムエラー",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "ユーザーエラー"
+      },
+      {
+        "title": "条件付きチェック失敗"
+      },
+      {
+        "title": "トランザクション競合"
+      },
+      {
+        "title": "読み取りキャパシティ (unit/s)",
+        "expressionLabels": [
+          "プロビジョン",
+          "消費"
+        ]
+      },
+      {
+        "title": "書き込みキャパシティ (unit/s)",
+        "expressionLabels": [
+          "プロビジョン",
+          "消費"
+        ]
+      },
+      {
+        "title": "成功リクエストレイテンシ (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "クエリ",
+          "スキャン"
+        ]
+      },
+      {
+        "title": "TTL 削除アイテム"
+      },
+      {
+        "title": "Scan 返却アイテム"
+      },
+      {
+        "title": "Query 返却アイテム"
+      },
+      {
+        "title": "アカウント最大読み取り / 書き込み",
+        "expressionLabels": [
+          "テーブル単位読み取り",
+          "テーブル単位書き込み",
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "アカウントキャパシティ使用率",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "スロットリクエスト",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "スロットルイベント",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "システムエラー",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "条件付きチェック失敗"
+      },
+      {
+        "title": "トランザクション競合"
+      },
+      {
+        "title": "TTL 削除アイテム"
+      },
+      {
+        "title": "読み取りキャパシティ",
+        "expressionLabels": [
+          "プロビジョン",
+          "消費"
+        ]
+      },
+      {
+        "title": "書き込みキャパシティ",
+        "expressionLabels": [
+          "プロビジョン",
+          "消費"
+        ]
+      },
+      {
+        "title": "成功リクエストレイテンシ (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "クエリ",
+          "スキャン"
+        ]
+      },
+      {
+        "title": "Scan 返却アイテム"
+      },
+      {
+        "title": "Query 返却アイテム"
+      }
+    ]
+  },
+  "slots": {
+    "services": "DynamoDB アカウント",
+    "endpoints": "テーブル"
+  }
+}

@@ -24,7 +24,10 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { LandingColumn, LandingServiceRow } from '@skywalking-horizon-ui/api-client';
+
+const { t } = useI18n({ useScope: 'global' });
 import { metricMeta } from '@/utils/metricCatalog';
 import { statusForMetrics, thresholdColor } from '@/utils/metricColor';
 import { fmtMetric } from '@/utils/formatters';
@@ -83,16 +86,16 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
       <input
         v-model="filter"
         class="search"
-        placeholder="filter by name…"
+        :placeholder="t('filter by name…')"
         spellcheck="false"
         autocomplete="off"
       />
-      <span class="count">{{ filtered.length }} of {{ services.length }}</span>
+      <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: services.length }) }}</span>
     </header>
     <table class="sw-table picker-table">
       <thead>
         <tr>
-          <th class="svc-col">Service</th>
+          <th class="svc-col">{{ t('Service') }}</th>
           <th
             v-for="c in columns"
             :key="c.metric"
@@ -131,7 +134,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
         </tr>
         <tr v-if="visible.length === 0">
           <td :colspan="columns.length + 1" class="empty">
-            No services match <code>{{ filter }}</code>.
+            {{ t('No services match') }} <code>{{ filter }}</code>.
           </td>
         </tr>
       </tbody>

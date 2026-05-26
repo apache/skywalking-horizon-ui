@@ -1,0 +1,154 @@
+{
+  "alias": "Envoy AI Gateway",
+  "group": "Passerelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latence moyenne"
+      },
+      {
+        "label": "Tokens entrants/min"
+      },
+      {
+        "label": "Tokens sortants/min"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence",
+        "metrics": [
+          {
+            "label": "Latence moyenne",
+            "tip": "Latence moyenne des requêtes de bout en bout."
+          },
+          {
+            "label": "TTFT moyen",
+            "tip": "Time to first token — indicateur de latence des modèles génératifs."
+          }
+        ]
+      },
+      {
+        "title": "Tokens",
+        "metrics": [
+          {
+            "label": "Tokens/min",
+            "tip": "Débit combiné de tokens entrants + sortants."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "RPM des requêtes"
+      },
+      {
+        "title": "Latence moyenne des requêtes"
+      },
+      {
+        "title": "Débit de tokens entrants"
+      },
+      {
+        "title": "Débit de tokens sortants"
+      },
+      {
+        "title": "Centile de latence des requêtes"
+      },
+      {
+        "title": "TTFT (Time to First Token)",
+        "expressionLabels": [
+          "moy",
+          "centile"
+        ]
+      },
+      {
+        "title": "TPOT (Time Per Output Token)",
+        "expressionLabels": [
+          "moy",
+          "centile"
+        ]
+      },
+      {
+        "title": "RPM par fournisseur"
+      },
+      {
+        "title": "Tokens par fournisseur"
+      },
+      {
+        "title": "Latence moyenne par fournisseur"
+      },
+      {
+        "title": "RPM par modèle"
+      },
+      {
+        "title": "Tokens par modèle"
+      },
+      {
+        "title": "Latence moyenne par modèle"
+      },
+      {
+        "title": "TTFT par modèle"
+      },
+      {
+        "title": "TPOT par modèle"
+      },
+      {
+        "title": "RPM MCP",
+        "tip": "Model Context Protocol — lorsqu'il est utilisé."
+      },
+      {
+        "title": "Latence moyenne MCP"
+      },
+      {
+        "title": "RPM erreurs MCP"
+      },
+      {
+        "title": "MCP par méthode"
+      },
+      {
+        "title": "MCP par backend"
+      }
+    ],
+    "instance": [
+      {
+        "title": "RPM des requêtes"
+      },
+      {
+        "title": "Latence moyenne des requêtes"
+      },
+      {
+        "title": "Débit de tokens entrants"
+      },
+      {
+        "title": "Débit de tokens sortants"
+      },
+      {
+        "title": "Centile de latence des requêtes"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "moy",
+          "centile"
+        ]
+      },
+      {
+        "title": "TPOT",
+        "expressionLabels": [
+          "moy",
+          "centile"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Passerelles AI",
+    "instances": "Nœuds"
+  }
+}

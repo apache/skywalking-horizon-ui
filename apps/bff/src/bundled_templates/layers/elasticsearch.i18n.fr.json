@@ -1,0 +1,201 @@
+{
+  "alias": "Elasticsearch",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Santé"
+      },
+      {
+        "label": "Shards"
+      },
+      {
+        "label": "Nœuds"
+      },
+      {
+        "label": "Non assignées"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Santé",
+            "tip": "0 vert / 1 jaune / 2 rouge."
+          },
+          {
+            "label": "Shards non assignées",
+            "tip": "Shards pas encore placées sur un nœud."
+          },
+          {
+            "label": "Breakers déclenchés",
+            "tip": "Déclenchements cumulés des circuit-breakers — des valeurs élevées indiquent une pression mémoire."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Santé du cluster",
+        "tableHeaders": [
+          "Statut",
+          "Valeur"
+        ]
+      },
+      {
+        "title": "Nœuds"
+      },
+      {
+        "title": "Tâches en attente"
+      },
+      {
+        "title": "Shards primaires"
+      },
+      {
+        "title": "Shards actives"
+      },
+      {
+        "title": "Initialisation"
+      },
+      {
+        "title": "Relocalisation"
+      },
+      {
+        "title": "Non assignées"
+      },
+      {
+        "title": "Non assignées en retard"
+      },
+      {
+        "title": "Breakers déclenchés"
+      },
+      {
+        "title": "CPU moyen du cluster"
+      },
+      {
+        "title": "Mémoire JVM moyenne utilisée"
+      },
+      {
+        "title": "Fichiers ouverts moyens"
+      }
+    ],
+    "instance": [
+      {
+        "title": "CPU du processus (%)"
+      },
+      {
+        "title": "CPU OS (%)"
+      },
+      {
+        "title": "Load average",
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "Mémoire JVM (Mo)",
+        "expressionLabels": [
+          "heap utilisé",
+          "heap max",
+          "non-heap"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "nombre",
+          "temps (ms/min)"
+        ]
+      },
+      {
+        "title": "Translog",
+        "expressionLabels": [
+          "opérations",
+          "taille (Mo)"
+        ]
+      },
+      {
+        "title": "Breakers",
+        "expressionLabels": [
+          "déclenchés",
+          "estimée (Mo)"
+        ]
+      },
+      {
+        "title": "Segments",
+        "expressionLabels": [
+          "nombre",
+          "mémoire (Mo)"
+        ]
+      },
+      {
+        "title": "Utilisation disque",
+        "expressionLabels": [
+          "Go",
+          "%"
+        ]
+      },
+      {
+        "title": "Réseau",
+        "expressionLabels": [
+          "envoi",
+          "réception"
+        ]
+      },
+      {
+        "title": "Fichiers ouverts"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Taux d'indexation",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Taux de recherche",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Taille d'index (toutes les shards)"
+      },
+      {
+        "title": "Taille d'index (primaires)"
+      },
+      {
+        "title": "Documents",
+        "expressionLabels": [
+          "tous",
+          "primaire",
+          "supprimés"
+        ]
+      },
+      {
+        "title": "Temps de recherche moyen / Req (s)",
+        "expressionLabels": [
+          "fetch",
+          "query",
+          "scroll",
+          "suggest"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters ES",
+    "instances": "Nœuds",
+    "endpoints": "Indices"
+  }
+}

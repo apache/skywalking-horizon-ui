@@ -1,0 +1,136 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "サブスクリプション"
+      },
+      {
+        "label": "メッセージ入"
+      },
+      {
+        "label": "メッセージ出"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "メッセージ入/s",
+            "tip": "1秒あたりの生産メッセージ数。"
+          },
+          {
+            "label": "メッセージ出/s",
+            "tip": "1秒あたりの消費メッセージ数。"
+          },
+          {
+            "label": "ストレージ MB",
+            "tip": "managed-ledger ストレージサイズ合計。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Topic 合計"
+      },
+      {
+        "title": "サブスクリプション"
+      },
+      {
+        "title": "プロデューサー"
+      },
+      {
+        "title": "コンシューマー"
+      },
+      {
+        "title": "メッセージレート",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "スループット",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "ストレージ読み取り/書き込みレート",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "ストレージサイズ (MB)",
+        "expressionLabels": [
+          "物理",
+          "論理"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "アクティブ接続"
+      },
+      {
+        "title": "合計接続"
+      },
+      {
+        "title": "接続作成失敗"
+      },
+      {
+        "title": "接続作成成功"
+      },
+      {
+        "title": "接続クローズ"
+      },
+      {
+        "title": "JVM バッファプール (MB)"
+      },
+      {
+        "title": "JVM メモリプール使用中 (MB)"
+      },
+      {
+        "title": "JVM メモリ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "コミット",
+          "初期化"
+        ]
+      },
+      {
+        "title": "JVM スレッド",
+        "expressionLabels": [
+          "現在",
+          "デーモン",
+          "ピーク",
+          "デッドロック"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "秒",
+          "件数"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Pulsar クラスタ",
+    "instances": "Broker"
+  }
+}

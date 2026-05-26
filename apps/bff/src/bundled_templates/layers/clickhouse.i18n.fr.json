@@ -1,0 +1,204 @@
+{
+  "alias": "ClickHouse",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Select / s"
+      },
+      {
+        "label": "Insert / s"
+      },
+      {
+        "label": "Lectures lentes"
+      },
+      {
+        "label": "Fichiers ouverts"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "QPS de sélection",
+            "tip": "Selects par seconde à l'échelle du cluster."
+          },
+          {
+            "label": "QPS d'insertion",
+            "tip": "Insertions par seconde."
+          },
+          {
+            "label": "Lectures lentes",
+            "tip": "Compteur de lectures de fichiers lentes."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Fichiers ouverts"
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Requêtes",
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Temps de requête (ms)",
+        "expressionLabels": [
+          "moy",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Connexions",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Lectures lentes"
+      },
+      {
+        "title": "Merge / Mutations",
+        "expressionLabels": [
+          "merge",
+          "mutations"
+        ]
+      },
+      {
+        "title": "Débit d'insertion",
+        "expressionLabels": [
+          "octets/s",
+          "lignes/s"
+        ]
+      },
+      {
+        "title": "Insertions retardées (s)"
+      },
+      {
+        "title": "Data parts actives"
+      },
+      {
+        "title": "Fetch / send de réplication",
+        "expressionLabels": [
+          "fetch",
+          "envoi"
+        ]
+      },
+      {
+        "title": "Activité Zookeeper",
+        "expressionLabels": [
+          "sessions",
+          "watches",
+          "octets envoyés",
+          "octets reçus"
+        ]
+      },
+      {
+        "title": "Connexions Keeper actives"
+      },
+      {
+        "title": "Requêtes Keeper en attente"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Disponibilité (jours)"
+      },
+      {
+        "title": "Version"
+      },
+      {
+        "title": "CPU (cœurs)"
+      },
+      {
+        "title": "Mémoire (%)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Réseau (o)",
+        "expressionLabels": [
+          "réception",
+          "envoi"
+        ]
+      },
+      {
+        "title": "Connexions",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Requêtes",
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Temps de requête (ms)",
+        "expressionLabels": [
+          "moy",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Lectures de fichiers lentes"
+      },
+      {
+        "title": "Merge en arrière-plan"
+      },
+      {
+        "title": "Mutations"
+      },
+      {
+        "title": "Fichiers ouverts"
+      },
+      {
+        "title": "Débit d'insertion",
+        "expressionLabels": [
+          "octets/s",
+          "lignes/s"
+        ]
+      },
+      {
+        "title": "Insertions retardées (s)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters ClickHouse",
+    "instances": "Nœuds"
+  }
+}

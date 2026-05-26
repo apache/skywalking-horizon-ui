@@ -1,0 +1,84 @@
+{
+  "title": "Services-Dashboard",
+  "description": "Service-Status über alle Ebenen: erfasste Services sowie virtuelle Datenbanken / Caches / Message Queues / GenAI-Backends, plus die zugrunde liegende Kubernetes-Kapazität.",
+  "widgets": [
+    {
+      "title": "Services"
+    },
+    {
+      "title": "Allgemeine Services",
+      "tip": "Auf der General-Ebene erfasste Anwendungs-Services.",
+      "kpis": [
+        { "label": "RPM" },
+        { "label": "Latenz" },
+        { "label": "SLA" }
+      ]
+    },
+    {
+      "title": "Virtuelle Datenbanken",
+      "tip": "Backend-Datenbanken, beobachtet über clientseitige Spans.",
+      "kpis": [
+        { "label": "RPM" },
+        { "label": "Latenz" },
+        { "label": "SLA" }
+      ]
+    },
+    {
+      "title": "Virtuelle Caches",
+      "tip": "Caches (Redis / Memcached / …), beobachtet über clientseitige Spans.",
+      "kpis": [
+        { "label": "RPM" },
+        { "label": "Latenz" },
+        { "label": "SLA" }
+      ]
+    },
+    {
+      "title": "Virtuelle Message Queues",
+      "tip": "Message Queues, beobachtet über Consume- und Produce-Spans.",
+      "kpis": [
+        { "label": "Consume" },
+        { "label": "Produce" },
+        { "label": "Consume-Latenz" }
+      ]
+    },
+    {
+      "title": "Virtuelles GenAI",
+      "tip": "GenAI-Backends, beobachtet über instrumentierte Client-Spans.",
+      "kpis": [
+        { "label": "RPM" },
+        { "label": "Latenz" },
+        { "label": "SLA" }
+      ]
+    },
+    {
+      "title": "Topologie & aktive Alarme"
+    },
+    {
+      "title": "Allgemeine Service-Topologie",
+      "tip": "Live-Service-Map — gleicher Renderer wie der Topologie-Tab pro Ebene, ohne die Detail-Seitenleiste."
+    },
+    {
+      "title": "Aktive Alarme",
+      "tip": "Aktuell ausgelöste Alarme auf von Agenten gemeldeten Services."
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "Cluster-Kapazität & -Auslastung",
+      "tip": "Knoten / Namespaces / Workloads, plus CPU-, Speicher- und Speichernutzung auf Cluster-Ebene.",
+      "kpis": [
+        { "label": "Knoten" },
+        null,
+        null,
+        null,
+        null,
+        { "label": "Services" },
+        { "label": "Container" },
+        { "label": "CPU" },
+        { "label": "Speicher" },
+        { "label": "Speicherplatz" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "구독"
+      },
+      {
+        "label": "Msg In"
+      },
+      {
+        "label": "Msg Out"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "Msg In/s",
+            "tip": "초당 생산된 메시지 수입니다."
+          },
+          {
+            "label": "Msg Out/s",
+            "tip": "초당 소비된 메시지 수입니다."
+          },
+          {
+            "label": "스토리지 MB",
+            "tip": "관리되는 원장 스토리지 총 크기입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "총 토픽 수"
+      },
+      {
+        "title": "구독"
+      },
+      {
+        "title": "생산자"
+      },
+      {
+        "title": "소비자"
+      },
+      {
+        "title": "메시지 비율",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "처리량",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "스토리지 읽기/쓰기 비율",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "스토리지 크기 (MB)",
+        "expressionLabels": [
+          "물리",
+          "논리"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "활성 연결"
+      },
+      {
+        "title": "총 연결"
+      },
+      {
+        "title": "연결 생성 실패"
+      },
+      {
+        "title": "연결 생성 성공"
+      },
+      {
+        "title": "연결 종료"
+      },
+      {
+        "title": "JVM 버퍼 풀 (MB)"
+      },
+      {
+        "title": "JVM 메모리 풀 사용량 (MB)"
+      },
+      {
+        "title": "JVM 메모리 (MB)",
+        "expressionLabels": [
+          "사용",
+          "committed",
+          "init"
+        ]
+      },
+      {
+        "title": "JVM 스레드",
+        "expressionLabels": [
+          "current",
+          "daemon",
+          "피크",
+          "deadlocked"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "초",
+          "count"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Pulsar 클러스터",
+    "instances": "Broker"
+  }
+}

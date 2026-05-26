@@ -1,0 +1,198 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Ledger"
+      },
+      {
+        "label": "Einträge"
+      },
+      {
+        "label": "Beschreibbare Verz."
+      },
+      {
+        "label": "Verz.-Nutzung"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Schreiben B/s",
+            "tip": "Bookie Schreib-Durchsatz im Cluster."
+          },
+          {
+            "label": "Lesen B/s",
+            "tip": "Bookie Lese-Durchsatz im Cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Bookie-Ledger",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Bookie-Einträge",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Beschreibbare Ledger-Verz.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Schreib-Cache",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "größe (MB)",
+          "einträge"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Lese-Cache",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "größe (MB)",
+          "einträge"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Lese-/Schreibrate (B/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Ledger-Verz.-Nutzung",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM-Speicherpool (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "committed",
+          "init"
+        ]
+      },
+      {
+        "title": "JVM-Threads",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktuell",
+          "daemon",
+          "spitze",
+          "deadlocked"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "sekunden",
+          "anzahl"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Thread Executor",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "abgeschlossen",
+          "tasks abgeschlossen",
+          "abgelehnt",
+          "fehlgeschlagen"
+        ]
+      },
+      {
+        "title": "Pool-Threads",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "high-priority",
+          "lesen"
+        ]
+      },
+      {
+        "title": "Pool Max-Queue-Größe",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "high-priority",
+          "lesen"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "BookKeeper-Cluster",
+    "instances": "Bookies"
+  }
+}

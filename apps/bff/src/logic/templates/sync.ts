@@ -41,6 +41,7 @@ import type { Logger } from 'pino';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import {
   buildEnvelope,
+  buildOverlayEnvelope,
   parseEnvelope,
   serializeEnvelope,
   type TemplateKind,
@@ -66,6 +67,10 @@ export interface TemplateRow {
   name: string;
   kind: TemplateKind;
   key: string;
+  /** Set on per-locale translation overlay rows (`…i18n.<locale>`),
+   *  unset on source rows. Source consumers (bundle render, admin
+   *  layer / overview pages) filter to `locale === undefined`. */
+  locale?: string;
   status: TemplateStatus;
   /** What the renderer should use. `null` for `disabled`. */
   effective: 'remote' | 'bundled' | null;
@@ -73,6 +78,19 @@ export interface TemplateRow {
   remote: { id: string; configuration: string; disabled: boolean } | null;
   /** Bundled-side serialized envelope. `null` when bundled-absent (`remote-only`). */
   bundled: { configuration: string } | null;
+}
+
+export interface ConflictRow {
+  /** Envelope name (e.g. `horizon.layer.ACTIVEMQ`) seen on >1 enabled
+   *  OAP record. The BFF picks the lowest-id row as the live one and
+   *  surfaces this list so the operator can disable the extras. */
+  name: string;
+  kind: TemplateKind;
+  key: string;
+  /** UUIDs of every enabled OAP row that shares this name, sorted
+   *  ASC so picks are deterministic across BFF instances. The first
+   *  element is the winner; the rest are losers. */
+  enabledIds: string[];
 }
 
 export interface SyncStatus {
@@ -86,12 +104,31 @@ export interface SyncStatus {
   /** When this status snapshot was generated. */
   generatedAt: number;
   rows: TemplateRow[];
+  /** Per-name multi-enabled conflicts — extras the dedup couldn't auto-
+   *  collapse (e.g. byte-different configurations). Empty list = no
+   *  conflicts. The admin UI renders a banner per entry. */
+  conflicts: ConflictRow[];
+}
+
+export interface BundledOverlay {
+  kind: TemplateKind;
+  key: string;
+  locale: string;
+  /** The translation overlay's content — same shape as the source's
+   *  translatable leaves. Empty / missing overlays are filtered by the
+   *  iterator before they reach here. */
+  content: unknown;
 }
 
 export interface SyncDeps {
   client: UITemplateClient;
   /** Pull every bundled template the BFF currently has loaded. */
   bundled: () => Iterable<BundledTemplate>;
+  /** Pull every per-locale translation overlay the BFF ships on disk.
+   *  bootSeed creates a sibling OAP row for each one that doesn't
+   *  already have an OAP overlay row, so operators see "what was
+   *  shipped" as their diff baseline in the Translations editor. */
+  bundledOverlays?: () => Iterable<BundledOverlay>;
   logger: Logger;
   now?: () => number;
 }
@@ -169,21 +206,36 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       lastSuccessfulSyncAt,
       generatedAt: now,
       rows: bundledOnlyRows(bundledRows, 'bundled-fallback'),
+      conflicts: [],
     };
   }
 
   lastSuccessfulSyncAt = (deps.now ?? Date.now)();
-  const parsedRemote = parseRemoteRows(oapRows, deps.logger);
+  let parsedRemote = parseRemoteRows(oapRows, deps.logger);
 
   if (opts.write) {
-    const seedCount = await seedMissing(deps, bundledRows, parsedRemote);
-    if (seedCount > 0) {
-      // Re-list so the merged view reflects the freshly-seeded UUIDs.
+    const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
+    const overlaySeedCount = await seedMissingOverlays(deps, parsedRemote.byName);
+    // Post-seed reconciliation. Any race-created duplicate (peer
+    // Horizon instance seeding the same OAP simultaneously, or a
+    // BanyanDB read-after-write window that hid an existing row from
+    // our seedMissing check) gets collapsed here: enabled wins,
+    // identical-content losers are disabled. Self-healing on every
+    // boot.
+    let disabledDupes: string[] = [];
+    try {
+      disabledDupes = await reconcileDuplicates(deps, bundledRows);
+    } catch (err) {
+      deps.logger.warn({ err: errMsg(err) }, 'duplicate reconciliation failed');
+    }
+    if (seedCount > 0 || overlaySeedCount > 0 || disabledDupes.length > 0) {
       try {
         const refreshed = await deps.client.list();
-        parsedRemote.clear();
-        for (const [k, v] of parseRemoteRows(refreshed, deps.logger)) parsedRemote.set(k, v);
-        deps.logger.info({ seedCount }, 'OAP UI-template boot seed complete');
+        parsedRemote = parseRemoteRows(refreshed, deps.logger);
+        deps.logger.info(
+          { seedCount, overlaySeedCount, collapsedDuplicates: disabledDupes.length },
+          'OAP UI-template boot reconcile complete',
+        );
       } catch (err) {
         deps.logger.warn(
           { err: errMsg(err) },
@@ -193,13 +245,180 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     }
   }
 
-  const rows = mergeRows(bundledRows, parsedRemote);
+  const rows = mergeRows(bundledRows, parsedRemote.byName);
   return {
     unreachable: false,
     lastSuccessfulSyncAt,
     generatedAt: now,
     rows,
+    conflicts: parsedRemote.conflicts,
   };
+}
+
+/** Thrown when a write to OAP succeeded but the resulting row state
+ *  didn't become visible to `list()` within the polling window. Routes
+ *  catch this and return 504. */
+export class WriteNotVisibleError extends Error {
+  readonly kind: 'create' | 'update';
+  readonly id: string;
+  readonly timeoutMs: number;
+  constructor(kind: 'create' | 'update', id: string, timeoutMs: number) {
+    super(`OAP ${kind} id=${id} not visible within ${timeoutMs}ms`);
+    this.name = 'WriteNotVisibleError';
+    this.kind = kind;
+    this.id = id;
+    this.timeoutMs = timeoutMs;
+  }
+}
+/** Back-compat re-export — the create-specific error type was the
+ *  original name. */
+export const CreateNotVisibleError = WriteNotVisibleError;
+
+const WRITE_VISIBILITY_TIMEOUT_MS = 5000;
+
+async function pollUntilVisible<T>(
+  fetch: () => Promise<T | null>,
+  timeoutMs: number,
+): Promise<T | null> {
+  const deadline = Date.now() + timeoutMs;
+  let delay = 50;
+  while (Date.now() < deadline) {
+    try {
+      const hit = await fetch();
+      if (hit !== null) return hit;
+    } catch {
+      /* transient — retry */
+    }
+    await new Promise((r) => setTimeout(r, delay));
+    delay = Math.min(delay * 2, 500);
+  }
+  return null;
+}
+
+/**
+ * Create + wait for the new row to become visible to `client.list()`.
+ * Throws {@link WriteNotVisibleError} on timeout.
+ */
+export async function createAndConfirm(
+  client: UITemplateClient,
+  configuration: string,
+  _logger: Logger,
+): Promise<string> {
+  const ack = await client.create(configuration);
+  if (!ack.status) {
+    throw new Error(`OAP rejected create: ${ack.message || 'no message'}`);
+  }
+  const id = ack.id;
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    return rows.some((r) => r.id === id) ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('create', id, WRITE_VISIBILITY_TIMEOUT_MS);
+  return id;
+}
+
+/**
+ * Update + wait for the new configuration to become visible to
+ * `client.list()`. Same read-after-write guard as createAndConfirm —
+ * without this, an immediate re-read can return the OLD content and
+ * a follow-up decision races on stale state.
+ */
+export async function updateAndConfirm(
+  client: UITemplateClient,
+  id: string,
+  configuration: string,
+  _logger: Logger,
+): Promise<void> {
+  const ack = await client.update(id, configuration);
+  if (!ack.status) {
+    throw new Error(`OAP rejected update: ${ack.message || 'no message'}`);
+  }
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    const found = rows.find((r) => r.id === id);
+    return found && found.configuration === configuration ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('update', id, WRITE_VISIBILITY_TIMEOUT_MS);
+}
+
+/**
+ * Disable + wait for `disabled: true` to become visible to
+ * `client.list()`. Same read-after-write guard as the other write
+ * helpers — keeps subsequent decisions (e.g. reactivate flow,
+ * conflict reconcile) from acting on stale state where the row
+ * still looks enabled.
+ */
+export async function disableAndConfirm(
+  client: UITemplateClient,
+  id: string,
+  _logger: Logger,
+): Promise<void> {
+  const ack = await client.disable(id);
+  if (!ack.status) {
+    throw new Error(`OAP rejected disable: ${ack.message || 'no message'}`);
+  }
+  const hit = await pollUntilVisible(async () => {
+    const rows = await client.list();
+    const found = rows.find((r) => r.id === id);
+    return found && found.disabled ? id : null;
+  }, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('update', id, WRITE_VISIBILITY_TIMEOUT_MS);
+}
+
+/**
+ * Group OAP rows by envelope name. For any name with more than one
+ * row, keep one and disable the rest. Tie-breaking: enabled wins
+ * over disabled; if multiple enabled, prefer the one whose
+ * configuration byte-matches the bundled (operator-edited
+ * divergences are kept over plain seeds); ties beyond that go to
+ * first-seen. Already-disabled losers are left alone (no need to
+ * re-disable an existing tombstone).
+ *
+ * Returns the list of UUIDs the BFF disabled in this pass.
+ */
+async function reconcileDuplicates(
+  deps: SyncDeps,
+  bundled: Map<string, BundledRow>,
+): Promise<string[]> {
+  const rows = await deps.client.list();
+  const byName = new Map<string, Array<{ id: string; disabled: boolean; configuration: string }>>();
+  for (const r of rows) {
+    const env = parseEnvelope(r.configuration);
+    if (!env) continue;
+    const list = byName.get(env.name) ?? [];
+    list.push({ id: r.id, disabled: r.disabled, configuration: r.configuration });
+    byName.set(env.name, list);
+  }
+  const disabled: string[] = [];
+  for (const [name, list] of byName) {
+    if (list.length <= 1) continue;
+    const bundledConfig = bundled.get(name)?.configuration ?? null;
+    const enabled = list.filter((r) => !r.disabled);
+    // Pick the winner the dedup logic in parseRemoteRows would also
+    // pick — bundled-match first, then any enabled, then any.
+    let winner = enabled[0] ?? list[0];
+    if (bundledConfig) {
+      const match = enabled.find((r) => r.configuration === bundledConfig);
+      if (match) winner = match;
+    }
+    for (const r of list) {
+      if (r.id === winner.id || r.disabled) continue;
+      try {
+        await disableAndConfirm(deps.client, r.id, deps.logger);
+        deps.logger.info(
+          { name, droppedId: r.id, keptId: winner.id },
+          'collapsed duplicate UI-template',
+        );
+        disabled.push(r.id);
+      } catch (err) {
+        deps.logger.warn(
+          { name, id: r.id, err: errMsg(err) },
+          'failed to disable duplicate UI-template',
+        );
+      }
+    }
+  }
+  return disabled;
 }
 
 interface BundledRow {
@@ -214,6 +433,8 @@ interface RemoteRow {
   name: string;
   kind: TemplateKind;
   key: string;
+  /** Set on per-locale overlay rows (`…i18n.<locale>`). */
+  locale?: string;
   id: string;
   configuration: string;
   disabled: boolean;
@@ -234,11 +455,29 @@ function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, Bundl
   return out;
 }
 
+interface ParsedRemote {
+  byName: Map<string, RemoteRow>;
+  /** Names where >1 ENABLED row exists. The BFF picks the lowest-id
+   *  winner deterministically; the admin UI surfaces the rest. */
+  conflicts: ConflictRow[];
+}
+
 function parseRemoteRows(
   rows: Array<{ id: string; configuration: string; disabled: boolean }>,
   logger: Logger,
-): Map<string, RemoteRow> {
-  const out = new Map<string, RemoteRow>();
+): ParsedRemote {
+  /* OAP doesn't enforce uniqueness on envelope name (only on its own
+   * storage UUID), so duplicates happen — typically a disabled
+   * tombstone + a current enabled record, but occasionally two
+   * enabled rows from a concurrent-boot race.
+   *
+   * Resolution rules:
+   *   - Enabled beats disabled.
+   *   - Multiple enabled → pick the lowest-id deterministically (so
+   *     every BFF instance and every fetch picks the same winner).
+   *     Surface the rest as `conflicts` so the admin UI can prompt
+   *     a manual reconcile. */
+  const groups = new Map<string, Array<RemoteRow>>();
   let skipped = 0;
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
@@ -246,14 +485,40 @@ function parseRemoteRows(
       skipped++;
       continue;
     }
-    out.set(env.name, {
+    // For source rows the OAP "key" is whatever the envelope name had
+    // after `horizon.<kind>.`. For overlay rows we want the parent
+    // template's key, NOT the locale-suffixed string — that's what
+    // consumers use to find sibling source rows. The parsed envelope
+    // gives us both unambiguously.
+    const row: RemoteRow = {
       name: env.name,
       kind: env.kind,
-      key: env.name.split('.').slice(2).join('.'),
+      key: env.locale === undefined
+        ? env.name.split('.').slice(2).join('.')
+        : env.name.split('.').slice(2, -2).join('.'),
+      locale: env.locale,
       id: r.id,
       configuration: r.configuration,
       disabled: r.disabled,
-    });
+    };
+    const list = groups.get(env.name) ?? [];
+    list.push(row);
+    groups.set(env.name, list);
+  }
+  const out = new Map<string, RemoteRow>();
+  const conflicts: ConflictRow[] = [];
+  for (const [name, list] of groups) {
+    const enabled = list.filter((r) => !r.disabled).sort((a, b) => a.id.localeCompare(b.id));
+    const winner = enabled[0] ?? list.slice().sort((a, b) => a.id.localeCompare(b.id))[0];
+    out.set(name, winner);
+    if (enabled.length > 1) {
+      conflicts.push({
+        name,
+        kind: winner.kind,
+        key: winner.key,
+        enabledIds: enabled.map((r) => r.id),
+      });
+    }
   }
   if (skipped > 0) {
     logger.debug(
@@ -261,7 +526,13 @@ function parseRemoteRows(
       'OAP UI-template rows ignored (not Horizon-namespaced) — operator may have other tools writing to this OAP',
     );
   }
-  return out;
+  if (conflicts.length > 0) {
+    logger.warn(
+      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
+      'OAP UI-template name conflicts (>1 enabled row) — kept the lowest-id row per name; operator should disable the rest via admin',
+    );
+  }
+  return { byName: out, conflicts };
 }
 
 async function seedMissing(
@@ -273,20 +544,41 @@ async function seedMissing(
   for (const [name, b] of bundled) {
     if (remote.has(name)) continue;
     try {
-      const ack = await deps.client.create(b.configuration);
-      if (!ack.status) {
-        deps.logger.warn(
-          { name, message: ack.message },
-          'OAP UI-template seed rejected — name conflict on OAP side, manual reconcile needed',
-        );
-        continue;
-      }
+      const id = await createAndConfirm(deps.client, b.configuration, deps.logger);
       count++;
-      deps.logger.info({ name, id: ack.id }, 'OAP UI-template seeded');
+      deps.logger.info({ name, id }, 'OAP UI-template seeded');
     } catch (err) {
       deps.logger.warn(
         { name, err: errMsg(err) },
         'OAP UI-template seed failed — will retry at next BFF boot',
+      );
+    }
+  }
+  return count;
+}
+
+/** Seed per-locale translation overlay rows from the BFF's disk
+ *  catalogs. One row per (kind, key, locale) that has a non-empty
+ *  disk overlay AND no existing OAP overlay row. Skipped silently
+ *  when the deps don't supply `bundledOverlays` (e.g. older tests). */
+async function seedMissingOverlays(
+  deps: SyncDeps,
+  remote: Map<string, RemoteRow>,
+): Promise<number> {
+  if (!deps.bundledOverlays) return 0;
+  let count = 0;
+  for (const ov of deps.bundledOverlays()) {
+    const envelope = buildOverlayEnvelope(ov.kind, ov.key, ov.locale, ov.content);
+    if (remote.has(envelope.name)) continue;
+    const configuration = serializeEnvelope(envelope);
+    try {
+      const id = await createAndConfirm(deps.client, configuration, deps.logger);
+      count++;
+      deps.logger.info({ name: envelope.name, id }, 'OAP translation overlay seeded');
+    } catch (err) {
+      deps.logger.warn(
+        { name: envelope.name, err: errMsg(err) },
+        'OAP translation overlay seed failed — will retry at next BFF boot',
       );
     }
   }
@@ -345,6 +637,7 @@ function mergeRows(
       name,
       kind: r.kind,
       key: r.key,
+      locale: r.locale,
       status: r.disabled ? 'disabled' : 'remote-only',
       effective: r.disabled ? null : 'remote',
       remote: { id: r.id, configuration: r.configuration, disabled: r.disabled },
@@ -354,6 +647,23 @@ function mergeRows(
 
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
+}
+
+/** Pick the OAP overlay row for the given template family + locale,
+ *  or null when none exists. Consumers use this to apply the OAP
+ *  overlay on top of the source + disk overlay at render time. */
+export function findOverlayRow(
+  status: SyncStatus,
+  kind: TemplateKind,
+  key: string,
+  locale: string,
+): TemplateRow | null {
+  for (const r of status.rows) {
+    if (r.locale === locale && r.kind === kind && r.key === key && !!r.remote && !r.remote.disabled) {
+      return r;
+    }
+  }
+  return null;
 }
 
 function bundledOnlyRows(bundled: Map<string, BundledRow>, status: TemplateStatus): TemplateRow[] {

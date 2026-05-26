@@ -1,0 +1,139 @@
+{
+  "alias": "브라우저",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "페이지 뷰"
+      },
+      {
+        "label": "오류율"
+      },
+      {
+        "label": "오류"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "페이지 상태",
+        "metrics": [
+          {
+            "label": "오류율",
+            "tip": "오류를 발생시킨 페이지 로드의 비율입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "PV / 분",
+            "tip": "분당 페이지 뷰입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "앱 로드 (PV)"
+      },
+      {
+        "title": "앱 오류율"
+      },
+      {
+        "title": "앱 오류 수"
+      },
+      {
+        "title": "인기 페이지",
+        "tip": "페이지 뷰, 오류, 오류율 기준으로 정렬된 페이지입니다.",
+        "expressionLabels": [
+          "PV",
+          "오류",
+          "오류율"
+        ]
+      },
+      {
+        "title": "상위 버전",
+        "tip": "앱 버전별 분포 — 로드 + 오류 + 오류율.",
+        "expressionLabels": [
+          "PV",
+          "오류",
+          "오류율"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "버전 PV"
+      },
+      {
+        "title": "버전 오류율"
+      },
+      {
+        "title": "버전 오류 수"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "First Meaningful Paint 백분위",
+        "tip": "선택한 페이지의 FMP 지연 시간 p50–p99 입니다. p75가 1초 미만이면 일반적인 목표를 달성한 것입니다."
+      },
+      {
+        "title": "페이지 로드 백분위"
+      },
+      {
+        "title": "TTL 백분위"
+      },
+      {
+        "title": "First Pack 지연 시간 백분위"
+      },
+      {
+        "title": "페이지 성능 분해",
+        "tip": "페이지 로드 각 단계의 평균 시간 — resolve, redirect, DNS, TCP, TTFB, transfer, DOM 분석, DOM ready, FPT, full load.",
+        "expressionLabels": [
+          "dns",
+          "리다이렉트",
+          "tcp",
+          "ttfb",
+          "transfer",
+          "dom 분석",
+          "dom ready",
+          "fpt",
+          "load",
+          "리소스"
+        ]
+      },
+      {
+        "title": "유형별 페이지 오류",
+        "tip": "Resource / JS / AJAX / unknown 오류의 분당 카운터입니다.",
+        "expressionLabels": [
+          "리소스",
+          "js",
+          "ajax",
+          "알 수 없음"
+        ]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "Core Web Vitals — FMP, LCP, CLS (분당 평균). CLS는 일반적인 0–1 점수 범위로 맞추기 위해 1000으로 나눕니다.",
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
+      },
+      {
+        "title": "Interaction to Next Paint 백분위",
+        "tip": "INP — FID를 대체하는 반응성 지표입니다."
+      }
+    ]
+  },
+  "slots": {
+    "services": "앱",
+    "instances": "버전",
+    "endpoints": "페이지"
+  }
+}

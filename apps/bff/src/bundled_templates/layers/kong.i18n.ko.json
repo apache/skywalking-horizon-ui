@@ -1,0 +1,141 @@
+{
+  "alias": "Kong",
+  "group": "게이트웨이",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간",
+        "metrics": [
+          {
+            "label": "Kong 지연 시간",
+            "tip": "요청당 Kong 자체가 소비하는 시간 (p50/p95)입니다."
+          },
+          {
+            "label": "업스트림 지연 시간",
+            "tip": "업스트림 서비스 대기 시간입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Kong을 통과하는 초당 요청 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP 요청 추세"
+      },
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "HTTP 대역폭"
+      },
+      {
+        "title": "Kong 지연 시간"
+      },
+      {
+        "title": "요청 지연 시간"
+      },
+      {
+        "title": "업스트림 지연 시간"
+      },
+      {
+        "title": "Nginx 연결"
+      },
+      {
+        "title": "Nginx 타이머"
+      },
+      {
+        "title": "데이터스토어 도달 가능",
+        "tableHeaders": [
+          "인스턴스",
+          "도달 가능"
+        ]
+      },
+      {
+        "title": "Nginx 메트릭 오류"
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP 요청 추세"
+      },
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "HTTP 대역폭"
+      },
+      {
+        "title": "Kong 지연 시간"
+      },
+      {
+        "title": "요청 지연 시간"
+      },
+      {
+        "title": "업스트림 지연 시간"
+      },
+      {
+        "title": "데이터스토어 도달 가능"
+      },
+      {
+        "title": "Nginx 연결"
+      },
+      {
+        "title": "Nginx 타이머"
+      },
+      {
+        "title": "공유 메모리 사용량"
+      },
+      {
+        "title": "워커 Lua VM 사용량"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "총 대역폭"
+      },
+      {
+        "title": "Kong 지연 시간"
+      },
+      {
+        "title": "요청 지연 시간"
+      },
+      {
+        "title": "업스트림 지연 시간"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kong 서비스",
+    "instances": "노드",
+    "endpoints": "라우트"
+  }
+}

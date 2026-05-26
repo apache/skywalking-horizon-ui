@@ -1,0 +1,94 @@
+{
+  "alias": "MongoDB",
+  "group": "数据库",
+  "slots": {
+    "services": "MongoDB 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "文档 QPS" },
+      { "label": "操作 QPS" },
+      { "label": "连接" },
+      { "label": "复制 Lag" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "容量",
+        "metrics": [
+          { "label": "数据大小（GB）", "tip": "集群范围内的数据总量。" },
+          { "label": "集合数", "tip": "集群范围内的集合数。" },
+          { "label": "对象数", "tip": "文档对象数。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "文档 QPS", "tip": "每秒文档操作数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "集群运行时长（天）" },
+      { "title": "数据大小（GB）" },
+      { "title": "集合数" },
+      { "title": "对象数" },
+      { "title": "文档 QPS" },
+      { "title": "操作 QPS" },
+      { "title": "总连接数" },
+      { "title": "游标总数" },
+      { "title": "复制延迟（ms）" },
+      {
+        "title": "DB 数据总量（GB）",
+        "tableHeaders": ["数据库", "Data (GB)"]
+      },
+      {
+        "title": "DB 索引总量（GB）",
+        "tableHeaders": ["数据库", "Index (GB)"]
+      }
+    ],
+    "instance": [
+      { "title": "运行时长（天）" },
+      { "title": "QPS" },
+      {
+        "title": "ReplSet 状态",
+        "tableHeaders": ["节点", "ReplSet state"]
+      },
+      { "title": "连接数" },
+      { "title": "CPU 使用率（%）" },
+      { "title": "内存使用" },
+      {
+        "title": "空闲内存（GB）",
+        "expressionLabels": ["mem", "swap"]
+      },
+      {
+        "title": "磁盘（GB）",
+        "expressionLabels": ["used", "total"]
+      },
+      {
+        "title": "网络（KB/s）",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "活跃客户端",
+        "expressionLabels": ["total", "writers", "readers"]
+      },
+      { "title": "文档 QPS" },
+      { "title": "操作 QPS" },
+      { "title": "操作延迟（µs）" },
+      {
+        "title": "事务",
+        "expressionLabels": ["active", "inactive"]
+      },
+      {
+        "title": "复制缓冲",
+        "expressionLabels": ["count", "size (MB)"]
+      },
+      { "title": "排队操作" }
+    ]
+  }
+}

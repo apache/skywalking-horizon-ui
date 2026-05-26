@@ -1,0 +1,482 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Tiempo de respuesta en el percentil 95 en toda la capa."
+          },
+          {
+            "label": "Tasa de errores",
+            "tip": "100 − SLA. Más alto = peor."
+          }
+        ]
+      },
+      {
+        "title": "Estado",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "expressionLabels": [
+          "Tráfico",
+          "Lentas",
+          "Tasa de éxito"
+        ],
+        "tip": "Top endpoints del servicio seleccionado. Cambia de pestaña para reordenar por tráfico, tiempo de respuesta o peor tasa de éxito."
+      },
+      {
+        "title": "Tráfico"
+      },
+      {
+        "title": "Tasa de errores"
+      },
+      {
+        "title": "Apdex",
+        "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
+      },
+      {
+        "title": "Percentil de tiempo de respuesta",
+        "tip": "Latencia p50 / p75 / p90 / p95 / p99 — la cola de la distribución de tiempo de respuesta."
+      },
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      {
+        "title": "Tasa de consumo MQ + latencia",
+        "tip": "Conteo en el eje izquierdo, latencia en el derecho.",
+        "expressionLabels": [
+          "conteo",
+          "latencia"
+        ]
+      },
+      {
+        "title": "Top 10 instancias por carga",
+        "tip": "Ordenado por tráfico entre las instancias del servicio seleccionado."
+      },
+      {
+        "title": "Top 10 instancias más lentas",
+        "tip": "Ordenado por tiempo de respuesta medio entre las instancias del servicio seleccionado."
+      },
+      {
+        "title": "Top 10 instancias por tasa de éxito",
+        "tip": "top_n(service_instance_sla,10,asc)/100 — ranking de peor a mejor."
+      },
+      {
+        "title": "Statements lentos de base de datos",
+        "tip": "Top 20 statements de base de datos más lentos capturados contra este servicio. Fuente: top_n_service_database_statement. Muestra `no data` cuando OAP no ha capturado statements en la ventana."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tráfico"
+      },
+      {
+        "title": "Tiempo de respuesta"
+      },
+      {
+        "title": "Tasa de éxito"
+      },
+      {
+        "title": "Percentil de tiempo de respuesta"
+      },
+      {
+        "title": "Latencia media de consumo MQ",
+        "tip": "Latencia de consumo a nivel endpoint — solo se llena para endpoints que sirven tráfico de cola de mensajes."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Carga de instancia de servicio",
+        "tip": "Llamadas por minuto contra la instancia seleccionada."
+      },
+      {
+        "title": "Latencia de instancia de servicio"
+      },
+      {
+        "title": "Tasa de éxito de instancia de servicio"
+      },
+      {
+        "title": "CPU JVM",
+        "tip": "CPU JVM según reporta el agente. Solo se muestra cuando la instancia es una JVM."
+      },
+      {
+        "title": "Memoria JVM",
+        "tip": "Heap / non-heap usado + máx en MB.",
+        "expressionLabels": [
+          "heap",
+          "heap máx",
+          "non-heap",
+          "non-heap máx"
+        ]
+      },
+      {
+        "title": "Detalle de memoria JVM",
+        "tip": "Memoria usada por pool en MB. Cubre code cache, young / old / survivor / permgen / metaspace y los sub-pools de codeheap JIT introducidos en JVMs más recientes (Z heap, compressed class space, segmented codeheaps). Los pools que la JVM no expone simplemente quedan en 0.",
+        "expressionLabels": [
+          "code cache",
+          "newgen",
+          "oldgen",
+          "survivor",
+          "permgen",
+          "metaspace",
+          "zheap",
+          "compressed class space",
+          "codeheap (non-nmethods)",
+          "codeheap (profiled nmethods)",
+          "codeheap (non-profiled nmethods)"
+        ]
+      },
+      {
+        "title": "Conteo de hilos JVM",
+        "expressionLabels": [
+          "vivas",
+          "daemon",
+          "máximo"
+        ]
+      },
+      {
+        "title": "Conteo por estado de hilos JVM",
+        "tip": "Hilos por estado JVM (runnable / blocked / waiting / timed-waiting).",
+        "expressionLabels": [
+          "runnable",
+          "bloqueados",
+          "esperando",
+          "timed-waiting"
+        ]
+      },
+      {
+        "title": "Tiempo de GC JVM",
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "Conteo de GC JVM",
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "Conteo de clases JVM",
+        "expressionLabels": [
+          "cargadas",
+          "cargadas total",
+          "descargadas total"
+        ]
+      },
+      {
+        "title": "CPU del CLR",
+        "tip": "Solo .NET: se muestra cuando la instancia reporta métricas CLR."
+      },
+      {
+        "title": "Hilo del CLR",
+        "expressionLabels": [
+          "workers disponibles",
+          "completion-port disponibles",
+          "completion-port máx"
+        ]
+      },
+      {
+        "title": "Memoria heap del CLR"
+      },
+      {
+        "title": "GC del CLR",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Conteo de peticiones HTTP de Spring",
+        "tip": "Spring Sleuth / Spring Boot Actuator — contador http.server.requests."
+      },
+      {
+        "title": "Duración de peticiones HTTP de Spring"
+      },
+      {
+        "title": "Uso de CPU de la instancia Spring"
+      },
+      {
+        "title": "Uso de CPU del OS de Spring"
+      },
+      {
+        "title": "Carga del sistema OS de Spring"
+      },
+      {
+        "title": "Archivos del proceso OS de Spring",
+        "expressionLabels": [
+          "abiertos",
+          "máx"
+        ]
+      },
+      {
+        "title": "Duración de pausa de GC JVM de Spring"
+      },
+      {
+        "title": "Memoria JVM de Spring",
+        "expressionLabels": [
+          "en uso",
+          "máx"
+        ]
+      },
+      {
+        "title": "Hilos JVM de Spring",
+        "expressionLabels": [
+          "vivas",
+          "daemon",
+          "máximo"
+        ]
+      },
+      {
+        "title": "Clases JVM de Spring",
+        "expressionLabels": [
+          "cargadas",
+          "descargadas"
+        ]
+      },
+      {
+        "title": "Pool de conexiones de base de datos de Spring",
+        "tip": "Métricas del datasource HikariCP / Spring Boot — conteo de conexiones por pool."
+      },
+      {
+        "title": "Thread pool de Spring",
+        "tip": "Meters del thread pool de Spring Boot — activos, en cola, máx hilos por executor."
+      },
+      {
+        "title": "Conexiones JDBC de Spring",
+        "expressionLabels": [
+          "activos",
+          "inactivos",
+          "máx"
+        ]
+      },
+      {
+        "title": "Sesiones de Tomcat de Spring",
+        "expressionLabels": [
+          "activos",
+          "máx",
+          "rechazados"
+        ]
+      },
+      {
+        "title": "Goroutines / hilos OS de Golang",
+        "tip": "Agente Golang: conteo de goroutines vivas + hilos OS subyacentes.",
+        "expressionLabels": [
+          "goroutines",
+          "hilos OS"
+        ]
+      },
+      {
+        "title": "Tiempo de pausa de GC de Golang (por minuto)"
+      },
+      {
+        "title": "Conteo de GC de Golang (por minuto)"
+      },
+      {
+        "title": "Heap Alloc de Golang (por minuto)"
+      },
+      {
+        "title": "Tiempo de planificación de goroutines de Golang"
+      },
+      {
+        "title": "GC Free de Golang (por minuto)"
+      },
+      {
+        "title": "Tamaño de Alloc de Golang (por minuto)"
+      },
+      {
+        "title": "Tamaño liberado de Golang (por minuto)"
+      },
+      {
+        "title": "Objetos del heap de Golang"
+      },
+      {
+        "title": "Heap de Golang"
+      },
+      {
+        "title": "Metadata Mspan de Golang"
+      },
+      {
+        "title": "Metadata Mcache de Golang"
+      },
+      {
+        "title": "Tamaño objetivo de GC de Golang"
+      },
+      {
+        "title": "Llamadas CGO de Golang (por minuto)"
+      },
+      {
+        "title": "Utilización de CPU de Python",
+        "tip": "Agente Python (PVM): CPU del host vs proceso.",
+        "expressionLabels": [
+          "host",
+          "proceso"
+        ]
+      },
+      {
+        "title": "Utilización de memoria de Python",
+        "expressionLabels": [
+          "host",
+          "proceso"
+        ]
+      },
+      {
+        "title": "Conteo de hilos de Python"
+      },
+      {
+        "title": "Conteo de GC de Python",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Tiempo de GC de Python"
+      },
+      {
+        "title": "Uso de CPU de Ruby",
+        "tip": "Agente Ruby: CPU del proceso como porcentaje."
+      },
+      {
+        "title": "Memoria Ruby (RSS)"
+      },
+      {
+        "title": "Uso de memoria de Ruby"
+      },
+      {
+        "title": "Estado de hilos de Ruby",
+        "expressionLabels": [
+          "activos",
+          "running"
+        ]
+      },
+      {
+        "title": "Conteo de GC de Ruby",
+        "expressionLabels": [
+          "total",
+          "minor",
+          "major"
+        ]
+      },
+      {
+        "title": "Tiempo de GC de Ruby"
+      },
+      {
+        "title": "Uso del heap de Ruby"
+      },
+      {
+        "title": "Slots del heap de Ruby",
+        "expressionLabels": [
+          "vivas",
+          "disponible"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tiempo medio de respuesta"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios",
+    "instances": "Instancias",
+    "endpoints": "API",
+    "endpointDependency": "Dependencias de API"
+  },
+  "alias": "Servicio general"
+}

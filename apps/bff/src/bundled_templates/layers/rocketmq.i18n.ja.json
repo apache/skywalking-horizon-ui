@@ -1,0 +1,156 @@
+{
+  "alias": "RocketMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "プロデュース TPS"
+      },
+      {
+        "label": "コンシューム TPS"
+      },
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "Broker"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "プロデュース TPS",
+            "tip": "クラスタ全体の 1秒あたり生産メッセージ数。"
+          },
+          {
+            "label": "コンシューム TPS",
+            "tip": "1秒あたりの消費メッセージ数。"
+          },
+          {
+            "label": "最大コンシューマーレイテンシ",
+            "tip": "クラスタ全体の最悪コンシューマーレイテンシ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "本日の生産数"
+      },
+      {
+        "title": "本日の消費数"
+      },
+      {
+        "title": "昨日の生産数"
+      },
+      {
+        "title": "昨日の消費数"
+      },
+      {
+        "title": "プロデューサー / コンシューマー TPS",
+        "expressionLabels": [
+          "プロデューサー",
+          "コンシューマー"
+        ]
+      },
+      {
+        "title": "プロデューサー / コンシューマーメッセージサイズ (MB)",
+        "expressionLabels": [
+          "生産",
+          "消費"
+        ]
+      },
+      {
+        "title": "最大コンシューマーレイテンシ"
+      },
+      {
+        "title": "CommitLog ディスク比率 (%)",
+        "expressionLabels": [
+          "現在",
+          "最大"
+        ]
+      },
+      {
+        "title": "ThreadPool キュー先頭待ち (ms)",
+        "expressionLabels": [
+          "プル",
+          "送信"
+        ]
+      },
+      {
+        "title": "Topic"
+      },
+      {
+        "title": "Broker"
+      }
+    ],
+    "instance": [
+      {
+        "title": "プロデュース TPS"
+      },
+      {
+        "title": "コンシューム QPS"
+      },
+      {
+        "title": "プロデューサーメッセージサイズ (MB)"
+      },
+      {
+        "title": "コンシューマーメッセージサイズ (MB)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "プロデューサー / コンシューマーグループ TPS",
+        "expressionLabels": [
+          "プロデューサー",
+          "コンシューマーグループ"
+        ]
+      },
+      {
+        "title": "メッセージサイズ (MB)",
+        "expressionLabels": [
+          "生産",
+          "消費"
+        ]
+      },
+      {
+        "title": "最大メッセージサイズ (MB)",
+        "expressionLabels": [
+          "プロデューサー",
+          "コンシューマー"
+        ]
+      },
+      {
+        "title": "コンシューマーレイテンシ (s)"
+      },
+      {
+        "title": "プロデューサー / コンシューマーオフセット",
+        "expressionLabels": [
+          "プロデューサー",
+          "コンシューマーグループ"
+        ]
+      },
+      {
+        "title": "バックログメッセージ",
+        "tip": "プロデューサーオフセット − コンシューマーグループオフセット — Topic のラグ。"
+      },
+      {
+        "title": "コンシューマーグループ数"
+      },
+      {
+        "title": "Broker 数"
+      }
+    ]
+  },
+  "slots": {
+    "services": "RocketMQ クラスタ",
+    "instances": "Broker",
+    "endpoints": "Topic"
+  }
+}

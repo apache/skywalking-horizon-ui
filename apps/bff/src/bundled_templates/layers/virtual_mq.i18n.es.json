@@ -1,0 +1,98 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latencia de consumo en el percentil 95 (timestamp(recibido) − timestamp(produciendo))."
+          },
+          {
+            "label": "Tasa de errores de consumo",
+            "tip": "100 − tasa de éxito de consumo."
+          },
+          {
+            "label": "Tasa de errores de producción",
+            "tip": "100 − tasa de éxito de producción."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de consumo",
+            "tip": "Mensajes consumidos por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "endpoints": "Topics",
+    "services": "Clústeres de MQ"
+  },
+  "alias": "Cola de mensajes virtual",
+  "group": "Destinos virtuales",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de consumo"
+      },
+      {
+        "label": "RPM de producción"
+      },
+      {
+        "label": "Latencia de consumo"
+      },
+      {
+        "label": "Tasa de errores de consumo"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tráfico de consumo"
+      },
+      {
+        "title": "Tráfico de producción"
+      },
+      {
+        "title": "Latencia media de consumo",
+        "tip": "Tiempo medio entre producción y consumo de mensajes."
+      },
+      {
+        "title": "Tasa de éxito de consumo"
+      },
+      {
+        "title": "Tasa de éxito de producción"
+      },
+      {
+        "title": "Percentil de latencia de consumo",
+        "tip": "p50 / p75 / p90 / p95 / p99 de latencia de consumo."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tráfico de consumo del topic"
+      },
+      {
+        "title": "Tráfico de producción del topic"
+      },
+      {
+        "title": "Latencia media de consumo del topic"
+      },
+      {
+        "title": "Tasa de éxito de consumo del topic"
+      },
+      {
+        "title": "Tasa de éxito de producción del topic"
+      },
+      {
+        "title": "Percentil de latencia de consumo del topic"
+      }
+    ]
+  }
+}

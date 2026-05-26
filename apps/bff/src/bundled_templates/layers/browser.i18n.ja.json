@@ -1,0 +1,139 @@
+{
+  "alias": "ブラウザ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "ページビュー"
+      },
+      {
+        "label": "エラー率"
+      },
+      {
+        "label": "エラー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "ページヘルス",
+        "metrics": [
+          {
+            "label": "エラー率",
+            "tip": "エラーを発生させたページロードの割合。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "PV / 分",
+            "tip": "1分あたりのページビュー。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "アプリ負荷 (PV)"
+      },
+      {
+        "title": "アプリエラー率"
+      },
+      {
+        "title": "アプリエラー件数"
+      },
+      {
+        "title": "上位ホットページ",
+        "tip": "ページビュー、エラー、エラー率でランク付けしたページ。",
+        "expressionLabels": [
+          "PV",
+          "エラー",
+          "エラー率"
+        ]
+      },
+      {
+        "title": "上位バージョン",
+        "tip": "アプリバージョン内訳 — 負荷 + エラー + エラー率。",
+        "expressionLabels": [
+          "PV",
+          "エラー",
+          "エラー率"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "バージョン PV"
+      },
+      {
+        "title": "バージョン別エラー率"
+      },
+      {
+        "title": "バージョン別エラー件数"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "First Meaningful Paint パーセンタイル",
+        "tip": "選択中ページの FMP レイテンシ p50–p99。p75 で 1 秒以下が一般的な目標。"
+      },
+      {
+        "title": "ページロードパーセンタイル"
+      },
+      {
+        "title": "Time-to-Live パーセンタイル"
+      },
+      {
+        "title": "First Pack レイテンシパーセンタイル"
+      },
+      {
+        "title": "ページパフォーマンス内訳",
+        "tip": "ページロードの各フェーズに費やされた平均時間 — resolve、redirect、DNS、TCP、TTFB、transfer、DOM 解析、DOM ready、FPT、フルロード。",
+        "expressionLabels": [
+          "DNS",
+          "リダイレクト",
+          "TCP",
+          "TTFB",
+          "転送",
+          "DOM 解析",
+          "DOM ready",
+          "FPT",
+          "ロード",
+          "リソース"
+        ]
+      },
+      {
+        "title": "タイプ別ページエラー",
+        "tip": "1分あたりの Resource / JS / AJAX / 不明エラーカウンタ。",
+        "expressionLabels": [
+          "リソース",
+          "JS",
+          "AJAX",
+          "不明"
+        ]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "Core Web Vitals — FMP、LCP、CLS（1分あたり平均）。CLS は典型的な 0–1 スコア範囲に収めるため 1000 で除算。",
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
+      },
+      {
+        "title": "Interaction to Next Paint パーセンタイル",
+        "tip": "INP — FID を置き換えた応答性メトリクス。"
+      }
+    ]
+  },
+  "slots": {
+    "services": "アプリ",
+    "instances": "バージョン",
+    "endpoints": "ページ"
+  }
+}

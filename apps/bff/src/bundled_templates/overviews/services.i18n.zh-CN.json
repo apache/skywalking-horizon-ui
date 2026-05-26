@@ -1,0 +1,126 @@
+{
+  "title": "服务仪表板",
+  "description": "跨层服务健康概览：包含已追踪的服务、虚拟数据库 / 缓存 / 消息队列 / GenAI 后端，以及底层 Kubernetes 容量。",
+  "widgets": [
+    {
+      "title": "服务"
+    },
+    {
+      "title": "通用服务",
+      "tip": "General 层中已追踪的应用服务。",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟数据库",
+      "tip": "通过客户端 span 观测到的后端数据库。",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟缓存",
+      "tip": "通过客户端 span 观测到的缓存（Redis / Memcached 等）。",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "虚拟消息队列",
+      "tip": "通过 consume / produce span 观测到的消息队列。",
+      "kpis": [
+        {
+          "label": "消费"
+        },
+        {
+          "label": "生产"
+        },
+        {
+          "label": "消费延迟"
+        }
+      ]
+    },
+    {
+      "title": "虚拟 GenAI",
+      "tip": "通过插桩的客户端 span 观测到的 GenAI 后端。",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "延迟"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "拓扑与活动告警"
+    },
+    {
+      "title": "通用服务拓扑",
+      "tip": "实时服务拓扑 — 与各层 Topology 标签页使用相同的渲染器，仅去掉详情侧栏。"
+    },
+    {
+      "title": "活动告警",
+      "tip": "已追踪服务上当前正在触发的告警。"
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "集群容量与利用率",
+      "tip": "节点 / 命名空间 / 工作负载，以及集群范围内的 CPU、内存与磁盘占用。",
+      "kpis": [
+        {
+          "label": "节点"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "服务"
+        },
+        {
+          "label": "容器"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "内存"
+        },
+        {
+          "label": "存储"
+        }
+      ]
+    }
+  ]
+}

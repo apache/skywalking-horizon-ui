@@ -1,0 +1,113 @@
+{
+  "alias": "Kubernetes",
+  "group": "Kubernetes",
+  "slots": {
+    "services": "集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Pod" },
+      { "label": "节点" },
+      { "label": "命名空间" },
+      { "label": "Deployment" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "容量",
+        "metrics": [
+          { "label": "Pod", "tip": "集群中上报的 Pod 总数。" },
+          { "label": "节点", "tip": "节点数。" },
+          { "label": "服务", "tip": "K8s Service 对象数。" }
+        ]
+      },
+      {
+        "title": "异常",
+        "metrics": [
+          { "label": "未运行 Pod", "tip": "处于任何非 Running 状态的 Pod — pending、failed、unknown。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "节点总数" },
+      { "title": "命名空间总数" },
+      { "title": "Deployment 总数" },
+      { "title": "StatefulSet 总数" },
+      { "title": "DaemonSet 总数" },
+      { "title": "Service 总数" },
+      { "title": "Pod 总数" },
+      { "title": "容器总数" },
+      {
+        "title": "CPU 资源",
+        "tip": "集群 CPU 容量 vs requests / limits / allocatable（millicore）。",
+        "expressionLabels": ["容量", "Requests", "Limits", "Allocatable"]
+      },
+      {
+        "title": "内存资源",
+        "tip": "集群内存 requests / allocatable / limits / total。",
+        "expressionLabels": ["Requests", "Allocatable", "Limits", "Total"]
+      },
+      {
+        "title": "存储资源",
+        "tip": "集群临时存储 total vs allocatable。",
+        "expressionLabels": ["Total", "Allocatable"]
+      },
+      {
+        "title": "节点状态",
+        "tip": "各节点当前为 true/unknown 的 Kubernetes 条件（Ready、*Pressure …）。",
+        "tableHeaders": ["节点 · 条件", ""]
+      },
+      {
+        "title": "Deployment 状态",
+        "tip": "上报 Available 条件的 Deployment。",
+        "tableHeaders": ["Deployment · Available", ""]
+      },
+      {
+        "title": "Deployment 期望副本数",
+        "tip": "每个 Deployment 的期望副本数。",
+        "tableHeaders": ["Deployment", "Replicas"]
+      },
+      {
+        "title": "Service 状态",
+        "tip": "每个 K8s Service 背后的 Pod，按阶段划分（Running / Pending / Failed / …）。",
+        "tableHeaders": ["Service · Phase", ""]
+      },
+      {
+        "title": "未运行 Pod",
+        "tip": "处于任何非 Running 阶段的 Pod。",
+        "tableHeaders": ["Pod · 状态", ""]
+      },
+      {
+        "title": "Pod 状态：Waiting",
+        "tip": "处于 Waiting 状态的容器，按原因分组。",
+        "tableHeaders": ["Container · Pod · Reason", ""]
+      }
+    ],
+    "instance": [
+      { "title": "节点状态" },
+      { "title": "节点上的 Pod" },
+      { "title": "节点 CPU 使用", "tip": "CPU 使用量，单位 millicore。" },
+      {
+        "title": "节点 CPU 资源",
+        "expressionLabels": ["total", "allocatable", "requests", "limits"]
+      },
+      { "title": "节点内存使用" },
+      {
+        "title": "节点内存资源",
+        "expressionLabels": ["total", "allocatable", "requests", "limits"]
+      },
+      {
+        "title": "节点网络 I/O",
+        "expressionLabels": ["receive", "transmit"]
+      },
+      {
+        "title": "节点存储资源",
+        "expressionLabels": ["total", "allocatable"]
+      }
+    ]
+  }
+}

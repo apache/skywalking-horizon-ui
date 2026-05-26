@@ -1,0 +1,140 @@
+{
+  "alias": "iOS",
+  "group": "모바일",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "실행 시간 (P95)"
+      },
+      {
+        "label": "행 타임"
+      },
+      {
+        "label": "크래시"
+      },
+      {
+        "label": "아웃바운드 RPM"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "앱 상태",
+        "metrics": [
+          {
+            "label": "실행 시간 P95",
+            "tip": "MetricKit이 측정한 95번째 백분위 콜드 런치 시간입니다."
+          },
+          {
+            "label": "행 P95",
+            "tip": "UI 행 지속 시간의 95번째 백분위입니다."
+          },
+          {
+            "label": "크래시",
+            "tip": "포그라운드 + 백그라운드 비정상 종료입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "앱 실행 시간 백분위"
+      },
+      {
+        "title": "행 타임 백분위"
+      },
+      {
+        "title": "행 타임 (합계)"
+      },
+      {
+        "title": "비정상 종료 (크래시)",
+        "tip": "MetricKit은 포그라운드와 백그라운드 비정상 종료를 별도로 보고합니다.",
+        "expressionLabels": [
+          "포그라운드",
+          "백그라운드"
+        ]
+      },
+      {
+        "title": "OOM Kill 수",
+        "tip": "백그라운드 OOM kill — iOS 시스템이 메모리 압박으로 앱을 종료한 횟수입니다."
+      },
+      {
+        "title": "최대 메모리"
+      },
+      {
+        "title": "스크롤 헛걸음 비율",
+        "tip": "헛걸음으로 분류된 스크롤 프레임의 비율입니다 — 값이 클수록 UI가 끊깁니다."
+      },
+      {
+        "title": "네트워크 전송",
+        "tip": "WiFi 와 셀룰러의 송수신 바이트입니다.",
+        "expressionLabels": [
+          "WiFi ↓",
+          "WiFi ↑",
+          "셀룰러 ↓",
+          "셀룰러 ↑"
+        ]
+      },
+      {
+        "title": "아웃바운드 HTTP",
+        "tip": "앱이 백엔드에 호출하는 트래픽 — 로드, 지연 시간, 성공률.",
+        "expressionLabels": [
+          "RPM",
+          "평균 지연 시간 (ms)",
+          "성공률 (%)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "실행 시간 백분위"
+      },
+      {
+        "title": "행 타임 백분위"
+      },
+      {
+        "title": "비정상 종료",
+        "expressionLabels": [
+          "포그라운드",
+          "백그라운드"
+        ]
+      },
+      {
+        "title": "OOM Kill 수"
+      },
+      {
+        "title": "최대 메모리"
+      },
+      {
+        "title": "아웃바운드 HTTP",
+        "expressionLabels": [
+          "RPM",
+          "평균 지연 시간 (ms)",
+          "성공률 (%)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "아웃바운드 부하"
+      },
+      {
+        "title": "아웃바운드 평균 지연 시간"
+      },
+      {
+        "title": "아웃바운드 성공률"
+      },
+      {
+        "title": "아웃바운드 지연 시간 백분위"
+      }
+    ]
+  },
+  "slots": {
+    "services": "앱",
+    "instances": "앱 세션",
+    "endpoints": "아웃바운드 API"
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Warteschlangen"
+      },
+      {
+        "label": "Channels"
+      },
+      {
+        "label": "Verbindungen"
+      },
+      {
+        "label": "Unbestätigt"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Veröffentlicht / min",
+            "tip": "Pro Minute veröffentlichte Nachrichten."
+          },
+          {
+            "label": "Unbestätigt",
+            "tip": "Nachrichten, die auf Publisher-Bestätigung warten."
+          },
+          {
+            "label": "Nicht-routbar verworfen",
+            "tip": "Nachrichten verworfen, weil keine Exchange-Route passte."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Verfügbarer Speicher vor Block (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Disk verfügbar vor Block (GB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "File-Deskriptoren + Sockets",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "fds",
+          "sockets"
+        ]
+      },
+      {
+        "title": "Bereite Nachrichten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ack ausstehend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Publish-Pipeline",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "veröffentlicht",
+          "bestätigt",
+          "geroutet",
+          "unbestätigt"
+        ]
+      },
+      {
+        "title": "Nicht-routbare Nachrichten",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "verworfen",
+          "zurückgegeben"
+        ]
+      },
+      {
+        "title": "Warteschlangen",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "deklariert",
+          "erstellt",
+          "gelöscht"
+        ]
+      },
+      {
+        "title": "Channels",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "geöffnet",
+          "geschlossen"
+        ]
+      },
+      {
+        "title": "Verbindungen",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "geöffnet",
+          "geschlossen"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Bereite Nachrichten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Eingehende Nachrichten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausgehende Nachrichten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nicht bestätigte Nachrichten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungen / Publisher / Consumer",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "verbindungen",
+          "publisher",
+          "consumers"
+        ]
+      },
+      {
+        "title": "Channels + Queues",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "channels",
+          "queues"
+        ]
+      },
+      {
+        "title": "Allocated Used %",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "ungenutzt",
+          "resident",
+          "gesamt"
+        ]
+      },
+      {
+        "title": "Zugewiesen nach Typ (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Multi-/Single-Block-Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "multi used",
+          "multi unused",
+          "single used",
+          "single unused"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "RabbitMQ-Cluster",
+    "instances": "Knoten"
+  }
+}

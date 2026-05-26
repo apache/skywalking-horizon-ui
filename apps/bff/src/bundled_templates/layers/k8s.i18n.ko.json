@@ -1,0 +1,205 @@
+{
+  "alias": "Kubernetes",
+  "group": "Kubernetes",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "노드"
+      },
+      {
+        "label": "네임스페이스"
+      },
+      {
+        "label": "Deployment"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "용량",
+        "metrics": [
+          {
+            "label": "Pod",
+            "tip": "클러스터 전반에서 보고된 총 Pod 수입니다."
+          },
+          {
+            "label": "노드",
+            "tip": "노드 수입니다."
+          },
+          {
+            "label": "서비스",
+            "tip": "Kubernetes Service 객체입니다."
+          }
+        ]
+      },
+      {
+        "title": "문제",
+        "metrics": [
+          {
+            "label": "실행되지 않는 Pod",
+            "tip": "Running 상태가 아닌 모든 Pod — pending, failed, unknown."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "노드 총합"
+      },
+      {
+        "title": "네임스페이스 총합"
+      },
+      {
+        "title": "Deployment 총합"
+      },
+      {
+        "title": "StatefulSet 총합"
+      },
+      {
+        "title": "DaemonSet 총합"
+      },
+      {
+        "title": "서비스 총합"
+      },
+      {
+        "title": "Pod 총합"
+      },
+      {
+        "title": "컨테이너 총합"
+      },
+      {
+        "title": "CPU 리소스",
+        "tip": "클러스터 CPU 용량과 requests / limits / allocatable 비교 (밀리코어).",
+        "expressionLabels": [
+          "용량",
+          "요청",
+          "Limits",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "메모리 리소스",
+        "tip": "클러스터 메모리의 requests / allocatable / limits / total.",
+        "expressionLabels": [
+          "요청",
+          "Allocatable",
+          "Limits",
+          "전체"
+        ]
+      },
+      {
+        "title": "스토리지 리소스",
+        "tip": "클러스터의 임시 스토리지 총량과 할당 가능량 비교.",
+        "expressionLabels": [
+          "전체",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "노드 상태",
+        "tip": "각 노드의 Kubernetes 조건 중 현재 true 또는 unknown 상태 (Ready, *Pressure, …).",
+        "tableHeaders": [
+          "노드 · 조건",
+          ""
+        ]
+      },
+      {
+        "title": "Deployment 상태",
+        "tip": "Available 조건을 보고하는 Deployment입니다.",
+        "tableHeaders": [
+          "Deployment · 사용 가능",
+          ""
+        ]
+      },
+      {
+        "title": "Deployment 명세 복제본",
+        "tip": "Deployment 별 원하는 복제본 수입니다.",
+        "tableHeaders": [
+          "Deployment",
+          "복제본"
+        ]
+      },
+      {
+        "title": "서비스 상태",
+        "tip": "각 Kubernetes 서비스를 지원하는 Pod를 단계별 (Running / Pending / Failed / …) 로 표시합니다.",
+        "tableHeaders": [
+          "서비스 · 단계",
+          ""
+        ]
+      },
+      {
+        "title": "실행 중이 아닌 Pod",
+        "tip": "Running 단계가 아닌 모든 Pod입니다.",
+        "tableHeaders": [
+          "Pod · 상태",
+          ""
+        ]
+      },
+      {
+        "title": "대기 중인 Pod",
+        "tip": "대기 상태에 있는 컨테이너를 사유별로 표시합니다.",
+        "tableHeaders": [
+          "컨테이너 · Pod · 사유",
+          ""
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "노드 상태"
+      },
+      {
+        "title": "노드의 Pod"
+      },
+      {
+        "title": "노드 CPU 사용량",
+        "tip": "밀리코어 단위의 CPU 사용량입니다."
+      },
+      {
+        "title": "노드 CPU 리소스",
+        "expressionLabels": [
+          "전체",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "노드 메모리 사용량"
+      },
+      {
+        "title": "노드 메모리 리소스",
+        "expressionLabels": [
+          "전체",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "노드 네트워크 I/O",
+        "expressionLabels": [
+          "수신",
+          "전송"
+        ]
+      },
+      {
+        "title": "노드 스토리지 리소스",
+        "expressionLabels": [
+          "전체",
+          "allocatable"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "클러스터",
+    "instances": "노드"
+  }
+}

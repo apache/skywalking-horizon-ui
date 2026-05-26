@@ -1,0 +1,63 @@
+{
+  "alias": "Nginx",
+  "group": "网关",
+  "slots": {
+    "services": "Nginx 服务",
+    "instances": "节点",
+    "endpoints": "路由"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "RPS" },
+      { "label": "5xx %" },
+      { "label": "4xx %" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "错误",
+        "metrics": [
+          { "label": "5xx 比率", "tip": "每分钟返回 5xx 的请求占比。" },
+          { "label": "4xx 比率", "tip": "每分钟返回 4xx 的请求占比。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "RPS", "tip": "Nginx 服务每秒请求数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" },
+      { "title": "HTTP 连接" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "4xx % / 分钟" },
+      { "title": "5xx % / 分钟" },
+      { "title": "错误日志数" }
+    ],
+    "instance": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" },
+      { "title": "HTTP 连接" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "4xx % / 分钟" },
+      { "title": "5xx % / 分钟" },
+      { "title": "错误日志数" }
+    ],
+    "endpoint": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "4xx % / 分钟" },
+      { "title": "5xx % / 分钟" }
+    ]
+  }
+}

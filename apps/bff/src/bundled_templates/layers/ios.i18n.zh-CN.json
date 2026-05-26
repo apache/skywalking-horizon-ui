@@ -1,0 +1,80 @@
+{
+  "alias": "iOS",
+  "group": "移动",
+  "slots": {
+    "services": "应用",
+    "instances": "应用会话",
+    "endpoints": "出站 API"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "启动（P95）" },
+      { "label": "Hang 时长" },
+      { "label": "崩溃" },
+      { "label": "出站 RPM" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "应用健康",
+        "metrics": [
+          { "label": "启动 P95", "tip": "MetricKit 测量的冷启动 95 分位耗时。" },
+          { "label": "Hang P95", "tip": "UI Hang 持续时间的 95 分位。" },
+          { "label": "崩溃", "tip": "前台 + 后台异常退出。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "应用启动耗时分位" },
+      { "title": "Hang 时长分位" },
+      { "title": "Hang 时长（总和）" },
+      {
+        "title": "异常退出（崩溃）",
+        "tip": "MetricKit 分别上报前台和后台异常退出。",
+        "expressionLabels": ["foreground", "background"]
+      },
+      {
+        "title": "OOM 终止次数",
+        "tip": "后台 OOM 终止 — iOS 系统因内存压力回收应用。"
+      },
+      { "title": "峰值内存" },
+      {
+        "title": "滚动卡顿比",
+        "tip": "被判定为卡顿的滚动帧占比 — 越高 UI 越卡。"
+      },
+      {
+        "title": "网络传输",
+        "tip": "Wi-Fi 与蜂窝网络的入站 + 出站字节数。",
+        "expressionLabels": ["wifi ↓", "wifi ↑", "cellular ↓", "cellular ↑"]
+      },
+      {
+        "title": "出站 HTTP",
+        "tip": "应用对后端的调用 — 负载、延迟、成功率。",
+        "expressionLabels": ["RPM", "平均延迟 (ms)", "成功率 (%)"]
+      }
+    ],
+    "instance": [
+      { "title": "启动耗时分位" },
+      { "title": "Hang 时长分位" },
+      {
+        "title": "异常退出",
+        "expressionLabels": ["foreground", "background"]
+      },
+      { "title": "OOM 终止次数" },
+      { "title": "峰值内存" },
+      {
+        "title": "出站 HTTP",
+        "expressionLabels": ["RPM", "平均延迟 (ms)", "成功率 (%)"]
+      }
+    ],
+    "endpoint": [
+      { "title": "出站负载" },
+      { "title": "出站平均延迟" },
+      { "title": "出站成功率" },
+      { "title": "出站延迟分位" }
+    ]
+  }
+}

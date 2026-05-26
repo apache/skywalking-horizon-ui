@@ -1,0 +1,265 @@
+{
+  "alias": "Kubernetes サービス",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "ネームスペース"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "HTTP RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "HTTP",
+        "metrics": [
+          {
+            "label": "RPM",
+            "tip": "eBPF インスツルメンテーションが観測した 1分あたりの HTTP リクエスト。"
+          },
+          {
+            "label": "レイテンシ",
+            "tip": "クラスタ全体の平均 HTTP 応答時間。"
+          },
+          {
+            "label": "エラー率",
+            "tip": "100 − HTTP 成功率。"
+          }
+        ]
+      },
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "0 – 1 スケールのユーザー満足度スコア。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "サービス Pod"
+      },
+      {
+        "title": "待機中の Pod",
+        "tableHeaders": [
+          "コンテナ · Pod · 理由",
+          ""
+        ]
+      },
+      {
+        "title": "Pod の再起動",
+        "tableHeaders": [
+          "Pod",
+          "再起動"
+        ]
+      },
+      {
+        "title": "CPU リソース",
+        "expressionLabels": [
+          "リクエスト",
+          "limits"
+        ]
+      },
+      {
+        "title": "メモリリソース",
+        "expressionLabels": [
+          "リクエスト",
+          "limits"
+        ]
+      },
+      {
+        "title": "Pod CPU 使用率"
+      },
+      {
+        "title": "Pod メモリ使用率"
+      },
+      {
+        "title": "HTTP リクエスト RPM"
+      },
+      {
+        "title": "HTTP 応答時間"
+      },
+      {
+        "title": "HTTP ステータスコード RPM",
+        "tip": "クラス別のステータスコード数（1xx / 2xx / 3xx / 4xx / 5xx）。",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "HTTP リクエスト / レスポンスサイズ",
+        "expressionLabels": [
+          "リクエストヘッダ",
+          "リクエストボディ",
+          "レスポンスヘッダ",
+          "レスポンスボディ"
+        ]
+      },
+      {
+        "title": "TCP 接続",
+        "tip": "クライアント側の接続試行と成功（毎分）。",
+        "expressionLabels": [
+          "接続",
+          "成功"
+        ]
+      },
+      {
+        "title": "TCP Connect 所要時間"
+      },
+      {
+        "title": "TCP Accept"
+      },
+      {
+        "title": "TCP パケット",
+        "tip": "毎分の読み取り + 書き込みパケット数（再送を含む）。",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み",
+          "書き込み再送"
+        ]
+      },
+      {
+        "title": "TCP バイト",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pod HTTP RPM"
+      },
+      {
+        "title": "Pod HTTP 応答時間"
+      },
+      {
+        "title": "Pod HTTP ステータスコード RPM",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Pod HTTP サイズ",
+        "expressionLabels": [
+          "リクエストヘッダ",
+          "リクエストボディ",
+          "レスポンスヘッダ",
+          "レスポンスボディ"
+        ]
+      },
+      {
+        "title": "Pod TCP Connect",
+        "expressionLabels": [
+          "接続",
+          "成功"
+        ]
+      },
+      {
+        "title": "Pod TCP パケット",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み",
+          "書き込み再送"
+        ]
+      },
+      {
+        "title": "Pod TCP バイト",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "エンドポイント HTTP RPM"
+      },
+      {
+        "title": "エンドポイント HTTP 応答時間"
+      },
+      {
+        "title": "エンドポイントステータスコード RPM",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "エンドポイントリクエストサイズ",
+        "expressionLabels": [
+          "ヘッダ",
+          "ボディ"
+        ]
+      },
+      {
+        "title": "エンドポイントレスポンスサイズ",
+        "expressionLabels": [
+          "ヘッダ",
+          "ボディ"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      }
+    ]
+  },
+  "slots": {
+    "services": "K8s サービス",
+    "instances": "Pod",
+    "endpoints": "エンドポイント"
+  }
+}

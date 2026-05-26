@@ -28,8 +28,11 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { DashboardTopItem } from '@skywalking-horizon-ui/api-client';
 import { fmtMetric } from '@/utils/formatters';
+
+const { t } = useI18n({ useScope: 'global' });
 
 interface TopGroup {
   label: string;
@@ -169,7 +172,7 @@ const tipStyle = computed(() => {
           {{ fmtMetric(it.value) }}<span v-if="activeUnit" class="unit">{{ activeUnit }}</span>
         </span>
       </div>
-      <p v-if="activeItems.length === 0" class="empty">No data</p>
+      <p v-if="activeItems.length === 0" class="empty">{{ t('No data') }}</p>
     </div>
 
     <Teleport to="body">
@@ -181,8 +184,8 @@ const tipStyle = computed(() => {
       <div v-if="expanded" class="tl-modal" @click.self="closeExpanded">
         <div class="tl-dialog">
           <header class="tl-head">
-            <span class="tl-title">{{ title || 'Top list' }}</span>
-            <button class="tl-close" aria-label="Close" @click="closeExpanded">×</button>
+            <span class="tl-title">{{ title || t('Top list') }}</span>
+            <button class="tl-close" :aria-label="t('Close')" @click="closeExpanded">×</button>
           </header>
           <div v-if="showTabs" class="tabs">
             <button
@@ -206,7 +209,7 @@ const tipStyle = computed(() => {
                 {{ fmtMetric(it.value) }}<span v-if="activeUnit" class="unit">{{ activeUnit }}</span>
               </span>
             </div>
-            <p v-if="activeItems.length === 0" class="empty">No data</p>
+            <p v-if="activeItems.length === 0" class="empty">{{ t('No data') }}</p>
           </div>
         </div>
       </div>

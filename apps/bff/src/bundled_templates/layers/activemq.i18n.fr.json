@@ -1,0 +1,174 @@
+{
+  "alias": "ActiveMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Enqueue/s"
+      },
+      {
+        "label": "Dequeue/s"
+      },
+      {
+        "label": "Charge système"
+      },
+      {
+        "label": "Threads"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Enqueue/s",
+            "tip": "Messages empilés par seconde."
+          },
+          {
+            "label": "Dequeue/s",
+            "tip": "Messages dépilés par seconde."
+          },
+          {
+            "label": "Expirés/s",
+            "tip": "Messages expirés avant consommation."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Load average système"
+      },
+      {
+        "title": "Nombre de threads"
+      },
+      {
+        "title": "Heap utilisé (Mo)"
+      },
+      {
+        "title": "Heap max (Mo)"
+      },
+      {
+        "title": "Enqueue / Dequeue / Dispatch /s",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch"
+        ]
+      },
+      {
+        "title": "Expirés /s"
+      },
+      {
+        "title": "Temps d'enqueue",
+        "expressionLabels": [
+          "moy",
+          "max"
+        ]
+      },
+      {
+        "title": "Nombre de GC (G1+Parallèle)",
+        "expressionLabels": [
+          "ancien",
+          "young"
+        ]
+      },
+      {
+        "title": "Temps GC (ms)",
+        "expressionLabels": [
+          "ancien",
+          "young"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Connexions",
+        "tip": "Connexions TCP/JMS courantes vers ce broker."
+      },
+      {
+        "title": "Nombre de producers",
+        "tip": "Sessions producteur actives sur ce broker."
+      },
+      {
+        "title": "Nombre de consumers",
+        "tip": "Sessions consommateur actives sur ce broker."
+      },
+      {
+        "title": "Disponibilité",
+        "tip": "Disponibilité du broker en heures depuis le dernier redémarrage."
+      },
+      {
+        "title": "Connexions (tendance)"
+      },
+      {
+        "title": "Nombre d'enqueue / dequeue",
+        "tip": "Enqueue + dequeue par minute sur l'ensemble des destinations de ce broker.",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue"
+        ]
+      },
+      {
+        "title": "Augmentation producer / consumer",
+        "tip": "Nouvelles sessions producer + consumer ouvertes par minute.",
+        "expressionLabels": [
+          "nouveaux producers",
+          "nouveaux consumers"
+        ]
+      },
+      {
+        "title": "Utilisation mémoire",
+        "tip": "Utilisation mémoire agrégée sur l'ensemble des destinations (Mo)."
+      },
+      {
+        "title": "Limite mémoire",
+        "tip": "Plafond mémoire configuré sur l'ensemble des destinations (Go)."
+      },
+      {
+        "title": "Taille de message moyenne",
+        "tip": "Taille moyenne des messages sur l'ensemble des destinations."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Nombre de producers"
+      },
+      {
+        "title": "Nombre de consumers"
+      },
+      {
+        "title": "Taille de la file"
+      },
+      {
+        "title": "Utilisation mémoire (Mo)"
+      },
+      {
+        "title": "Nombre de messages",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch",
+          "expirés",
+          "en vol"
+        ]
+      },
+      {
+        "title": "Temps d'enqueue (s)",
+        "expressionLabels": [
+          "moy",
+          "max"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters ActiveMQ",
+    "instances": "Brokers",
+    "endpoints": "Destinations"
+  }
+}

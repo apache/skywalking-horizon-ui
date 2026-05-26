@@ -25,9 +25,11 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEventLog } from '@/controls/eventLog';
 import { useDebugPanel } from '@/controls/debugPanel';
 
+const { t } = useI18n({ useScope: 'global' });
 const { latest, all } = useEventLog();
 const { enabled, toggle } = useDebugPanel();
 const open = ref(false);
@@ -45,7 +47,7 @@ function kindGlyph(k: 'start' | 'ok' | 'err' | 'info'): string {
 
 const latestText = computed<string>(() => {
   const e = latest.value;
-  if (!e) return 'idle';
+  if (!e) return t('idle');
   const dur = e.durationMs != null ? ` · ${e.durationMs}ms` : '';
   return `${kindGlyph(e.kind)} ${e.text}${dur}`;
 });
@@ -60,11 +62,11 @@ const eventCount = computed<number>(() => all.value.length);
   <div v-show="enabled" class="dbg" :class="['dbg-kind-' + latestKind, { open }]" data-no-event-track>
     <div v-show="open" class="dbg-popover">
       <header class="dbg-pop-head">
-        <span class="dbg-title">Framework events</span>
-        <span class="dbg-tag">last {{ eventCount }}</span>
-        <button class="dbg-x" type="button" title="Hide panel" @click="toggle">hide</button>
+        <span class="dbg-title">{{ t('Framework events') }}</span>
+        <span class="dbg-tag">{{ t('last {n}', { n: eventCount }) }}</span>
+        <button class="dbg-x" type="button" :title="t('Hide panel')" @click="toggle">{{ t('hide') }}</button>
       </header>
-      <div v-if="all.length === 0" class="dbg-empty">no events yet</div>
+      <div v-if="all.length === 0" class="dbg-empty">{{ t('no events yet') }}</div>
       <ol v-else class="dbg-list">
         <li
           v-for="e in [...all].reverse()"
@@ -83,7 +85,7 @@ const eventCount = computed<number>(() => all.value.length);
       <span class="dbg-caret" :class="{ open }">▾</span>
       <span class="dbg-bar-text">{{ latestText }}</span>
       <span v-if="eventCount > 0" class="dbg-bar-count">({{ eventCount }})</span>
-      <span class="dbg-bar-label">framework events</span>
+      <span class="dbg-bar-label">{{ t('framework events') }}</span>
     </button>
   </div>
 </template>

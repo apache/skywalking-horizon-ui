@@ -1,0 +1,178 @@
+{
+  "alias": "MongoDB",
+  "group": "Bancos de dados",
+  "slots": {
+    "services": "Clusters do MongoDB",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS de documentos"
+      },
+      {
+        "label": "QPS de operação"
+      },
+      {
+        "label": "Conn"
+      },
+      {
+        "label": "Lag de replicação"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidade",
+        "metrics": [
+          {
+            "label": "Tamanho dos dados (GB)",
+            "tip": "Tamanho total dos dados no cluster."
+          },
+          {
+            "label": "Coleções",
+            "tip": "Quantidade de coleções no cluster."
+          },
+          {
+            "label": "Objetos",
+            "tip": "Quantidade de objetos documento."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "QPS de documentos",
+            "tip": "Operações de documento / segundo."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Uptime do cluster (dias)"
+      },
+      {
+        "title": "Tamanho dos dados (GB)"
+      },
+      {
+        "title": "Quantidade de coleções"
+      },
+      {
+        "title": "Quantidade de objetos"
+      },
+      {
+        "title": "QPS de documentos"
+      },
+      {
+        "title": "QPS de operação"
+      },
+      {
+        "title": "Conexões totais"
+      },
+      {
+        "title": "Total de cursors"
+      },
+      {
+        "title": "Lag de replicação (ms)"
+      },
+      {
+        "title": "Total de dados do banco (GB)",
+        "tableHeaders": [
+          "Banco de dados",
+          "Dados (GB)"
+        ]
+      },
+      {
+        "title": "Total de índice do banco (GB)",
+        "tableHeaders": [
+          "Banco de dados",
+          "Índice (GB)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (dias)"
+      },
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "Estado do ReplSet",
+        "tableHeaders": [
+          "Nó",
+          "Estado do ReplSet"
+        ]
+      },
+      {
+        "title": "Conexões"
+      },
+      {
+        "title": "Uso de CPU (%)"
+      },
+      {
+        "title": "Uso de memória"
+      },
+      {
+        "title": "Memória livre (GB)",
+        "expressionLabels": [
+          "mem",
+          "swap"
+        ]
+      },
+      {
+        "title": "Disco (GB)",
+        "expressionLabels": [
+          "em uso",
+          "total"
+        ]
+      },
+      {
+        "title": "Rede (KB/s)",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Clientes ativos",
+        "expressionLabels": [
+          "total",
+          "escritores",
+          "leitores"
+        ]
+      },
+      {
+        "title": "QPS de documentos"
+      },
+      {
+        "title": "QPS de operação"
+      },
+      {
+        "title": "Latência de operação (µs)"
+      },
+      {
+        "title": "Transações",
+        "expressionLabels": [
+          "ativas",
+          "inativas"
+        ]
+      },
+      {
+        "title": "Buffer de replicação",
+        "expressionLabels": [
+          "contagem",
+          "tamanho (MB)"
+        ]
+      },
+      {
+        "title": "Operações em fila"
+      }
+    ]
+  }
+}

@@ -1,0 +1,261 @@
+{
+  "alias": "Serviços do Kubernetes",
+  "slots": {
+    "services": "Serviços do K8s",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "RPM HTTP"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "Taxa de sucesso"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "HTTP",
+        "metrics": [
+          {
+            "label": "RPM",
+            "tip": "Requisições HTTP por minuto observadas pela instrumentação eBPF."
+          },
+          {
+            "label": "Latência",
+            "tip": "Tempo médio de resposta HTTP no cluster."
+          },
+          {
+            "label": "Taxa de erros",
+            "tip": "100 − taxa de sucesso HTTP."
+          }
+        ]
+      },
+      {
+        "title": "Saúde",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Pods do serviço"
+      },
+      {
+        "title": "Pods aguardando",
+        "tableHeaders": [
+          "Contêiner · Pod · Motivo",
+          null
+        ]
+      },
+      {
+        "title": "Reinícios de Pod",
+        "tableHeaders": [
+          "Pod",
+          "Reinícios"
+        ]
+      },
+      {
+        "title": "Recursos de CPU",
+        "expressionLabels": [
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "Recursos de memória",
+        "expressionLabels": [
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "Uso de CPU do Pod"
+      },
+      {
+        "title": "Uso de memória do Pod"
+      },
+      {
+        "title": "RPM de requisições HTTP"
+      },
+      {
+        "title": "Tempo de resposta HTTP"
+      },
+      {
+        "title": "RPM de códigos HTTP",
+        "tip": "Contagens de código por classe (1xx / 2xx / 3xx / 4xx / 5xx).",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Tamanho de requisição / resposta HTTP",
+        "expressionLabels": [
+          "hdr req",
+          "body req",
+          "hdr resp",
+          "body resp"
+        ]
+      },
+      {
+        "title": "Conexão TCP",
+        "tip": "Tentativas e sucessos de conexão do lado do cliente por minuto.",
+        "expressionLabels": [
+          "connect",
+          "sucesso"
+        ]
+      },
+      {
+        "title": "Duração de TCP Connect"
+      },
+      {
+        "title": "Aceitação TCP"
+      },
+      {
+        "title": "Pacotes TCP",
+        "tip": "Contagens de pacotes de leitura + escrita por minuto, incluindo retransmissões.",
+        "expressionLabels": [
+          "leitura",
+          "escrita",
+          "retrans escrita"
+        ]
+      },
+      {
+        "title": "Bytes TCP",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "RPM HTTP do Pod"
+      },
+      {
+        "title": "Tempo de resposta HTTP do Pod"
+      },
+      {
+        "title": "RPM por código de status HTTP do Pod",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Tamanhos HTTP do Pod",
+        "expressionLabels": [
+          "hdr req",
+          "body req",
+          "hdr resp",
+          "body resp"
+        ]
+      },
+      {
+        "title": "Connect TCP do Pod",
+        "expressionLabels": [
+          "connect",
+          "sucesso"
+        ]
+      },
+      {
+        "title": "Pacotes TCP do Pod",
+        "expressionLabels": [
+          "leitura",
+          "escrita",
+          "retrans escrita"
+        ]
+      },
+      {
+        "title": "Bytes TCP do Pod",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "RPM HTTP do endpoint"
+      },
+      {
+        "title": "Tempo de resposta HTTP do endpoint"
+      },
+      {
+        "title": "RPM por código de status do endpoint",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Tamanhos da requisição do endpoint",
+        "expressionLabels": [
+          "header",
+          "body"
+        ]
+      },
+      {
+        "title": "Tamanhos da resposta do endpoint",
+        "expressionLabels": [
+          "header",
+          "body"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Taxa de sucesso"
+      },
+      {
+        "label": "Latência"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tempo médio de resposta"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tempo médio de resposta"
+      }
+    ]
+  }
+}

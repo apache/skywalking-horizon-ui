@@ -1,0 +1,153 @@
+{
+  "alias": "OAP",
+  "group": "セルフ可観測性",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "JVM メモリ (MB)"
+      },
+      {
+        "title": "GC 回数 / 分"
+      },
+      {
+        "title": "GC 時間 (ms / 分)"
+      },
+      {
+        "title": "バッファプール (MB)"
+      },
+      {
+        "title": "スレッド数",
+        "expressionLabels": [
+          "ライブ",
+          "ピーク",
+          "デーモン"
+        ]
+      },
+      {
+        "title": "スレッド状態",
+        "expressionLabels": [
+          "runnable",
+          "timed-waiting",
+          "ブロック",
+          "待機"
+        ]
+      },
+      {
+        "title": "クラス数",
+        "expressionLabels": [
+          "ロード済み",
+          "アンロード合計",
+          "ロード合計"
+        ]
+      },
+      {
+        "title": "集約 / 分"
+      },
+      {
+        "title": "永続化回数 / 分",
+        "expressionLabels": [
+          "prepare",
+          "execute"
+        ]
+      },
+      {
+        "title": "永続キャッシュ / 分"
+      },
+      {
+        "title": "永続化 Prepare レイテンシ (ms)"
+      },
+      {
+        "title": "永続化 Execute レイテンシ (ms)"
+      },
+      {
+        "title": "GraphQL レイテンシ (ms)"
+      },
+      {
+        "title": "GraphQL クエリ数",
+        "expressionLabels": [
+          "クエリ",
+          "エラー"
+        ]
+      },
+      {
+        "title": "Trace 解析 / 分",
+        "expressionLabels": [
+          "合計",
+          "エラー"
+        ]
+      },
+      {
+        "title": "Trace 解析レイテンシ (ms)"
+      },
+      {
+        "title": "Mesh 解析 / 分",
+        "expressionLabels": [
+          "合計",
+          "エラー"
+        ]
+      },
+      {
+        "title": "Mesh 解析レイテンシ (ms)"
+      },
+      {
+        "title": "OTEL 受信 / s",
+        "expressionLabels": [
+          "メトリクス",
+          "ログ",
+          "スパン"
+        ]
+      },
+      {
+        "title": "K8s ALS",
+        "expressionLabels": [
+          "件数",
+          "破棄",
+          "ストリーム",
+          "エラーストリーム"
+        ]
+      },
+      {
+        "title": "Watermark サーキットブレーカー",
+        "tip": "リスナー単位の break + recover 累積カウンタ。",
+        "expressionLabels": [
+          "ブレーク",
+          "リカバリ"
+        ]
+      },
+      {
+        "title": "集約キュー使用率 (%)",
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
+      },
+      {
+        "title": "BanyanDB 書き込みレイテンシ (ms)",
+        "expressionLabels": [
+          "measure bulk",
+          "stream bulk",
+          "trace bulk",
+          "stream single",
+          "プロパティ"
+        ]
+      },
+      {
+        "title": "Elasticsearch 書き込みレイテンシ (ms)",
+        "expressionLabels": [
+          "single",
+          "バルク"
+        ]
+      },
+      {
+        "title": "Zipkin スパン破棄"
+      }
+    ]
+  },
+  "slots": {
+    "services": "OAP サービス",
+    "instances": "OAP ノード"
+  }
+}

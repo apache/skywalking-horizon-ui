@@ -1,0 +1,122 @@
+{
+  "alias": "Nginx",
+  "group": "ゲートウェイ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "エラー",
+        "metrics": [
+          {
+            "label": "5xx 率",
+            "tip": "1分あたりの 5xx を返したリクエストの割合。"
+          },
+          {
+            "label": "4xx 率",
+            "tip": "1分あたりの 4xx を返したリクエストの割合。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Nginx サービス全体の 1秒あたりリクエスト数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "HTTP 接続"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "4xx % / 分"
+      },
+      {
+        "title": "5xx % / 分"
+      },
+      {
+        "title": "エラーログ件数"
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "HTTP 接続"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "4xx % / 分"
+      },
+      {
+        "title": "5xx % / 分"
+      },
+      {
+        "title": "エラーログ件数"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "4xx % / 分"
+      },
+      {
+        "title": "5xx % / 分"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Nginx サービス",
+    "instances": "ノード",
+    "endpoints": "ルート"
+  }
+}

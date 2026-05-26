@@ -1,0 +1,122 @@
+{
+  "alias": "Mini-programme WeChat",
+  "group": "Mobile",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM des requêtes"
+      },
+      {
+        "label": "Lancement"
+      },
+      {
+        "label": "Premier rendu"
+      },
+      {
+        "label": "Erreurs"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95 des requêtes",
+            "tip": "Durée de requête au 95e centile depuis le bridge réseau WeChat."
+          },
+          {
+            "label": "Lancement",
+            "tip": "Durée de lancement du mini-programme observée par le client WeChat."
+          },
+          {
+            "label": "Erreurs",
+            "tip": "Nombre d'erreurs remontées."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM des requêtes",
+            "tip": "Requêtes via le bridge par minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Durée de lancement de l'app"
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Durée de chargement du paquet",
+        "tip": "Temps pour télécharger + parser le bundle du paquet du mini-programme."
+      },
+      {
+        "title": "Nombre d'erreurs"
+      },
+      {
+        "title": "Durée de route",
+        "tip": "Temps passé dans les transitions de routes de page du mini-programme."
+      },
+      {
+        "title": "Durée de script"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Durée de lancement"
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Durée de chargement du paquet"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Durée de route"
+      },
+      {
+        "title": "Durée de script"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Durée de lancement sur la page"
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Mini-programmes",
+    "instances": "Versions",
+    "endpoints": "Pages"
+  }
+}

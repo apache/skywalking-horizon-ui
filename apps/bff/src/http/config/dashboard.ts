@@ -30,9 +30,11 @@ import { requireAuth } from '../../user/middleware.js';
 import {
   getLayerTemplate,
   widgetsForScope,
+  type LayerTemplate,
 } from '../../logic/layers/loader.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { scopeSchema } from '../query/dashboard.js';
+import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
 
 export interface DashboardConfigDeps {
   config: ConfigSource;
@@ -53,7 +55,11 @@ export function registerDashboardConfigRoute(app: FastifyInstance, deps: Dashboa
       const q = req.query as { scope?: string };
       const scopeParsed = q.scope ? scopeSchema.safeParse(q.scope) : null;
       const scope = scopeParsed?.success ? scopeParsed.data : 'service';
-      const tpl = getLayerTemplate(layerKey);
+      const rawTpl = getLayerTemplate(layerKey);
+      const locale = localeFromRequest(req);
+      const tpl = rawTpl
+        ? localize<LayerTemplate>(rawTpl, getLayerOverlay(layerKey, locale), locale)
+        : null;
       const widgets = tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(layerKey);
       return reply.send({ layer: layerKey, scope, widgets });
     },

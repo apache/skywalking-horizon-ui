@@ -1,0 +1,212 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "Langsame QPS"
+      },
+      {
+        "label": "Verbindungsfehler"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "Queries pro Sekunde im Cluster."
+          },
+          {
+            "label": "TPS",
+            "tip": "Transaktionen pro Sekunde."
+          },
+          {
+            "label": "Langsame Queries/s",
+            "tip": "Slow-Query-Rate im Cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Langsame Queries / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungsfehler",
+        "tip": "Interne vs. Max-Connection-Rejects.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "intern",
+          "max-verbindungen"
+        ]
+      },
+      {
+        "title": "Befehls-Trend",
+        "tip": "Rate der betroffenen Zeilen pro Befehl (select / insert / update / delete).",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "verbunden",
+          "läuft",
+          "gecached",
+          "erstellt"
+        ]
+      },
+      {
+        "title": "Langsame Anweisungen",
+        "tip": "Top 20 langsamste erfasste Anweisungen im Cluster.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Max. Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "InnoDB Buffer Pool",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Thread-Cache-Größe",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "QPS / TPS",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "Langsame Queries / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Befehls-Trend",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "verbunden",
+          "läuft",
+          "gecached",
+          "erstellt"
+        ]
+      },
+      {
+        "title": "Verbindungen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "verfügbar",
+          "abgebrochen"
+        ]
+      },
+      {
+        "title": "Verbindungsfehler",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "intern",
+          "max-verbindungen"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "MySQL-Cluster",
+    "instances": "Knoten"
+  }
+}

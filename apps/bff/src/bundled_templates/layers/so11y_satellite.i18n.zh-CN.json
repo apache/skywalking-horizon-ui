@@ -1,0 +1,31 @@
+{
+  "alias": "Satellite",
+  "group": "自我观测",
+  "slots": {
+    "services": "Satellite 服务"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Satellite 健康",
+        "metrics": [
+          { "label": "CPU %", "tip": "Satellite 进程 CPU。" },
+          { "label": "队列已用", "tip": "队列中未处理项数 — 积压指标。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "连接数" },
+      { "title": "CPU（%）" },
+      { "title": "队列已用" },
+      { "title": "接收事件数" },
+      { "title": "拉取事件数" },
+      {
+        "title": "队列输入 / 输出",
+        "expressionLabels": ["input", "output"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,249 @@
+{
+  "alias": "Serviços gerenciados pelo Istio",
+  "group": "Istio",
+  "slots": {
+    "services": "Serviços",
+    "instances": "Sidecars",
+    "endpoints": "Endpoints"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Tráfego"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "Taxa de erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Tempo de resposta no percentil 95 roteado por sidecar em toda a malha."
+          },
+          {
+            "label": "Taxa de erros",
+            "tip": "100 − SLA da malha. Chamadas com resposta não-2xx conforme o ALS do sidecar."
+          }
+        ]
+      },
+      {
+        "title": "Saúde",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "tip": "Principais endpoints do serviço selecionado. Alterne as abas para reordenar por tráfego, tempo de resposta ou pior taxa de sucesso.",
+        "expressionLabels": [
+          "Tráfego",
+          "Lentas",
+          "Taxa de sucesso"
+        ]
+      },
+      {
+        "title": "Tráfego",
+        "tip": "Requisições por minuto em toda a malha observadas pelos sidecars do Envoy."
+      },
+      {
+        "title": "Taxa de erros"
+      },
+      {
+        "title": "Apdex",
+        "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
+      },
+      {
+        "title": "Tempo médio de resposta"
+      },
+      {
+        "title": "Percentil do tempo de resposta",
+        "tip": "Latência p50 / p75 / p90 / p95 / p99 — a cauda da distribuição do tempo de resposta."
+      },
+      {
+        "title": "Throughput do serviço",
+        "tip": "Bytes por minuto através do sidecar — enviados + recebidos.",
+        "expressionLabels": [
+          "recebidos",
+          "enviados"
+        ]
+      },
+      {
+        "title": "Latência interna do sidecar",
+        "tip": "Latência interna do Envoy para requisição + resposta, em nanossegundos. Útil quando se suspeita de overhead do sidecar.",
+        "expressionLabels": [
+          "requisição",
+          "resposta"
+        ]
+      },
+      {
+        "title": "Top 10 sidecars",
+        "tip": "Ranking entre as instâncias sidecar do serviço selecionado.",
+        "expressionLabels": [
+          "Tráfego",
+          "Lentas",
+          "Taxa de sucesso"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Carga do sidecar",
+        "tip": "Chamadas por minuto na instância sidecar selecionada."
+      },
+      {
+        "title": "Latência do sidecar"
+      },
+      {
+        "title": "Taxa de sucesso do sidecar"
+      },
+      {
+        "title": "Throughput do sidecar",
+        "tip": "Bytes através do sidecar — recebidos + enviados.",
+        "expressionLabels": [
+          "recebidos",
+          "enviados"
+        ]
+      },
+      {
+        "title": "Latência interna do sidecar",
+        "expressionLabels": [
+          "requisição",
+          "resposta"
+        ]
+      },
+      {
+        "title": "Requisições upstream ativas do Envoy",
+        "tip": "Requisições upstream em trânsito por cluster. Aparece para sidecars instrumentados com Envoy."
+      },
+      {
+        "title": "Aumento de requisições upstream do Envoy",
+        "tip": "Requisições upstream adicionadas por minuto."
+      },
+      {
+        "title": "Pendentes upstream ativas do Envoy",
+        "tip": "Requisições upstream pendentes — indica backpressure no pool de conexões."
+      },
+      {
+        "title": "Conexões upstream ativas do Envoy"
+      },
+      {
+        "title": "Aumento de conexões upstream do Envoy"
+      },
+      {
+        "title": "Membership saudável do cluster Envoy",
+        "tip": "Membros upstream saudáveis por cluster — uma queda relevante indica rotatividade upstream."
+      },
+      {
+        "title": "Conexões totais do Envoy",
+        "expressionLabels": [
+          "total",
+          "parent"
+        ]
+      },
+      {
+        "title": "Memória heap do Envoy",
+        "tip": "Uso de memória do Envoy. Heap vs física, alocada vs máx, em MB.",
+        "expressionLabels": [
+          "heap em uso",
+          "heap máx",
+          "alocada",
+          "alocada máx",
+          "física",
+          "física máx"
+        ]
+      },
+      {
+        "title": "Threads worker do Envoy",
+        "expressionLabels": [
+          "vivas",
+          "máx"
+        ]
+      },
+      {
+        "title": "Bug failures do Envoy",
+        "tip": "Contador interno de assertions / bugs do Envoy. Deve ser zero em clusters saudáveis."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tráfego do endpoint"
+      },
+      {
+        "title": "Tempo médio de resposta do endpoint"
+      },
+      {
+        "title": "Taxa de sucesso do endpoint"
+      },
+      {
+        "title": "Percentil do tempo de resposta do endpoint"
+      },
+      {
+        "title": "Latência interna do sidecar (escopo do endpoint)",
+        "tip": "Latência interna do Envoy para requisição + resposta neste endpoint, em nanossegundos.",
+        "expressionLabels": [
+          "requisição",
+          "resposta"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latência"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tempo médio de resposta"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Tempo médio de resposta"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  }
+}

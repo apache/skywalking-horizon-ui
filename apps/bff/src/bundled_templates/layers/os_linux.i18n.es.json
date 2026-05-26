@@ -1,0 +1,101 @@
+{
+  "alias": "Linux",
+  "overview": {
+    "groups": [
+      {
+        "title": "Recursos",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "Utilización total de CPU."
+          },
+          {
+            "label": "Mem %",
+            "tip": "Memoria usada / total."
+          }
+        ]
+      }
+    ]
+  },
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "Memoria MB"
+      },
+      {
+        "label": "Carga 1m"
+      },
+      {
+        "label": "FS %"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU medio en uso (%)"
+      },
+      {
+        "title": "Carga de CPU",
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "FDs de archivo asignados"
+      },
+      {
+        "title": "Memoria RAM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "total",
+          "disponible",
+          "buff/cache"
+        ]
+      },
+      {
+        "title": "Memoria swap (MB)",
+        "expressionLabels": [
+          "libre",
+          "total"
+        ]
+      },
+      {
+        "title": "Ancho de banda de red (KB/s)",
+        "expressionLabels": [
+          "recepción",
+          "transmisión"
+        ]
+      },
+      {
+        "title": "L/E de disco (KB/s)",
+        "expressionLabels": [
+          "lectura",
+          "escritos"
+        ]
+      },
+      {
+        "title": "Uso del sistema de archivos (%)"
+      },
+      {
+        "title": "Estado de red",
+        "expressionLabels": [
+          "tcp establecidas",
+          "tcp time-wait",
+          "tcp alloc",
+          "sockets en uso",
+          "udp en uso"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Hosts"
+  }
+}

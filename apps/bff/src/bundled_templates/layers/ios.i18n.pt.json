@@ -1,0 +1,140 @@
+{
+  "alias": "iOS",
+  "group": "Móvel",
+  "slots": {
+    "services": "Apps",
+    "instances": "Sessões do app",
+    "endpoints": "APIs externas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Inicialização (P95)"
+      },
+      {
+        "label": "Tempo de hang"
+      },
+      {
+        "label": "Crashes"
+      },
+      {
+        "label": "RPM externo"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde do app",
+        "metrics": [
+          {
+            "label": "Inicialização P95",
+            "tip": "Tempo de cold-start no percentil 95 conforme medido pelo MetricKit."
+          },
+          {
+            "label": "Hang P95",
+            "tip": "Duração de travamentos de UI no percentil 95."
+          },
+          {
+            "label": "Crashes",
+            "tip": "Saídas anormais em foreground + background."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Percentil do tempo de inicialização do app"
+      },
+      {
+        "title": "Percentil de tempo de hang"
+      },
+      {
+        "title": "Tempo de hang (soma)"
+      },
+      {
+        "title": "Saídas anormais (Crashes)",
+        "tip": "O MetricKit reporta saídas anormais em foreground e background separadamente.",
+        "expressionLabels": [
+          "foreground",
+          "background"
+        ]
+      },
+      {
+        "title": "Contagem de OOM kills",
+        "tip": "OOM kills em background — o sistema iOS encerrando o app por pressão de memória."
+      },
+      {
+        "title": "Memória de pico"
+      },
+      {
+        "title": "Taxa de hitches de scroll",
+        "tip": "Porcentagem de frames de scroll classificados como hitched — quanto maior, mais travada está a UI."
+      },
+      {
+        "title": "Transferência de rede",
+        "tip": "Bytes em wifi vs celular, entrada + saída.",
+        "expressionLabels": [
+          "wifi ↓",
+          "wifi ↑",
+          "celular ↓",
+          "celular ↑"
+        ]
+      },
+      {
+        "title": "HTTP externo",
+        "tip": "Chamadas que o app faz para os backends — carga, latência, taxa de sucesso.",
+        "expressionLabels": [
+          "RPM",
+          "Latência média (ms)",
+          "Taxa de sucesso (%)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Percentil do tempo de inicialização"
+      },
+      {
+        "title": "Percentil de tempo de hang"
+      },
+      {
+        "title": "Saídas anormais",
+        "expressionLabels": [
+          "foreground",
+          "background"
+        ]
+      },
+      {
+        "title": "Contagem de OOM kills"
+      },
+      {
+        "title": "Memória de pico"
+      },
+      {
+        "title": "HTTP externo",
+        "expressionLabels": [
+          "RPM",
+          "Latência média (ms)",
+          "Taxa de sucesso (%)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Carga externa"
+      },
+      {
+        "title": "Latência média externa"
+      },
+      {
+        "title": "Taxa de sucesso externa"
+      },
+      {
+        "title": "Percentil de latência externa"
+      }
+    ]
+  }
+}

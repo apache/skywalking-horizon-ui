@@ -1,0 +1,162 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Files"
+      },
+      {
+        "label": "Canaux"
+      },
+      {
+        "label": "Connexions"
+      },
+      {
+        "label": "Non confirmés"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Publiés / min",
+            "tip": "Messages publiés par minute."
+          },
+          {
+            "label": "Non confirmés",
+            "tip": "Messages en attente de confirmation du publisher."
+          },
+          {
+            "label": "Non routables rejetés",
+            "tip": "Messages rejetés faute de route d'exchange correspondante."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Mémoire disponible avant blocage (Mo)"
+      },
+      {
+        "title": "Disque disponible avant blocage (Go)"
+      },
+      {
+        "title": "Descripteurs de fichiers + sockets",
+        "expressionLabels": [
+          "fds",
+          "sockets"
+        ]
+      },
+      {
+        "title": "Messages prêts"
+      },
+      {
+        "title": "Ack en attente"
+      },
+      {
+        "title": "Pipeline de publication",
+        "expressionLabels": [
+          "publiés",
+          "confirmés",
+          "routés",
+          "non confirmés"
+        ]
+      },
+      {
+        "title": "Messages non routables",
+        "expressionLabels": [
+          "rejetés",
+          "retournés"
+        ]
+      },
+      {
+        "title": "Files",
+        "expressionLabels": [
+          "total",
+          "déclarés",
+          "créées",
+          "supprimés"
+        ]
+      },
+      {
+        "title": "Canaux",
+        "expressionLabels": [
+          "total",
+          "ouvertes",
+          "fermées"
+        ]
+      },
+      {
+        "title": "Connexions",
+        "expressionLabels": [
+          "total",
+          "ouvertes",
+          "fermées"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Messages prêts"
+      },
+      {
+        "title": "Messages entrants"
+      },
+      {
+        "title": "Messages sortants"
+      },
+      {
+        "title": "Messages non acquittés"
+      },
+      {
+        "title": "Connexions / Publishers / Consumers",
+        "expressionLabels": [
+          "connexions",
+          "publishers",
+          "consumers"
+        ]
+      },
+      {
+        "title": "Canaux + files",
+        "expressionLabels": [
+          "canaux",
+          "files"
+        ]
+      },
+      {
+        "title": "Alloué utilisé %"
+      },
+      {
+        "title": "Mémoire (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "inutilisé",
+          "résidente",
+          "total"
+        ]
+      },
+      {
+        "title": "Alloué par type (Mo)"
+      },
+      {
+        "title": "Mémoire multi/single-block (Mo)",
+        "expressionLabels": [
+          "multi utilisé",
+          "multi inutilisé",
+          "simple utilisé",
+          "simple inutilisé"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters RabbitMQ",
+    "instances": "Nœuds"
+  }
+}

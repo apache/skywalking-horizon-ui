@@ -1,0 +1,73 @@
+{
+  "alias": "Kafka",
+  "group": "MQ",
+  "slots": {
+    "services": "Kafka 集群",
+    "instances": "Broker"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "分区数" },
+      { "label": "下线分区" },
+      { "label": "最大 Lag" },
+      { "label": "Leader 数" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          { "label": "下线分区", "tip": "没有活跃 Leader 的分区。" },
+          { "label": "副本不足", "tip": "ISR 数量低于副本数的分区。" },
+          { "label": "最大 Lag", "tip": "观察到的最大消费者 Lag。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "分区数" },
+      { "title": "Leader 数" },
+      { "title": "活跃 Controller" },
+      { "title": "最大 Lag" },
+      { "title": "副本不足分区" },
+      { "title": "下线分区" },
+      {
+        "title": "Leader 选举速率",
+        "expressionLabels": ["elections", "unclean"]
+      }
+    ],
+    "instance": [
+      { "title": "CPU 使用" },
+      { "title": "入站消息 / 秒" },
+      { "title": "入站字节 / 秒" },
+      { "title": "出站字节 / 秒" },
+      { "title": "请求 / 秒" },
+      { "title": "Purgatory 大小" },
+      { "title": "ISR 收缩/秒" },
+      { "title": "ISR 扩张/秒" },
+      { "title": "内存使用率（%）" },
+      { "title": "副本不足分区" },
+      { "title": "低于 Min-ISR 分区" },
+      {
+        "title": "分区 + Leader",
+        "expressionLabels": ["partitions", "leaders"]
+      },
+      {
+        "title": "队列 / 发送耗时",
+        "expressionLabels": ["request q", "response q", "response send", "remote"]
+      },
+      {
+        "title": "Topic 速率",
+        "expressionLabels": ["produce req/s", "fetch req/s", "bytes-in/s"]
+      },
+      {
+        "title": "复制",
+        "expressionLabels": ["bytes in", "bytes out"]
+      },
+      { "title": "GC 次数" },
+      { "title": "最大 Lag（broker）" }
+    ]
+  }
+}

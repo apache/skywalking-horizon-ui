@@ -1,0 +1,136 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "slots": {
+    "services": "Clusters do Pulsar",
+    "instances": "Brokers"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Subscriptions"
+      },
+      {
+        "label": "Msg entrada"
+      },
+      {
+        "label": "Msg saída"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Msg entrada/s",
+            "tip": "Mensagens produzidas por segundo."
+          },
+          {
+            "label": "Msg saída/s",
+            "tip": "Mensagens consumidas por segundo."
+          },
+          {
+            "label": "Armazenamento MB",
+            "tip": "Tamanho total do managed-ledger."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Total de topics"
+      },
+      {
+        "title": "Subscriptions"
+      },
+      {
+        "title": "Produtores"
+      },
+      {
+        "title": "Consumidores"
+      },
+      {
+        "title": "Taxa de mensagens",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Vazão",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Taxa de L/E do armazenamento",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Tamanho do armazenamento (MB)",
+        "expressionLabels": [
+          "física",
+          "lógico"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Conexões ativas"
+      },
+      {
+        "title": "Conexões totais"
+      },
+      {
+        "title": "Criação de conexão falha"
+      },
+      {
+        "title": "Criação de conexão sucesso"
+      },
+      {
+        "title": "Conexão fechada"
+      },
+      {
+        "title": "Buffer pool JVM (MB)"
+      },
+      {
+        "title": "Pool de memória JVM em uso (MB)"
+      },
+      {
+        "title": "Memória JVM (MB)",
+        "expressionLabels": [
+          "em uso",
+          "comprometida",
+          "init"
+        ]
+      },
+      {
+        "title": "Threads JVM",
+        "expressionLabels": [
+          "atual",
+          "daemon",
+          "pico",
+          "em deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "segundos",
+          "contagem"
+        ]
+      }
+    ]
+  }
+}

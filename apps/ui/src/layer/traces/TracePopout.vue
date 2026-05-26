@@ -30,12 +30,14 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
 
+const { t } = useI18n({ useScope: 'global' });
 const { openTraceId, openTraceAtMs, openTrace, closeTrace } = useTracePopout();
 
 const sourceRef = computed<'native'>(() => 'native');
@@ -211,23 +213,23 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
     <article class="tp-card sw-card">
       <header class="tp-head">
         <div class="tp-title">
-          <span class="dim">Trace</span>
+          <span class="dim">{{ t('Trace') }}</span>
           <span class="mono trace-id-text" :title="openTraceId">{{ openTraceId }}</span>
-          <button class="sw-btn small ghost copy-btn" type="button" title="Copy trace id" @click="copyId">⧉ id</button>
-          <button class="sw-btn small ghost copy-btn" type="button" title="Copy shareable URL" @click="copyShareableUrl">⧉ url</button>
+          <button class="sw-btn small ghost copy-btn" type="button" :title="t('Copy trace id')" @click="copyId">⧉ {{ t('id') }}</button>
+          <button class="sw-btn small ghost copy-btn" type="button" :title="t('Copy shareable URL')" @click="copyShareableUrl">⧉ {{ t('url') }}</button>
           <transition name="copy-flash">
-            <span v-if="copyFlash" class="copy-flash-chip">{{ copyFlash === 'url' ? 'url copied' : 'id copied' }}</span>
+            <span v-if="copyFlash" class="copy-flash-chip">{{ copyFlash === 'url' ? t('url copied') : t('id copied') }}</span>
           </transition>
-          <span v-if="isFetching" class="hint">loading…</span>
+          <span v-if="isFetching" class="hint">{{ t('loading…') }}</span>
         </div>
-        <button class="sw-btn small ghost" type="button" title="Close" @click="closeTrace">×</button>
+        <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="closeTrace">×</button>
       </header>
 
       <div class="tp-kpis">
-        <div><div class="kpi-label">started</div><div class="kpi-val">{{ fmtDateTime(rootStart) }}</div></div>
-        <div><div class="kpi-label">duration</div><div class="kpi-val">{{ fmtMs(totalDuration) }}</div></div>
-        <div><div class="kpi-label">spans</div><div class="kpi-val">{{ waterfall.length }}</div></div>
-        <div><div class="kpi-label">services</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
+        <div><div class="kpi-label">{{ t('started') }}</div><div class="kpi-val">{{ fmtDateTime(rootStart) }}</div></div>
+        <div><div class="kpi-label">{{ t('duration') }}</div><div class="kpi-val">{{ fmtMs(totalDuration) }}</div></div>
+        <div><div class="kpi-label">{{ t('spans') }}</div><div class="kpi-val">{{ waterfall.length }}</div></div>
+        <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
       </div>
 
       <div v-if="serviceColors.size > 0" class="tp-svc-legend">
@@ -242,7 +244,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
            detail; here the right panel is always visible, swapping
            contents on span row click. -->
       <div class="tp-body">
-        <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">no span data</div>
+        <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">{{ t('no span data') }}</div>
         <div v-else class="tp-split" :class="{ 'no-selection': !selectedSpan }">
           <div class="tp-waterfall">
             <!-- Time axis at the top of the waterfall column. -->
@@ -277,7 +279,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                     <span
                       class="status-flag sm"
                       :class="row.span.isError ? 'flag-err' : 'flag-ok'"
-                      :title="row.span.isError ? 'Span errored' : 'Span OK'"
+                      :title="row.span.isError ? t('Span errored') : t('Span OK')"
                     ><span class="flag-dot" /></span>
                     <img
                       v-if="componentIconOrNull(row.span.component)"
@@ -290,7 +292,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                       v-else
                       class="comp-icon comp-icon-generic"
                       viewBox="0 0 18 18"
-                      :aria-label="row.span.component || 'generic span'"
+                      :aria-label="row.span.component || t('generic span')"
                     >
                       <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
                       <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
@@ -302,7 +304,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                     <span
                       v-if="row.span.attachedEvents && row.span.attachedEvents.length > 0"
                       class="evt-badge inside"
-                      :title="`${row.span.attachedEvents.length} attached event${row.span.attachedEvents.length === 1 ? '' : 's'}`"
+                      :title="t('{n} attached events', { n: row.span.attachedEvents.length })"
                     >
                       <span class="evt-flag">⚑</span>
                       <span class="evt-count">{{ row.span.attachedEvents.length }}</span>
@@ -326,36 +328,36 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                hidden otherwise to let the waterfall claim full width. -->
           <aside v-if="selectedSpan" class="tp-span-panel">
             <header class="tp-span-head">
-              <h5>Span detail</h5>
+              <h5>{{ t('Span detail') }}</h5>
               <button class="sw-btn small ghost" type="button" @click="clearSpan">×</button>
             </header>
             <div class="tp-span-body">
               <section class="sd-section">
-                <h6>Meta</h6>
+                <h6>{{ t('Meta') }}</h6>
                 <dl class="kv">
-                  <dt>Service</dt>
+                  <dt>{{ t('Service') }}</dt>
                   <dd class="mono" :style="{ color: serviceColor(selectedSpan.serviceCode) }">
                     <span class="svc-swatch inline" :style="{ background: serviceColor(selectedSpan.serviceCode) }" />
                     {{ selectedSpan.serviceCode }}
                   </dd>
-                  <dt>Instance</dt><dd class="mono wba">{{ selectedSpan.serviceInstanceName }}</dd>
-                  <dt>Endpoint</dt><dd class="mono wba">{{ selectedSpan.endpointName || '—' }}</dd>
-                  <dt>Type</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.type) }">{{ selectedSpan.type }}</span></dd>
-                  <dt>Component</dt><dd class="mono">{{ selectedSpan.component || '—' }}</dd>
-                  <dt>Peer</dt><dd class="mono wba">{{ selectedSpan.peer || '—' }}</dd>
-                  <dt>Layer</dt><dd class="mono dim">{{ selectedSpan.layer || '—' }}</dd>
-                  <dt>Start</dt><dd class="mono">{{ fmtDateTime(selectedSpan.startTime) }}</dd>
-                  <dt>Duration</dt><dd class="mono">{{ fmtMs(selectedSpan.endTime - selectedSpan.startTime) }}</dd>
-                  <dt>Error</dt><dd><span class="status-flag" :class="nativeSpanError(selectedSpan) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ nativeSpanError(selectedSpan) ? 'true' : 'false' }}</span></dd>
+                  <dt>{{ t('Instance') }}</dt><dd class="mono wba">{{ selectedSpan.serviceInstanceName }}</dd>
+                  <dt>{{ t('Endpoint') }}</dt><dd class="mono wba">{{ selectedSpan.endpointName || '—' }}</dd>
+                  <dt>{{ t('Type') }}</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.type) }">{{ selectedSpan.type }}</span></dd>
+                  <dt>{{ t('Component') }}</dt><dd class="mono">{{ selectedSpan.component || '—' }}</dd>
+                  <dt>{{ t('Peer') }}</dt><dd class="mono wba">{{ selectedSpan.peer || '—' }}</dd>
+                  <dt>{{ t('Layer') }}</dt><dd class="mono dim">{{ selectedSpan.layer || '—' }}</dd>
+                  <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(selectedSpan.startTime) }}</dd>
+                  <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.endTime - selectedSpan.startTime) }}</dd>
+                  <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="nativeSpanError(selectedSpan) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ nativeSpanError(selectedSpan) ? t('true') : t('false') }}</span></dd>
                 </dl>
               </section>
               <section
                 v-if="(selectedSpan.refs ?? []).some((r) => !isSelfRef(r.traceId))"
                 class="sd-section"
               >
-                <h6>Cross-trace refs</h6>
+                <h6>{{ t('Cross-trace refs') }}</h6>
                 <table class="kv-table">
-                  <thead><tr><th>Trace ID</th><th class="num">Parent span</th></tr></thead>
+                  <thead><tr><th>{{ t('Trace ID') }}</th><th class="num">{{ t('Parent span') }}</th></tr></thead>
                   <tbody>
                     <template v-for="(r, i) in selectedSpan.refs" :key="i">
                       <tr v-if="!isSelfRef(r.traceId)">
@@ -369,16 +371,16 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                 </table>
               </section>
               <section v-if="selectedSpan.tags && selectedSpan.tags.length > 0" class="sd-section">
-                <h6>Tags</h6>
+                <h6>{{ t('Tags') }}</h6>
                 <dl class="kv">
-                  <template v-for="(t, i) in selectedSpan.tags" :key="i">
-                    <dt class="mono">{{ t.key }}</dt>
-                    <dd class="mono wba">{{ t.value }}</dd>
+                  <template v-for="(tag, i) in selectedSpan.tags" :key="i">
+                    <dt class="mono">{{ tag.key }}</dt>
+                    <dd class="mono wba">{{ tag.value }}</dd>
                   </template>
                 </dl>
               </section>
               <section v-if="selectedSpan.logs && selectedSpan.logs.length > 0" class="sd-section">
-                <h6>Logs</h6>
+                <h6>{{ t('Logs') }}</h6>
                 <div v-for="(log, i) in (selectedSpan.logs as TraceLogEntry[])" :key="i" class="span-log">
                   <div class="span-log-time mono dim">{{ fmtDateTime(log.time) }}</div>
                   <dl class="kv">
@@ -390,7 +392,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                 </div>
               </section>
               <section v-if="selectedSpan.attachedEvents && selectedSpan.attachedEvents.length > 0" class="sd-section">
-                <h6>Attached Events</h6>
+                <h6>{{ t('Attached Events') }}</h6>
                 <div v-for="(ev, i) in (selectedSpan.attachedEvents as TraceAttachedEvent[])" :key="i" class="span-event">
                   <div class="span-event-head">
                     <span class="mono">{{ ev.event }}</span>
@@ -403,9 +405,9 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                     </template>
                   </dl>
                   <dl v-if="ev.tags && ev.tags.length > 0" class="kv">
-                    <template v-for="(t, j) in ev.tags" :key="`t${j}`">
-                      <dt class="mono dim">tag · {{ t.key }}</dt>
-                      <dd class="mono wba">{{ t.value }}</dd>
+                    <template v-for="(tag, j) in ev.tags" :key="`t${j}`">
+                      <dt class="mono dim">{{ t('tag') }} · {{ tag.key }}</dt>
+                      <dd class="mono wba">{{ tag.value }}</dd>
                     </template>
                   </dl>
                 </div>

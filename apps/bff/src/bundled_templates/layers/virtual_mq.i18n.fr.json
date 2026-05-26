@@ -1,0 +1,98 @@
+{
+  "alias": "MQ virtuel",
+  "group": "Cibles virtuelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de consommation"
+      },
+      {
+        "label": "RPM de production"
+      },
+      {
+        "label": "Latence de consommation"
+      },
+      {
+        "label": "Taux d'erreur de consommation"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latence de consommation au 95e centile (timestamp(received) − timestamp(producing))."
+          },
+          {
+            "label": "Taux d'erreur de consommation",
+            "tip": "100 − taux de succès de consommation."
+          },
+          {
+            "label": "Taux d'erreur de production",
+            "tip": "100 − taux de succès de production."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM de consommation",
+            "tip": "Messages consommés par minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Trafic de consommation"
+      },
+      {
+        "title": "Trafic de production"
+      },
+      {
+        "title": "Latence moyenne de consommation",
+        "tip": "Temps moyen entre la production et la consommation des messages."
+      },
+      {
+        "title": "Taux de succès de consommation"
+      },
+      {
+        "title": "Taux de succès de production"
+      },
+      {
+        "title": "Centile de latence de consommation",
+        "tip": "p50 / p75 / p90 / p95 / p99 de la latence de consommation."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Trafic de consommation par topic"
+      },
+      {
+        "title": "Trafic de production par topic"
+      },
+      {
+        "title": "Latence moyenne de consommation par topic"
+      },
+      {
+        "title": "Taux de succès de consommation par topic"
+      },
+      {
+        "title": "Taux de succès de production par topic"
+      },
+      {
+        "title": "Centile de latence de consommation par topic"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters MQ",
+    "endpoints": "Topics"
+  }
+}

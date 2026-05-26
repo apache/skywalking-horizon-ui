@@ -28,8 +28,11 @@
 -->
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { ProfileAnalyzationElement, ProfileAnalyzationTree } from '@/api/client';
 import ProfileStackRow from './ProfileStackRow.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 interface StackNode extends ProfileAnalyzationElement {
   topDur: boolean;
@@ -108,26 +111,26 @@ onMounted(() => {
     <div class="stack-scroll">
       <div class="stack-header">
         <div class="cell sig" :style="{ width: thread + 'px' }">
-          Thread Stack
-          <span ref="dragger" class="dragger" title="Drag to resize">⇿</span>
+          {{ t('Thread Stack') }}
+          <span ref="dragger" class="dragger" :title="t('Drag to resize')">⇿</span>
         </div>
-        <div class="cell num">Duration (ms)</div>
+        <div class="cell num">{{ t('Duration (ms)') }}</div>
         <div class="cell num">
-          Self Duration (ms)
+          {{ t('Self Duration (ms)') }}
           <button
             type="button"
             class="top-slow"
             :class="{ 'is-on': highlightTop }"
             @click="emit('toggle-highlight')"
-            title="Highlight top 10 slow methods"
+            :title="t('Highlight top 10 slow methods')"
           >
-            top slow
+            {{ t('top slow') }}
           </button>
         </div>
-        <div class="cell num">Dump Count</div>
+        <div class="cell num">{{ t('Dump Count') }}</div>
       </div>
       <div class="stack-body">
-        <div v-if="!tableData.length" class="empty">No analyze data yet — pick a profiled span and click Analyze.</div>
+        <div v-if="!tableData.length" class="empty">{{ t('No analyze data yet — pick a profiled span and click Analyze.') }}</div>
         <ProfileStackRow v-for="(n, i) in tableData" :key="'r' + i" :node="n" :thread="thread" :depth="0" />
       </div>
     </div>

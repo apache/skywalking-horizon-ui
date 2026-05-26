@@ -1,0 +1,311 @@
+{
+  "alias": "Cilium Service",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Erfolgsrate"
+      },
+      {
+        "label": "TCP-Drop"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "Mittlere Latenz",
+            "tip": "Durchschnittliche Protokoll-Latenz (ms)."
+          },
+          {
+            "label": "Erfolgsrate",
+            "tip": "Erfolgreiche Aufrufe / Gesamtaufrufe."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Protokoll-RPM",
+            "tip": "Protokollaufrufe pro Minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "L4 Read-Pakete/min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "L4 Write-Pakete/min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TCP-Drop / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "TCP-Drop nach Grund",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "HTTP-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP Non-2xx-Status",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "DNS-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "DNS-Fehler / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kafka-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "Kafka-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kafka-Fehler / min",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "L4 Read-Pakete/min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "L4 Write-Pakete/min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "HTTP Non-2xx-Status",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "DNS-Fehler",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kafka-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "HTTP-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP Non-2xx-Status",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS-Last",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aufrufe",
+          "erfolg"
+        ]
+      },
+      {
+        "title": "DNS-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "DNS-Fehler",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Erfolg %"
+      },
+      {
+        "label": "Latenz"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "HTTP RPM"
+      },
+      {
+        "label": "Mittlere Latenz"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Dienste",
+    "instances": "Pods",
+    "endpoints": "Endpunkte"
+  }
+}

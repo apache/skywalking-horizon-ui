@@ -33,8 +33,11 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import * as d3 from 'd3';
 import type { ProcessCall, ProcessNode } from '@/api/client';
+
+const { t } = useI18n({ useScope: 'global' });
 
 interface Pt { x: number; y: number }
 // `_below` (inside cells only): label sits below the cell (bottom row)
@@ -465,9 +468,9 @@ onBeforeUnmount(() => {
       <div v-if="nodePop.node" class="topo-nodepop" :style="popStyle" role="tooltip">
         <div class="np-name">{{ nodePop.node.name }}</div>
         <dl class="np-rows">
-          <div class="np-row"><dt>Kind</dt><dd>{{ nodePop.node.isReal ? 'process' : 'virtual peer' }}</dd></div>
-          <div class="np-row"><dt>Service</dt><dd>{{ nodePop.node.serviceName }}</dd></div>
-          <div class="np-row"><dt>Instance</dt><dd>{{ nodePop.node.serviceInstanceName }}</dd></div>
+          <div class="np-row"><dt>{{ t('Kind') }}</dt><dd>{{ nodePop.node.isReal ? t('process') : t('virtual peer') }}</dd></div>
+          <div class="np-row"><dt>{{ t('Service') }}</dt><dd>{{ nodePop.node.serviceName }}</dd></div>
+          <div class="np-row"><dt>{{ t('Instance') }}</dt><dd>{{ nodePop.node.serviceInstanceName }}</dd></div>
         </dl>
       </div>
     </Teleport>

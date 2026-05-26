@@ -1,0 +1,133 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "노드"
+      },
+      {
+        "label": "실패 노드"
+      },
+      {
+        "label": "네임스페이스"
+      },
+      {
+        "label": "서비스"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "리소스",
+        "metrics": [
+          {
+            "label": "노드",
+            "tip": "EKS 클러스터의 노드 수입니다."
+          },
+          {
+            "label": "실패 노드",
+            "tip": "클러스터가 보고한 실패 EKS 노드 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "노드 수"
+      },
+      {
+        "title": "실패 노드"
+      },
+      {
+        "title": "네임스페이스 수"
+      },
+      {
+        "title": "EKS 서비스 수"
+      },
+      {
+        "title": "클러스터 네트워크 오류",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "title": "클러스터 네트워크 드롭",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Pod CPU 사용률 (%)"
+      },
+      {
+        "title": "Pod 메모리 사용률 (%)"
+      },
+      {
+        "title": "Pod 네트워크 RX (KB/s)"
+      },
+      {
+        "title": "Pod RX 오류 / s"
+      },
+      {
+        "title": "Pod 네트워크 TX (KB/s)"
+      },
+      {
+        "title": "Pod TX 오류 / s"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pod 수"
+      },
+      {
+        "title": "CPU 사용률 (%)"
+      },
+      {
+        "title": "메모리 사용률 (%)"
+      },
+      {
+        "title": "파일 시스템 사용률 (%)"
+      },
+      {
+        "title": "네트워크 RX (KB/s)",
+        "expressionLabels": [
+          "바이트",
+          "오류"
+        ]
+      },
+      {
+        "title": "네트워크 TX (KB/s)",
+        "expressionLabels": [
+          "바이트",
+          "오류"
+        ]
+      },
+      {
+        "title": "디스크 I/O (B/s)",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "노드의 Pod CPU"
+      },
+      {
+        "title": "노드의 Pod 메모리"
+      }
+    ]
+  },
+  "slots": {
+    "services": "클러스터",
+    "instances": "노드",
+    "endpoints": "EKS 서비스"
+  }
+}

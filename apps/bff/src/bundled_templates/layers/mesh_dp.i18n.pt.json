@@ -1,0 +1,72 @@
+{
+  "alias": "Plano de dados do Istio",
+  "group": "Istio",
+  "slots": {
+    "services": "Serviços sidecar",
+    "instances": "Sidecars"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Bug failures",
+        "tip": "Contador interno de bug-failures do Envoy — um valor diferente de zero indica que um assertion / debug check disparou (envoy_bug_failures)."
+      },
+      {
+        "title": "Membership saudável",
+        "tip": "Endpoints saudáveis em todos os clusters (envoy_cluster_membership_healthy)."
+      },
+      {
+        "title": "Worker threads",
+        "tip": "Worker threads concorrentes atualmente em uso (envoy_worker_threads)."
+      },
+      {
+        "title": "Requisições upstream ativas",
+        "tip": "Total de requisições upstream ativas nos clusters deste Envoy (envoy_cluster_up_rq_active)."
+      },
+      {
+        "title": "Conexões upstream ativas",
+        "tip": "Conexões upstream ativas (envoy_cluster_up_cx_active)."
+      },
+      {
+        "title": "Requisições upstream pendentes",
+        "tip": "Requisições pendentes nas filas upstream (envoy_cluster_up_rq_pending_active)."
+      },
+      {
+        "title": "Conexões em uso",
+        "tip": "Conexões total + parent em uso do lado servidor (envoy_total_connections_used / envoy_parent_connections_used).",
+        "expressionLabels": [
+          "total",
+          "parent"
+        ]
+      },
+      {
+        "title": "Aumento de conexões upstream",
+        "tip": "Novas conexões upstream abertas por minuto (envoy_cluster_up_cx_incr)."
+      },
+      {
+        "title": "Aumento de requisições upstream",
+        "tip": "Novas requisições upstream por minuto (envoy_cluster_up_rq_incr)."
+      },
+      {
+        "title": "Worker threads (atual vs máx)",
+        "tip": "Worker threads concorrentes em uso vs o máximo da janela (envoy_worker_threads / envoy_worker_threads_max).",
+        "expressionLabels": [
+          "atual",
+          "máx"
+        ]
+      },
+      {
+        "title": "Memória do servidor",
+        "tip": "Memória heap / alocada / física: atual + máx da janela (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size, junto com as variantes *_max).",
+        "expressionLabels": [
+          "heap",
+          "heap máx",
+          "alocada",
+          "alocada máx",
+          "física",
+          "física máx"
+        ]
+      }
+    ]
+  }
+}

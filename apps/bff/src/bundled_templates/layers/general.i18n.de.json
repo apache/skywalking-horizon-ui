@@ -1,0 +1,760 @@
+{
+  "alias": "Allgemeiner Dienst",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95. Perzentil der Antwortzeit über die Schicht."
+          },
+          {
+            "label": "Fehlerrate",
+            "tip": "100 − SLA. Höher = schlechter."
+          }
+        ]
+      },
+      {
+        "title": "Status",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "tip": "Top-Endpunkte unter dem ausgewählten Dienst. Tabs wechseln, um nach Traffic, Antwortzeit oder schlechtester Erfolgsrate neu zu sortieren.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Traffic",
+          "Langsam",
+          "Erfolgsrate"
+        ],
+        "expressionUnits": [
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehlerrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Apdex",
+        "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Antwortzeit-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Antwortzeit-Verteilung.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MQ Konsumrate + Latenz",
+        "tip": "Anzahl auf der linken Achse, Latenz auf der rechten.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "latenz"
+        ],
+        "expressionUnits": [
+          null,
+          null
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Top 10 Instanzen nach Last",
+        "tip": "Sortiert nach Traffic über die Instanzen des ausgewählten Dienstes.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Top 10 langsamste Instanzen",
+        "tip": "Sortiert nach durchschnittlicher Antwortzeit über die Instanzen des ausgewählten Dienstes.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Top 10 Instanzen nach Erfolgsrate",
+        "tip": "top_n(service_instance_sla,10,asc)/100 — Schlechteste zuerst.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Langsame Datenbankanweisungen",
+        "tip": "Top 20 langsamste Datenbankanweisungen, erfasst für diesen Dienst. Quelle: top_n_service_database_statement. Zeigt `keine Daten`, wenn OAP im Zeitfenster keine Anweisungen erfasst hat.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Service-Instanz-Last",
+        "tip": "Aufrufe pro Minute gegen die ausgewählte Instanz.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Service-Instanz-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Service-Instanz-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-CPU",
+        "tip": "JVM-CPU, gemeldet vom Agenten. Wird nur angezeigt, wenn die Instanz eine JVM ist.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicher",
+        "tip": "Heap / Non-Heap genutzt + max in MB.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "heap",
+          "heap max",
+          "non-heap",
+          "non-heap max"
+        ]
+      },
+      {
+        "title": "JVM-Speicher-Details",
+        "tip": "Genutzter Speicher pro Pool in MB. Umfasst Code Cache, young / old / survivor / permgen / metaspace und die JIT-Codeheap-Subpools neuerer JVMs (Z Heap, Compressed Class Space, segmentierte Codeheaps). Pools, die die JVM nicht exponiert, bleiben einfach bei 0.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "code cache",
+          "newgen",
+          "oldgen",
+          "survivor",
+          "permgen",
+          "metaspace",
+          "zheap",
+          "compressed class space",
+          "codeheap (non-nmethods)",
+          "codeheap (profiled nmethods)",
+          "codeheap (non-profiled nmethods)"
+        ]
+      },
+      {
+        "title": "JVM-Thread-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "live",
+          "daemon",
+          "spitze"
+        ]
+      },
+      {
+        "title": "JVM-Thread-Zustands-Anzahl",
+        "tip": "Threads nach JVM-Zustand (runnable / blocked / waiting / timed-waiting).",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "runnable",
+          "blockiert",
+          "wartend",
+          "timed-waiting"
+        ]
+      },
+      {
+        "title": "JVM-GC-Zeit",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "JVM-GC-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "JVM-Klassen-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "geladen",
+          "gesamt geladen",
+          "gesamt entladen"
+        ]
+      },
+      {
+        "title": "CLR-CPU",
+        "tip": "Nur .NET: wird angezeigt, wenn die Instanz CLR-Metriken meldet.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CLR-Thread",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "worker verfügbar",
+          "completion-port verfügbar",
+          "completion-port max"
+        ]
+      },
+      {
+        "title": "CLR-Heap-Speicher",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CLR-GC",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Spring HTTP-Anfrageanzahl",
+        "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests-Zähler.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring HTTP-Anfragedauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring-Instanz-CPU-Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring OS-CPU-Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring OS-Systemlast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring OS-Prozessdateien",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "offen",
+          "max"
+        ]
+      },
+      {
+        "title": "Spring JVM GC-Pausendauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring JVM-Speicher",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "max"
+        ]
+      },
+      {
+        "title": "Spring JVM-Threads",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "live",
+          "daemon",
+          "spitze"
+        ]
+      },
+      {
+        "title": "Spring JVM-Klassen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "geladen",
+          "entladen"
+        ]
+      },
+      {
+        "title": "Spring Datenbank-Verbindungspool",
+        "tip": "HikariCP / Spring Boot Datasource-Metriken — Verbindungsanzahl pro Pool.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring Thread Pool",
+        "tip": "Spring Boot Thread-Pool-Meter — aktive, in Warteschlange, max Threads pro Executor.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spring JDBC-Verbindungen",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "leerlauf",
+          "max"
+        ]
+      },
+      {
+        "title": "Spring Tomcat-Sessions",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "max",
+          "abgelehnt"
+        ]
+      },
+      {
+        "title": "Golang-Goroutines / OS-Threads",
+        "tip": "Golang-Agent: Live-Goroutine-Anzahl + zugrunde liegende OS-Threads.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "goroutines",
+          "OS-Threads"
+        ]
+      },
+      {
+        "title": "Golang GC-Pausenzeit (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang GC-Anzahl (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Heap Alloc (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang-Goroutine-Scheduling-Zeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang GC Free (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Alloc-Größe (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Free-Größe (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Heap-Objekte",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Heap",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Metadata Mspan",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang Metadata Mcache",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang GC-Zielgröße",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Golang CGO-Aufrufe (pro Minute)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Python CPU-Nutzung",
+        "tip": "Python (PVM) Agent: Host- vs. Prozess-CPU.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "host",
+          "prozess"
+        ]
+      },
+      {
+        "title": "Python Speichernutzung",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "host",
+          "prozess"
+        ]
+      },
+      {
+        "title": "Python Thread-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Python GC-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Python GC-Zeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby CPU-Nutzung",
+        "tip": "Ruby-Agent: Prozess-CPU als Prozent.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby Speicher (RSS)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby Speichernutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby Thread-Status",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "läuft"
+        ]
+      },
+      {
+        "title": "Ruby GC-Anzahl",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "minor",
+          "major"
+        ]
+      },
+      {
+        "title": "Ruby GC-Zeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby Heap-Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ruby Heap-Slots",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "live",
+          "verfügbar"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Antwortzeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MQ mittlere Konsumlatenz",
+        "tip": "Verbrauchs-Latenz auf Endpoint-Ebene — nur befüllt für Endpoints, die Message-Queue-Traffic bedienen.",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latenz"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latenz"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Dienste",
+    "instances": "Instanzen",
+    "endpoints": "APIs",
+    "endpointDependency": "API-Abhängigkeiten"
+  }
+}

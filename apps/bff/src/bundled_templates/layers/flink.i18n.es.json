@@ -1,0 +1,231 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Clúster",
+        "metrics": [
+          {
+            "label": "Jobs en ejecución",
+            "tip": "Jobs de Flink activos."
+          },
+          {
+            "label": "Slots disponibles",
+            "tip": "Slots de tareas libres."
+          }
+        ]
+      }
+    ]
+  },
+  "alias": "Flink",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Jobs en ejecución"
+      },
+      {
+        "label": "TaskManagers"
+      },
+      {
+        "label": "Slots disponibles"
+      },
+      {
+        "label": "Slots totales"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Jobs en ejecución"
+      },
+      {
+        "title": "TaskManagers"
+      },
+      {
+        "title": "Slots totales"
+      },
+      {
+        "title": "Slots disponibles"
+      },
+      {
+        "title": "Carga de CPU JVM del JM (%)"
+      },
+      {
+        "title": "Conteo de hilos JVM del JM"
+      },
+      {
+        "title": "Tiempo de CPU del JM (ms)"
+      },
+      {
+        "title": "Heap del JM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "NonHeap del JM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Metaspace del JM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressionLabels": [
+          "conteo",
+          "tiempo (ms)"
+        ]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressionLabels": [
+          "conteo",
+          "tiempo (ms)"
+        ]
+      },
+      {
+        "title": "Todos los GC",
+        "expressionLabels": [
+          "conteo",
+          "tiempo (ms)"
+        ]
+      },
+      {
+        "title": "Top 10 jobs en ejecución"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Carga de CPU JVM (%)"
+      },
+      {
+        "title": "Conteo de hilos JVM"
+      },
+      {
+        "title": "Tiempo de CPU (ms)"
+      },
+      {
+        "title": "Con contrapresión"
+      },
+      {
+        "title": "Heap (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "NonHeap (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Metaspace (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Records entrada / salida",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Bytes entrada / salida / s",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Memoria Netty (MB)",
+        "expressionLabels": [
+          "en uso",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Uso del pool (%)",
+        "expressionLabels": [
+          "en pool",
+          "out pool"
+        ]
+      },
+      {
+        "title": "Tiempo de contrapresión (ms/s)",
+        "expressionLabels": [
+          "bp suave",
+          "bp dura",
+          "inactivos",
+          "ocupado"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tiempo de ejecución de jobs (min)"
+      },
+      {
+        "title": "Tiempo de reinicio de jobs (min)"
+      },
+      {
+        "title": "Tiempo de cancelación de jobs (min)"
+      },
+      {
+        "title": "Reinicios de jobs"
+      },
+      {
+        "title": "Checkpoints",
+        "expressionLabels": [
+          "total",
+          "completadas",
+          "fallidos",
+          "en curso"
+        ]
+      },
+      {
+        "title": "Último checkpoint",
+        "expressionLabels": [
+          "tamaño (bytes)",
+          "duración (ms)"
+        ]
+      },
+      {
+        "title": "Lag actual de emit-event time (ms)"
+      },
+      {
+        "title": "Records entrada / salida",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Bytes entrada / salida / s",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "JobManagers de Flink",
+    "instances": "TaskManagers",
+    "endpoints": "Jobs"
+  }
+}

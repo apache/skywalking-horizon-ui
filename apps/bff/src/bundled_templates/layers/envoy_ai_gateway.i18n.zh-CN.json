@@ -1,0 +1,81 @@
+{
+  "alias": "Envoy AI Gateway",
+  "group": "网关",
+  "slots": {
+    "services": "AI Gateway",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "RPM" },
+      { "label": "平均延迟" },
+      { "label": "输入 Token/分钟" },
+      { "label": "输出 Token/分钟" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟",
+        "metrics": [
+          { "label": "平均延迟", "tip": "平均端到端请求延迟。" },
+          { "label": "TTFT 平均", "tip": "Time to first token — 生成式模型延迟指标。" }
+        ]
+      },
+      {
+        "title": "Token",
+        "metrics": [
+          { "label": "Token/分钟", "tip": "输入 + 输出 Token 合计速率。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "请求 RPM" },
+      { "title": "请求延迟平均" },
+      { "title": "输入 Token 速率" },
+      { "title": "输出 Token 速率" },
+      { "title": "请求延迟分位" },
+      {
+        "title": "TTFT（首 Token 时间）",
+        "expressionLabels": ["avg", "percentile"]
+      },
+      {
+        "title": "TPOT（每输出 Token 时间）",
+        "expressionLabels": ["avg", "percentile"]
+      },
+      { "title": "按 Provider 的 RPM" },
+      { "title": "按 Provider 的 Token" },
+      { "title": "按 Provider 的延迟平均" },
+      { "title": "按 Model 的 RPM" },
+      { "title": "按 Model 的 Token" },
+      { "title": "按 Model 的延迟平均" },
+      { "title": "按 Model 的 TTFT" },
+      { "title": "按 Model 的 TPOT" },
+      {
+        "title": "MCP RPM",
+        "tip": "Model Context Protocol — 使用时显示。"
+      },
+      { "title": "MCP 平均延迟" },
+      { "title": "MCP 错误 RPM" },
+      { "title": "按方法的 MCP" },
+      { "title": "按后端的 MCP" }
+    ],
+    "instance": [
+      { "title": "请求 RPM" },
+      { "title": "请求延迟平均" },
+      { "title": "输入 Token 速率" },
+      { "title": "输出 Token 速率" },
+      { "title": "请求延迟分位" },
+      {
+        "title": "TTFT",
+        "expressionLabels": ["avg", "percentile"]
+      },
+      {
+        "title": "TPOT",
+        "expressionLabels": ["avg", "percentile"]
+      }
+    ]
+  }
+}

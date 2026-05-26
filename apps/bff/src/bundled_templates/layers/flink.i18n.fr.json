@@ -1,0 +1,231 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Jobs en exécution"
+      },
+      {
+        "label": "TaskManagers"
+      },
+      {
+        "label": "Slots disponibles"
+      },
+      {
+        "label": "Total slots"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Jobs en exécution",
+            "tip": "Jobs Flink actifs."
+          },
+          {
+            "label": "Slots disponibles",
+            "tip": "Slots de tâches libres."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Jobs en exécution"
+      },
+      {
+        "title": "TaskManagers"
+      },
+      {
+        "title": "Total slots"
+      },
+      {
+        "title": "Slots disponibles"
+      },
+      {
+        "title": "Charge CPU JVM JM (%)"
+      },
+      {
+        "title": "Nombre de threads JVM JM"
+      },
+      {
+        "title": "Temps CPU JM (ms)"
+      },
+      {
+        "title": "Heap JM (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "NonHeap JM (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Metaspace JM (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "GC G1 Young",
+        "expressionLabels": [
+          "nombre",
+          "temps (ms)"
+        ]
+      },
+      {
+        "title": "GC G1 Old",
+        "expressionLabels": [
+          "nombre",
+          "temps (ms)"
+        ]
+      },
+      {
+        "title": "Tous les GC",
+        "expressionLabels": [
+          "nombre",
+          "temps (ms)"
+        ]
+      },
+      {
+        "title": "Top 10 jobs en exécution"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Charge CPU JVM (%)"
+      },
+      {
+        "title": "Nombre de threads JVM"
+      },
+      {
+        "title": "Temps CPU (ms)"
+      },
+      {
+        "title": "En back-pressure"
+      },
+      {
+        "title": "Heap (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "NonHeap (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Metaspace (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Enregistrements entrants / sortants",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Octets entrants / sortants / s",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Mémoire Netty (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Utilisation du pool (%)",
+        "expressionLabels": [
+          "dans le pool",
+          "pool sortant"
+        ]
+      },
+      {
+        "title": "Temps de back-pressure (ms/s)",
+        "expressionLabels": [
+          "bp logicielle",
+          "bp matérielle",
+          "inactif",
+          "occupé"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Temps d'exécution des jobs (min)"
+      },
+      {
+        "title": "Temps de redémarrage des jobs (min)"
+      },
+      {
+        "title": "Temps d'annulation des jobs (min)"
+      },
+      {
+        "title": "Redémarrages des jobs"
+      },
+      {
+        "title": "Checkpoints",
+        "expressionLabels": [
+          "total",
+          "terminées",
+          "échec",
+          "en cours"
+        ]
+      },
+      {
+        "title": "Dernier checkpoint",
+        "expressionLabels": [
+          "taille (octets)",
+          "durée (ms)"
+        ]
+      },
+      {
+        "title": "Lag actuel d'émission des événements (ms)"
+      },
+      {
+        "title": "Enregistrements entrants / sortants",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Octets entrants / sortants / s",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "JobManagers Flink",
+    "instances": "TaskManagers",
+    "endpoints": "Jobs"
+  }
+}

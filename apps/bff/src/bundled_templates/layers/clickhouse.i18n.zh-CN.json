@@ -1,0 +1,105 @@
+{
+  "alias": "ClickHouse",
+  "group": "数据库",
+  "slots": {
+    "services": "ClickHouse 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Select / 秒" },
+      { "label": "Insert / 秒" },
+      { "label": "慢读" },
+      { "label": "打开文件数" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "Select QPS", "tip": "集群每秒 Select 数。" },
+          { "label": "Insert QPS", "tip": "每秒 Insert 数。" },
+          { "label": "慢读", "tip": "慢文件读计数器。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "打开文件数" },
+      { "title": "QPS", "expressionLabels": ["select", "insert"] },
+      {
+        "title": "查询数",
+        "expressionLabels": ["total", "select", "insert"]
+      },
+      {
+        "title": "查询耗时（ms）",
+        "expressionLabels": ["avg", "select", "insert"]
+      },
+      {
+        "title": "连接数",
+        "expressionLabels": ["TCP", "HTTP"]
+      },
+      { "title": "慢读" },
+      {
+        "title": "Merge / Mutations",
+        "expressionLabels": ["merge", "mutations"]
+      },
+      {
+        "title": "Insert 吞吐",
+        "expressionLabels": ["bytes/s", "rows/s"]
+      },
+      { "title": "延迟 Insert（s）" },
+      { "title": "活跃数据 Part" },
+      {
+        "title": "复制 Fetch / Send",
+        "expressionLabels": ["fetch", "send"]
+      },
+      {
+        "title": "Zookeeper 活动",
+        "expressionLabels": ["sessions", "watches", "bytes sent", "bytes recv"]
+      },
+      { "title": "Keeper 活跃连接" },
+      { "title": "Keeper 未完成请求" }
+    ],
+    "instance": [
+      { "title": "运行时长（天）" },
+      { "title": "版本" },
+      { "title": "CPU（核数）" },
+      {
+        "title": "内存（%）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "网络（B）",
+        "expressionLabels": ["receive", "send"]
+      },
+      {
+        "title": "连接数",
+        "expressionLabels": ["TCP", "HTTP"]
+      },
+      {
+        "title": "查询数",
+        "expressionLabels": ["total", "select", "insert"]
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": ["select", "insert"]
+      },
+      {
+        "title": "查询耗时（ms）",
+        "expressionLabels": ["avg", "select", "insert"]
+      },
+      { "title": "文件慢读" },
+      { "title": "后台 Merge" },
+      { "title": "Mutations" },
+      { "title": "打开文件数" },
+      {
+        "title": "Insert 吞吐",
+        "expressionLabels": ["bytes/s", "rows/s"]
+      },
+      { "title": "延迟 Insert（s）" }
+    ]
+  }
+}

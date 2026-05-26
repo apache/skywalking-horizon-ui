@@ -1,0 +1,139 @@
+{
+  "alias": "Navigateur",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pages vues"
+      },
+      {
+        "label": "Taux d'erreur"
+      },
+      {
+        "label": "Erreurs"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé de la page",
+        "metrics": [
+          {
+            "label": "Taux d'erreur",
+            "tip": "Pourcentage de chargements de page ayant produit une erreur."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "PV / min",
+            "tip": "Pages vues par minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Charge de l'app (PV)"
+      },
+      {
+        "title": "Taux d'erreur de l'app"
+      },
+      {
+        "title": "Nombre d'erreurs de l'app"
+      },
+      {
+        "title": "Top pages chaudes",
+        "tip": "Pages classées par pages vues, erreurs et taux d'erreur.",
+        "expressionLabels": [
+          "PV",
+          "Erreurs",
+          "Taux d'erreur"
+        ]
+      },
+      {
+        "title": "Top versions",
+        "tip": "Ventilation par version de l'app — charge + erreurs + taux d'erreur.",
+        "expressionLabels": [
+          "PV",
+          "Erreurs",
+          "Taux d'erreur"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "PV par version"
+      },
+      {
+        "title": "Taux d'erreur par version"
+      },
+      {
+        "title": "Nombre d'erreurs par version"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Centile du First Meaningful Paint",
+        "tip": "p50–p99 de la latence FMP pour la page sélectionnée. Sous 1s au p75 est une cible courante."
+      },
+      {
+        "title": "Centile du chargement de page"
+      },
+      {
+        "title": "Centile du Time-to-Live"
+      },
+      {
+        "title": "Centile de latence du premier paquet"
+      },
+      {
+        "title": "Ventilation des performances de la page",
+        "tip": "Temps moyen passé à chaque phase du chargement de page — resolve, redirect, DNS, TCP, TTFB, transfer, analyse DOM, DOM prêt, FPT, chargement complet.",
+        "expressionLabels": [
+          "dns",
+          "redirect",
+          "tcp",
+          "ttfb",
+          "transfer",
+          "analyse dom",
+          "dom prêt",
+          "fpt",
+          "chargement",
+          "ressource"
+        ]
+      },
+      {
+        "title": "Erreurs de page par type",
+        "tip": "Compteurs d'erreurs resource / JS / AJAX / unknown par minute.",
+        "expressionLabels": [
+          "ressource",
+          "js",
+          "ajax",
+          "inconnu"
+        ]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "Core Web Vitals — FMP, LCP, CLS (moyenne par minute). CLS est divisé par 1000 pour obtenir la plage de score typique 0–1.",
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
+      },
+      {
+        "title": "Centile Interaction to Next Paint",
+        "tip": "INP — métrique de réactivité remplaçant FID."
+      }
+    ]
+  },
+  "slots": {
+    "services": "Apps",
+    "instances": "Versions",
+    "endpoints": "Pages"
+  }
+}

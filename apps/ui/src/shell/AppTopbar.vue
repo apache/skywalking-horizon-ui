@@ -17,7 +17,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
+import LocaleChip from '@/shell/LocaleChip.vue';
 import { useQueryClient } from '@tanstack/vue-query';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAlarmCount } from '@/shell/useAlarmCount';
@@ -80,6 +82,7 @@ function onThemeChipBlur(e: FocusEvent): void {
 }
 
 const route = useRoute();
+const { t } = useI18n({ useScope: 'global' });
 
 const { info, reachable, tzOffsetLabel, healthState, backend } = useOapInfo();
 const auth = useAuthStore();
@@ -258,16 +261,19 @@ if (typeof window !== 'undefined') {
   window.addEventListener('click', onWindowClickClose);
 }
 const refreshLabel = computed<string>(() => {
-  if (autoSuspended.value) return 'Paused';
-  if (auto.intervalSec === null) return 'Off';
+  if (autoSuspended.value) return t('Paused');
+  if (auto.intervalSec === null) return t('Off');
   if (auto.secondsUntilNext === null) return '—';
   return `${auto.secondsUntilNext}s`;
 });
 const refreshTooltip = computed<string>(() => {
-  if (ownsTimeRange.value) return 'Auto-refresh paused on this page';
-  if (hasFrozenRange.value) return 'Auto-refresh paused while a custom time range is selected';
-  if (auto.intervalSec === null) return 'Auto-refresh off · click to refresh now';
-  return `Auto-refresh every ${auto.intervalSec}s · ${auto.secondsUntilNext ?? '—'}s remaining · click to refresh now`;
+  if (ownsTimeRange.value) return t('Auto-refresh paused on this page');
+  if (hasFrozenRange.value) return t('Auto-refresh paused while a custom time range is selected');
+  if (auto.intervalSec === null) return t('Auto-refresh off · click to refresh now');
+  return t(
+    'Auto-refresh every {seconds}s · {remaining}s remaining · click to refresh now',
+    { seconds: auto.intervalSec, remaining: auto.secondsUntilNext ?? '—' },
+  );
 });
 
 // ── Global time-range picker ──────────────────────────────────────
@@ -306,7 +312,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('click', onTimeMenuClickClose);
 }
 const timeChipLabel = computed<string>(() => {
-  if (ownsTimeRange.value) return 'Page time range';
+  if (ownsTimeRange.value) return t('This page uses its own time range');
   if (timeRange.presetId === 'custom') {
     const r = timeRange.range;
     return `${formatRangeStamp(r.startMs, timeRange.step)} → ${formatRangeStamp(r.endMs, timeRange.step)}`;
@@ -703,6 +709,13 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
           </ul>
         </transition>
       </div>
+
+      <!-- Locale picker. Sits next to the theme chip so the two
+           operator-overridable surfaces (theme + language) cluster
+           together. Pick is persisted to localStorage and invalidates
+           every active vue-query so BFF-localized payloads (menu /
+           layer dashboards / overviews) refetch in the new locale. -->
+      <LocaleChip />
     </div>
   </header>
 </template>

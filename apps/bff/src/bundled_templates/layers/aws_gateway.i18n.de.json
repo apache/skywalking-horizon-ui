@@ -1,0 +1,157 @@
+{
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Anfragen"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Fehler",
+        "metrics": [
+          {
+            "label": "4xx",
+            "tip": "Anzahl Client-Fehler von CloudWatch."
+          },
+          {
+            "label": "5xx",
+            "tip": "Anzahl Server-Fehler von CloudWatch."
+          },
+          {
+            "label": "Mittlere Latenz",
+            "tip": "Durchschnittliche Ende-zu-Ende-Latenz."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Anfragen",
+            "tip": "Gesamtanzahl Anfragen im Zeitfenster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Anfrageanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Integrations-Latenz",
+        "tip": "Latenz zwischen Gateway und Backend-Integration.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verarbeitete Daten (nur HTTP API)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Trefferrate (nur REST API)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Fehlrate (nur REST API)",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Anfrageanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Integrations-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verarbeitete Daten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Trefferrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Fehlrate",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "AWS Gateways",
+    "endpoints": "Routes"
+  }
+}

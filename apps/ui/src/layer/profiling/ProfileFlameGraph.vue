@@ -28,9 +28,12 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import * as d3 from 'd3';
 import { flamegraph } from 'd3-flame-graph';
 import type { ProfileAnalyzationElement, ProfileAnalyzationTree } from '@/api/client';
+
+const { t } = useI18n({ useScope: 'global' });
 
 interface FlameNode {
   name: string;
@@ -324,19 +327,19 @@ onBeforeUnmount(() => {
       <div class="fg-tip-sig">{{ hoveredFrame.codeSignature }}</div>
       <dl class="fg-tip-rows">
         <div class="fg-tip-row">
-          <dt>Dump count</dt>
+          <dt>{{ t('Dump count') }}</dt>
           <dd>{{ hoveredFrame.count }}</dd>
         </div>
         <div class="fg-tip-row">
-          <dt>Duration</dt>
+          <dt>{{ t('Duration') }}</dt>
           <dd>{{ hoveredFrame.duration }} ns</dd>
         </div>
         <div class="fg-tip-row">
-          <dt>Duration (excl. children)</dt>
+          <dt>{{ t('Duration (excl. children)') }}</dt>
           <dd>{{ hoveredFrame.durationChildExcluded }} ns</dd>
         </div>
         <div class="fg-tip-row">
-          <dt>% of root</dt>
+          <dt>{{ t('% of root') }}</dt>
           <dd>{{ hoveredPctRoot }}%</dd>
         </div>
       </dl>

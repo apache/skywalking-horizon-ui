@@ -1,0 +1,75 @@
+{
+  "alias": "Plan de données Istio",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Échecs (bug)",
+        "tip": "Compteur interne de bug-failures Envoy — une valeur non nulle indique qu'une assertion / debug check a été déclenchée (envoy_bug_failures)."
+      },
+      {
+        "title": "Membres sains",
+        "tip": "Endpoints sains sur l'ensemble des clusters (envoy_cluster_membership_healthy)."
+      },
+      {
+        "title": "Worker threads",
+        "tip": "Worker threads concurrents actuellement utilisés (envoy_worker_threads)."
+      },
+      {
+        "title": "Requêtes upstream actives",
+        "tip": "Requêtes upstream actives totales sur les clusters de cet Envoy (envoy_cluster_up_rq_active)."
+      },
+      {
+        "title": "Connexions upstream actives",
+        "tip": "Connexions upstream actives (envoy_cluster_up_cx_active)."
+      },
+      {
+        "title": "Requêtes upstream en attente",
+        "tip": "Requêtes en attente dans les files upstream (envoy_cluster_up_rq_pending_active)."
+      },
+      {
+        "title": "Connexions utilisées",
+        "tip": "Connexions totales + parent utilisées côté serveur (envoy_total_connections_used / envoy_parent_connections_used).",
+        "expressionLabels": [
+          "total",
+          "parent"
+        ]
+      },
+      {
+        "title": "Augmentation des connexions upstream",
+        "tip": "Nouvelles connexions upstream ouvertes par minute (envoy_cluster_up_cx_incr)."
+      },
+      {
+        "title": "Augmentation des requêtes upstream",
+        "tip": "Nouvelles requêtes upstream par minute (envoy_cluster_up_rq_incr)."
+      },
+      {
+        "title": "Worker threads (courant vs max)",
+        "tip": "Worker threads concurrents utilisés vs max sur la fenêtre (envoy_worker_threads / envoy_worker_threads_max).",
+        "expressionLabels": [
+          "courant",
+          "max"
+        ]
+      },
+      {
+        "title": "Mémoire serveur",
+        "tip": "Mémoire heap / allouée / physique : courant + max sur la fenêtre (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size, associées à leurs variantes *_max).",
+        "expressionLabels": [
+          "heap",
+          "heap max",
+          "alloué",
+          "max alloué",
+          "physique",
+          "physique max"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services sidecar",
+    "instances": "Sidecars"
+  }
+}

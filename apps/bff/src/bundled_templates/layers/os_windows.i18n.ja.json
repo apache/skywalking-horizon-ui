@@ -1,0 +1,73 @@
+{
+  "alias": "Windows",
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "メモリ MB"
+      },
+      {
+        "label": "仮想メモリ %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "リソース",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU 使用率合計。"
+          },
+          {
+            "label": "仮想メモリ %",
+            "tip": "仮想メモリ使用率。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU 平均使用率 (%)"
+      },
+      {
+        "title": "メモリ RAM (MB)",
+        "expressionLabels": [
+          "使用中",
+          "合計",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "仮想メモリ (MB)",
+        "expressionLabels": [
+          "空き",
+          "合計"
+        ]
+      },
+      {
+        "title": "ネットワーク帯域 (KB/s)",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "ディスク R/W (KB/s)",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ホスト"
+  }
+}

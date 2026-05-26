@@ -1,0 +1,153 @@
+{
+  "alias": "OAP",
+  "group": "Auto-observabilidade",
+  "slots": {
+    "services": "Serviços do OAP",
+    "instances": "Nós do OAP"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "Memória JVM (MB)"
+      },
+      {
+        "title": "Contagem de GC / min"
+      },
+      {
+        "title": "Tempo de GC (ms / min)"
+      },
+      {
+        "title": "Buffer pool (MB)"
+      },
+      {
+        "title": "Contagem de threads",
+        "expressionLabels": [
+          "vivas",
+          "pico",
+          "daemon"
+        ]
+      },
+      {
+        "title": "Estados das threads",
+        "expressionLabels": [
+          "runnable",
+          "timed-waiting",
+          "bloqueadas",
+          "aguardando"
+        ]
+      },
+      {
+        "title": "Contagem de classes",
+        "expressionLabels": [
+          "carregadas",
+          "descarregadas total",
+          "carregadas total"
+        ]
+      },
+      {
+        "title": "Agregação / min"
+      },
+      {
+        "title": "Contagem de persistência / min",
+        "expressionLabels": [
+          "prepare",
+          "execute"
+        ]
+      },
+      {
+        "title": "Cache persistente / min"
+      },
+      {
+        "title": "Latência de prepare de persistência (ms)"
+      },
+      {
+        "title": "Latência de execução de persistência (ms)"
+      },
+      {
+        "title": "Latência do GraphQL (ms)"
+      },
+      {
+        "title": "Contagem de queries GraphQL",
+        "expressionLabels": [
+          "queries",
+          "erros"
+        ]
+      },
+      {
+        "title": "Análise de traces / min",
+        "expressionLabels": [
+          "total",
+          "erros"
+        ]
+      },
+      {
+        "title": "Latência da análise de traces (ms)"
+      },
+      {
+        "title": "Análise da malha / min",
+        "expressionLabels": [
+          "total",
+          "erros"
+        ]
+      },
+      {
+        "title": "Latência da análise da malha (ms)"
+      },
+      {
+        "title": "OTEL recebidos / s",
+        "expressionLabels": [
+          "metrics",
+          "logs",
+          "spans"
+        ]
+      },
+      {
+        "title": "K8S ALS",
+        "expressionLabels": [
+          "contagem",
+          "descartados",
+          "streams",
+          "streams com erro"
+        ]
+      },
+      {
+        "title": "Watermark Circuit Breaker",
+        "tip": "Contadores acumulados de break + recover por listener.",
+        "expressionLabels": [
+          "break",
+          "recover"
+        ]
+      },
+      {
+        "title": "Uso da fila de agregação (%)",
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
+      },
+      {
+        "title": "Latência de escrita do BanyanDB (ms)",
+        "expressionLabels": [
+          "measure bulk",
+          "stream bulk",
+          "trace bulk",
+          "stream single",
+          "property"
+        ]
+      },
+      {
+        "title": "Latência de escrita do Elasticsearch (ms)",
+        "expressionLabels": [
+          "single",
+          "bulk"
+        ]
+      },
+      {
+        "title": "Spans Zipkin descartados"
+      }
+    ]
+  }
+}

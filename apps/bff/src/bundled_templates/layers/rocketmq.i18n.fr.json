@@ -1,0 +1,156 @@
+{
+  "alias": "RocketMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "TPS de production"
+      },
+      {
+        "label": "TPS de consommation"
+      },
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Brokers"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "TPS de production",
+            "tip": "Messages produits par seconde à l'échelle du cluster."
+          },
+          {
+            "label": "TPS de consommation",
+            "tip": "Messages consommés par seconde."
+          },
+          {
+            "label": "Latence consumer max",
+            "tip": "Pire latence consommateur sur l'ensemble du cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Produits aujourd'hui"
+      },
+      {
+        "title": "Consommés aujourd'hui"
+      },
+      {
+        "title": "Produits hier"
+      },
+      {
+        "title": "Consommés hier"
+      },
+      {
+        "title": "TPS producer / consumer",
+        "expressionLabels": [
+          "producteur",
+          "consommateur"
+        ]
+      },
+      {
+        "title": "Taille de message producer / consumer (Mo)",
+        "expressionLabels": [
+          "produits",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Latence consumer max"
+      },
+      {
+        "title": "Ratio disque du CommitLog (%)",
+        "expressionLabels": [
+          "courant",
+          "max"
+        ]
+      },
+      {
+        "title": "Attente en tête de file du ThreadPool (ms)",
+        "expressionLabels": [
+          "pull",
+          "envoi"
+        ]
+      },
+      {
+        "title": "Topics"
+      },
+      {
+        "title": "Brokers"
+      }
+    ],
+    "instance": [
+      {
+        "title": "TPS de production"
+      },
+      {
+        "title": "QPS de consommation"
+      },
+      {
+        "title": "Taille de message producer (Mo)"
+      },
+      {
+        "title": "Taille des messages consumer (Mo)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "TPS par groupe producteur / consommateur",
+        "expressionLabels": [
+          "producteur",
+          "groupe de consumers"
+        ]
+      },
+      {
+        "title": "Taille des messages (Mo)",
+        "expressionLabels": [
+          "produits",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Taille de message max (Mo)",
+        "expressionLabels": [
+          "producteur",
+          "consommateur"
+        ]
+      },
+      {
+        "title": "Latence des consumers (s)"
+      },
+      {
+        "title": "Offsets producer / consumer",
+        "expressionLabels": [
+          "producteur",
+          "groupe de consumers"
+        ]
+      },
+      {
+        "title": "Messages en attente",
+        "tip": "Offset producer moins offset du groupe consumer — le lag du topic."
+      },
+      {
+        "title": "Nombre de groupes de consumers"
+      },
+      {
+        "title": "Nombre de brokers"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters RocketMQ",
+    "instances": "Brokers",
+    "endpoints": "Topics"
+  }
+}

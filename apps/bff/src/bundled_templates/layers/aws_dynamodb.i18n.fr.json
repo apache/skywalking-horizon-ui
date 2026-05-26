@@ -1,0 +1,188 @@
+{
+  "alias": "AWS DynamoDB",
+  "overview": {
+    "groups": [
+      {
+        "title": "Limitation",
+        "metrics": [
+          {
+            "label": "Lectures limitées",
+            "tip": "Requêtes en lecture throttlées — épuisement de la capacité."
+          },
+          {
+            "label": "Écritures limitées",
+            "tip": "Requêtes d'écriture throttlées."
+          },
+          {
+            "label": "Erreurs utilisateur",
+            "tip": "Erreurs utilisateur de type bad-request."
+          }
+        ]
+      }
+    ]
+  },
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Lectures throttlées"
+      },
+      {
+        "label": "Écritures throttlées"
+      },
+      {
+        "label": "Erreurs système en lecture"
+      },
+      {
+        "label": "Erreurs système en écriture"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Requêtes throttlées",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Événements de throttle",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Erreurs système",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Erreurs utilisateur"
+      },
+      {
+        "title": "Conditional check échoué"
+      },
+      {
+        "title": "Conflit de transactions"
+      },
+      {
+        "title": "Capacité de lecture (unité/s)",
+        "expressionLabels": [
+          "provisionné",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Capacité d'écriture (unité/s)",
+        "expressionLabels": [
+          "provisionné",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Latence des requêtes réussies (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "Éléments supprimés TTL"
+      },
+      {
+        "title": "Éléments retournés par scan"
+      },
+      {
+        "title": "Éléments retournés par query"
+      },
+      {
+        "title": "Lectures / écritures max du compte",
+        "expressionLabels": [
+          "lectures au niveau table",
+          "écritures au niveau table",
+          "lectures",
+          "écritures"
+        ]
+      },
+      {
+        "title": "Utilisation de la capacité du compte",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Requêtes throttlées",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Événements de throttle",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Erreurs système",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Conditional check échoué"
+      },
+      {
+        "title": "Conflit de transactions"
+      },
+      {
+        "title": "Éléments supprimés TTL"
+      },
+      {
+        "title": "Capacité de lecture",
+        "expressionLabels": [
+          "provisionné",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Capacité d'écriture",
+        "expressionLabels": [
+          "provisionné",
+          "consommé"
+        ]
+      },
+      {
+        "title": "Latence des requêtes réussies (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "Éléments retournés par scan"
+      },
+      {
+        "title": "Éléments retournés par query"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Comptes DynamoDB",
+    "endpoints": "Tables"
+  }
+}

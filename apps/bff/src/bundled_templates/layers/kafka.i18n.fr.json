@@ -1,0 +1,146 @@
+{
+  "alias": "Kafka",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Partitions"
+      },
+      {
+        "label": "Partitions hors-ligne"
+      },
+      {
+        "label": "Lag max"
+      },
+      {
+        "label": "Leaders"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Partitions hors-ligne",
+            "tip": "Partitions sans leader actif."
+          },
+          {
+            "label": "Sous-répliquées",
+            "tip": "Partitions dont l'ISR est en-dessous du facteur de réplication."
+          },
+          {
+            "label": "Lag max",
+            "tip": "Plus grand lag consumer observé."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Nombre de partitions"
+      },
+      {
+        "title": "Nombre de leaders"
+      },
+      {
+        "title": "Contrôleurs actifs"
+      },
+      {
+        "title": "Lag max"
+      },
+      {
+        "title": "Partitions sous-répliquées"
+      },
+      {
+        "title": "Partitions hors-ligne"
+      },
+      {
+        "title": "Taux d'élections de leader",
+        "expressionLabels": [
+          "élections",
+          "non propres"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Utilisation CPU"
+      },
+      {
+        "title": "Messages entrants / s"
+      },
+      {
+        "title": "Octets entrants / s"
+      },
+      {
+        "title": "Octets sortants / s"
+      },
+      {
+        "title": "Requêtes / s"
+      },
+      {
+        "title": "Taille de la purgatory"
+      },
+      {
+        "title": "Réductions ISR/s"
+      },
+      {
+        "title": "Expansions ISR/s"
+      },
+      {
+        "title": "Utilisation mémoire (%)"
+      },
+      {
+        "title": "Partitions sous-répliquées"
+      },
+      {
+        "title": "Partitions sous Min-ISR"
+      },
+      {
+        "title": "Partitions + leaders",
+        "expressionLabels": [
+          "partitions",
+          "leaders"
+        ]
+      },
+      {
+        "title": "Temps de file / envoi",
+        "expressionLabels": [
+          "file de requêtes",
+          "file de réponses",
+          "envoi de réponse",
+          "distant"
+        ]
+      },
+      {
+        "title": "Débits par topic",
+        "expressionLabels": [
+          "requêtes produce/s",
+          "requêtes fetch/s",
+          "octets entrants/s"
+        ]
+      },
+      {
+        "title": "Réplication",
+        "expressionLabels": [
+          "octets entrants",
+          "octets sortants"
+        ]
+      },
+      {
+        "title": "Nombre de GC"
+      },
+      {
+        "title": "Lag max (broker)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters Kafka",
+    "instances": "Brokers"
+  }
+}

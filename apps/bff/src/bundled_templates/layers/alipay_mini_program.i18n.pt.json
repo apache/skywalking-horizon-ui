@@ -1,0 +1,103 @@
+{
+  "alias": "Mini Programa do Alipay",
+  "group": "Móvel",
+  "slots": {
+    "services": "Mini programas",
+    "instances": "Versões",
+    "endpoints": "Páginas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de requisições"
+      },
+      {
+        "label": "Inicialização"
+      },
+      {
+        "label": "Primeira renderização"
+      },
+      {
+        "label": "Erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "Requisição P95",
+            "tip": "Duração da requisição no percentil 95 a partir da ponte de rede do mini programa."
+          },
+          {
+            "label": "Inicialização",
+            "tip": "Duração aproximada de inicialização do mini programa."
+          },
+          {
+            "label": "Erros",
+            "tip": "Contagem de erros reportados."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPM de requisições",
+            "tip": "Requisições da ponte por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Duração da inicialização do app",
+        "tip": "Duração aproximada do cold-start a partir do contêiner do Alipay."
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Contagem de erros"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Duração da inicialização"
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Duração da inicialização na página"
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ]
+  }
+}

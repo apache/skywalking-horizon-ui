@@ -1,0 +1,78 @@
+{
+  "title": "Panel de mesh",
+  "description": "Salud de los servicios del plano de datos de Istio, actividad de envíos de pilot y la capacidad subyacente de Kubernetes. Los despliegues de mesh siempre se apoyan en K8s, por eso se incluye también el bloque del clúster.",
+  "widgets": [
+    {
+      "title": "Servicios del mesh"
+    },
+    {
+      "title": "Servicios gestionados por Istio",
+      "tip": "Servicios que pasan por el plano de datos de Istio.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Istio pilot",
+      "tip": "Cantidad de envíos xDS + errores de rechazo + número de servicios en esta capa.",
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "Servicios"
+        },
+        null
+      ]
+    },
+    {
+      "title": "Topología y alarmas activas"
+    },
+    {
+      "title": "Topología del mesh",
+      "tip": "Mapa de servicios en vivo — el mismo renderizador que usa la pestaña Topología por capa, sin la barra lateral de detalle."
+    },
+    {
+      "title": "Alarmas activas",
+      "tip": "Alarmas disparadas actualmente sobre servicios reportados por el mesh."
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "Capacidad y utilización del clúster",
+      "tip": "Nodos / espacios de nombres / cargas de trabajo, más el uso de CPU, memoria y disco a nivel de clúster.",
+      "kpis": [
+        {
+          "label": "Nodos"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "Servicios"
+        },
+        {
+          "label": "Contenedores"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memoria"
+        },
+        {
+          "label": "Almacenamiento"
+        }
+      ]
+    }
+  ]
+}

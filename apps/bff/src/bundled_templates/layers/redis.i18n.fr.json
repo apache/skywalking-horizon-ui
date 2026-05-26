@@ -1,0 +1,138 @@
+{
+  "alias": "Redis",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Commandes/s"
+      },
+      {
+        "label": "Taux de hit"
+      },
+      {
+        "label": "Mémoire %"
+      },
+      {
+        "label": "Clients"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé",
+        "metrics": [
+          {
+            "label": "Taux de hit",
+            "tip": "Taux de hit du cache. Une tendance à la baisse indique du thrash."
+          },
+          {
+            "label": "Mémoire %",
+            "tip": "Mémoire utilisée / max. >80% = alerte."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Commandes/s",
+            "tip": "Total des commandes par seconde à l'échelle du cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Disponibilité (jours)"
+      },
+      {
+        "title": "Clients connectés"
+      },
+      {
+        "title": "Clients bloqués"
+      },
+      {
+        "title": "Utilisation mémoire"
+      },
+      {
+        "title": "Total des commandes / s"
+      },
+      {
+        "title": "Taux de hit"
+      },
+      {
+        "title": "Temps de commande moyen / s"
+      },
+      {
+        "title": "I/O réseau (Ko)",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Clés",
+        "expressionLabels": [
+          "total",
+          "évincés",
+          "expirés"
+        ]
+      },
+      {
+        "title": "Commandes lentes",
+        "tip": "Top 10 des commandes les plus lentes capturées. Capturées par l'agent SkyWalking au call-site."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Disponibilité (jours)"
+      },
+      {
+        "title": "Clients connectés"
+      },
+      {
+        "title": "Clients bloqués"
+      },
+      {
+        "title": "Mémoire max (Mo)"
+      },
+      {
+        "title": "Utilisation mémoire (%)"
+      },
+      {
+        "title": "Commandes / s"
+      },
+      {
+        "title": "Taux de hit"
+      },
+      {
+        "title": "I/O réseau (Ko)",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Clés",
+        "expressionLabels": [
+          "total",
+          "évincés",
+          "expirés"
+        ]
+      },
+      {
+        "title": "Temps total des commandes (s)"
+      },
+      {
+        "title": "Temps de commande moyen"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters Redis",
+    "instances": "Nœuds"
+  }
+}

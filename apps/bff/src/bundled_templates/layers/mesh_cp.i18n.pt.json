@@ -1,0 +1,106 @@
+{
+  "alias": "Plano de controle do Istio",
+  "group": "Istio",
+  "slots": {
+    "services": "Planos de controle"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutines"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "Serviços"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde do Istio",
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "CPU do processo do plano de controle do Istio."
+          },
+          {
+            "label": "Goroutines",
+            "tip": "Goroutines do Go vivas."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "Versões do Istio"
+      },
+      {
+        "title": "Memória (MB)",
+        "expressionLabels": [
+          "alloc",
+          "heap em uso",
+          "stack em uso",
+          "virtual",
+          "residente"
+        ]
+      },
+      {
+        "title": "Erros do Pilot",
+        "expressionLabels": [
+          "cds reject",
+          "eds reject",
+          "rds reject",
+          "lds reject",
+          "timeout de escrita"
+        ]
+      },
+      {
+        "title": "Tempo de push do proxy (percentil)"
+      },
+      {
+        "title": "Pushes do Pilot"
+      },
+      {
+        "title": "Sucesso da injeção de sidecar"
+      },
+      {
+        "title": "Monitoramento ADS",
+        "expressionLabels": [
+          "xds",
+          "serviços",
+          "virt services"
+        ]
+      },
+      {
+        "title": "Validação de configuração",
+        "expressionLabels": [
+          "passou",
+          "falhou"
+        ]
+      },
+      {
+        "title": "Conflitos do Pilot",
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  }
+}

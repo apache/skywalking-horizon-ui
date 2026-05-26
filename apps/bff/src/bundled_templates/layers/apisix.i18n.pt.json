@@ -1,0 +1,123 @@
+{
+  "alias": "APISIX",
+  "group": "Gateways",
+  "slots": {
+    "services": "Serviços do APISIX",
+    "instances": "Nós",
+    "endpoints": "Rotas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "503/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Requisições por segundo casadas com rotas do APISIX."
+          },
+          {
+            "label": "5xx",
+            "tip": "Classe de erro de upstream / gateway."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendência de requisições HTTP"
+      },
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Latência HTTP"
+      },
+      {
+        "title": "Largura de banda HTTP"
+      },
+      {
+        "title": "Conexões HTTP"
+      },
+      {
+        "title": "Tendência de status sem correspondência",
+        "tip": "Requisições sem rota APISIX correspondente."
+      },
+      {
+        "title": "Latência sem correspondência"
+      },
+      {
+        "title": "Largura de banda sem correspondência"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendência de requisições HTTP"
+      },
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Latência HTTP"
+      },
+      {
+        "title": "Largura de banda HTTP"
+      },
+      {
+        "title": "Conexões HTTP"
+      },
+      {
+        "title": "Dicionário compartilhado",
+        "tip": "Capacidade vs espaço livre.",
+        "expressionLabels": [
+          "capacidade",
+          "livre"
+        ]
+      },
+      {
+        "title": "etcd",
+        "expressionLabels": [
+          "índices",
+          "acessível"
+        ]
+      },
+      {
+        "title": "Tráfego sem correspondência",
+        "tip": "Status + latência + largura de banda para requisições sem rota correspondente.",
+        "expressionLabels": [
+          "status",
+          "latência (ms)",
+          "largura de banda (KB)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Latência HTTP"
+      },
+      {
+        "title": "Largura de banda HTTP"
+      }
+    ]
+  }
+}

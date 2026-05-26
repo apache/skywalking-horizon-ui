@@ -1,0 +1,123 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Peticiones por segundo coincidentes con rutas de APISIX."
+          },
+          {
+            "label": "5xx",
+            "tip": "Clase de error upstream / gateway."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Servicios de APISIX",
+    "endpoints": "Rutas"
+  },
+  "group": "Gateways",
+  "alias": "APISIX",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "503/s"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Conexiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado sin coincidencia",
+        "tip": "Peticiones sin ruta APISIX coincidente."
+      },
+      {
+        "title": "Latencia sin coincidencia"
+      },
+      {
+        "title": "Ancho de banda sin coincidencia"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Conexiones HTTP"
+      },
+      {
+        "title": "Diccionario compartido",
+        "tip": "Capacidad vs espacio libre.",
+        "expressionLabels": [
+          "capacidad",
+          "libre"
+        ]
+      },
+      {
+        "title": "etcd",
+        "expressionLabels": [
+          "índices",
+          "accesible"
+        ]
+      },
+      {
+        "title": "Tráfico sin coincidencia",
+        "tip": "Estado + latencia + ancho de banda para peticiones sin ruta coincidente.",
+        "expressionLabels": [
+          "estado",
+          "latencia (ms)",
+          "ancho de banda (KB)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      }
+    ]
+  }
+}

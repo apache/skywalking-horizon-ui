@@ -1,0 +1,215 @@
+{
+  "alias": "Cilium 서비스",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "네임스페이스"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "성공률"
+      },
+      {
+        "label": "TCP 드롭"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "평균 지연 시간",
+            "tip": "평균 프로토콜 지연 시간 (ms)입니다."
+          },
+          {
+            "label": "성공률",
+            "tip": "성공 호출 / 전체 호출."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "프로토콜 RPM",
+            "tip": "분당 프로토콜 호출 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "L4 읽기 패키지/분"
+      },
+      {
+        "title": "L4 쓰기 패키지/분"
+      },
+      {
+        "title": "TCP 드롭 / 분",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "사유별 TCP 드롭"
+      },
+      {
+        "title": "HTTP 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "HTTP 시간"
+      },
+      {
+        "title": "HTTP non-2xx 상태",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "DNS 시간"
+      },
+      {
+        "title": "DNS 오류 / 분"
+      },
+      {
+        "title": "Kafka 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "Kafka 시간"
+      },
+      {
+        "title": "Kafka 오류 / 분"
+      }
+    ],
+    "instance": [
+      {
+        "title": "L4 읽기 패키지/분"
+      },
+      {
+        "title": "L4 쓰기 패키지/분"
+      },
+      {
+        "title": "HTTP 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "HTTP non-2xx 상태",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "DNS 오류"
+      },
+      {
+        "title": "Kafka 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "HTTP 시간"
+      },
+      {
+        "title": "HTTP non-2xx 상태",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS 부하",
+        "expressionLabels": [
+          "호출",
+          "성공"
+        ]
+      },
+      {
+        "title": "DNS 시간"
+      },
+      {
+        "title": "DNS 오류"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "성공률 %"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "HTTP RPM"
+      },
+      {
+        "label": "평균 지연 시간"
+      }
+    ]
+  },
+  "slots": {
+    "services": "서비스",
+    "instances": "Pod",
+    "endpoints": "엔드포인트"
+  }
+}

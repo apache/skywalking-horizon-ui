@@ -1,0 +1,174 @@
+{
+  "alias": "ActiveMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "エンキュー/s"
+      },
+      {
+        "label": "デキュー/s"
+      },
+      {
+        "label": "システム負荷"
+      },
+      {
+        "label": "スレッド"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "エンキュー/s",
+            "tip": "1秒あたりのエンキューメッセージ数。"
+          },
+          {
+            "label": "デキュー/s",
+            "tip": "1秒あたりのデキューメッセージ数。"
+          },
+          {
+            "label": "期限切れ/s",
+            "tip": "コンシューム前に期限切れとなったメッセージ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "システムロードアベレージ"
+      },
+      {
+        "title": "スレッド数"
+      },
+      {
+        "title": "ヒープ使用中 (MB)"
+      },
+      {
+        "title": "ヒープ最大 (MB)"
+      },
+      {
+        "title": "エンキュー / デキュー / ディスパッチ /s",
+        "expressionLabels": [
+          "エンキュー",
+          "デキュー",
+          "ディスパッチ"
+        ]
+      },
+      {
+        "title": "期限切れ /s"
+      },
+      {
+        "title": "エンキュー時間",
+        "expressionLabels": [
+          "平均",
+          "最大"
+        ]
+      },
+      {
+        "title": "GC 回数 (G1+Parallel)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      },
+      {
+        "title": "GC 時間 (ms)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "接続",
+        "tip": "この Broker への現在の TCP/JMS 接続数。"
+      },
+      {
+        "title": "プロデューサー数",
+        "tip": "この Broker のアクティブなプロデューサーセッション。"
+      },
+      {
+        "title": "コンシューマー数",
+        "tip": "この Broker のアクティブなコンシューマーセッション。"
+      },
+      {
+        "title": "稼働時間",
+        "tip": "前回の再起動からの Broker 稼働時間（時間単位）。"
+      },
+      {
+        "title": "接続 (傾向)"
+      },
+      {
+        "title": "エンキュー / デキュー件数",
+        "tip": "この Broker の宛先全体での 1分あたりエンキュー + デキュー。",
+        "expressionLabels": [
+          "エンキュー",
+          "デキュー"
+        ]
+      },
+      {
+        "title": "プロデューサー / コンシューマー増分",
+        "tip": "1分あたりに開かれた新規プロデューサー + コンシューマーセッション。",
+        "expressionLabels": [
+          "新規プロデューサー",
+          "新規コンシューマー"
+        ]
+      },
+      {
+        "title": "メモリ使用率",
+        "tip": "宛先全体のメモリ使用量合計 (MB)。"
+      },
+      {
+        "title": "メモリ上限",
+        "tip": "宛先全体の設定メモリ上限 (GB)。"
+      },
+      {
+        "title": "平均メッセージサイズ",
+        "tip": "宛先全体での平均メッセージサイズ。"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "プロデューサー数"
+      },
+      {
+        "title": "コンシューマー数"
+      },
+      {
+        "title": "キューサイズ"
+      },
+      {
+        "title": "メモリ使用量 (MB)"
+      },
+      {
+        "title": "メッセージ数",
+        "expressionLabels": [
+          "エンキュー",
+          "デキュー",
+          "ディスパッチ",
+          "期限切れ",
+          "処理中"
+        ]
+      },
+      {
+        "title": "エンキュー時間 (s)",
+        "expressionLabels": [
+          "平均",
+          "最大"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ActiveMQ クラスタ",
+    "instances": "Broker",
+    "endpoints": "宛先"
+  }
+}

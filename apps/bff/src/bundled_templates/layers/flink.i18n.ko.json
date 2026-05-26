@@ -1,0 +1,231 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "실행 중인 잡"
+      },
+      {
+        "label": "TaskManager"
+      },
+      {
+        "label": "사용 가능한 슬롯"
+      },
+      {
+        "label": "총 슬롯"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터",
+        "metrics": [
+          {
+            "label": "실행 중인 잡",
+            "tip": "활성 Flink 잡입니다."
+          },
+          {
+            "label": "사용 가능한 슬롯",
+            "tip": "여유 태스크 슬롯입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "실행 중인 잡"
+      },
+      {
+        "title": "TaskManager"
+      },
+      {
+        "title": "총 슬롯"
+      },
+      {
+        "title": "사용 가능한 슬롯"
+      },
+      {
+        "title": "JM JVM CPU 부하 (%)"
+      },
+      {
+        "title": "JM JVM 스레드 수"
+      },
+      {
+        "title": "JM CPU 시간 (ms)"
+      },
+      {
+        "title": "JM Heap (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "JM NonHeap (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "JM Metaspace (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressionLabels": [
+          "count",
+          "시간 (ms)"
+        ]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressionLabels": [
+          "count",
+          "시간 (ms)"
+        ]
+      },
+      {
+        "title": "전체 GC",
+        "expressionLabels": [
+          "count",
+          "시간 (ms)"
+        ]
+      },
+      {
+        "title": "실행 중인 잡 상위 10"
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM CPU 부하 (%)"
+      },
+      {
+        "title": "JVM 스레드 수"
+      },
+      {
+        "title": "CPU 시간 (ms)"
+      },
+      {
+        "title": "백 프레셔"
+      },
+      {
+        "title": "Heap (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "NonHeap (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "Metaspace (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "레코드 In / Out",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "바이트 In / Out / s",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "Netty 메모리 (MB)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "풀 사용률 (%)",
+        "expressionLabels": [
+          "풀 내",
+          "풀 외"
+        ]
+      },
+      {
+        "title": "백 프레셔 시간 (ms/s)",
+        "expressionLabels": [
+          "soft bp",
+          "hard bp",
+          "유휴",
+          "활성"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "잡 실행 시간 (분)"
+      },
+      {
+        "title": "잡 재시작 시간 (분)"
+      },
+      {
+        "title": "잡 취소 시간 (분)"
+      },
+      {
+        "title": "잡 재시작"
+      },
+      {
+        "title": "체크포인트",
+        "expressionLabels": [
+          "전체",
+          "completed",
+          "실패",
+          "진행 중"
+        ]
+      },
+      {
+        "title": "마지막 체크포인트",
+        "expressionLabels": [
+          "크기 (바이트)",
+          "시간 (ms)"
+        ]
+      },
+      {
+        "title": "현재 Emit Event Time Lag (ms)"
+      },
+      {
+        "title": "레코드 In / Out",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "바이트 In / Out / s",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Flink JobManager",
+    "instances": "TaskManager",
+    "endpoints": "잡"
+  }
+}

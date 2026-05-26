@@ -1,0 +1,64 @@
+{
+  "alias": "Go-Agent",
+  "group": "Selbstbeobachtung",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Tracing-Context-Erstellung / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Tracing Erstellt + Beendet / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "erstellt",
+          "beendet"
+        ]
+      },
+      {
+        "title": "Ignorierte Context-Erstellung / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ignoriert Erstellt + Beendet / min",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "erstellt",
+          "beendet"
+        ]
+      },
+      {
+        "title": "Möglicherweise geleakter Context / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Interceptor-Fehleranzahl / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Tracing-Context-Ausführungszeit (ms)",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Agenten-Dienste",
+    "instances": "Agenten"
+  }
+}

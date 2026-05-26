@@ -1,0 +1,122 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de peticiones"
+      },
+      {
+        "label": "Lanzamiento"
+      },
+      {
+        "label": "Primer render"
+      },
+      {
+        "label": "Errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "Petición P95",
+            "tip": "Duración de petición en el percentil 95 desde el puente de red de WeChat."
+          },
+          {
+            "label": "Lanzamiento",
+            "tip": "Duración del lanzamiento del mini programa observada por el cliente de WeChat."
+          },
+          {
+            "label": "Errores",
+            "tip": "Conteo de errores reportados."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de peticiones",
+            "tip": "Peticiones del puente por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versiones",
+    "endpoints": "Páginas",
+    "services": "Mini programas"
+  },
+  "alias": "Mini programa de WeChat",
+  "group": "Móvil",
+  "dashboards": {
+    "service": [
+      {
+        "title": "Duración del lanzamiento de la app"
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Duración de carga del paquete",
+        "tip": "Tiempo para descargar + parsear el bundle del paquete del mini programa."
+      },
+      {
+        "title": "Conteo de errores"
+      },
+      {
+        "title": "Duración de ruta",
+        "tip": "Tiempo en transiciones de ruta de página del mini programa."
+      },
+      {
+        "title": "Duración de script"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Duración del lanzamiento"
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Duración de carga del paquete"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Duración de ruta"
+      },
+      {
+        "title": "Duración de script"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Duración del lanzamiento en la página"
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ]
+  }
+}

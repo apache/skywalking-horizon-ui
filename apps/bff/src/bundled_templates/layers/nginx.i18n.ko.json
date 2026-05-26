@@ -1,0 +1,122 @@
+{
+  "alias": "Nginx",
+  "group": "게이트웨이",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "오류",
+        "metrics": [
+          {
+            "label": "5xx 비율",
+            "tip": "분당 5xx 를 반환하는 요청의 비율입니다."
+          },
+          {
+            "label": "4xx 비율",
+            "tip": "분당 4xx 를 반환하는 요청의 비율입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Nginx 서비스의 초당 요청 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP 요청 추세"
+      },
+      {
+        "title": "HTTP 지연 시간"
+      },
+      {
+        "title": "HTTP 대역폭"
+      },
+      {
+        "title": "HTTP 연결"
+      },
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "4xx % / 분"
+      },
+      {
+        "title": "5xx % / 분"
+      },
+      {
+        "title": "오류 로그 수"
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP 요청 추세"
+      },
+      {
+        "title": "HTTP 지연 시간"
+      },
+      {
+        "title": "HTTP 대역폭"
+      },
+      {
+        "title": "HTTP 연결"
+      },
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "4xx % / 분"
+      },
+      {
+        "title": "5xx % / 분"
+      },
+      {
+        "title": "오류 로그 수"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP 요청 추세"
+      },
+      {
+        "title": "HTTP 지연 시간"
+      },
+      {
+        "title": "HTTP 대역폭"
+      },
+      {
+        "title": "HTTP 상태 추세"
+      },
+      {
+        "title": "4xx % / 분"
+      },
+      {
+        "title": "5xx % / 분"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Nginx 서비스",
+    "instances": "노드",
+    "endpoints": "라우트"
+  }
+}

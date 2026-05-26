@@ -1,0 +1,215 @@
+{
+  "alias": "Cilium サービス",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "ネームスペース"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "TCP Drop"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "平均レイテンシ",
+            "tip": "平均プロトコルレイテンシ (ms)。"
+          },
+          {
+            "label": "成功率",
+            "tip": "成功コール / 全コール。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "プロトコル RPM",
+            "tip": "1分あたりのプロトコルコール数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "L4 読み取りパケット/分"
+      },
+      {
+        "title": "L4 書き込みパケット/分"
+      },
+      {
+        "title": "TCP Drop / 分",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "理由別 TCP Drop"
+      },
+      {
+        "title": "HTTP 負荷",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "HTTP 所要時間"
+      },
+      {
+        "title": "HTTP 非 2xx ステータス",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS ロード",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "DNS 所要時間"
+      },
+      {
+        "title": "DNS エラー / 分"
+      },
+      {
+        "title": "Kafka 負荷",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "Kafka 所要時間"
+      },
+      {
+        "title": "Kafka エラー / 分"
+      }
+    ],
+    "instance": [
+      {
+        "title": "L4 読み取りパケット/分"
+      },
+      {
+        "title": "L4 書き込みパケット/分"
+      },
+      {
+        "title": "HTTP 負荷",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "HTTP 非 2xx ステータス",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS ロード",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "DNS エラー"
+      },
+      {
+        "title": "Kafka 負荷",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP 負荷",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "HTTP 所要時間"
+      },
+      {
+        "title": "HTTP 非 2xx ステータス",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "DNS ロード",
+        "expressionLabels": [
+          "コール",
+          "成功"
+        ]
+      },
+      {
+        "title": "DNS 所要時間"
+      },
+      {
+        "title": "DNS エラー"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "成功率"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "HTTP RPM"
+      },
+      {
+        "label": "平均レイテンシ"
+      }
+    ]
+  },
+  "slots": {
+    "services": "サービス",
+    "instances": "Pod",
+    "endpoints": "エンドポイント"
+  }
+}

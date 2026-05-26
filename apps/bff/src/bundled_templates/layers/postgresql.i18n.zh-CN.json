@@ -1,0 +1,88 @@
+{
+  "alias": "PostgreSQL",
+  "group": "数据库",
+  "slots": {
+    "services": "PostgreSQL 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Fetched / 秒" },
+      { "label": "Inserted / 秒" },
+      { "label": "缓存命中率" },
+      { "label": "死锁" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "健康度",
+        "metrics": [
+          { "label": "缓存命中率", "tip": "集群范围内的缓冲缓存命中率。" },
+          { "label": "死锁/秒", "tip": "每秒检测到的死锁数。" },
+          { "label": "冲突/秒", "tip": "每秒恢复冲突数。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "Fetched / 秒", "tip": "每秒拉取的行数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "拉取行数 / 秒" },
+      { "title": "插入行数 / 秒" },
+      { "title": "更新行数 / 秒" },
+      { "title": "删除行数 / 秒" },
+      { "title": "返回行数 / 秒" },
+      { "title": "临时文件 / 秒" },
+      { "title": "缓存命中率" },
+      {
+        "title": "事务 / 秒",
+        "tip": "已提交 vs 已回滚。",
+        "expressionLabels": ["committed", "rolled-back"]
+      },
+      {
+        "title": "冲突 + 死锁 / 秒",
+        "expressionLabels": ["conflicts", "deadlocks"]
+      },
+      {
+        "title": "会话",
+        "expressionLabels": ["active", "idle", "locks"]
+      },
+      {
+        "title": "Buffer / 秒",
+        "tip": "Checkpoint / clean / fsync / alloc / backend 缓冲活动。",
+        "expressionLabels": ["checkpoint", "clean", "backend fsync", "alloc", "backend"]
+      },
+      {
+        "title": "Checkpoint 统计 / 秒",
+        "expressionLabels": ["timed", "requested", "write time", "sync time"]
+      },
+      {
+        "title": "慢语句",
+        "tip": "采集到的最慢的 20 条语句。"
+      }
+    ],
+    "instance": [
+      { "title": "共享缓冲" },
+      { "title": "Effective Cache" },
+      { "title": "Work Mem" },
+      { "title": "最大 WAL 大小" },
+      { "title": "拉取行数 / 秒" },
+      { "title": "插入行数 / 秒" },
+      { "title": "缓存命中率" },
+      {
+        "title": "会话",
+        "expressionLabels": ["active", "idle", "locks"]
+      },
+      {
+        "title": "冲突 + 死锁 / 秒",
+        "expressionLabels": ["conflicts", "deadlocks"]
+      }
+    ]
+  }
+}

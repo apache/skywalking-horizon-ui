@@ -1,0 +1,174 @@
+{
+  "alias": "ActiveMQ",
+  "group": "MQ",
+  "slots": {
+    "services": "Clusters do ActiveMQ",
+    "instances": "Brokers",
+    "endpoints": "Destinos"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Enqueue/s"
+      },
+      {
+        "label": "Dequeue/s"
+      },
+      {
+        "label": "Carga do sistema"
+      },
+      {
+        "label": "Threads"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Enqueue/s",
+            "tip": "Mensagens enfileiradas por segundo."
+          },
+          {
+            "label": "Dequeue/s",
+            "tip": "Mensagens desenfileiradas por segundo."
+          },
+          {
+            "label": "Expiradas/s",
+            "tip": "Mensagens que expiraram antes de serem consumidas."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Média de carga do sistema"
+      },
+      {
+        "title": "Quantidade de threads"
+      },
+      {
+        "title": "Heap usado (MB)"
+      },
+      {
+        "title": "Heap máximo (MB)"
+      },
+      {
+        "title": "Enqueue / Dequeue / Dispatch /s",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch"
+        ]
+      },
+      {
+        "title": "Expiradas /s"
+      },
+      {
+        "title": "Tempo de enqueue",
+        "expressionLabels": [
+          "média",
+          "máx"
+        ]
+      },
+      {
+        "title": "Contagem de GC (G1+Parallel)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      },
+      {
+        "title": "Tempo de GC (ms)",
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Conexões",
+        "tip": "Conexões TCP/JMS atuais com este broker."
+      },
+      {
+        "title": "Quantidade de produtores",
+        "tip": "Sessões de produtor ativas neste broker."
+      },
+      {
+        "title": "Quantidade de consumidores",
+        "tip": "Sessões de consumidor ativas neste broker."
+      },
+      {
+        "title": "Uptime",
+        "tip": "Tempo de atividade do broker em horas desde o último reinício."
+      },
+      {
+        "title": "Conexões (tendência)"
+      },
+      {
+        "title": "Contagem de enqueue / dequeue",
+        "tip": "Enqueue + dequeue por minuto entre os destinos deste broker.",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue"
+        ]
+      },
+      {
+        "title": "Aumento de produtores / consumidores",
+        "tip": "Novas sessões de produtor + consumidor abertas por minuto.",
+        "expressionLabels": [
+          "novos produtores",
+          "novos consumidores"
+        ]
+      },
+      {
+        "title": "Uso de memória",
+        "tip": "Uso de memória agregado entre os destinos (MB)."
+      },
+      {
+        "title": "Limite de memória",
+        "tip": "Teto de memória configurado entre os destinos (GB)."
+      },
+      {
+        "title": "Tamanho médio de mensagem",
+        "tip": "Tamanho médio de mensagem entre os destinos."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Quantidade de produtores"
+      },
+      {
+        "title": "Quantidade de consumidores"
+      },
+      {
+        "title": "Tamanho da fila"
+      },
+      {
+        "title": "Uso de memória (MB)"
+      },
+      {
+        "title": "Contagem de mensagens",
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch",
+          "expiradas",
+          "em trânsito"
+        ]
+      },
+      {
+        "title": "Tempo de enqueue (s)",
+        "expressionLabels": [
+          "média",
+          "máx"
+        ]
+      }
+    ]
+  }
+}

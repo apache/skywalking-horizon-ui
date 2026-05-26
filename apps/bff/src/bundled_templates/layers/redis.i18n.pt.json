@@ -1,0 +1,138 @@
+{
+  "alias": "Redis",
+  "group": "Bancos de dados",
+  "slots": {
+    "services": "Clusters do Redis",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Comandos/s"
+      },
+      {
+        "label": "Hit Rate"
+      },
+      {
+        "label": "Memória %"
+      },
+      {
+        "label": "Clientes"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde",
+        "metrics": [
+          {
+            "label": "Hit Rate",
+            "tip": "Taxa de cache hit. Em queda = thrashing."
+          },
+          {
+            "label": "Memória %",
+            "tip": "Em uso / máx. >80% = atenção."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Comandos/s",
+            "tip": "Total de comandos por segundo no cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Uptime (dias)"
+      },
+      {
+        "title": "Clientes conectados"
+      },
+      {
+        "title": "Clientes bloqueados"
+      },
+      {
+        "title": "Uso de memória"
+      },
+      {
+        "title": "Total de comandos / s"
+      },
+      {
+        "title": "Hit Rate"
+      },
+      {
+        "title": "Tempo médio de comando / s"
+      },
+      {
+        "title": "I/O de rede (KB)",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Chaves",
+        "expressionLabels": [
+          "total",
+          "evicted",
+          "expiradas"
+        ]
+      },
+      {
+        "title": "Comandos lentos",
+        "tip": "Top 10 comandos mais lentos capturados. Capturados pelo agente SkyWalking no call-site."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (dias)"
+      },
+      {
+        "title": "Clientes conectados"
+      },
+      {
+        "title": "Clientes bloqueados"
+      },
+      {
+        "title": "Memória máx (MB)"
+      },
+      {
+        "title": "Uso de memória (%)"
+      },
+      {
+        "title": "Comandos / s"
+      },
+      {
+        "title": "Hit Rate"
+      },
+      {
+        "title": "I/O de rede (KB)",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Chaves",
+        "expressionLabels": [
+          "total",
+          "evicted",
+          "expiradas"
+        ]
+      },
+      {
+        "title": "Tempo total de comandos (s)"
+      },
+      {
+        "title": "Tempo médio de comando"
+      }
+    ]
+  }
+}

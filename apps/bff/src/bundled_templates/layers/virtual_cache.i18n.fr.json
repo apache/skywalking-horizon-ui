@@ -1,0 +1,97 @@
+{
+  "alias": "Cache virtuel",
+  "group": "Cibles virtuelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM d'accès"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Taux d'erreur"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latence d'accès au cache au 95e centile."
+          },
+          {
+            "label": "Taux d'erreur",
+            "tip": "100 − taux de succès des accès au cache. Les exceptions de cache sont capturées par l'agent du service appelant."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM d'accès",
+            "tip": "Opérations cache par minute (lecture + écriture)."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Trafic d'accès"
+      },
+      {
+        "title": "Latence d'accès moyenne"
+      },
+      {
+        "title": "Taux de succès des accès"
+      },
+      {
+        "title": "Centile de latence d'accès"
+      },
+      {
+        "title": "Trafic de lecture"
+      },
+      {
+        "title": "Latence moyenne de lecture"
+      },
+      {
+        "title": "Trafic d'écriture"
+      },
+      {
+        "title": "Latence moyenne d'écriture"
+      },
+      {
+        "title": "Taux de succès en lecture"
+      },
+      {
+        "title": "Taux de succès en écriture"
+      },
+      {
+        "title": "Centile de latence de lecture"
+      },
+      {
+        "title": "Centile de latence d'écriture"
+      },
+      {
+        "title": "Commandes de lecture lentes",
+        "tip": "Top 10 des commandes de lecture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour explorer la trace d'origine."
+      },
+      {
+        "title": "Commandes d'écriture lentes",
+        "tip": "Top 10 des commandes d'écriture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour explorer la trace d'origine."
+      }
+    ]
+  },
+  "slots": {
+    "services": "Caches"
+  }
+}

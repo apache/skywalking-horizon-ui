@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 // Full "SkyWalking" wordmark + moon, white-fill. The login page's
 // backdrop is always the dark canyon photo, so the logo stays white
 // regardless of which theme the operator has picked for the post-
@@ -27,6 +28,14 @@ import loginBgUrl from '@/assets/login-bg.jpg?url';
 import { useAuthStore } from '@/state/auth';
 import { bff } from '@/api/client';
 import type { AuthHealth } from '@/api/scopes/admin-auth';
+import LocaleChip from '@/shell/LocaleChip.vue';
+
+// `useScope: 'global'` binds `t` to the global i18n instance so a
+// `locale` change in the top-bar / login locale chip reactively
+// re-renders this view. Without it, `<script setup>` components get a
+// component-scoped i18n whose `locale` ref is separate from the global
+// one — the chrome flips language only on a remount.
+const { t } = useI18n({ useScope: 'global' });
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -62,13 +71,13 @@ const statusKind = computed<'ok' | 'err' | 'info' | 'warn' | null>(() => {
   return 'info';
 });
 const statusLabel = computed<string>(() => {
-  if (!health.value) return 'Checking auth backend…';
-  if (!health.value.configured) return 'Auth not configured';
-  if (health.value.backend === 'local') return 'Local users';
+  if (!health.value) return t('Checking auth backend…');
+  if (!health.value.configured) return t('Auth not configured');
+  if (health.value.backend === 'local') return t('Local users');
   if (health.value.backend === 'ldap') {
-    return health.value.ldap?.reachable ? 'LDAP reachable' : 'LDAP unreachable';
+    return health.value.ldap?.reachable ? t('LDAP reachable') : t('LDAP unreachable');
   }
-  return 'Unknown backend';
+  return t('Unknown backend');
 });
 const statusHost = computed<string | null>(() => health.value?.ldap?.host ?? null);
 const unconfigured = computed<boolean>(() => health.value !== null && !health.value.configured);
@@ -106,15 +115,21 @@ async function submit(): Promise<void> {
       <span class="brand">
         <span class="brand-logo" v-html="logoSw" />
         <span class="brand-sep" aria-hidden="true" />
-        <span class="brand-name">Horizon</span>
+        <span class="brand-name">{{ t('Horizon') }}</span>
       </span>
-      <span v-if="statusKind" class="status-pill" :class="`pill-${statusKind}`">
-        <span class="status-dot" />
-        <b>{{ statusLabel }}</b>
-        <template v-if="statusHost">
-          <span class="status-sep">·</span>
-          <code class="status-host">{{ statusHost }}</code>
-        </template>
+      <span class="top-right">
+        <span v-if="statusKind" class="status-pill" :class="`pill-${statusKind}`">
+          <span class="status-dot" />
+          <b>{{ statusLabel }}</b>
+          <template v-if="statusHost">
+            <span class="status-sep">·</span>
+            <code class="status-host">{{ statusHost }}</code>
+          </template>
+        </span>
+        <!-- Pre-auth locale picker. Same component the topbar uses;
+             writes localStorage so the choice survives logout and
+             carries through to the post-login session. -->
+        <LocaleChip />
       </span>
     </header>
 
@@ -122,7 +137,7 @@ async function submit(): Promise<void> {
     <main class="center">
       <form class="card" @submit.prevent="submit">
         <div class="card-head">
-          <h1>Welcome to SkyWalking</h1>
+          <h1>{{ t('Welcome to SkyWalking') }}</h1>
         </div>
 
         <!-- First-touch banner: auth isn't wired yet. The BFF still
@@ -131,22 +146,22 @@ async function submit(): Promise<void> {
         <div v-if="unconfigured" class="setup-banner" role="alert">
           <div class="setup-banner-head">
             <span class="setup-banner-icon" aria-hidden="true">⚙︎</span>
-            <b>Auth not configured</b>
+            <b>{{ t('Auth not configured') }}</b>
           </div>
           <p class="setup-banner-body">{{ setupHint }}</p>
           <p class="setup-banner-foot">
-            See
+            {{ t('See') }}
             <a
               href="https://skywalking.apache.org/docs/skywalking-horizon-ui/next/en/setup/auth/"
               target="_blank"
               rel="noreferrer noopener"
-            >Setup → Auth</a>
-            for backend selection, user / role schema, and an LDAP example.
+            >{{ t('Setup → Auth') }}</a>
+            {{ t('for backend selection, user / role schema, and an LDAP example.') }}
           </p>
         </div>
 
         <label class="field">
-          <span>Username</span>
+          <span>{{ t('Username') }}</span>
           <input
             v-model="username"
             type="text"
@@ -159,7 +174,7 @@ async function submit(): Promise<void> {
         </label>
 
         <label class="field">
-          <span>Password</span>
+          <span>{{ t('Password') }}</span>
           <input
             v-model="password"
             type="password"
@@ -173,7 +188,7 @@ async function submit(): Promise<void> {
         <div v-if="auth.loginError" class="error">{{ auth.loginError }}</div>
 
         <button class="sign-in" type="submit" :disabled="submitting || unconfigured">
-          {{ unconfigured ? 'Sign in disabled' : (submitting ? 'Signing in…' : 'Sign in') }}
+          {{ unconfigured ? t('Sign in disabled') : (submitting ? t('Signing in…') : t('Sign in')) }}
         </button>
       </form>
     </main>
@@ -181,11 +196,12 @@ async function submit(): Promise<void> {
     <!-- Footer: Apache copyright + trademark notice. -->
     <footer class="foot">
       <div class="foot-legal">
-        <div>© 2017&nbsp;–&nbsp;{{ currentYear }} The Apache Software Foundation. All Rights Reserved.</div>
+        <div>
+          {{ t('© {from} – {to} The Apache Software Foundation.', { from: 2017, to: currentYear }) }}
+          {{ t('All Rights Reserved.') }}
+        </div>
         <div class="foot-tm">
-          Apache SkyWalking, SkyWalking, Apache, the Apache feather logo, and the Apache
-          SkyWalking project logo are either registered trademarks or trademarks of the
-          Apache Software Foundation.
+          {{ t('Apache SkyWalking, SkyWalking, Apache, the Apache feather logo, and the Apache SkyWalking project logo are either registered trademarks or trademarks of the Apache Software Foundation.') }}
         </div>
       </div>
     </footer>
@@ -252,6 +268,12 @@ async function submit(): Promise<void> {
   /* Wrap on narrow viewports so the status pill sits below the brand
      rather than clipping off-screen. */
   flex-wrap: wrap;
+}
+.top-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 .brand {
   display: inline-flex;

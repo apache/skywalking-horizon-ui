@@ -1,0 +1,145 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "低速 QPS"
+      },
+      {
+        "label": "接続エラー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "クラスタ全体の 1秒あたりクエリ数。"
+          },
+          {
+            "label": "TPS",
+            "tip": "1秒あたりのトランザクション数。"
+          },
+          {
+            "label": "低速クエリ/s",
+            "tip": "クラスタ全体の低速クエリレート。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "TPS"
+      },
+      {
+        "title": "低速クエリ / s"
+      },
+      {
+        "title": "接続エラー",
+        "tip": "内部 vs 最大接続数による拒否。",
+        "expressionLabels": [
+          "内部",
+          "最大接続数"
+        ]
+      },
+      {
+        "title": "コマンド傾向",
+        "tip": "コマンド単位の影響行数レート (select / insert / update / delete)。",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "スレッド",
+        "expressionLabels": [
+          "接続済み",
+          "実行中",
+          "キャッシュ",
+          "作成"
+        ]
+      },
+      {
+        "title": "低速ステートメント",
+        "tip": "クラスタ全体で捕捉された低速ステートメント上位 20。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "稼働時間"
+      },
+      {
+        "title": "最大接続数"
+      },
+      {
+        "title": "InnoDB バッファプール"
+      },
+      {
+        "title": "スレッドキャッシュサイズ"
+      },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "低速クエリ / s"
+      },
+      {
+        "title": "コマンド傾向",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "スレッド",
+        "expressionLabels": [
+          "接続済み",
+          "実行中",
+          "キャッシュ",
+          "作成"
+        ]
+      },
+      {
+        "title": "接続",
+        "expressionLabels": [
+          "利用可能",
+          "中断"
+        ]
+      },
+      {
+        "title": "接続エラー",
+        "expressionLabels": [
+          "内部",
+          "最大接続数"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "MySQL クラスタ",
+    "instances": "ノード"
+  }
+}

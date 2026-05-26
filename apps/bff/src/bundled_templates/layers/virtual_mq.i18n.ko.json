@@ -1,0 +1,98 @@
+{
+  "alias": "가상 메시지 큐",
+  "group": "가상 대상",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "소비 RPM"
+      },
+      {
+        "label": "생산 RPM"
+      },
+      {
+        "label": "소비 지연 시간"
+      },
+      {
+        "label": "소비 오류율"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95번째 백분위 소비 지연 시간 (timestamp(received) − timestamp(producing))."
+          },
+          {
+            "label": "소비 오류율",
+            "tip": "100 − 소비 성공률입니다."
+          },
+          {
+            "label": "생산 오류율",
+            "tip": "100 − 생산 성공률입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "소비 RPM",
+            "tip": "분당 소비된 메시지 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "소비 트래픽"
+      },
+      {
+        "title": "생산 트래픽"
+      },
+      {
+        "title": "소비 평균 지연 시간",
+        "tip": "메시지 생산과 소비 사이의 평균 시간입니다."
+      },
+      {
+        "title": "소비 성공률"
+      },
+      {
+        "title": "생산 성공률"
+      },
+      {
+        "title": "소비 지연 시간 백분위",
+        "tip": "소비 지연 시간의 p50 / p75 / p90 / p95 / p99 입니다."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "토픽 소비 트래픽"
+      },
+      {
+        "title": "토픽 생산 트래픽"
+      },
+      {
+        "title": "토픽 소비 평균 지연 시간"
+      },
+      {
+        "title": "토픽 소비 성공률"
+      },
+      {
+        "title": "토픽 생산 성공률"
+      },
+      {
+        "title": "토픽 소비 지연 시간 백분위"
+      }
+    ]
+  },
+  "slots": {
+    "services": "MQ 클러스터",
+    "endpoints": "Topic"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "リクエスト"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "エラー",
+        "metrics": [
+          {
+            "label": "4xx",
+            "tip": "CloudWatch からのクライアントエラー件数。"
+          },
+          {
+            "label": "5xx",
+            "tip": "CloudWatch からのサーバーエラー件数。"
+          },
+          {
+            "label": "平均レイテンシ",
+            "tip": "平均エンドツーエンドレイテンシ。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "リクエスト",
+            "tip": "ウィンドウ内の合計リクエスト数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "リクエスト数"
+      },
+      {
+        "title": "4xx 件数"
+      },
+      {
+        "title": "5xx 件数"
+      },
+      {
+        "title": "リクエスト平均レイテンシ"
+      },
+      {
+        "title": "統合平均レイテンシ",
+        "tip": "ゲートウェイとバックエンド統合間のレイテンシ。"
+      },
+      {
+        "title": "処理データ量 (HTTP API のみ)"
+      },
+      {
+        "title": "キャッシュヒット率 (REST API のみ)"
+      },
+      {
+        "title": "キャッシュミス率 (REST API のみ)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "リクエスト数"
+      },
+      {
+        "title": "4xx 件数"
+      },
+      {
+        "title": "5xx 件数"
+      },
+      {
+        "title": "リクエスト平均レイテンシ"
+      },
+      {
+        "title": "統合平均レイテンシ"
+      },
+      {
+        "title": "処理データ量"
+      },
+      {
+        "title": "キャッシュヒット率"
+      },
+      {
+        "title": "キャッシュミス率"
+      }
+    ]
+  },
+  "slots": {
+    "services": "AWS ゲートウェイ",
+    "endpoints": "ルート"
+  }
+}

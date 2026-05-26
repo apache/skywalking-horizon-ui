@@ -1,0 +1,265 @@
+{
+  "dashboards": {
+    "service": [
+      {
+        "title": "Pods du service"
+      },
+      {
+        "title": "Pods en attente",
+        "tableHeaders": [
+          "Conteneur · Pod · Raison",
+          ""
+        ]
+      },
+      {
+        "title": "Redémarrages de Pod",
+        "tableHeaders": [
+          "Pod",
+          "Redémarrages"
+        ]
+      },
+      {
+        "title": "Ressources CPU",
+        "expressionLabels": [
+          "requêtes",
+          "limites"
+        ]
+      },
+      {
+        "title": "Ressources mémoire",
+        "expressionLabels": [
+          "requêtes",
+          "limites"
+        ]
+      },
+      {
+        "title": "Utilisation CPU du Pod"
+      },
+      {
+        "title": "Utilisation mémoire du Pod"
+      },
+      {
+        "title": "RPM des requêtes HTTP"
+      },
+      {
+        "title": "Temps de réponse HTTP"
+      },
+      {
+        "title": "RPM des codes HTTP",
+        "tip": "Comptes de codes par classe (1xx / 2xx / 3xx / 4xx / 5xx).",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Taille requête / réponse HTTP",
+        "expressionLabels": [
+          "en-tête req",
+          "corps req",
+          "en-tête resp",
+          "corps resp"
+        ]
+      },
+      {
+        "title": "TCP Connect",
+        "tip": "Tentatives et succès de connexion côté client par minute.",
+        "expressionLabels": [
+          "connect",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée de TCP Connect"
+      },
+      {
+        "title": "TCP Accept"
+      },
+      {
+        "title": "Paquets TCP",
+        "tip": "Nombre de paquets en lecture et écriture par minute, retransmissions incluses.",
+        "expressionLabels": [
+          "lecture",
+          "écriture",
+          "retrans écriture"
+        ]
+      },
+      {
+        "title": "Octets TCP",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "RPM HTTP pod"
+      },
+      {
+        "title": "Temps de réponse HTTP pod"
+      },
+      {
+        "title": "RPM par code HTTP pod",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Tailles HTTP pod",
+        "expressionLabels": [
+          "en-tête req",
+          "corps req",
+          "en-tête resp",
+          "corps resp"
+        ]
+      },
+      {
+        "title": "Connect TCP pod",
+        "expressionLabels": [
+          "connect",
+          "succès"
+        ]
+      },
+      {
+        "title": "Paquets TCP pod",
+        "expressionLabels": [
+          "lecture",
+          "écriture",
+          "retrans écriture"
+        ]
+      },
+      {
+        "title": "Octets TCP pod",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "RPM HTTP de l'endpoint"
+      },
+      {
+        "title": "Temps de réponse HTTP de l'endpoint"
+      },
+      {
+        "title": "RPM par code de statut de l'endpoint",
+        "expressionLabels": [
+          "1xx",
+          "2xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Tailles des requêtes de l'endpoint",
+        "expressionLabels": [
+          "en-tête",
+          "corps"
+        ]
+      },
+      {
+        "title": "Tailles des réponses de l'endpoint",
+        "expressionLabels": [
+          "en-tête",
+          "corps"
+        ]
+      }
+    ]
+  },
+  "alias": "Services Kubernetes",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "RPM HTTP"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "Taux de succès"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "HTTP",
+        "metrics": [
+          {
+            "label": "RPM",
+            "tip": "Requêtes HTTP par minute observées par l'instrumentation eBPF."
+          },
+          {
+            "label": "Latence",
+            "tip": "Temps de réponse HTTP moyen sur l'ensemble du cluster."
+          },
+          {
+            "label": "Taux d'erreur",
+            "tip": "100 − taux de succès HTTP."
+          }
+        ]
+      },
+      {
+        "title": "Santé",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Score de satisfaction utilisateur sur une échelle de 0 à 1."
+          }
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Taux de succès"
+      },
+      {
+        "label": "Latence"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Temps de réponse moyen"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Temps de réponse moyen"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services K8s",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  }
+}

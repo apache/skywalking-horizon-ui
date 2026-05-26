@@ -1,0 +1,252 @@
+{
+  "alias": "Istio 管理サービス",
+  "group": "Istio",
+  "naming": {
+    "alias": "ネームスペース"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "トラフィック"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "レイテンシ"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Mesh 全体での Sidecar 経由応答時間の 95 パーセンタイル。"
+          },
+          {
+            "label": "エラー率",
+            "tip": "100 − Mesh SLA。Sidecar ALS で非 2xx ステータスを返したコール。"
+          }
+        ]
+      },
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "0 – 1 スケールのユーザー満足度スコア。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "上位 20 API",
+        "tip": "選択中サービス配下の上位エンドポイント。タブを切り替えてトラフィック、応答時間、最悪成功率で再ランク付け。",
+        "expressionLabels": [
+          "トラフィック",
+          "低速",
+          "成功率"
+        ]
+      },
+      {
+        "title": "トラフィック",
+        "tip": "Envoy Sidecar が観測した Mesh 全体の 1分あたりリクエスト数。"
+      },
+      {
+        "title": "エラー率"
+      },
+      {
+        "title": "Apdex",
+        "tip": "0 – 1 スケールのユーザー満足度スコア。"
+      },
+      {
+        "title": "平均応答時間"
+      },
+      {
+        "title": "応答時間パーセンタイル",
+        "tip": "p50 / p75 / p90 / p95 / p99 レイテンシ — 応答時間分布のテール。"
+      },
+      {
+        "title": "サービススループット",
+        "tip": "Sidecar を通過する 1分あたりのバイト — 送信 + 受信。",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "Sidecar 内部レイテンシ",
+        "tip": "Envoy 内部のリクエスト + レスポンスレイテンシ（ナノ秒）。Sidecar オーバーヘッドが疑われる際に有用。",
+        "expressionLabels": [
+          "リクエスト",
+          "レスポンス"
+        ]
+      },
+      {
+        "title": "上位 10 Sidecar",
+        "tip": "選択中サービスの Sidecar インスタンス全体でランク付け。",
+        "expressionLabels": [
+          "トラフィック",
+          "低速",
+          "成功率"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Sidecar 負荷",
+        "tip": "選択中の Sidecar インスタンスに対する 1分あたりのコール数。"
+      },
+      {
+        "title": "Sidecar レイテンシ"
+      },
+      {
+        "title": "Sidecar 成功率"
+      },
+      {
+        "title": "Sidecar スループット",
+        "tip": "Sidecar を通過するバイト — 受信 + 送信。",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "Sidecar 内部レイテンシ",
+        "expressionLabels": [
+          "リクエスト",
+          "レスポンス"
+        ]
+      },
+      {
+        "title": "Envoy アップストリームリクエストアクティブ",
+        "tip": "クラスタ単位の処理中アップストリームリクエスト。Envoy 計装の Sidecar で描画。"
+      },
+      {
+        "title": "Envoy アップストリームリクエスト増分",
+        "tip": "1分あたりに追加されたアップストリームリクエスト数。"
+      },
+      {
+        "title": "Envoy アップストリーム保留アクティブ",
+        "tip": "保留中のアップストリームリクエスト — 接続プールのバックプレッシャーを示す。"
+      },
+      {
+        "title": "Envoy アップストリーム接続アクティブ"
+      },
+      {
+        "title": "Envoy アップストリーム接続増分"
+      },
+      {
+        "title": "Envoy クラスタ正常メンバーシップ",
+        "tip": "クラスタ単位の正常アップストリームメンバー — 大きな低下はアップストリームの不安定さを示す。"
+      },
+      {
+        "title": "Envoy 合計接続",
+        "expressionLabels": [
+          "合計",
+          "親"
+        ]
+      },
+      {
+        "title": "Envoy ヒープメモリ",
+        "tip": "Envoy メモリ使用量。ヒープ vs 物理、アロケート vs 最大 (MB)。",
+        "expressionLabels": [
+          "ヒープ使用中",
+          "ヒープ最大",
+          "アロケート",
+          "アロケート最大",
+          "物理",
+          "物理最大"
+        ]
+      },
+      {
+        "title": "Envoy ワーカースレッド",
+        "expressionLabels": [
+          "ライブ",
+          "最大"
+        ]
+      },
+      {
+        "title": "Envoy Bug Failures",
+        "tip": "Envoy 自身のアサーション / Bug カウンタ。正常クラスタではゼロのはず。"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "エンドポイントトラフィック"
+      },
+      {
+        "title": "エンドポイント平均応答時間"
+      },
+      {
+        "title": "エンドポイント成功率"
+      },
+      {
+        "title": "エンドポイント応答時間パーセンタイル"
+      },
+      {
+        "title": "Sidecar 内部レイテンシ (エンドポイントスコープ)",
+        "tip": "このエンドポイントでの Envoy 内部のリクエスト + レスポンスレイテンシ（ナノ秒）。",
+        "expressionLabels": [
+          "リクエスト",
+          "レスポンス"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "サービス",
+    "instances": "Sidecar",
+    "endpoints": "エンドポイント"
+  }
+}

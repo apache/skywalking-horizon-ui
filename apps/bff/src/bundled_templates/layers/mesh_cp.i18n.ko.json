@@ -1,0 +1,109 @@
+{
+  "alias": "Istio 컨트롤 플레인",
+  "group": "Istio",
+  "naming": {
+    "alias": "네임스페이스"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutine"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "서비스"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Istio 상태",
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "Istio 컨트롤 플레인 프로세스 CPU입니다."
+          },
+          {
+            "label": "Goroutine",
+            "tip": "활성 Go goroutine 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      {
+        "title": "Goroutine"
+      },
+      {
+        "title": "Istio 버전"
+      },
+      {
+        "title": "메모리 (MB)",
+        "expressionLabels": [
+          "alloc",
+          "heap 사용 중",
+          "stack 사용 중",
+          "가상",
+          "resident"
+        ]
+      },
+      {
+        "title": "Pilot 오류",
+        "expressionLabels": [
+          "cds reject",
+          "eds reject",
+          "rds reject",
+          "lds reject",
+          "쓰기 타임아웃"
+        ]
+      },
+      {
+        "title": "프록시 푸시 시간 (백분위)"
+      },
+      {
+        "title": "Pilot 푸시"
+      },
+      {
+        "title": "사이드카 주입 성공"
+      },
+      {
+        "title": "ADS 모니터링",
+        "expressionLabels": [
+          "xds",
+          "서비스",
+          "가상 서비스"
+        ]
+      },
+      {
+        "title": "구성 검증",
+        "expressionLabels": [
+          "passed",
+          "실패"
+        ]
+      },
+      {
+        "title": "Pilot 충돌",
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "컨트롤 플레인"
+  }
+}

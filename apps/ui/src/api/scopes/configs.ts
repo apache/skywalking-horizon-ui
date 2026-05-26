@@ -20,6 +20,7 @@ import type {
   OverviewDashboard,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
+import { currentLocale } from '@/i18n';
 import { withBase, type BffClient } from '../client';
 
 export type BundleScopeMap = Partial<
@@ -54,6 +55,18 @@ export interface TemplateBadge {
   status: TemplateStatus;
 }
 
+/** A template name where OAP has >1 enabled row. The BFF picks the
+ *  lowest-id row as the live one (deterministic across instances);
+ *  the admin surfaces the rest so an operator can disable them. */
+export interface TemplateConflict {
+  name: string;
+  kind: TemplateKind;
+  key: string;
+  /** UUIDs of every enabled OAP row for this name, sorted ASC. The
+   *  first element is the winner; the rest are extras to clean up. */
+  enabledIds: string[];
+}
+
 /** Bundle-level sync envelope. When `unreachable`, all rows fall back to
  *  bundled and the admin pages render the global read-only banner. */
 export interface BundleSyncStatus {
@@ -61,6 +74,7 @@ export interface BundleSyncStatus {
   lastSuccessfulSyncAt: number | null;
   generatedAt: number;
   badges: TemplateBadge[];
+  conflicts: TemplateConflict[];
 }
 
 export interface ConfigBundle {
@@ -82,10 +96,26 @@ export class ConfigsApi {
    * validation. Returns `null` on a 304 (the caller's cached copy
    * is current); otherwise a full bundle.
    */
-  async bundle(ifNoneMatch?: string, prefer?: 'local' | 'remote'): Promise<ConfigBundle | null> {
-    const headers: Record<string, string> = {};
+  async bundle(
+    ifNoneMatch?: string,
+    prefer?: 'local' | 'remote',
+    force?: boolean,
+  ): Promise<ConfigBundle | null> {
+    // X-Horizon-Locale is added explicitly here because this path
+    // bypasses BffClient.request (304 needs to be a non-throwing
+    // success), and bundle content varies by locale — without it,
+    // the BFF falls through to browser Accept-Language and a
+    // locale switch in the UI doesn't change overview / layer text.
+    const headers: Record<string, string> = { 'X-Horizon-Locale': currentLocale() };
     if (ifNoneMatch) headers['If-None-Match'] = ifNoneMatch;
-    const path = prefer === 'local' ? '/api/configs/bundle?prefer=local' : '/api/configs/bundle';
+    const params: string[] = [];
+    if (prefer === 'local') params.push('prefer=local');
+    // `force=true` makes the BFF invalidate its 30s OAP sync cache
+    // before computing the bundle's `syncStatus`. Admin pages pass
+    // this on mount so their badges reflect live OAP state, not a
+    // stale snapshot from a prior session's localStorage cache.
+    if (force) params.push('force=true');
+    const path = `/api/configs/bundle${params.length ? '?' + params.join('&') : ''}`;
     // Direct fetch (not BffClient.request) because we need 304 to be a
     // non-throwing success path. The error logging that lives in
     // BffClient.request is replicated here so a bundle-load failure

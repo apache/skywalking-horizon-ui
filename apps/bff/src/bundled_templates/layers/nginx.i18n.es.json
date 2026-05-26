@@ -1,0 +1,122 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Errores",
+        "metrics": [
+          {
+            "label": "Tasa 5xx",
+            "tip": "Porcentaje de peticiones que retornan 5xx por minuto."
+          },
+          {
+            "label": "Tasa 4xx",
+            "tip": "Porcentaje de peticiones que retornan 4xx por minuto."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Peticiones por segundo en el servicio Nginx."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Servicios de Nginx",
+    "endpoints": "Rutas"
+  },
+  "group": "Gateways",
+  "alias": "Nginx",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Conexiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      },
+      {
+        "title": "Conteo de logs de error"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Conexiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      },
+      {
+        "title": "Conteo de logs de error"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Latencia HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "4xx % / min"
+      },
+      {
+        "title": "5xx % / min"
+      }
+    ]
+  }
+}

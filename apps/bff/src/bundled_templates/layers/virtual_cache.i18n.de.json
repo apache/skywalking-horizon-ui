@@ -1,0 +1,139 @@
+{
+  "alias": "Virtueller Cache",
+  "group": "Virtuelle Ziele",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Zugriffs-RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95. Perzentil der Cache-Zugriffs-Latenz."
+          },
+          {
+            "label": "Fehlerrate",
+            "tip": "100 − Cache-Zugriffs-Erfolgsrate. Cache-Ausnahmen erfasst durch den Agenten des aufrufenden Dienstes."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Zugriffs-RPM",
+            "tip": "Cache-Operationen pro Minute (Lesen + Schreiben)."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Zugriffs-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Zugriffslatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Zugriffs-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Zugriffs-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lese-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lesen mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Schreib-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Schreiben mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lese-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Schreib-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Lese-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Schreib-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Langsame Lesebefehle",
+        "tip": "Top 10 langsamste erfasste Lesebefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Langsame Schreibbefehle",
+        "tip": "Top 10 langsamste erfasste Schreibbefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Caches"
+  }
+}

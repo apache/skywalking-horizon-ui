@@ -1,0 +1,75 @@
+{
+  "alias": "Redis",
+  "group": "数据库",
+  "slots": {
+    "services": "Redis 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "命令/秒" },
+      { "label": "命中率" },
+      { "label": "内存 %" },
+      { "label": "客户端" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "健康度",
+        "metrics": [
+          { "label": "命中率", "tip": "缓存命中率。下降趋势 = 抖动。" },
+          { "label": "内存 %", "tip": "已用 / 最大内存。>80% = 警告。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "命令/秒", "tip": "集群每秒命令总数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "运行时长（天）" },
+      { "title": "已连接客户端" },
+      { "title": "阻塞客户端" },
+      { "title": "内存使用" },
+      { "title": "命令总数 / 秒" },
+      { "title": "命中率" },
+      { "title": "平均命令耗时 / 秒" },
+      {
+        "title": "网络 I/O（KB）",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "Key 数量",
+        "expressionLabels": ["total", "evicted", "expired"]
+      },
+      {
+        "title": "慢命令",
+        "tip": "采集到的最慢的 10 条命令。由 SkyWalking agent 在调用点采集。"
+      }
+    ],
+    "instance": [
+      { "title": "运行时长（天）" },
+      { "title": "已连接客户端" },
+      { "title": "阻塞客户端" },
+      { "title": "最大内存（MB）" },
+      { "title": "内存使用率（%）" },
+      { "title": "命令 / 秒" },
+      { "title": "命中率" },
+      {
+        "title": "网络 I/O（KB）",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "Key 数量",
+        "expressionLabels": ["total", "evicted", "expired"]
+      },
+      { "title": "命令总耗时（s）" },
+      { "title": "平均命令耗时" }
+    ]
+  }
+}

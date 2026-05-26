@@ -1,0 +1,140 @@
+{
+  "alias": "Kubernetes 服务",
+  "group": "Kubernetes",
+  "slots": {
+    "services": "K8s 服务",
+    "instances": "Pod",
+    "endpoints": "端点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Pod" },
+      { "label": "HTTP RPM" },
+      { "label": "延迟" },
+      { "label": "成功率" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "HTTP",
+        "metrics": [
+          { "label": "RPM", "tip": "eBPF 探测到的每分钟 HTTP 请求数。" },
+          { "label": "延迟", "tip": "集群范围内的 HTTP 平均响应时间。" },
+          { "label": "错误率", "tip": "100 − HTTP 成功率。" }
+        ]
+      },
+      {
+        "title": "健康度",
+        "metrics": [
+          { "label": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "服务 Pod" },
+      {
+        "title": "等待中的 Pod",
+        "tableHeaders": ["Container · Pod · Reason", ""]
+      },
+      {
+        "title": "Pod 重启",
+        "tableHeaders": ["Pod", "Restarts"]
+      },
+      {
+        "title": "CPU 资源",
+        "expressionLabels": ["requests", "limits"]
+      },
+      {
+        "title": "内存资源",
+        "expressionLabels": ["requests", "limits"]
+      },
+      { "title": "Pod CPU 使用率" },
+      { "title": "Pod 内存使用率" },
+      { "title": "HTTP 请求 RPM" },
+      { "title": "HTTP 响应时间" },
+      {
+        "title": "HTTP 状态码 RPM",
+        "tip": "按类别统计的状态码数量（1xx / 2xx / 3xx / 4xx / 5xx）。",
+        "expressionLabels": ["1xx", "2xx", "3xx", "4xx", "5xx"]
+      },
+      {
+        "title": "HTTP 请求 / 响应大小",
+        "expressionLabels": ["req hdr", "req body", "resp hdr", "resp body"]
+      },
+      {
+        "title": "TCP Connect",
+        "tip": "客户端每分钟连接尝试与成功次数。",
+        "expressionLabels": ["connect", "success"]
+      },
+      { "title": "TCP Connect 耗时" },
+      { "title": "TCP Accept" },
+      {
+        "title": "TCP 数据包",
+        "tip": "每分钟读取和写入数据包数（含重传）。",
+        "expressionLabels": ["read", "write", "write retrans"]
+      },
+      {
+        "title": "TCP 字节",
+        "expressionLabels": ["read", "write"]
+      }
+    ],
+    "instance": [
+      { "title": "Pod HTTP RPM" },
+      { "title": "Pod HTTP 响应时间" },
+      {
+        "title": "Pod HTTP 状态码 RPM",
+        "expressionLabels": ["1xx", "2xx", "3xx", "4xx", "5xx"]
+      },
+      {
+        "title": "Pod HTTP 大小",
+        "expressionLabels": ["req hdr", "req body", "resp hdr", "resp body"]
+      },
+      {
+        "title": "Pod TCP Connect",
+        "expressionLabels": ["connect", "success"]
+      },
+      {
+        "title": "Pod TCP 数据包",
+        "expressionLabels": ["read", "write", "write retrans"]
+      },
+      {
+        "title": "Pod TCP 字节",
+        "expressionLabels": ["read", "write"]
+      }
+    ],
+    "endpoint": [
+      { "title": "端点 HTTP RPM" },
+      { "title": "端点 HTTP 响应时间" },
+      {
+        "title": "端点状态码 RPM",
+        "expressionLabels": ["1xx", "2xx", "3xx", "4xx", "5xx"]
+      },
+      {
+        "title": "端点请求大小",
+        "expressionLabels": ["header", "body"]
+      },
+      {
+        "title": "端点响应大小",
+        "expressionLabels": ["header", "body"]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      { "label": "RPM" },
+      { "label": "成功率" },
+      { "label": "延迟" }
+    ],
+    "linkServerMetrics": [
+      { "label": "RPM" },
+      { "label": "平均响应时间" }
+    ],
+    "linkClientMetrics": [
+      { "label": "RPM" },
+      { "label": "平均响应时间" }
+    ]
+  }
+}

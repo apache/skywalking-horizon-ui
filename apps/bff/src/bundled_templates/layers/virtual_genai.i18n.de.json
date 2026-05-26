@@ -1,0 +1,181 @@
+{
+  "alias": "Virtuelles GenAI",
+  "group": "Virtuelle Ziele",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Erfolgsrate"
+      },
+      {
+        "label": "Output-Tokens"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "Mittlere Latenz",
+            "tip": "Durchschnittliche Aufruflatenz zum GenAI-Anbieter."
+          },
+          {
+            "label": "Fehlerrate",
+            "tip": "100 − Anbieter-SLA."
+          }
+        ]
+      },
+      {
+        "title": "Kosten",
+        "metrics": [
+          {
+            "label": "Gesamt geschätzte Kosten",
+            "tip": "Kumulative Anbieter-Kostenschätzung."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Aufrufe / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Input-Tokens",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "summe",
+          "mittel"
+        ]
+      },
+      {
+        "title": "Output-Tokens",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "summe",
+          "mittel"
+        ]
+      },
+      {
+        "title": "Geschätzte Kosten",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "mittel"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Aufrufe / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TTFT",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "perzentil"
+        ]
+      },
+      {
+        "title": "Input-Tokens",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "summe",
+          "mittel"
+        ]
+      },
+      {
+        "title": "Output-Tokens",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "summe",
+          "mittel"
+        ]
+      },
+      {
+        "title": "Geschätzte Kosten",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "mittel"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "GenAI-Anbieter",
+    "instances": "Modelle"
+  }
+}

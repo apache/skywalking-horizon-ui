@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { formatValue } from './ValueFormat';
+import WidgetTip from '@/components/primitives/WidgetTip.vue';
 defineProps<{ title: string; tip?: string; value: number | null | undefined; unit?: string }>();
 </script>
 
@@ -23,7 +24,7 @@ defineProps<{ title: string; tip?: string; value: number | null | undefined; uni
   <section class="sw-card tile">
     <header>
       <h4>{{ title }}</h4>
-      <span v-if="tip" class="tip" :title="tip">?</span>
+      <WidgetTip :tip="tip" />
     </header>
     <div class="value">{{ formatValue(value, unit) }}</div>
   </section>
@@ -33,11 +34,6 @@ defineProps<{ title: string; tip?: string; value: number | null | undefined; uni
 .tile { display: flex; flex-direction: column; padding: 10px 12px; gap: 4px; min-height: 0; }
 header { display: flex; align-items: center; gap: 6px; }
 h4 { margin: 0; font-size: 11px; font-weight: 600; color: var(--sw-fg-1); }
-.tip {
-  font-size: 9px; color: var(--sw-fg-3); border: 1px solid var(--sw-line-2);
-  border-radius: 50%; width: 13px; height: 13px;
-  display: inline-flex; align-items: center; justify-content: center; cursor: help;
-}
 .value {
   font-size: 22px; font-weight: 600; color: var(--sw-fg-0); margin-top: auto;
   font-variant-numeric: tabular-nums;

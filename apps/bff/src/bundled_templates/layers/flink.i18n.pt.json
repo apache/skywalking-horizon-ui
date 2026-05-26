@@ -1,0 +1,231 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "slots": {
+    "services": "JobManagers do Flink",
+    "instances": "TaskManagers",
+    "endpoints": "Jobs"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Jobs em execução"
+      },
+      {
+        "label": "TaskManagers"
+      },
+      {
+        "label": "Slots disponíveis"
+      },
+      {
+        "label": "Slots totais"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Jobs em execução",
+            "tip": "Jobs do Flink ativos."
+          },
+          {
+            "label": "Slots disponíveis",
+            "tip": "Slots de tarefa livres."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Jobs em execução"
+      },
+      {
+        "title": "TaskManagers"
+      },
+      {
+        "title": "Slots totais"
+      },
+      {
+        "title": "Slots disponíveis"
+      },
+      {
+        "title": "Carga de CPU JVM do JM (%)"
+      },
+      {
+        "title": "Contagem de threads JVM do JM"
+      },
+      {
+        "title": "Tempo de CPU do JM (ms)"
+      },
+      {
+        "title": "Heap do JM (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "NonHeap do JM (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "Metaspace do JM (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressionLabels": [
+          "contagem",
+          "tempo (ms)"
+        ]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressionLabels": [
+          "contagem",
+          "tempo (ms)"
+        ]
+      },
+      {
+        "title": "Todos os GC",
+        "expressionLabels": [
+          "contagem",
+          "tempo (ms)"
+        ]
+      },
+      {
+        "title": "Top 10 jobs em execução"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Carga de CPU JVM (%)"
+      },
+      {
+        "title": "Contagem de threads JVM"
+      },
+      {
+        "title": "Tempo de CPU (ms)"
+      },
+      {
+        "title": "Sob backpressure"
+      },
+      {
+        "title": "Heap (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "NonHeap (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "Metaspace (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "Records entrada / saída",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Bytes entrada / saída / s",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Memória Netty (MB)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "Uso do pool (%)",
+        "expressionLabels": [
+          "in pool",
+          "out pool"
+        ]
+      },
+      {
+        "title": "Tempo sob backpressure (ms/s)",
+        "expressionLabels": [
+          "bp leve",
+          "bp severo",
+          "ocioso",
+          "ocupado"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tempo de execução do job (min)"
+      },
+      {
+        "title": "Tempo de reinício do job (min)"
+      },
+      {
+        "title": "Tempo de cancelamento do job (min)"
+      },
+      {
+        "title": "Reinícios do job"
+      },
+      {
+        "title": "Checkpoints",
+        "expressionLabels": [
+          "total",
+          "concluídos",
+          "falhos",
+          "em andamento"
+        ]
+      },
+      {
+        "title": "Último checkpoint",
+        "expressionLabels": [
+          "tamanho (bytes)",
+          "duração (ms)"
+        ]
+      },
+      {
+        "title": "Lag atual de emit-event time (ms)"
+      },
+      {
+        "title": "Records entrada / saída",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      },
+      {
+        "title": "Bytes entrada / saída / s",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,179 @@
+{
+  "alias": "WeChat Mini-Programm",
+  "group": "Mobil",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Anfrage-RPM"
+      },
+      {
+        "label": "Start"
+      },
+      {
+        "label": "First Render"
+      },
+      {
+        "label": "Fehler"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "Anfrage-P95",
+            "tip": "95. Perzentil der Anfragedauer über die WeChat-Netzwerk-Bridge."
+          },
+          {
+            "label": "Start",
+            "tip": "Mini-Programm-Startdauer, beobachtet vom WeChat-Client."
+          },
+          {
+            "label": "Fehler",
+            "tip": "Gemeldete Fehleranzahl."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Anfrage-RPM",
+            "tip": "Bridge-Anfragen pro Minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "App-Startdauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Paket-Ladedauer",
+        "tip": "Zeit zum Herunterladen + Parsen des Mini-Programm-Bundles.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehleranzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Route-Dauer",
+        "tip": "Zeit in Mini-Programm-Seitenübergängen.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Script-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Startdauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Paket-Ladedauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Route-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Script-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Startdauer auf Seite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Mini-Programme",
+    "instances": "Versionen",
+    "endpoints": "Seiten"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "alias": "Mini-programme Alipay",
+  "group": "Mobile",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM des requêtes"
+      },
+      {
+        "label": "Lancement"
+      },
+      {
+        "label": "Premier rendu"
+      },
+      {
+        "label": "Erreurs"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95 des requêtes",
+            "tip": "Durée de requête au 95e centile depuis le bridge réseau du mini-programme."
+          },
+          {
+            "label": "Lancement",
+            "tip": "Durée approximative de lancement du mini-programme."
+          },
+          {
+            "label": "Erreurs",
+            "tip": "Nombre d'erreurs remontées."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM des requêtes",
+            "tip": "Requêtes via le bridge par minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Durée de lancement de l'app",
+        "tip": "Durée approximative de lancement à froid depuis le conteneur Alipay."
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Nombre d'erreurs"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Durée de lancement"
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Durée de lancement sur la page"
+      },
+      {
+        "title": "Durée du premier rendu"
+      },
+      {
+        "title": "Charge de requêtes"
+      },
+      {
+        "title": "Centile de durée de requête"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Mini-programmes",
+    "instances": "Versions",
+    "endpoints": "Pages"
+  }
+}

@@ -1,0 +1,140 @@
+{
+  "dashboards": {
+    "service": [
+      {
+        "title": "Percentil de tiempo de lanzamiento de la app"
+      },
+      {
+        "title": "Percentil de tiempo de hang"
+      },
+      {
+        "title": "Tiempo de hang (suma)"
+      },
+      {
+        "title": "Salidas anómalas (Crashes)",
+        "tip": "MetricKit reporta salidas anómalas en primer plano vs segundo plano por separado.",
+        "expressionLabels": [
+          "primer plano",
+          "fondo"
+        ]
+      },
+      {
+        "title": "Conteo de OOM kills",
+        "tip": "Kills por OOM en segundo plano — el sistema iOS termina la app por presión de memoria."
+      },
+      {
+        "title": "Memoria máxima"
+      },
+      {
+        "title": "Ratio de hitches de scroll",
+        "tip": "Porcentaje de frames de scroll clasificados como hitched — más alto = UI más lenta."
+      },
+      {
+        "title": "Transferencia de red",
+        "tip": "Bytes por wifi vs móvil, entrada + salida.",
+        "expressionLabels": [
+          "wifi ↓",
+          "wifi ↑",
+          "móvil ↓",
+          "móvil ↑"
+        ]
+      },
+      {
+        "expressionLabels": [
+          "RPM",
+          "Latencia media (ms)",
+          "Tasa de éxito (%)"
+        ],
+        "title": "HTTP saliente",
+        "tip": "Llamadas que la app hace a backends — carga, latencia, tasa de éxito."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Percentil de tiempo de lanzamiento"
+      },
+      {
+        "title": "Percentil de tiempo de hang"
+      },
+      {
+        "title": "Salidas anómalas",
+        "expressionLabels": [
+          "primer plano",
+          "fondo"
+        ]
+      },
+      {
+        "title": "Conteo de OOM kills"
+      },
+      {
+        "title": "Memoria máxima"
+      },
+      {
+        "expressionLabels": [
+          "RPM",
+          "Latencia media (ms)",
+          "Tasa de éxito (%)"
+        ],
+        "title": "HTTP saliente"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Carga saliente"
+      },
+      {
+        "title": "Latencia media saliente"
+      },
+      {
+        "title": "Tasa de éxito saliente"
+      },
+      {
+        "title": "Percentil de latencia saliente"
+      }
+    ]
+  },
+  "group": "Móvil",
+  "alias": "iOS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Lanzamiento (P95)"
+      },
+      {
+        "label": "Tiempo de hang"
+      },
+      {
+        "label": "Crashes"
+      },
+      {
+        "label": "RPM saliente"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Estado de la app",
+        "metrics": [
+          {
+            "label": "Lanzamiento P95",
+            "tip": "Tiempo de arranque en frío en el percentil 95 según MetricKit."
+          },
+          {
+            "label": "Hang P95",
+            "tip": "Duración de bloqueos de UI en el percentil 95."
+          },
+          {
+            "label": "Crashes",
+            "tip": "Salidas anómalas en primer plano + segundo plano."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Apps",
+    "instances": "Sesiones de la app",
+    "endpoints": "APIs salientes"
+  }
+}

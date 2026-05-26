@@ -1,0 +1,71 @@
+{
+  "alias": "AWS DynamoDB",
+  "group": "AWS",
+  "slots": {
+    "services": "DynamoDB 账户",
+    "endpoints": "表"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "读限流" },
+      { "label": "写限流" },
+      { "label": "读系统错误" },
+      { "label": "写系统错误" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "限流",
+        "metrics": [
+          { "label": "读限流", "tip": "读请求被限流 — 容量耗尽。" },
+          { "label": "写限流", "tip": "写请求被限流。" },
+          { "label": "用户错误", "tip": "类似 bad-request 的用户错误。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "被限流请求", "expressionLabels": ["read", "write"] },
+      { "title": "限流事件", "expressionLabels": ["read", "write"] },
+      { "title": "系统错误", "expressionLabels": ["read", "write"] },
+      { "title": "用户错误" },
+      { "title": "条件检查失败" },
+      { "title": "事务冲突" },
+      { "title": "读容量（unit/s）", "expressionLabels": ["provisioned", "consumed"] },
+      { "title": "写容量（unit/s）", "expressionLabels": ["provisioned", "consumed"] },
+      {
+        "title": "成功请求延迟（ms）",
+        "expressionLabels": ["get", "put", "query", "scan"]
+      },
+      { "title": "TTL 删除项数" },
+      { "title": "Scan 返回项数" },
+      { "title": "Query 返回项数" },
+      {
+        "title": "账户最大读 / 写",
+        "expressionLabels": ["table-level reads", "table-level writes", "reads", "writes"]
+      },
+      {
+        "title": "账户容量利用率",
+        "expressionLabels": ["read", "write"]
+      }
+    ],
+    "endpoint": [
+      { "title": "被限流请求", "expressionLabels": ["read", "write"] },
+      { "title": "限流事件", "expressionLabels": ["read", "write"] },
+      { "title": "系统错误", "expressionLabels": ["read", "write"] },
+      { "title": "条件检查失败" },
+      { "title": "事务冲突" },
+      { "title": "TTL 删除项数" },
+      { "title": "读容量", "expressionLabels": ["provisioned", "consumed"] },
+      { "title": "写容量", "expressionLabels": ["provisioned", "consumed"] },
+      {
+        "title": "成功请求延迟（ms）",
+        "expressionLabels": ["get", "put", "query", "scan"]
+      },
+      { "title": "Scan 返回项数" },
+      { "title": "Query 返回项数" }
+    ]
+  }
+}

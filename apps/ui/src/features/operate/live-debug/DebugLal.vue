@@ -31,6 +31,7 @@
  * 1-based DSL-block line that fired.
  */
 import { computed, ref, shallowRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
@@ -59,6 +60,7 @@ import {
   RECORD_CAP_MAX,
 } from './constants.js';
 
+const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const dbg = useDebugSession('lal');
 const history = useDebugHistory('lal');
@@ -345,9 +347,9 @@ const nodeViews = computed<LalNodeView[]>(() => {
           if (sample.type !== 'function') {
             kindLabel = sample.type;
           } else if (sourceLine > 0) {
-            kindLabel = `function @${sourceLine}`;
+            kindLabel = t('function @{line}', { line: sourceLine });
           } else {
-            kindLabel = 'extractor';
+            kindLabel = t('extractor');
           }
           steps.push({ key, type: sample.type, sourceLine, kindLabel, nameLabel });
         }
@@ -702,7 +704,7 @@ function formatTime(ms: number): string {
 }
 
 function recordTitle(view: LalRecordView): string {
-  return `record ${view.recIdx + 1} · ${formatTime(view.rec.startedAtMs)}`;
+  return t('record {n} · {time}', { n: view.recIdx + 1, time: formatTime(view.rec.startedAtMs) });
 }
 </script>
 
@@ -714,14 +716,14 @@ function recordTitle(view: LalRecordView): string {
   >
     <template #controls>
       <div class="ctl">
-        <label class="ctl__lbl">rule file</label>
+        <label class="ctl__lbl">{{ t('rule file') }}</label>
         <select v-model="selectedFile" class="ctl__select">
-          <option value="" disabled>select a LAL rule file…</option>
+          <option value="" disabled>{{ t('select a LAL rule file…') }}</option>
           <option v-for="n in fileNames" :key="n" :value="n">{{ n }}</option>
         </select>
       </div>
       <div class="ctl ctl--grow">
-        <label class="ctl__lbl">rule</label>
+        <label class="ctl__lbl">{{ t('rule') }}</label>
         <select
           v-model="selectedRule"
           class="ctl__select"
@@ -729,31 +731,31 @@ function recordTitle(view: LalRecordView): string {
         >
           <option value="" disabled>
             {{ selectedFile === ''
-                ? 'pick a file first…'
+                ? t('pick a file first…')
                 : ruleContentQuery.isPending.value
-                  ? 'loading…'
+                  ? t('loading…')
                   : innerRuleNames.length === 0
-                    ? 'no rules found in file'
-                    : 'select a rule…' }}
+                    ? t('no rules found in file')
+                    : t('select a rule…') }}
           </option>
           <option v-for="r in innerRuleNames" :key="r" :value="r">{{ r }}</option>
         </select>
       </div>
       <div class="ctl">
-        <label class="ctl__lbl">granularity</label>
+        <label class="ctl__lbl">{{ t('granularity') }}</label>
         <div class="lal__granularity">
           <button
             type="button"
             class="lal__granbtn"
             :class="{ 'lal__granbtn--active': granularity === 'block' }"
             @click="granularity = 'block'"
-          >block</button>
+          >{{ t('block') }}</button>
           <button
             type="button"
             class="lal__granbtn"
             :class="{ 'lal__granbtn--active': granularity === 'statement' }"
             @click="granularity = 'statement'"
-          >statement</button>
+          >{{ t('statement') }}</button>
         </div>
       </div>
       <div class="ctl">
@@ -761,48 +763,48 @@ function recordTitle(view: LalRecordView): string {
         <input v-model.number="recordCap" type="number" min="1" :max="RECORD_CAP_MAX" class="ctl__input" />
       </div>
       <div class="ctl">
-        <label class="ctl__lbl">retention (min)</label>
+        <label class="ctl__lbl">{{ t('retention (min)') }}</label>
         <input v-model.number="retentionMinutes" type="number" min="1" max="60" class="ctl__input" />
       </div>
-      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">start sampling</Btn>
-      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">stop</Btn>
+      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">{{ t('start sampling') }}</Btn>
+      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">{{ t('stop') }}</Btn>
       <router-link
         class="ctl__editlink"
         to="/operate/live-debug/history"
-        title="browse past captures saved locally"
-      >history ({{ history.entries.value.length }}) →</router-link>
+        :title="t('browse past captures saved locally')"
+      >{{ t('history ({n}) →', { n: history.entries.value.length }) }}</router-link>
       <router-link
         v-if="selectedFile"
         class="ctl__editlink"
         :to="{ path: '/operate/dsl/edit', query: { catalog: 'lal', name: selectedFile } }"
-        :title="`open lal · ${selectedFile} in the editor`"
-      >open in editor →</router-link>
+        :title="t('open {catalog} · {name} in the editor', { catalog: 'lal', name: selectedFile })"
+      >{{ t('open in editor →') }}</router-link>
     </template>
 
     <template #banner>
       <div v-if="historicalEntry" class="lal__histbanner">
         <span class="lal__histbicon">⟲</span>
         <span>
-          viewing saved capture from <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
+          {{ t('viewing saved capture from') }} <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
           · {{ historicalEntry.catalog }} · {{ historicalEntry.name }} · {{ historicalEntry.ruleName }}
         </span>
-        <button type="button" class="lal__histback" @click="clearHistorical">back to live</button>
+        <button type="button" class="lal__histback" @click="clearHistorical">{{ t('back to live') }}</button>
       </div>
     </template>
 
     <template #subhead>
       <div class="lal__subhead">
         <label class="lal__searchwrap">
-          <span class="lal__searchlbl">search</span>
+          <span class="lal__searchlbl">{{ t('search') }}</span>
           <input
             v-model="searchQuery"
             type="search"
             class="lal__searchinput"
-            placeholder="filter records by log content / tag…"
+            :placeholder="t('filter records by log content / tag…')"
           />
         </label>
         <label class="lal__limitwrap">
-          <span class="lal__searchlbl">show first</span>
+          <span class="lal__searchlbl">{{ t('show first') }}</span>
           <input
             v-model.number="displayLimit"
             type="number"
@@ -815,17 +817,14 @@ function recordTitle(view: LalRecordView): string {
     </template>
 
     <template #idle-hint>
-      pick a LAL rule and hit start. each captured log becomes one
-      column in the matrix; rows walk the per-record blocks
-      <code>input → function → output</code> (statement granularity
-      splits <code>function</code> per DSL line). click any cell to
-      open the source pane with that record's captured DSL and the
-      matching fragment highlighted.
+      {{ t('pick a LAL rule and hit start. each captured log becomes one column in the matrix; rows walk the per-record blocks') }}
+      <code>input → function → output</code> {{ t('(statement granularity splits') }}
+      <code>function</code> {{ t("per DSL line). click any cell to open the source pane with that record's captured DSL and the matching fragment highlighted.") }}
     </template>
 
     <template #node-body="{ node }">
       <div v-if="node.recordViews.length === 0" class="lal__empty">
-        no LAL records from this node
+        {{ t('no LAL records from this node') }}
       </div>
 
       <!-- DSL pane stays mounted across both modes (matrix view AND
@@ -840,11 +839,11 @@ function recordTitle(view: LalRecordView): string {
             <button
               type="button"
               class="lal__srctogglebtn"
-              title="show captured DSL panel"
-              aria-label="show captured DSL panel"
+              :title="t('show captured DSL panel')"
+              :aria-label="t('show captured DSL panel')"
               @click="sourcePanelOpen = true"
             ><span class="lal__srctogglechev">»</span></button>
-            <span class="lal__sourcestublabel">Captured DSL</span>
+            <span class="lal__sourcestublabel">{{ t('Captured DSL') }}</span>
           </aside>
           <aside
             v-if="sourcePanelOpen && sourceDslLines.length > 0"
@@ -854,11 +853,11 @@ function recordTitle(view: LalRecordView): string {
               <button
                 type="button"
                 class="lal__srctogglebtn"
-                title="fold captured DSL panel"
-                aria-label="fold captured DSL panel"
+                :title="t('fold captured DSL panel')"
+                :aria-label="t('fold captured DSL panel')"
                 @click="sourcePanelOpen = false"
               ><span class="lal__srctogglechev">«</span></button>
-              <span class="lal__sourcehtitle">captured DSL · click ▶ to jump</span>
+              <span class="lal__sourcehtitle">{{ t('captured DSL · click ▶ to jump') }}</span>
             </header>
             <ol class="lal__sourcelines">
               <li
@@ -876,14 +875,14 @@ function recordTitle(view: LalRecordView): string {
                   v-if="stepKeyByLine.get(li + 1)"
                   type="button"
                   class="lal__sourcehook"
-                  title="jump to this statement's row in the matrix"
+                  :title="t(`jump to this statement's row in the matrix`)"
                   @click="jumpToStep(stepKeyByLine.get(li + 1)!)"
                 >▶</button>
                 <button
                   v-else-if="blockHookByLine.get(li + 1)"
                   type="button"
                   class="lal__sourcehook lal__sourcehook--block"
-                  title="jump to the block-mode extractor row in the matrix"
+                  :title="t('jump to the block-mode extractor row in the matrix')"
                   @click="jumpToStep(blockHookByLine.get(li + 1)!)"
                 >▶</button>
                 <span v-else class="lal__sourcehookbox" />
@@ -900,11 +899,11 @@ function recordTitle(view: LalRecordView): string {
           v-if="displayedRecords(node).length === 0"
           class="lal__nomatch"
         >
-          <template v-if="searchQuery.trim() === ''">no records on this node</template>
+          <template v-if="searchQuery.trim() === ''">{{ t('no records on this node') }}</template>
           <template v-else>
-            no records match
+            {{ t('no records match') }}
             <code>{{ searchQuery }}</code>
-            ({{ node.recordViews.length }} captured total)
+            ({{ t('{n} captured total', { n: node.recordViews.length }) }})
           </template>
         </div>
         <div
@@ -914,12 +913,12 @@ function recordTitle(view: LalRecordView): string {
         >
           <!-- header row: blank label cell + record headers -->
           <div class="lal__hdrlbl">
-            block ▾ / record →
+            {{ t('block ▾ / record →') }}
             <div class="lal__hdrlblct">
-              showing {{ displayedRecords(node).length }}
-              of {{ matchedRecordCount(node) }}
+              {{ t('showing') }} {{ displayedRecords(node).length }}
+              {{ t('of') }} {{ matchedRecordCount(node) }}
               <span v-if="matchedRecordCount(node) !== node.recordViews.length">
-                · {{ node.recordViews.length }} captured
+                · {{ t('{n} captured', { n: node.recordViews.length }) }}
               </span>
             </div>
           </div>
@@ -937,7 +936,7 @@ function recordTitle(view: LalRecordView): string {
               <button
                 type="button"
                 class="lal__expandbtn"
-                :title="isRecordExpanded(nodeKey(node), rv.recIdx) ? 'collapse to full matrix' : 'expand this record to full width'"
+                :title="isRecordExpanded(nodeKey(node), rv.recIdx) ? t('collapse to full matrix') : t('expand this record to full width')"
                 @click.stop="toggleExpandRecord(nodeKey(node), rv.recIdx)"
               >{{ isRecordExpanded(nodeKey(node), rv.recIdx) ? '↩' : '⤢' }}</button>
             </div>
@@ -955,8 +954,7 @@ function recordTitle(view: LalRecordView): string {
                 <code>{{ step.nameLabel }}</code>
               </div>
               <div class="lal__stepct">
-                {{ displayedRecords(node).filter((rv) => cellAt(node, step, rv.recIdx) !== undefined).length }}
-                / {{ displayedRecords(node).length }} records
+                {{ t('{n} / {total} records', { n: displayedRecords(node).filter((rv) => cellAt(node, step, rv.recIdx) !== undefined).length, total: displayedRecords(node).length }) }}
               </div>
             </div>
             <div
@@ -991,10 +989,10 @@ function recordTitle(view: LalRecordView): string {
                     class="lal__tags"
                   >
                     <span
-                      v-for="(t, ti) in inputTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
+                      v-for="(tag, ti) in inputTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
                       :key="ti"
                       class="lal__tag lal__tag--orig"
-                    >{{ t.key }}={{ t.value }}</span>
+                    >{{ tag.key }}={{ tag.value }}</span>
                   </div>
                   <div v-if="bodyPreview(cellAt(node, step, rv.recIdx)?.payload ?? null)" class="lal__body">
                     {{ bodyPreview(cellAt(node, step, rv.recIdx)?.payload ?? null) }}
@@ -1013,30 +1011,30 @@ function recordTitle(view: LalRecordView): string {
                     v-if="carriedTags(cellAt(node, step, rv.recIdx)?.payload ?? null).length > 0"
                     class="lal__taggroup"
                   >
-                    <span class="lal__tagheader">carried</span>
+                    <span class="lal__tagheader">{{ t('carried') }}</span>
                     <span
-                      v-for="(t, ti) in carriedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
+                      v-for="(tag, ti) in carriedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
                       :key="`o-${ti}`"
                       class="lal__tag lal__tag--orig"
-                    >{{ t.key }}={{ t.value }}</span>
+                    >{{ tag.key }}={{ tag.value }}</span>
                   </div>
                   <div
                     v-if="addedTags(cellAt(node, step, rv.recIdx)?.payload ?? null).length > 0"
                     class="lal__taggroup"
                   >
-                    <span class="lal__tagheader">+ added</span>
+                    <span class="lal__tagheader">{{ t('+ added') }}</span>
                     <span
-                      v-for="(t, ti) in addedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
+                      v-for="(tag, ti) in addedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
                       :key="`a-${ti}`"
                       class="lal__tag"
-                      :class="t.status === 'lal-override' ? 'lal__tag--over' : 'lal__tag--add'"
-                    >{{ t.key }}={{ t.value }}</span>
+                      :class="tag.status === 'lal-override' ? 'lal__tag--over' : 'lal__tag--add'"
+                    >{{ tag.key }}={{ tag.value }}</span>
                   </div>
                   <div v-if="contentPreview(cellAt(node, step, rv.recIdx)?.payload ?? null)" class="lal__body">
                     {{ contentPreview(cellAt(node, step, rv.recIdx)?.payload ?? null) }}
                   </div>
                 </template>
-                <div v-if="cellAt(node, step, rv.recIdx)?.payload?.aborted" class="lal__abort">aborted</div>
+                <div v-if="cellAt(node, step, rv.recIdx)?.payload?.aborted" class="lal__abort">{{ t('aborted') }}</div>
               </template>
             </div>
           </template>

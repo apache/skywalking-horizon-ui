@@ -34,6 +34,9 @@
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n({ useScope: 'global' });
 import { useOapInfo } from '@/shell/useOapInfo';
 import Icon from '@/components/icons/Icon.vue';
 
@@ -143,9 +146,9 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
       <Icon name="alert" :size="14" />
     </span>
     <div class="msg">
-      <strong>OAP query port unreachable</strong>
+      <strong>{{ t('OAP query port unreachable') }}</strong>
       <span class="detail">
-        Last seen <span class="when">{{ downForLabel }}</span>
+        {{ t('Last seen') }} <span class="when">{{ downForLabel }}</span>
         <span v-if="queryUrl">
           · <code>{{ queryUrl }}</code>
         </span>
@@ -153,8 +156,8 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
       </span>
     </div>
 
-    <label class="retry" title="Auto-retry cadence while OAP is unreachable">
-      <span class="retry-label">retry</span>
+    <label class="retry" :title="t('Auto-retry cadence while OAP is unreachable')">
+      <span class="retry-label">{{ t('retry') }}</span>
       <select v-model="retryChoice">
         <option v-for="o in RETRY_OPTIONS" :key="o.value" :value="o.value">
           {{ o.label }}
@@ -162,8 +165,8 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
       </select>
     </label>
 
-    <button type="button" class="now" @click="() => refetch()">retry now</button>
-    <RouterLink v-if="!onClusterPage" to="/operate/cluster" class="link">View cluster status →</RouterLink>
+    <button type="button" class="now" @click="() => refetch()">{{ t('retry now') }}</button>
+    <RouterLink v-if="!onClusterPage" to="/operate/cluster" class="link">{{ t('View cluster status →') }}</RouterLink>
   </div>
 </template>
 

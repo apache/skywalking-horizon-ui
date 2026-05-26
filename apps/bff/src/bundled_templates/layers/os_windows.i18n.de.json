@@ -1,0 +1,93 @@
+{
+  "alias": "Windows",
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "Speicher MB"
+      },
+      {
+        "label": "VSpeicher %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Ressourcen",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU-Gesamtauslastung."
+          },
+          {
+            "label": "VSpeicher %",
+            "tip": "Auslastung virtueller Speicher."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU-Mittel genutzt (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher RAM (MB)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "gesamt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "Virtueller Speicher (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "frei",
+          "gesamt"
+        ]
+      },
+      {
+        "title": "Netzwerk-Bandbreite (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "transmit"
+        ]
+      },
+      {
+        "title": "Disk R/W (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "geschrieben"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Hosts"
+  }
+}

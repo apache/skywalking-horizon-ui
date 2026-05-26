@@ -1,0 +1,374 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Laufende Jobs"
+      },
+      {
+        "label": "TaskManagers"
+      },
+      {
+        "label": "Slots verfügbar"
+      },
+      {
+        "label": "Slots gesamt"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          {
+            "label": "Laufende Jobs",
+            "tip": "Aktive Flink-Jobs."
+          },
+          {
+            "label": "Slots verfügbar",
+            "tip": "Freie Task-Slots."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Laufende Jobs",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TaskManagers",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Slots gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Slots verfügbar",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JM JVM-CPU-Last (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JM JVM-Thread-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JM CPU-Zeit (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JM Heap (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "JM NonHeap (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "JM Metaspace (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "zeit (ms)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "zeit (ms)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Alle GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "zeit (ms)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Top 10 laufende Jobs",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM-CPU-Last (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Thread-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU-Zeit (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Backpressure",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "NonHeap (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "Metaspace (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "Records Ein / Aus",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Bytes ein / aus / s",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Netty-Speicher (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "Pool-Auslastung (%)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "im pool",
+          "aus pool"
+        ]
+      },
+      {
+        "title": "Backpressure-Zeit (ms/s)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "soft bp",
+          "hard bp",
+          "leerlauf",
+          "ausgelastet"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Job-Laufzeit (min)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Job-Restart-Zeit (min)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Job-Cancel-Zeit (min)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Job-Neustarts",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Checkpoints",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "abgeschlossen",
+          "fehlgeschlagen",
+          "in-bearbeitung"
+        ]
+      },
+      {
+        "title": "Letzter Checkpoint",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "größe (bytes)",
+          "dauer (ms)"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Aktueller Emit-Event-Time-Lag (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Records Ein / Aus",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Bytes ein / aus / s",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Flink JobManagers",
+    "instances": "TaskManagers",
+    "endpoints": "Jobs"
+  }
+}

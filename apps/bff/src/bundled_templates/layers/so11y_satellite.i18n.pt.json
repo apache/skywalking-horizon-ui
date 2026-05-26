@@ -1,0 +1,50 @@
+{
+  "alias": "Satellite",
+  "group": "Auto-observabilidade",
+  "slots": {
+    "services": "Serviços do Satellite"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde do Satellite",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU do processo Satellite."
+          },
+          {
+            "label": "Fila em uso",
+            "tip": "Itens pendentes na fila — indicador de backlog."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Contagem de conexões"
+      },
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "Fila em uso"
+      },
+      {
+        "title": "Eventos receive"
+      },
+      {
+        "title": "Eventos fetch"
+      },
+      {
+        "title": "Entrada / saída da fila",
+        "expressionLabels": [
+          "entrada",
+          "saída"
+        ]
+      }
+    ]
+  }
+}

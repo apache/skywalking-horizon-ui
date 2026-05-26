@@ -1,0 +1,178 @@
+{
+  "alias": "MongoDB",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Doc QPS"
+      },
+      {
+        "label": "작업 QPS"
+      },
+      {
+        "label": "연결"
+      },
+      {
+        "label": "복제 랙"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "용량",
+        "metrics": [
+          {
+            "label": "데이터 크기 (GB)",
+            "tip": "클러스터 전체 데이터 크기입니다."
+          },
+          {
+            "label": "컬렉션",
+            "tip": "클러스터 전체의 컬렉션 수입니다."
+          },
+          {
+            "label": "객체",
+            "tip": "문서 객체 수입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "Doc QPS",
+            "tip": "초당 문서 작업 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "클러스터 가동 시간 (일)"
+      },
+      {
+        "title": "데이터 크기 (GB)"
+      },
+      {
+        "title": "컬렉션 수"
+      },
+      {
+        "title": "객체 수"
+      },
+      {
+        "title": "Document QPS"
+      },
+      {
+        "title": "작업 QPS"
+      },
+      {
+        "title": "총 연결"
+      },
+      {
+        "title": "커서 총합"
+      },
+      {
+        "title": "복제 랙 (ms)"
+      },
+      {
+        "title": "DB 총 데이터 (GB)",
+        "tableHeaders": [
+          "데이터베이스",
+          "데이터 (GB)"
+        ]
+      },
+      {
+        "title": "DB 총 인덱스 (GB)",
+        "tableHeaders": [
+          "데이터베이스",
+          "인덱스 (GB)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "가동 시간 (일)"
+      },
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "ReplSet 상태",
+        "tableHeaders": [
+          "노드",
+          "ReplSet 상태"
+        ]
+      },
+      {
+        "title": "연결"
+      },
+      {
+        "title": "CPU 사용률 (%)"
+      },
+      {
+        "title": "메모리 사용량"
+      },
+      {
+        "title": "여유 메모리 (GB)",
+        "expressionLabels": [
+          "mem",
+          "swap"
+        ]
+      },
+      {
+        "title": "디스크 (GB)",
+        "expressionLabels": [
+          "사용",
+          "전체"
+        ]
+      },
+      {
+        "title": "네트워크 (KB/s)",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "활성 클라이언트",
+        "expressionLabels": [
+          "전체",
+          "쓰기",
+          "읽기"
+        ]
+      },
+      {
+        "title": "Document QPS"
+      },
+      {
+        "title": "작업 QPS"
+      },
+      {
+        "title": "작업 지연 시간 (µs)"
+      },
+      {
+        "title": "트랜잭션",
+        "expressionLabels": [
+          "active",
+          "비활성"
+        ]
+      },
+      {
+        "title": "복제 버퍼",
+        "expressionLabels": [
+          "count",
+          "크기 (MB)"
+        ]
+      },
+      {
+        "title": "큐 작업"
+      }
+    ]
+  },
+  "slots": {
+    "services": "MongoDB 클러스터",
+    "instances": "노드"
+  }
+}

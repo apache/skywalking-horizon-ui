@@ -1,0 +1,204 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Subscriptions"
+      },
+      {
+        "label": "Msg ein"
+      },
+      {
+        "label": "Msg aus"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Msg ein/s",
+            "tip": "Pro Sekunde erzeugte Nachrichten."
+          },
+          {
+            "label": "Msg aus/s",
+            "tip": "Pro Sekunde konsumierte Nachrichten."
+          },
+          {
+            "label": "Storage MB",
+            "tip": "Gesamt-Storage-Größe der verwalteten Ledger."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Topics gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Subscriptions",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erzeuger",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbraucher",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nachrichtenrate",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Storage Lese-/Schreibrate",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Storage-Größe (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "physisch",
+          "logisch"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Aktive Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gesamtverbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungserstellung fehlgeschlagen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungserstellung erfolgreich",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindung geschlossen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Buffer-Pool (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicherpool genutzt (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "JVM-Speicher (MB)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "committed",
+          "init"
+        ]
+      },
+      {
+        "title": "JVM-Threads",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktuell",
+          "daemon",
+          "spitze",
+          "deadlocked"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "sekunden",
+          "anzahl"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Pulsar-Cluster",
+    "instances": "Broker"
+  }
+}

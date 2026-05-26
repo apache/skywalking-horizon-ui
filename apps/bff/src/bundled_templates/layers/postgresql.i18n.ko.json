@@ -1,0 +1,164 @@
+{
+  "alias": "PostgreSQL",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Fetched / s"
+      },
+      {
+        "label": "Inserted / s"
+      },
+      {
+        "label": "Cache Hit"
+      },
+      {
+        "label": "데드락"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "상태",
+        "metrics": [
+          {
+            "label": "Cache Hit",
+            "tip": "클러스터 전체의 버퍼 캐시 적중률입니다."
+          },
+          {
+            "label": "데드락/s",
+            "tip": "초당 감지된 데드락입니다."
+          },
+          {
+            "label": "충돌/s",
+            "tip": "초당 복구 충돌 수입니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "Fetched /s",
+            "tip": "초당 가져온 행 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "가져온 행 / s"
+      },
+      {
+        "title": "삽입된 행 / s"
+      },
+      {
+        "title": "업데이트된 행 / s"
+      },
+      {
+        "title": "삭제된 행 / s"
+      },
+      {
+        "title": "반환된 행 / s"
+      },
+      {
+        "title": "임시 파일 / s"
+      },
+      {
+        "title": "캐시 적중률"
+      },
+      {
+        "title": "트랜잭션 / s",
+        "tip": "커밋과 롤백 비교.",
+        "expressionLabels": [
+          "committed",
+          "rolled-back"
+        ]
+      },
+      {
+        "title": "충돌 + 데드락 / s",
+        "expressionLabels": [
+          "conflicts",
+          "deadlocks"
+        ]
+      },
+      {
+        "title": "세션",
+        "expressionLabels": [
+          "active",
+          "유휴",
+          "locks"
+        ]
+      },
+      {
+        "title": "버퍼 / s",
+        "tip": "Checkpoint / clean / fsync / alloc / backend 버퍼 활동.",
+        "expressionLabels": [
+          "checkpoint",
+          "clean",
+          "backend fsync",
+          "alloc",
+          "backend"
+        ]
+      },
+      {
+        "title": "Checkpoint 통계 / s",
+        "expressionLabels": [
+          "timed",
+          "requested",
+          "쓰기 시간",
+          "sync 시간"
+        ]
+      },
+      {
+        "title": "느린 구문",
+        "tip": "캡처된 가장 느린 구문 20개입니다."
+      }
+    ],
+    "instance": [
+      {
+        "title": "공유 버퍼"
+      },
+      {
+        "title": "유효 캐시"
+      },
+      {
+        "title": "워크 메모리"
+      },
+      {
+        "title": "최대 WAL 크기"
+      },
+      {
+        "title": "가져온 행 / s"
+      },
+      {
+        "title": "삽입된 행 / s"
+      },
+      {
+        "title": "캐시 적중률"
+      },
+      {
+        "title": "세션",
+        "expressionLabels": [
+          "active",
+          "유휴",
+          "locks"
+        ]
+      },
+      {
+        "title": "충돌 + 데드락 / s",
+        "expressionLabels": [
+          "conflicts",
+          "deadlocks"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "PostgreSQL 클러스터",
+    "instances": "노드"
+  }
+}

@@ -45,7 +45,7 @@ import type {
  *  scope-tab strip surfaces it as an editable config tab for the
  *  ProcessRelation MQE. */
 type AdminScope = DashboardScope | 'networkProfiling';
-import { bff, bffClient } from '@/api/client';
+import { bff, bffClient, BffApiError } from '@/api/client';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { usePreviewOverride } from '@/controls/previewOverride';
@@ -105,6 +105,53 @@ const selectedKey = ref<string>('');
 const activeScope = ref<AdminScope>('service');
 const isSaving = ref(false);
 const saveMsg = ref<string | null>(null);
+
+// Picker-bar "refresh from remote" button + post-push 10s countdown
+// share this in-flight flag so concurrent clicks can't race.
+const refreshingFromRemote = ref(false);
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** Force OAP re-read: invalidates the BFF's 30s sync cache + refetches
+ *  every source the page consults. Bound to the picker-bar button so the
+ *  operator can flush stale `synced/diverged` badges without reloading
+ *  the SPA. */
+async function refreshFromRemote(): Promise<void> {
+  if (refreshingFromRemote.value) return;
+  refreshingFromRemote.value = true;
+  try {
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    reconcileLocalDrafts();
+    saveMsg.value = 'Refreshed from OAP.';
+    setTimeout(() => (saveMsg.value = null), 4000);
+  } catch (err) {
+    saveMsg.value = err instanceof Error ? err.message : 'refresh failed';
+  } finally {
+    refreshingFromRemote.value = false;
+  }
+}
+
+/** Walk every local-only draft for this kind and remove any whose
+ *  content now equals the fresh remote — those are no longer "local-
+ *  only" edits, they're already on OAP and the `local` badge would
+ *  be misleading. Called after every refresh / push so the badge
+ *  state stays honest across sessions and browsers (another operator
+ *  may have pushed the same change first, or this operator may have
+ *  edited the draft on a different device). */
+function reconcileLocalDrafts(): void {
+  for (const name of localEdits.names()) {
+    if (!name.startsWith('horizon.layer.')) continue;
+    const local = localEdits.get(name);
+    const remote = sources.remote(name);
+    if (
+      local !== undefined &&
+      remote !== null &&
+      stableStringify(local) === stableStringify(remote)
+    ) {
+      localEdits.remove(name);
+    }
+  }
+}
 /** When false the browse rail is hidden entirely and layer switching
  *  moves to the top dropdown inside the editor — the editor claims the
  *  full width. Defaults collapsed; the rail is an opt-in browse mode.
@@ -319,6 +366,12 @@ function previewLive(src: 'local' | 'bundled' | 'remote'): void {
 
 watch(selectedKey, syncDraft);
 onMounted(loadAll);
+// Force-refresh the cached config bundle on mount so per-row badges
+// (`synced` / `diverged` / `disabled`) reflect actual OAP state. Without
+// this, the badges would surface whatever a prior session persisted to
+// localStorage. `force: true` also flushes the BFF's 30s OAP sync cache
+// so even a fresh fetch sees live OAP state.
+onMounted(() => void refreshConfigBundle({ force: true }));
 
 /**
  * Map each DashboardScope to its corresponding `components.*` flag.
@@ -645,24 +698,53 @@ const localDiffersFromRemote = computed<boolean>(() => {
 const pushLocalPretty = computed(() => prettyJson(localEdits.get(editName.value)));
 const pushRemotePretty = computed(() => prettyJson(sources.remote(editName.value)));
 
-/** Publish the local draft to OAP (live for everyone), then clear it and
- *  reload from remote. */
+/** Publish the local draft to OAP. The BFF waits for the new row to
+ *  become visible to OAP's own list (BanyanDB has a read-after-write
+ *  window — up to ~5s). A live count-up is shown while we're waiting.
+ *  On the BFF's 504 propagation-timeout, refetch sync state anyway —
+ *  the row may have appeared moments later. */
 async function pushToOap(): Promise<void> {
   const local = localEdits.get<AdminLayerTemplate>(editName.value);
   if (!local || isSaving.value) return;
   isSaving.value = true;
-  saveMsg.value = null;
+  saveMsg.value = 'Saving to OAP…';
+  let elapsed = 0;
+  const ticker = setInterval(() => {
+    elapsed++;
+    saveMsg.value = `Saving to OAP… ${elapsed}s`;
+  }, 1000);
   try {
     await bff.templateSync.save(editName.value, local);
+    clearInterval(ticker);
     localEdits.remove(editName.value);
-    previewOverride.clear(editName.value); // drop the now-stale preview snapshot
-    await Promise.all([sources.refetch(), refreshConfigBundle()]);
-    loadFrom('remote');
+    previewOverride.clear(editName.value);
     pushDiffOpen.value = false;
+    for (let n = 10; n > 0; n--) {
+      saveMsg.value = `Pushed. Refreshing in ${n}s…`;
+      await sleep(1000);
+    }
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), refreshConfigBundle()]);
+    reconcileLocalDrafts();
+    loadFrom('remote');
     saveMsg.value = 'Published your local draft to OAP — now live for everyone.';
     setTimeout(() => (saveMsg.value = null), 6000);
   } catch (err) {
-    saveMsg.value = err instanceof Error ? err.message : String(err);
+    clearInterval(ticker);
+    if (err instanceof BffApiError && err.status === 504) {
+      saveMsg.value = 'Timeout waiting for OAP propagation. Refetching…';
+      try {
+        await bff.templateSync.resync();
+        await Promise.all([sources.refetch(), refreshConfigBundle()]);
+        reconcileLocalDrafts();
+      } catch {
+        /* refetch best-effort */
+      }
+      saveMsg.value = 'Refetched after timeout — the push may have completed; please verify.';
+      setTimeout(() => (saveMsg.value = null), 10000);
+    } else {
+      saveMsg.value = err instanceof Error ? err.message : String(err);
+    }
   } finally {
     isSaving.value = false;
   }
@@ -1432,10 +1514,21 @@ const namingTest = computed<NamingTestResult>(() => {
                     {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
                   </p>
                 </div>
+                <div class="layer-dd-foot">
+                  <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
+                  <button
+                    type="button"
+                    class="sw-btn refresh-btn"
+                    :disabled="refreshingFromRemote || sync.readOnly.value"
+                    :title="sync.readOnly.value
+                      ? 'OAP unreachable — cannot refresh'
+                      : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+                    @click="refreshFromRemote"
+                  >{{ refreshingFromRemote ? 'refreshing…' : 'refresh from remote' }}</button>
+                </div>
               </div>
             </template>
             </div>
-          <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
         </div>
         <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
@@ -2803,10 +2896,22 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   gap: 2px;
 }
-.layer-switch-bar .sub {
+.layer-dd-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--sw-line-2);
+}
+.layer-dd-foot .sub {
   font-size: 10.5px;
   color: var(--sw-fg-3);
+}
+.layer-dd-foot .refresh-btn {
   margin-left: auto;
+  font-size: 11px;
+  height: 24px;
+  padding: 0 8px;
 }
 .list-head {
   display: flex;

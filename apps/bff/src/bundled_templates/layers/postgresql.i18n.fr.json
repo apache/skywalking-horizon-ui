@@ -1,0 +1,164 @@
+{
+  "alias": "PostgreSQL",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Récupérées / s"
+      },
+      {
+        "label": "Insérées / s"
+      },
+      {
+        "label": "Hit cache"
+      },
+      {
+        "label": "Deadlocks"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé",
+        "metrics": [
+          {
+            "label": "Hit cache",
+            "tip": "Taux de hit du buffer-cache sur l'ensemble du cluster."
+          },
+          {
+            "label": "Deadlocks/s",
+            "tip": "Deadlocks détectés par seconde."
+          },
+          {
+            "label": "Conflits/s",
+            "tip": "Conflits de récupération par seconde."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Récupérées /s",
+            "tip": "Lignes récupérées par seconde."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Lignes récupérées / s"
+      },
+      {
+        "title": "Lignes insérées / s"
+      },
+      {
+        "title": "Lignes mises à jour / s"
+      },
+      {
+        "title": "Lignes supprimées / s"
+      },
+      {
+        "title": "Lignes retournées / s"
+      },
+      {
+        "title": "Fichiers temporaires / s"
+      },
+      {
+        "title": "Taux de hit du cache"
+      },
+      {
+        "title": "Transactions / s",
+        "tip": "Engagés vs rollback.",
+        "expressionLabels": [
+          "engagés",
+          "rollback"
+        ]
+      },
+      {
+        "title": "Conflits + deadlocks / s",
+        "expressionLabels": [
+          "conflits",
+          "deadlocks"
+        ]
+      },
+      {
+        "title": "Sessions",
+        "expressionLabels": [
+          "actifs",
+          "inactif",
+          "verrous"
+        ]
+      },
+      {
+        "title": "Buffers / s",
+        "tip": "Activité buffer checkpoint / clean / fsync / alloc / backend.",
+        "expressionLabels": [
+          "checkpoint",
+          "clean",
+          "fsync backend",
+          "alloc",
+          "backend"
+        ]
+      },
+      {
+        "title": "Statistiques de checkpoint / s",
+        "expressionLabels": [
+          "planifié",
+          "demandés",
+          "temps d'écriture",
+          "temps de sync"
+        ]
+      },
+      {
+        "title": "Requêtes lentes",
+        "tip": "Top 20 des statements les plus lents capturés."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Buffers partagés"
+      },
+      {
+        "title": "Cache effectif"
+      },
+      {
+        "title": "Work Mem"
+      },
+      {
+        "title": "Taille WAL max"
+      },
+      {
+        "title": "Lignes récupérées / s"
+      },
+      {
+        "title": "Lignes insérées / s"
+      },
+      {
+        "title": "Taux de hit du cache"
+      },
+      {
+        "title": "Sessions",
+        "expressionLabels": [
+          "actifs",
+          "inactif",
+          "verrous"
+        ]
+      },
+      {
+        "title": "Conflits + deadlocks / s",
+        "expressionLabels": [
+          "conflits",
+          "deadlocks"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters PostgreSQL",
+    "instances": "Nœuds"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de peticiones"
+      },
+      {
+        "label": "Lanzamiento"
+      },
+      {
+        "label": "Primer render"
+      },
+      {
+        "label": "Errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "Petición P95",
+            "tip": "Duración de petición en el percentil 95 desde el puente de red del mini programa."
+          },
+          {
+            "label": "Lanzamiento",
+            "tip": "Duración aproximada del lanzamiento del mini programa."
+          },
+          {
+            "label": "Errores",
+            "tip": "Conteo de errores reportados."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de peticiones",
+            "tip": "Peticiones del puente por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Versiones",
+    "endpoints": "Páginas",
+    "services": "Mini programas"
+  },
+  "alias": "Mini programa de Alipay",
+  "group": "Móvil",
+  "dashboards": {
+    "service": [
+      {
+        "title": "Duración del lanzamiento de la app",
+        "tip": "Duración aproximada del arranque en frío desde el contenedor de Alipay."
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Conteo de errores"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Duración del lanzamiento"
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Duración del lanzamiento en la página"
+      },
+      {
+        "title": "Duración del primer render"
+      },
+      {
+        "title": "Carga de peticiones"
+      },
+      {
+        "title": "Percentil de duración de peticiones"
+      }
+    ]
+  }
+}

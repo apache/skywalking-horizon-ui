@@ -1,0 +1,156 @@
+{
+  "alias": "RocketMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "생산 TPS"
+      },
+      {
+        "label": "소비 TPS"
+      },
+      {
+        "label": "Topic"
+      },
+      {
+        "label": "Broker"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "생산 TPS",
+            "tip": "클러스터 전체에서 초당 생산된 메시지 수입니다."
+          },
+          {
+            "label": "소비 TPS",
+            "tip": "초당 소비된 메시지 수입니다."
+          },
+          {
+            "label": "최대 소비자 지연 시간",
+            "tip": "클러스터 전반에서 가장 나쁜 소비자 지연 시간입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "오늘 생산"
+      },
+      {
+        "title": "오늘 소비"
+      },
+      {
+        "title": "어제 생산"
+      },
+      {
+        "title": "어제 소비"
+      },
+      {
+        "title": "생산자 / 소비자 TPS",
+        "expressionLabels": [
+          "생산자",
+          "소비자"
+        ]
+      },
+      {
+        "title": "생산자 / 소비자 메시지 크기 (MB)",
+        "expressionLabels": [
+          "produced",
+          "consumed"
+        ]
+      },
+      {
+        "title": "최대 소비자 지연 시간"
+      },
+      {
+        "title": "CommitLog 디스크 비율 (%)",
+        "expressionLabels": [
+          "current",
+          "최대"
+        ]
+      },
+      {
+        "title": "스레드풀 큐 헤드 대기 (ms)",
+        "expressionLabels": [
+          "pull",
+          "전송"
+        ]
+      },
+      {
+        "title": "Topic"
+      },
+      {
+        "title": "Broker"
+      }
+    ],
+    "instance": [
+      {
+        "title": "생산 TPS"
+      },
+      {
+        "title": "소비 QPS"
+      },
+      {
+        "title": "생산자 메시지 크기 (MB)"
+      },
+      {
+        "title": "소비자 메시지 크기 (MB)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "생산자 / 소비자 그룹 TPS",
+        "expressionLabels": [
+          "생산자",
+          "소비자 그룹"
+        ]
+      },
+      {
+        "title": "메시지 크기 (MB)",
+        "expressionLabels": [
+          "produced",
+          "consumed"
+        ]
+      },
+      {
+        "title": "최대 메시지 크기 (MB)",
+        "expressionLabels": [
+          "생산자",
+          "소비자"
+        ]
+      },
+      {
+        "title": "소비자 지연 시간 (s)"
+      },
+      {
+        "title": "생산자 / 소비자 오프셋",
+        "expressionLabels": [
+          "생산자",
+          "소비자 그룹"
+        ]
+      },
+      {
+        "title": "쌓인 메시지",
+        "tip": "생산자 오프셋에서 소비자 그룹 오프셋을 뺀 값 — 토픽 랙입니다."
+      },
+      {
+        "title": "소비자 그룹 수"
+      },
+      {
+        "title": "브로커 수"
+      }
+    ]
+  },
+  "slots": {
+    "services": "RocketMQ 클러스터",
+    "instances": "Broker",
+    "endpoints": "Topic"
+  }
+}

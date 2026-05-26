@@ -1,0 +1,101 @@
+{
+  "alias": "Linux",
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "メモリ MB"
+      },
+      {
+        "label": "ロード 1分"
+      },
+      {
+        "label": "FS %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "リソース",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU 使用率合計。"
+          },
+          {
+            "label": "メモリ %",
+            "tip": "メモリ使用量 / 合計。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU 平均使用率 (%)"
+      },
+      {
+        "title": "CPU 負荷",
+        "expressionLabels": [
+          "1分",
+          "5分",
+          "15分"
+        ]
+      },
+      {
+        "title": "ファイル FD アロケート"
+      },
+      {
+        "title": "メモリ RAM (MB)",
+        "expressionLabels": [
+          "使用中",
+          "合計",
+          "利用可能",
+          "buff/cache"
+        ]
+      },
+      {
+        "title": "メモリスワップ (MB)",
+        "expressionLabels": [
+          "空き",
+          "合計"
+        ]
+      },
+      {
+        "title": "ネットワーク帯域 (KB/s)",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "ディスク R/W (KB/s)",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "ファイルシステム使用率 (%)"
+      },
+      {
+        "title": "ネットワークステータス",
+        "expressionLabels": [
+          "TCP estab",
+          "TCP time-wait",
+          "TCP alloc",
+          "ソケット使用中",
+          "UDP 使用中"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ホスト"
+  }
+}

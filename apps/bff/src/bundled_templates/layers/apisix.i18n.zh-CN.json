@@ -1,0 +1,65 @@
+{
+  "group": "网关",
+  "slots": {
+    "services": "APISIX 服务",
+    "instances": "节点",
+    "endpoints": "路由"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "RPS" },
+      { "label": "200/秒" },
+      { "label": "404/秒" },
+      { "label": "503/秒" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "RPS", "tip": "APISIX 路由匹配的每秒请求数。" },
+          { "label": "5xx", "tip": "上游 / 网关错误类。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" },
+      { "title": "HTTP 连接" },
+      { "title": "未匹配状态趋势", "tip": "未匹配到 APISIX 路由的请求。" },
+      { "title": "未匹配延迟" },
+      { "title": "未匹配带宽" }
+    ],
+    "instance": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" },
+      { "title": "HTTP 连接" },
+      {
+        "title": "Shared Dict",
+        "tip": "容量 vs 空闲空间。",
+        "expressionLabels": ["capacity", "free"]
+      },
+      {
+        "title": "etcd",
+        "expressionLabels": ["indexes", "reachable"]
+      },
+      {
+        "title": "未匹配流量",
+        "tip": "未匹配路由请求的状态 + 延迟 + 带宽。",
+        "expressionLabels": ["status", "latency (ms)", "bandwidth (KB)"]
+      }
+    ],
+    "endpoint": [
+      { "title": "HTTP 状态趋势" },
+      { "title": "HTTP 延迟" },
+      { "title": "HTTP 带宽" }
+    ]
+  }
+}

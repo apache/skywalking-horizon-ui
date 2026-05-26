@@ -149,7 +149,7 @@ const fileLines = computed<FileLine[]>(() => {
         <code>Endpoint</code>) and the metrics derived from them.
         Browse the loaded files below; install a live debug session
         from
-        <router-link to="/debug" class="oal__link">Live debugger</router-link>
+        <router-link to="/operate/live-debug" class="oal__link">Live debugger</router-link>
         to see runtime metric capture.
       </span>
     </header>

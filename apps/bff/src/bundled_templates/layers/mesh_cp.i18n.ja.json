@@ -1,0 +1,109 @@
+{
+  "alias": "Istio コントロールプレーン",
+  "group": "Istio",
+  "naming": {
+    "alias": "ネームスペース"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutine"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "サービス"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Istio ヘルス",
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "Istio コントロールプレーンのプロセス CPU。"
+          },
+          {
+            "label": "Goroutine",
+            "tip": "ライブな Go goroutine。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      {
+        "title": "Goroutine"
+      },
+      {
+        "title": "Istio バージョン"
+      },
+      {
+        "title": "メモリ (MB)",
+        "expressionLabels": [
+          "アロケート",
+          "ヒープ使用中",
+          "スタック使用中",
+          "仮想",
+          "常駐"
+        ]
+      },
+      {
+        "title": "Pilot エラー",
+        "expressionLabels": [
+          "CDS 拒否",
+          "EDS 拒否",
+          "RDS 拒否",
+          "LDS 拒否",
+          "書き込みタイムアウト"
+        ]
+      },
+      {
+        "title": "Proxy Push 時間 (パーセンタイル)"
+      },
+      {
+        "title": "Pilot プッシュ"
+      },
+      {
+        "title": "Sidecar Injection 成功"
+      },
+      {
+        "title": "ADS モニタリング",
+        "expressionLabels": [
+          "xDS",
+          "サービス",
+          "仮想サービス"
+        ]
+      },
+      {
+        "title": "設定検証",
+        "expressionLabels": [
+          "通過",
+          "失敗"
+        ]
+      },
+      {
+        "title": "Pilot 競合",
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "コントロールプレーン"
+  }
+}

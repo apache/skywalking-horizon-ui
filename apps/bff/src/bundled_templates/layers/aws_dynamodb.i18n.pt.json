@@ -1,0 +1,188 @@
+{
+  "alias": "AWS DynamoDB",
+  "group": "AWS",
+  "slots": {
+    "services": "Contas do DynamoDB",
+    "endpoints": "Tabelas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Leitura limitada"
+      },
+      {
+        "label": "Escrita limitada"
+      },
+      {
+        "label": "Erro de sistema (leitura)"
+      },
+      {
+        "label": "Erro de sistema (escrita)"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Limitação",
+        "metrics": [
+          {
+            "label": "Leituras limitadas",
+            "tip": "Requisições de leitura limitadas — capacidade esgotada."
+          },
+          {
+            "label": "Escritas limitadas",
+            "tip": "Requisições de escrita limitadas."
+          },
+          {
+            "label": "Erros de usuário",
+            "tip": "Erros de usuário tipo bad-request."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Requisições limitadas",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Eventos de throttling",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Erros do sistema",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Erros do usuário"
+      },
+      {
+        "title": "Verificação condicional falhou"
+      },
+      {
+        "title": "Conflito de transação"
+      },
+      {
+        "title": "Capacidade de leitura (unidade/s)",
+        "expressionLabels": [
+          "provisionada",
+          "consumida"
+        ]
+      },
+      {
+        "title": "Capacidade de escrita (unidade/s)",
+        "expressionLabels": [
+          "provisionada",
+          "consumida"
+        ]
+      },
+      {
+        "title": "Latência de requisições bem-sucedidas (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "Itens removidos por TTL"
+      },
+      {
+        "title": "Itens retornados por scan"
+      },
+      {
+        "title": "Itens retornados por query"
+      },
+      {
+        "title": "Leituras / escritas máximas da conta",
+        "expressionLabels": [
+          "leituras por tabela",
+          "escritas por tabela",
+          "leituras",
+          "escritas"
+        ]
+      },
+      {
+        "title": "Utilização de capacidade da conta",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Requisições limitadas",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Eventos de throttling",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Erros do sistema",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Verificação condicional falhou"
+      },
+      {
+        "title": "Conflito de transação"
+      },
+      {
+        "title": "Itens removidos por TTL"
+      },
+      {
+        "title": "Capacidade de leitura",
+        "expressionLabels": [
+          "provisionada",
+          "consumida"
+        ]
+      },
+      {
+        "title": "Capacidade de escrita",
+        "expressionLabels": [
+          "provisionada",
+          "consumida"
+        ]
+      },
+      {
+        "title": "Latência de requisições bem-sucedidas (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "Itens retornados por scan"
+      },
+      {
+        "title": "Itens retornados por query"
+      }
+    ]
+  }
+}

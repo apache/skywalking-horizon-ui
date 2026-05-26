@@ -25,6 +25,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import { useLayers } from '@/shell/useLayers';
@@ -33,6 +34,7 @@ import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import { usePreviewMode } from '@/controls/previewMode';
 import { useAuthStore } from '@/state/auth';
 
+const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const previewMode = usePreviewMode();
 const { layers } = useLayers();
@@ -63,11 +65,11 @@ const draftItems = computed<DraftItem[]>(() => {
     if (kind === 'layer') {
       if (!canEditLayers.value) continue;
       const L = layers.value.find((l) => l.key.toUpperCase() === key.toUpperCase());
-      out.push({ kind, key, label: L?.name ? `Layer · ${L.name}` : `Layer · ${key}` });
+      out.push({ kind, key, label: L?.name ? `${t('Layer')} · ${L.name}` : `${t('Layer')} · ${key}` });
     } else if (kind === 'overview') {
       if (!canEditOverviews.value) continue;
       const ov = overviews.find((o) => o.id === key);
-      out.push({ kind, key, label: ov?.title ? `Overview · ${ov.title}` : `Overview · ${key}` });
+      out.push({ kind, key, label: ov?.title ? `${t('Overview')} · ${ov.title}` : `${t('Overview')} · ${key}` });
     }
   }
   return out;
@@ -105,25 +107,23 @@ function goOverviews(): void {
 </script>
 
 <template>
-  <Modal :open="open" :dismissable="false" title="You have unpublished local edits">
+  <Modal :open="open" :dismissable="false" :title="t('You have unpublished local edits')">
     <div class="tcp">
       <p class="tcp__lede">
-        <b>{{ draftItems.length }}</b> dashboard{{ draftItems.length === 1 ? '' : 's' }} ha{{ draftItems.length === 1 ? 's' : 've' }}
-        edits saved only in <b>this browser</b> — they are not live for anyone. Live pages render the
-        remote (OAP) version; preview your drafts from the editor’s <b>Preview live</b> button, then
-        <b>Push local → OAP</b> to publish.
+        <b>{{ draftItems.length }}</b>
+        {{ t('dashboard(s) have edits saved only in this browser — they are not live for anyone. Live pages render the remote (OAP) version; preview your drafts from the editor’s Preview live button, then Push local → OAP to publish.') }}
       </p>
       <ul class="tcp__list">
         <li v-for="(d, i) in draftItems" :key="i">{{ d.label }}</li>
       </ul>
     </div>
     <template #footer>
-      <button class="sw-btn" type="button" @click="dismiss">Dismiss</button>
+      <button class="sw-btn" type="button" @click="dismiss">{{ t('Dismiss') }}</button>
       <button v-if="hasOverviewDrafts" class="sw-btn" type="button" @click="goOverviews">
-        Overview templates →
+        {{ t('Overview templates →') }}
       </button>
       <button v-if="hasLayerDrafts" class="sw-btn is-primary" type="button" @click="goLayers">
-        Layer dashboards →
+        {{ t('Layer dashboards →') }}
       </button>
     </template>
   </Modal>

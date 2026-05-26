@@ -1,0 +1,239 @@
+{
+  "alias": "Envoy AI Gateway",
+  "group": "Gateways",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Latenz"
+      },
+      {
+        "label": "Input-Tokens/min"
+      },
+      {
+        "label": "Output-Tokens/min"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz",
+        "metrics": [
+          {
+            "label": "Mittlere Latenz",
+            "tip": "Durchschnittliche Ende-zu-Ende-Anfragelatenz."
+          },
+          {
+            "label": "TTFT-Mittel",
+            "tip": "Zeit bis zum ersten Token — Latenzindikator für generative Modelle."
+          }
+        ]
+      },
+      {
+        "title": "Tokens",
+        "metrics": [
+          {
+            "label": "Tokens/min",
+            "tip": "Kombinierte Input- + Output-Token-Rate."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Anfrage-RPM",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Input-Token-Rate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Output-Token-Rate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelatenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TTFT (Zeit bis zum ersten Token)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "perzentil"
+        ]
+      },
+      {
+        "title": "TPOT (Zeit pro Output-Token)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "perzentil"
+        ]
+      },
+      {
+        "title": "RPM nach Anbieter",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Tokens nach Anbieter",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Latenz nach Anbieter",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "RPM nach Modell",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Tokens nach Modell",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Latenz nach Modell",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TTFT nach Modell",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TPOT nach Modell",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MCP-RPM",
+        "tip": "Model Context Protocol — wenn verwendet.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MCP mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MCP-Fehler-RPM",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MCP nach Methode",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "MCP nach Backend",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Anfrage-RPM",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Input-Token-Rate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Output-Token-Rate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelatenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "TTFT",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "perzentil"
+        ]
+      },
+      {
+        "title": "TPOT",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "perzentil"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "AI Gateways",
+    "instances": "Knoten"
+  }
+}

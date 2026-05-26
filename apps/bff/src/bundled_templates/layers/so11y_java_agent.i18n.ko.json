@@ -1,0 +1,41 @@
+{
+  "alias": "Java 에이전트",
+  "group": "자체 관측가능성",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "트레이싱 컨텍스트 생성 / 분"
+      },
+      {
+        "title": "트레이싱 생성 + 완료 / 분",
+        "expressionLabels": [
+          "created",
+          "완료"
+        ]
+      },
+      {
+        "title": "무시된 컨텍스트 생성 / 분"
+      },
+      {
+        "title": "무시된 생성 + 완료 / 분",
+        "expressionLabels": [
+          "created",
+          "완료"
+        ]
+      },
+      {
+        "title": "누수 가능 컨텍스트 / 분"
+      },
+      {
+        "title": "인터셉터 오류 수 / 분"
+      },
+      {
+        "title": "트레이싱 컨텍스트 실행 시간 (ms)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "에이전트 서비스",
+    "instances": "에이전트"
+  }
+}

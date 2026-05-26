@@ -1,0 +1,136 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Abonnements"
+      },
+      {
+        "label": "Msg entrants"
+      },
+      {
+        "label": "Msg sortants"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Msg entrants/s",
+            "tip": "Messages produits par seconde."
+          },
+          {
+            "label": "Msg sortants/s",
+            "tip": "Messages consommés par seconde."
+          },
+          {
+            "label": "Stockage Mo",
+            "tip": "Taille totale du stockage des managed-ledgers."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Total topics"
+      },
+      {
+        "title": "Abonnements"
+      },
+      {
+        "title": "Producers"
+      },
+      {
+        "title": "Consumers"
+      },
+      {
+        "title": "Débit de messages",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Débit",
+        "expressionLabels": [
+          "entrant",
+          "sortant"
+        ]
+      },
+      {
+        "title": "Débit de lecture/écriture du stockage",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Taille de stockage (Mo)",
+        "expressionLabels": [
+          "physique",
+          "logique"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Connexions actives"
+      },
+      {
+        "title": "Connexions totales"
+      },
+      {
+        "title": "Échecs de création de connexion"
+      },
+      {
+        "title": "Succès de création de connexion"
+      },
+      {
+        "title": "Connexion fermée"
+      },
+      {
+        "title": "Buffer Pool JVM (Mo)"
+      },
+      {
+        "title": "Pool mémoire JVM utilisé (Mo)"
+      },
+      {
+        "title": "Mémoire JVM (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "engagés",
+          "init"
+        ]
+      },
+      {
+        "title": "Threads JVM",
+        "expressionLabels": [
+          "courant",
+          "daemon",
+          "pic",
+          "en deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "secondes",
+          "nombre"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters Pulsar",
+    "instances": "Brokers"
+  }
+}

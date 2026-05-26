@@ -1,0 +1,138 @@
+{
+  "alias": "Redis",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "コマンド/s"
+      },
+      {
+        "label": "ヒット率"
+      },
+      {
+        "label": "メモリ %"
+      },
+      {
+        "label": "クライアント"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "ヒット率",
+            "tip": "キャッシュヒット率。低下傾向 = スラッシング。"
+          },
+          {
+            "label": "メモリ %",
+            "tip": "使用中 / 最大メモリ。>80% = 警告。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "コマンド/s",
+            "tip": "クラスタ全体の 1秒あたりコマンド合計。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "稼働日数"
+      },
+      {
+        "title": "接続済みクライアント"
+      },
+      {
+        "title": "ブロッククライアント"
+      },
+      {
+        "title": "メモリ使用率"
+      },
+      {
+        "title": "合計コマンド / s"
+      },
+      {
+        "title": "ヒット率"
+      },
+      {
+        "title": "平均コマンド時間 / s"
+      },
+      {
+        "title": "ネット I/O (KB)",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "キー",
+        "expressionLabels": [
+          "合計",
+          "退避",
+          "期限切れ"
+        ]
+      },
+      {
+        "title": "低速コマンド",
+        "tip": "捕捉された低速コマンド上位 10。SkyWalking エージェントがコールサイトで捕捉。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "稼働日数"
+      },
+      {
+        "title": "接続済みクライアント"
+      },
+      {
+        "title": "ブロッククライアント"
+      },
+      {
+        "title": "メモリ最大 (MB)"
+      },
+      {
+        "title": "メモリ使用率 (%)"
+      },
+      {
+        "title": "コマンド / s"
+      },
+      {
+        "title": "ヒット率"
+      },
+      {
+        "title": "ネット I/O (KB)",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "キー",
+        "expressionLabels": [
+          "合計",
+          "退避",
+          "期限切れ"
+        ]
+      },
+      {
+        "title": "コマンド時間合計 (s)"
+      },
+      {
+        "title": "平均コマンド時間"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Redis クラスタ",
+    "instances": "ノード"
+  }
+}

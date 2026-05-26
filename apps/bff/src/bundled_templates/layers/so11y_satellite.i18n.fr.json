@@ -1,0 +1,50 @@
+{
+  "alias": "Satellite",
+  "group": "Auto-observabilité",
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé Satellite",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU du processus Satellite."
+          },
+          {
+            "label": "File utilisée",
+            "tip": "Éléments en attente dans la file — indicateur de backlog."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Nombre de connexions"
+      },
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "File utilisée"
+      },
+      {
+        "title": "Événements reçus"
+      },
+      {
+        "title": "Événements fetch"
+      },
+      {
+        "title": "File entrée / sortie",
+        "expressionLabels": [
+          "entrée",
+          "sortie"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services Satellite"
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Peticiones"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Errores",
+        "metrics": [
+          {
+            "label": "4xx",
+            "tip": "Conteo de errores de cliente desde CloudWatch."
+          },
+          {
+            "label": "5xx",
+            "tip": "Conteo de errores de servidor desde CloudWatch."
+          },
+          {
+            "label": "Latencia media",
+            "tip": "Latencia media extremo a extremo."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "Peticiones",
+            "tip": "Conteo total de peticiones en la ventana."
+          }
+        ]
+      }
+    ]
+  },
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "dashboards": {
+    "service": [
+      {
+        "title": "Conteo de peticiones"
+      },
+      {
+        "title": "Conteo 4xx"
+      },
+      {
+        "title": "Conteo 5xx"
+      },
+      {
+        "title": "Latencia media de petición"
+      },
+      {
+        "title": "Latencia media de integración",
+        "tip": "Latencia entre el gateway y la integración backend."
+      },
+      {
+        "title": "Datos procesados (solo HTTP API)"
+      },
+      {
+        "title": "Tasa de aciertos de caché (solo REST API)"
+      },
+      {
+        "title": "Tasa de fallos de caché (solo REST API)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Conteo de peticiones"
+      },
+      {
+        "title": "Conteo 4xx"
+      },
+      {
+        "title": "Conteo 5xx"
+      },
+      {
+        "title": "Latencia media de petición"
+      },
+      {
+        "title": "Latencia media de integración"
+      },
+      {
+        "title": "Datos procesados"
+      },
+      {
+        "title": "Tasa de aciertos de caché"
+      },
+      {
+        "title": "Tasa de fallos de caché"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Gateways de AWS",
+    "endpoints": "Rutas"
+  }
+}

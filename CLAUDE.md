@@ -55,6 +55,19 @@ Design tokens live in the runtime token CSS (`apps/ui/src/assets/styles/tokens.c
 
 **Docs are written for the end user (operator / dashboard author), not the contributor.** Document what a feature *does*, how to *configure* it (YAML, fields, recipes), and how to *operate / troubleshoot* it. Do **not** document the internal code workflow: no step-by-step algorithms ("1. service-bind 2. user search 3. …"), no source-file paths (`apps/bff/src/...`), no internal function / composable / route names, no "the BFF then fans out / chunks / probes …" implementation narration. If a sentence only makes sense to someone reading the source, it doesn't belong in `docs/`. Describe observable behavior and configuration, not how the code achieves it.
 
+## Internationalization
+
+English is the source of truth. Every UI string and every translatable template field is authored in English first; the English bundle ships in the main JS chunk so the app renders without any network locale fetch. Other locales (zh-CN, es, pt, ja, ko at the time of writing) are catalog overlays. A missing key in any non-English catalog falls back to English at the leaf, never at the file — half-translated catalogs are valid and expected. Edit English first; re-translate downstream.
+
+**Translation principles:**
+
+- **IT terms and proper nouns stay in their original form.** Product, project, and protocol names (SkyWalking, Kubernetes, Envoy, Istio, OAP, MQE, eBPF, Zipkin, OpenTelemetry, gRPC, GraphQL, Java, Go, …), OAP scope enums (Service, ServiceInstance, Endpoint, Process), layer keys (GENERAL, MESH, K8S_SERVICE, …), metric ids, MQE function names, and HTTP / SQL / log keywords are **not** translated in any locale. Operators read these terms across docs, source, and other SkyWalking surfaces — they must remain recognizable.
+- **Translate meaning, not words.** Use idiomatic, native phrasing. A literal word-for-word translation that reads like machine output is worse than leaving the string in English — restructure the sentence if the target language needs it. Faithfulness is to the *intent*, not the English syntax.
+- **OAP-supplied data is never translated.** Service names, instance names, endpoint names, alarm rule names, tag values, log messages, trace span operation names, anything coming over the OAP wire — that's mutable user data from outside our control, render verbatim regardless of locale. The only OAP-adjacent strings we translate are the layer `alias` and `aliases.*` fields *inside our own templates* (which name the enum for display); the enum value itself is not translated.
+- **Initial translations are AI-assisted, and that's fine.** When seeding a new locale, modern models handle the technical vocabulary competently — we use them as the starting point and ship. Native speakers refine over time as they spot phrasings that aren't quite right; the in-app locale picker and docs invite corrections via PR. Don't treat AI translations as second-class.
+- **Resolution split is fixed.** UI chrome (Vue templates, validation, error toasts, login page, topbar, sidebar, modals, placeholders) resolves client-side with vue-i18n. BFF-shipped templates (bundled layer dashboards, bundled overview dashboards) and user-maintained dashboards stored on OAP resolve BFF-side from sibling `*.i18n.<lang>.json` catalogs before the response leaves the BFF. The UI never sees template translation keys; the BFF never serves UI chrome strings.
+- **Catalog drift is a build-time error.** Catalog keys that don't exist in the source template are pruned at load with a warning; non-string values at translatable paths are dropped. Source structure is the contract.
+
 ## Things that are non-negotiable
 
 - **TypeScript strict.** No `any` outside `.d.ts` shims.

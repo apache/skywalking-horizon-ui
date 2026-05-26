@@ -1,0 +1,233 @@
+{
+  "alias": "RocketMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Erzeugungs-TPS"
+      },
+      {
+        "label": "Konsum-TPS"
+      },
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Broker"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Erzeugungs-TPS",
+            "tip": "Pro Sekunde im Cluster erzeugte Nachrichten."
+          },
+          {
+            "label": "Konsum-TPS",
+            "tip": "Pro Sekunde konsumierte Nachrichten."
+          },
+          {
+            "label": "Max. Consumer-Latenz",
+            "tip": "Schlechteste Verbraucherlatenz im Cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Heute erzeugt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heute verbraucht",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gestern erzeugt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gestern verbraucht",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Producer / Consumer TPS",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "producer",
+          "consumer"
+        ]
+      },
+      {
+        "title": "Producer / Consumer-Nachrichtengröße (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "erzeugt",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Max. Consumer-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CommitLog Disk-Verhältnis (%)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktuell",
+          "max"
+        ]
+      },
+      {
+        "title": "ThreadPool Queue-Head-Wartezeit (ms)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "pull",
+          "senden"
+        ]
+      },
+      {
+        "title": "Topics",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Broker",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Erzeugungs-TPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Konsum-QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Producer-Msg-Größe (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Consumer-Msg-Größe (MB)",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Producer / Consumer-Group TPS",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "producer",
+          "consumer group"
+        ]
+      },
+      {
+        "title": "Nachrichtengröße (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "erzeugt",
+          "verbraucht"
+        ]
+      },
+      {
+        "title": "Max. Nachrichtengröße (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "producer",
+          "consumer"
+        ]
+      },
+      {
+        "title": "Consumer-Latenz (s)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Producer / Consumer-Offsets",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "producer",
+          "consumer group"
+        ]
+      },
+      {
+        "title": "Rückständige Nachrichten",
+        "tip": "Producer-Offset minus Consumer-Group-Offset — der Topic-Lag.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Consumer-Group-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Broker-Anzahl",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "RocketMQ-Cluster",
+    "instances": "Broker",
+    "endpoints": "Topics"
+  }
+}

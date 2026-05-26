@@ -1,0 +1,188 @@
+{
+  "alias": "Nginx",
+  "group": "Gateways",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "5xx %"
+      },
+      {
+        "label": "4xx %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Fehler",
+        "metrics": [
+          {
+            "label": "5xx-Rate",
+            "tip": "Prozentsatz der Anfragen mit 5xx pro Minute."
+          },
+          {
+            "label": "4xx-Rate",
+            "tip": "Prozentsatz der Anfragen mit 4xx pro Minute."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Anfragen pro Sekunde im Nginx-Dienst."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx % / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx % / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehlerprotokoll-Anzahl",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx % / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx % / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehlerprotokoll-Anzahl",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx % / min",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx % / min",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Nginx-Dienste",
+    "instances": "Knoten",
+    "endpoints": "Routes"
+  }
+}

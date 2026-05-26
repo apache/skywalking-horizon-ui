@@ -1,0 +1,216 @@
+{
+  "alias": "iOS",
+  "group": "Mobil",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Start (P95)"
+      },
+      {
+        "label": "Hängezeit"
+      },
+      {
+        "label": "Abstürze"
+      },
+      {
+        "label": "Ausgangs-RPM"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "App-Status",
+        "metrics": [
+          {
+            "label": "Start P95",
+            "tip": "95. Perzentil der Kaltstartzeit, gemessen durch MetricKit."
+          },
+          {
+            "label": "Hang P95",
+            "tip": "95. Perzentil der UI-Hängezeit."
+          },
+          {
+            "label": "Abstürze",
+            "tip": "Vordergrund- + Hintergrund-Abnormalbeendigungen."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "App-Startzeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Hängezeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Hängezeit (Summe)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Abnormale Beendigungen (Abstürze)",
+        "tip": "MetricKit meldet Vordergrund- vs. Hintergrund-Abnormalbeendigungen getrennt.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "vordergrund",
+          "hintergrund"
+        ]
+      },
+      {
+        "title": "OOM-Kill-Anzahl",
+        "tip": "Hintergrund-OOM-Kills — das iOS-System beendet die App wegen Speicherdrucks.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spitzen-Speicher",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Scroll-Hitch-Verhältnis",
+        "tip": "Prozentsatz der Scroll-Frames, die als hitched klassifiziert sind — höher = laggigere UI.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Netzwerk-Transfer",
+        "tip": "Bytes über WiFi vs. Mobilfunk, ein + aus.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "wifi ↓",
+          "wifi ↑",
+          "mobilfunk ↓",
+          "mobilfunk ↑"
+        ]
+      },
+      {
+        "title": "Ausgehender HTTP",
+        "tip": "Aufrufe der App an Backends — Last, Latenz, Erfolgsrate.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "RPM",
+          "Mittlere Latenz (ms)",
+          "Erfolgsrate (%)"
+        ],
+        "expressionAxes": [
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Startzeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Hängezeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Abnormale Beendigungen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "vordergrund",
+          "hintergrund"
+        ]
+      },
+      {
+        "title": "OOM-Kill-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spitzen-Speicher",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausgehender HTTP",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "RPM",
+          "Mittlere Latenz (ms)",
+          "Erfolgsrate (%)"
+        ],
+        "expressionAxes": [
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Ausgangs-Last",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Ausgangs-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausgangs-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Ausgangs-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Apps",
+    "instances": "App-Sitzungen",
+    "endpoints": "Ausgehende APIs"
+  }
+}

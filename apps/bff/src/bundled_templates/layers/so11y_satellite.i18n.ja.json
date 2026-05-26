@@ -1,0 +1,50 @@
+{
+  "alias": "Satellite",
+  "group": "セルフ可観測性",
+  "overview": {
+    "groups": [
+      {
+        "title": "Satellite ヘルス",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "Satellite プロセス CPU。"
+          },
+          {
+            "label": "キュー使用中",
+            "tip": "キュー内未処理アイテム — バックログ指標。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "接続数"
+      },
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "キュー使用中"
+      },
+      {
+        "title": "受信イベント"
+      },
+      {
+        "title": "Fetch イベント"
+      },
+      {
+        "title": "キュー入 / 出",
+        "expressionLabels": [
+          "入力",
+          "出力"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Satellite サービス"
+  }
+}

@@ -34,7 +34,10 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
+
+const { t } = useI18n({ useScope: 'global' });
 import type {
   LayerDef,
   NativeSpan,
@@ -129,15 +132,15 @@ const cCustomEnd = ref<string | null>(null);
 /** Becomes true on the first `Run query` click. Until then the
  *  list area shows a placeholder and the query stays disabled. */
 const hasQueried = ref<boolean>(false);
-const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
-  { label: 'Last 15 min', minutes: 15 },
-  { label: 'Last 30 min', minutes: 30 },
-  { label: 'Last 1 hour', minutes: 60 },
-  { label: 'Last 3 hours', minutes: 180 },
-  { label: 'Last 6 hours', minutes: 360 },
-  { label: 'Last 12 hours', minutes: 720 },
-  { label: 'Last 24 hours', minutes: 1440 },
-];
+const TIME_RANGE_PRESETS = computed<Array<{ label: string; minutes: number }>>(() => [
+  { label: t('Last 15 min'), minutes: 15 },
+  { label: t('Last 30 min'), minutes: 30 },
+  { label: t('Last 1 hour'), minutes: 60 },
+  { label: t('Last 3 hours'), minutes: 180 },
+  { label: t('Last 6 hours'), minutes: 360 },
+  { label: t('Last 12 hours'), minutes: 720 },
+  { label: t('Last 24 hours'), minutes: 1440 },
+]);
 const windowMinutes = ref<number>(30);
 const CUSTOM_RANGE_SENTINEL = -1;
 const customStart = ref<string | null>(null);
@@ -483,10 +486,10 @@ function fmtMs(v: number | null | undefined): string {
 function fmtRelativeAgo(ts: number | null | undefined): string {
   if (!ts) return '—';
   const ms = Date.now() - ts;
-  if (ms < 1000) return 'just now';
-  if (ms < 60_000) return `${Math.round(ms / 1000)}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  return `${Math.round(ms / 3_600_000)}h ago`;
+  if (ms < 1000) return t('just now');
+  if (ms < 60_000) return t('{n}s ago', { n: Math.round(ms / 1000) });
+  if (ms < 3_600_000) return t('{n}m ago', { n: Math.round(ms / 60_000) });
+  return t('{n}h ago', { n: Math.round(ms / 3_600_000) });
 }
 function fmtDateTime(ts: number | null | undefined): string {
   if (!ts || !Number.isFinite(ts)) return '—';
@@ -983,42 +986,42 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                header's Switch button already shows which service the
                page is bound to, so repeating it here is duplicate
                chrome (same reasoning as the logs tab). -->
-          <span class="kicker">Traces</span>
-          <span v-if="isFetching" class="hint">refreshing…</span>
-          <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">Run query</button>
+          <span class="kicker">{{ t('Traces') }}</span>
+          <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
+          <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
         </div>
         <div class="tr-conditions">
           <label class="cf">
-            <span>Instance</span>
+            <span>{{ t('Instance') }}</span>
             <select v-model="instanceId" :disabled="!serviceName" class="cf-input">
-              <option :value="null">All</option>
+              <option :value="null">{{ t('All') }}</option>
               <option v-for="i in instances" :key="i.id" :value="i.id">{{ i.name }}</option>
             </select>
           </label>
           <label class="cf cf-wide">
-            <span>Endpoint</span>
+            <span>{{ t('Endpoint') }}</span>
             <select v-model="endpointId" :disabled="!serviceName" class="cf-input">
-              <option :value="null">All</option>
+              <option :value="null">{{ t('All') }}</option>
               <option v-for="e in endpoints" :key="e.id" :value="e.id">{{ e.name }}</option>
             </select>
           </label>
           <label class="cf">
-            <span>Status</span>
+            <span>{{ t('Status') }}</span>
             <select v-model="traceState" class="cf-input">
-              <option value="ALL">All</option>
-              <option value="SUCCESS">Success</option>
-              <option value="ERROR">Error</option>
+              <option value="ALL">{{ t('All') }}</option>
+              <option value="SUCCESS">{{ t('Success') }}</option>
+              <option value="ERROR">{{ t('Error') }}</option>
             </select>
           </label>
           <label class="cf">
-            <span>Order</span>
+            <span>{{ t('Order') }}</span>
             <select v-model="queryOrder" class="cf-input">
-              <option value="BY_START_TIME">Newest</option>
-              <option value="BY_DURATION">Slowest</option>
+              <option value="BY_START_TIME">{{ t('Newest') }}</option>
+              <option value="BY_DURATION">{{ t('Slowest') }}</option>
             </select>
           </label>
-          <label class="cf" title="Cap on trace rows returned (default 30).">
-            <span>Limit</span>
+          <label class="cf" :title="t('Cap on trace rows returned (default 30).')">
+            <span>{{ t('Limit') }}</span>
             <select v-model.number="limit" class="cf-input">
               <option :value="10">10</option>
               <option :value="30">30</option>
@@ -1028,38 +1031,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             </select>
           </label>
           <label class="cf" :class="{ 'cf-wide': isCustomRange }">
-            <span>Time range</span>
+            <span>{{ t('Time range') }}</span>
             <template v-if="isCustomRange">
               <div class="cf-range">
                 <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
                 <span class="cf-range-sep">–</span>
                 <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
-                <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
+                <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="windowMinutes = 30">×</button>
               </div>
             </template>
             <select v-else v-model.number="windowMinutes" class="cf-input">
               <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
-              <option :value="CUSTOM_RANGE_SENTINEL">Custom…</option>
+              <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
             </select>
           </label>
           <label class="cf cf-wide">
-            <span>Trace ID</span>
-            <input v-model="traceIdInput" type="text" placeholder="paste trace id…" class="cf-input" @keyup.enter="runQuery" />
+            <span>{{ t('Trace ID') }}</span>
+            <input v-model="traceIdInput" type="text" :placeholder="t('paste trace id…')" class="cf-input" @keyup.enter="runQuery" />
           </label>
-          <div class="cf" title="Trace duration in ms (min – max).">
-            <span>Duration range (ms)</span>
+          <div class="cf" :title="t('Trace duration in ms (min – max).')">
+            <span>{{ t('Duration range (ms)') }}</span>
             <div class="cf-range">
-              <input v-model.number.lazy="minDuration" type="number" min="0" placeholder="min" class="cf-input cf-range-num" />
+              <input v-model.number.lazy="minDuration" type="number" min="0" :placeholder="t('min')" class="cf-input cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model.number.lazy="maxDuration" type="number" min="0" placeholder="max" class="cf-input cf-range-num" />
+              <input v-model.number.lazy="maxDuration" type="number" min="0" :placeholder="t('max')" class="cf-input cf-range-num" />
             </div>
           </div>
           <label class="cf cf-wide">
-            <span>Tag</span>
+            <span>{{ t('Tag') }}</span>
             <input
               v-model="tagsInput"
               type="text"
-              placeholder="key=value, then Enter"
+              :placeholder="t('key=value, then Enter')"
               class="cf-input"
               list="trace-tag-suggestions"
               @input="onTagInput"
@@ -1073,7 +1076,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           </label>
         </div>
         <div v-if="tagsList.length > 0" class="tr-tag-row">
-          <span class="tag-row-label">Active tags</span>
+          <span class="tag-row-label">{{ t('Active tags') }}</span>
           <span class="tag-chips">
             <span v-for="(tag, i) in tagsList" :key="i" class="tag-chip">
               <span class="mono">{{ tag.key }}={{ tag.value }}</span>
@@ -1092,19 +1095,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                `Distribution` becomes `N picked` + a Reset button.
                Reset is always visible while picking so the operator
                can drop the filter with one click. -->
-          <span v-if="!isPicking" class="kicker">Distribution</span>
-          <span v-else class="kicker pick-kicker">{{ pickedTraceIds.size }} picked</span>
+          <span v-if="!isPicking" class="kicker">{{ t('Distribution') }}</span>
+          <span v-else class="kicker pick-kicker">{{ t('{n} picked', { n: pickedTraceIds.size }) }}</span>
           <span class="legend">
-            <span class="lg ok" /> ok
-            <span class="lg err" /> err
+            <span class="lg ok" /> {{ t('ok') }}
+            <span class="lg err" /> {{ t('err') }}
           </span>
           <button
             v-if="isPicking"
             class="sw-btn small ghost reset-btn"
             type="button"
-            title="Clear in-page filter"
+            :title="t('Clear in-page filter')"
             @click="resetPick"
-          >Reset</button>
+          >{{ t('Reset') }}</button>
         </header>
         <div v-if="scatterPoints.length > 0 && scatterBounds" class="scatter-wrap">
           <svg
@@ -1132,7 +1135,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               class="scatter-dot"
               @click="pickScatterDot(p, $event)"
             >
-              <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ pickedTraceIds.has(p.rowKey) ? ' · picked' : '' }}</title>
+              <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ pickedTraceIds.has(p.rowKey) ? ` · ${t('picked')}` : '' }}</title>
             </circle>
             <!-- Drag-select rectangle. -->
             <rect
@@ -1159,20 +1162,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             >{{ t.label }}</span>
           </div>
         </div>
-        <div v-else class="scatter-empty">no traces</div>
+        <div v-else class="scatter-empty">{{ t('no traces') }}</div>
       </section>
     </div>
 
     <!-- Persists across browse + detail so the active trace-query API
          (and what a row represents) stays visible after a click. -->
     <div v-if="showApiBanner" class="tr-api-banner">
-      This OAP serves traces via <b>Trace Query {{ traceApiLabel }} API</b>
+      {{ t('This OAP serves traces via') }} <b>{{ t('Trace Query {label} API', { label: traceApiLabel }) }}</b>
       (<code>{{ native?.api }}</code>).
       <template v-if="isSegmentList">
-        Each row is a trace <b>segment</b> — click one to fetch its full trace.
+        {{ t('Each row is a trace') }} <b>{{ t('segment') }}</b> — {{ t('click one to fetch its full trace.') }}
       </template>
       <template v-else>
-        Full traces are returned inline.
+        {{ t('Full traces are returned inline.') }}
       </template>
     </div>
 
@@ -1180,18 +1183,18 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
     <template v-if="!selectedTraceId">
       <article class="tr-list-card sw-card">
         <header class="tr-list-head">
-          <h4>{{ isSegmentList ? 'Segments' : 'Traces' }}</h4>
-          <span v-if="native?.error" class="err-chip" :title="native.error">unreachable</span>
-          <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? 'segments' : 'traces' }}</span>
+          <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
+          <span v-if="native?.error" class="err-chip" :title="native.error">{{ t('unreachable') }}</span>
+          <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
         </header>
         <div v-if="!hasQueried" class="tr-empty">
-          Pick your conditions, then click <b>Run query</b>.
+          {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <div v-else-if="!native || (native.reachable && native.traces.length === 0)" class="tr-empty">
-          No traces in window.
+          {{ t('No traces in window.') }}
         </div>
         <div v-else-if="isPicking && visibleTraces.length === 0" class="tr-empty">
-          No traces match the distribution selection.
+          {{ t('No traces match the distribution selection.') }}
         </div>
         <ul v-else class="tr-rowlist">
           <li
@@ -1208,10 +1211,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 :class="row.isError ? 'flag-err' : 'flag-ok'"
               >
                 <span class="flag-dot" />
-                {{ row.isError ? 'ERR' : 'OK' }}
+                {{ row.isError ? t('ERR') : t('OK') }}
               </span>
             </div>
-            <div class="tr-row-bar" :title="`${row.duration} ms — ${Math.round((row.duration / (maxTraceDuration || 1)) * 100)}% of slowest`">
+            <div class="tr-row-bar" :title="t('{dur} ms — {pct}% of slowest', { dur: row.duration, pct: Math.round((row.duration / (maxTraceDuration || 1)) * 100) })">
               <div
                 class="tr-row-bar-fill"
                 :style="{
@@ -1235,10 +1238,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
     <section v-else class="tr-detail-split" :class="{ 'rail-collapsed': !railOpen }">
       <aside class="tr-rail sw-card">
         <header class="tr-rail-head">
-          <button class="rail-handle" type="button" :title="railOpen ? 'Collapse list' : 'Expand list'" @click="railOpen = !railOpen">
+          <button class="rail-handle" type="button" :title="railOpen ? t('Collapse list') : t('Expand list')" @click="railOpen = !railOpen">
             <span v-if="railOpen">«</span><span v-else>»</span>
           </button>
-          <h4 v-if="railOpen">{{ isSegmentList ? 'Segments' : 'Traces' }}</h4>
+          <h4 v-if="railOpen">{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
           <span v-if="railOpen && native" class="hint">{{ native.traces.length }}</span>
         </header>
         <ul v-if="railOpen && visibleTraces.length" class="tr-rowlist rail-list">
@@ -1264,7 +1267,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 :class="row.isError ? 'flag-err' : 'flag-ok'"
               >
                 <span class="flag-dot" />
-                {{ row.isError ? 'ERR' : 'OK' }}
+                {{ row.isError ? t('ERR') : t('OK') }}
               </span>
             </div>
             <div class="tr-ep rail-ep mono" :class="{ red: row.isError }">{{ row.endpointNames[0] ?? '—' }}</div>
@@ -1281,7 +1284,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             :key="row.key"
             class="rail-mini-row"
             :class="{ on: selectedRowKey === row.key }"
-            :title="`${row.endpointNames[0] ?? '—'} · ${row.duration} ms · ${row.isError ? 'err' : 'ok'}`"
+            :title="`${row.endpointNames[0] ?? '—'} · ${row.duration} ms · ${row.isError ? t('err') : t('ok')}`"
             @click="selectNative(row)"
           >
             <div class="rail-mini-bar">
@@ -1300,33 +1303,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       <article class="tr-detail sw-card">
         <header class="tr-detail-head">
           <div class="tr-detail-title">
-            <span class="dim">trace</span>
+            <span class="dim">{{ t('trace') }}</span>
             <select v-if="selectedTraceIds.length > 1" :value="selectedTraceId ?? ''" class="trace-id-select mono" @change="changeSelectedTraceId(($event.target as HTMLSelectElement).value)">
               <option v-for="id in selectedTraceIds" :key="id" :value="id">{{ id }}</option>
             </select>
             <span v-else class="mono trace-id-text" :title="selectedTraceId ?? ''">{{ selectedTraceId }}</span>
-            <button class="sw-btn small ghost copy-btn" type="button" title="Copy trace id" @click="copyTraceId">⧉ id</button>
-            <button class="sw-btn small ghost copy-btn" type="button" title="Copy shareable URL" @click="copyShareableUrl">⧉ url</button>
+            <button class="sw-btn small ghost copy-btn" type="button" :title="t('Copy trace id')" @click="copyTraceId">⧉ {{ t('id') }}</button>
+            <button class="sw-btn small ghost copy-btn" type="button" :title="t('Copy shareable URL')" @click="copyShareableUrl">⧉ {{ t('url') }}</button>
             <transition name="copy-flash">
-              <span v-if="copyFlash" class="copy-flash-chip">{{ copyFlash === 'url' ? 'url copied' : 'id copied' }}</span>
+              <span v-if="copyFlash" class="copy-flash-chip">{{ copyFlash === 'url' ? t('url copied') : t('id copied') }}</span>
             </transition>
           </div>
           <div class="tr-detail-tools">
-            <span v-if="detailFetching" class="hint">loading…</span>
+            <span v-if="detailFetching" class="hint">{{ t('loading…') }}</span>
             <div class="view-toggle">
-              <button :class="['vt-btn', { on: viewMode === 'default' }]" type="button" @click="viewMode = 'default'">Default</button>
-              <button :class="['vt-btn', { on: viewMode === 'tree' }]" type="button" @click="viewMode = 'tree'">Tree</button>
-              <button :class="['vt-btn', { on: viewMode === 'statistics' }]" type="button" @click="viewMode = 'statistics'">Statistics</button>
+              <button :class="['vt-btn', { on: viewMode === 'default' }]" type="button" @click="viewMode = 'default'">{{ t('Default') }}</button>
+              <button :class="['vt-btn', { on: viewMode === 'tree' }]" type="button" @click="viewMode = 'tree'">{{ t('Tree') }}</button>
+              <button :class="['vt-btn', { on: viewMode === 'statistics' }]" type="button" @click="viewMode = 'statistics'">{{ t('Statistics') }}</button>
             </div>
-            <button class="sw-btn small ghost" type="button" title="Back to list" @click="closeDetail">×</button>
+            <button class="sw-btn small ghost" type="button" :title="t('Back to list')" @click="closeDetail">×</button>
           </div>
         </header>
 
         <div class="tr-kpis">
-          <div><div class="kpi-label">started</div><div class="kpi-val">{{ fmtDateTime(nativeRootStart) }}</div></div>
-          <div><div class="kpi-label">duration</div><div class="kpi-val">{{ fmtMs(nativeWaterfallDuration) }}</div></div>
-          <div><div class="kpi-label">spans</div><div class="kpi-val">{{ nativeWaterfall.length }}</div></div>
-          <div><div class="kpi-label">services</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
+          <div><div class="kpi-label">{{ t('started') }}</div><div class="kpi-val">{{ fmtDateTime(nativeRootStart) }}</div></div>
+          <div><div class="kpi-label">{{ t('duration') }}</div><div class="kpi-val">{{ fmtMs(nativeWaterfallDuration) }}</div></div>
+          <div><div class="kpi-label">{{ t('spans') }}</div><div class="kpi-val">{{ nativeWaterfall.length }}</div></div>
+          <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
         </div>
 
         <div v-if="serviceColors.size > 0" class="tr-svc-legend">
@@ -1346,7 +1349,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
              • the duration as a suffix on the right.
              Service code is conveyed by colour only — no text. -->
         <template v-if="viewMode === 'default'">
-          <div v-if="nativeWaterfall.length === 0" class="tr-empty">no span data</div>
+          <div v-if="nativeWaterfall.length === 0" class="tr-empty">{{ t('no span data') }}</div>
           <div v-else class="tr-default-list">
             <div
               v-for="row in nativeWaterfall"
@@ -1359,7 +1362,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               <span
                 class="status-flag sm"
                 :class="row.span.isError ? 'flag-err' : 'flag-ok'"
-                :title="row.span.isError ? 'Span errored' : 'Span OK'"
+                :title="row.span.isError ? t('Span errored') : t('Span OK')"
               ><span class="flag-dot" /></span>
               <!-- Inline kind glyph: → (entry), ← (exit), ◯ (local),
                    speech-bubble (producer/consumer), generic (other).
@@ -1368,7 +1371,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 class="kind-glyph"
                 viewBox="0 0 14 14"
                 :style="{ color: kindColor(row.span.type) }"
-                :aria-label="row.span.type || 'span'"
+                :aria-label="row.span.type || t('span')"
                 :title="row.span.type || ''"
               >
                 <template v-if="kindFamily(row.span.type) === 'entry'">
@@ -1407,7 +1410,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 v-else
                 class="comp-icon comp-icon-generic"
                 viewBox="0 0 18 18"
-                :aria-label="row.span.component || 'generic span'"
+                :aria-label="row.span.component || t('generic span')"
               >
                 <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
                 <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
@@ -1445,12 +1448,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 <span
                   v-if="row.span.peer"
                   class="tr-peer mono"
-                  :title="`peer · ${row.span.peer}`"
+                  :title="t('peer · {peer}', { peer: row.span.peer })"
                 >→ {{ row.span.peer }}</span>
                 <span
                   v-if="row.span.attachedEvents && row.span.attachedEvents.length > 0"
                   class="evt-badge"
-                  :title="`${row.span.attachedEvents.length} attached event${row.span.attachedEvents.length === 1 ? '' : 's'}`"
+                  :title="t('{n} attached events', { n: row.span.attachedEvents.length })"
                 >
                   <span class="evt-flag">⚑</span>
                   <span class="evt-count">{{ row.span.attachedEvents.length }}</span>
@@ -1467,12 +1470,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
              Wheel-zoom + drag-pan via d3.zoom; explicit +/-/⊙
              controls on the top-right of the canvas. -->
         <template v-else-if="viewMode === 'tree'">
-          <div v-if="nativeTreeLayout.nodes.length === 0" class="tr-empty">no span data</div>
+          <div v-if="nativeTreeLayout.nodes.length === 0" class="tr-empty">{{ t('no span data') }}</div>
           <div v-else class="tr-tree-canvas">
             <div class="tree-zoom-ctrls">
-              <button class="sw-btn small ghost" type="button" title="Zoom in" @click="treeZoomBy(1.25)">+</button>
-              <button class="sw-btn small ghost" type="button" title="Zoom out" @click="treeZoomBy(1 / 1.25)">−</button>
-              <button class="sw-btn small ghost" type="button" title="Reset" @click="treeZoomReset">⊙</button>
+              <button class="sw-btn small ghost" type="button" :title="t('Zoom in')" @click="treeZoomBy(1.25)">+</button>
+              <button class="sw-btn small ghost" type="button" :title="t('Zoom out')" @click="treeZoomBy(1 / 1.25)">−</button>
+              <button class="sw-btn small ghost" type="button" :title="t('Reset')" @click="treeZoomReset">⊙</button>
               <span class="zoom-pct mono">{{ Math.round(treeTransform.k * 100) }}%</span>
             </div>
             <svg
@@ -1547,7 +1550,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                       v-else
                       class="comp-icon comp-icon-generic"
                       viewBox="0 0 18 18"
-                      :aria-label="n.span.component || 'generic span'"
+                      :aria-label="n.span.component || t('generic span')"
                     >
                       <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
                       <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
@@ -1572,20 +1575,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
              Total / Avg / Max. Components are aggregated within each
              group; the top-3 icons render in a single cell. -->
         <template v-else>
-          <div v-if="nativeStats.length === 0" class="tr-empty">no span data</div>
+          <div v-if="nativeStats.length === 0" class="tr-empty">{{ t('no span data') }}</div>
           <table v-else class="tr-table">
             <thead>
               <tr>
-                <th class="endpoint-col">Span name</th>
-                <th>Service</th>
-                <th>Components</th>
-                <th class="num">Count</th>
+                <th class="endpoint-col">{{ t('Span name') }}</th>
+                <th>{{ t('Service') }}</th>
+                <th>{{ t('Components') }}</th>
+                <th class="num">{{ t('Count') }}</th>
                 <th
                   class="num sortable"
                   :class="{ on: statSortKey === 'total' }"
                   @click="toggleStatSort('total')"
                 >
-                  Total
+                  {{ t('Total') }}
                   <span class="sort-ind">{{ statSortKey === 'total' ? (statSortDir === 'desc' ? '↓' : '↑') : '↕' }}</span>
                 </th>
                 <th
@@ -1593,7 +1596,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   :class="{ on: statSortKey === 'avg' }"
                   @click="toggleStatSort('avg')"
                 >
-                  Avg
+                  {{ t('Avg') }}
                   <span class="sort-ind">{{ statSortKey === 'avg' ? (statSortDir === 'desc' ? '↓' : '↑') : '↕' }}</span>
                 </th>
                 <th
@@ -1601,7 +1604,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   :class="{ on: statSortKey === 'max' }"
                   @click="toggleStatSort('max')"
                 >
-                  Max
+                  {{ t('Max') }}
                   <span class="sort-ind">{{ statSortKey === 'max' ? (statSortDir === 'desc' ? '↓' : '↑') : '↕' }}</span>
                 </th>
               </tr>
@@ -1620,7 +1623,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                       v-for="(c, ci) in r.components"
                       :key="ci"
                       class="stat-comp"
-                      :title="`${c.name} · ${c.count}`"
+                      :title="t('{name} · {count}', { name: c.name, count: c.count })"
                     >
                       <img
                         v-if="componentIconOrNull(c.name)"
@@ -1653,38 +1656,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       <article class="span-modal sw-card">
         <header class="span-modal-head">
           <h4>
-            <span class="dim">Span detail</span>
+            <span class="dim">{{ t('Span detail') }}</span>
             <span class="mono">{{ openSpan.endpointName || '—' }}</span>
           </h4>
           <button class="sw-btn small ghost" type="button" @click="closeSpan">×</button>
         </header>
         <div class="span-modal-body">
           <section class="sd-section">
-            <h5>Meta</h5>
+            <h5>{{ t('Meta') }}</h5>
             <dl class="kv">
-              <dt>Service</dt>
+              <dt>{{ t('Service') }}</dt>
               <dd class="mono" :style="{ color: serviceColor(openSpan.serviceCode) }">
                 <span class="svc-swatch inline" :style="{ background: serviceColor(openSpan.serviceCode) }" />
                 {{ openSpan.serviceCode }}
               </dd>
-              <dt>Instance</dt><dd class="mono">{{ openSpan.serviceInstanceName }}</dd>
-              <dt>Endpoint</dt><dd class="mono">{{ openSpan.endpointName || '—' }}</dd>
-              <dt>Type</dt><dd><span class="tr-kind" :style="{ color: kindColor(openSpan.type) }">{{ openSpan.type }}</span></dd>
-              <dt>Component</dt><dd class="mono">{{ openSpan.component || '—' }}</dd>
-              <dt>Peer</dt><dd class="mono">{{ openSpan.peer || '—' }}</dd>
-              <dt>Layer</dt><dd class="mono dim">{{ openSpan.layer || '—' }}</dd>
-              <dt>Start</dt><dd class="mono">{{ fmtDateTime(openSpan.startTime) }}</dd>
-              <dt>Duration</dt><dd class="mono">{{ fmtMs(openSpan.endTime - openSpan.startTime) }}</dd>
-              <dt>Error</dt><dd><span class="status-flag" :class="nativeSpanError(openSpan) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ nativeSpanError(openSpan) ? 'true' : 'false' }}</span></dd>
+              <dt>{{ t('Instance') }}</dt><dd class="mono">{{ openSpan.serviceInstanceName }}</dd>
+              <dt>{{ t('Endpoint') }}</dt><dd class="mono">{{ openSpan.endpointName || '—' }}</dd>
+              <dt>{{ t('Type') }}</dt><dd><span class="tr-kind" :style="{ color: kindColor(openSpan.type) }">{{ openSpan.type }}</span></dd>
+              <dt>{{ t('Component') }}</dt><dd class="mono">{{ openSpan.component || '—' }}</dd>
+              <dt>{{ t('Peer') }}</dt><dd class="mono">{{ openSpan.peer || '—' }}</dd>
+              <dt>{{ t('Layer') }}</dt><dd class="mono dim">{{ openSpan.layer || '—' }}</dd>
+              <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(openSpan.startTime) }}</dd>
+              <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(openSpan.endTime - openSpan.startTime) }}</dd>
+              <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="nativeSpanError(openSpan) ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ nativeSpanError(openSpan) ? t('true') : t('false') }}</span></dd>
             </dl>
           </section>
           <section
             v-if="(openSpan.refs ?? []).some((r) => r.traceId !== selectedTraceId)"
             class="sd-section"
           >
-            <h5>Cross-trace refs</h5>
+            <h5>{{ t('Cross-trace refs') }}</h5>
             <table class="kv-table">
-              <thead><tr><th>Trace ID</th><th>Parent segment</th><th class="num">Parent span</th><th>Type</th></tr></thead>
+              <thead><tr><th>{{ t('Trace ID') }}</th><th>{{ t('Parent segment') }}</th><th class="num">{{ t('Parent span') }}</th><th>{{ t('Type') }}</th></tr></thead>
               <tbody>
                 <template v-for="(r, i) in openSpan.refs" :key="i">
                   <tr v-if="r.traceId !== selectedTraceId">
@@ -1700,16 +1703,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             </table>
           </section>
           <section v-if="openSpan.tags && openSpan.tags.length > 0" class="sd-section">
-            <h5>Tags</h5>
+            <h5>{{ t('Tags') }}</h5>
             <dl class="kv">
-              <template v-for="(t, i) in openSpan.tags" :key="i">
-                <dt class="mono">{{ t.key }}</dt>
-                <dd class="mono wba">{{ t.value }}</dd>
+              <template v-for="(tag, i) in openSpan.tags" :key="i">
+                <dt class="mono">{{ tag.key }}</dt>
+                <dd class="mono wba">{{ tag.value }}</dd>
               </template>
             </dl>
           </section>
           <section v-if="openSpan.logs && openSpan.logs.length > 0" class="sd-section">
-            <h5>Logs</h5>
+            <h5>{{ t('Logs') }}</h5>
             <div v-for="(log, i) in (openSpan.logs as TraceLogEntry[])" :key="i" class="span-log">
               <div class="span-log-time mono dim">{{ fmtDateTime(log.time) }}</div>
               <dl class="kv">
@@ -1721,7 +1724,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             </div>
           </section>
           <section v-if="openSpan.attachedEvents && openSpan.attachedEvents.length > 0" class="sd-section">
-            <h5>Attached Events</h5>
+            <h5>{{ t('Attached Events') }}</h5>
             <div v-for="(ev, i) in (openSpan.attachedEvents as TraceAttachedEvent[])" :key="i" class="span-event">
               <div class="span-event-head">
                 <span class="mono">{{ ev.event }}</span>
@@ -1734,9 +1737,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 </template>
               </dl>
               <dl v-if="ev.tags && ev.tags.length > 0" class="kv">
-                <template v-for="(t, j) in ev.tags" :key="`t${j}`">
-                  <dt class="mono dim">tag · {{ t.key }}</dt>
-                  <dd class="mono wba">{{ t.value }}</dd>
+                <template v-for="(tag, j) in ev.tags" :key="`t${j}`">
+                  <dt class="mono dim">{{ t('tag') }} · {{ tag.key }}</dt>
+                  <dd class="mono wba">{{ tag.value }}</dd>
                 </template>
               </dl>
             </div>

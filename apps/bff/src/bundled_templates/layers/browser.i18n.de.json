@@ -1,0 +1,215 @@
+{
+  "alias": "Browser",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Seitenaufrufe"
+      },
+      {
+        "label": "Fehlerrate"
+      },
+      {
+        "label": "Fehler"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Seitenstatus",
+        "metrics": [
+          {
+            "label": "Fehlerrate",
+            "tip": "Prozentsatz der Seitenladevorgänge, die einen Fehler erzeugten."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "PV / min",
+            "tip": "Seitenaufrufe pro Minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "App-Last (PV)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "App-Fehlerrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "App-Fehleranzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Top heiße Seiten",
+        "tip": "Seiten sortiert nach Page Views, Fehlern und Fehlerrate.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "PV",
+          "Fehler",
+          "Fehlerrate"
+        ],
+        "expressionUnits": [
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Top-Versionen",
+        "tip": "App-Versions-Aufschlüsselung — Last + Fehler + Fehlerrate.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "PV",
+          "Fehler",
+          "Fehlerrate"
+        ],
+        "expressionUnits": [
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Versions-PV",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Versions-Fehlerrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Versions-Fehleranzahl",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "First Meaningful Paint Perzentil",
+        "tip": "p50–p99 der FMP-Latenz für die ausgewählte Seite. Unter 1 s für p75 ist ein übliches Ziel.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Seitenlade-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Time-to-Live Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Pack-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Seiten-Performance-Aufschlüsselung",
+        "tip": "Durchschnittliche Zeit in jeder Phase des Seitenladens — Resolve, Redirect, DNS, TCP, TTFB, Transfer, DOM-Analyse, DOM-Bereit, FPT, voll geladen.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "dns",
+          "redirect",
+          "tcp",
+          "ttfb",
+          "transfer",
+          "dom-analyse",
+          "dom-bereit",
+          "fpt",
+          "last",
+          "resource"
+        ]
+      },
+      {
+        "title": "Seitenfehler nach Typ",
+        "tip": "Zähler für Resource- / JS- / AJAX- / unbekannte Fehler pro Minute.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "resource",
+          "js",
+          "ajax",
+          "unbekannt"
+        ]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "Core Web Vitals — FMP, LCP, CLS (Mittel pro Minute). CLS wird durch 1000 geteilt, um es in den üblichen 0–1-Score-Bereich zu bringen.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "FMP (ms)",
+          "LCP (ms)",
+          "CLS"
+        ]
+      },
+      {
+        "title": "Interaction-to-Next-Paint-Perzentil",
+        "tip": "INP — Reaktionsmetrik, die FID ersetzt.",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Apps",
+    "instances": "Versionen",
+    "endpoints": "Seiten"
+  }
+}

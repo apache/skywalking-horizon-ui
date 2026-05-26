@@ -1,0 +1,140 @@
+{
+  "alias": "Linux",
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "Speicher MB"
+      },
+      {
+        "label": "Load 1m"
+      },
+      {
+        "label": "FS %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Ressourcen",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU-Gesamtauslastung."
+          },
+          {
+            "label": "Speicher %",
+            "tip": "Speicher genutzt / gesamt."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU-Mittel genutzt (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU-Last",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "File-FD zugewiesen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher RAM (MB)",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "gesamt",
+          "verfügbar",
+          "buff/cache"
+        ]
+      },
+      {
+        "title": "Speicher Swap (MB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "frei",
+          "gesamt"
+        ]
+      },
+      {
+        "title": "Netzwerk-Bandbreite (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "transmit"
+        ]
+      },
+      {
+        "title": "Disk R/W (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "geschrieben"
+        ]
+      },
+      {
+        "title": "Dateisystem-Nutzung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Netzwerk-Status",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "tcp estab",
+          "tcp time-wait",
+          "tcp alloc",
+          "sockets genutzt",
+          "udp in-use"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Hosts"
+  }
+}

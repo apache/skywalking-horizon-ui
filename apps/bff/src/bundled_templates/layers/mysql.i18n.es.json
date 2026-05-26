@@ -1,0 +1,145 @@
+{
+  "group": "Bases de datos",
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "Consultas por segundo en el clúster."
+          },
+          {
+            "label": "TPS",
+            "tip": "Transacciones por segundo."
+          },
+          {
+            "label": "Consultas lentas/s",
+            "tip": "Tasa de consultas lentas en el clúster."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Clústeres de MySQL"
+  },
+  "alias": "MySQL / MariaDB",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "QPS lentos"
+      },
+      {
+        "label": "Errores de conexión"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "TPS"
+      },
+      {
+        "title": "Consultas lentas / s"
+      },
+      {
+        "title": "Errores de conexión",
+        "tip": "Rechazos internos vs por máximo de conexiones.",
+        "expressionLabels": [
+          "interno",
+          "max-connections"
+        ]
+      },
+      {
+        "title": "Tendencia de comandos",
+        "tip": "Tasa de filas afectadas por comando (select / insert / update / delete).",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Hilos",
+        "expressionLabels": [
+          "conectados",
+          "running",
+          "en caché",
+          "creados"
+        ]
+      },
+      {
+        "title": "Statements lentos",
+        "tip": "Top 20 statements más lentos capturados en el clúster."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime"
+      },
+      {
+        "title": "Conexiones máximas"
+      },
+      {
+        "title": "Buffer pool de InnoDB"
+      },
+      {
+        "title": "Tamaño del caché de hilos"
+      },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "Consultas lentas / s"
+      },
+      {
+        "title": "Tendencia de comandos",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Hilos",
+        "expressionLabels": [
+          "conectados",
+          "running",
+          "en caché",
+          "creados"
+        ]
+      },
+      {
+        "title": "Conexiones",
+        "expressionLabels": [
+          "disponible",
+          "abortadas"
+        ]
+      },
+      {
+        "title": "Errores de conexión",
+        "expressionLabels": [
+          "interno",
+          "max-connections"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "リクエスト"
+      },
+      {
+        "label": "平均レイテンシ"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "エラー",
+        "metrics": [
+          {
+            "label": "4xx 件数",
+            "tip": "CloudWatch で観測されたクライアントエラー。"
+          },
+          {
+            "label": "5xx 件数",
+            "tip": "CloudWatch で観測されたサーバーエラー。"
+          },
+          {
+            "label": "平均レイテンシ",
+            "tip": "平均リクエストレイテンシ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "全リクエスト数"
+      },
+      {
+        "title": "GET リクエスト数"
+      },
+      {
+        "title": "PUT リクエスト数"
+      },
+      {
+        "title": "DELETE リクエスト数"
+      },
+      {
+        "title": "4xx 件数"
+      },
+      {
+        "title": "5xx 件数"
+      },
+      {
+        "title": "リクエスト平均レイテンシ"
+      },
+      {
+        "title": "First Byte 平均レイテンシ"
+      },
+      {
+        "title": "ダウンロード (KB)"
+      },
+      {
+        "title": "アップロード (KB)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "S3 バケット"
+  }
+}

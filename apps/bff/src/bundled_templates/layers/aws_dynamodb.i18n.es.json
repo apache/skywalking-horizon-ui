@@ -1,0 +1,188 @@
+{
+  "alias": "AWS DynamoDB",
+  "overview": {
+    "groups": [
+      {
+        "title": "Limitación",
+        "metrics": [
+          {
+            "label": "Lecturas limitadas",
+            "tip": "Peticiones de lectura throttled — capacidad agotada."
+          },
+          {
+            "label": "Escrituras limitadas",
+            "tip": "Peticiones de escritura throttled."
+          },
+          {
+            "label": "Errores de usuario",
+            "tip": "Errores de usuario tipo bad-request."
+          }
+        ]
+      }
+    ]
+  },
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Lectura throttled"
+      },
+      {
+        "label": "Escritura throttled"
+      },
+      {
+        "label": "Errores de sistema de lectura"
+      },
+      {
+        "label": "Errores de sistema de escritura"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Peticiones throttled",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Eventos de throttling",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Errores del sistema",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Errores del usuario"
+      },
+      {
+        "title": "Verificación condicional fallida"
+      },
+      {
+        "title": "Conflicto de transacción"
+      },
+      {
+        "title": "Capacidad de lectura (unidad/s)",
+        "expressionLabels": [
+          "aprovisionado",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Capacidad de escritura (unidad/s)",
+        "expressionLabels": [
+          "aprovisionado",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Latencia de peticiones exitosas (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "consulta",
+          "scan"
+        ]
+      },
+      {
+        "title": "Items eliminados por TTL"
+      },
+      {
+        "title": "Items devueltos por scan"
+      },
+      {
+        "title": "Items devueltos por la consulta"
+      },
+      {
+        "title": "Lecturas / escrituras máximas de la cuenta",
+        "expressionLabels": [
+          "lecturas a nivel tabla",
+          "escrituras a nivel tabla",
+          "lecturas",
+          "escrituras"
+        ]
+      },
+      {
+        "title": "Utilización de capacidad de la cuenta",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Peticiones throttled",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Eventos de throttling",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Errores del sistema",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Verificación condicional fallida"
+      },
+      {
+        "title": "Conflicto de transacción"
+      },
+      {
+        "title": "Items eliminados por TTL"
+      },
+      {
+        "title": "Capacidad de lectura",
+        "expressionLabels": [
+          "aprovisionado",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Capacidad de escritura",
+        "expressionLabels": [
+          "aprovisionado",
+          "consumidos"
+        ]
+      },
+      {
+        "title": "Latencia de peticiones exitosas (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "consulta",
+          "scan"
+        ]
+      },
+      {
+        "title": "Items devueltos por scan"
+      },
+      {
+        "title": "Items devueltos por la consulta"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Cuentas de DynamoDB",
+    "endpoints": "Tablas"
+  }
+}

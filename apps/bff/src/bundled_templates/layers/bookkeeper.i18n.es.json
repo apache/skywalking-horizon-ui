@@ -1,0 +1,130 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "Escritura B/s",
+            "tip": "Rendimiento de escritura de bookies en el clúster."
+          },
+          {
+            "label": "Lectura B/s",
+            "tip": "Rendimiento de lectura de bookies en el clúster."
+          }
+        ]
+      }
+    ]
+  },
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Ledgers"
+      },
+      {
+        "label": "Entradas"
+      },
+      {
+        "label": "Directorios escribibles"
+      },
+      {
+        "label": "Uso de directorio"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Ledgers del bookie"
+      },
+      {
+        "title": "Entradas del bookie"
+      },
+      {
+        "title": "Directorios de ledger escribibles"
+      },
+      {
+        "title": "Caché de escritura",
+        "expressionLabels": [
+          "tamaño (MB)",
+          "entradas"
+        ]
+      },
+      {
+        "title": "Caché de lectura",
+        "expressionLabels": [
+          "tamaño (MB)",
+          "entradas"
+        ]
+      },
+      {
+        "title": "Tasa de L/E (B/s)",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Uso del directorio de ledgers"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pool de memoria JVM (MB)"
+      },
+      {
+        "title": "Memoria JVM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "confirmadas",
+          "init"
+        ]
+      },
+      {
+        "title": "Hilos JVM",
+        "expressionLabels": [
+          "actual",
+          "daemon",
+          "máximo",
+          "en deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "segundos",
+          "conteo"
+        ]
+      },
+      {
+        "title": "Executor de hilos",
+        "expressionLabels": [
+          "completadas",
+          "tareas completadas",
+          "rechazados",
+          "fallidos"
+        ]
+      },
+      {
+        "title": "Hilos en pool",
+        "expressionLabels": [
+          "alta prioridad",
+          "lectura"
+        ]
+      },
+      {
+        "title": "Tamaño máximo de la cola del pool",
+        "expressionLabels": [
+          "alta prioridad",
+          "lectura"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clústeres de BookKeeper",
+    "instances": "Bookies"
+  }
+}

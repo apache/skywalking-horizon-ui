@@ -1,0 +1,201 @@
+{
+  "alias": "Elasticsearch",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "상태"
+      },
+      {
+        "label": "샤드"
+      },
+      {
+        "label": "노드"
+      },
+      {
+        "label": "미할당"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터",
+        "metrics": [
+          {
+            "label": "상태",
+            "tip": "0 green / 1 yellow / 2 red."
+          },
+          {
+            "label": "미할당 샤드",
+            "tip": "아직 어떤 노드에도 배치되지 않은 샤드입니다."
+          },
+          {
+            "label": "발생한 서킷 브레이커",
+            "tip": "누적 서킷 브레이커 트립 — 값이 크면 메모리 압박을 의미합니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "클러스터 상태",
+        "tableHeaders": [
+          "상태",
+          "값"
+        ]
+      },
+      {
+        "title": "노드"
+      },
+      {
+        "title": "대기 작업"
+      },
+      {
+        "title": "Primary 샤드"
+      },
+      {
+        "title": "활성 샤드"
+      },
+      {
+        "title": "Initializing"
+      },
+      {
+        "title": "재배치 중"
+      },
+      {
+        "title": "미할당"
+      },
+      {
+        "title": "지연된 미할당"
+      },
+      {
+        "title": "발생한 서킷 브레이커"
+      },
+      {
+        "title": "클러스터 평균 CPU"
+      },
+      {
+        "title": "JVM 메모리 평균 사용량"
+      },
+      {
+        "title": "평균 열린 파일"
+      }
+    ],
+    "instance": [
+      {
+        "title": "프로세스 CPU (%)"
+      },
+      {
+        "title": "OS CPU (%)"
+      },
+      {
+        "title": "평균 부하",
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "JVM 메모리 (MB)",
+        "expressionLabels": [
+          "heap 사용",
+          "heap 최대",
+          "non-heap"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "count",
+          "시간 (ms/분)"
+        ]
+      },
+      {
+        "title": "트랜잭션 로그",
+        "expressionLabels": [
+          "작업",
+          "크기 (MB)"
+        ]
+      },
+      {
+        "title": "서킷 브레이커",
+        "expressionLabels": [
+          "tripped",
+          "추정 (MB)"
+        ]
+      },
+      {
+        "title": "세그먼트",
+        "expressionLabels": [
+          "count",
+          "메모리 (MB)"
+        ]
+      },
+      {
+        "title": "디스크 사용량",
+        "expressionLabels": [
+          "GB",
+          "%"
+        ]
+      },
+      {
+        "title": "네트워크",
+        "expressionLabels": [
+          "전송",
+          "수신"
+        ]
+      },
+      {
+        "title": "열린 파일"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "인덱싱 비율",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "검색 비율",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "인덱스 크기 (모든 샤드)"
+      },
+      {
+        "title": "인덱스 크기 (primary)"
+      },
+      {
+        "title": "문서",
+        "expressionLabels": [
+          "전체",
+          "primary",
+          "deleted"
+        ]
+      },
+      {
+        "title": "평균 검색 시간 / 요청 (s)",
+        "expressionLabels": [
+          "fetch",
+          "query",
+          "scroll",
+          "suggest"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ES 클러스터",
+    "instances": "노드",
+    "endpoints": "인덱스"
+  }
+}

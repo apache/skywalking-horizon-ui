@@ -1,0 +1,65 @@
+{
+  "alias": "微信小程序",
+  "group": "移动",
+  "slots": {
+    "services": "小程序",
+    "instances": "版本",
+    "endpoints": "页面"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "请求 RPM" },
+      { "label": "启动" },
+      { "label": "首屏渲染" },
+      { "label": "错误" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          { "label": "请求 P95", "tip": "来自微信网络桥的 95 分位请求耗时。" },
+          { "label": "启动", "tip": "微信客户端观察到的小程序启动耗时。" },
+          { "label": "错误", "tip": "上报的错误次数。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "请求 RPM", "tip": "桥每分钟的请求数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "应用启动耗时" },
+      { "title": "首屏渲染耗时" },
+      {
+        "title": "Package 加载耗时",
+        "tip": "下载 + 解析小程序 Package 的耗时。"
+      },
+      { "title": "错误数" },
+      { "title": "路由耗时", "tip": "小程序页面路由切换的耗时。" },
+      { "title": "脚本耗时" },
+      { "title": "请求负载" },
+      { "title": "请求耗时分位" }
+    ],
+    "instance": [
+      { "title": "启动耗时" },
+      { "title": "首屏渲染耗时" },
+      { "title": "Package 加载耗时" },
+      { "title": "请求负载" },
+      { "title": "路由耗时" },
+      { "title": "脚本耗时" },
+      { "title": "请求耗时分位" }
+    ],
+    "endpoint": [
+      { "title": "页面启动耗时" },
+      { "title": "首屏渲染耗时" },
+      { "title": "请求负载" },
+      { "title": "请求耗时分位" }
+    ]
+  }
+}

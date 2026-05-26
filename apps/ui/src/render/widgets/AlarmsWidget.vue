@@ -31,9 +31,11 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import Icon from '@/components/icons/Icon.vue';
+import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import {
   bff,
   OVERVIEW_ALARMS_LIMIT_DEFAULT,
@@ -43,6 +45,8 @@ import {
 import { useOapInfo } from '@/shell/useOapInfo';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
 import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = withDefaults(
   defineProps<{
@@ -93,10 +97,10 @@ const windowMs = computed<number>(
 const windowLabel = computed<string>(() => {
   const ms = windowMs.value;
   const min = Math.round(ms / 60_000);
-  if (min < 60) return `last ${min}m`;
+  if (min < 60) return t('last {n}m', { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `last ${h}h`;
-  return `last ${Math.round(h / 24)}d`;
+  if (h < 24) return t('last {n}h', { n: h });
+  return t('last {n}d', { n: Math.round(h / 24) });
 });
 
 const alarmsQuery = useQuery({
@@ -191,23 +195,32 @@ function incidentEntity(i: AlarmIncident): string {
 <template>
   <section class="sw-card alarms-widget">
     <header>
-      <!-- Title shows the resolved window (e.g. "Active alarms ·
-           last 10m") so an empty rail isn't mistaken for "no
-           alarms" overall — the operator sees the slice. -->
-      <h4>{{ title }} <span class="window-tag">· {{ windowLabel }}</span></h4>
-      <span class="total mono" :class="{ active: activeIncidents > 0 }">
-        {{ activeIncidents }}{{ truncated ? '+' : '' }} active
-      </span>
-      <RouterLink class="all-link" to="/alarms">
-        <span>View all</span>
-        <Icon name="chev" :size="10" />
-      </RouterLink>
+      <!-- Two rows. Row 1 carries the identity (title + tip) and the
+           View-all link. Row 2 carries the secondary metadata — window
+           + active count — so the title isn't crushed by it on narrow
+           widgets. An empty rail isn't mistaken for "no alarms"
+           overall because the operator still sees the window slice on
+           row 2. -->
+      <div class="aw-row-top">
+        <h4>{{ title }}</h4>
+        <WidgetTip :tip="tip" />
+        <RouterLink class="all-link" to="/alarms">
+          <span>{{ t('View all') }}</span>
+          <Icon name="chev" :size="10" />
+        </RouterLink>
+      </div>
+      <div class="aw-row-meta">
+        <span class="window-tag">· {{ windowLabel }}</span>
+        <span class="total mono" :class="{ active: activeIncidents > 0 }">
+          {{ activeIncidents }}{{ truncated ? '+' : '' }} {{ t('active') }}
+        </span>
+      </div>
     </header>
 
     <div class="body">
-      <div v-if="alarmsQuery.isPending.value" class="empty">loading…</div>
+      <div v-if="alarmsQuery.isPending.value" class="empty">{{ t('loading…') }}</div>
       <div v-else-if="rows.length === 0" class="empty">
-        No alarms in the {{ windowLabel }}{{ layer ? ` for ${layer}` : '' }}.
+        {{ layer ? t('No alarms in the {window} for {layer}.', { window: windowLabel, layer }) : t('No alarms in the {window}.', { window: windowLabel }) }}
       </div>
       <div v-else class="rows">
         <div
@@ -231,14 +244,40 @@ function incidentEntity(i: AlarmIncident): string {
 <style scoped>
 .alarms-widget { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 header {
-  display: flex; align-items: center; gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--sw-line);
+  min-width: 0;
 }
-h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
+.aw-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.aw-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--sw-fg-3);
+}
+h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
 /* Smaller, muted window suffix so the title still reads as the
  * widget name (matches the dense topbar/picker vocabulary). */
-.window-tag { font-size: 11px; font-weight: 400; color: var(--sw-fg-3); margin-left: 4px; }
+.window-tag { font-size: 11px; font-weight: 400; color: var(--sw-fg-3); white-space: nowrap; flex: 0 0 auto; }
 .total {
   font-size: 11px;
   color: var(--sw-fg-3);

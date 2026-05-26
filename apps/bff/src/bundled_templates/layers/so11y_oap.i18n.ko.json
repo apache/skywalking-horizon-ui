@@ -1,0 +1,153 @@
+{
+  "alias": "OAP",
+  "group": "자체 관측가능성",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "JVM 메모리 (MB)"
+      },
+      {
+        "title": "GC 수 / 분"
+      },
+      {
+        "title": "GC 시간 (ms / 분)"
+      },
+      {
+        "title": "버퍼 풀 (MB)"
+      },
+      {
+        "title": "스레드 수",
+        "expressionLabels": [
+          "활성",
+          "피크",
+          "daemon"
+        ]
+      },
+      {
+        "title": "스레드 상태",
+        "expressionLabels": [
+          "runnable",
+          "timed-waiting",
+          "blocked",
+          "waiting"
+        ]
+      },
+      {
+        "title": "클래스 수",
+        "expressionLabels": [
+          "loaded",
+          "unloaded 전체",
+          "loaded 전체"
+        ]
+      },
+      {
+        "title": "집계 / 분"
+      },
+      {
+        "title": "영속화 수 / 분",
+        "expressionLabels": [
+          "prepare",
+          "execute"
+        ]
+      },
+      {
+        "title": "영속 캐시 / 분"
+      },
+      {
+        "title": "영속화 준비 지연 시간 (ms)"
+      },
+      {
+        "title": "영속화 실행 지연 시간 (ms)"
+      },
+      {
+        "title": "GraphQL 지연 시간 (ms)"
+      },
+      {
+        "title": "GraphQL 쿼리 수",
+        "expressionLabels": [
+          "쿼리",
+          "오류"
+        ]
+      },
+      {
+        "title": "트레이스 분석 / 분",
+        "expressionLabels": [
+          "전체",
+          "오류"
+        ]
+      },
+      {
+        "title": "트레이스 분석 지연 시간 (ms)"
+      },
+      {
+        "title": "메시 분석 / 분",
+        "expressionLabels": [
+          "전체",
+          "오류"
+        ]
+      },
+      {
+        "title": "메시 분석 지연 시간 (ms)"
+      },
+      {
+        "title": "OTel 수신 / s",
+        "expressionLabels": [
+          "metrics",
+          "logs",
+          "spans"
+        ]
+      },
+      {
+        "title": "K8s ALS",
+        "expressionLabels": [
+          "count",
+          "dropped",
+          "streams",
+          "err 스트림"
+        ]
+      },
+      {
+        "title": "워터마크 서킷 브레이커",
+        "tip": "리스너별 누적 break + recover 카운터입니다.",
+        "expressionLabels": [
+          "break",
+          "recover"
+        ]
+      },
+      {
+        "title": "집계 큐 사용률 (%)",
+        "expressionLabels": [
+          "L1",
+          "L2"
+        ]
+      },
+      {
+        "title": "BanyanDB 쓰기 지연 시간 (ms)",
+        "expressionLabels": [
+          "measure bulk",
+          "stream bulk",
+          "trace bulk",
+          "stream single",
+          "property"
+        ]
+      },
+      {
+        "title": "Elasticsearch 쓰기 지연 시간 (ms)",
+        "expressionLabels": [
+          "single",
+          "bulk"
+        ]
+      },
+      {
+        "title": "Zipkin 스팬 드롭"
+      }
+    ]
+  },
+  "slots": {
+    "services": "OAP 서비스",
+    "instances": "OAP 노드"
+  }
+}

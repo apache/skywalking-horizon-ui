@@ -1,0 +1,136 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Topics"
+      },
+      {
+        "label": "Suscripciones"
+      },
+      {
+        "label": "Msg entrada"
+      },
+      {
+        "label": "Msg salida"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "Msg entrada/s",
+            "tip": "Mensajes producidos por segundo."
+          },
+          {
+            "label": "Msg salida/s",
+            "tip": "Mensajes consumidos por segundo."
+          },
+          {
+            "label": "Almacenamiento MB",
+            "tip": "Tamaño total de almacenamiento de managed-ledger."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Topics totales"
+      },
+      {
+        "title": "Suscripciones"
+      },
+      {
+        "title": "Productores"
+      },
+      {
+        "title": "Consumidores"
+      },
+      {
+        "title": "Tasa de mensajes",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Tasa de L/E de almacenamiento",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "Tamaño de almacenamiento (MB)",
+        "expressionLabels": [
+          "física",
+          "lógico"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Conexiones activas"
+      },
+      {
+        "title": "Conexiones totales"
+      },
+      {
+        "title": "Creación de conexión fallida"
+      },
+      {
+        "title": "Creación de conexión exitosa"
+      },
+      {
+        "title": "Conexión cerrada"
+      },
+      {
+        "title": "Buffer pool JVM (MB)"
+      },
+      {
+        "title": "Pool de memoria JVM en uso (MB)"
+      },
+      {
+        "title": "Memoria JVM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "confirmadas",
+          "init"
+        ]
+      },
+      {
+        "title": "Hilos JVM",
+        "expressionLabels": [
+          "actual",
+          "daemon",
+          "máximo",
+          "en deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "segundos",
+          "conteo"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Brokers",
+    "services": "Clústeres de Pulsar"
+  },
+  "alias": "Pulsar",
+  "group": "MQ"
+}

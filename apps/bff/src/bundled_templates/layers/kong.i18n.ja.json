@@ -1,0 +1,141 @@
+{
+  "alias": "Kong",
+  "group": "ゲートウェイ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシ",
+        "metrics": [
+          {
+            "label": "Kong レイテンシ",
+            "tip": "Kong 自体がリクエストごとに費やす時間 (p50/p95)。"
+          },
+          {
+            "label": "アップストリームレイテンシ",
+            "tip": "アップストリームサービス待ち時間。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Kong を通過する 1秒あたりのリクエスト数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "Kong レイテンシ"
+      },
+      {
+        "title": "リクエストレイテンシ"
+      },
+      {
+        "title": "アップストリームレイテンシ"
+      },
+      {
+        "title": "Nginx 接続"
+      },
+      {
+        "title": "Nginx タイマー"
+      },
+      {
+        "title": "Datastore 到達可能",
+        "tableHeaders": [
+          "インスタンス",
+          "到達可能"
+        ]
+      },
+      {
+        "title": "Nginx メトリクスエラー"
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "Kong レイテンシ"
+      },
+      {
+        "title": "リクエストレイテンシ"
+      },
+      {
+        "title": "アップストリームレイテンシ"
+      },
+      {
+        "title": "Datastore 到達可能"
+      },
+      {
+        "title": "Nginx 接続"
+      },
+      {
+        "title": "Nginx タイマー"
+      },
+      {
+        "title": "共有メモリ使用量"
+      },
+      {
+        "title": "ワーカー Lua VM 使用量"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "合計帯域"
+      },
+      {
+        "title": "Kong レイテンシ"
+      },
+      {
+        "title": "リクエストレイテンシ"
+      },
+      {
+        "title": "アップストリームレイテンシ"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kong サービス",
+    "instances": "ノード",
+    "endpoints": "ルート"
+  }
+}

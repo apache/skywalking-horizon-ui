@@ -1,0 +1,72 @@
+{
+  "alias": "Base virtuelle",
+  "group": "Cibles virtuelles",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM d'accès"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Taux d'erreur"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latence d'accès à la base au 95e centile."
+          },
+          {
+            "label": "Taux d'erreur",
+            "tip": "100 − taux de succès des accès à la base. Calculé à partir des exceptions de requête capturées par l'agent du service appelant."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM d'accès",
+            "tip": "Requêtes par minute vers cette base virtuelle."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Trafic d'accès",
+        "tip": "Requêtes par minute vers la base virtuelle."
+      },
+      {
+        "title": "Temps de réponse moyen"
+      },
+      {
+        "title": "Taux de succès",
+        "tip": "Pourcentage de requêtes ayant retourné sans lever d'exception."
+      },
+      {
+        "title": "Centile du temps de réponse",
+        "tip": "Latence p50 / p75 / p90 / p95 / p99 — la queue de la distribution des temps d'accès."
+      },
+      {
+        "title": "Requêtes lentes",
+        "tip": "Top 20 des statements les plus lents capturés. Chaque ligne est une exécution de statement unique — cliquer pour explorer la trace d'origine."
+      }
+    ]
+  },
+  "slots": {
+    "services": "Bases de données"
+  }
+}

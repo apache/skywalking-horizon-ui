@@ -1,0 +1,154 @@
+{
+  "alias": "Envoy AI Gateway",
+  "group": "게이트웨이",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 지연 시간"
+      },
+      {
+        "label": "입력 토큰/분"
+      },
+      {
+        "label": "출력 토큰/분"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간",
+        "metrics": [
+          {
+            "label": "평균 지연 시간",
+            "tip": "평균 종단 간 요청 지연 시간입니다."
+          },
+          {
+            "label": "TTFT 평균",
+            "tip": "첫 토큰까지의 시간 — 생성 모델의 지연 시간 지표입니다."
+          }
+        ]
+      },
+      {
+        "title": "토큰",
+        "metrics": [
+          {
+            "label": "토큰/분",
+            "tip": "입력 + 출력 토큰 비율의 합계입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "요청 RPM"
+      },
+      {
+        "title": "요청 지연 시간 평균"
+      },
+      {
+        "title": "입력 토큰 비율"
+      },
+      {
+        "title": "출력 토큰 비율"
+      },
+      {
+        "title": "요청 지연 시간 백분위"
+      },
+      {
+        "title": "TTFT (Time to First Token)",
+        "expressionLabels": [
+          "평균",
+          "백분위"
+        ]
+      },
+      {
+        "title": "TPOT (Time Per Output Token)",
+        "expressionLabels": [
+          "평균",
+          "백분위"
+        ]
+      },
+      {
+        "title": "제공자별 RPM"
+      },
+      {
+        "title": "제공자별 토큰"
+      },
+      {
+        "title": "제공자별 평균 지연 시간"
+      },
+      {
+        "title": "모델별 RPM"
+      },
+      {
+        "title": "모델별 토큰"
+      },
+      {
+        "title": "모델별 평균 지연 시간"
+      },
+      {
+        "title": "모델별 TTFT"
+      },
+      {
+        "title": "모델별 TPOT"
+      },
+      {
+        "title": "MCP RPM",
+        "tip": "Model Context Protocol — 사용 시."
+      },
+      {
+        "title": "MCP 평균 지연 시간"
+      },
+      {
+        "title": "MCP 오류 RPM"
+      },
+      {
+        "title": "메서드별 MCP"
+      },
+      {
+        "title": "백엔드별 MCP"
+      }
+    ],
+    "instance": [
+      {
+        "title": "요청 RPM"
+      },
+      {
+        "title": "요청 지연 시간 평균"
+      },
+      {
+        "title": "입력 토큰 비율"
+      },
+      {
+        "title": "출력 토큰 비율"
+      },
+      {
+        "title": "요청 지연 시간 백분위"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "평균",
+          "백분위"
+        ]
+      },
+      {
+        "title": "TPOT",
+        "expressionLabels": [
+          "평균",
+          "백분위"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "AI 게이트웨이",
+    "instances": "노드"
+  }
+}

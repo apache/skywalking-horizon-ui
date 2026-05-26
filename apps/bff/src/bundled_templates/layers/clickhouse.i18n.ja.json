@@ -1,0 +1,204 @@
+{
+  "alias": "ClickHouse",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Select / s"
+      },
+      {
+        "label": "Insert / s"
+      },
+      {
+        "label": "低速読み取り"
+      },
+      {
+        "label": "オープンファイル"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "Select QPS",
+            "tip": "クラスタ全体の 1秒あたり Select 数。"
+          },
+          {
+            "label": "Insert QPS",
+            "tip": "1秒あたりの挿入数。"
+          },
+          {
+            "label": "低速読み取り",
+            "tip": "低速ファイル読み取りカウンタ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "ファイルオープン"
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "クエリ",
+        "expressionLabels": [
+          "合計",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "クエリ時間 (ms)",
+        "expressionLabels": [
+          "平均",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "接続",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "低速読み取り"
+      },
+      {
+        "title": "Merge / Mutation",
+        "expressionLabels": [
+          "マージ",
+          "mutation"
+        ]
+      },
+      {
+        "title": "Insert スループット",
+        "expressionLabels": [
+          "バイト/s",
+          "行/s"
+        ]
+      },
+      {
+        "title": "遅延挿入 (s)"
+      },
+      {
+        "title": "アクティブデータパート"
+      },
+      {
+        "title": "レプリカ Fetch / Send",
+        "expressionLabels": [
+          "フェッチ",
+          "送信"
+        ]
+      },
+      {
+        "title": "Zookeeper アクティビティ",
+        "expressionLabels": [
+          "セッション",
+          "watch",
+          "送信バイト",
+          "受信バイト"
+        ]
+      },
+      {
+        "title": "Keeper Alive 接続"
+      },
+      {
+        "title": "Keeper 未処理リクエスト"
+      }
+    ],
+    "instance": [
+      {
+        "title": "稼働日数"
+      },
+      {
+        "title": "バージョン"
+      },
+      {
+        "title": "CPU (コア)"
+      },
+      {
+        "title": "メモリ (%)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "ネットワーク (B)",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "接続",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "クエリ",
+        "expressionLabels": [
+          "合計",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "クエリ時間 (ms)",
+        "expressionLabels": [
+          "平均",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "ファイル低速読み取り"
+      },
+      {
+        "title": "バックグラウンドマージ"
+      },
+      {
+        "title": "Mutation"
+      },
+      {
+        "title": "ファイルオープン"
+      },
+      {
+        "title": "Insert スループット",
+        "expressionLabels": [
+          "バイト/s",
+          "行/s"
+        ]
+      },
+      {
+        "title": "遅延挿入 (s)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "ClickHouse クラスタ",
+    "instances": "ノード"
+  }
+}

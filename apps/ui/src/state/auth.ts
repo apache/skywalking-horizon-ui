@@ -19,6 +19,7 @@ import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { BffApiError, bffClient, type MeResponse } from '@/api/client';
 import { useTemplatePreference } from '@/controls/templatePreference';
+import { i18n } from '@/i18n';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<MeResponse | null>(null);
@@ -54,10 +55,13 @@ export const useAuthStore = defineStore('auth', () => {
       }
       return true;
     } catch (err) {
+      // Use the i18n global directly because this store can be called
+      // outside a setup context (router guards, fetch interceptors).
+      const t = i18n.global.t;
       if (err instanceof BffApiError && err.status === 401) {
-        loginError.value = 'Invalid username or password.';
+        loginError.value = t('Invalid username or password.');
       } else {
-        loginError.value = err instanceof Error ? err.message : 'login failed';
+        loginError.value = err instanceof Error ? err.message : t('login failed');
       }
       user.value = null;
       return false;

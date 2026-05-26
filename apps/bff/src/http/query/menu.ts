@@ -28,11 +28,13 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
-import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags } from '../../logic/layers/loader.js';
+import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags, type LayerTemplate } from '../../logic/layers/loader.js';
 import { getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
+import type { Locale } from '../../i18n/index.js';
+import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
 
 /**
  * Map the JSON config's `components.*` flags onto the wire `caps`
@@ -194,12 +196,16 @@ function deriveLayer(
   level: number | null,
   serviceCount: number,
   normal: boolean | null,
+  locale: Locale,
 ): LayerDef {
   // JSON template wins when present — alias / color / slots / caps /
   // documentLink all come from there. Hardcoded LAYER_DEFAULTS stays as
   // the fallback for layers without a template (older OAP layers,
   // custom layers).
-  const tpl = getLayerTemplate(rawKey);
+  const rawTpl = getLayerTemplate(rawKey);
+  const tpl = rawTpl
+    ? localize<LayerTemplate>(rawTpl, getLayerOverlay(rawKey, locale), locale)
+    : null;
   if (tpl) {
     return {
       key: rawKey.toLowerCase(),
@@ -238,10 +244,11 @@ function deriveLayer(
 
 export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): void {
   const auth = requireAuth(deps);
-  app.get('/api/menu', { preHandler: auth }, async (_req: FastifyRequest, reply: FastifyReply) => {
+  app.get('/api/menu', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const cfg = deps.config.current;
     const queryUrl = cfg.oap.queryUrl;
     const opts = buildOapOpts(cfg, deps.fetch);
+    const locale = localeFromRequest(req);
     try {
       const raw = await graphqlPost<MenuRaw>(opts, MENU_QUERY);
 
@@ -310,6 +317,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             levelByCanonical.has(key) ? (levelByCanonical.get(key) ?? null) : null,
             countByCanonical.get(key) ?? (activeCanonical.has(key) ? 0 : -1),
             normalByCanonical.get(key) ?? null,
+            locale,
           ),
         );
 
@@ -332,7 +340,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         const key = canonical(tpl.key.toUpperCase());
         if (seen.has(key) || HIDDEN_LAYERS.has(key)) continue;
         seen.add(key);
-        layers.push(deriveLayer(key, false, null, -1, null));
+        layers.push(deriveLayer(key, false, null, -1, null, locale));
       }
       const body: MenuResponse = {
         layers,

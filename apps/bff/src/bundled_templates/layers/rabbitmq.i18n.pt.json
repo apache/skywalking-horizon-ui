@@ -1,0 +1,162 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "slots": {
+    "services": "Clusters do RabbitMQ",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Filas"
+      },
+      {
+        "label": "Channels"
+      },
+      {
+        "label": "Conexões"
+      },
+      {
+        "label": "Não confirmadas"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Publicadas / min",
+            "tip": "Mensagens publicadas por minuto."
+          },
+          {
+            "label": "Não confirmadas",
+            "tip": "Mensagens aguardando confirmação do publisher."
+          },
+          {
+            "label": "Sem rota descartadas",
+            "tip": "Mensagens descartadas por falta de rota no exchange."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Memória disponível antes do bloqueio (MB)"
+      },
+      {
+        "title": "Disco disponível antes do bloqueio (GB)"
+      },
+      {
+        "title": "File descriptors + sockets",
+        "expressionLabels": [
+          "fds",
+          "sockets"
+        ]
+      },
+      {
+        "title": "Mensagens prontas"
+      },
+      {
+        "title": "Aguardando ack"
+      },
+      {
+        "title": "Pipeline de publicação",
+        "expressionLabels": [
+          "publicadas",
+          "confirmadas",
+          "roteadas",
+          "não confirmadas"
+        ]
+      },
+      {
+        "title": "Mensagens sem rota",
+        "expressionLabels": [
+          "descartadas",
+          "devolvidas"
+        ]
+      },
+      {
+        "title": "Filas",
+        "expressionLabels": [
+          "total",
+          "declaradas",
+          "criadas",
+          "removidas"
+        ]
+      },
+      {
+        "title": "Channels",
+        "expressionLabels": [
+          "total",
+          "abertos",
+          "fechados"
+        ]
+      },
+      {
+        "title": "Conexões",
+        "expressionLabels": [
+          "total",
+          "abertas",
+          "fechadas"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Mensagens prontas"
+      },
+      {
+        "title": "Mensagens recebidas"
+      },
+      {
+        "title": "Mensagens enviadas"
+      },
+      {
+        "title": "Mensagens não reconhecidas"
+      },
+      {
+        "title": "Conexões / publishers / consumidores",
+        "expressionLabels": [
+          "conexões",
+          "publishers",
+          "consumidores"
+        ]
+      },
+      {
+        "title": "Channels + filas",
+        "expressionLabels": [
+          "channels",
+          "filas"
+        ]
+      },
+      {
+        "title": "% alocado em uso"
+      },
+      {
+        "title": "Memória (MB)",
+        "expressionLabels": [
+          "em uso",
+          "sem uso",
+          "residente",
+          "total"
+        ]
+      },
+      {
+        "title": "Alocado por tipo (MB)"
+      },
+      {
+        "title": "Memória multi/single-block (MB)",
+        "expressionLabels": [
+          "multi em uso",
+          "multi sem uso",
+          "single em uso",
+          "single sem uso"
+        ]
+      }
+    ]
+  }
+}

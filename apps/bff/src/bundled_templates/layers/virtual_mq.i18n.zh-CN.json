@@ -1,0 +1,55 @@
+{
+  "alias": "虚拟消息队列",
+  "group": "虚拟目标",
+  "slots": {
+    "services": "MQ 集群",
+    "endpoints": "Topic"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "消费 RPM" },
+      { "label": "生产 RPM" },
+      { "label": "消费延迟" },
+      { "label": "消费错误率" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          { "label": "P95", "tip": "消费延迟（接收时间 − 生产时间）的 95 分位。" },
+          { "label": "消费错误率", "tip": "100 − 消费成功率。" },
+          { "label": "生产错误率", "tip": "100 − 生产成功率。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "消费 RPM", "tip": "每分钟消费的消息数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "消费流量" },
+      { "title": "生产流量" },
+      { "title": "消费平均延迟", "tip": "消息生产与消费之间的平均时间。" },
+      { "title": "消费成功率" },
+      { "title": "生产成功率" },
+      {
+        "title": "消费延迟分位",
+        "tip": "消费延迟的 p50 / p75 / p90 / p95 / p99。"
+      }
+    ],
+    "endpoint": [
+      { "title": "Topic 消费流量" },
+      { "title": "Topic 生产流量" },
+      { "title": "Topic 消费平均延迟" },
+      { "title": "Topic 消费成功率" },
+      { "title": "Topic 生产成功率" },
+      { "title": "Topic 消费延迟分位" }
+    ]
+  }
+}

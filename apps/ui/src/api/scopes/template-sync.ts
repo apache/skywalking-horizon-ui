@@ -47,14 +47,58 @@ export class TemplateSyncApi {
   constructor(private readonly bff: BffClient) {}
 
   /** Full merged status for ALL template kinds. Admin pages filter to
-   *  the kind they own. */
-  syncStatus(): Promise<TemplateSyncStatus> {
-    return this.bff.request<TemplateSyncStatus>('GET', '/api/admin/templates/sync-status');
+   *  the kind they own. `force` bypasses the BFF's 30s sync cache and
+   *  re-reads OAP before responding — admin views default to forced so
+   *  operator edits round-trip without seeing stale state. */
+  syncStatus(force = false): Promise<TemplateSyncStatus> {
+    const qs = force ? '?force=true' : '';
+    return this.bff.request<TemplateSyncStatus>('GET', `/api/admin/templates/sync-status${qs}`);
   }
 
   /** Force the BFF to invalidate its 30s cache + refetch from OAP. */
   resync(): Promise<TemplateSyncStatus> {
     return this.bff.request<TemplateSyncStatus>('POST', '/api/admin/templates/resync');
+  }
+
+  /** Translation overlays for a template + locale.
+   *   - `disk`: sibling `*.i18n.<lang>.json` shipped with the BFF.
+   *   - `oap`:  per-locale overlay row on OAP at
+   *             `<name>.i18n.<locale>`, written by previous operator
+   *             pushes. `null` when no operator has pushed yet.
+   *   Both are `null` for English or unknown templates. */
+  overlay(name: string, locale: string): Promise<{ disk: unknown; oap: unknown }> {
+    return this.bff.request<{ disk: unknown; oap: unknown }>(
+      'GET',
+      `/api/admin/templates/${encodeURIComponent(name)}/i18n/${encodeURIComponent(locale)}`,
+    );
+  }
+
+  /** Push the operator's translation overlay for ONE locale to OAP as a
+   *  sibling row (`<name>.i18n.<locale>`). Leaves the source row alone.
+   *  Same propagation-confirm + 504 chain as `save()`. */
+  saveTranslation(name: string, locale: string, content: unknown): Promise<TemplateSyncStatus> {
+    return this.bff.request<TemplateSyncStatus>(
+      'POST',
+      '/api/admin/templates/save-translation',
+      { name, locale, content },
+    );
+  }
+
+  /** Soft-delete the per-locale overlay row so this locale falls back
+   *  to the disk catalog. OAP has no hard delete; the row is disabled. */
+  deleteTranslation(name: string, locale: string): Promise<TemplateSyncStatus> {
+    return this.bff.request<TemplateSyncStatus>(
+      'POST',
+      '/api/admin/templates/delete-translation',
+      { name, locale },
+    );
+  }
+
+  /** For every envelope name with >1 enabled OAP row, disable all but
+   *  the lowest-UUID winner. Returns the fresh status + the list of
+   *  disabled UUIDs + any failures. */
+  resolveConflicts(): Promise<TemplateSyncStatus & { disabled: string[]; failed: Array<{ name: string; id: string; error: string }> }> {
+    return this.bff.request('POST', '/api/admin/templates/resolve-conflicts');
   }
 
   /** Save a template's content to OAP. The BFF wraps it in the canonical

@@ -1,0 +1,201 @@
+{
+  "alias": "Elasticsearch",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "健全性"
+      },
+      {
+        "label": "シャード"
+      },
+      {
+        "label": "ノード"
+      },
+      {
+        "label": "未割当"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          {
+            "label": "健全性",
+            "tip": "0 green / 1 yellow / 2 red。"
+          },
+          {
+            "label": "未割当シャード",
+            "tip": "まだノードに配置されていないシャード。"
+          },
+          {
+            "label": "発動した Breaker",
+            "tip": "サーキットブレーカー発動の累積 — 値が高い場合はメモリ圧迫を示す。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "クラスタヘルス",
+        "tableHeaders": [
+          "ステータス",
+          "値"
+        ]
+      },
+      {
+        "title": "ノード"
+      },
+      {
+        "title": "保留中タスク"
+      },
+      {
+        "title": "Primary シャード"
+      },
+      {
+        "title": "アクティブシャード"
+      },
+      {
+        "title": "初期化中"
+      },
+      {
+        "title": "再配置中"
+      },
+      {
+        "title": "未割当"
+      },
+      {
+        "title": "遅延未割当"
+      },
+      {
+        "title": "発動した Breaker"
+      },
+      {
+        "title": "クラスタ CPU 平均"
+      },
+      {
+        "title": "JVM メモリ使用平均"
+      },
+      {
+        "title": "オープンファイル平均"
+      }
+    ],
+    "instance": [
+      {
+        "title": "プロセス CPU (%)"
+      },
+      {
+        "title": "OS CPU (%)"
+      },
+      {
+        "title": "ロードアベレージ",
+        "expressionLabels": [
+          "1分",
+          "5分",
+          "15分"
+        ]
+      },
+      {
+        "title": "JVM メモリ (MB)",
+        "expressionLabels": [
+          "ヒープ使用中",
+          "ヒープ最大",
+          "非ヒープ"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "件数",
+          "時間 (ms/分)"
+        ]
+      },
+      {
+        "title": "Translog",
+        "expressionLabels": [
+          "操作",
+          "サイズ (MB)"
+        ]
+      },
+      {
+        "title": "Breaker",
+        "expressionLabels": [
+          "発動",
+          "推定 (MB)"
+        ]
+      },
+      {
+        "title": "セグメント",
+        "expressionLabels": [
+          "件数",
+          "メモリ (MB)"
+        ]
+      },
+      {
+        "title": "ディスク使用量",
+        "expressionLabels": [
+          "GB",
+          "%"
+        ]
+      },
+      {
+        "title": "ネットワーク",
+        "expressionLabels": [
+          "送信",
+          "受信"
+        ]
+      },
+      {
+        "title": "オープンファイル"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "インデックス作成レート",
+        "expressionLabels": [
+          "リクエスト",
+          "プロセス"
+        ]
+      },
+      {
+        "title": "検索レート",
+        "expressionLabels": [
+          "リクエスト",
+          "プロセス"
+        ]
+      },
+      {
+        "title": "インデックスサイズ (全シャード)"
+      },
+      {
+        "title": "インデックスサイズ (primary)"
+      },
+      {
+        "title": "ドキュメント",
+        "expressionLabels": [
+          "全件",
+          "primary",
+          "削除"
+        ]
+      },
+      {
+        "title": "リクエスト単位の平均検索時間 (s)",
+        "expressionLabels": [
+          "フェッチ",
+          "クエリ",
+          "scroll",
+          "suggest"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ES クラスタ",
+    "instances": "ノード",
+    "endpoints": "インデックス"
+  }
+}

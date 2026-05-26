@@ -1,0 +1,87 @@
+{
+  "group": "MQ",
+  "slots": {
+    "services": "ActiveMQ 集群",
+    "instances": "Broker",
+    "endpoints": "目的地"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "入队/秒" },
+      { "label": "出队/秒" },
+      { "label": "系统负载" },
+      { "label": "线程数" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "入队/秒", "tip": "每秒入队的消息数。" },
+          { "label": "出队/秒", "tip": "每秒出队的消息数。" },
+          { "label": "过期/秒", "tip": "在被消费前过期的消息数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "系统平均负载" },
+      { "title": "线程数" },
+      { "title": "Heap 已用（MB）" },
+      { "title": "Heap 最大值（MB）" },
+      {
+        "title": "入队 / 出队 / 派发 每秒",
+        "expressionLabels": ["enqueue", "dequeue", "dispatch"]
+      },
+      { "title": "过期数 每秒" },
+      {
+        "title": "入队耗时",
+        "expressionLabels": ["avg", "max"]
+      },
+      {
+        "title": "GC 次数（G1+Parallel）",
+        "expressionLabels": ["old", "young"]
+      },
+      {
+        "title": "GC 时间（ms）",
+        "expressionLabels": ["old", "young"]
+      }
+    ],
+    "instance": [
+      { "title": "连接数", "tip": "当前到此 Broker 的 TCP/JMS 连接数。" },
+      { "title": "Producer 数量", "tip": "此 Broker 上活跃的 Producer 会话数。" },
+      { "title": "Consumer 数量", "tip": "此 Broker 上活跃的 Consumer 会话数。" },
+      { "title": "运行时长", "tip": "自上次重启以来 Broker 的运行小时数。" },
+      { "title": "连接数（趋势）" },
+      {
+        "title": "入队 / 出队次数",
+        "tip": "此 Broker 上各目的地每分钟的入队 + 出队次数。",
+        "expressionLabels": ["enqueue", "dequeue"]
+      },
+      {
+        "title": "Producer / Consumer 增长",
+        "tip": "每分钟新建的 Producer + Consumer 会话数。",
+        "expressionLabels": ["新 Producer", "新 Consumer"]
+      },
+      { "title": "内存使用", "tip": "各目的地的总内存使用（MB）。" },
+      { "title": "内存上限", "tip": "各目的地配置的内存上限（GB）。" },
+      { "title": "平均消息大小", "tip": "各目的地的平均消息大小。" }
+    ],
+    "endpoint": [
+      { "title": "Producer 数量" },
+      { "title": "Consumer 数量" },
+      { "title": "队列大小" },
+      { "title": "内存使用（MB）" },
+      {
+        "title": "消息计数",
+        "expressionLabels": ["enqueue", "dequeue", "dispatch", "expired", "inflight"]
+      },
+      {
+        "title": "入队耗时（s）",
+        "expressionLabels": ["avg", "max"]
+      }
+    ]
+  }
+}

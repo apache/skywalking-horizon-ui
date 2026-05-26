@@ -1,0 +1,41 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "slots": {
+    "services": "S3 存储桶"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "请求数" },
+      { "label": "平均延迟" },
+      { "label": "4xx" },
+      { "label": "5xx" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "错误",
+        "metrics": [
+          { "label": "4xx 数量", "tip": "CloudWatch 观测到的客户端错误。" },
+          { "label": "5xx 数量", "tip": "CloudWatch 观测到的服务端错误。" },
+          { "label": "平均延迟", "tip": "平均请求延迟。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "全部请求数" },
+      { "title": "GET 请求数" },
+      { "title": "PUT 请求数" },
+      { "title": "DELETE 请求数" },
+      { "title": "4xx 数量" },
+      { "title": "5xx 数量" },
+      { "title": "请求平均延迟" },
+      { "title": "首字节平均延迟" },
+      { "title": "下载量（KB）" },
+      { "title": "上传量（KB）" }
+    ]
+  }
+}

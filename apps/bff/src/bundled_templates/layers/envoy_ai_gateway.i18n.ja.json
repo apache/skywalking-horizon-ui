@@ -1,0 +1,154 @@
+{
+  "alias": "Envoy AI Gateway",
+  "group": "ゲートウェイ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均レイテンシ"
+      },
+      {
+        "label": "入力トークン/分"
+      },
+      {
+        "label": "出力トークン/分"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシ",
+        "metrics": [
+          {
+            "label": "平均レイテンシ",
+            "tip": "平均エンドツーエンドリクエストレイテンシ。"
+          },
+          {
+            "label": "TTFT 平均",
+            "tip": "Time to first token — 生成モデルのレイテンシ指標。"
+          }
+        ]
+      },
+      {
+        "title": "トークン",
+        "metrics": [
+          {
+            "label": "トークン/分",
+            "tip": "入力 + 出力トークンレートの合計。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "リクエスト RPM"
+      },
+      {
+        "title": "リクエストレイテンシ平均"
+      },
+      {
+        "title": "入力トークンレート"
+      },
+      {
+        "title": "出力トークンレート"
+      },
+      {
+        "title": "リクエストレイテンシパーセンタイル"
+      },
+      {
+        "title": "TTFT (Time to First Token)",
+        "expressionLabels": [
+          "平均",
+          "パーセンタイル"
+        ]
+      },
+      {
+        "title": "TPOT (Time Per Output Token)",
+        "expressionLabels": [
+          "平均",
+          "パーセンタイル"
+        ]
+      },
+      {
+        "title": "プロバイダ別 RPM"
+      },
+      {
+        "title": "プロバイダ別トークン"
+      },
+      {
+        "title": "プロバイダ別平均レイテンシ"
+      },
+      {
+        "title": "モデル別 RPM"
+      },
+      {
+        "title": "モデル別トークン"
+      },
+      {
+        "title": "モデル別平均レイテンシ"
+      },
+      {
+        "title": "モデル別 TTFT"
+      },
+      {
+        "title": "モデル別 TPOT"
+      },
+      {
+        "title": "MCP RPM",
+        "tip": "Model Context Protocol — 使用時のみ。"
+      },
+      {
+        "title": "MCP 平均レイテンシ"
+      },
+      {
+        "title": "MCP エラー RPM"
+      },
+      {
+        "title": "メソッド別 MCP"
+      },
+      {
+        "title": "バックエンド別 MCP"
+      }
+    ],
+    "instance": [
+      {
+        "title": "リクエスト RPM"
+      },
+      {
+        "title": "リクエストレイテンシ平均"
+      },
+      {
+        "title": "入力トークンレート"
+      },
+      {
+        "title": "出力トークンレート"
+      },
+      {
+        "title": "リクエストレイテンシパーセンタイル"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "平均",
+          "パーセンタイル"
+        ]
+      },
+      {
+        "title": "TPOT",
+        "expressionLabels": [
+          "平均",
+          "パーセンタイル"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "AI ゲートウェイ",
+    "instances": "ノード"
+  }
+}

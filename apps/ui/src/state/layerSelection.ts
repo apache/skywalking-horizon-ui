@@ -19,29 +19,26 @@
  * In-memory store for the layer dashboard's current
  * service/instance/endpoint selection.
  *
- * URL contract: the `?service=` / `?instance=` / `?endpoint=` query
- * params are READ ONCE per (layer, scope) entry to seed the store
- * (`hydrateFromQuery`). After that, every selection change — service
- * picker click, instance auto-pick, endpoint picker click — updates
- * THIS STORE ONLY and never touches the URL again. The URL stays
- * frozen at the landing values; it's a shareable starting point, not
- * a live state mirror.
+ * Lifecycle: **per layer**. The selection survives intra-layer
+ * navigation (switching between the Service / Instance / Endpoint /
+ * Trace / Logs / Topology tabs in the sidebar) so the operator's
+ * pick is sticky while they explore that layer. When the operator
+ * leaves to a different layer, the store resets — the previous
+ * layer's service id is meaningless on the new layer's roster, and
+ * carrying it over fired a stale "service not found" modal.
  *
- * Why: a URL-as-state design re-triggered router-level reactivity on
- * every interaction (Vue Router's `route.query` is a hot reactive
- * source many composables observe), making clicks feel sluggish and
- * occasionally fanning out into duplicate fetches. With selection
- * isolated to a store, the only reactivity is the explicit refs
- * downstream watches consume.
+ * URL deep-linking: a layer URL with `?service=<id>` (and optionally
+ * `?instance=` / `?endpoint=`) seeds the store on entry. The seed
+ * is read once per layer change — switching tabs within the layer
+ * doesn't re-read. The downstream auto-pick watch waits for the
+ * FULL service roster to load and silently swaps to the first
+ * available service only if the URL-seeded id isn't in the layer.
+ * Stale-id "service not found" modals are gone.
  *
- * For sharing the current view, generate a URL from the store on
- * demand (`buildShareUrl()` — to be added when the operator-facing
- * Share button lands). Browser back/forward + reload still works
- * for layer/scope navigation; only the in-page picker state is
- * detached from history.
+ * No localStorage persistence — refreshing starts fresh, reading
+ * the URL's query params if present.
  */
 
-import { computed } from 'vue';
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
@@ -54,29 +51,35 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
   const service = ref<string | null>(null);
   const instance = ref<string | null>(null);
   const endpoint = ref<string | null>(null);
-  /** Key of the (layer, scope) the store was last hydrated for —
-   *  guards against re-hydration on every render of the same page
-   *  and lets `hydrateFromQuery` short-circuit when the caller
-   *  passes the same key. */
-  const hydratedKey = ref<string | null>(null);
+  /** Key of the LAYER the store currently holds selection for.
+   *  Cross-layer transitions reset; intra-layer scope/tab changes
+   *  don't (the operator's pick stays sticky across tabs). */
+  const ownerKey = ref<string | null>(null);
 
   /**
-   * Seed the store from a route's query params, but only when the
-   * (layer, scope) differs from what we previously hydrated for.
-   * Idempotent — calling repeatedly with the same key is a no-op.
-   * Used by LayerShell on mount and on layer/scope changes.
+   * Bind the store to a layer + seed from the URL query. On layer
+   * change, drops the previous pick and reads any
+   * `?service=` / `?instance=` / `?endpoint=` deep-link from the
+   * new URL. On the same layer (scope/tab change within), this is
+   * a no-op — the operator's pick survives.
    */
-  function hydrateFromQuery(
-    layerKey: string,
-    scope: string,
-    query: Record<string, unknown>,
-  ): void {
-    const key = `${layerKey}|${scope}`;
-    if (hydratedKey.value === key) return;
-    hydratedKey.value = key;
+  function resetForLayer(layerKey: string, query: Record<string, unknown>): void {
+    if (ownerKey.value === layerKey) return;
+    ownerKey.value = layerKey;
     service.value = pickQueryString(query.service);
     instance.value = pickQueryString(query.instance);
     endpoint.value = pickQueryString(query.endpoint);
+  }
+
+  /** Drop ownership entirely. Called from LayerShell.onBeforeUnmount
+   *  so leaving the layer (to /alarms, settings, any non-layer route)
+   *  clears the pick — coming back to the same layer then re-hydrates
+   *  from URL instead of carrying the stale selection. */
+  function clear(): void {
+    ownerKey.value = null;
+    service.value = null;
+    instance.value = null;
+    endpoint.value = null;
   }
 
   /**
@@ -104,25 +107,15 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
     endpoint.value = name;
   }
 
-  /** Build a shareable URL fragment for the current selection.
-   *  Operator-facing Share button (not wired yet) will use this. */
-  const shareQuery = computed<string>(() => {
-    const parts: string[] = [];
-    if (service.value) parts.push(`service=${encodeURIComponent(service.value)}`);
-    if (instance.value) parts.push(`instance=${encodeURIComponent(instance.value)}`);
-    if (endpoint.value) parts.push(`endpoint=${encodeURIComponent(endpoint.value)}`);
-    return parts.length > 0 ? `?${parts.join('&')}` : '';
-  });
-
   return {
     service,
     instance,
     endpoint,
-    hydratedKey,
-    hydrateFromQuery,
+    ownerKey,
+    resetForLayer,
+    clear,
     setService,
     setInstance,
     setEndpoint,
-    shareQuery,
   };
 });

@@ -1,0 +1,133 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Nodos"
+      },
+      {
+        "label": "Nodos con fallo"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Servicios"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "Nodos",
+            "tip": "Conteo de nodos del clúster EKS."
+          },
+          {
+            "label": "Nodos con fallo",
+            "tip": "Nodos EKS con fallo reportados por el clúster."
+          }
+        ],
+        "title": "Recurso"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clústeres",
+    "instances": "Nodos",
+    "endpoints": "Servicios de EKS"
+  },
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "dashboards": {
+    "service": [
+      {
+        "title": "Conteo de nodos"
+      },
+      {
+        "title": "Nodos con fallo"
+      },
+      {
+        "title": "Conteo de namespaces"
+      },
+      {
+        "title": "Conteo de servicios EKS"
+      },
+      {
+        "title": "Errores de red del clúster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "title": "Pérdidas de red del clúster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Utilización de CPU del pod (%)"
+      },
+      {
+        "title": "Utilización de memoria del pod (%)"
+      },
+      {
+        "title": "Red RX del pod (KB/s)"
+      },
+      {
+        "title": "Errores RX del pod / s"
+      },
+      {
+        "title": "Red TX del pod (KB/s)"
+      },
+      {
+        "title": "Errores TX del pod / s"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Conteo de pods"
+      },
+      {
+        "title": "Utilización de CPU (%)"
+      },
+      {
+        "title": "Utilización de memoria (%)"
+      },
+      {
+        "title": "Utilización de FS (%)"
+      },
+      {
+        "title": "Red RX (KB/s)",
+        "expressionLabels": [
+          "bytes",
+          "errores"
+        ]
+      },
+      {
+        "title": "Red TX (KB/s)",
+        "expressionLabels": [
+          "bytes",
+          "errores"
+        ]
+      },
+      {
+        "title": "IO de disco (B/s)",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "CPU de pod en el nodo"
+      },
+      {
+        "title": "Memoria del pod en el nodo"
+      }
+    ]
+  }
+}

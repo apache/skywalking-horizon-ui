@@ -1,0 +1,146 @@
+{
+  "alias": "Kafka",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "パーティション"
+      },
+      {
+        "label": "オフラインパーティション"
+      },
+      {
+        "label": "最大ラグ"
+      },
+      {
+        "label": "リーダー"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          {
+            "label": "オフラインパーティション",
+            "tip": "アクティブなリーダーを持たないパーティション。"
+          },
+          {
+            "label": "レプリケーション不足",
+            "tip": "ISR セットがレプリケーション係数を下回るパーティション。"
+          },
+          {
+            "label": "最大ラグ",
+            "tip": "観測された最大のコンシューマーラグ。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "パーティション数"
+      },
+      {
+        "title": "リーダー数"
+      },
+      {
+        "title": "アクティブコントローラ"
+      },
+      {
+        "title": "最大ラグ"
+      },
+      {
+        "title": "レプリケーション不足パーティション"
+      },
+      {
+        "title": "オフラインパーティション"
+      },
+      {
+        "title": "リーダー選出レート",
+        "expressionLabels": [
+          "選出",
+          "unclean"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "CPU 使用率"
+      },
+      {
+        "title": "受信メッセージ / s"
+      },
+      {
+        "title": "受信バイト / s"
+      },
+      {
+        "title": "送信バイト / s"
+      },
+      {
+        "title": "リクエスト / s"
+      },
+      {
+        "title": "Purgatory サイズ"
+      },
+      {
+        "title": "ISR Shrink/s"
+      },
+      {
+        "title": "ISR Expand/s"
+      },
+      {
+        "title": "メモリ使用率 (%)"
+      },
+      {
+        "title": "レプリケーション不足パーティション"
+      },
+      {
+        "title": "Min-ISR 未満パーティション"
+      },
+      {
+        "title": "パーティション + リーダー",
+        "expressionLabels": [
+          "パーティション",
+          "リーダー"
+        ]
+      },
+      {
+        "title": "キュー / 送信時間",
+        "expressionLabels": [
+          "リクエスト q",
+          "レスポンス q",
+          "レスポンス送信",
+          "リモート"
+        ]
+      },
+      {
+        "title": "Topic レート",
+        "expressionLabels": [
+          "produce req/s",
+          "fetch req/s",
+          "受信バイト/s"
+        ]
+      },
+      {
+        "title": "レプリケーション",
+        "expressionLabels": [
+          "受信バイト",
+          "送信バイト"
+        ]
+      },
+      {
+        "title": "GC 回数"
+      },
+      {
+        "title": "最大ラグ (broker)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kafka クラスタ",
+    "instances": "Broker"
+  }
+}

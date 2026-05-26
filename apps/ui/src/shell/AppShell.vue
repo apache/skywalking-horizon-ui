@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { RouterView } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import AppSidebar from './AppSidebar.vue';
 import AppTopbar from './AppTopbar.vue';
 import DebugEventPanel from './DebugEventPanel.vue';
@@ -72,6 +73,8 @@ onMounted(() => {
   void themeStore.loadOrgDefault();
   void timeDefaultsStore.loadOrgDefault();
 });
+
+const { t } = useI18n({ useScope: 'global' });
 
 // Global delegated click tracker — emits `click` events into the
 // EventTicker so the timeline shows what the operator pressed before
@@ -129,8 +132,8 @@ const { collapsed: sidebarCollapsed } = useSidebar();
            runs against fully-populated state from the first paint. -->
       <div v-if="!initReady" class="sw-init">
         <div class="sw-card sw-init-card">
-          <h2>Initializing…</h2>
-          <p>Loading layer registry and dashboard templates. Watch the topbar event line for progress.</p>
+          <h2>{{ t('Initializing…') }}</h2>
+          <p>{{ t('Loading layer registry and dashboard templates. Watch the topbar event line for progress.') }}</p>
         </div>
       </div>
       <RouterView v-else />

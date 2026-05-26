@@ -1,0 +1,73 @@
+{
+  "alias": "Pulsar",
+  "group": "MQ",
+  "slots": {
+    "services": "Pulsar 集群",
+    "instances": "Broker"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Topic" },
+      { "label": "订阅" },
+      { "label": "入站消息" },
+      { "label": "出站消息" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "入站消息/秒", "tip": "每秒生产的消息数。" },
+          { "label": "出站消息/秒", "tip": "每秒消费的消息数。" },
+          { "label": "存储 MB", "tip": "Managed-ledger 总存储大小。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Topic 总数" },
+      { "title": "订阅" },
+      { "title": "Producer" },
+      { "title": "Consumer" },
+      {
+        "title": "消息速率",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "吞吐量",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "存储读/写速率",
+        "expressionLabels": ["read", "write"]
+      },
+      {
+        "title": "存储大小（MB）",
+        "expressionLabels": ["physical", "logical"]
+      }
+    ],
+    "instance": [
+      { "title": "活跃连接" },
+      { "title": "总连接" },
+      { "title": "连接创建失败" },
+      { "title": "连接创建成功" },
+      { "title": "连接关闭" },
+      { "title": "JVM Buffer Pool（MB）" },
+      { "title": "JVM 内存池已用（MB）" },
+      {
+        "title": "JVM 内存（MB）",
+        "expressionLabels": ["used", "committed", "init"]
+      },
+      {
+        "title": "JVM 线程",
+        "expressionLabels": ["current", "daemon", "peak", "deadlocked"]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": ["seconds", "count"]
+      }
+    ]
+  }
+}

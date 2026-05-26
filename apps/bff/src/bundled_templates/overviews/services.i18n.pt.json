@@ -1,0 +1,126 @@
+{
+  "title": "Painel de serviços",
+  "description": "Saúde dos serviços entre camadas: serviços rastreados junto com bancos de dados / caches / filas de mensagens / backends de GenAI virtuais, além da capacidade subjacente do Kubernetes.",
+  "widgets": [
+    {
+      "title": "Serviços"
+    },
+    {
+      "title": "Serviços gerais",
+      "tip": "Serviços de aplicação rastreados na camada General.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Bancos de dados virtuais",
+      "tip": "Bancos de dados observados por meio de spans do lado do cliente.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Caches virtuais",
+      "tip": "Caches (Redis / Memcached / …) observados por meio de spans do lado do cliente.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Filas de mensagens virtuais",
+      "tip": "Filas de mensagens observadas por meio de spans de consumo + produção.",
+      "kpis": [
+        {
+          "label": "Consumo"
+        },
+        {
+          "label": "Produção"
+        },
+        {
+          "label": "Latência de consumo"
+        }
+      ]
+    },
+    {
+      "title": "GenAI virtual",
+      "tip": "Backends de GenAI observados por meio de spans instrumentados do cliente.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latência"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Topologia e alarmes ativos"
+    },
+    {
+      "title": "Topologia de serviços gerais",
+      "tip": "Mapa de serviços em tempo real — o mesmo renderizador da aba Topologia por camada, sem o painel lateral de detalhes."
+    },
+    {
+      "title": "Alarmes ativos",
+      "tip": "Alarmes atualmente disparados em serviços reportados por agente."
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "Capacidade e utilização do cluster",
+      "tip": "Nós / namespaces / workloads e o uso de CPU, memória e disco em todo o cluster.",
+      "kpis": [
+        {
+          "label": "Nós"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        {
+          "label": "Contêineres"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memória"
+        },
+        {
+          "label": "Armazenamento"
+        }
+      ]
+    }
+  ]
+}

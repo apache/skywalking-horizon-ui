@@ -1,0 +1,78 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "요청"
+      },
+      {
+        "label": "평균 지연 시간"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "오류",
+        "metrics": [
+          {
+            "label": "4xx 수",
+            "tip": "CloudWatch가 관측한 클라이언트 오류입니다."
+          },
+          {
+            "label": "5xx 수",
+            "tip": "CloudWatch가 관측한 서버 오류입니다."
+          },
+          {
+            "label": "평균 지연 시간",
+            "tip": "평균 요청 지연 시간입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "전체 요청 수"
+      },
+      {
+        "title": "GET 요청 수"
+      },
+      {
+        "title": "PUT 요청 수"
+      },
+      {
+        "title": "DELETE 요청 수"
+      },
+      {
+        "title": "4xx 수"
+      },
+      {
+        "title": "5xx 수"
+      },
+      {
+        "title": "요청 평균 지연 시간"
+      },
+      {
+        "title": "첫 바이트 평균 지연 시간"
+      },
+      {
+        "title": "다운로드 (KB)"
+      },
+      {
+        "title": "업로드 (KB)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "S3 버킷"
+  }
+}

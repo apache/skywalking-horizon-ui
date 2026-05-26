@@ -1,0 +1,73 @@
+{
+  "alias": "Windows",
+  "overview": {
+    "groups": [
+      {
+        "title": "Recursos",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "Utilización total de CPU."
+          },
+          {
+            "label": "VMem %",
+            "tip": "Utilización de memoria virtual."
+          }
+        ]
+      }
+    ]
+  },
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "Memoria MB"
+      },
+      {
+        "label": "VMem %"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU medio en uso (%)"
+      },
+      {
+        "title": "Memoria RAM (MB)",
+        "expressionLabels": [
+          "en uso",
+          "total",
+          "disponible"
+        ]
+      },
+      {
+        "title": "Memoria virtual (MB)",
+        "expressionLabels": [
+          "libre",
+          "total"
+        ]
+      },
+      {
+        "title": "Ancho de banda de red (KB/s)",
+        "expressionLabels": [
+          "recepción",
+          "transmisión"
+        ]
+      },
+      {
+        "title": "L/E de disco (KB/s)",
+        "expressionLabels": [
+          "lectura",
+          "escritos"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Hosts"
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "slots": {
+    "services": "AWS Gateway",
+    "endpoints": "路由"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "请求数" },
+      { "label": "延迟" },
+      { "label": "4xx" },
+      { "label": "5xx" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "错误",
+        "metrics": [
+          { "label": "4xx", "tip": "来自 CloudWatch 的客户端错误数。" },
+          { "label": "5xx", "tip": "来自 CloudWatch 的服务端错误数。" },
+          { "label": "平均延迟", "tip": "平均端到端延迟。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "请求数", "tip": "窗口内的请求总数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "请求数" },
+      { "title": "4xx 数量" },
+      { "title": "5xx 数量" },
+      { "title": "请求平均延迟" },
+      { "title": "集成平均延迟", "tip": "网关与后端集成之间的延迟。" },
+      { "title": "处理数据量（仅 HTTP API）" },
+      { "title": "缓存命中率（仅 REST API）" },
+      { "title": "缓存未命中率（仅 REST API）" }
+    ],
+    "endpoint": [
+      { "title": "请求数" },
+      { "title": "4xx 数量" },
+      { "title": "5xx 数量" },
+      { "title": "请求平均延迟" },
+      { "title": "集成平均延迟" },
+      { "title": "处理数据量" },
+      { "title": "缓存命中率" },
+      { "title": "缓存未命中率" }
+    ]
+  }
+}

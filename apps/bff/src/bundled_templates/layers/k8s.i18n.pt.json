@@ -1,0 +1,204 @@
+{
+  "alias": "Kubernetes",
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Nós"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Deployments"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacidade",
+        "metrics": [
+          {
+            "label": "Pods",
+            "tip": "Total de Pods reportados no cluster."
+          },
+          {
+            "label": "Nós",
+            "tip": "Quantidade de nós."
+          },
+          {
+            "label": "Serviços",
+            "tip": "Objetos Service do K8s."
+          }
+        ]
+      },
+      {
+        "title": "Problemas",
+        "metrics": [
+          {
+            "label": "Pods não-Running",
+            "tip": "Pods em qualquer estado diferente de Running — pending, failed, unknown."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Total de nós"
+      },
+      {
+        "title": "Total de namespaces"
+      },
+      {
+        "title": "Total de deployments"
+      },
+      {
+        "title": "Total de StatefulSets"
+      },
+      {
+        "title": "Total de DaemonSets"
+      },
+      {
+        "title": "Total de serviços"
+      },
+      {
+        "title": "Total de Pods"
+      },
+      {
+        "title": "Total de contêineres"
+      },
+      {
+        "title": "Recursos de CPU",
+        "tip": "Capacidade de CPU do cluster vs requests / limits / allocatable (millicores).",
+        "expressionLabels": [
+          "Capacidade",
+          "Requests",
+          "Limits",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "Recursos de memória",
+        "tip": "Memória do cluster: requests / allocatable / limits / total.",
+        "expressionLabels": [
+          "Requests",
+          "Allocatable",
+          "Limits",
+          "Total"
+        ]
+      },
+      {
+        "title": "Recursos de armazenamento",
+        "tip": "Armazenamento efêmero total do cluster vs allocatable.",
+        "expressionLabels": [
+          "Total",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "Status do nó",
+        "tip": "Condições do Kubernetes por nó atualmente verdadeiras/desconhecidas (Ready, *Pressure, …).",
+        "tableHeaders": [
+          "Nó · Condição",
+          null
+        ]
+      },
+      {
+        "title": "Status do deployment",
+        "tip": "Deployments reportando a condição Available.",
+        "tableHeaders": [
+          "Deployment · Available",
+          null
+        ]
+      },
+      {
+        "title": "Réplicas especificadas do deployment",
+        "tip": "Quantidade de réplicas desejada por deployment.",
+        "tableHeaders": [
+          "Deployment",
+          "Réplicas"
+        ]
+      },
+      {
+        "title": "Status do serviço",
+        "tip": "Pods que sustentam cada Service do K8s, por fase (Running / Pending / Failed / …).",
+        "tableHeaders": [
+          "Serviço · Fase",
+          null
+        ]
+      },
+      {
+        "title": "Pods em estado não-Running",
+        "tip": "Pods em qualquer fase diferente de Running.",
+        "tableHeaders": [
+          "Pod · Status",
+          null
+        ]
+      },
+      {
+        "title": "Pods em estado Waiting",
+        "tip": "Contêineres em estado de espera, por motivo.",
+        "tableHeaders": [
+          "Contêiner · Pod · Motivo",
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Status do nó"
+      },
+      {
+        "title": "Pods no nó"
+      },
+      {
+        "title": "Uso de CPU do nó",
+        "tip": "Uso de CPU em millicores."
+      },
+      {
+        "title": "Recursos de CPU do nó",
+        "expressionLabels": [
+          "total",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "Uso de memória do nó"
+      },
+      {
+        "title": "Recursos de memória do nó",
+        "expressionLabels": [
+          "total",
+          "allocatable",
+          "requests",
+          "limits"
+        ]
+      },
+      {
+        "title": "I/O de rede do nó",
+        "expressionLabels": [
+          "recepção",
+          "transmissão"
+        ]
+      },
+      {
+        "title": "Recursos de armazenamento do nó",
+        "expressionLabels": [
+          "total",
+          "allocatable"
+        ]
+      }
+    ]
+  }
+}

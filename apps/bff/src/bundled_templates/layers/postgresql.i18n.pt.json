@@ -1,0 +1,164 @@
+{
+  "alias": "PostgreSQL",
+  "group": "Bancos de dados",
+  "slots": {
+    "services": "Clusters do PostgreSQL",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Fetched / s"
+      },
+      {
+        "label": "Inserted / s"
+      },
+      {
+        "label": "Cache Hit"
+      },
+      {
+        "label": "Deadlocks"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Saúde",
+        "metrics": [
+          {
+            "label": "Cache Hit",
+            "tip": "Taxa de acerto do buffer-cache no cluster."
+          },
+          {
+            "label": "Deadlocks/s",
+            "tip": "Deadlocks detectados por segundo."
+          },
+          {
+            "label": "Conflitos/s",
+            "tip": "Conflitos de recovery por segundo."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Fetched /s",
+            "tip": "Linhas retornadas por segundo."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Linhas fetched / s"
+      },
+      {
+        "title": "Linhas inseridas / s"
+      },
+      {
+        "title": "Linhas atualizadas / s"
+      },
+      {
+        "title": "Linhas removidas / s"
+      },
+      {
+        "title": "Linhas retornadas / s"
+      },
+      {
+        "title": "Arquivos temporários / s"
+      },
+      {
+        "title": "Taxa de cache hit"
+      },
+      {
+        "title": "Transações / s",
+        "tip": "Commits vs rollbacks.",
+        "expressionLabels": [
+          "commits",
+          "rollbacks"
+        ]
+      },
+      {
+        "title": "Conflitos + deadlocks / s",
+        "expressionLabels": [
+          "conflitos",
+          "deadlocks"
+        ]
+      },
+      {
+        "title": "Sessões",
+        "expressionLabels": [
+          "ativas",
+          "ociosas",
+          "locks"
+        ]
+      },
+      {
+        "title": "Buffers / s",
+        "tip": "Atividade de buffer de checkpoint / clean / fsync / alloc / backend.",
+        "expressionLabels": [
+          "checkpoint",
+          "clean",
+          "fsync de backend",
+          "alloc",
+          "backend"
+        ]
+      },
+      {
+        "title": "Estatísticas de checkpoint / s",
+        "expressionLabels": [
+          "timed",
+          "requested",
+          "tempo de escrita",
+          "tempo de sync"
+        ]
+      },
+      {
+        "title": "Statements lentos",
+        "tip": "Top 20 statements mais lentos capturados."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Shared buffers"
+      },
+      {
+        "title": "Effective cache"
+      },
+      {
+        "title": "Work mem"
+      },
+      {
+        "title": "Tamanho máximo de WAL"
+      },
+      {
+        "title": "Linhas fetched / s"
+      },
+      {
+        "title": "Linhas inseridas / s"
+      },
+      {
+        "title": "Taxa de cache hit"
+      },
+      {
+        "title": "Sessões",
+        "expressionLabels": [
+          "ativas",
+          "ociosas",
+          "locks"
+        ]
+      },
+      {
+        "title": "Conflitos + deadlocks / s",
+        "expressionLabels": [
+          "conflitos",
+          "deadlocks"
+        ]
+      }
+    ]
+  }
+}

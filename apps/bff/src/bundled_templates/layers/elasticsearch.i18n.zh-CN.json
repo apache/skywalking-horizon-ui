@@ -1,0 +1,106 @@
+{
+  "alias": "Elasticsearch",
+  "group": "数据库",
+  "slots": {
+    "services": "ES 集群",
+    "instances": "节点",
+    "endpoints": "索引"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "健康度" },
+      { "label": "分片" },
+      { "label": "节点" },
+      { "label": "未分配" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          { "label": "健康度", "tip": "0 green / 1 yellow / 2 red。" },
+          { "label": "未分配分片", "tip": "尚未在任何节点上落地的分片。" },
+          { "label": "触发的熔断器", "tip": "熔断器累计触发次数 — 高值表示内存压力。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "集群健康",
+        "tableHeaders": ["状态", "值"]
+      },
+      { "title": "节点" },
+      { "title": "待处理任务" },
+      { "title": "主分片" },
+      { "title": "活跃分片" },
+      { "title": "初始化中" },
+      { "title": "迁移中" },
+      { "title": "未分配" },
+      { "title": "延迟未分配" },
+      { "title": "触发的熔断器" },
+      { "title": "集群 CPU 平均" },
+      { "title": "JVM 内存已用平均" },
+      { "title": "打开文件数平均" }
+    ],
+    "instance": [
+      { "title": "进程 CPU（%）" },
+      { "title": "操作系统 CPU（%）" },
+      {
+        "title": "负载均值",
+        "expressionLabels": ["1m", "5m", "15m"]
+      },
+      {
+        "title": "JVM 内存（MB）",
+        "expressionLabels": ["heap used", "heap max", "non-heap"]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": ["count", "time (ms/min)"]
+      },
+      {
+        "title": "Translog",
+        "expressionLabels": ["operations", "size (MB)"]
+      },
+      {
+        "title": "熔断器",
+        "expressionLabels": ["tripped", "estimated (MB)"]
+      },
+      {
+        "title": "段",
+        "expressionLabels": ["count", "memory (MB)"]
+      },
+      {
+        "title": "磁盘使用",
+        "expressionLabels": ["GB", "%"]
+      },
+      {
+        "title": "网络",
+        "expressionLabels": ["send", "receive"]
+      },
+      { "title": "打开文件数" }
+    ],
+    "endpoint": [
+      {
+        "title": "索引速率",
+        "expressionLabels": ["req", "proc"]
+      },
+      {
+        "title": "搜索速率",
+        "expressionLabels": ["req", "proc"]
+      },
+      { "title": "索引大小（全部分片）" },
+      { "title": "索引大小（主分片）" },
+      {
+        "title": "文档数",
+        "expressionLabels": ["all", "primary", "deleted"]
+      },
+      {
+        "title": "每请求平均搜索耗时（s）",
+        "expressionLabels": ["fetch", "query", "scroll", "suggest"]
+      }
+    ]
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "slots": {
+    "services": "Buckets do S3"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Requisições"
+      },
+      {
+        "label": "Latência média"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erros",
+        "metrics": [
+          {
+            "label": "Contagem de 4xx",
+            "tip": "Erros de cliente observados pelo CloudWatch."
+          },
+          {
+            "label": "Contagem de 5xx",
+            "tip": "Erros de servidor observados pelo CloudWatch."
+          },
+          {
+            "label": "Latência média",
+            "tip": "Latência média da requisição."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Contagem total de requisições"
+      },
+      {
+        "title": "Contagem de requisições GET"
+      },
+      {
+        "title": "Contagem de requisições PUT"
+      },
+      {
+        "title": "Contagem de requisições DELETE"
+      },
+      {
+        "title": "Contagem de 4xx"
+      },
+      {
+        "title": "Contagem de 5xx"
+      },
+      {
+        "title": "Latência média da requisição"
+      },
+      {
+        "title": "Latência média do primeiro byte"
+      },
+      {
+        "title": "Baixado (KB)"
+      },
+      {
+        "title": "Enviado (KB)"
+      }
+    ]
+  }
+}

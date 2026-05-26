@@ -1,0 +1,50 @@
+{
+  "group": "Auto-observabilidad",
+  "alias": "Satellite",
+  "overview": {
+    "groups": [
+      {
+        "title": "Estado de Satellite",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU del proceso Satellite."
+          },
+          {
+            "label": "Cola usada",
+            "tip": "Elementos de cola pendientes — indicador de backlog."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Conteo de conexiones"
+      },
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "Cola usada"
+      },
+      {
+        "title": "Eventos receive"
+      },
+      {
+        "title": "Eventos fetch"
+      },
+      {
+        "title": "Entrada / salida de cola",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios de Satellite"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "title": "Mesh-Dashboard",
+  "description": "Service-Status der Istio-Data-Plane, Pilot-Push-Aktivität und zugrunde liegende Kubernetes-Kapazität. Mesh-Deployments laufen immer auf K8s, daher wird der Cluster-Block mit aufgenommen.",
+  "widgets": [
+    {
+      "title": "Mesh-Services"
+    },
+    {
+      "title": "Istio-verwaltete Services",
+      "tip": "Services, die durch die Istio-Data-Plane geleitet werden.",
+      "kpis": [
+        { "label": "RPM" },
+        { "label": "P95" },
+        { "label": "SLA" }
+      ]
+    },
+    {
+      "title": "Istio Pilot",
+      "tip": "Anzahl xDS-Pushes + Reject-Fehler + Service-Anzahl auf dieser Ebene.",
+      "kpis": [
+        null,
+        null,
+        { "label": "Services" },
+        null
+      ]
+    },
+    {
+      "title": "Topologie & aktive Alarme"
+    },
+    {
+      "title": "Mesh-Topologie",
+      "tip": "Live-Service-Map — gleicher Renderer wie der Topologie-Tab pro Ebene, ohne die Detail-Seitenleiste."
+    },
+    {
+      "title": "Aktive Alarme",
+      "tip": "Aktuell ausgelöste Alarme auf vom Mesh gemeldeten Services."
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "Cluster-Kapazität & -Auslastung",
+      "tip": "Knoten / Namespaces / Workloads, plus CPU-, Speicher- und Speichernutzung auf Cluster-Ebene.",
+      "kpis": [
+        { "label": "Knoten" },
+        null,
+        null,
+        null,
+        null,
+        { "label": "Services" },
+        { "label": "Container" },
+        { "label": "CPU" },
+        { "label": "Speicher" },
+        { "label": "Speicherplatz" }
+      ]
+    }
+  ]
+}

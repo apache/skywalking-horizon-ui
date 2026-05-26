@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
 
@@ -31,6 +32,7 @@ import { useAdminFeatures } from '@/shell/useAdminFeatures';
 // (forgot to expose :17128 in the k8s service) and the page must
 // show that clearly.
 
+const { t } = useI18n({ useScope: 'global' });
 const {
   info,
   reachable,
@@ -118,17 +120,13 @@ function refreshAll(): void {
   <div class="cluster">
     <header class="page-head">
       <div>
-        <div class="kicker">Operate · Cluster status</div>
-        <h1>OAP cluster</h1>
+        <div class="kicker">{{ t('Operate') }} · {{ t('Cluster status') }}</div>
+        <h1>{{ t('OAP cluster') }}</h1>
         <p class="lede">
-          Two-port view of the OAP backend horizon is connected to.
-          Query / GraphQL (<code>:12800</code>) drives every observability page;
-          the admin host (<code>:17128</code>) gates DSL management, Live debugger, Metrics inspect, and Dump;
-          the Zipkin / OTLP endpoint feeds only the Zipkin trace menu.
-          All three are polled independently — if one shows red the others can still be green.
+          {{ t('Two-port view of the OAP backend horizon is connected to. Query / GraphQL (:12800) drives every observability page; the admin host (:17128) gates DSL management, Live debugger, Metrics inspect, and Dump; the Zipkin / OTLP endpoint feeds only the Zipkin trace menu. All three are polled independently — if one shows red the others can still be green.') }}
         </p>
       </div>
-      <button type="button" class="refresh" @click="refreshAll">refresh both</button>
+      <button type="button" class="refresh" @click="refreshAll">{{ t('refresh both') }}</button>
     </header>
 
     <!-- ── Pane A · Query / GraphQL port (:12800) ────────────────── -->
@@ -142,34 +140,34 @@ function refreshAll(): void {
 
       <div class="grid">
         <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>Version</h4></div>
+          <div class="sw-card-head"><h4>{{ t('Version') }}</h4></div>
           <div class="kpi-body">
             <div class="kpi-value">{{ version ?? '—' }}</div>
-            <div class="kpi-label">{{ reachable ? info?.queryUrl : 'OAP unreachable' }}</div>
+            <div class="kpi-label">{{ reachable ? info?.queryUrl : t('OAP unreachable') }}</div>
           </div>
         </div>
 
         <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>Server timezone</h4></div>
+          <div class="sw-card-head"><h4>{{ t('Server timezone') }}</h4></div>
           <div class="kpi-body">
             <div class="kpi-value">{{ tzOffsetLabel || '—' }}</div>
-            <div class="kpi-label">Browser local: {{ localTzLabel }}</div>
+            <div class="kpi-label">{{ t('Browser local: {tz}', { tz: localTzLabel }) }}</div>
           </div>
         </div>
 
         <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>Server clock</h4></div>
+          <div class="sw-card-head"><h4>{{ t('Server clock') }}</h4></div>
           <div class="kpi-body">
             <div class="kpi-value mono">{{ serverClockLocal }}</div>
-            <div class="kpi-label">As seen in your browser timezone</div>
+            <div class="kpi-label">{{ t('As seen in your browser timezone') }}</div>
           </div>
         </div>
 
         <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>Health score</h4></div>
+          <div class="sw-card-head"><h4>{{ t('Health score') }}</h4></div>
           <div class="kpi-body">
             <div class="kpi-value">{{ healthScore ?? '—' }}</div>
-            <div class="kpi-label">{{ info?.healthDetails ?? '0 ok · &gt;0 degraded · &lt;0 not started' }}</div>
+            <div class="kpi-label">{{ info?.healthDetails ?? t('0 ok · >0 degraded · <0 not started') }}</div>
           </div>
         </div>
       </div>
@@ -183,20 +181,18 @@ function refreshAll(): void {
     <!-- ── Pane B · Admin host (:17128) ──────────────────────────── -->
     <section class="pane">
       <header class="pane-head">
-        <h2>Admin host <span class="port">:17128</span></h2>
+        <h2>{{ t('Admin host') }} <span class="port">:17128</span></h2>
         <span class="sw-badge" :class="`is-${adminBadgeState}`">
           <span class="state-dot" />{{ adminBadgeLabel }}
         </span>
-        <span class="generated">checked {{ adminGeneratedAt }}</span>
+        <span class="generated">{{ t('checked {at}', { at: adminGeneratedAt }) }}</span>
       </header>
 
       <p class="pane-lede">
-        Per-module enablement on the admin port. Each row gates a slice of horizon's UI —
-        flip the corresponding env var on OAP and restart to enable, or remove the corresponding
-        page from your operator menu if you don't need it.
+        {{ t("Per-module enablement on the admin port. Each row gates a slice of horizon's UI — flip the corresponding env var on OAP and restart to enable, or remove the corresponding page from your operator menu if you don't need it.") }}
       </p>
 
-      <div v-if="!preflight" class="empty">loading preflight…</div>
+      <div v-if="!preflight" class="empty">{{ t('loading preflight…') }}</div>
 
       <div v-else-if="!adminReachable" class="last-error block">
         <strong>Admin host unreachable</strong>

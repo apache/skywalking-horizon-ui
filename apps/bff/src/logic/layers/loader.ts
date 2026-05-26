@@ -45,6 +45,7 @@ import type {
   TopologyMetricDef,
   TracesConfig,
 } from '@skywalking-horizon-ui/api-client';
+import { isOverlayFilename, reloadI18nStore } from '../../i18n/store.js';
 
 export type { TopologyConfig, EndpointDependencyConfig, ProcessTopologyConfig, TopologyMetricDef, TracesConfig, ServiceNamingRule };
 
@@ -391,6 +392,10 @@ function load(): Map<string, LayerTemplate> {
   const out = new Map<string, LayerTemplate>();
   for (const file of readdirSync(CONFIG_DIR)) {
     if (!file.endsWith('.json')) continue;
+    // Translation overlays (`<key>.i18n.<lang>.json`) live alongside
+    // sources but follow a different schema — they're picked up by the
+    // i18n store, not by the layer loader.
+    if (isOverlayFilename(file)) continue;
     const raw = readFileSync(join(CONFIG_DIR, file), 'utf-8');
     let parsed: LayerTemplate & { alias_terms?: LayerSlotsConfig; alias?: LayerSlotsConfig | string };
     try {
@@ -672,6 +677,10 @@ export function startLayerTemplateWatcher(): void {
       if (watchTimer) clearTimeout(watchTimer);
       watchTimer = setTimeout(() => {
         cache = null;
+        // Reload i18n overlays too — `*.i18n.<lang>.json` siblings are
+        // watched alongside source templates, and overlay edits should
+        // take effect without a BFF restart during dev / admin pushes.
+        reloadI18nStore();
         watchTimer = null;
       }, 50);
     });

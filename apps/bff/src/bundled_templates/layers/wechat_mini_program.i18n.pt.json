@@ -1,0 +1,122 @@
+{
+  "alias": "Mini Programa do WeChat",
+  "group": "Móvel",
+  "slots": {
+    "services": "Mini programas",
+    "instances": "Versões",
+    "endpoints": "Páginas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de requisições"
+      },
+      {
+        "label": "Inicialização"
+      },
+      {
+        "label": "Primeira renderização"
+      },
+      {
+        "label": "Erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "Requisição P95",
+            "tip": "Duração da requisição no percentil 95 a partir da ponte de rede do WeChat."
+          },
+          {
+            "label": "Inicialização",
+            "tip": "Duração de inicialização do mini programa observada pelo cliente do WeChat."
+          },
+          {
+            "label": "Erros",
+            "tip": "Contagem de erros reportados."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPM de requisições",
+            "tip": "Requisições da ponte por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Duração da inicialização do app"
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Duração do carregamento do pacote",
+        "tip": "Tempo para baixar + parsear o bundle do pacote do mini programa."
+      },
+      {
+        "title": "Contagem de erros"
+      },
+      {
+        "title": "Duração da rota",
+        "tip": "Tempo gasto em transições de rota de página do mini programa."
+      },
+      {
+        "title": "Duração do script"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Duração da inicialização"
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Duração do carregamento do pacote"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Duração da rota"
+      },
+      {
+        "title": "Duração do script"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Duração da inicialização na página"
+      },
+      {
+        "title": "Duração da primeira renderização"
+      },
+      {
+        "title": "Carga de requisições"
+      },
+      {
+        "title": "Percentil de duração das requisições"
+      }
+    ]
+  }
+}

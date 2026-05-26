@@ -1,0 +1,205 @@
+{
+  "alias": "Kubernetes",
+  "group": "Kubernetes",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pod"
+      },
+      {
+        "label": "ノード"
+      },
+      {
+        "label": "ネームスペース"
+      },
+      {
+        "label": "Deployment"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "キャパシティ",
+        "metrics": [
+          {
+            "label": "Pod",
+            "tip": "クラスタ全体で報告された Pod 合計。"
+          },
+          {
+            "label": "ノード",
+            "tip": "ノード数。"
+          },
+          {
+            "label": "サービス",
+            "tip": "K8s Service オブジェクト。"
+          }
+        ]
+      },
+      {
+        "title": "問題",
+        "metrics": [
+          {
+            "label": "実行中でない Pod",
+            "tip": "Running 以外の状態の Pod — pending、failed、unknown。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "ノード合計"
+      },
+      {
+        "title": "ネームスペース合計"
+      },
+      {
+        "title": "Deployment 合計"
+      },
+      {
+        "title": "StatefulSet 合計"
+      },
+      {
+        "title": "DaemonSet 合計"
+      },
+      {
+        "title": "サービス合計"
+      },
+      {
+        "title": "Pod 合計"
+      },
+      {
+        "title": "コンテナ合計"
+      },
+      {
+        "title": "CPU リソース",
+        "tip": "クラスタ CPU キャパシティ vs requests / limits / allocatable (millicore)。",
+        "expressionLabels": [
+          "キャパシティ",
+          "リクエスト",
+          "Limit",
+          "割当可能"
+        ]
+      },
+      {
+        "title": "メモリリソース",
+        "tip": "クラスタメモリ requests / allocatable / limits / total。",
+        "expressionLabels": [
+          "リクエスト",
+          "割当可能",
+          "Limit",
+          "合計"
+        ]
+      },
+      {
+        "title": "ストレージリソース",
+        "tip": "クラスタの ephemeral-storage 合計 vs 割当可能。",
+        "expressionLabels": [
+          "合計",
+          "割当可能"
+        ]
+      },
+      {
+        "title": "ノードステータス",
+        "tip": "現在 true/unknown のノード単位 Kubernetes 条件 (Ready、*Pressure、…)。",
+        "tableHeaders": [
+          "ノード · 条件",
+          ""
+        ]
+      },
+      {
+        "title": "Deployment ステータス",
+        "tip": "Available 条件を報告している Deployment。",
+        "tableHeaders": [
+          "Deployment · Available",
+          ""
+        ]
+      },
+      {
+        "title": "Deployment Spec レプリカ",
+        "tip": "Deployment 単位の希望レプリカ数。",
+        "tableHeaders": [
+          "Deployment",
+          "レプリカ"
+        ]
+      },
+      {
+        "title": "サービスステータス",
+        "tip": "各 K8s Service を支える Pod をフェーズ別に表示 (Running / Pending / Failed / …)。",
+        "tableHeaders": [
+          "サービス · フェーズ",
+          ""
+        ]
+      },
+      {
+        "title": "Pod ステータス非実行",
+        "tip": "Running 以外のフェーズの Pod。",
+        "tableHeaders": [
+          "Pod · ステータス",
+          ""
+        ]
+      },
+      {
+        "title": "Pod ステータス Waiting",
+        "tip": "Waiting 状態のコンテナを理由別に表示。",
+        "tableHeaders": [
+          "コンテナ · Pod · 理由",
+          ""
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "ノードステータス"
+      },
+      {
+        "title": "ノード上の Pod"
+      },
+      {
+        "title": "ノード CPU 使用率",
+        "tip": "millicore 単位の CPU 使用量。"
+      },
+      {
+        "title": "ノード CPU リソース",
+        "expressionLabels": [
+          "合計",
+          "割当可能",
+          "リクエスト",
+          "limits"
+        ]
+      },
+      {
+        "title": "ノードメモリ使用率"
+      },
+      {
+        "title": "ノードメモリリソース",
+        "expressionLabels": [
+          "合計",
+          "割当可能",
+          "リクエスト",
+          "limits"
+        ]
+      },
+      {
+        "title": "ノードネットワーク I/O",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "ノードストレージリソース",
+        "expressionLabels": [
+          "合計",
+          "割当可能"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "クラスタ",
+    "instances": "ノード"
+  }
+}

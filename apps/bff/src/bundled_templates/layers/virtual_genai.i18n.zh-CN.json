@@ -1,0 +1,75 @@
+{
+  "alias": "虚拟 GenAI",
+  "group": "虚拟目标",
+  "slots": {
+    "services": "GenAI Provider",
+    "instances": "模型"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "RPM" },
+      { "label": "延迟" },
+      { "label": "成功率" },
+      { "label": "输出 Token" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          { "label": "平均延迟", "tip": "调用 GenAI Provider 的平均延迟。" },
+          { "label": "错误率", "tip": "100 − Provider SLA。" }
+        ]
+      },
+      {
+        "title": "成本",
+        "metrics": [
+          { "label": "累计预估成本", "tip": "Provider 的累计成本预估。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "调用 / 分钟" },
+      { "title": "平均响应时间" },
+      { "title": "成功率" },
+      { "title": "延迟分位" },
+      {
+        "title": "输入 Token",
+        "expressionLabels": ["sum", "avg"]
+      },
+      {
+        "title": "输出 Token",
+        "expressionLabels": ["sum", "avg"]
+      },
+      {
+        "title": "预估成本",
+        "expressionLabels": ["total", "avg"]
+      }
+    ],
+    "instance": [
+      { "title": "调用 / 分钟" },
+      { "title": "平均延迟" },
+      { "title": "成功率" },
+      { "title": "延迟分位" },
+      {
+        "title": "TTFT",
+        "expressionLabels": ["avg", "percentile"]
+      },
+      {
+        "title": "输入 Token",
+        "expressionLabels": ["sum", "avg"]
+      },
+      {
+        "title": "输出 Token",
+        "expressionLabels": ["sum", "avg"]
+      },
+      {
+        "title": "预估成本",
+        "expressionLabels": ["total", "avg"]
+      }
+    ]
+  }
+}

@@ -33,6 +33,7 @@ import type {
   OverviewVisibility,
   OverviewWidgetType,
 } from '@skywalking-horizon-ui/api-client';
+import { isOverlayFilename } from '../../i18n/store.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Mirrors the dev-vs-prod path probing in `logic/layers/loader.ts`
@@ -170,7 +171,9 @@ export function loadOverviewDashboards(): OverviewDashboard[] {
     cache = [];
     return cache;
   }
-  const files = fs.readdirSync(CONFIG_DIR).filter((f) => f.endsWith('.json'));
+  const files = fs
+    .readdirSync(CONFIG_DIR)
+    .filter((f) => f.endsWith('.json') && !isOverlayFilename(f));
   const out: OverviewDashboard[] = [];
   for (const f of files) {
     try {
@@ -214,7 +217,7 @@ export function getOverviewDashboard(id: string): OverviewDashboard | null {
 export function findOverviewFile(id: string): string | null {
   if (!fs.existsSync(CONFIG_DIR)) return null;
   for (const f of fs.readdirSync(CONFIG_DIR)) {
-    if (!f.endsWith('.json')) continue;
+    if (!f.endsWith('.json') || isOverlayFilename(f)) continue;
     try {
       const raw = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, f), 'utf8'));
       if (raw && typeof raw === 'object' && (raw as { id?: unknown }).id === id) {

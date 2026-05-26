@@ -1,0 +1,134 @@
+{
+  "alias": "Virtuelle Nachrichtenwarteschlange",
+  "group": "Virtuelle Ziele",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Konsum-RPM"
+      },
+      {
+        "label": "Erzeugungs-RPM"
+      },
+      {
+        "label": "Konsum-Latenz"
+      },
+      {
+        "label": "Konsum-Fehlerrate"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95. Perzentil der Verbrauchs-Latenz (timestamp(received) − timestamp(producing))."
+          },
+          {
+            "label": "Konsum-Fehlerrate",
+            "tip": "100 − Verbrauchs-Erfolgsrate."
+          },
+          {
+            "label": "Erzeugungs-Fehlerrate",
+            "tip": "100 − Erzeugungs-Erfolgsrate."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Konsum-RPM",
+            "tip": "Pro Minute konsumierte Nachrichten."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Konsum-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erzeugungs-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Konsum mittlere Latenz",
+        "tip": "Durchschnittliche Zeit zwischen Nachrichtenerzeugung und -konsum.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Konsum-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erzeugungs-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Konsum-Latenz-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 der Verbrauchs-Latenz.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Topic-Konsum-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Topic-Erzeugungs-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Topic-Konsum mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Topic-Konsum-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Topic-Erzeugungs-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Topic-Konsum-Latenz-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "MQ-Cluster",
+    "endpoints": "Topics"
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "alias": "Kong",
+  "group": "网关",
+  "slots": {
+    "services": "Kong 服务",
+    "instances": "节点",
+    "endpoints": "路由"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "RPS" },
+      { "label": "200/秒" },
+      { "label": "404/秒" },
+      { "label": "500/秒" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟",
+        "metrics": [
+          { "label": "Kong 延迟", "tip": "Kong 自身处理每个请求的耗时，p50/p95。" },
+          { "label": "上游延迟", "tip": "等待上游服务的耗时。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "RPS", "tip": "通过 Kong 的每秒请求数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "HTTP 带宽" },
+      { "title": "Kong 延迟" },
+      { "title": "请求延迟" },
+      { "title": "上游延迟" },
+      { "title": "Nginx 连接" },
+      { "title": "Nginx 定时器" },
+      {
+        "title": "数据存储可达性",
+        "tableHeaders": ["实例", "可达"]
+      },
+      { "title": "Nginx 指标错误" }
+    ],
+    "instance": [
+      { "title": "HTTP 请求趋势" },
+      { "title": "HTTP 状态趋势" },
+      { "title": "HTTP 带宽" },
+      { "title": "Kong 延迟" },
+      { "title": "请求延迟" },
+      { "title": "上游延迟" },
+      { "title": "数据存储可达性" },
+      { "title": "Nginx 连接" },
+      { "title": "Nginx 定时器" },
+      { "title": "共享内存使用率" },
+      { "title": "Worker Lua VM 使用" }
+    ],
+    "endpoint": [
+      { "title": "HTTP 状态趋势" },
+      { "title": "总带宽" },
+      { "title": "Kong 延迟" },
+      { "title": "请求延迟" },
+      { "title": "上游延迟" }
+    ]
+  }
+}

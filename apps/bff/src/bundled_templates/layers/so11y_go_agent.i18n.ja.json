@@ -1,0 +1,41 @@
+{
+  "alias": "Go エージェント",
+  "group": "セルフ可観測性",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Tracing Context 作成 / 分"
+      },
+      {
+        "title": "Tracing 作成 + 完了 / 分",
+        "expressionLabels": [
+          "作成",
+          "完了"
+        ]
+      },
+      {
+        "title": "Ignored Context 作成 / 分"
+      },
+      {
+        "title": "Ignored 作成 + 完了 / 分",
+        "expressionLabels": [
+          "作成",
+          "完了"
+        ]
+      },
+      {
+        "title": "リーク疑い Context / 分"
+      },
+      {
+        "title": "Interceptor エラー件数 / 分"
+      },
+      {
+        "title": "Tracing Context 実行時間 (ms)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "エージェントサービス",
+    "instances": "エージェント"
+  }
+}

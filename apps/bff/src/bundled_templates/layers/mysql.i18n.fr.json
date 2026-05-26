@@ -1,0 +1,145 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "Bases de données",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "QPS lentes"
+      },
+      {
+        "label": "Erreurs de connexion"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "Requêtes par seconde à l'échelle du cluster."
+          },
+          {
+            "label": "TPS",
+            "tip": "Transactions par seconde."
+          },
+          {
+            "label": "Requêtes lentes/s",
+            "tip": "Taux de requêtes lentes sur l'ensemble du cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "TPS"
+      },
+      {
+        "title": "Requêtes lentes / s"
+      },
+      {
+        "title": "Erreurs de connexion",
+        "tip": "Rejets internes vs connexions max.",
+        "expressionLabels": [
+          "interne",
+          "connexions max"
+        ]
+      },
+      {
+        "title": "Tendance des commandes",
+        "tip": "Taux de lignes affectées par commande (select / insert / update / delete).",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressionLabels": [
+          "connectées",
+          "en exécution",
+          "en cache",
+          "créées"
+        ]
+      },
+      {
+        "title": "Requêtes lentes",
+        "tip": "Top 20 des statements les plus lents capturés sur l'ensemble du cluster."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Disponibilité"
+      },
+      {
+        "title": "Connexions max"
+      },
+      {
+        "title": "Buffer Pool InnoDB"
+      },
+      {
+        "title": "Taille du thread cache"
+      },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "Requêtes lentes / s"
+      },
+      {
+        "title": "Tendance des commandes",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressionLabels": [
+          "connectées",
+          "en exécution",
+          "en cache",
+          "créées"
+        ]
+      },
+      {
+        "title": "Connexions",
+        "expressionLabels": [
+          "disponible",
+          "abandonnées"
+        ]
+      },
+      {
+        "title": "Erreurs de connexion",
+        "expressionLabels": [
+          "interne",
+          "connexions max"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters MySQL",
+    "instances": "Nœuds"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "title": "Painel do mesh",
+  "description": "Saúde dos serviços do plano de dados do Istio, atividade de push do pilot e a capacidade subjacente do Kubernetes. Implantações de mesh sempre rodam sobre K8s, então o bloco do cluster também está incluído.",
+  "widgets": [
+    {
+      "title": "Serviços do mesh"
+    },
+    {
+      "title": "Serviços gerenciados pelo Istio",
+      "tip": "Serviços roteados pelo plano de dados do Istio.",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Istio pilot",
+      "tip": "Quantidade de pushes xDS + erros de rejeição + total de serviços na camada.",
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        null
+      ]
+    },
+    {
+      "title": "Topologia e alarmes ativos"
+    },
+    {
+      "title": "Topologia do mesh",
+      "tip": "Mapa de serviços em tempo real — o mesmo renderizador da aba Topologia por camada, sem o painel lateral de detalhes."
+    },
+    {
+      "title": "Alarmes ativos",
+      "tip": "Alarmes atualmente disparados em serviços reportados pelo mesh."
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "Capacidade e utilização do cluster",
+      "tip": "Nós / namespaces / workloads e o uso de CPU, memória e disco em todo o cluster.",
+      "kpis": [
+        {
+          "label": "Nós"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "Serviços"
+        },
+        {
+          "label": "Contêineres"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Memória"
+        },
+        {
+          "label": "Armazenamento"
+        }
+      ]
+    }
+  ]
+}

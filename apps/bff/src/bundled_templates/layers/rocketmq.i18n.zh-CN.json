@@ -1,0 +1,87 @@
+{
+  "alias": "RocketMQ",
+  "group": "MQ",
+  "slots": {
+    "services": "RocketMQ 集群",
+    "instances": "Broker",
+    "endpoints": "Topic"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "生产 TPS" },
+      { "label": "消费 TPS" },
+      { "label": "Topic" },
+      { "label": "Broker" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "生产 TPS", "tip": "集群每秒生产的消息数。" },
+          { "label": "消费 TPS", "tip": "每秒消费的消息数。" },
+          { "label": "最大消费延迟", "tip": "集群范围内最差的消费者延迟。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "今日生产" },
+      { "title": "今日消费" },
+      { "title": "昨日生产" },
+      { "title": "昨日消费" },
+      {
+        "title": "Producer / Consumer TPS",
+        "expressionLabels": ["producer", "consumer"]
+      },
+      {
+        "title": "Producer / Consumer 消息大小（MB）",
+        "expressionLabels": ["produced", "consumed"]
+      },
+      { "title": "最大消费延迟" },
+      {
+        "title": "CommitLog 磁盘占比（%）",
+        "expressionLabels": ["current", "max"]
+      },
+      {
+        "title": "线程池队列头等待（ms）",
+        "expressionLabels": ["pull", "send"]
+      },
+      { "title": "Topic" },
+      { "title": "Broker" }
+    ],
+    "instance": [
+      { "title": "生产 TPS" },
+      { "title": "消费 QPS" },
+      { "title": "Producer 消息大小（MB）" },
+      { "title": "Consumer 消息大小（MB）" }
+    ],
+    "endpoint": [
+      {
+        "title": "Producer / Consumer Group TPS",
+        "expressionLabels": ["producer", "consumer group"]
+      },
+      {
+        "title": "消息大小（MB）",
+        "expressionLabels": ["produced", "consumed"]
+      },
+      {
+        "title": "最大消息大小（MB）",
+        "expressionLabels": ["producer", "consumer"]
+      },
+      { "title": "消费延迟（s）" },
+      {
+        "title": "Producer / Consumer Offset",
+        "expressionLabels": ["producer", "consumer group"]
+      },
+      {
+        "title": "积压消息",
+        "tip": "Producer offset 减去 Consumer-group offset — 即 Topic 的 Lag。"
+      },
+      { "title": "Consumer Group 数量" },
+      { "title": "Broker 数量" }
+    ]
+  }
+}

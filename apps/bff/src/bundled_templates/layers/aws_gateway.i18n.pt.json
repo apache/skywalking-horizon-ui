@@ -1,0 +1,109 @@
+{
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "slots": {
+    "services": "Gateways da AWS",
+    "endpoints": "Rotas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Requisições"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erros",
+        "metrics": [
+          {
+            "label": "4xx",
+            "tip": "Contagem de erros de cliente vinda do CloudWatch."
+          },
+          {
+            "label": "5xx",
+            "tip": "Contagem de erros de servidor vinda do CloudWatch."
+          },
+          {
+            "label": "Latência média",
+            "tip": "Latência média ponta a ponta."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Requisições",
+            "tip": "Contagem total de requisições na janela."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Contagem de requisições"
+      },
+      {
+        "title": "Contagem de 4xx"
+      },
+      {
+        "title": "Contagem de 5xx"
+      },
+      {
+        "title": "Latência média da requisição"
+      },
+      {
+        "title": "Latência média da integração",
+        "tip": "Latência entre o gateway e a integração backend."
+      },
+      {
+        "title": "Dados processados (apenas HTTP API)"
+      },
+      {
+        "title": "Taxa de cache hit (apenas REST API)"
+      },
+      {
+        "title": "Taxa de cache miss (apenas REST API)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Contagem de requisições"
+      },
+      {
+        "title": "Contagem de 4xx"
+      },
+      {
+        "title": "Contagem de 5xx"
+      },
+      {
+        "title": "Latência média da requisição"
+      },
+      {
+        "title": "Latência média da integração"
+      },
+      {
+        "title": "Dados processados"
+      },
+      {
+        "title": "Taxa de cache hit"
+      },
+      {
+        "title": "Taxa de cache miss"
+      }
+    ]
+  }
+}

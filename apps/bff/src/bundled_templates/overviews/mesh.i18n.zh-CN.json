@@ -1,0 +1,78 @@
+{
+  "title": "服务网格仪表板",
+  "description": "Istio 数据面服务健康、Pilot 推送活动以及底层 Kubernetes 容量。服务网格部署始终运行在 K8s 之上，集群信息一并展示。",
+  "widgets": [
+    {
+      "title": "服务网格中的服务"
+    },
+    {
+      "title": "Istio 管理的服务",
+      "tip": "通过 Istio 数据面路由的服务。",
+      "kpis": [
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
+      ]
+    },
+    {
+      "title": "Istio Pilot",
+      "tip": "xDS 推送次数 + 拒绝错误 + 当前层的服务数量。",
+      "kpis": [
+        null,
+        null,
+        {
+          "label": "服务"
+        },
+        null
+      ]
+    },
+    {
+      "title": "拓扑与活动告警"
+    },
+    {
+      "title": "网格服务拓扑",
+      "tip": "实时服务拓扑 — 与各层 Topology 标签页使用相同的渲染器，仅去掉详情侧栏。"
+    },
+    {
+      "title": "活动告警",
+      "tip": "服务网格中当前正在触发的告警。"
+    },
+    {
+      "title": "Kubernetes"
+    },
+    {
+      "title": "集群容量与利用率",
+      "tip": "节点 / 命名空间 / 工作负载，以及集群范围内的 CPU、内存与磁盘占用。",
+      "kpis": [
+        {
+          "label": "节点"
+        },
+        null,
+        null,
+        null,
+        null,
+        {
+          "label": "服务"
+        },
+        {
+          "label": "容器"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "内存"
+        },
+        {
+          "label": "存储"
+        }
+      ]
+    }
+  ]
+}

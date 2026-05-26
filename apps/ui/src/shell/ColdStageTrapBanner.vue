@@ -42,11 +42,13 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useColdStageStore } from '@/controls/coldStage';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { useTtl } from '@/features/operate/ttl/useTtl';
 import { useOapInfo } from '@/shell/useOapInfo';
 
+const { t } = useI18n({ useScope: 'global' });
 const cold = useColdStageStore();
 const timeRange = useTimeRangeStore();
 const { backend } = useOapInfo();
@@ -105,11 +107,11 @@ function turnColdOff(): void {
       </svg>
     </span>
     <span class="cs-trap__text">
-      <strong>Cold-only read is active</strong> — your time range is within the last
-      <b>{{ hotPlusWarmDays }} d</b> (hot + warm), where the cold stage returns nothing.
-      Pick a window older than <b>{{ hotPlusWarmDays }} days</b> ago, or turn the Cold pill off.
+      <strong>{{ t('Cold-only read is active') }}</strong> — {{ t('your time range is within the last') }}
+      <b>{{ hotPlusWarmDays }} d</b> {{ t('(hot + warm), where the cold stage returns nothing.') }}
+      {{ t('Pick a window older than') }} <b>{{ hotPlusWarmDays }} {{ t('days') }}</b> {{ t('ago, or turn the Cold pill off.') }}
     </span>
-    <button type="button" class="cs-trap__action" @click="turnColdOff">Turn Cold off</button>
+    <button type="button" class="cs-trap__action" @click="turnColdOff">{{ t('Turn Cold off') }}</button>
   </div>
 </template>
 

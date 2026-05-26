@@ -1,0 +1,207 @@
+{
+  "alias": "Redis",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Befehle/s"
+      },
+      {
+        "label": "Trefferrate"
+      },
+      {
+        "label": "Speicher %"
+      },
+      {
+        "label": "Clients"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Status",
+        "metrics": [
+          {
+            "label": "Trefferrate",
+            "tip": "Cache-Trefferquote. Sinkender Trend = Thrashing."
+          },
+          {
+            "label": "Speicher %",
+            "tip": "Genutzter / max. Speicher. >80% = Warnung."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Befehle/s",
+            "tip": "Befehle pro Sekunde im Cluster gesamt."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Uptime (Tage)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbundene Clients",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Blockierte Clients",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speichernutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Befehle gesamt / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Trefferrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Befehlszeit / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Netz-I/O (KB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Schlüssel",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "evicted",
+          "abgelaufen"
+        ]
+      },
+      {
+        "title": "Langsame Befehle",
+        "tip": "Top 10 langsamste erfasste Befehle. Erfasst vom SkyWalking-Agenten an der Aufrufstelle.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (Tage)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbundene Clients",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Blockierte Clients",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher max (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speichernutzung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Befehle / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Trefferrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Netz-I/O (KB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Schlüssel",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "evicted",
+          "abgelaufen"
+        ]
+      },
+      {
+        "title": "Befehlszeit gesamt (s)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Befehlszeit",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Redis-Cluster",
+    "instances": "Knoten"
+  }
+}

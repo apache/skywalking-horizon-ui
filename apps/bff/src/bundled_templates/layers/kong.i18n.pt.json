@@ -1,0 +1,141 @@
+{
+  "alias": "Kong",
+  "group": "Gateways",
+  "slots": {
+    "services": "Serviços do Kong",
+    "instances": "Nós",
+    "endpoints": "Rotas"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência",
+        "metrics": [
+          {
+            "label": "Latência do Kong",
+            "tip": "Tempo que o próprio Kong gasta por requisição, p50/p95."
+          },
+          {
+            "label": "Latência upstream",
+            "tip": "Tempo aguardando o serviço upstream."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Requisições por segundo passando pelo Kong."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendência de requisições HTTP"
+      },
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Largura de banda HTTP"
+      },
+      {
+        "title": "Latência do Kong"
+      },
+      {
+        "title": "Latência da requisição"
+      },
+      {
+        "title": "Latência upstream"
+      },
+      {
+        "title": "Conexões do Nginx"
+      },
+      {
+        "title": "Timers do Nginx"
+      },
+      {
+        "title": "Datastore acessível",
+        "tableHeaders": [
+          "Instância",
+          "Acessível"
+        ]
+      },
+      {
+        "title": "Erros de métricas do Nginx"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendência de requisições HTTP"
+      },
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Largura de banda HTTP"
+      },
+      {
+        "title": "Latência do Kong"
+      },
+      {
+        "title": "Latência da requisição"
+      },
+      {
+        "title": "Latência upstream"
+      },
+      {
+        "title": "Datastore acessível"
+      },
+      {
+        "title": "Conexões do Nginx"
+      },
+      {
+        "title": "Timers do Nginx"
+      },
+      {
+        "title": "Uso de memória compartilhada"
+      },
+      {
+        "title": "Uso da VM Lua do worker"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendência de status HTTP"
+      },
+      {
+        "title": "Largura de banda total"
+      },
+      {
+        "title": "Latência do Kong"
+      },
+      {
+        "title": "Latência da requisição"
+      },
+      {
+        "title": "Latência upstream"
+      }
+    ]
+  }
+}

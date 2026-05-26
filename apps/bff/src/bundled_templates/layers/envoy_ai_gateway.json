@@ -14,7 +14,10 @@
     "endpoints": false,
     "topology": false,
     "traces": false,
-    "logs": false
+    "logs": true
+  },
+  "log": {
+    "scope": "service"
   },
   "layer-header": {
     "orderBy": "cpm",

@@ -29,7 +29,10 @@
     3. Description block — name + tagline + desc + actions
 -->
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { ThemeDef } from '@/state/theme';
+
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
   theme: ThemeDef;
@@ -109,7 +112,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
         v-if="active"
         class="tpc__active"
         :style="{ background: theme.accent, color: '#0a0d12' }"
-      >active</span>
+      >{{ t('active') }}</span>
     </div>
 
     <!-- Hero strip — theme-specific gradient + faint grid + brand chip. -->
@@ -138,9 +141,9 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
     <!-- Mini-app preview. -->
     <div class="tpc__body" :style="{ background: theme.bg0, color: theme.fg1, fontFamily: theme.font }">
       <div class="tpc__buttons">
-        <span class="tpc__chip" :style="chipStyle(theme, 'primary')">Primary</span>
-        <span class="tpc__chip" :style="chipStyle(theme, 'tonal')">Tonal</span>
-        <span class="tpc__chip" :style="chipStyle(theme, 'ghost')">Ghost</span>
+        <span class="tpc__chip" :style="chipStyle(theme, 'primary')">{{ t('Primary') }}</span>
+        <span class="tpc__chip" :style="chipStyle(theme, 'tonal')">{{ t('Tonal') }}</span>
+        <span class="tpc__chip" :style="chipStyle(theme, 'ghost')">{{ t('Ghost') }}</span>
       </div>
       <div class="tpc__kpis">
         <div class="tpc__kpi" :style="kpiTileStyle(theme)">
@@ -185,7 +188,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
       </div>
       <div class="tpc__meta">
         <span class="tpc__meta-pill" :style="metaBadgeStyle(theme)">
-          <span :style="{ color: theme.fg3 }">font</span>
+          <span :style="{ color: theme.fg3 }">{{ t('font') }}</span>
           <span :style="{ color: theme.fg1 }">{{ theme.font }}</span>
         </span>
         <span class="tpc__meta-pill" :style="metaBadgeStyle(theme)">
@@ -193,11 +196,11 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
           <span :style="{ color: theme.fg1 }">{{ theme.radius }}px</span>
         </span>
         <span class="tpc__meta-pill" :style="metaBadgeStyle(theme)">
-          <span :style="{ color: theme.fg3 }">density</span>
+          <span :style="{ color: theme.fg3 }">{{ t('density') }}</span>
           <span :style="{ color: theme.fg1 }">{{ theme.density.toLowerCase() }}</span>
         </span>
         <span class="tpc__meta-pill" :style="metaBadgeStyle(theme)">
-          <span :style="{ color: theme.fg3 }">mode</span>
+          <span :style="{ color: theme.fg3 }">{{ t('mode') }}</span>
           <span :style="{ color: theme.fg1 }">{{ theme.appearance }}</span>
         </span>
       </div>
@@ -223,7 +226,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
             color: active ? theme.fg1 : (theme.appearance === 'light' ? '#fff' : '#0a0d12'),
             border: `1px solid ${active ? theme.line : theme.accent}`,
           }"
-        >{{ active ? 'Currently active' : (selected ? 'Selected' : 'Use this theme') }}</span>
+        >{{ active ? t('Currently active') : (selected ? t('Selected') : t('Use this theme')) }}</span>
       </div>
     </div>
   </div>

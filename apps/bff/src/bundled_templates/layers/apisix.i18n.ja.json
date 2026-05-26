@@ -1,0 +1,123 @@
+{
+  "alias": "APISIX",
+  "group": "ゲートウェイ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "503/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "APISIX ルートにマッチした 1秒あたりのリクエスト数。"
+          },
+          {
+            "label": "5xx",
+            "tip": "アップストリーム / ゲートウェイエラークラス。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "HTTP 接続"
+      },
+      {
+        "title": "未マッチステータス傾向",
+        "tip": "APISIX ルートにマッチしないリクエスト。"
+      },
+      {
+        "title": "未マッチレイテンシ"
+      },
+      {
+        "title": "未マッチ帯域"
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP リクエスト傾向"
+      },
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      },
+      {
+        "title": "HTTP 接続"
+      },
+      {
+        "title": "Shared Dict",
+        "tip": "キャパシティ vs 空き容量。",
+        "expressionLabels": [
+          "容量",
+          "空き"
+        ]
+      },
+      {
+        "title": "etcd",
+        "expressionLabels": [
+          "インデックス",
+          "到達可能"
+        ]
+      },
+      {
+        "title": "未マッチトラフィック",
+        "tip": "ルートにマッチしないリクエストのステータス + レイテンシ + 帯域。",
+        "expressionLabels": [
+          "ステータス",
+          "レイテンシ (ms)",
+          "帯域 (KB)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP ステータス傾向"
+      },
+      {
+        "title": "HTTP レイテンシ"
+      },
+      {
+        "title": "HTTP 帯域"
+      }
+    ]
+  },
+  "slots": {
+    "services": "APISIX サービス",
+    "instances": "ノード",
+    "endpoints": "ルート"
+  }
+}

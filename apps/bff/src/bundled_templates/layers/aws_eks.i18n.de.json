@@ -1,0 +1,209 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Knoten"
+      },
+      {
+        "label": "Fehlerhafte Knoten"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Dienste"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Ressourcen",
+        "metrics": [
+          {
+            "label": "Knoten",
+            "tip": "EKS-Cluster-Knotenanzahl."
+          },
+          {
+            "label": "Fehlerhafte Knoten",
+            "tip": "Vom Cluster gemeldete fehlerhafte EKS-Knoten."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Knotenanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehlerhafte Knoten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Namespace-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "EKS-Servicezahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cluster Netzwerk-Fehler",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "title": "Cluster Netzwerk-Drops",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Pod-CPU-Auslastung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod-Speicher-Auslastung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod-Netzwerk RX (KB/s)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod RX-Fehler / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod-Netzwerk TX (KB/s)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod TX-Fehler / s",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pod-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU-Auslastung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicherauslastung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "FS-Nutzung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Netzwerk RX (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "bytes",
+          "fehler"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Netzwerk TX (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "bytes",
+          "fehler"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Disk-I/O (B/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "lesen",
+          "schreiben"
+        ]
+      },
+      {
+        "title": "Pod-CPU auf Knoten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pod-Speicher auf Knoten",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Cluster",
+    "instances": "Knoten",
+    "endpoints": "EKS-Dienste"
+  }
+}

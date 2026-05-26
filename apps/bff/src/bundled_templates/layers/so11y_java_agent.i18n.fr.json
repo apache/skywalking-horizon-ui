@@ -1,0 +1,41 @@
+{
+  "alias": "Agent Java",
+  "group": "Auto-observabilité",
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Créations de contexte de tracing / min"
+      },
+      {
+        "title": "Tracing créés + terminés / min",
+        "expressionLabels": [
+          "créées",
+          "terminés"
+        ]
+      },
+      {
+        "title": "Créations de contexte ignorées / min"
+      },
+      {
+        "title": "Ignorés créés + terminés / min",
+        "expressionLabels": [
+          "créées",
+          "terminés"
+        ]
+      },
+      {
+        "title": "Contextes potentiellement fuités / min"
+      },
+      {
+        "title": "Nombre d'erreurs d'intercepteur / min"
+      },
+      {
+        "title": "Temps d'exécution du contexte de tracing (ms)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services d'agent",
+    "instances": "Agents"
+  }
+}

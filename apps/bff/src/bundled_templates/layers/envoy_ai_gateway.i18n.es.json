@@ -1,0 +1,154 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latencia media"
+      },
+      {
+        "label": "Tokens de entrada/min"
+      },
+      {
+        "label": "Tokens de salida/min"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia",
+        "metrics": [
+          {
+            "label": "Latencia media",
+            "tip": "Latencia media de petición extremo a extremo."
+          },
+          {
+            "label": "TTFT medio",
+            "tip": "Tiempo hasta el primer token — indicador de latencia del modelo generativo."
+          }
+        ]
+      },
+      {
+        "title": "Tokens",
+        "metrics": [
+          {
+            "label": "Tokens/min",
+            "tip": "Tasa combinada de tokens de entrada + salida."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "AI Gateways"
+  },
+  "group": "Gateways",
+  "alias": "Envoy AI Gateway",
+  "dashboards": {
+    "service": [
+      {
+        "title": "RPM de peticiones"
+      },
+      {
+        "title": "Latencia media de petición"
+      },
+      {
+        "title": "Tasa de tokens de entrada"
+      },
+      {
+        "title": "Tasa de tokens de salida"
+      },
+      {
+        "title": "Percentil de latencia de petición"
+      },
+      {
+        "title": "TTFT (Time to First Token)",
+        "expressionLabels": [
+          "media",
+          "percentil"
+        ]
+      },
+      {
+        "title": "TPOT (Time Per Output Token)",
+        "expressionLabels": [
+          "media",
+          "percentil"
+        ]
+      },
+      {
+        "title": "RPM por proveedor"
+      },
+      {
+        "title": "Tokens por proveedor"
+      },
+      {
+        "title": "Latencia media por proveedor"
+      },
+      {
+        "title": "RPM por modelo"
+      },
+      {
+        "title": "Tokens por modelo"
+      },
+      {
+        "title": "Latencia media por modelo"
+      },
+      {
+        "title": "TTFT por modelo"
+      },
+      {
+        "title": "TPOT por modelo"
+      },
+      {
+        "title": "RPM de MCP",
+        "tip": "Model Context Protocol — cuando se usa."
+      },
+      {
+        "title": "Latencia media de MCP"
+      },
+      {
+        "title": "RPM de errores de MCP"
+      },
+      {
+        "title": "MCP por método"
+      },
+      {
+        "title": "MCP por backend"
+      }
+    ],
+    "instance": [
+      {
+        "title": "RPM de peticiones"
+      },
+      {
+        "title": "Latencia media de petición"
+      },
+      {
+        "title": "Tasa de tokens de entrada"
+      },
+      {
+        "title": "Tasa de tokens de salida"
+      },
+      {
+        "title": "Percentil de latencia de petición"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "media",
+          "percentil"
+        ]
+      },
+      {
+        "title": "TPOT",
+        "expressionLabels": [
+          "media",
+          "percentil"
+        ]
+      }
+    ]
+  }
+}

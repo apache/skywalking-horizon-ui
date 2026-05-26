@@ -1,0 +1,73 @@
+{
+  "alias": "Windows",
+  "group": "OS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU %"
+      },
+      {
+        "label": "메모리 MB"
+      },
+      {
+        "label": "VMem %"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "리소스",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "전체 CPU 사용률입니다."
+          },
+          {
+            "label": "가상 메모리 %",
+            "tip": "가상 메모리 사용률입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "평균 CPU 사용률 (%)"
+      },
+      {
+        "title": "RAM 메모리 (MB)",
+        "expressionLabels": [
+          "사용",
+          "전체",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "가상 메모리 (MB)",
+        "expressionLabels": [
+          "여유",
+          "전체"
+        ]
+      },
+      {
+        "title": "네트워크 대역폭 (KB/s)",
+        "expressionLabels": [
+          "수신",
+          "전송"
+        ]
+      },
+      {
+        "title": "디스크 R/W (KB/s)",
+        "expressionLabels": [
+          "read",
+          "written"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "호스트"
+  }
+}

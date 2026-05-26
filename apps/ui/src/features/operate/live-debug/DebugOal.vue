@@ -30,6 +30,7 @@
  * `value`, …).
  */
 import { computed, ref, shallowRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
@@ -59,6 +60,7 @@ import {
   RECORD_CAP_MAX,
 } from './constants.js';
 
+const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const dbg = useDebugSession('oal');
 const history = useDebugHistory('oal');
@@ -417,21 +419,21 @@ const allFolded = computed<boolean>(
   >
     <template #controls>
       <div class="ctl">
-        <label class="ctl__lbl">file</label>
+        <label class="ctl__lbl">{{ t('file') }}</label>
         <select v-model="selectedFile" class="ctl__select" :disabled="filesQuery.isPending.value">
           <option value="" disabled>
-            {{ filesQuery.isPending.value ? 'loading…' : 'select an .oal file…' }}
+            {{ filesQuery.isPending.value ? t('loading…') : t('select an .oal file…') }}
           </option>
           <option v-for="f in files" :key="f" :value="f">{{ f }}</option>
         </select>
       </div>
       <div class="ctl ctl--grow">
-        <label class="ctl__lbl">metric</label>
+        <label class="ctl__lbl">{{ t('metric') }}</label>
         <input
           v-model="selectedMetric"
           type="text"
           class="ctl__input ctl__input--flex"
-          placeholder="e.g. service_relation_server_cpm"
+          :placeholder="t('e.g. service_relation_server_cpm')"
         />
       </div>
       <div class="ctl">
@@ -439,79 +441,74 @@ const allFolded = computed<boolean>(
         <input v-model.number="recordCap" type="number" min="1" :max="RECORD_CAP_MAX" class="ctl__input" />
       </div>
       <div class="ctl">
-        <label class="ctl__lbl">retention (min)</label>
+        <label class="ctl__lbl">{{ t('retention (min)') }}</label>
         <input v-model.number="retentionMinutes" type="number" min="1" max="60" class="ctl__input" />
       </div>
-      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">start sampling</Btn>
-      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">stop</Btn>
+      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">{{ t('start sampling') }}</Btn>
+      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">{{ t('stop') }}</Btn>
       <router-link
         class="ctl__editlink"
         to="/operate/live-debug/history"
-        title="browse past captures saved locally"
-      >history ({{ history.entries.value.length }}) →</router-link>
+        :title="t('browse past captures saved locally')"
+      >{{ t('history ({n}) →', { n: history.entries.value.length }) }}</router-link>
       <router-link
         v-if="selectedFile"
         class="ctl__editlink"
         :to="{ path: '/operate/oal' }"
-        :title="`browse the OAL files (read-only)`"
-      >open in OAL catalog →</router-link>
+        :title="t('browse the OAL files (read-only)')"
+      >{{ t('open in OAL catalog →') }}</router-link>
     </template>
 
     <template #banner>
       <div v-if="historicalEntry" class="oal__histbanner">
         <span class="oal__histbicon">⟲</span>
         <span>
-          viewing saved capture from <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
+          {{ t('viewing saved capture from') }} <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
           · {{ historicalEntry.catalog }} · {{ historicalEntry.name }} · {{ historicalEntry.ruleName }}
         </span>
-        <button type="button" class="oal__histback" @click="clearHistorical">back to live</button>
+        <button type="button" class="oal__histback" @click="clearHistorical">{{ t('back to live') }}</button>
       </div>
     </template>
 
     <template #subhead>
       <p v-if="sourcesQuery.isError.value" class="oal__error">
-        Could not load OAL sources reference list.
-        <button type="button" @click="sourcesQuery.refetch()">retry</button>
+        {{ t('Could not load OAL sources reference list.') }}
+        <button type="button" @click="sourcesQuery.refetch()">{{ t('retry') }}</button>
       </p>
       <p v-if="sources.length > 0" class="oal__hint">
-        OAP has
+        {{ t('OAP has') }}
         <strong>{{ sources.length }}</strong>
-        OAL source class<span v-if="sources.length !== 1">es</span> registered
-        across {{ files.length }} <code>.oal</code> file<span v-if="files.length !== 1">s</span>.
-        Browse them in
-        <router-link to="/operate/oal" class="oal__link">OAL catalog</router-link>
-        — every <code>metric = from(Source…)</code> line has a green ▶ that
-        deep-links here with the picker pre-filled.
+        {{ t('OAL source classes registered across {n} .oal files.', { n: files.length }) }}
+        {{ t('Browse them in') }}
+        <router-link to="/operate/oal" class="oal__link">{{ t('OAL catalog') }}</router-link>
+        — {{ t('every') }} <code>metric = from(Source…)</code> {{ t('line has a green ▶ that deep-links here with the picker pre-filled.') }}
       </p>
       <div v-if="totalRecordCount > 0" class="oal__subhead">
-        <span class="oal__subheadct">{{ totalRecordCount }} records · {{ foldedRecords.size }} folded</span>
+        <span class="oal__subheadct">{{ t('{n} records · {folded} folded', { n: totalRecordCount, folded: foldedRecords.size }) }}</span>
         <div class="oal__subheadbtns">
           <button
             type="button"
             class="oal__subheadbtn"
             :disabled="allFolded"
             @click="foldAllRecords"
-          >fold all</button>
+          >{{ t('fold all') }}</button>
           <button
             type="button"
             class="oal__subheadbtn"
             :disabled="foldedRecords.size === 0"
             @click="expandAllRecords"
-          >expand all</button>
+          >{{ t('expand all') }}</button>
         </div>
       </div>
     </template>
 
     <template #idle-hint>
-      pick the <code>.oal</code> file and the metric name (the LHS of
-      <code>=</code> in the rule statement) and hit start. one captured
-      execution = one source row entering the pipeline; samples walk
-      input → filter → function → aggregation → output.
+      {{ t('pick the .oal file and the metric name (the LHS of = in the rule statement) and hit start. one captured execution = one source row entering the pipeline; samples walk input → filter → function → aggregation → output.') }}
     </template>
 
     <template #node-body="{ node }">
       <div v-if="node.groups.length === 0" class="oal__empty">
-        no source rows captured on this node
+        {{ t('no source rows captured on this node') }}
       </div>
       <div v-else class="oal__groups">
         <article
@@ -527,8 +524,8 @@ const allFolded = computed<boolean>(
             <span class="oal__groupcaret">{{
               isRecordFolded(nodeKey(node), g.index) ? '▸' : '▾'
             }}</span>
-            <span class="oal__groupid">source row #{{ g.index }}</span>
-            <span class="oal__groupline">line {{ g.rec.rule.sourceLine ?? '—' }}</span>
+            <span class="oal__groupid">{{ t('source row #{n}', { n: g.index }) }}</span>
+            <span class="oal__groupline">{{ t('line {n}', { n: g.rec.rule.sourceLine ?? '—' }) }}</span>
             <code class="oal__rulename">{{ g.rec.rule.ruleName }}</code>
           </header>
           <template v-if="!isRecordFolded(nodeKey(node), g.index)">
@@ -542,9 +539,9 @@ const allFolded = computed<boolean>(
             <table class="oal__waterfall">
             <thead>
               <tr>
-                <th class="oal__kind">step</th>
-                <th class="oal__source">fragment</th>
-                <th class="oal__result">payload</th>
+                <th class="oal__kind">{{ t('step') }}</th>
+                <th class="oal__source">{{ t('fragment') }}</th>
+                <th class="oal__result">{{ t('payload') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -562,7 +559,7 @@ const allFolded = computed<boolean>(
                   <span
                     class="oal__flow"
                     :class="{ 'oal__flow--stopped': !row.sample.continueOn }"
-                    :title="row.sample.continueOn ? 'chain continues to next step' : 'chain stopped here'"
+                    :title="row.sample.continueOn ? t('chain continues to next step') : t('chain stopped here')"
                   >{{ row.sample.continueOn ? '↓' : '⊘' }}</span>
                   <Pill :tone="sampleTone(row.sample.type)">{{ row.sample.type }}</Pill>
                 </td>
@@ -570,7 +567,7 @@ const allFolded = computed<boolean>(
                 <td class="oal__result">
                   <template v-if="row.source">
                     <div class="oal__kvline">
-                      <span class="oal__lbl">type</span>
+                      <span class="oal__lbl">{{ t('type') }}</span>
                       <span class="oal__kvval">{{ row.source.type }}</span>
                     </div>
                     <div
@@ -590,7 +587,7 @@ const allFolded = computed<boolean>(
                   </template>
                   <template v-else-if="row.metrics">
                     <div class="oal__kvline">
-                      <span class="oal__lbl">type</span>
+                      <span class="oal__lbl">{{ t('type') }}</span>
                       <span class="oal__kvval">{{ row.metrics.type }}</span>
                     </div>
                     <div

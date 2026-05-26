@@ -1,0 +1,80 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "数据库",
+  "slots": {
+    "services": "MySQL 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "QPS" },
+      { "label": "TPS" },
+      { "label": "慢 QPS" },
+      { "label": "连接错误" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "QPS", "tip": "集群每秒查询数。" },
+          { "label": "TPS", "tip": "每秒事务数。" },
+          { "label": "慢查询/秒", "tip": "集群慢查询速率。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "QPS" },
+      { "title": "TPS" },
+      { "title": "慢查询 / 秒" },
+      {
+        "title": "连接错误",
+        "tip": "Internal vs max-connection 拒绝。",
+        "expressionLabels": ["internal", "max-connections"]
+      },
+      {
+        "title": "命令趋势",
+        "tip": "每个命令影响的行速率（select / insert / update / delete）。",
+        "expressionLabels": ["select", "insert", "update", "delete"]
+      },
+      {
+        "title": "线程",
+        "expressionLabels": ["connected", "running", "cached", "created"]
+      },
+      {
+        "title": "慢语句",
+        "tip": "集群范围内采集到的最慢的 20 条语句。"
+      }
+    ],
+    "instance": [
+      { "title": "运行时长" },
+      { "title": "最大连接数" },
+      { "title": "InnoDB Buffer Pool" },
+      { "title": "线程缓存大小" },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": ["QPS", "TPS"]
+      },
+      { "title": "慢查询 / 秒" },
+      {
+        "title": "命令趋势",
+        "expressionLabels": ["select", "insert", "update", "delete"]
+      },
+      {
+        "title": "线程",
+        "expressionLabels": ["connected", "running", "cached", "created"]
+      },
+      {
+        "title": "连接情况",
+        "expressionLabels": ["available", "aborted"]
+      },
+      {
+        "title": "连接错误",
+        "expressionLabels": ["internal", "max-connections"]
+      }
+    ]
+  }
+}

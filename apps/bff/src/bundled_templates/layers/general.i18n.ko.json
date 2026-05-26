@@ -1,0 +1,482 @@
+{
+  "alias": "일반 서비스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "오류율"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "레이어 전체의 95번째 백분위 응답 시간입니다."
+          },
+          {
+            "label": "오류율",
+            "tip": "100 − SLA. 값이 클수록 나쁩니다."
+          }
+        ]
+      },
+      {
+        "title": "상태",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "사용자 만족도 점수 (0 – 1 척도)."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "상위 20 API",
+        "tip": "선택한 서비스의 상위 엔드포인트입니다. 탭을 전환해 트래픽, 응답 시간, 또는 가장 나쁜 성공률 기준으로 다시 정렬할 수 있습니다.",
+        "expressionLabels": [
+          "트래픽",
+          "느린 요청",
+          "성공률"
+        ]
+      },
+      {
+        "title": "트래픽"
+      },
+      {
+        "title": "오류율"
+      },
+      {
+        "title": "Apdex",
+        "tip": "사용자 만족도 점수 (0 – 1 척도)."
+      },
+      {
+        "title": "응답 시간 백분위",
+        "tip": "p50 / p75 / p90 / p95 / p99 지연 시간 — 응답 시간 분포의 꼬리 영역입니다."
+      },
+      {
+        "title": "평균 응답 시간"
+      },
+      {
+        "title": "MQ 소비율 + 지연 시간",
+        "tip": "왼쪽 축은 카운트, 오른쪽 축은 지연 시간입니다.",
+        "expressionLabels": [
+          "count",
+          "지연 시간"
+        ]
+      },
+      {
+        "title": "부하 기준 상위 10 인스턴스",
+        "tip": "선택한 서비스의 인스턴스를 트래픽 기준으로 정렬합니다."
+      },
+      {
+        "title": "가장 느린 인스턴스 10개",
+        "tip": "선택한 서비스의 인스턴스를 평균 응답 시간 기준으로 정렬합니다."
+      },
+      {
+        "title": "성공률 기준 상위 10 인스턴스",
+        "tip": "top_n(service_instance_sla,10,asc)/100 — 나쁜 순부터 정렬합니다."
+      },
+      {
+        "title": "느린 데이터베이스 구문",
+        "tip": "이 서비스에서 캡처된 가장 느린 데이터베이스 구문 20개입니다. top_n_service_database_statement에서 가져옵니다. 해당 윈도우에 OAP가 캡처한 구문이 없으면 `no data` 가 표시됩니다."
+      }
+    ],
+    "instance": [
+      {
+        "title": "서비스 인스턴스 부하",
+        "tip": "선택한 인스턴스에 대한 분당 호출 수입니다."
+      },
+      {
+        "title": "서비스 인스턴스 지연 시간"
+      },
+      {
+        "title": "서비스 인스턴스 성공률"
+      },
+      {
+        "title": "JVM CPU",
+        "tip": "에이전트가 보고하는 JVM CPU입니다. 인스턴스가 JVM일 때만 표시됩니다."
+      },
+      {
+        "title": "JVM 메모리",
+        "tip": "Heap / non-heap 사용량 + 최대값 (MB).",
+        "expressionLabels": [
+          "heap",
+          "heap 최대",
+          "non-heap",
+          "non-heap 최대"
+        ]
+      },
+      {
+        "title": "JVM 메모리 상세",
+        "tip": "풀별 사용 메모리 (MB). code cache, young / old / survivor / permgen / metaspace, 그리고 최신 JVM에서 도입된 JIT codeheap 하위 풀 (Z heap, compressed class space, 분할된 codeheap)을 포함합니다. JVM이 노출하지 않는 풀은 0으로 유지됩니다.",
+        "expressionLabels": [
+          "code cache",
+          "newgen",
+          "oldgen",
+          "survivor",
+          "permgen",
+          "metaspace",
+          "zheap",
+          "compressed class space",
+          "codeheap (non-nmethods)",
+          "codeheap (profiled nmethods)",
+          "codeheap (non-profiled nmethods)"
+        ]
+      },
+      {
+        "title": "JVM 스레드 수",
+        "expressionLabels": [
+          "활성",
+          "daemon",
+          "피크"
+        ]
+      },
+      {
+        "title": "JVM 스레드 상태 수",
+        "tip": "JVM 상태별 (runnable / blocked / waiting / timed-waiting) 스레드 수입니다.",
+        "expressionLabels": [
+          "runnable",
+          "blocked",
+          "waiting",
+          "timed-waiting"
+        ]
+      },
+      {
+        "title": "JVM GC 시간",
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "JVM GC 수",
+        "expressionLabels": [
+          "young",
+          "old",
+          "normal"
+        ]
+      },
+      {
+        "title": "JVM 클래스 수",
+        "expressionLabels": [
+          "loaded",
+          "총 loaded",
+          "총 unloaded"
+        ]
+      },
+      {
+        "title": "CLR CPU",
+        "tip": ".NET 전용: 인스턴스가 CLR 메트릭을 보고할 때 표시됩니다."
+      },
+      {
+        "title": "CLR 스레드",
+        "expressionLabels": [
+          "worker 가용",
+          "completion-port 가용",
+          "completion-port 최대"
+        ]
+      },
+      {
+        "title": "CLR Heap 메모리"
+      },
+      {
+        "title": "CLR GC",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Spring HTTP 요청 수",
+        "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests 카운터입니다."
+      },
+      {
+        "title": "Spring HTTP 요청 시간"
+      },
+      {
+        "title": "Spring 인스턴스 CPU 사용량"
+      },
+      {
+        "title": "Spring OS CPU 사용량"
+      },
+      {
+        "title": "Spring OS 시스템 부하"
+      },
+      {
+        "title": "Spring OS 프로세스 파일",
+        "expressionLabels": [
+          "open",
+          "최대"
+        ]
+      },
+      {
+        "title": "Spring JVM GC 정지 시간"
+      },
+      {
+        "title": "Spring JVM 메모리",
+        "expressionLabels": [
+          "사용",
+          "최대"
+        ]
+      },
+      {
+        "title": "Spring JVM 스레드",
+        "expressionLabels": [
+          "활성",
+          "daemon",
+          "피크"
+        ]
+      },
+      {
+        "title": "Spring JVM 클래스",
+        "expressionLabels": [
+          "loaded",
+          "unloaded"
+        ]
+      },
+      {
+        "title": "Spring 데이터베이스 커넥션 풀",
+        "tip": "HikariCP / Spring Boot 데이터소스 메트릭 — 풀별 연결 수입니다."
+      },
+      {
+        "title": "Spring 스레드 풀",
+        "tip": "Spring Boot 스레드 풀 미터 — executor 별 active, queued, max 스레드 수입니다."
+      },
+      {
+        "title": "Spring JDBC 연결",
+        "expressionLabels": [
+          "active",
+          "유휴",
+          "최대"
+        ]
+      },
+      {
+        "title": "Spring Tomcat 세션",
+        "expressionLabels": [
+          "active",
+          "최대",
+          "rejected"
+        ]
+      },
+      {
+        "title": "Golang Goroutine / OS 스레드",
+        "tip": "Golang 에이전트: 활성 goroutine 수 + 기반 OS 스레드 수입니다.",
+        "expressionLabels": [
+          "goroutine",
+          "OS 스레드"
+        ]
+      },
+      {
+        "title": "Golang GC 정지 시간 (분당)"
+      },
+      {
+        "title": "Golang GC 수 (분당)"
+      },
+      {
+        "title": "Golang Heap Alloc (분당)"
+      },
+      {
+        "title": "Golang Goroutine 스케줄 시간"
+      },
+      {
+        "title": "Golang GC Free (분당)"
+      },
+      {
+        "title": "Golang Alloc 크기 (분당)"
+      },
+      {
+        "title": "Golang Free 크기 (분당)"
+      },
+      {
+        "title": "Golang Heap 객체"
+      },
+      {
+        "title": "Golang Heap"
+      },
+      {
+        "title": "Golang 메타데이터 Mspan"
+      },
+      {
+        "title": "Golang 메타데이터 Mcache"
+      },
+      {
+        "title": "Golang GC 목표 크기"
+      },
+      {
+        "title": "Golang CGO 호출 (분당)"
+      },
+      {
+        "title": "Python CPU 사용률",
+        "tip": "Python (PVM) 에이전트: 호스트 CPU와 프로세스 CPU.",
+        "expressionLabels": [
+          "host",
+          "process"
+        ]
+      },
+      {
+        "title": "Python 메모리 사용률",
+        "expressionLabels": [
+          "host",
+          "process"
+        ]
+      },
+      {
+        "title": "Python 스레드 수"
+      },
+      {
+        "title": "Python GC 수",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Python GC 시간"
+      },
+      {
+        "title": "Ruby CPU 사용량",
+        "tip": "Ruby 에이전트: 프로세스 CPU (백분율)."
+      },
+      {
+        "title": "Ruby 메모리 (RSS)"
+      },
+      {
+        "title": "Ruby 메모리 사용량"
+      },
+      {
+        "title": "Ruby 스레드 상태",
+        "expressionLabels": [
+          "active",
+          "running"
+        ]
+      },
+      {
+        "title": "Ruby GC 수",
+        "expressionLabels": [
+          "전체",
+          "마이너",
+          "메이저"
+        ]
+      },
+      {
+        "title": "Ruby GC 시간"
+      },
+      {
+        "title": "Ruby Heap 사용량"
+      },
+      {
+        "title": "Ruby Heap 슬롯",
+        "expressionLabels": [
+          "활성",
+          "사용 가능"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "트래픽"
+      },
+      {
+        "title": "응답 시간"
+      },
+      {
+        "title": "성공률"
+      },
+      {
+        "title": "응답 시간 백분위"
+      },
+      {
+        "title": "MQ 평균 소비 지연 시간",
+        "tip": "엔드포인트 단위 소비 지연 시간 — 메시지 큐 트래픽을 처리하는 엔드포인트에서만 채워집니다."
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "지연 시간"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "평균 응답 시간"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "서비스",
+    "instances": "인스턴스",
+    "endpoints": "API",
+    "endpointDependency": "API 의존성"
+  }
+}

@@ -1,0 +1,272 @@
+{
+  "alias": "普通应用",
+  "layer-header": {
+    "columns": [
+      { "label": "RPM" },
+      { "label": "Apdex" },
+      { "label": "错误率" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "延迟与错误",
+        "metrics": [
+          { "label": "P95", "tip": "跨该层服务的 95 分位响应时间。" },
+          { "label": "错误率", "tip": "100 − SLA，数值越高越糟。" }
+        ]
+      },
+      {
+        "title": "健康度",
+        "metrics": [
+          { "label": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "前 20 API",
+        "tip": "所选服务下的 Top 端点列表。切换标签可按流量、响应时间或最差成功率重新排序。",
+        "expressionLabels": ["流量", "慢请求", "成功率"]
+      },
+      { "title": "流量" },
+      { "title": "错误率" },
+      { "title": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" },
+      {
+        "title": "响应时间分位",
+        "tip": "p50 / p75 / p90 / p95 / p99 延迟 — 即响应时间分布的长尾。"
+      },
+      { "title": "平均响应时间" },
+      {
+        "title": "MQ 消费速率 + 延迟",
+        "tip": "左轴为数量，右轴为延迟。",
+        "expressionLabels": ["数量", "延迟"]
+      },
+      {
+        "title": "按负载排名的前 10 实例",
+        "tip": "按所选服务下各实例的流量排序。"
+      },
+      {
+        "title": "前 10 最慢实例",
+        "tip": "按所选服务下各实例的平均响应时间排序。"
+      },
+      {
+        "title": "按成功率排名的前 10 实例",
+        "tip": "top_n(service_instance_sla,10,asc)/100 — 最差优先。"
+      },
+      {
+        "title": "慢数据库语句",
+        "tip": "针对此服务采集到的最慢的前 20 条数据库语句。来源为 top_n_service_database_statement。当 OAP 在该窗口内未采集到任何语句时显示 `no data`。"
+      }
+    ],
+    "instance": [
+      { "title": "服务实例负载", "tip": "针对所选实例每分钟的调用次数。" },
+      { "title": "服务实例延迟" },
+      { "title": "服务实例成功率" },
+      {
+        "title": "JVM CPU",
+        "tip": "由 agent 上报的 JVM CPU。仅当实例为 JVM 时显示。"
+      },
+      {
+        "title": "JVM 内存",
+        "tip": "Heap / 非 Heap 的已用 + 最大值，单位 MB。",
+        "expressionLabels": ["heap", "heap max", "non-heap", "non-heap max"]
+      },
+      {
+        "title": "JVM 内存明细",
+        "tip": "各内存池已用大小，单位 MB。覆盖 code cache、young / old / survivor / permgen / metaspace，以及新版 JVM 引入的 JIT codeheap 子池（Z heap、compressed class space、分段 codeheap）。JVM 未暴露的池保持为 0。",
+        "expressionLabels": [
+          "code cache",
+          "newgen",
+          "oldgen",
+          "survivor",
+          "permgen",
+          "metaspace",
+          "zheap",
+          "compressed class space",
+          "codeheap (non-nmethods)",
+          "codeheap (profiled nmethods)",
+          "codeheap (non-profiled nmethods)"
+        ]
+      },
+      {
+        "title": "JVM 线程数",
+        "expressionLabels": ["live", "daemon", "peak"]
+      },
+      {
+        "title": "JVM 线程状态数",
+        "tip": "按 JVM 状态划分的线程数（runnable / blocked / waiting / timed-waiting）。",
+        "expressionLabels": ["runnable", "blocked", "waiting", "timed-waiting"]
+      },
+      {
+        "title": "JVM GC 时间",
+        "expressionLabels": ["young", "old", "normal"]
+      },
+      {
+        "title": "JVM GC 次数",
+        "expressionLabels": ["young", "old", "normal"]
+      },
+      {
+        "title": "JVM 类数量",
+        "expressionLabels": ["loaded", "total loaded", "total unloaded"]
+      },
+      {
+        "title": "CLR CPU",
+        "tip": "仅 .NET：当实例上报 CLR 指标时显示。"
+      },
+      {
+        "title": "CLR 线程",
+        "expressionLabels": ["worker available", "completion-port available", "completion-port max"]
+      },
+      { "title": "CLR Heap 内存" },
+      {
+        "title": "CLR GC",
+        "expressionLabels": ["gen 0", "gen 1", "gen 2"]
+      },
+      {
+        "title": "Spring HTTP 请求数",
+        "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests 计数器。"
+      },
+      { "title": "Spring HTTP 请求耗时" },
+      { "title": "Spring 实例 CPU 使用率" },
+      { "title": "Spring OS CPU 使用率" },
+      { "title": "Spring OS 系统负载" },
+      {
+        "title": "Spring OS 进程文件数",
+        "expressionLabels": ["open", "max"]
+      },
+      { "title": "Spring JVM GC 暂停时长" },
+      {
+        "title": "Spring JVM 内存",
+        "expressionLabels": ["used", "max"]
+      },
+      {
+        "title": "Spring JVM 线程",
+        "expressionLabels": ["live", "daemon", "peak"]
+      },
+      {
+        "title": "Spring JVM 类",
+        "expressionLabels": ["loaded", "unloaded"]
+      },
+      {
+        "title": "Spring 数据库连接池",
+        "tip": "HikariCP / Spring Boot 数据源指标 — 各连接池的连接数。"
+      },
+      {
+        "title": "Spring 线程池",
+        "tip": "Spring Boot 线程池 meter — 每个 executor 的活动、排队、最大线程数。"
+      },
+      {
+        "title": "Spring JDBC 连接",
+        "expressionLabels": ["active", "idle", "max"]
+      },
+      {
+        "title": "Spring Tomcat 会话",
+        "expressionLabels": ["active", "max", "rejected"]
+      },
+      {
+        "title": "Golang Goroutines / OS 线程",
+        "tip": "Golang agent：活跃 goroutine 数量 + 底层 OS 线程数。",
+        "expressionLabels": ["goroutines", "OS threads"]
+      },
+      { "title": "Golang GC 暂停时间（每分钟）" },
+      { "title": "Golang GC 次数（每分钟）" },
+      { "title": "Golang Heap 分配（每分钟）" },
+      { "title": "Golang Goroutine 调度时间" },
+      { "title": "Golang GC 释放（每分钟）" },
+      { "title": "Golang 分配大小（每分钟）" },
+      { "title": "Golang 释放大小（每分钟）" },
+      { "title": "Golang Heap 对象数" },
+      { "title": "Golang Heap" },
+      { "title": "Golang Metadata Mspan" },
+      { "title": "Golang Metadata Mcache" },
+      { "title": "Golang GC 目标大小" },
+      { "title": "Golang CGO 调用（每分钟）" },
+      {
+        "title": "Python CPU 使用率",
+        "tip": "Python（PVM）agent：主机 vs 进程 CPU。",
+        "expressionLabels": ["host", "process"]
+      },
+      {
+        "title": "Python 内存使用率",
+        "expressionLabels": ["host", "process"]
+      },
+      { "title": "Python 线程数" },
+      {
+        "title": "Python GC 次数",
+        "expressionLabels": ["gen 0", "gen 1", "gen 2"]
+      },
+      { "title": "Python GC 时间" },
+      {
+        "title": "Ruby CPU 使用率",
+        "tip": "Ruby agent：进程 CPU 百分比。"
+      },
+      { "title": "Ruby 内存（RSS）" },
+      { "title": "Ruby 内存使用率" },
+      {
+        "title": "Ruby 线程状态",
+        "expressionLabels": ["active", "running"]
+      },
+      {
+        "title": "Ruby GC 次数",
+        "expressionLabels": ["total", "minor", "major"]
+      },
+      { "title": "Ruby GC 时间" },
+      { "title": "Ruby Heap 使用率" },
+      {
+        "title": "Ruby Heap Slots",
+        "expressionLabels": ["live", "available"]
+      }
+    ],
+    "endpoint": [
+      { "title": "流量" },
+      { "title": "响应时间" },
+      { "title": "成功率" },
+      { "title": "响应时间分位" },
+      {
+        "title": "MQ 平均消费延迟",
+        "tip": "端点维度的消费延迟 — 仅对承担消息队列流量的端点有数据。"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      { "label": "RPM" },
+      { "label": "SLA" },
+      { "label": "延迟" }
+    ],
+    "linkServerMetrics": [
+      { "label": "RPM" },
+      { "label": "平均响应时间" },
+      { "label": "p95" },
+      { "label": "SLA" }
+    ],
+    "linkClientMetrics": [
+      { "label": "RPM" },
+      { "label": "平均响应时间" },
+      { "label": "p95" },
+      { "label": "SLA" }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      { "label": "RPM" },
+      { "label": "SLA" },
+      { "label": "延迟" }
+    ],
+    "linkMetrics": [
+      { "label": "RPM" },
+      { "label": "平均响应时间" },
+      { "label": "p95" },
+      { "label": "SLA" }
+    ]
+  },
+  "slots": {
+    "services": "服务",
+    "instances": "实例",
+    "endpoints": "API",
+    "endpointDependency": "API 依赖"
+  }
+}

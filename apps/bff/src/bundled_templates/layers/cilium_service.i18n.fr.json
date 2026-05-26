@@ -1,0 +1,215 @@
+{
+  "alias": "Service Cilium",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "Taux de succès"
+      },
+      {
+        "label": "Drop TCP"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latence et erreurs",
+        "metrics": [
+          {
+            "label": "Latence moyenne",
+            "tip": "Latence moyenne du protocole (ms)."
+          },
+          {
+            "label": "Taux de succès",
+            "tip": "Appels réussis / appels totaux."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "RPM de protocole",
+            "tip": "Appels de protocole par minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Paquets L4 en lecture/min"
+      },
+      {
+        "title": "Paquets L4 en écriture/min"
+      },
+      {
+        "title": "Drop TCP / min",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Drop TCP par raison"
+      },
+      {
+        "title": "Charge HTTP",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée HTTP"
+      },
+      {
+        "title": "Statut HTTP non-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Charge DNS",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée DNS"
+      },
+      {
+        "title": "Erreurs DNS / min"
+      },
+      {
+        "title": "Charge Kafka",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée Kafka"
+      },
+      {
+        "title": "Erreurs Kafka / min"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Paquets L4 en lecture/min"
+      },
+      {
+        "title": "Paquets L4 en écriture/min"
+      },
+      {
+        "title": "Charge HTTP",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Statut HTTP non-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Charge DNS",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Erreurs DNS"
+      },
+      {
+        "title": "Charge Kafka",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Charge HTTP",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée HTTP"
+      },
+      {
+        "title": "Statut HTTP non-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Charge DNS",
+        "expressionLabels": [
+          "appels",
+          "succès"
+        ]
+      },
+      {
+        "title": "Durée DNS"
+      },
+      {
+        "title": "Erreurs DNS"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Succès %"
+      },
+      {
+        "label": "Latence"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM HTTP"
+      },
+      {
+        "label": "Latence moyenne"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Services",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  }
+}

@@ -157,10 +157,16 @@ export function ensureConfigBundle(): Promise<void> {
  * etag-gated fetch would 304 and keep stale `syncStatus` badges), but
  * the OAP-side sync state HAS changed. Fetches without the etag so the
  * server returns the full bundle with a freshly computed `syncStatus`.
+ *
+ * `force=true` additionally invalidates the BFF's 30s OAP sync cache
+ * before recomputing — admin pages opt into this on mount so the
+ * badges reflect live OAP state and not the snapshot a prior session
+ * persisted in localStorage. Default `false` keeps the render-side
+ * fast path cached.
  */
-export async function refreshConfigBundle(): Promise<void> {
+export async function refreshConfigBundle(opts: { force?: boolean } = {}): Promise<void> {
   try {
-    const fresh = await bffClient.configs.bundle(undefined, preferParam());
+    const fresh = await bffClient.configs.bundle(undefined, preferParam(), opts.force);
     if (fresh) {
       state.value = fresh;
       writeStorage(fresh);

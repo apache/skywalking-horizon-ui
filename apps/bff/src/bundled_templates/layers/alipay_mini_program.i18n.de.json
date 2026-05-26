@@ -1,0 +1,142 @@
+{
+  "alias": "Alipay Mini-Programm",
+  "group": "Mobil",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Anfrage-RPM"
+      },
+      {
+        "label": "Start"
+      },
+      {
+        "label": "First Render"
+      },
+      {
+        "label": "Fehler"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "Anfrage-P95",
+            "tip": "95. Perzentil der Anfragedauer über die Mini-Programm-Netzwerk-Bridge."
+          },
+          {
+            "label": "Start",
+            "tip": "Ungefähre Mini-Programm-Startdauer."
+          },
+          {
+            "label": "Fehler",
+            "tip": "Gemeldete Fehleranzahl."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Anfrage-RPM",
+            "tip": "Bridge-Anfragen pro Minute."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "App-Startdauer",
+        "tip": "Ungefähre Kaltstartdauer aus dem Alipay-Container.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehleranzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Startdauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Startdauer auf Seite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First-Render-Dauer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelast",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragedauer-Perzentil",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Mini-Programme",
+    "instances": "Versionen",
+    "endpoints": "Seiten"
+  }
+}

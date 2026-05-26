@@ -1,0 +1,130 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Ledgers"
+      },
+      {
+        "label": "Entrées"
+      },
+      {
+        "label": "Répertoires inscriptibles"
+      },
+      {
+        "label": "Utilisation des répertoires"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Écriture o/s",
+            "tip": "Débit d'écriture Bookie sur l'ensemble du cluster."
+          },
+          {
+            "label": "Lecture o/s",
+            "tip": "Débit de lecture Bookie sur l'ensemble du cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Ledgers Bookie"
+      },
+      {
+        "title": "Entrées Bookie"
+      },
+      {
+        "title": "Répertoires de ledgers inscriptibles"
+      },
+      {
+        "title": "Cache d'écriture",
+        "expressionLabels": [
+          "taille (Mo)",
+          "entrées"
+        ]
+      },
+      {
+        "title": "Cache de lecture",
+        "expressionLabels": [
+          "taille (Mo)",
+          "entrées"
+        ]
+      },
+      {
+        "title": "Débit lecture / écriture (o/s)",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "Utilisation du répertoire de ledgers"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pool mémoire JVM (Mo)"
+      },
+      {
+        "title": "Mémoire JVM (Mo)",
+        "expressionLabels": [
+          "utilisé",
+          "engagés",
+          "init"
+        ]
+      },
+      {
+        "title": "Threads JVM",
+        "expressionLabels": [
+          "courant",
+          "daemon",
+          "pic",
+          "en deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "secondes",
+          "nombre"
+        ]
+      },
+      {
+        "title": "Exécuteur de threads",
+        "expressionLabels": [
+          "terminées",
+          "tâches terminées",
+          "rejetés",
+          "échec"
+        ]
+      },
+      {
+        "title": "Threads poolés",
+        "expressionLabels": [
+          "priorité haute",
+          "lecture"
+        ]
+      },
+      {
+        "title": "Taille max de la file du pool",
+        "expressionLabels": [
+          "priorité haute",
+          "lecture"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters BookKeeper",
+    "instances": "Bookies"
+  }
+}

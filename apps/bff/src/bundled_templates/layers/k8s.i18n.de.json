@@ -1,0 +1,290 @@
+{
+  "alias": "Kubernetes",
+  "group": "Kubernetes",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Knoten"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Deployments"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Kapazität",
+        "metrics": [
+          {
+            "label": "Pods",
+            "tip": "Pods insgesamt im Cluster gemeldet."
+          },
+          {
+            "label": "Knoten",
+            "tip": "Knotenanzahl."
+          },
+          {
+            "label": "Dienste",
+            "tip": "K8s-Service-Objekte."
+          }
+        ]
+      },
+      {
+        "title": "Probleme",
+        "metrics": [
+          {
+            "label": "Pods nicht laufend",
+            "tip": "Pods in einem nicht-Running-Status — pending, failed, unknown."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Knoten gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Namespace gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Deployments gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "StatefulSet gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "DaemonSet gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Services gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pods gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Container gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU-Ressourcen",
+        "tip": "Cluster-CPU-Kapazität vs. Requests / Limits / Allocatable (Millicores).",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Kapazität",
+          "Anfragen",
+          "Limits",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "Speicherressourcen",
+        "tip": "Cluster-Speicher Requests / Allocatable / Limits / Gesamt.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Anfragen",
+          "Allocatable",
+          "Limits",
+          "Gesamt"
+        ]
+      },
+      {
+        "title": "Storage-Ressourcen",
+        "tip": "Cluster Ephemeral-Storage gesamt vs. Allocatable.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Gesamt",
+          "Allocatable"
+        ]
+      },
+      {
+        "title": "Knotenstatus",
+        "tip": "Kubernetes-Conditions pro Knoten, die aktuell true/unknown sind (Ready, *Pressure, …).",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Knoten · Zustand"
+        ]
+      },
+      {
+        "title": "Deployment-Status",
+        "tip": "Deployments, die die Available-Condition melden.",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Deployment · Verfügbar"
+        ]
+      },
+      {
+        "title": "Deployment Spec-Replicas",
+        "tip": "Gewünschte Replica-Anzahl pro Deployment.",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Deployment",
+          "Repliken"
+        ]
+      },
+      {
+        "title": "Servicestatus",
+        "tip": "Pods hinter jedem K8s-Service, nach Phase (Running / Pending / Failed / …).",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Service · Phase"
+        ]
+      },
+      {
+        "title": "Pod-Status nicht laufend",
+        "tip": "Pods in einer nicht-Running-Phase.",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Pod · Status"
+        ]
+      },
+      {
+        "title": "Pod-Status wartend",
+        "tip": "Container im Wartezustand, nach Grund.",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Container · Pod · Grund"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Knotenstatus",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Pods auf Knoten",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Knoten-CPU-Nutzung",
+        "tip": "CPU-Nutzung in Millicores.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Knoten-CPU-Ressourcen",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "allocatable",
+          "anfragen",
+          "limits"
+        ]
+      },
+      {
+        "title": "Knoten-Speichernutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Knoten-Speicherressourcen",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "allocatable",
+          "anfragen",
+          "limits"
+        ]
+      },
+      {
+        "title": "Knoten-Netzwerk-I/O",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "transmit"
+        ]
+      },
+      {
+        "title": "Knoten-Storage-Ressourcen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "allocatable"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Cluster",
+    "instances": "Knoten"
+  }
+}

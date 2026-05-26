@@ -1,0 +1,231 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "実行中ジョブ"
+      },
+      {
+        "label": "TaskManager"
+      },
+      {
+        "label": "利用可能スロット"
+      },
+      {
+        "label": "スロット合計"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          {
+            "label": "実行中ジョブ",
+            "tip": "アクティブな Flink ジョブ。"
+          },
+          {
+            "label": "利用可能スロット",
+            "tip": "空きタスクスロット。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "実行中ジョブ"
+      },
+      {
+        "title": "TaskManager"
+      },
+      {
+        "title": "スロット合計"
+      },
+      {
+        "title": "利用可能スロット"
+      },
+      {
+        "title": "JM JVM CPU 負荷 (%)"
+      },
+      {
+        "title": "JM JVM スレッド数"
+      },
+      {
+        "title": "JM CPU 時間 (ms)"
+      },
+      {
+        "title": "JM ヒープ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "JM 非ヒープ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "JM Metaspace (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressionLabels": [
+          "件数",
+          "時間 (ms)"
+        ]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressionLabels": [
+          "件数",
+          "時間 (ms)"
+        ]
+      },
+      {
+        "title": "全 GC",
+        "expressionLabels": [
+          "件数",
+          "時間 (ms)"
+        ]
+      },
+      {
+        "title": "上位 10 実行中ジョブ"
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM CPU 負荷 (%)"
+      },
+      {
+        "title": "JVM スレッド数"
+      },
+      {
+        "title": "CPU 時間 (ms)"
+      },
+      {
+        "title": "バックプレッシャー"
+      },
+      {
+        "title": "ヒープ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "非ヒープ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "Metaspace (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "レコード入 / 出",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "受信 / 送信バイト / s",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "Netty メモリ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "利用可能"
+        ]
+      },
+      {
+        "title": "プール使用率 (%)",
+        "expressionLabels": [
+          "プール内",
+          "プール外"
+        ]
+      },
+      {
+        "title": "バックプレッシャー時間 (ms/s)",
+        "expressionLabels": [
+          "ソフト bp",
+          "ハード bp",
+          "アイドル",
+          "ビジー"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "ジョブ実行時間 (分)"
+      },
+      {
+        "title": "ジョブ再起動時間 (分)"
+      },
+      {
+        "title": "ジョブキャンセル時間 (分)"
+      },
+      {
+        "title": "ジョブ再起動"
+      },
+      {
+        "title": "チェックポイント",
+        "expressionLabels": [
+          "合計",
+          "完了",
+          "失敗",
+          "進行中"
+        ]
+      },
+      {
+        "title": "最終チェックポイント",
+        "expressionLabels": [
+          "サイズ (バイト)",
+          "所要時間 (ms)"
+        ]
+      },
+      {
+        "title": "現在の Emit Event Time ラグ (ms)"
+      },
+      {
+        "title": "レコード入 / 出",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "受信 / 送信バイト / s",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Flink JobManager",
+    "instances": "TaskManager",
+    "endpoints": "ジョブ"
+  }
+}

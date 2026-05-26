@@ -1,0 +1,145 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "느린 QPS"
+      },
+      {
+        "label": "연결 오류"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "클러스터 전체의 초당 쿼리 수입니다."
+          },
+          {
+            "label": "TPS",
+            "tip": "초당 트랜잭션 수입니다."
+          },
+          {
+            "label": "느린 쿼리/s",
+            "tip": "클러스터 전체의 느린 쿼리 비율입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "TPS"
+      },
+      {
+        "title": "느린 쿼리 / s"
+      },
+      {
+        "title": "연결 오류",
+        "tip": "내부 거부와 max-connection 거부 비교.",
+        "expressionLabels": [
+          "내부",
+          "max-connections"
+        ]
+      },
+      {
+        "title": "명령 추세",
+        "tip": "명령별 영향 받은 행 비율 (select / insert / update / delete).",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "스레드",
+        "expressionLabels": [
+          "connected",
+          "running",
+          "캐시됨",
+          "created"
+        ]
+      },
+      {
+        "title": "느린 구문",
+        "tip": "클러스터 전체에서 캡처된 가장 느린 구문 20개입니다."
+      }
+    ],
+    "instance": [
+      {
+        "title": "가동 시간"
+      },
+      {
+        "title": "최대 연결"
+      },
+      {
+        "title": "InnoDB 버퍼 풀"
+      },
+      {
+        "title": "스레드 캐시 크기"
+      },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "느린 쿼리 / s"
+      },
+      {
+        "title": "명령 추세",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "스레드",
+        "expressionLabels": [
+          "connected",
+          "running",
+          "캐시됨",
+          "created"
+        ]
+      },
+      {
+        "title": "연결 수",
+        "expressionLabels": [
+          "사용 가능",
+          "aborted"
+        ]
+      },
+      {
+        "title": "연결 오류",
+        "expressionLabels": [
+          "내부",
+          "max-connections"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "MySQL 클러스터",
+    "instances": "노드"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acceso"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latencia de acceso a la base de datos en el percentil 95."
+          },
+          {
+            "label": "Tasa de errores",
+            "tip": "100 − tasa de éxito de acceso a la base de datos. Basada en excepciones de consulta capturadas por el agente del servicio invocador."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de acceso",
+            "tip": "Consultas por minuto contra esta base de datos virtual."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tráfico de acceso",
+        "tip": "Consultas por minuto contra la base de datos virtual."
+      },
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      {
+        "title": "Tasa de éxito",
+        "tip": "Porcentaje de consultas que retornaron sin lanzar excepción."
+      },
+      {
+        "title": "Percentil de tiempo de respuesta",
+        "tip": "Latencia p50 / p75 / p90 / p95 / p99 — la cola de la distribución de tiempo de acceso."
+      },
+      {
+        "title": "Statements lentos",
+        "tip": "Top 20 statements más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+      }
+    ]
+  },
+  "slots": {
+    "services": "Bases de datos"
+  },
+  "alias": "Base de datos virtual",
+  "group": "Destinos virtuales"
+}

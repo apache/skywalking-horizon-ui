@@ -1,0 +1,133 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "ノード"
+      },
+      {
+        "label": "失敗ノード"
+      },
+      {
+        "label": "ネームスペース"
+      },
+      {
+        "label": "サービス"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "リソース",
+        "metrics": [
+          {
+            "label": "ノード",
+            "tip": "EKS クラスタのノード数。"
+          },
+          {
+            "label": "失敗ノード",
+            "tip": "クラスタが報告した失敗 EKS ノード。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "ノード数"
+      },
+      {
+        "title": "失敗ノード"
+      },
+      {
+        "title": "ネームスペース数"
+      },
+      {
+        "title": "EKS サービス数"
+      },
+      {
+        "title": "クラスタネットワークエラー",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      },
+      {
+        "title": "クラスタネットワーク破棄",
+        "expressionLabels": [
+          "受信",
+          "送信"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Pod CPU 使用率 (%)"
+      },
+      {
+        "title": "Pod メモリ使用率 (%)"
+      },
+      {
+        "title": "Pod ネットワーク RX (KB/s)"
+      },
+      {
+        "title": "Pod RX エラー / s"
+      },
+      {
+        "title": "Pod ネットワーク TX (KB/s)"
+      },
+      {
+        "title": "Pod TX エラー / s"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pod 数"
+      },
+      {
+        "title": "CPU 使用率 (%)"
+      },
+      {
+        "title": "メモリ使用率 (%)"
+      },
+      {
+        "title": "FS 使用率 (%)"
+      },
+      {
+        "title": "ネットワーク RX (KB/s)",
+        "expressionLabels": [
+          "バイト",
+          "エラー"
+        ]
+      },
+      {
+        "title": "ネットワーク TX (KB/s)",
+        "expressionLabels": [
+          "バイト",
+          "エラー"
+        ]
+      },
+      {
+        "title": "ディスク IO (B/s)",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "ノード上の Pod CPU"
+      },
+      {
+        "title": "ノード上の Pod メモリ"
+      }
+    ]
+  },
+  "slots": {
+    "services": "クラスタ",
+    "instances": "ノード",
+    "endpoints": "EKS サービス"
+  }
+}

@@ -58,12 +58,21 @@ import {
 import { loadOverviewDashboards } from '../../logic/overview/loader.js';
 import {
   getSyncStatus,
+  findOverlayRow,
   type TemplateRow,
 } from '../../logic/templates/sync.js';
 import type { TemplateKind } from '../../logic/templates/names.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
+import { resync as resyncTemplates } from '../../logic/templates/sync.js';
 import { logger } from '../../logger.js';
+import type { Locale } from '../../i18n/index.js';
+import {
+  localizeContent,
+  getLayerOverlay,
+  getOverviewOverlay,
+  localeFromRequest,
+} from '../../i18n/index.js';
 
 export interface ConfigBundleDeps {
   config: ConfigSource;
@@ -87,6 +96,14 @@ export interface BundleSyncStatus {
     key: string;
     status: TemplateRow['status'];
   }>;
+  /** Names where >1 enabled OAP record exists. Empty when clean.
+   *  Admin pages render a banner so the operator can disable extras. */
+  conflicts: Array<{
+    name: string;
+    kind: TemplateKind;
+    key: string;
+    enabledIds: string[];
+  }>;
 }
 
 export interface ConfigBundle {
@@ -107,7 +124,14 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
       // diverge from OAP (so an operator can preview unpublished edits);
       // default `remote` keeps OAP as the runtime source of truth.
       const preferLocal = (req.query as { prefer?: string }).prefer === 'local';
-      const body = await buildBundle(deps, preferLocal);
+      // `?force=true` bypasses the 30s OAP sync cache — admin pages
+      // pass this on mount so their `synced` / `diverged` / `disabled`
+      // badges reflect the actual OAP state, not a stale snapshot from
+      // the cached bundle the SPA persisted in localStorage.
+      const force = (req.query as { force?: string }).force === 'true';
+      if (force) resyncTemplates();
+      const locale = localeFromRequest(req);
+      const body = await buildBundle(deps, preferLocal, locale);
       const inm = req.headers['if-none-match'];
       if (typeof inm === 'string' && inm === body.etag) {
         return reply.code(304).send();
@@ -119,7 +143,11 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
   );
 }
 
-async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise<ConfigBundle> {
+async function buildBundle(
+  deps: ConfigBundleDeps,
+  preferLocal = false,
+  locale: Locale = 'en',
+): Promise<ConfigBundle> {
   const sync = await getSyncStatus({
     client: deps.uiTemplateClient(),
     bundled: () => iterateBundledTemplates(),
@@ -129,10 +157,31 @@ async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise
   const remoteByName = new Map<string, TemplateRow>();
   for (const row of sync.rows) remoteByName.set(row.name, row);
 
+  // Pull the OAP overlay row content for a (kind, key, locale) tuple.
+  // Returns null in English (no overlay) or when no operator has
+  // pushed a translation row yet — disk overlay handles the rest.
+  const oapOverlayFor = (kind: TemplateKind, key: string): unknown => {
+    if (locale === 'en') return null;
+    const row = findOverlayRow(sync, kind, key, locale);
+    if (!row?.remote) return null;
+    const env = parseEnvelope(row.remote.configuration);
+    return env?.content ?? null;
+  };
+
   const layers: Record<string, ScopeMap> = {};
   for (const tpl of allLayerTemplates()) {
-    const effective = pickLayerContent(tpl, remoteByName, preferLocal);
-    if (effective === null) continue; // disabled
+    const picked = pickLayerContent(tpl, remoteByName, preferLocal);
+    if (picked === null) continue; // disabled
+    // Localize: OAP overlay wins where present, disk overlay fills the
+    // rest, English source falls through for the remainder. Both
+    // overlays are keyed by the layer key (the source's `key`,
+    // upper-snake to match OAP's enum).
+    const effective = localizeContent(
+      picked,
+      oapOverlayFor('layer', picked.key),
+      getLayerOverlay(picked.key, locale),
+      locale,
+    );
     const scopes: ScopeMap = {};
     for (const scope of ['service', 'instance', 'endpoint'] as const) {
       const ws = widgetsForScope(effective, scope);
@@ -145,9 +194,16 @@ async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise
   const diskOverviewIds = new Set<string>();
   for (const dash of loadOverviewDashboards()) {
     diskOverviewIds.add(dash.id);
-    const effective = pickOverviewContent(dash, remoteByName, preferLocal);
-    if (effective === null) continue; // disabled
-    overviews.push(effective);
+    const picked = pickOverviewContent(dash, remoteByName, preferLocal);
+    if (picked === null) continue; // disabled
+    overviews.push(
+      localizeContent(
+        picked,
+        oapOverlayFor('overview', picked.id),
+        getOverviewOverlay(picked.id, locale),
+        locale,
+      ),
+    );
   }
   // Remote-only overviews: dashboards that live on OAP with no on-disk
   // base — created in the admin UI and pushed. The disk loop can't see
@@ -155,11 +211,16 @@ async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise
   // be remote-only: every layer ships a bundled template.)
   for (const row of sync.rows) {
     if (row.kind !== 'overview' || row.status === 'disabled' || !row.remote) continue;
+    if (row.locale !== undefined) continue; // skip per-locale overlay rows
     const env = parseEnvelope(row.remote.configuration);
     if (!env || !isOverviewLike(env.content)) continue;
     const dash = env.content as OverviewDashboard;
     if (diskOverviewIds.has(dash.id)) continue; // already handled above
-    overviews.push(dash);
+    // Remote-only dashboards: no disk overlay, but a per-locale OAP
+    // overlay row may still apply.
+    overviews.push(
+      localizeContent(dash, oapOverlayFor('overview', dash.id), null, locale),
+    );
   }
 
   const syncStatus: BundleSyncStatus = {
@@ -172,10 +233,18 @@ async function buildBundle(deps: ConfigBundleDeps, preferLocal = false): Promise
       key: r.key,
       status: r.status,
     })),
+    conflicts: sync.conflicts ?? [],
   };
 
   const body = { layers, overviews, syncStatus };
-  const etag = createHash('md5').update(JSON.stringify(body)).digest('hex');
+  // Locale folded into the etag so the SPA's per-locale caches don't
+  // collide. Without this, switching from `en` to `zh-CN` would 304 off
+  // the previous etag and never re-render localized content.
+  const etag = createHash('md5')
+    .update(locale)
+    .update('\0')
+    .update(JSON.stringify(body))
+    .digest('hex');
   return { etag, generatedAt: Date.now(), ...body };
 }
 

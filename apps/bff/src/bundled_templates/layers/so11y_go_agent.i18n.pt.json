@@ -1,0 +1,41 @@
+{
+  "alias": "Agente Go",
+  "group": "Auto-observabilidade",
+  "slots": {
+    "services": "Serviços do agente",
+    "instances": "Agentes"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Criação de tracing context / min"
+      },
+      {
+        "title": "Tracing criados + finalizados / min",
+        "expressionLabels": [
+          "criados",
+          "finalizados"
+        ]
+      },
+      {
+        "title": "Criação de contexto ignorado / min"
+      },
+      {
+        "title": "Ignorados criados + finalizados / min",
+        "expressionLabels": [
+          "criados",
+          "finalizados"
+        ]
+      },
+      {
+        "title": "Possível contexto vazado / min"
+      },
+      {
+        "title": "Contagem de erros do interceptor / min"
+      },
+      {
+        "title": "Tempo de execução do tracing context (ms)"
+      }
+    ]
+  }
+}

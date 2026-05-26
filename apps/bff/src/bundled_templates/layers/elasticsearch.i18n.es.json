@@ -1,0 +1,201 @@
+{
+  "group": "Bases de datos",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Estado"
+      },
+      {
+        "label": "Shards"
+      },
+      {
+        "label": "Nodos"
+      },
+      {
+        "label": "Sin asignar"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Clúster",
+        "metrics": [
+          {
+            "label": "Estado",
+            "tip": "0 verde / 1 amarillo / 2 rojo."
+          },
+          {
+            "label": "Shards sin asignar",
+            "tip": "Shards aún no colocados en ningún nodo."
+          },
+          {
+            "label": "Breakers disparados",
+            "tip": "Disparos acumulados de circuit-breaker — valores altos indican presión de memoria."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Estado del clúster",
+        "tableHeaders": [
+          "Estado",
+          "Valor"
+        ]
+      },
+      {
+        "title": "Nodos"
+      },
+      {
+        "title": "Tareas pendientes"
+      },
+      {
+        "title": "Shards primarios"
+      },
+      {
+        "title": "Shards activos"
+      },
+      {
+        "title": "Inicializando"
+      },
+      {
+        "title": "Relocando"
+      },
+      {
+        "title": "Sin asignar"
+      },
+      {
+        "title": "Sin asignar y retrasados"
+      },
+      {
+        "title": "Breakers disparados"
+      },
+      {
+        "title": "CPU media del clúster"
+      },
+      {
+        "title": "Memoria JVM media en uso"
+      },
+      {
+        "title": "Archivos abiertos media"
+      }
+    ],
+    "instance": [
+      {
+        "title": "CPU de proceso (%)"
+      },
+      {
+        "title": "CPU del OS (%)"
+      },
+      {
+        "title": "Load average",
+        "expressionLabels": [
+          "1m",
+          "5m",
+          "15m"
+        ]
+      },
+      {
+        "title": "Memoria JVM (MB)",
+        "expressionLabels": [
+          "heap usado",
+          "heap máx",
+          "non-heap"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "conteo",
+          "tiempo (ms/min)"
+        ]
+      },
+      {
+        "title": "Translog",
+        "expressionLabels": [
+          "operaciones",
+          "tamaño (MB)"
+        ]
+      },
+      {
+        "title": "Breakers",
+        "expressionLabels": [
+          "disparados",
+          "estimado (MB)"
+        ]
+      },
+      {
+        "title": "Segments",
+        "expressionLabels": [
+          "conteo",
+          "memoria (MB)"
+        ]
+      },
+      {
+        "title": "Uso de disco",
+        "expressionLabels": [
+          "GB",
+          "%"
+        ]
+      },
+      {
+        "title": "Red",
+        "expressionLabels": [
+          "envío",
+          "recepción"
+        ]
+      },
+      {
+        "title": "Archivos abiertos"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tasa de indexación",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Tasa de búsquedas",
+        "expressionLabels": [
+          "req",
+          "proc"
+        ]
+      },
+      {
+        "title": "Tamaño del índice (todos los shards)"
+      },
+      {
+        "title": "Tamaño del índice (primario)"
+      },
+      {
+        "title": "Documentos",
+        "expressionLabels": [
+          "todos",
+          "primario",
+          "eliminados"
+        ]
+      },
+      {
+        "title": "Tiempo medio de búsqueda / petición (s)",
+        "expressionLabels": [
+          "fetch",
+          "consulta",
+          "scroll",
+          "suggest"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Clústeres de ES",
+    "endpoints": "Índices"
+  },
+  "alias": "Elasticsearch"
+}

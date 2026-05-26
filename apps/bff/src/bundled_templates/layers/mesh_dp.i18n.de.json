@@ -1,0 +1,115 @@
+{
+  "alias": "Istio Data Plane",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Bug-Failures",
+        "tip": "Envoy-interner Bug-Failure-Zähler — nicht-null bedeutet, dass eine Assertion / Debug-Prüfung ausgelöst wurde (envoy_bug_failures).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mitgliedschaft gesund",
+        "tip": "Gesunde Endpoints über alle Cluster (envoy_cluster_membership_healthy).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Worker-Threads",
+        "tip": "Aktuell genutzte gleichzeitige Worker-Threads (envoy_worker_threads).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Anfragen aktiv",
+        "tip": "Aktive Upstream-Anfragen über alle Cluster dieses Envoy (envoy_cluster_up_rq_active).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Verbindungen aktiv",
+        "tip": "Aktive Upstream-Verbindungen (envoy_cluster_up_cx_active).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Anfragen ausstehend",
+        "tip": "Anfragen in Upstream-Queues ausstehend (envoy_cluster_up_rq_pending_active).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungen genutzt",
+        "tip": "Serverseitig genutzte Gesamt- + Eltern-Verbindungen (envoy_total_connections_used / envoy_parent_connections_used).",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "parent"
+        ]
+      },
+      {
+        "title": "Upstream-Verbindungs-Zuwachs",
+        "tip": "Pro Minute neu geöffnete Upstream-Verbindungen (envoy_cluster_up_cx_incr).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Anfragen-Zuwachs",
+        "tip": "Pro Minute neue Upstream-Anfragen (envoy_cluster_up_rq_incr).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Worker-Threads (aktuell vs. max)",
+        "tip": "Genutzte gleichzeitige Worker-Threads vs. Fenster-Max (envoy_worker_threads / envoy_worker_threads_max).",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktuell",
+          "max"
+        ]
+      },
+      {
+        "title": "Server-Speicher",
+        "tip": "Heap- / zugewiesener / physischer Speicher: aktuell + Fenster-Max (envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size, gepaart mit ihren *_max-Varianten).",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "heap",
+          "heap max",
+          "zugewiesen",
+          "zugewiesen max",
+          "physisch",
+          "physisch max"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Sidecar-Dienste",
+    "instances": "Sidecars"
+  }
+}

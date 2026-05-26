@@ -1,0 +1,108 @@
+{
+  "alias": "AWS S3",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Anfragen"
+      },
+      {
+        "label": "Mittlere Latenz"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Fehler",
+        "metrics": [
+          {
+            "label": "4xx-Anzahl",
+            "tip": "Client-Fehler, beobachtet von CloudWatch."
+          },
+          {
+            "label": "5xx-Anzahl",
+            "tip": "Server-Fehler, beobachtet von CloudWatch."
+          },
+          {
+            "label": "Mittlere Latenz",
+            "tip": "Durchschnittliche Anfragelatenz."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Gesamtanzahl Anfragen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "GET-Anfrageanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PUT-Anfrageanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "DELETE-Anfrageanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "4xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "5xx-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "First Byte mittlere Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heruntergeladen (KB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Hochgeladen (KB)",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "S3 Buckets"
+  }
+}

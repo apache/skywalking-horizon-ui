@@ -30,7 +30,10 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { ZipkinSpan } from '@skywalking-horizon-ui/api-client';
+
+const { t } = useI18n({ useScope: 'global' });
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { readAccent } from '@/utils/cssVar';
@@ -184,16 +187,16 @@ function copyTraceId(): void {
   <div v-if="openTraceId" class="zk-popout-backdrop" @click.self="closeTrace">
     <article class="zk-popout sw-card">
       <header class="zk-head">
-        <span class="kicker">Zipkin trace</span>
+        <span class="kicker">{{ t('Zipkin trace') }}</span>
         <code class="zk-tid mono">{{ openTraceId }}</code>
-        <button class="sw-btn small" type="button" @click="copyTraceId">Copy id</button>
-        <span v-if="isLoading" class="hint">loading…</span>
+        <button class="sw-btn small" type="button" @click="copyTraceId">{{ t('Copy id') }}</button>
+        <span v-if="isLoading" class="hint">{{ t('loading…') }}</span>
         <span v-if="error" class="hint err">{{ String(error) }}</span>
         <button class="sw-btn small ghost zk-close" type="button" @click="closeTrace">×</button>
       </header>
 
       <div v-if="!isLoading && spans.length === 0" class="zk-empty">
-        No spans returned for this trace.
+        {{ t('No spans returned for this trace.') }}
       </div>
 
       <div v-else class="zk-split" :class="{ 'no-detail': !selectedSpan }">
@@ -217,7 +220,7 @@ function copyTraceId(): void {
               <span class="zk-row-svc" :style="{ color: serviceColor(row.span.localEndpoint?.serviceName) }">
                 {{ row.span.localEndpoint?.serviceName ?? '—' }}
               </span>
-              <span class="zk-row-name">{{ row.span.name || '(unnamed)' }}</span>
+              <span class="zk-row-name">{{ row.span.name || t('(unnamed)') }}</span>
             </span>
             <div class="zk-track">
               <span class="t-grid q1" /><span class="t-grid q2" /><span class="t-grid q3" />
@@ -240,28 +243,28 @@ function copyTraceId(): void {
         <!-- Span detail rail -->
         <aside v-if="selectedSpan" class="zk-detail">
           <header class="zk-detail-head">
-            <h5>Span detail</h5>
+            <h5>{{ t('Span detail') }}</h5>
             <button class="sw-btn small ghost" type="button" @click="clearSpan">×</button>
           </header>
           <dl class="zk-kv">
-            <dt>Service</dt>
+            <dt>{{ t('Service') }}</dt>
             <dd class="mono" :style="{ color: serviceColor(selectedSpan.localEndpoint?.serviceName) }">
               {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
             </dd>
-            <dt>Name</dt><dd class="mono wba">{{ selectedSpan.name ?? '—' }}</dd>
-            <dt>Kind</dt><dd>{{ selectedSpan.kind ?? '—' }}</dd>
-            <dt>Span id</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
-            <dt v-if="selectedSpan.parentId">Parent id</dt>
+            <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name ?? '—' }}</dd>
+            <dt>{{ t('Kind') }}</dt><dd>{{ selectedSpan.kind ?? '—' }}</dd>
+            <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
+            <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
             <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
-            <dt>Start</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
-            <dt>Duration</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-            <dt v-if="selectedSpan.remoteEndpoint?.serviceName">Peer</dt>
+            <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
+            <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
+            <dt v-if="selectedSpan.remoteEndpoint?.serviceName">{{ t('Peer') }}</dt>
             <dd v-if="selectedSpan.remoteEndpoint?.serviceName" class="mono wba">
               {{ selectedSpan.remoteEndpoint.serviceName }}
             </dd>
           </dl>
           <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="zk-tags">
-            <h6>Tags</h6>
+            <h6>{{ t('Tags') }}</h6>
             <dl class="zk-kv">
               <template v-for="(v, k) in selectedSpan.tags" :key="k">
                 <dt class="mono">{{ k }}</dt>
@@ -273,7 +276,7 @@ function copyTraceId(): void {
             v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0"
             class="zk-annotations"
           >
-            <h6>Annotations</h6>
+            <h6>{{ t('Annotations') }}</h6>
             <ul>
               <li v-for="(a, i) in selectedSpan.annotations" :key="i" class="mono">
                 <span class="dim">{{ fmtAbsTime(a.timestamp) }}</span>

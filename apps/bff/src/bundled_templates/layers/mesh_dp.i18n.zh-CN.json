@@ -1,0 +1,59 @@
+{
+  "alias": "Istio 数据面",
+  "group": "Istio",
+  "slots": {
+    "services": "Sidecar 服务",
+    "instances": "Sidecar"
+  },
+  "dashboards": {
+    "instance": [
+      {
+        "title": "Bug 失败",
+        "tip": "Envoy 内部 bug-failure 计数器 — 非零表示触发了 assertion / debug 检查（envoy_bug_failures）。"
+      },
+      {
+        "title": "健康成员",
+        "tip": "所有集群的健康端点数（envoy_cluster_membership_healthy）。"
+      },
+      {
+        "title": "Worker 线程",
+        "tip": "当前使用中的并发 Worker 线程数（envoy_worker_threads）。"
+      },
+      {
+        "title": "上游活跃请求",
+        "tip": "此 Envoy 各集群活跃上游请求总数（envoy_cluster_up_rq_active）。"
+      },
+      {
+        "title": "上游活跃连接",
+        "tip": "活跃上游连接数（envoy_cluster_up_cx_active）。"
+      },
+      {
+        "title": "上游请求 Pending",
+        "tip": "在上游队列中 Pending 的请求数（envoy_cluster_up_rq_pending_active）。"
+      },
+      {
+        "title": "已用连接数",
+        "tip": "服务端 total + parent 已用连接（envoy_total_connections_used / envoy_parent_connections_used）。",
+        "expressionLabels": ["total", "parent"]
+      },
+      {
+        "title": "上游连接增量",
+        "tip": "每分钟新开的上游连接数（envoy_cluster_up_cx_incr）。"
+      },
+      {
+        "title": "上游请求增量",
+        "tip": "每分钟新增上游请求数（envoy_cluster_up_rq_incr）。"
+      },
+      {
+        "title": "Worker 线程（当前 vs 最大）",
+        "tip": "当前使用中的并发 Worker 线程数 vs 窗口内最大值（envoy_worker_threads / envoy_worker_threads_max）。",
+        "expressionLabels": ["current", "max"]
+      },
+      {
+        "title": "服务端内存",
+        "tip": "Heap / 已分配 / 物理内存：当前值 + 窗口最大（envoy_heap_memory_used / envoy_memory_allocated / envoy_memory_physical_size 与对应 *_max 配对）。",
+        "expressionLabels": ["heap", "heap max", "allocated", "allocated max", "physical", "physical max"]
+      }
+    ]
+  }
+}

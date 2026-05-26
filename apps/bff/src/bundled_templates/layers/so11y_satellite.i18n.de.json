@@ -1,0 +1,69 @@
+{
+  "alias": "Satellite",
+  "group": "Selbstbeobachtung",
+  "overview": {
+    "groups": [
+      {
+        "title": "Satellite-Status",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "CPU des Satellite-Prozesses."
+          },
+          {
+            "label": "Queue genutzt",
+            "tip": "Ausstehende Queue-Items — Backlog-Indikator."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Verbindungsanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Queue genutzt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Empfangsereignisse",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fetch-Ereignisse",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Queue Input / Output",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "input",
+          "output"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Satellite-Dienste"
+  }
+}

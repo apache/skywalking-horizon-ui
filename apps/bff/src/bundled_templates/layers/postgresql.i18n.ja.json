@@ -1,0 +1,164 @@
+{
+  "alias": "PostgreSQL",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "取得 / s"
+      },
+      {
+        "label": "挿入 / s"
+      },
+      {
+        "label": "キャッシュヒット"
+      },
+      {
+        "label": "デッドロック"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "キャッシュヒット",
+            "tip": "クラスタ全体のバッファキャッシュヒット率。"
+          },
+          {
+            "label": "デッドロック/s",
+            "tip": "1秒あたりに検出されたデッドロック数。"
+          },
+          {
+            "label": "競合/s",
+            "tip": "1秒あたりのリカバリ競合数。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "取得 /s",
+            "tip": "1秒あたりの取得行数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "取得行 / s"
+      },
+      {
+        "title": "挿入行 / s"
+      },
+      {
+        "title": "更新行 / s"
+      },
+      {
+        "title": "削除行 / s"
+      },
+      {
+        "title": "返却行 / s"
+      },
+      {
+        "title": "一時ファイル / s"
+      },
+      {
+        "title": "キャッシュヒット率"
+      },
+      {
+        "title": "トランザクション / s",
+        "tip": "コミット vs ロールバック。",
+        "expressionLabels": [
+          "コミット",
+          "ロールバック"
+        ]
+      },
+      {
+        "title": "競合 + デッドロック / s",
+        "expressionLabels": [
+          "競合",
+          "デッドロック"
+        ]
+      },
+      {
+        "title": "セッション",
+        "expressionLabels": [
+          "アクティブ",
+          "アイドル",
+          "ロック"
+        ]
+      },
+      {
+        "title": "バッファ / s",
+        "tip": "Checkpoint / clean / fsync / alloc / backend バッファアクティビティ。",
+        "expressionLabels": [
+          "チェックポイント",
+          "クリーン",
+          "backend fsync",
+          "アロケート",
+          "バックエンド"
+        ]
+      },
+      {
+        "title": "チェックポイント統計 / s",
+        "expressionLabels": [
+          "timed",
+          "要求",
+          "書き込み時間",
+          "同期時間"
+        ]
+      },
+      {
+        "title": "低速ステートメント",
+        "tip": "捕捉された低速ステートメント上位 20。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Shared Buffer"
+      },
+      {
+        "title": "実効キャッシュ"
+      },
+      {
+        "title": "Work Mem"
+      },
+      {
+        "title": "WAL 最大サイズ"
+      },
+      {
+        "title": "取得行 / s"
+      },
+      {
+        "title": "挿入行 / s"
+      },
+      {
+        "title": "キャッシュヒット率"
+      },
+      {
+        "title": "セッション",
+        "expressionLabels": [
+          "アクティブ",
+          "アイドル",
+          "ロック"
+        ]
+      },
+      {
+        "title": "競合 + デッドロック / s",
+        "expressionLabels": [
+          "競合",
+          "デッドロック"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "PostgreSQL クラスタ",
+    "instances": "ノード"
+  }
+}

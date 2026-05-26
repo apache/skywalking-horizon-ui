@@ -1,0 +1,215 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de éxito"
+      },
+      {
+        "label": "TCP Drop"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "Latencia media",
+            "tip": "Latencia media del protocolo (ms)."
+          },
+          {
+            "label": "Tasa de éxito",
+            "tip": "Llamadas exitosas / total de llamadas."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de protocolo",
+            "tip": "Llamadas de protocolo por minuto."
+          }
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Éxito %"
+      },
+      {
+        "label": "Latencia"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM HTTP"
+      },
+      {
+        "label": "Latencia media"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Servicios",
+    "instances": "Pods",
+    "endpoints": "Endpoints"
+  },
+  "alias": "Cilium Service",
+  "group": "Kubernetes",
+  "naming": {
+    "alias": "namespace"
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Paquetes L4 de lectura/min"
+      },
+      {
+        "title": "Paquetes L4 de escritura/min"
+      },
+      {
+        "title": "TCP Drop / min",
+        "expressionLabels": [
+          "lectura",
+          "escritura"
+        ]
+      },
+      {
+        "title": "TCP Drop por motivo"
+      },
+      {
+        "title": "Carga HTTP",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Duración HTTP"
+      },
+      {
+        "title": "Estado HTTP no-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Carga DNS",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Duración DNS"
+      },
+      {
+        "title": "Errores DNS / min"
+      },
+      {
+        "title": "Carga de Kafka",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Duración de Kafka"
+      },
+      {
+        "title": "Errores de Kafka / min"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Paquetes L4 de lectura/min"
+      },
+      {
+        "title": "Paquetes L4 de escritura/min"
+      },
+      {
+        "title": "Carga HTTP",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Estado HTTP no-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Carga DNS",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Errores DNS"
+      },
+      {
+        "title": "Carga de Kafka",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Carga HTTP",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Duración HTTP"
+      },
+      {
+        "title": "Estado HTTP no-2xx",
+        "expressionLabels": [
+          "1xx",
+          "3xx",
+          "4xx",
+          "5xx"
+        ]
+      },
+      {
+        "title": "Carga DNS",
+        "expressionLabels": [
+          "llamadas",
+          "éxito"
+        ]
+      },
+      {
+        "title": "Duración DNS"
+      },
+      {
+        "title": "Errores DNS"
+      }
+    ]
+  }
+}

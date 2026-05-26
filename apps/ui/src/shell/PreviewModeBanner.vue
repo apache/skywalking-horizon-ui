@@ -23,12 +23,14 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
 import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 import { useLayers } from '@/shell/useLayers';
 import { useConfigBundle } from '@/controls/configBundle';
 
+const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const previewMode = usePreviewMode();
 const { layers } = useLayers();
@@ -70,10 +72,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   <div v-if="show" class="preview-banner" role="status">
     <Icon name="event" :size="13" />
     <span class="preview-banner-text">
-      <b>Preview mode</b> — <b>{{ target }}</b> is loaded from your <b>{{ source }}</b> version, not the
-      published one. Only you see this; everyone else gets the live (remote) dashboard.
+      <b>{{ t('Preview mode') }}</b> — <b>{{ target }}</b> {{ t('is loaded from your') }} <b>{{ source }}</b> {{ t('version, not the published one. Only you see this; everyone else gets the live (remote) dashboard.') }}
     </span>
-    <button class="preview-banner-close" type="button" title="Close (Esc)" aria-label="Close" @click="close">✕</button>
+    <button class="preview-banner-close" type="button" :title="t('Close (Esc)')" :aria-label="t('Close')" @click="close">✕</button>
   </div>
 </template>
 

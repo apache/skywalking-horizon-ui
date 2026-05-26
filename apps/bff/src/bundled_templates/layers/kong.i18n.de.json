@@ -1,0 +1,219 @@
+{
+  "alias": "Kong",
+  "group": "Gateways",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz",
+        "metrics": [
+          {
+            "label": "Kong-Latenz",
+            "tip": "Zeit, die Kong selbst pro Anfrage benötigt, p50/p95."
+          },
+          {
+            "label": "Upstream-Latenz",
+            "tip": "Wartezeit auf den Upstream-Dienst."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Anfragen pro Sekunde durch Kong."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kong-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nginx-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nginx-Timer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Datenspeicher erreichbar",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Instanz",
+          "Erreichbar"
+        ]
+      },
+      {
+        "title": "Nginx-Metrik-Fehler",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "HTTP-Request-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "HTTP-Bandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kong-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Datenspeicher erreichbar",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nginx-Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nginx-Timer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Shared-Memory-Nutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Worker Lua-VM-Nutzung",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "HTTP-Status-Trend",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gesamtbandbreite",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Kong-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Anfragelatenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Upstream-Latenz",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Kong-Dienste",
+    "instances": "Knoten",
+    "endpoints": "Routes"
+  }
+}

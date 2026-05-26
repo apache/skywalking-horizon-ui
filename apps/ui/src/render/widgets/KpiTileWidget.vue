@@ -19,6 +19,7 @@ import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
 import type { OverviewKpi } from '@skywalking-horizon-ui/api-client';
 import { formatValue } from './ValueFormat';
+import WidgetTip from '@/components/primitives/WidgetTip.vue';
 
 const props = defineProps<{
   title: string;
@@ -56,7 +57,7 @@ function barPct(value: number | null | undefined, max: number): number {
     <section class="sw-card tile">
       <header>
         <h4>{{ title }}</h4>
-        <span v-if="tip" class="tip" :title="tip">?</span>
+        <WidgetTip :tip="tip" />
       </header>
       <div v-if="showCount" class="count">
         <span class="count-label">Services</span>
@@ -84,7 +85,7 @@ function barPct(value: number | null | undefined, max: number): number {
     <section class="sw-card tile">
       <header>
         <h4>{{ title }}</h4>
-        <span v-if="tip" class="tip" :title="tip">?</span>
+        <WidgetTip :tip="tip" />
       </header>
       <div v-if="showCount" class="count">
         <span class="count-label">Services</span>
@@ -116,11 +117,6 @@ function barPct(value: number | null | undefined, max: number): number {
 .tile { display: flex; flex-direction: column; padding: 10px 12px; gap: 8px; min-height: 0; height: 100%; }
 header { display: flex; align-items: center; gap: 6px; }
 h4 { margin: 0; font-size: 11px; font-weight: 600; color: var(--sw-fg-1); }
-.tip {
-  font-size: 9px; color: var(--sw-fg-3); border: 1px solid var(--sw-line-2);
-  border-radius: 50%; width: 13px; height: 13px;
-  display: inline-flex; align-items: center; justify-content: center; cursor: help;
-}
 .count {
   display: flex; align-items: baseline; gap: 8px;
   padding: 2px 0 6px;

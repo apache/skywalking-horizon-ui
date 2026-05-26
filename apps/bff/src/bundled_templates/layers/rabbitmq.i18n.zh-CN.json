@@ -1,0 +1,84 @@
+{
+  "alias": "RabbitMQ",
+  "group": "MQ",
+  "slots": {
+    "services": "RabbitMQ 集群",
+    "instances": "节点"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "队列" },
+      { "label": "Channel" },
+      { "label": "连接" },
+      { "label": "未确认" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "Published / 分钟", "tip": "每分钟发布的消息数。" },
+          { "label": "未确认", "tip": "等待 publisher confirm 的消息数。" },
+          { "label": "无法路由丢弃", "tip": "无匹配交换机路由而被丢弃的消息数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Block 前可用内存（MB）" },
+      { "title": "Block 前可用磁盘（GB）" },
+      {
+        "title": "文件描述符 + Socket",
+        "expressionLabels": ["fds", "sockets"]
+      },
+      { "title": "Ready 消息" },
+      { "title": "待 Ack" },
+      {
+        "title": "发布流水线",
+        "expressionLabels": ["published", "confirmed", "routed", "unconfirmed"]
+      },
+      {
+        "title": "无法路由消息",
+        "expressionLabels": ["dropped", "returned"]
+      },
+      {
+        "title": "队列",
+        "expressionLabels": ["total", "declared", "created", "deleted"]
+      },
+      {
+        "title": "Channel",
+        "expressionLabels": ["total", "opened", "closed"]
+      },
+      {
+        "title": "连接",
+        "expressionLabels": ["total", "opened", "closed"]
+      }
+    ],
+    "instance": [
+      { "title": "Ready 消息" },
+      { "title": "入站消息" },
+      { "title": "出站消息" },
+      { "title": "未确认消息" },
+      {
+        "title": "连接 / Publisher / Consumer",
+        "expressionLabels": ["connections", "publishers", "consumers"]
+      },
+      {
+        "title": "Channel + 队列",
+        "expressionLabels": ["channels", "queues"]
+      },
+      { "title": "已分配使用率 %" },
+      {
+        "title": "内存（MB）",
+        "expressionLabels": ["used", "unused", "resident", "total"]
+      },
+      { "title": "按类型分配（MB）" },
+      {
+        "title": "多块/单块内存（MB）",
+        "expressionLabels": ["multi used", "multi unused", "single used", "single unused"]
+      }
+    ]
+  }
+}

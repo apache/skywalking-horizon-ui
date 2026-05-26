@@ -1,0 +1,56 @@
+{
+  "alias": "Istio 控制面",
+  "group": "Istio",
+  "slots": {
+    "services": "控制面"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "CPU" },
+      { "label": "Goroutines" },
+      { "label": "Pilot xDS" },
+      { "label": "服务" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Istio 健康",
+        "metrics": [
+          { "label": "CPU", "tip": "Istio 控制面进程的 CPU。" },
+          { "label": "Goroutines", "tip": "活跃 Go goroutine 数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "CPU" },
+      { "title": "Goroutines" },
+      { "title": "Istio 版本" },
+      {
+        "title": "内存（MB）",
+        "expressionLabels": ["alloc", "heap inuse", "stack inuse", "virtual", "resident"]
+      },
+      {
+        "title": "Pilot 错误",
+        "expressionLabels": ["cds reject", "eds reject", "rds reject", "lds reject", "write timeout"]
+      },
+      { "title": "Proxy Push 耗时（分位）" },
+      { "title": "Pilot 推送" },
+      { "title": "Sidecar 注入成功" },
+      {
+        "title": "ADS 监控",
+        "expressionLabels": ["xds", "services", "virt services"]
+      },
+      {
+        "title": "配置校验",
+        "expressionLabels": ["passed", "failed"]
+      },
+      {
+        "title": "Pilot 冲突",
+        "expressionLabels": ["ol tcp/tcp", "il", "ol tcp/http", "ol http/tcp"]
+      }
+    ]
+  }
+}

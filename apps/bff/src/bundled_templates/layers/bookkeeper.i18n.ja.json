@@ -1,0 +1,130 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Ledger"
+      },
+      {
+        "label": "Entry"
+      },
+      {
+        "label": "書き込み可能ディレクトリ"
+      },
+      {
+        "label": "ディレクトリ使用量"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "書き込み B/s",
+            "tip": "クラスタ全体の Bookie 書き込みスループット。"
+          },
+          {
+            "label": "読み取り B/s",
+            "tip": "クラスタ全体の Bookie 読み取りスループット。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Bookie Ledger"
+      },
+      {
+        "title": "Bookie Entry"
+      },
+      {
+        "title": "書き込み可能 Ledger ディレクトリ"
+      },
+      {
+        "title": "書き込みキャッシュ",
+        "expressionLabels": [
+          "サイズ (MB)",
+          "entry"
+        ]
+      },
+      {
+        "title": "読み取りキャッシュ",
+        "expressionLabels": [
+          "サイズ (MB)",
+          "entry"
+        ]
+      },
+      {
+        "title": "読み取り / 書き込みレート (B/s)",
+        "expressionLabels": [
+          "読み取り",
+          "書き込み"
+        ]
+      },
+      {
+        "title": "Ledger ディレクトリ使用量"
+      }
+    ],
+    "instance": [
+      {
+        "title": "JVM メモリプール (MB)"
+      },
+      {
+        "title": "JVM メモリ (MB)",
+        "expressionLabels": [
+          "使用中",
+          "コミット",
+          "初期化"
+        ]
+      },
+      {
+        "title": "JVM スレッド",
+        "expressionLabels": [
+          "現在",
+          "デーモン",
+          "ピーク",
+          "デッドロック"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "秒",
+          "件数"
+        ]
+      },
+      {
+        "title": "Thread Executor",
+        "expressionLabels": [
+          "完了",
+          "完了タスク",
+          "拒否",
+          "失敗"
+        ]
+      },
+      {
+        "title": "プールスレッド",
+        "expressionLabels": [
+          "高優先度",
+          "読み取り"
+        ]
+      },
+      {
+        "title": "プール最大キューサイズ",
+        "expressionLabels": [
+          "高優先度",
+          "読み取り"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "BookKeeper クラスタ",
+    "instances": "Bookie"
+  }
+}

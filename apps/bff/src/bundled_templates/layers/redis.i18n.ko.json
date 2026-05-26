@@ -1,0 +1,138 @@
+{
+  "alias": "Redis",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "명령/s"
+      },
+      {
+        "label": "적중률"
+      },
+      {
+        "label": "메모리 %"
+      },
+      {
+        "label": "클라이언트"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "상태",
+        "metrics": [
+          {
+            "label": "적중률",
+            "tip": "캐시 적중률입니다. 하향 추세는 thrashing을 의미합니다."
+          },
+          {
+            "label": "메모리 %",
+            "tip": "사용 메모리 / 최대 메모리. 80%를 넘으면 경고합니다."
+          }
+        ]
+      },
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "명령/s",
+            "tip": "클러스터 전체의 초당 명령 수입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "가동 시간 (일)"
+      },
+      {
+        "title": "연결된 클라이언트"
+      },
+      {
+        "title": "차단된 클라이언트"
+      },
+      {
+        "title": "메모리 사용량"
+      },
+      {
+        "title": "총 명령 / s"
+      },
+      {
+        "title": "적중률"
+      },
+      {
+        "title": "평균 명령 시간 / s"
+      },
+      {
+        "title": "네트워크 I/O (KB)",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "키",
+        "expressionLabels": [
+          "전체",
+          "evicted",
+          "만료"
+        ]
+      },
+      {
+        "title": "느린 명령",
+        "tip": "캡처된 가장 느린 명령 10개입니다. SkyWalking 에이전트가 호출 지점에서 캡처합니다."
+      }
+    ],
+    "instance": [
+      {
+        "title": "가동 시간 (일)"
+      },
+      {
+        "title": "연결된 클라이언트"
+      },
+      {
+        "title": "차단된 클라이언트"
+      },
+      {
+        "title": "최대 메모리 (MB)"
+      },
+      {
+        "title": "메모리 사용량 (%)"
+      },
+      {
+        "title": "명령 / s"
+      },
+      {
+        "title": "적중률"
+      },
+      {
+        "title": "네트워크 I/O (KB)",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      },
+      {
+        "title": "키",
+        "expressionLabels": [
+          "전체",
+          "evicted",
+          "만료"
+        ]
+      },
+      {
+        "title": "총 명령 시간 (s)"
+      },
+      {
+        "title": "평균 명령 시간"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Redis 클러스터",
+    "instances": "노드"
+  }
+}

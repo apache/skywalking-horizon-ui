@@ -1,0 +1,365 @@
+{
+  "alias": "Von Istio verwaltete Dienste",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Traffic"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95. Perzentil der über Sidecars geleiteten Antwortzeit im Mesh."
+          },
+          {
+            "label": "Fehlerrate",
+            "tip": "100 − Mesh-SLA. Aufrufe mit nicht-2xx-Antwortstatus aus Sidecar-ALS."
+          }
+        ]
+      },
+      {
+        "title": "Status",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Top 20 APIs",
+        "tip": "Top-Endpunkte unter dem ausgewählten Dienst. Tabs wechseln, um nach Traffic, Antwortzeit oder schlechtester Erfolgsrate neu zu sortieren.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Traffic",
+          "Langsam",
+          "Erfolgsrate"
+        ],
+        "expressionUnits": [
+          null,
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Traffic",
+        "tip": "Mesh-weite Anfragen pro Minute, beobachtet von Envoy-Sidecars.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Fehlerrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Apdex",
+        "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Antwortzeit-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Antwortzeit-Verteilung.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Service-Durchsatz",
+        "tip": "Bytes pro Minute durch den Sidecar — gesendet + empfangen.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "gesendet"
+        ]
+      },
+      {
+        "title": "Sidecar-interne Latenz",
+        "tip": "Envoy-interne Request- + Response-Latenz, in Nanosekunden. Nützlich bei Verdacht auf Sidecar-Overhead.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anfrage",
+          "antwort"
+        ]
+      },
+      {
+        "title": "Top 10 Sidecars",
+        "tip": "Sortiert über die Sidecar-Instanzen des ausgewählten Dienstes.",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "Traffic",
+          "Langsam",
+          "Erfolgsrate"
+        ],
+        "expressionUnits": [
+          null,
+          null,
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Sidecar-Last",
+        "tip": "Aufrufe pro Minute gegen die ausgewählte Sidecar-Instanz.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sidecar-Latenz",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sidecar-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sidecar-Durchsatz",
+        "tip": "Bytes durch den Sidecar — empfangen + gesendet.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "gesendet"
+        ]
+      },
+      {
+        "title": "Sidecar-interne Latenz",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anfrage",
+          "antwort"
+        ]
+      },
+      {
+        "title": "Envoy Upstream-Anfragen aktiv",
+        "tip": "In Bearbeitung befindliche Upstream-Anfragen pro Cluster. Wird für Envoy-instrumentierte Sidecars angezeigt.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Upstream-Anfragen-Zuwachs",
+        "tip": "Pro Minute hinzugefügte Upstream-Anfragen.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Upstream Pending aktiv",
+        "tip": "Ausstehende Upstream-Anfragen — Indikator für Connection-Pool-Backpressure.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Upstream-Verbindungen aktiv",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Upstream-Verbindungs-Zuwachs",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Cluster Healthy Membership",
+        "tip": "Gesunde Upstream-Mitglieder pro Cluster — ein nennenswerter Rückgang signalisiert Upstream-Fluktuation.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Envoy Gesamtverbindungen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "parent"
+        ]
+      },
+      {
+        "title": "Envoy Heap-Speicher",
+        "tip": "Envoy-Speichernutzung. Heap vs. physisch, zugewiesen vs. max, in MB.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "heap used",
+          "heap max",
+          "zugewiesen",
+          "zugewiesen max",
+          "physisch",
+          "physisch max"
+        ]
+      },
+      {
+        "title": "Envoy Worker-Threads",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "live",
+          "max"
+        ]
+      },
+      {
+        "title": "Envoy-Bug-Failures",
+        "tip": "Envoys eigener Assertion- / Bug-Zähler. Sollte in gesunden Clustern null sein.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Endpoint-Traffic",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Endpoint mittlere Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Endpoint-Erfolgsrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Endpoint-Antwortzeit-Perzentil",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sidecar-interne Latenz (Endpoint-Scope)",
+        "tip": "Envoy-interne Request- + Response-Latenz auf diesem Endpoint, in Nanosekunden.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anfrage",
+          "antwort"
+        ]
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "Latenz"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Mittlere Antwortzeit"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Dienste",
+    "instances": "Sidecars",
+    "endpoints": "Endpunkte"
+  }
+}

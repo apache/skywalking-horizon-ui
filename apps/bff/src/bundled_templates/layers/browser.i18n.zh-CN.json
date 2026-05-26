@@ -1,0 +1,81 @@
+{
+  "alias": "浏览器",
+  "slots": {
+    "services": "应用",
+    "instances": "版本",
+    "endpoints": "页面"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "页面浏览量" },
+      { "label": "错误率" },
+      { "label": "错误" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "页面健康",
+        "metrics": [
+          { "label": "错误率", "tip": "出现错误的页面加载比例。" }
+        ]
+      },
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "PV / 分钟", "tip": "每分钟页面浏览量。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "应用负载（PV）" },
+      { "title": "应用错误率" },
+      { "title": "应用错误数" },
+      {
+        "title": "热门页面",
+        "tip": "按页面浏览量、错误数与错误率排名的页面。",
+        "expressionLabels": ["PV", "错误", "错误率"]
+      },
+      {
+        "title": "热门版本",
+        "tip": "按版本统计的负载 + 错误 + 错误率。",
+        "expressionLabels": ["PV", "错误", "错误率"]
+      }
+    ],
+    "instance": [
+      { "title": "版本 PV" },
+      { "title": "版本错误率" },
+      { "title": "版本错误数" }
+    ],
+    "endpoint": [
+      {
+        "title": "首屏渲染（FMP）分位",
+        "tip": "所选页面 FMP 延迟的 p50–p99。常见目标是 p75 低于 1 秒。"
+      },
+      { "title": "页面加载分位" },
+      { "title": "存活时长分位" },
+      { "title": "首包延迟分位" },
+      {
+        "title": "页面性能分解",
+        "tip": "页面加载各阶段的平均耗时 — resolve、redirect、DNS、TCP、TTFB、传输、DOM 分析、DOM Ready、FPT、完整加载。",
+        "expressionLabels": ["dns", "redirect", "tcp", "ttfb", "transfer", "dom analysis", "dom ready", "fpt", "load", "resource"]
+      },
+      {
+        "title": "按类型的页面错误",
+        "tip": "Resource / JS / AJAX / 未知错误每分钟计数。",
+        "expressionLabels": ["resource", "js", "ajax", "unknown"]
+      },
+      {
+        "title": "Web Vitals",
+        "tip": "核心 Web Vitals — FMP、LCP、CLS（每分钟平均值）。CLS 除以 1000 以归一化到典型 0–1 评分范围。",
+        "expressionLabels": ["FMP (ms)", "LCP (ms)", "CLS"]
+      },
+      {
+        "title": "Interaction to Next Paint 分位",
+        "tip": "INP — 替代 FID 的响应性指标。"
+      }
+    ]
+  }
+}

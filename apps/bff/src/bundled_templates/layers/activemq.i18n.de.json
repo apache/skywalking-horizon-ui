@@ -1,0 +1,261 @@
+{
+  "alias": "ActiveMQ",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Enqueue/s"
+      },
+      {
+        "label": "Dequeue/s"
+      },
+      {
+        "label": "Systemlast"
+      },
+      {
+        "label": "Threads"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Enqueue/s",
+            "tip": "Pro Sekunde in die Queue gestellte Nachrichten."
+          },
+          {
+            "label": "Dequeue/s",
+            "tip": "Pro Sekunde aus der Queue entnommene Nachrichten."
+          },
+          {
+            "label": "Abgelaufen/s",
+            "tip": "Vor dem Verbrauch abgelaufene Nachrichten."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Systemlast Mittel",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Thread-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap genutzt (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap max (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Enqueue / Dequeue / Dispatch /s",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch"
+        ]
+      },
+      {
+        "title": "Abgelaufen /s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Enqueue-Zeit",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "max"
+        ]
+      },
+      {
+        "title": "GC-Anzahl (G1+Parallel)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      },
+      {
+        "title": "GC-Zeit (ms)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "old",
+          "young"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Verbindungen",
+        "tip": "Aktuelle TCP/JMS-Verbindungen zu diesem Broker.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Producer-Anzahl",
+        "tip": "Aktive Erzeuger-Sitzungen auf diesem Broker.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Consumer-Anzahl",
+        "tip": "Aktive Verbraucher-Sitzungen auf diesem Broker.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Uptime",
+        "tip": "Broker-Uptime in Stunden seit letztem Neustart.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Verbindungen (Trend)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Enqueue / Dequeue Anzahl",
+        "tip": "Enqueue + Dequeue pro Minute über alle Ziele auf diesem Broker.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "enqueue",
+          "dequeue"
+        ]
+      },
+      {
+        "title": "Producer / Consumer Zuwachs",
+        "tip": "Pro Minute neu geöffnete Producer- + Consumer-Sitzungen.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "neue producers",
+          "neue consumers"
+        ]
+      },
+      {
+        "title": "Speichernutzung",
+        "tip": "Aggregierte Speichernutzung über alle Ziele (MB).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher-Limit",
+        "tip": "Konfigurierte Speicher-Obergrenze über alle Ziele (GB).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Nachrichtengröße",
+        "tip": "Durchschnittliche Nachrichtengröße über alle Ziele.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Producer-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Consumer-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Queue-Größe",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speichernutzung (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Nachrichtenanzahl",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "enqueue",
+          "dequeue",
+          "dispatch",
+          "abgelaufen",
+          "inflight"
+        ]
+      },
+      {
+        "title": "Enqueue-Zeit (s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "max"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ActiveMQ-Cluster",
+    "instances": "Broker",
+    "endpoints": "Ziele"
+  }
+}

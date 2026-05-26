@@ -1,0 +1,72 @@
+{
+  "alias": "Banco de dados virtual",
+  "group": "Alvos virtuais",
+  "slots": {
+    "services": "Bancos de dados"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acesso"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Taxa de erros"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latência de acesso ao banco no percentil 95."
+          },
+          {
+            "label": "Taxa de erros",
+            "tip": "100 − taxa de sucesso de acesso ao banco. Baseada em exceções de query capturadas pelo agente do serviço chamador."
+          }
+        ]
+      },
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "RPM de acesso",
+            "tip": "Consultas por minuto neste banco virtual."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tráfego de acesso",
+        "tip": "Consultas por minuto no banco virtual."
+      },
+      {
+        "title": "Tempo médio de resposta"
+      },
+      {
+        "title": "Taxa de sucesso",
+        "tip": "Porcentagem de consultas que retornaram sem lançar exceção."
+      },
+      {
+        "title": "Percentil do tempo de resposta",
+        "tip": "Latência p50 / p75 / p90 / p95 / p99 — a cauda da distribuição de tempo de acesso."
+      },
+      {
+        "title": "Statements lentos",
+        "tip": "Top 20 statements mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+      }
+    ]
+  }
+}

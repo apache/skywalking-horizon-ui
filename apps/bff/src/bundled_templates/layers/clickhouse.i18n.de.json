@@ -1,0 +1,320 @@
+{
+  "alias": "ClickHouse",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Select / s"
+      },
+      {
+        "label": "Insert / s"
+      },
+      {
+        "label": "Langsame Lesevorgänge"
+      },
+      {
+        "label": "Offene Dateien"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Select-QPS",
+            "tip": "Selects pro Sekunde im Cluster."
+          },
+          {
+            "label": "Insert-QPS",
+            "tip": "Inserts pro Sekunde."
+          },
+          {
+            "label": "Langsame Lesevorgänge",
+            "tip": "Zähler langsamer Dateilesevorgänge."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Geöffnete Dateien",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Queries",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Query-Zeit (ms)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Verbindungen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Langsame Lesevorgänge",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Merge / Mutationen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "merge",
+          "mutationen"
+        ]
+      },
+      {
+        "title": "Insert-Durchsatz",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "bytes/s",
+          "zeilen/s"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Verzögerte Inserts (s)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Aktive Datenparts",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Replizierter Fetch / Send",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "fetch",
+          "senden"
+        ]
+      },
+      {
+        "title": "Zookeeper-Aktivität",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "sitzungen",
+          "watches",
+          "bytes ges.",
+          "bytes empf."
+        ]
+      },
+      {
+        "title": "Keeper Alive Conns",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Keeper ausstehende Anfragen",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (Tage)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Version",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU (Cores)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speicher (%)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "verfügbar"
+        ]
+      },
+      {
+        "title": "Netzwerk (B)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "empfangen",
+          "senden"
+        ]
+      },
+      {
+        "title": "Verbindungen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Queries",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Query-Zeit (ms)",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mittel",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Datei Slow Read",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Hintergrund-Merge",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mutationen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Geöffnete Dateien",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Insert-Durchsatz",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "bytes/s",
+          "zeilen/s"
+        ],
+        "expressionAxes": [
+          null,
+          null
+        ]
+      },
+      {
+        "title": "Verzögerte Inserts (s)",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "ClickHouse-Cluster",
+    "instances": "Knoten"
+  }
+}

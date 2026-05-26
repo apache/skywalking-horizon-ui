@@ -1,0 +1,129 @@
+{
+  "alias": "가상 GenAI",
+  "group": "가상 대상",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "지연 시간"
+      },
+      {
+        "label": "성공률"
+      },
+      {
+        "label": "출력 토큰"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "지연 시간 및 오류",
+        "metrics": [
+          {
+            "label": "평균 지연 시간",
+            "tip": "GenAI 제공자에 대한 평균 호출 지연 시간입니다."
+          },
+          {
+            "label": "오류율",
+            "tip": "100 − 제공자 SLA입니다."
+          }
+        ]
+      },
+      {
+        "title": "비용",
+        "metrics": [
+          {
+            "label": "총 추정 비용",
+            "tip": "누적 제공자 비용 추정치입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "호출 / 분"
+      },
+      {
+        "title": "평균 응답 시간"
+      },
+      {
+        "title": "성공률"
+      },
+      {
+        "title": "지연 시간 백분위"
+      },
+      {
+        "title": "입력 토큰",
+        "expressionLabels": [
+          "합계",
+          "평균"
+        ]
+      },
+      {
+        "title": "출력 토큰",
+        "expressionLabels": [
+          "합계",
+          "평균"
+        ]
+      },
+      {
+        "title": "추정 비용",
+        "expressionLabels": [
+          "전체",
+          "평균"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "호출 / 분"
+      },
+      {
+        "title": "평균 지연 시간"
+      },
+      {
+        "title": "성공률"
+      },
+      {
+        "title": "지연 시간 백분위"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "평균",
+          "백분위"
+        ]
+      },
+      {
+        "title": "입력 토큰",
+        "expressionLabels": [
+          "합계",
+          "평균"
+        ]
+      },
+      {
+        "title": "출력 토큰",
+        "expressionLabels": [
+          "합계",
+          "평균"
+        ]
+      },
+      {
+        "title": "추정 비용",
+        "expressionLabels": [
+          "전체",
+          "평균"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "GenAI 제공자",
+    "instances": "모델"
+  }
+}

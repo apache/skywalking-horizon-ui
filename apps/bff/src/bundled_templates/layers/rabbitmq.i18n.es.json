@@ -1,0 +1,162 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Colas"
+      },
+      {
+        "label": "Canales"
+      },
+      {
+        "label": "Conexiones"
+      },
+      {
+        "label": "Sin confirmar"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "Publicados / min",
+            "tip": "Mensajes publicados por minuto."
+          },
+          {
+            "label": "Sin confirmar",
+            "tip": "Mensajes en espera de confirmación del publicador."
+          },
+          {
+            "label": "Sin ruta descartados",
+            "tip": "Mensajes descartados por falta de ruta de exchange."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Memoria disponible antes del bloqueo (MB)"
+      },
+      {
+        "title": "Disco disponible antes del bloqueo (GB)"
+      },
+      {
+        "title": "Descriptores de archivo + sockets",
+        "expressionLabels": [
+          "fds",
+          "sockets"
+        ]
+      },
+      {
+        "title": "Mensajes listos"
+      },
+      {
+        "title": "Ack pendientes"
+      },
+      {
+        "title": "Pipeline de publicación",
+        "expressionLabels": [
+          "publicados",
+          "confirmados",
+          "enrutadas",
+          "sin confirmar"
+        ]
+      },
+      {
+        "title": "Mensajes sin ruta",
+        "expressionLabels": [
+          "descartados",
+          "devueltos"
+        ]
+      },
+      {
+        "title": "Colas",
+        "expressionLabels": [
+          "total",
+          "declaradas",
+          "creados",
+          "eliminados"
+        ]
+      },
+      {
+        "title": "Canales",
+        "expressionLabels": [
+          "total",
+          "abiertas",
+          "cerradas"
+        ]
+      },
+      {
+        "title": "Conexiones",
+        "expressionLabels": [
+          "total",
+          "abiertas",
+          "cerradas"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Mensajes listos"
+      },
+      {
+        "title": "Mensajes entrantes"
+      },
+      {
+        "title": "Mensajes salientes"
+      },
+      {
+        "title": "Mensajes sin reconocer"
+      },
+      {
+        "title": "Conexiones / publicadores / consumidores",
+        "expressionLabels": [
+          "conexiones",
+          "publicadores",
+          "consumidores"
+        ]
+      },
+      {
+        "title": "Canales + colas",
+        "expressionLabels": [
+          "canales",
+          "colas"
+        ]
+      },
+      {
+        "title": "% asignado en uso"
+      },
+      {
+        "title": "Memoria (MB)",
+        "expressionLabels": [
+          "en uso",
+          "sin uso",
+          "residente",
+          "total"
+        ]
+      },
+      {
+        "title": "Asignado por tipo (MB)"
+      },
+      {
+        "title": "Memoria multi/single-block (MB)",
+        "expressionLabels": [
+          "multi en uso",
+          "multi sin uso",
+          "single en uso",
+          "single sin uso"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Clústeres de RabbitMQ"
+  },
+  "alias": "RabbitMQ",
+  "group": "MQ"
+}

@@ -1,0 +1,87 @@
+{
+  "alias": "Virtuelle Datenbank",
+  "group": "Virtuelle Ziele",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Zugriffs-RPM"
+      },
+      {
+        "label": "Latenz"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Fehlerrate"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latenz & Fehler",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "95. Perzentil der Datenbankzugriffs-Latenz."
+          },
+          {
+            "label": "Fehlerrate",
+            "tip": "100 − Datenbankzugriffs-Erfolgsrate. Basiert auf Query-Ausnahmen, erfasst durch den Agenten des aufrufenden Dienstes."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Zugriffs-RPM",
+            "tip": "Queries pro Minute gegen diese virtuelle Datenbank."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Zugriffs-Traffic",
+        "tip": "Queries pro Minute gegen die virtuelle Datenbank.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mittlere Antwortzeit",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Erfolgsrate",
+        "tip": "Prozentsatz der Queries, die ohne Ausnahme zurückkehrten.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Antwortzeit-Perzentil",
+        "tip": "p50 / p75 / p90 / p95 / p99 Latenz — der Schwanz der Zugriffszeit-Verteilung.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Langsame Anweisungen",
+        "tip": "Top 20 langsamste erfasste Anweisungen. Jede Zeile ist eine einzelne Anweisungsausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Datenbanken"
+  }
+}

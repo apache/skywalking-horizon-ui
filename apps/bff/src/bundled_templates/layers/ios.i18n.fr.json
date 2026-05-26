@@ -1,0 +1,140 @@
+{
+  "alias": "iOS",
+  "group": "Mobile",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Lancement (P95)"
+      },
+      {
+        "label": "Temps de gel"
+      },
+      {
+        "label": "Crashes"
+      },
+      {
+        "label": "RPM sortants"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Santé de l'app",
+        "metrics": [
+          {
+            "label": "Lancement P95",
+            "tip": "Temps de lancement à froid au 95e centile, mesuré par MetricKit."
+          },
+          {
+            "label": "Gel P95",
+            "tip": "Durée de gel de l'interface au 95e centile."
+          },
+          {
+            "label": "Crashes",
+            "tip": "Sorties anormales premier plan + arrière-plan."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Centile du temps de lancement de l'app"
+      },
+      {
+        "title": "Centile du temps de gel"
+      },
+      {
+        "title": "Temps de gel (somme)"
+      },
+      {
+        "title": "Sorties anormales (crashes)",
+        "tip": "MetricKit remonte séparément les sorties anormales en premier plan et en arrière-plan.",
+        "expressionLabels": [
+          "premier plan",
+          "arrière-plan"
+        ]
+      },
+      {
+        "title": "Nombre de kills OOM",
+        "tip": "Kills OOM en arrière-plan — le système iOS termine l'app sous pression mémoire."
+      },
+      {
+        "title": "Mémoire pic"
+      },
+      {
+        "title": "Ratio de scroll hitch",
+        "tip": "Pourcentage de frames de scroll classés en hitch — plus c'est élevé, plus l'interface est saccadée."
+      },
+      {
+        "title": "Transfert réseau",
+        "tip": "Octets en wifi vs cellulaire, entrants + sortants.",
+        "expressionLabels": [
+          "wifi ↓",
+          "wifi ↑",
+          "cellulaire ↓",
+          "cellulaire ↑"
+        ]
+      },
+      {
+        "title": "HTTP sortant",
+        "tip": "Appels effectués par l'app vers les backends — charge, latence, taux de succès.",
+        "expressionLabels": [
+          "RPM",
+          "Latence moyenne (ms)",
+          "Taux de succès (%)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Centile du temps de lancement"
+      },
+      {
+        "title": "Centile du temps de gel"
+      },
+      {
+        "title": "Sorties anormales",
+        "expressionLabels": [
+          "premier plan",
+          "arrière-plan"
+        ]
+      },
+      {
+        "title": "Nombre de kills OOM"
+      },
+      {
+        "title": "Mémoire pic"
+      },
+      {
+        "title": "HTTP sortant",
+        "expressionLabels": [
+          "RPM",
+          "Latence moyenne (ms)",
+          "Taux de succès (%)"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Charge sortante"
+      },
+      {
+        "title": "Latence moyenne sortante"
+      },
+      {
+        "title": "Taux de succès sortant"
+      },
+      {
+        "title": "Centile de latence sortante"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Apps",
+    "instances": "Sessions de l'app",
+    "endpoints": "APIs sortants"
+  }
+}

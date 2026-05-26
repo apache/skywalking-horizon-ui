@@ -1,0 +1,109 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "CPU"
+      },
+      {
+        "label": "Goroutines"
+      },
+      {
+        "label": "Pilot xDS"
+      },
+      {
+        "label": "Servicios"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "metrics": [
+          {
+            "label": "CPU",
+            "tip": "CPU del proceso del plano de control de Istio."
+          },
+          {
+            "label": "Goroutines",
+            "tip": "Goroutines de Go vivas."
+          }
+        ],
+        "title": "Estado de Istio"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "CPU"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "Versiones de Istio"
+      },
+      {
+        "title": "Memoria (MB)",
+        "expressionLabels": [
+          "alloc",
+          "heap en uso",
+          "stack en uso",
+          "virtual",
+          "residente"
+        ]
+      },
+      {
+        "title": "Errores de Pilot",
+        "expressionLabels": [
+          "cds rechazos",
+          "eds rechazos",
+          "rds rechazos",
+          "lds rechazos",
+          "timeout de escritura"
+        ]
+      },
+      {
+        "title": "Tiempo de push del proxy (percentil)"
+      },
+      {
+        "title": "Pushes de Pilot"
+      },
+      {
+        "title": "Éxito de inyección de sidecar"
+      },
+      {
+        "title": "Monitoreo de ADS",
+        "expressionLabels": [
+          "xds",
+          "servicios",
+          "virt services"
+        ]
+      },
+      {
+        "title": "Validación de configuración",
+        "expressionLabels": [
+          "pasados",
+          "fallidos"
+        ]
+      },
+      {
+        "title": "Conflictos de Pilot",
+        "expressionLabels": [
+          "ol tcp/tcp",
+          "il",
+          "ol tcp/http",
+          "ol http/tcp"
+        ]
+      }
+    ]
+  },
+  "alias": "Plano de control de Istio",
+  "group": "Istio",
+  "naming": {
+    "alias": "namespace"
+  },
+  "slots": {
+    "services": "Planos de control"
+  }
+}

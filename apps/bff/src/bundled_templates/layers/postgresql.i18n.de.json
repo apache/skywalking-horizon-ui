@@ -1,0 +1,244 @@
+{
+  "alias": "PostgreSQL",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Geholt / s"
+      },
+      {
+        "label": "Eingefügt / s"
+      },
+      {
+        "label": "Cache-Treffer"
+      },
+      {
+        "label": "Deadlocks"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Status",
+        "metrics": [
+          {
+            "label": "Cache-Treffer",
+            "tip": "Buffer-Cache-Trefferquote im Cluster."
+          },
+          {
+            "label": "Deadlocks/s",
+            "tip": "Erkannte Deadlocks pro Sekunde."
+          },
+          {
+            "label": "Konflikte/s",
+            "tip": "Recovery-Konflikte pro Sekunde."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Geholt /s",
+            "tip": "Pro Sekunde geholte Zeilen."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Geholte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Eingefügte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Aktualisierte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gelöschte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Zurückgegebene Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Temporäre Dateien / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Trefferrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Transaktionen / s",
+        "tip": "Committed vs. Rolled-back.",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "committed",
+          "rolled-back"
+        ]
+      },
+      {
+        "title": "Konflikte + Deadlocks / s",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "konflikte",
+          "deadlocks"
+        ]
+      },
+      {
+        "title": "Sitzungen",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "leerlauf",
+          "locks"
+        ]
+      },
+      {
+        "title": "Buffers / s",
+        "tip": "Checkpoint- / Clean- / Fsync- / Alloc- / Backend-Buffer-Aktivität.",
+        "expressions": [
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "checkpoint",
+          "clean",
+          "backend fsync",
+          "alloc",
+          "backend"
+        ]
+      },
+      {
+        "title": "Checkpoint-Stats / s",
+        "expressions": [
+          null,
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "timed",
+          "angefordert",
+          "write zeit",
+          "sync zeit"
+        ]
+      },
+      {
+        "title": "Langsame Anweisungen",
+        "tip": "Top 20 langsamste erfasste Anweisungen.",
+        "expressions": [
+          null
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Shared Buffers",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Effektiver Cache",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Work Mem",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Max. WAL-Größe",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Geholte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Eingefügte Zeilen / s",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cache-Trefferrate",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sitzungen",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "leerlauf",
+          "locks"
+        ]
+      },
+      {
+        "title": "Konflikte + Deadlocks / s",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "konflikte",
+          "deadlocks"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "PostgreSQL-Cluster",
+    "instances": "Knoten"
+  }
+}

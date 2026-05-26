@@ -1,0 +1,204 @@
+{
+  "alias": "ClickHouse",
+  "group": "데이터베이스",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Select / s"
+      },
+      {
+        "label": "Insert / s"
+      },
+      {
+        "label": "느린 읽기"
+      },
+      {
+        "label": "열린 파일"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "처리량",
+        "metrics": [
+          {
+            "label": "Select QPS",
+            "tip": "클러스터 전체의 초당 Select 수입니다."
+          },
+          {
+            "label": "Insert QPS",
+            "tip": "초당 Insert 입니다."
+          },
+          {
+            "label": "느린 읽기",
+            "tip": "느린 파일 읽기 카운터입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "열린 파일"
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "쿼리",
+        "expressionLabels": [
+          "전체",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "쿼리 시간 (ms)",
+        "expressionLabels": [
+          "평균",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "연결",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "느린 읽기"
+      },
+      {
+        "title": "Merge / Mutations",
+        "expressionLabels": [
+          "merge",
+          "mutations"
+        ]
+      },
+      {
+        "title": "Insert 처리량",
+        "expressionLabels": [
+          "bytes/s",
+          "rows/s"
+        ]
+      },
+      {
+        "title": "지연 인서트 (s)"
+      },
+      {
+        "title": "활성 데이터 파트"
+      },
+      {
+        "title": "복제 Fetch / Send",
+        "expressionLabels": [
+          "fetch",
+          "전송"
+        ]
+      },
+      {
+        "title": "Zookeeper 활동",
+        "expressionLabels": [
+          "세션",
+          "watch",
+          "전송 바이트",
+          "수신 바이트"
+        ]
+      },
+      {
+        "title": "Keeper 활성 연결"
+      },
+      {
+        "title": "Keeper 미처리 요청"
+      }
+    ],
+    "instance": [
+      {
+        "title": "가동 시간 (일)"
+      },
+      {
+        "title": "버전"
+      },
+      {
+        "title": "CPU (코어)"
+      },
+      {
+        "title": "메모리 (%)",
+        "expressionLabels": [
+          "사용",
+          "사용 가능"
+        ]
+      },
+      {
+        "title": "네트워크 (B)",
+        "expressionLabels": [
+          "수신",
+          "전송"
+        ]
+      },
+      {
+        "title": "연결",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "쿼리",
+        "expressionLabels": [
+          "전체",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "쿼리 시간 (ms)",
+        "expressionLabels": [
+          "평균",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "느린 파일 읽기"
+      },
+      {
+        "title": "백그라운드 머지"
+      },
+      {
+        "title": "Mutations"
+      },
+      {
+        "title": "열린 파일"
+      },
+      {
+        "title": "Insert 처리량",
+        "expressionLabels": [
+          "bytes/s",
+          "rows/s"
+        ]
+      },
+      {
+        "title": "지연 인서트 (s)"
+      }
+    ]
+  },
+  "slots": {
+    "services": "ClickHouse 클러스터",
+    "instances": "노드"
+  }
+}

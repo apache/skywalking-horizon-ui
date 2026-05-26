@@ -1,0 +1,125 @@
+{
+  "alias": "Flink",
+  "group": "MQ",
+  "slots": {
+    "services": "Flink JobManager",
+    "instances": "TaskManager",
+    "endpoints": "Job"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "运行中 Job" },
+      { "label": "TaskManager" },
+      { "label": "可用 Slot" },
+      { "label": "总 Slot" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          { "label": "运行中 Job", "tip": "活跃的 Flink Job 数。" },
+          { "label": "可用 Slot", "tip": "空闲 Task Slot 数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "运行中 Job" },
+      { "title": "TaskManager" },
+      { "title": "总 Slot" },
+      { "title": "可用 Slot" },
+      { "title": "JM JVM CPU 负载（%）" },
+      { "title": "JM JVM 线程数" },
+      { "title": "JM CPU 时间（ms）" },
+      {
+        "title": "JM Heap（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "JM NonHeap（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "JM Metaspace（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "G1 Young GC",
+        "expressionLabels": ["count", "time (ms)"]
+      },
+      {
+        "title": "G1 Old GC",
+        "expressionLabels": ["count", "time (ms)"]
+      },
+      {
+        "title": "全部 GC",
+        "expressionLabels": ["count", "time (ms)"]
+      },
+      { "title": "前 10 运行中 Job" }
+    ],
+    "instance": [
+      { "title": "JVM CPU 负载（%）" },
+      { "title": "JVM 线程数" },
+      { "title": "CPU 时间（ms）" },
+      { "title": "反压状态" },
+      {
+        "title": "Heap（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "NonHeap（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "Metaspace（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "记录 In / Out",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "字节 In / Out / 秒",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "Netty 内存（MB）",
+        "expressionLabels": ["used", "available"]
+      },
+      {
+        "title": "缓冲池使用率（%）",
+        "expressionLabels": ["in pool", "out pool"]
+      },
+      {
+        "title": "反压时间（ms/s）",
+        "expressionLabels": ["soft bp", "hard bp", "idle", "busy"]
+      }
+    ],
+    "endpoint": [
+      { "title": "Job 运行时长（分钟）" },
+      { "title": "Job 重启时长（分钟）" },
+      { "title": "Job 取消时长（分钟）" },
+      { "title": "Job 重启次数" },
+      {
+        "title": "Checkpoint",
+        "expressionLabels": ["total", "completed", "failed", "in-progress"]
+      },
+      {
+        "title": "上次 Checkpoint",
+        "expressionLabels": ["size (bytes)", "duration (ms)"]
+      },
+      { "title": "当前 Emit 事件时间 Lag（ms）" },
+      {
+        "title": "记录 In / Out",
+        "expressionLabels": ["in", "out"]
+      },
+      {
+        "title": "字节 In / Out / 秒",
+        "expressionLabels": ["in", "out"]
+      }
+    ]
+  }
+}

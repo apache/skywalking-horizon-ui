@@ -1,0 +1,205 @@
+{
+  "alias": "Kubernetes",
+  "group": "Kubernetes",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Pods"
+      },
+      {
+        "label": "Nœuds"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Deployments"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Capacité",
+        "metrics": [
+          {
+            "label": "Pods",
+            "tip": "Total des pods remontés sur le cluster."
+          },
+          {
+            "label": "Nœuds",
+            "tip": "Nombre de nœuds."
+          },
+          {
+            "label": "Services",
+            "tip": "Objets K8s Service."
+          }
+        ]
+      },
+      {
+        "title": "Anomalies",
+        "metrics": [
+          {
+            "label": "Pods non Running",
+            "tip": "Pods dans un état autre que Running — pending, failed, unknown."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Total nœuds"
+      },
+      {
+        "title": "Total namespaces"
+      },
+      {
+        "title": "Total Deployment"
+      },
+      {
+        "title": "Total StatefulSet"
+      },
+      {
+        "title": "Total DaemonSet"
+      },
+      {
+        "title": "Total services"
+      },
+      {
+        "title": "Total pods"
+      },
+      {
+        "title": "Total conteneurs"
+      },
+      {
+        "title": "Ressources CPU",
+        "tip": "Capacité CPU du cluster vs requests / limits / allouable (millicores).",
+        "expressionLabels": [
+          "Capacité",
+          "Requêtes",
+          "Limites",
+          "Allouable"
+        ]
+      },
+      {
+        "title": "Ressources mémoire",
+        "tip": "Mémoire du cluster requests / allouable / limits / total.",
+        "expressionLabels": [
+          "Requêtes",
+          "Allouable",
+          "Limites",
+          "Total"
+        ]
+      },
+      {
+        "title": "Ressources de stockage",
+        "tip": "Stockage éphémère total du cluster vs allouable.",
+        "expressionLabels": [
+          "Total",
+          "Allouable"
+        ]
+      },
+      {
+        "title": "Statut du nœud",
+        "tip": "Conditions Kubernetes par nœud actuellement true/unknown (Ready, *Pressure, …).",
+        "tableHeaders": [
+          "Nœud · Condition",
+          ""
+        ]
+      },
+      {
+        "title": "Statut du Deployment",
+        "tip": "Deployments remontant la condition Available.",
+        "tableHeaders": [
+          "Deployment · Disponible",
+          ""
+        ]
+      },
+      {
+        "title": "Replicas spécifiés du Deployment",
+        "tip": "Nombre de replicas désiré par deployment.",
+        "tableHeaders": [
+          "Deployment",
+          "Replicas"
+        ]
+      },
+      {
+        "title": "Statut du service",
+        "tip": "Pods supportant chaque K8s Service, par phase (Running / Pending / Failed / …).",
+        "tableHeaders": [
+          "Service · Phase",
+          ""
+        ]
+      },
+      {
+        "title": "Pod en statut non-Running",
+        "tip": "Pods dans une phase autre que Running.",
+        "tableHeaders": [
+          "Pod · Statut",
+          ""
+        ]
+      },
+      {
+        "title": "Pod en statut Waiting",
+        "tip": "Conteneurs en attente, par raison.",
+        "tableHeaders": [
+          "Conteneur · Pod · Raison",
+          ""
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Statut du nœud"
+      },
+      {
+        "title": "Pods sur le nœud"
+      },
+      {
+        "title": "Utilisation CPU du nœud",
+        "tip": "Utilisation CPU en millicores."
+      },
+      {
+        "title": "Ressources CPU du nœud",
+        "expressionLabels": [
+          "total",
+          "allouable",
+          "requêtes",
+          "limites"
+        ]
+      },
+      {
+        "title": "Utilisation mémoire du nœud"
+      },
+      {
+        "title": "Ressources mémoire du nœud",
+        "expressionLabels": [
+          "total",
+          "allouable",
+          "requêtes",
+          "limites"
+        ]
+      },
+      {
+        "title": "I/O réseau du nœud",
+        "expressionLabels": [
+          "réception",
+          "transmission"
+        ]
+      },
+      {
+        "title": "Ressources de stockage du nœud",
+        "expressionLabels": [
+          "total",
+          "allouable"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nœuds"
+  }
+}

@@ -1,0 +1,266 @@
+{
+  "alias": "MongoDB",
+  "group": "Datenbanken",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Doc-QPS"
+      },
+      {
+        "label": "Op-QPS"
+      },
+      {
+        "label": "Verbindungen"
+      },
+      {
+        "label": "Repl Lag"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Kapazität",
+        "metrics": [
+          {
+            "label": "Datenmenge (GB)",
+            "tip": "Datenmenge gesamt im Cluster."
+          },
+          {
+            "label": "Sammlungen",
+            "tip": "Sammlungs-Anzahl im Cluster."
+          },
+          {
+            "label": "Objekte",
+            "tip": "Dokument-Objektanzahl."
+          }
+        ]
+      },
+      {
+        "title": "Durchsatz",
+        "metrics": [
+          {
+            "label": "Doc-QPS",
+            "tip": "Dokumentoperationen / Sekunde."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Cluster-Uptime (Tage)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Datenmenge (GB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Sammlungs-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Objektanzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Dokument-QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Operations-QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Gesamtverbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Cursor gesamt",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Replication-Lag (ms)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "DB-Gesamtdaten (GB)",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Datenbank",
+          "Daten (GB)"
+        ]
+      },
+      {
+        "title": "DB-Gesamtindex (GB)",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Datenbank",
+          "Index (GB)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (Tage)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ReplSet-Status",
+        "expressions": [
+          null
+        ],
+        "tableHeaders": [
+          "Knoten",
+          "ReplSet-Status"
+        ]
+      },
+      {
+        "title": "Verbindungen",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "CPU-Nutzung (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Speichernutzung",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Freier Speicher (GB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "mem",
+          "swap"
+        ]
+      },
+      {
+        "title": "Festplatte (GB)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "genutzt",
+          "gesamt"
+        ]
+      },
+      {
+        "title": "Netzwerk (KB/s)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "ein",
+          "aus"
+        ]
+      },
+      {
+        "title": "Aktive Clients",
+        "expressions": [
+          null,
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "gesamt",
+          "schreiber",
+          "leser"
+        ]
+      },
+      {
+        "title": "Dokument-QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Operations-QPS",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Op-Latenz (µs)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Transaktionen",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "aktiv",
+          "inaktiv"
+        ]
+      },
+      {
+        "title": "Repl Buffer",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "anzahl",
+          "größe (MB)"
+        ]
+      },
+      {
+        "title": "Queue-Operationen",
+        "expressions": [
+          null
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "MongoDB-Cluster",
+    "instances": "Knoten"
+  }
+}

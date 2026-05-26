@@ -1,0 +1,129 @@
+{
+  "alias": "GenAI virtual",
+  "group": "Alvos virtuais",
+  "slots": {
+    "services": "Providers de GenAI",
+    "instances": "Modelos"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latência"
+      },
+      {
+        "label": "Taxa de sucesso"
+      },
+      {
+        "label": "Tokens de saída"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latência e erros",
+        "metrics": [
+          {
+            "label": "Latência média",
+            "tip": "Latência média da chamada ao provider de GenAI."
+          },
+          {
+            "label": "Taxa de erros",
+            "tip": "100 − SLA do provider."
+          }
+        ]
+      },
+      {
+        "title": "Custo",
+        "metrics": [
+          {
+            "label": "Custo estimado total",
+            "tip": "Estimativa de custo acumulado do provider."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Chamadas / min"
+      },
+      {
+        "title": "Tempo médio de resposta"
+      },
+      {
+        "title": "Taxa de sucesso"
+      },
+      {
+        "title": "Percentil de latência"
+      },
+      {
+        "title": "Tokens de entrada",
+        "expressionLabels": [
+          "soma",
+          "média"
+        ]
+      },
+      {
+        "title": "Tokens de saída",
+        "expressionLabels": [
+          "soma",
+          "média"
+        ]
+      },
+      {
+        "title": "Custo estimado",
+        "expressionLabels": [
+          "total",
+          "média"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Chamadas / min"
+      },
+      {
+        "title": "Latência média"
+      },
+      {
+        "title": "Taxa de sucesso"
+      },
+      {
+        "title": "Percentil de latência"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "média",
+          "percentil"
+        ]
+      },
+      {
+        "title": "Tokens de entrada",
+        "expressionLabels": [
+          "soma",
+          "média"
+        ]
+      },
+      {
+        "title": "Tokens de saída",
+        "expressionLabels": [
+          "soma",
+          "média"
+        ]
+      },
+      {
+        "title": "Custo estimado",
+        "expressionLabels": [
+          "total",
+          "média"
+        ]
+      }
+    ]
+  }
+}

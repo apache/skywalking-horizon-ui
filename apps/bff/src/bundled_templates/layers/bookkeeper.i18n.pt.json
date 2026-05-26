@@ -1,0 +1,130 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "slots": {
+    "services": "Clusters do BookKeeper",
+    "instances": "Bookies"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Ledgers"
+      },
+      {
+        "label": "Entradas"
+      },
+      {
+        "label": "Diretórios graváveis"
+      },
+      {
+        "label": "Uso de diretório"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "Escrita B/s",
+            "tip": "Vazão de escrita dos bookies no cluster."
+          },
+          {
+            "label": "Leitura B/s",
+            "tip": "Vazão de leitura dos bookies no cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Ledgers do bookie"
+      },
+      {
+        "title": "Entradas do bookie"
+      },
+      {
+        "title": "Diretórios de ledger graváveis"
+      },
+      {
+        "title": "Cache de escrita",
+        "expressionLabels": [
+          "tamanho (MB)",
+          "entradas"
+        ]
+      },
+      {
+        "title": "Cache de leitura",
+        "expressionLabels": [
+          "tamanho (MB)",
+          "entradas"
+        ]
+      },
+      {
+        "title": "Taxa de L/E (B/s)",
+        "expressionLabels": [
+          "leitura",
+          "escrita"
+        ]
+      },
+      {
+        "title": "Uso do diretório de ledgers"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Pool de memória JVM (MB)"
+      },
+      {
+        "title": "Memória JVM (MB)",
+        "expressionLabels": [
+          "em uso",
+          "comprometida",
+          "init"
+        ]
+      },
+      {
+        "title": "Threads JVM",
+        "expressionLabels": [
+          "atual",
+          "daemon",
+          "pico",
+          "em deadlock"
+        ]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": [
+          "segundos",
+          "contagem"
+        ]
+      },
+      {
+        "title": "Executor de threads",
+        "expressionLabels": [
+          "concluídas",
+          "tarefas concluídas",
+          "rejeitadas",
+          "falhas"
+        ]
+      },
+      {
+        "title": "Threads em pool",
+        "expressionLabels": [
+          "alta prioridade",
+          "leitura"
+        ]
+      },
+      {
+        "title": "Tamanho máximo da fila do pool",
+        "expressionLabels": [
+          "alta prioridade",
+          "leitura"
+        ]
+      }
+    ]
+  }
+}

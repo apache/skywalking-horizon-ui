@@ -1,0 +1,109 @@
+{
+  "alias": "AWS API Gateway",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Requêtes"
+      },
+      {
+        "label": "Latence"
+      },
+      {
+        "label": "4xx"
+      },
+      {
+        "label": "5xx"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Erreurs",
+        "metrics": [
+          {
+            "label": "4xx",
+            "tip": "Nombre d'erreurs client depuis CloudWatch."
+          },
+          {
+            "label": "5xx",
+            "tip": "Nombre d'erreurs serveur depuis CloudWatch."
+          },
+          {
+            "label": "Latence moyenne",
+            "tip": "Latence moyenne de bout en bout."
+          }
+        ]
+      },
+      {
+        "title": "Débit",
+        "metrics": [
+          {
+            "label": "Requêtes",
+            "tip": "Nombre total de requêtes sur la fenêtre."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Nombre de requêtes"
+      },
+      {
+        "title": "Nombre de 4xx"
+      },
+      {
+        "title": "Nombre de 5xx"
+      },
+      {
+        "title": "Latence moyenne des requêtes"
+      },
+      {
+        "title": "Latence moyenne d'intégration",
+        "tip": "Latence entre la passerelle et l'intégration backend."
+      },
+      {
+        "title": "Données traitées (HTTP API uniquement)"
+      },
+      {
+        "title": "Taux de hit du cache (REST API uniquement)"
+      },
+      {
+        "title": "Taux de miss du cache (REST API uniquement)"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Nombre de requêtes"
+      },
+      {
+        "title": "Nombre de 4xx"
+      },
+      {
+        "title": "Nombre de 5xx"
+      },
+      {
+        "title": "Latence moyenne des requêtes"
+      },
+      {
+        "title": "Latence moyenne d'intégration"
+      },
+      {
+        "title": "Données traitées"
+      },
+      {
+        "title": "Taux de hit du cache"
+      },
+      {
+        "title": "Taux de miss du cache"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Passerelles AWS",
+    "endpoints": "Routes"
+  }
+}

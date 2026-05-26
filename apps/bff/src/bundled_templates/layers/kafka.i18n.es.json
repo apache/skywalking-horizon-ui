@@ -1,0 +1,146 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Clúster",
+        "metrics": [
+          {
+            "label": "Particiones offline",
+            "tip": "Particiones sin líder activo."
+          },
+          {
+            "label": "Sub-replicadas",
+            "tip": "Particiones cuyo conjunto ISR está por debajo del factor de replicación."
+          },
+          {
+            "label": "Lag máximo",
+            "tip": "Mayor lag de consumidor observado."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Brokers",
+    "services": "Clústeres de Kafka"
+  },
+  "alias": "Kafka",
+  "group": "MQ",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Particiones"
+      },
+      {
+        "label": "Particiones offline"
+      },
+      {
+        "label": "Lag máximo"
+      },
+      {
+        "label": "Líderes"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Conteo de particiones"
+      },
+      {
+        "title": "Conteo de líderes"
+      },
+      {
+        "title": "Controllers activos"
+      },
+      {
+        "title": "Lag máximo"
+      },
+      {
+        "title": "Particiones sub-replicadas"
+      },
+      {
+        "title": "Particiones offline"
+      },
+      {
+        "title": "Tasa de elección de líder",
+        "expressionLabels": [
+          "elecciones",
+          "unclean"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uso de CPU"
+      },
+      {
+        "title": "Mensajes entrantes / s"
+      },
+      {
+        "title": "Bytes entrada / s"
+      },
+      {
+        "title": "Bytes salida / s"
+      },
+      {
+        "title": "Peticiones / s"
+      },
+      {
+        "title": "Tamaño del purgatorio"
+      },
+      {
+        "title": "Contracciones de ISR/s"
+      },
+      {
+        "title": "Expansiones de ISR/s"
+      },
+      {
+        "title": "Uso de memoria (%)"
+      },
+      {
+        "title": "Particiones sub-replicadas"
+      },
+      {
+        "title": "Particiones bajo el ISR mínimo"
+      },
+      {
+        "title": "Particiones + líderes",
+        "expressionLabels": [
+          "particiones",
+          "líderes"
+        ]
+      },
+      {
+        "title": "Tiempos de cola / envío",
+        "expressionLabels": [
+          "cola de peticiones",
+          "cola de respuestas",
+          "envío de respuesta",
+          "remoto"
+        ]
+      },
+      {
+        "title": "Tasas del topic",
+        "expressionLabels": [
+          "peticiones produce/s",
+          "peticiones fetch/s",
+          "bytes-in/s"
+        ]
+      },
+      {
+        "title": "Replicación",
+        "expressionLabels": [
+          "bytes entrantes",
+          "bytes salientes"
+        ]
+      },
+      {
+        "title": "Conteo de GC"
+      },
+      {
+        "title": "Lag máximo (broker)"
+      }
+    ]
+  }
+}

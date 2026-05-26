@@ -23,8 +23,11 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type { ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
+
+const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { readAccent } from '@/utils/cssVar';
@@ -46,16 +49,16 @@ const layerKey = computed(() => String(route.params.layerKey ?? ''));
 // any real ms value.
 const CUSTOM_RANGE = -1;
 const lookbackMs = ref<number>(30 * 60_000); // 30 min default
-const TIME_PRESETS: Array<{ label: string; ms: number }> = [
-  { label: 'Last 15 min', ms: 15 * 60_000 },
-  { label: 'Last 30 min', ms: 30 * 60_000 },
-  { label: 'Last 1 hour', ms: 60 * 60_000 },
-  { label: 'Last 3 hours', ms: 3 * 60 * 60_000 },
-  { label: 'Last 6 hours', ms: 6 * 60 * 60_000 },
-  { label: 'Last 12 hours', ms: 12 * 60 * 60_000 },
-  { label: 'Last 24 hours', ms: 24 * 60 * 60_000 },
-  { label: 'Custom range…', ms: CUSTOM_RANGE },
-];
+const TIME_PRESETS = computed<Array<{ label: string; ms: number }>>(() => [
+  { label: t('Last 15 min'), ms: 15 * 60_000 },
+  { label: t('Last 30 min'), ms: 30 * 60_000 },
+  { label: t('Last 1 hour'), ms: 60 * 60_000 },
+  { label: t('Last 3 hours'), ms: 3 * 60 * 60_000 },
+  { label: t('Last 6 hours'), ms: 6 * 60 * 60_000 },
+  { label: t('Last 12 hours'), ms: 12 * 60 * 60_000 },
+  { label: t('Last 24 hours'), ms: 24 * 60 * 60_000 },
+  { label: t('Custom range…'), ms: CUSTOM_RANGE },
+]);
 // `<input type="datetime-local">` produces "YYYY-MM-DDTHH:MM" in the
 // browser's local zone (no seconds, no tz). We pre-seed with a sane
 // pair (now − default lookback → now) so flipping to Custom shows
@@ -436,10 +439,10 @@ function rowDurationColor(durUs: number): string {
 function fmtRelativeAgo(usSinceEpoch: number | null): string {
   if (!usSinceEpoch) return '';
   const seconds = Math.floor((Date.now() - usSinceEpoch / 1000) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return t('{n}s ago', { n: seconds });
+  if (seconds < 3600) return t('{n}m ago', { n: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('{n}h ago', { n: Math.floor(seconds / 3600) });
+  return t('{n}d ago', { n: Math.floor(seconds / 86400) });
 }
 function openByInput(): void {
   const v = traceIdInput.value.trim();
@@ -451,27 +454,27 @@ function openByInput(): void {
   <div class="ztr-tab">
     <header class="ztr-toolbar sw-card">
       <div class="ztr-head">
-        <span class="kicker">Traces · Zipkin</span>
+        <span class="kicker">{{ t('Traces · Zipkin') }}</span>
         <span v-if="zipkinServiceFilter" class="for-svc">
-          service <b class="mono">{{ zipkinServiceFilter }}</b>
+          {{ t('service') }} <b class="mono">{{ zipkinServiceFilter }}</b>
         </span>
-        <span v-else class="for-svc dim">all services</span>
+        <span v-else class="for-svc dim">{{ t('all services') }}</span>
         <span v-if="isCustomRange && customStart && customEnd" class="for-svc dim">
           · <b class="mono">{{ customStart.replace('T', ' ') }} → {{ customEnd.replace('T', ' ') }}</b>
         </span>
-        <span v-if="isFetching" class="hint">refreshing…</span>
-        <button class="sw-btn primary ztr-run-btn" type="button" @click="runQuery">Run query</button>
+        <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
+        <button class="sw-btn primary ztr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="ztr-conditions">
         <!-- Service condition — free-text + datalist with All. Empty
              commits as `null` (= every service) to the Zipkin query. -->
         <label class="cf">
-          <span>Service</span>
+          <span>{{ t('Service') }}</span>
           <input
             v-model="zipkinServiceFilter"
             class="cf-input"
             type="text"
-            placeholder="All"
+            :placeholder="t('All')"
             list="ztr-svc-suggest"
             @keyup.enter="runQuery"
           />
@@ -480,12 +483,12 @@ function openByInput(): void {
           </datalist>
         </label>
         <label class="cf" :class="{ disabled: !hasService }">
-          <span>Remote service <small v-if="!hasService" class="dim">— pick a service</small></span>
+          <span>{{ t('Remote service') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
           <input
             v-model="remoteServiceName"
             class="cf-input"
             type="text"
-            :placeholder="hasService ? 'any' : 'select a service first'"
+            :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
             list="ztr-remote-svc-suggest"
             @keyup.enter="runQuery"
@@ -495,12 +498,12 @@ function openByInput(): void {
           </datalist>
         </label>
         <label class="cf cf-wide" :class="{ disabled: !hasService }">
-          <span>Span name <small v-if="!hasService" class="dim">— pick a service</small></span>
+          <span>{{ t('Span name') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
           <input
             v-model="spanName"
             class="cf-input"
             type="text"
-            :placeholder="hasService ? 'any' : 'select a service first'"
+            :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
             list="ztr-span-suggest"
             @keyup.enter="runQuery"
@@ -510,20 +513,20 @@ function openByInput(): void {
           </datalist>
         </label>
         <label class="cf">
-          <span>Min duration (ms)</span>
+          <span>{{ t('Min duration (ms)') }}</span>
           <input v-model.number.lazy="minDurationMs" class="cf-input" type="number" min="0" placeholder="—" />
         </label>
         <label class="cf">
-          <span>Max duration (ms)</span>
+          <span>{{ t('Max duration (ms)') }}</span>
           <input v-model.number.lazy="maxDurationMs" class="cf-input" type="number" min="0" placeholder="—" />
         </label>
         <label class="cf cf-wide">
-          <span>Annotations</span>
+          <span>{{ t('Annotations') }}</span>
           <input
             v-model="annotationQuery"
             class="cf-input mono"
             type="text"
-            placeholder="error or key=value, AND-joined"
+            :placeholder="t('error or key=value, AND-joined')"
             list="ztr-annotation-suggest"
             @input="onAnnotationInput"
             @keyup.enter="runQuery"
@@ -533,11 +536,11 @@ function openByInput(): void {
           </datalist>
         </label>
         <label class="cf cf-wide">
-          <span>Open trace ID</span>
-          <input v-model="traceIdInput" class="cf-input mono" type="text" placeholder="paste trace id…" @keyup.enter="openByInput" />
+          <span>{{ t('Open trace ID') }}</span>
+          <input v-model="traceIdInput" class="cf-input mono" type="text" :placeholder="t('paste trace id…')" @keyup.enter="openByInput" />
         </label>
         <label class="cf">
-          <span>Limit</span>
+          <span>{{ t('Limit') }}</span>
           <select v-model.number="limit" class="cf-input">
             <option :value="10">10</option>
             <option :value="30">30</option>
@@ -549,7 +552,7 @@ function openByInput(): void {
         <!-- Time range pinned to its own final row so the (optional)
              custom-range pair sits beside it on the same line. -->
         <label class="cf row-break">
-          <span>Time range</span>
+          <span>{{ t('Time range') }}</span>
           <select v-model.number="lookbackMs" class="cf-input">
             <option v-for="p in TIME_PRESETS" :key="p.ms" :value="p.ms">{{ p.label }}</option>
           </select>
@@ -558,7 +561,7 @@ function openByInput(): void {
              picked. `datetime-local` parses to the operator's local
              zone; we convert to ms-since-epoch on Run query. -->
         <label v-if="isCustomRange" class="cf">
-          <span>From</span>
+          <span>{{ t('From') }}</span>
           <input
             v-model="customStart"
             class="cf-input mono"
@@ -567,7 +570,7 @@ function openByInput(): void {
           />
         </label>
         <label v-if="isCustomRange" class="cf">
-          <span>To</span>
+          <span>{{ t('To') }}</span>
           <input
             v-model="customEnd"
             class="cf-input mono"
@@ -583,17 +586,17 @@ function openByInput(): void {
     <section v-if="!selectedTraceId" class="ztr-split">
       <article class="ztr-list sw-card">
         <header class="ztr-list-head">
-          <span class="kicker">Results</span>
-          <span class="hint">{{ sortedTraces.length }} trace{{ sortedTraces.length === 1 ? '' : 's' }}</span>
+          <span class="kicker">{{ t('Results') }}</span>
+          <span class="hint">{{ t('{n} traces', { n: sortedTraces.length }) }}</span>
         </header>
         <div v-if="error" class="banner err">
-          <strong>Zipkin query failed.</strong> {{ String(error) }}
+          <strong>{{ t('Zipkin query failed.') }}</strong> {{ String(error) }}
         </div>
         <div v-else-if="!hasQueried" class="ztr-empty">
-          Click <b>Run query</b> to fetch Zipkin traces for this service.
+          {{ t('Click Run query to fetch Zipkin traces for this service.') }}
         </div>
         <div v-else-if="sortedTraces.length === 0 && !isFetching" class="ztr-empty">
-          No Zipkin traces in the selected window. Widen the time range or relax conditions.
+          {{ t('No Zipkin traces in the selected window. Widen the time range or relax conditions.') }}
         </div>
         <!-- Result cards — same shape as the SkyWalking native trace
              list. Each row carries: status flag at top, endpoint /
@@ -616,12 +619,12 @@ function openByInput(): void {
               </span>
               <span class="status-flag" :class="r.errorCount > 0 ? 'flag-err' : 'flag-ok'">
                 <span class="flag-dot" />
-                {{ r.errorCount > 0 ? 'ERR' : 'OK' }}
+                {{ r.errorCount > 0 ? t('ERR') : t('OK') }}
               </span>
             </div>
             <div
               class="ztr-row-bar"
-              :title="`${fmtMs(r.duration)} — ${Math.round(((r.duration ?? 0) / (maxTraceDurationUs || 1)) * 100)}% of slowest`"
+              :title="t('{dur} — {pct}% of slowest', { dur: fmtMs(r.duration), pct: Math.round(((r.duration ?? 0) / (maxTraceDurationUs || 1)) * 100) })"
             >
               <div
                 class="ztr-row-bar-fill"
@@ -652,10 +655,10 @@ function openByInput(): void {
     <section v-else class="ztr-detail-split" :class="{ 'rail-collapsed': !railOpen }">
       <aside class="ztr-rail sw-card">
         <header class="ztr-rail-head">
-          <button class="rail-handle" type="button" :title="railOpen ? 'Collapse list' : 'Expand list'" @click="railOpen = !railOpen">
+          <button class="rail-handle" type="button" :title="railOpen ? t('Collapse list') : t('Expand list')" @click="railOpen = !railOpen">
             <span v-if="railOpen">«</span><span v-else>»</span>
           </button>
-          <h4 v-if="railOpen">Traces</h4>
+          <h4 v-if="railOpen">{{ t('Traces') }}</h4>
           <span v-if="railOpen" class="hint">{{ sortedTraces.length }}</span>
         </header>
         <ul v-if="railOpen" class="ztr-rowlist rail-list">
@@ -673,7 +676,7 @@ function openByInput(): void {
               >{{ fmtMs(r.duration) }}</span>
               <span class="status-flag" :class="r.errorCount > 0 ? 'flag-err' : 'flag-ok'">
                 <span class="flag-dot" />
-                {{ r.errorCount > 0 ? 'ERR' : 'OK' }}
+                {{ r.errorCount > 0 ? t('ERR') : t('OK') }}
               </span>
             </div>
             <div class="ztr-ep rail-ep mono" :class="{ red: r.errorCount > 0 }">
@@ -692,7 +695,7 @@ function openByInput(): void {
             :key="r.traceId"
             class="rail-mini-row"
             :class="{ on: selectedTraceId === r.traceId }"
-            :title="`${r.rootName ?? r.rootService ?? '—'} · ${fmtMs(r.duration)} · ${r.errorCount > 0 ? 'err' : 'ok'}`"
+            :title="`${r.rootName ?? r.rootService ?? '—'} · ${fmtMs(r.duration)} · ${r.errorCount > 0 ? t('err') : t('ok')}`"
             @click="selectRow(r)"
           >
             <div class="rail-mini-bar">
@@ -710,14 +713,14 @@ function openByInput(): void {
 
       <article class="ztr-detail sw-card">
         <header class="ztr-detail-head">
-          <span class="kicker">Trace</span>
+          <span class="kicker">{{ t('Trace') }}</span>
           <code class="ztr-tid mono">{{ selectedTraceId.slice(0, 18) }}…</code>
-          <span v-if="selectedRow" class="dim small">{{ fmtMs(selectedRow.duration) }} · {{ selectedRow.spanCount }} spans</span>
-          <button class="sw-btn small" type="button" @click="expandInPopout">Expand</button>
+          <span v-if="selectedRow" class="dim small">{{ fmtMs(selectedRow.duration) }} · {{ t('{n} spans', { n: selectedRow.spanCount }) }}</span>
+          <button class="sw-btn small" type="button" @click="expandInPopout">{{ t('Expand') }}</button>
           <button class="sw-btn small ghost" type="button" @click="closeDetail">×</button>
         </header>
-        <div v-if="selectedLoading" class="ztr-empty hint">loading spans…</div>
-        <div v-else-if="detailRows.length === 0" class="ztr-empty">No spans for this trace.</div>
+        <div v-if="selectedLoading" class="ztr-empty hint">{{ t('loading spans…') }}</div>
+        <div v-else-if="detailRows.length === 0" class="ztr-empty">{{ t('No spans for this trace.') }}</div>
         <div v-else class="ztr-detail-body" :class="{ 'has-span': !!selectedSpan }">
           <div class="ztr-waterfall">
             <div
@@ -735,7 +738,7 @@ function openByInput(): void {
                 <span class="ztr-wf-svc" :style="{ color: detailColor(row.span.localEndpoint?.serviceName) }">
                   {{ row.span.localEndpoint?.serviceName ?? '—' }}
                 </span>
-                <span class="ztr-wf-name">{{ row.span.name || '(unnamed)' }}</span>
+                <span class="ztr-wf-name">{{ row.span.name || t('(unnamed)') }}</span>
               </span>
               <div class="ztr-wf-track">
                 <div
@@ -756,30 +759,30 @@ function openByInput(): void {
                pinned; renders identity block + tags + annotation timeline. -->
           <aside v-if="selectedSpan" class="ztr-span-detail">
             <header class="ztr-span-detail-head">
-              <h5>Span detail</h5>
-              <button class="sw-btn small ghost" type="button" title="Close" @click="clearSpan">×</button>
+              <h5>{{ t('Span detail') }}</h5>
+              <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
             </header>
             <dl class="zk-kv">
-              <dt>Service</dt>
+              <dt>{{ t('Service') }}</dt>
               <dd
                 class="mono"
                 :style="{ color: detailColor(selectedSpan.localEndpoint?.serviceName) }"
               >
                 {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
               </dd>
-              <dt>Name</dt><dd class="mono wba">{{ selectedSpan.name || '(unnamed)' }}</dd>
-              <dt v-if="selectedSpan.kind">Kind</dt>
+              <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name || t('(unnamed)') }}</dd>
+              <dt v-if="selectedSpan.kind">{{ t('Kind') }}</dt>
               <dd v-if="selectedSpan.kind">{{ selectedSpan.kind }}</dd>
-              <dt>Span id</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
-              <dt v-if="selectedSpan.parentId">Parent id</dt>
+              <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
+              <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
               <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
-              <dt>Start</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
-              <dt>Duration</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-              <dt v-if="selectedSpan.remoteEndpoint?.serviceName">Peer</dt>
+              <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
+              <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
+              <dt v-if="selectedSpan.remoteEndpoint?.serviceName">{{ t('Peer') }}</dt>
               <dd v-if="selectedSpan.remoteEndpoint?.serviceName" class="mono wba">
                 {{ selectedSpan.remoteEndpoint.serviceName }}
               </dd>
-              <dt v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6">Peer addr</dt>
+              <dt v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6">{{ t('Peer addr') }}</dt>
               <dd v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6" class="mono wba">
                 {{ selectedSpan.remoteEndpoint.ipv4 ?? selectedSpan.remoteEndpoint.ipv6
                   }}<template v-if="selectedSpan.remoteEndpoint.port">:{{ selectedSpan.remoteEndpoint.port }}</template>
@@ -789,7 +792,7 @@ function openByInput(): void {
               v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0"
               class="zk-tags"
             >
-              <h6>Tags</h6>
+              <h6>{{ t('Tags') }}</h6>
               <dl class="zk-kv">
                 <template v-for="(v, k) in selectedSpan.tags" :key="k">
                   <dt class="mono">{{ k }}</dt>
@@ -801,7 +804,7 @@ function openByInput(): void {
               v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0"
               class="zk-annotations"
             >
-              <h6>Annotations</h6>
+              <h6>{{ t('Annotations') }}</h6>
               <ul>
                 <li v-for="(a, i) in selectedSpan.annotations" :key="i">
                   <span class="mono dim">{{ fmtAbsTime(a.timestamp) }}</span>

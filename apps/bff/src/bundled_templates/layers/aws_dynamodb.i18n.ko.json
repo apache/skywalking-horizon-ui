@@ -1,0 +1,188 @@
+{
+  "alias": "AWS DynamoDB",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "읽기 스로틀"
+      },
+      {
+        "label": "쓰기 스로틀"
+      },
+      {
+        "label": "읽기 시스템 오류"
+      },
+      {
+        "label": "쓰기 시스템 오류"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "제한(스로틀링)",
+        "metrics": [
+          {
+            "label": "읽기 제한",
+            "tip": "용량 소진으로 스로틀된 읽기 요청입니다."
+          },
+          {
+            "label": "쓰기 제한",
+            "tip": "스로틀된 쓰기 요청입니다."
+          },
+          {
+            "label": "사용자 오류",
+            "tip": "잘못된 요청 형태의 사용자 오류입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "스로틀된 요청",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "스로틀 이벤트",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "시스템 오류",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "사용자 오류"
+      },
+      {
+        "title": "조건 확인 실패"
+      },
+      {
+        "title": "트랜잭션 충돌"
+      },
+      {
+        "title": "읽기 용량 (unit/s)",
+        "expressionLabels": [
+          "provisioned",
+          "consumed"
+        ]
+      },
+      {
+        "title": "쓰기 용량 (unit/s)",
+        "expressionLabels": [
+          "provisioned",
+          "consumed"
+        ]
+      },
+      {
+        "title": "성공 요청 지연 시간 (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "TTL 삭제된 항목"
+      },
+      {
+        "title": "스캔 반환 항목"
+      },
+      {
+        "title": "쿼리 반환 항목"
+      },
+      {
+        "title": "계정 최대 읽기 / 쓰기",
+        "expressionLabels": [
+          "테이블 단위 reads",
+          "테이블 단위 writes",
+          "reads",
+          "writes"
+        ]
+      },
+      {
+        "title": "계정 용량 사용률",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "스로틀된 요청",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "스로틀 이벤트",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "시스템 오류",
+        "expressionLabels": [
+          "read",
+          "write"
+        ]
+      },
+      {
+        "title": "조건 확인 실패"
+      },
+      {
+        "title": "트랜잭션 충돌"
+      },
+      {
+        "title": "TTL 삭제된 항목"
+      },
+      {
+        "title": "읽기 용량",
+        "expressionLabels": [
+          "provisioned",
+          "consumed"
+        ]
+      },
+      {
+        "title": "쓰기 용량",
+        "expressionLabels": [
+          "provisioned",
+          "consumed"
+        ]
+      },
+      {
+        "title": "성공 요청 지연 시간 (ms)",
+        "expressionLabels": [
+          "get",
+          "put",
+          "query",
+          "scan"
+        ]
+      },
+      {
+        "title": "스캔 반환 항목"
+      },
+      {
+        "title": "쿼리 반환 항목"
+      }
+    ]
+  },
+  "slots": {
+    "services": "DynamoDB 계정",
+    "endpoints": "테이블"
+  }
+}

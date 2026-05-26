@@ -1,0 +1,97 @@
+{
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM de acceso"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "Tasa de errores"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "Latencia de acceso al caché en el percentil 95."
+          },
+          {
+            "label": "Tasa de errores",
+            "tip": "100 − tasa de éxito de acceso al caché. Excepciones de caché capturadas por el agente del servicio invocador."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPM de acceso",
+            "tip": "Operaciones de caché por minuto (lectura + escritura)."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Cachés"
+  },
+  "alias": "Caché virtual",
+  "group": "Destinos virtuales",
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tráfico de acceso"
+      },
+      {
+        "title": "Latencia media de acceso"
+      },
+      {
+        "title": "Tasa de éxito de acceso"
+      },
+      {
+        "title": "Percentil de latencia de acceso"
+      },
+      {
+        "title": "Tráfico de lectura"
+      },
+      {
+        "title": "Latencia media de lectura"
+      },
+      {
+        "title": "Tráfico de escritura"
+      },
+      {
+        "title": "Latencia media de escritura"
+      },
+      {
+        "title": "Tasa de éxito de lectura"
+      },
+      {
+        "title": "Tasa de éxito de escritura"
+      },
+      {
+        "title": "Percentil de latencia de lectura"
+      },
+      {
+        "title": "Percentil de latencia de escritura"
+      },
+      {
+        "title": "Comandos de lectura lentos",
+        "tip": "Top 10 comandos de lectura más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+      },
+      {
+        "title": "Comandos de escritura lentos",
+        "tip": "Top 10 comandos de escritura más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+      }
+    ]
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia",
+        "metrics": [
+          {
+            "label": "Latencia de Kong",
+            "tip": "Tiempo que Kong dedica por petición, p50/p95."
+          },
+          {
+            "label": "Latencia upstream",
+            "tip": "Tiempo de espera en el servicio upstream."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "RPS",
+            "tip": "Peticiones por segundo a través de Kong."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Latencia de Kong"
+      },
+      {
+        "title": "Latencia de petición"
+      },
+      {
+        "title": "Latencia upstream"
+      },
+      {
+        "title": "Conexiones de Nginx"
+      },
+      {
+        "title": "Timers de Nginx"
+      },
+      {
+        "tableHeaders": [
+          "Instancia",
+          "Accesible"
+        ],
+        "title": "Datastore accesible"
+      },
+      {
+        "title": "Errores de métricas de Nginx"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tendencia de peticiones HTTP"
+      },
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Ancho de banda HTTP"
+      },
+      {
+        "title": "Latencia de Kong"
+      },
+      {
+        "title": "Latencia de petición"
+      },
+      {
+        "title": "Latencia upstream"
+      },
+      {
+        "title": "Datastore accesible"
+      },
+      {
+        "title": "Conexiones de Nginx"
+      },
+      {
+        "title": "Timers de Nginx"
+      },
+      {
+        "title": "Uso de memoria compartida"
+      },
+      {
+        "title": "Uso de la VM Lua del worker"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Tendencia de estado HTTP"
+      },
+      {
+        "title": "Ancho de banda total"
+      },
+      {
+        "title": "Latencia de Kong"
+      },
+      {
+        "title": "Latencia de petición"
+      },
+      {
+        "title": "Latencia upstream"
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Servicios de Kong",
+    "endpoints": "Rutas"
+  },
+  "group": "Gateways",
+  "alias": "Kong",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPS"
+      },
+      {
+        "label": "200/s"
+      },
+      {
+        "label": "404/s"
+      },
+      {
+        "label": "500/s"
+      }
+    ]
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "group": "Bases de datos",
+  "overview": {
+    "groups": [
+      {
+        "title": "Estado",
+        "metrics": [
+          {
+            "label": "Tasa de aciertos",
+            "tip": "Ratio de aciertos de caché. Bajando = thrashing."
+          },
+          {
+            "label": "Memoria %",
+            "tip": "Memoria en uso / máx. >80% = warn."
+          }
+        ]
+      },
+      {
+        "title": "Rendimiento",
+        "metrics": [
+          {
+            "label": "Comandos/s",
+            "tip": "Comandos totales por segundo en el clúster."
+          }
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Nodos",
+    "services": "Clústeres de Redis"
+  },
+  "alias": "Redis",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Comandos/s"
+      },
+      {
+        "label": "Tasa de aciertos"
+      },
+      {
+        "label": "Memoria %"
+      },
+      {
+        "label": "Clientes"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Uptime (días)"
+      },
+      {
+        "title": "Clientes conectados"
+      },
+      {
+        "title": "Clientes bloqueados"
+      },
+      {
+        "title": "Uso de memoria"
+      },
+      {
+        "title": "Comandos totales / s"
+      },
+      {
+        "title": "Tasa de aciertos"
+      },
+      {
+        "title": "Tiempo medio de comando / s"
+      },
+      {
+        "title": "I/O de red (KB)",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Claves",
+        "expressionLabels": [
+          "total",
+          "expulsados",
+          "expirados"
+        ]
+      },
+      {
+        "title": "Comandos lentos",
+        "tip": "Top 10 comandos más lentos capturados. Capturados por el agente SkyWalking en el call-site."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (días)"
+      },
+      {
+        "title": "Clientes conectados"
+      },
+      {
+        "title": "Clientes bloqueados"
+      },
+      {
+        "title": "Memoria máx (MB)"
+      },
+      {
+        "title": "Uso de memoria (%)"
+      },
+      {
+        "title": "Comandos / s"
+      },
+      {
+        "title": "Tasa de aciertos"
+      },
+      {
+        "title": "I/O de red (KB)",
+        "expressionLabels": [
+          "entrada",
+          "salida"
+        ]
+      },
+      {
+        "title": "Claves",
+        "expressionLabels": [
+          "total",
+          "expulsados",
+          "expirados"
+        ]
+      },
+      {
+        "title": "Tiempo total de comandos (s)"
+      },
+      {
+        "title": "Tiempo medio de comando"
+      }
+    ]
+  }
+}

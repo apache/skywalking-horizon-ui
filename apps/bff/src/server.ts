@@ -59,7 +59,7 @@ import { registerConfigBundleRoute } from './http/config/bundle.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
 import { buildOapClients } from './client/index.js';
 import { bootSeed } from './logic/templates/sync.js';
-import { iterateBundledTemplates } from './logic/templates/aggregator.js';
+import { iterateBundledTemplates, iterateBundledOverlays } from './logic/templates/aggregator.js';
 // Admin (operational tools)
 import { registerDslCatalogRoutes } from './http/admin/dsl/catalog.js';
 import { registerDslRuleRoutes } from './http/admin/dsl/rule.js';
@@ -258,6 +258,7 @@ app.listen({ host, port }).then(
     void bootSeed({
       client: buildOapClients(source.current).uiTemplate(),
       bundled: () => iterateBundledTemplates(),
+      bundledOverlays: () => iterateBundledOverlays(),
       logger,
     })
       .then((status) => {

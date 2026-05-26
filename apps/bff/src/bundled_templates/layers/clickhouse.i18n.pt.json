@@ -1,0 +1,204 @@
+{
+  "alias": "ClickHouse",
+  "group": "Bancos de dados",
+  "slots": {
+    "services": "Clusters do ClickHouse",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Select / s"
+      },
+      {
+        "label": "Insert / s"
+      },
+      {
+        "label": "Leituras lentas"
+      },
+      {
+        "label": "Arquivos abertos"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "QPS de select",
+            "tip": "Selects por segundo no cluster."
+          },
+          {
+            "label": "QPS de insert",
+            "tip": "Inserts por segundo."
+          },
+          {
+            "label": "Leituras lentas",
+            "tip": "Contador de leituras lentas de arquivo."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Arquivos abertos"
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Consultas",
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Tempo de consulta (ms)",
+        "expressionLabels": [
+          "média",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Conexões",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Leituras lentas"
+      },
+      {
+        "title": "Merge / mutações",
+        "expressionLabels": [
+          "merge",
+          "mutações"
+        ]
+      },
+      {
+        "title": "Vazão de inserção",
+        "expressionLabels": [
+          "bytes/s",
+          "linhas/s"
+        ]
+      },
+      {
+        "title": "Inserts atrasados (s)"
+      },
+      {
+        "title": "Data parts ativos"
+      },
+      {
+        "title": "Fetch / send replicados",
+        "expressionLabels": [
+          "fetch",
+          "send"
+        ]
+      },
+      {
+        "title": "Atividade do Zookeeper",
+        "expressionLabels": [
+          "sessões",
+          "watches",
+          "bytes enviados",
+          "bytes recebidos"
+        ]
+      },
+      {
+        "title": "Conexões ativas do Keeper"
+      },
+      {
+        "title": "Requisições pendentes do Keeper"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime (dias)"
+      },
+      {
+        "title": "Versão"
+      },
+      {
+        "title": "CPU (cores)"
+      },
+      {
+        "title": "Memória (%)",
+        "expressionLabels": [
+          "em uso",
+          "disponível"
+        ]
+      },
+      {
+        "title": "Rede (B)",
+        "expressionLabels": [
+          "recepção",
+          "envio"
+        ]
+      },
+      {
+        "title": "Conexões",
+        "expressionLabels": [
+          "TCP",
+          "HTTP"
+        ]
+      },
+      {
+        "title": "Consultas",
+        "expressionLabels": [
+          "total",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "QPS",
+        "expressionLabels": [
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Tempo de consulta (ms)",
+        "expressionLabels": [
+          "média",
+          "select",
+          "insert"
+        ]
+      },
+      {
+        "title": "Leitura lenta de arquivo"
+      },
+      {
+        "title": "Merge em segundo plano"
+      },
+      {
+        "title": "Mutações"
+      },
+      {
+        "title": "Arquivos abertos"
+      },
+      {
+        "title": "Vazão de inserção",
+        "expressionLabels": [
+          "bytes/s",
+          "linhas/s"
+        ]
+      },
+      {
+        "title": "Inserts atrasados (s)"
+      }
+    ]
+  }
+}

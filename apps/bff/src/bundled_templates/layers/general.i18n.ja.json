@@ -1,0 +1,482 @@
+{
+  "alias": "汎用サービス",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Apdex"
+      },
+      {
+        "label": "エラー率"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "レイテンシとエラー",
+        "metrics": [
+          {
+            "label": "P95",
+            "tip": "レイヤー全体の応答時間の 95 パーセンタイル。"
+          },
+          {
+            "label": "エラー率",
+            "tip": "100 − SLA。高いほど悪化。"
+          }
+        ]
+      },
+      {
+        "title": "健全性",
+        "metrics": [
+          {
+            "label": "Apdex",
+            "tip": "0 – 1 スケールのユーザー満足度スコア。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "上位 20 API",
+        "tip": "選択中サービス配下の上位エンドポイント。タブを切り替えてトラフィック、応答時間、最悪成功率で再ランク付け。",
+        "expressionLabels": [
+          "トラフィック",
+          "低速",
+          "成功率"
+        ]
+      },
+      {
+        "title": "トラフィック"
+      },
+      {
+        "title": "エラー率"
+      },
+      {
+        "title": "Apdex",
+        "tip": "0 – 1 スケールのユーザー満足度スコア。"
+      },
+      {
+        "title": "応答時間パーセンタイル",
+        "tip": "p50 / p75 / p90 / p95 / p99 レイテンシ — 応答時間分布のテール。"
+      },
+      {
+        "title": "平均応答時間"
+      },
+      {
+        "title": "MQ コンシュームレート + レイテンシ",
+        "tip": "件数は左軸、レイテンシは右軸。",
+        "expressionLabels": [
+          "件数",
+          "レイテンシ"
+        ]
+      },
+      {
+        "title": "負荷別上位 10 インスタンス",
+        "tip": "選択中サービスのインスタンス全体でトラフィック順にランク付け。"
+      },
+      {
+        "title": "上位 10 低速インスタンス",
+        "tip": "選択中サービスのインスタンス全体で平均応答時間順にランク付け。"
+      },
+      {
+        "title": "成功率別上位 10 インスタンス",
+        "tip": "top_n(service_instance_sla,10,asc)/100 — 悪い順のランク付け。"
+      },
+      {
+        "title": "低速データベースステートメント",
+        "tip": "このサービスに対して捕捉された低速データベースステートメント上位 20。top_n_service_database_statement を取得元とする。ウィンドウ内で OAP がステートメントを捕捉していない場合は `no data` を表示。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "サービスインスタンス負荷",
+        "tip": "選択中インスタンスに対する 1分あたりのコール数。"
+      },
+      {
+        "title": "サービスインスタンスレイテンシ"
+      },
+      {
+        "title": "サービスインスタンス成功率"
+      },
+      {
+        "title": "JVM CPU",
+        "tip": "エージェントが報告する JVM CPU。インスタンスが JVM の場合のみ描画。"
+      },
+      {
+        "title": "JVM メモリ",
+        "tip": "ヒープ / 非ヒープの使用中 + 最大 (MB)。",
+        "expressionLabels": [
+          "ヒープ",
+          "ヒープ最大",
+          "非ヒープ",
+          "非ヒープ最大"
+        ]
+      },
+      {
+        "title": "JVM メモリ詳細",
+        "tip": "プール単位の使用中メモリ (MB)。code cache、young / old / survivor / permgen / metaspace、および新しい JVM で導入された JIT codeheap サブプール (Z heap、compressed class space、セグメント化された codeheap) を網羅。JVM が公開しないプールは単に 0 のまま。",
+        "expressionLabels": [
+          "code cache",
+          "newgen",
+          "oldgen",
+          "survivor",
+          "permgen",
+          "metaspace",
+          "zheap",
+          "compressed class space",
+          "codeheap (non-nmethods)",
+          "codeheap (profiled nmethods)",
+          "codeheap (non-profiled nmethods)"
+        ]
+      },
+      {
+        "title": "JVM スレッド数",
+        "expressionLabels": [
+          "ライブ",
+          "デーモン",
+          "ピーク"
+        ]
+      },
+      {
+        "title": "JVM スレッド状態数",
+        "tip": "JVM 状態別のスレッド数 (runnable / blocked / waiting / timed-waiting)。",
+        "expressionLabels": [
+          "runnable",
+          "ブロック",
+          "待機",
+          "timed-waiting"
+        ]
+      },
+      {
+        "title": "JVM GC 時間",
+        "expressionLabels": [
+          "young",
+          "old",
+          "通常"
+        ]
+      },
+      {
+        "title": "JVM GC 回数",
+        "expressionLabels": [
+          "young",
+          "old",
+          "通常"
+        ]
+      },
+      {
+        "title": "JVM クラス数",
+        "expressionLabels": [
+          "ロード済み",
+          "ロード合計",
+          "アンロード合計"
+        ]
+      },
+      {
+        "title": "CLR CPU",
+        "tip": ".NET 専用：インスタンスが CLR メトリクスを報告した場合のみ描画。"
+      },
+      {
+        "title": "CLR スレッド",
+        "expressionLabels": [
+          "ワーカー利用可能",
+          "completion-port 利用可能",
+          "completion-port 最大"
+        ]
+      },
+      {
+        "title": "CLR ヒープメモリ"
+      },
+      {
+        "title": "CLR GC",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Spring HTTP リクエスト数",
+        "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests カウンタ。"
+      },
+      {
+        "title": "Spring HTTP リクエスト所要時間"
+      },
+      {
+        "title": "Spring インスタンス CPU 使用率"
+      },
+      {
+        "title": "Spring OS CPU 使用率"
+      },
+      {
+        "title": "Spring OS システム負荷"
+      },
+      {
+        "title": "Spring OS プロセスファイル",
+        "expressionLabels": [
+          "オープン",
+          "最大"
+        ]
+      },
+      {
+        "title": "Spring JVM GC ポーズ所要時間"
+      },
+      {
+        "title": "Spring JVM メモリ",
+        "expressionLabels": [
+          "使用中",
+          "最大"
+        ]
+      },
+      {
+        "title": "Spring JVM スレッド",
+        "expressionLabels": [
+          "ライブ",
+          "デーモン",
+          "ピーク"
+        ]
+      },
+      {
+        "title": "Spring JVM クラス",
+        "expressionLabels": [
+          "ロード済み",
+          "アンロード"
+        ]
+      },
+      {
+        "title": "Spring データベース接続プール",
+        "tip": "HikariCP / Spring Boot データソースメトリクス — プール単位の接続数。"
+      },
+      {
+        "title": "Spring スレッドプール",
+        "tip": "Spring Boot スレッドプールメーター — Executor 単位のアクティブ、キュー、最大スレッド数。"
+      },
+      {
+        "title": "Spring JDBC 接続",
+        "expressionLabels": [
+          "アクティブ",
+          "アイドル",
+          "最大"
+        ]
+      },
+      {
+        "title": "Spring Tomcat セッション",
+        "expressionLabels": [
+          "アクティブ",
+          "最大",
+          "拒否"
+        ]
+      },
+      {
+        "title": "Golang Goroutine / OS スレッド",
+        "tip": "Golang エージェント：ライブな goroutine 数 + 基盤の OS スレッド。",
+        "expressionLabels": [
+          "goroutine",
+          "OS スレッド"
+        ]
+      },
+      {
+        "title": "Golang GC ポーズ時間 (毎分)"
+      },
+      {
+        "title": "Golang GC 回数 (毎分)"
+      },
+      {
+        "title": "Golang ヒープアロケート (毎分)"
+      },
+      {
+        "title": "Golang Goroutine スケジュール時間"
+      },
+      {
+        "title": "Golang GC Free (毎分)"
+      },
+      {
+        "title": "Golang アロケートサイズ (毎分)"
+      },
+      {
+        "title": "Golang Free サイズ (毎分)"
+      },
+      {
+        "title": "Golang ヒープオブジェクト"
+      },
+      {
+        "title": "Golang ヒープ"
+      },
+      {
+        "title": "Golang メタデータ Mspan"
+      },
+      {
+        "title": "Golang メタデータ Mcache"
+      },
+      {
+        "title": "Golang GC ゴールサイズ"
+      },
+      {
+        "title": "Golang CGO コール (毎分)"
+      },
+      {
+        "title": "Python CPU 使用率",
+        "tip": "Python (PVM) エージェント：ホスト vs プロセス CPU。",
+        "expressionLabels": [
+          "ホスト",
+          "プロセス"
+        ]
+      },
+      {
+        "title": "Python メモリ使用率",
+        "expressionLabels": [
+          "ホスト",
+          "プロセス"
+        ]
+      },
+      {
+        "title": "Python スレッド数"
+      },
+      {
+        "title": "Python GC 回数",
+        "expressionLabels": [
+          "gen 0",
+          "gen 1",
+          "gen 2"
+        ]
+      },
+      {
+        "title": "Python GC 時間"
+      },
+      {
+        "title": "Ruby CPU 使用率",
+        "tip": "Ruby エージェント：プロセス CPU を百分率で表示。"
+      },
+      {
+        "title": "Ruby メモリ (RSS)"
+      },
+      {
+        "title": "Ruby メモリ使用率"
+      },
+      {
+        "title": "Ruby スレッド状態",
+        "expressionLabels": [
+          "アクティブ",
+          "実行中"
+        ]
+      },
+      {
+        "title": "Ruby GC 回数",
+        "expressionLabels": [
+          "合計",
+          "minor",
+          "major"
+        ]
+      },
+      {
+        "title": "Ruby GC 時間"
+      },
+      {
+        "title": "Ruby ヒープ使用率"
+      },
+      {
+        "title": "Ruby ヒープスロット",
+        "expressionLabels": [
+          "ライブ",
+          "利用可能"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "トラフィック"
+      },
+      {
+        "title": "応答時間"
+      },
+      {
+        "title": "成功率"
+      },
+      {
+        "title": "応答時間パーセンタイル"
+      },
+      {
+        "title": "MQ 平均コンシュームレイテンシ",
+        "tip": "エンドポイントスコープのコンシュームレイテンシ — メッセージキュートラフィックを処理するエンドポイントのみで値が入る。"
+      }
+    ]
+  },
+  "topology": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkServerMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ],
+    "linkClientMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "endpointDependency": {
+    "nodeMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "SLA"
+      },
+      {
+        "label": "レイテンシ"
+      }
+    ],
+    "linkMetrics": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "平均応答時間"
+      },
+      {
+        "label": "p95"
+      },
+      {
+        "label": "SLA"
+      }
+    ]
+  },
+  "slots": {
+    "services": "サービス",
+    "instances": "インスタンス",
+    "endpoints": "API",
+    "endpointDependency": "API 依存関係"
+  }
+}

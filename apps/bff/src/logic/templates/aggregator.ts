@@ -39,6 +39,7 @@ import {
   type TemplateKind,
 } from './names.js';
 import type { BundledTemplate } from './sync.js';
+import { OVERLAY_LOCALES, getLayerOverlay, getOverviewOverlay } from '../../i18n/index.js';
 
 export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
   for (const tpl of allLayerTemplates()) {
@@ -62,4 +63,41 @@ export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
     key: TIME_DEFAULTS_KEY,
     content: loadBundledTimeDefaults(),
   };
+}
+
+/** Iterate per-locale translation overlays the BFF ships on disk —
+ *  these become OAP overlay rows on first bootSeed. Skips empty `{}`
+ *  overlays so we don't pollute OAP with no-op rows.
+ *
+ *  English is excluded (source-language, no overlay). The sync layer
+ *  uses these to seed `horizon.<kind>.<key>.i18n.<locale>` rows that
+ *  match the shape of the disk catalog at first boot, letting operators
+ *  see "current translations" as the diff baseline. */
+export function* iterateBundledOverlays(): IterableIterator<{
+  kind: TemplateKind;
+  key: string;
+  locale: string;
+  content: unknown;
+}> {
+  for (const tpl of allLayerTemplates()) {
+    for (const locale of OVERLAY_LOCALES) {
+      const overlay = getLayerOverlay(tpl.key, locale);
+      if (overlay && isNonEmptyObject(overlay)) {
+        yield { kind: 'layer', key: tpl.key, locale, content: overlay };
+      }
+    }
+  }
+  for (const dash of loadOverviewDashboards()) {
+    for (const locale of OVERLAY_LOCALES) {
+      const overlay = getOverviewOverlay(dash.id, locale);
+      if (overlay && isNonEmptyObject(overlay)) {
+        yield { kind: 'overview', key: dash.id, locale, content: overlay };
+      }
+    }
+  }
+}
+
+function isNonEmptyObject(v: unknown): boolean {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+  return Object.keys(v as Record<string, unknown>).length > 0;
 }

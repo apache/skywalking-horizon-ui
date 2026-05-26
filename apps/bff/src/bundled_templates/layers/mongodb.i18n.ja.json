@@ -1,0 +1,178 @@
+{
+  "alias": "MongoDB",
+  "group": "データベース",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "ドキュメント QPS"
+      },
+      {
+        "label": "操作 QPS"
+      },
+      {
+        "label": "接続"
+      },
+      {
+        "label": "レプリカラグ"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "キャパシティ",
+        "metrics": [
+          {
+            "label": "データサイズ (GB)",
+            "tip": "クラスタ全体のデータサイズ合計。"
+          },
+          {
+            "label": "コレクション",
+            "tip": "クラスタ全体のコレクション数。"
+          },
+          {
+            "label": "オブジェクト",
+            "tip": "ドキュメントオブジェクト数。"
+          }
+        ]
+      },
+      {
+        "title": "スループット",
+        "metrics": [
+          {
+            "label": "ドキュメント QPS",
+            "tip": "1秒あたりのドキュメント操作数。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "クラスタ稼働日数"
+      },
+      {
+        "title": "データサイズ (GB)"
+      },
+      {
+        "title": "コレクション数"
+      },
+      {
+        "title": "オブジェクト数"
+      },
+      {
+        "title": "ドキュメント QPS"
+      },
+      {
+        "title": "操作 QPS"
+      },
+      {
+        "title": "合計接続"
+      },
+      {
+        "title": "カーソル合計"
+      },
+      {
+        "title": "レプリケーションラグ (ms)"
+      },
+      {
+        "title": "DB データ合計 (GB)",
+        "tableHeaders": [
+          "データベース",
+          "データ (GB)"
+        ]
+      },
+      {
+        "title": "DB インデックス合計 (GB)",
+        "tableHeaders": [
+          "データベース",
+          "インデックス (GB)"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "稼働日数"
+      },
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "ReplSet 状態",
+        "tableHeaders": [
+          "ノード",
+          "ReplSet 状態"
+        ]
+      },
+      {
+        "title": "接続"
+      },
+      {
+        "title": "CPU 使用率 (%)"
+      },
+      {
+        "title": "メモリ使用率"
+      },
+      {
+        "title": "空きメモリ (GB)",
+        "expressionLabels": [
+          "メモリ",
+          "スワップ"
+        ]
+      },
+      {
+        "title": "ディスク (GB)",
+        "expressionLabels": [
+          "使用中",
+          "合計"
+        ]
+      },
+      {
+        "title": "ネットワーク (KB/s)",
+        "expressionLabels": [
+          "入",
+          "出"
+        ]
+      },
+      {
+        "title": "アクティブクライアント",
+        "expressionLabels": [
+          "合計",
+          "ライター",
+          "リーダー"
+        ]
+      },
+      {
+        "title": "ドキュメント QPS"
+      },
+      {
+        "title": "操作 QPS"
+      },
+      {
+        "title": "操作レイテンシ (µs)"
+      },
+      {
+        "title": "トランザクション",
+        "expressionLabels": [
+          "アクティブ",
+          "非アクティブ"
+        ]
+      },
+      {
+        "title": "レプリカバッファ",
+        "expressionLabels": [
+          "件数",
+          "サイズ (MB)"
+        ]
+      },
+      {
+        "title": "キュー内操作"
+      }
+    ]
+  },
+  "slots": {
+    "services": "MongoDB クラスタ",
+    "instances": "ノード"
+  }
+}

@@ -28,11 +28,13 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import { bff, type AlarmMessage, type AlertingRuleDetailResponse } from '@/api/client';
 import AlarmSnapshotChart from './AlarmSnapshotChart.vue';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
 
+const { t } = useI18n({ useScope: 'global' });
 const props = defineProps<{ alarm: AlarmMessage | null }>();
 
 const entityLabel = computed(() =>
@@ -128,13 +130,13 @@ function formatRelative(ts: number): string {
   const delta = Date.now() - ts;
   if (delta < 0) return new Date(ts).toLocaleString();
   const s = Math.floor(delta / 1000);
-  if (s < 60) return `${s}s ago`;
+  if (s < 60) return t('{n}s ago', { n: s });
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return t('{n}m ago', { n: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ${m % 60}m ago`;
+  if (h < 24) return t('{h}h {m}m ago', { h, m: m % 60 });
   const d = Math.floor(h / 24);
-  return `${d}d ${h % 24}h ago`;
+  return t('{d}d {h}h ago', { d, h: h % 24 });
 }
 
 /** Metrics with at least one series of values, in wire order.
@@ -169,37 +171,37 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
         </h2>
       </div>
       <span class="sw-badge" :class="firing ? 'is-err' : 'is-ok'">
-        <span class="state-dot" />{{ firing ? 'firing' : 'recovered' }}
+        <span class="state-dot" />{{ firing ? t('firing') : t('recovered') }}
       </span>
     </header>
     <div class="ad__sub">
-      <span>started {{ startedRelative }}</span>
-      <template v-if="!firing"> · recovered {{ recoveredRelative }}</template>
+      <span>{{ t('started {when}', { when: startedRelative }) }}</span>
+      <template v-if="!firing"> · {{ t('recovered {when}', { when: recoveredRelative }) }}</template>
       <template v-if="alarm.layerKey"> · {{ alarm.layerKey }}</template>
     </div>
 
     <!-- 1. Message -->
     <section class="ad__sec">
-      <div class="ad__kicker">Message</div>
+      <div class="ad__kicker">{{ t('Message') }}</div>
       <p class="ad__rule">{{ alarm.message }}</p>
     </section>
 
     <!-- 2. Tags -->
     <section v-if="alarm.tags.length > 0" class="ad__sec">
-      <div class="ad__kicker">Tags</div>
+      <div class="ad__kicker">{{ t('Tags') }}</div>
       <div class="ad__tags">
-        <span v-for="t in alarm.tags" :key="`${t.key}=${t.value}`" class="ad__tag">
-          {{ t.key }}={{ t.value }}
+        <span v-for="tag in alarm.tags" :key="`${tag.key}=${tag.value}`" class="ad__tag">
+          {{ tag.key }}={{ tag.value }}
         </span>
       </div>
     </section>
 
     <!-- 3. Expression -->
     <section class="ad__sec">
-      <div class="ad__kicker">Trigger expression</div>
-      <pre class="ad__expr">{{ alarm.snapshot.expression || '— no MQE recorded —' }}</pre>
+      <div class="ad__kicker">{{ t('Trigger expression') }}</div>
+      <pre class="ad__expr">{{ alarm.snapshot.expression || t('— no MQE recorded —') }}</pre>
       <div v-if="snapshotBuckets > 0" class="ad__hint">
-        snapshot covers {{ snapshotBuckets }} × 1m bucket{{ snapshotBuckets === 1 ? '' : 's' }}
+        {{ t('snapshot covers {n} × 1m buckets', { n: snapshotBuckets }) }}
         · {{ snapshotRangeLabel }}
       </div>
     </section>
@@ -212,31 +214,31 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
          rule. -->
     <section v-if="matchedRuleId" class="ad__sec">
       <div class="ad__kicker ad__kicker--with-link">
-        <span>Rule</span>
+        <span>{{ t('Rule') }}</span>
         <RouterLink
           :to="{ path: '/operate/alerting-rules', query: { id: matchedRuleId } }"
           class="ad__rule-link"
-        >view in catalog →</RouterLink>
+        >{{ t('view in catalog →') }}</RouterLink>
       </div>
       <div v-if="ruleDetailQuery.isPending.value" class="ad__rule-loading">
-        loading rule…
+        {{ t('loading rule…') }}
       </div>
       <div v-else-if="ruleDetailQuery.isError.value || !ruleDetail" class="ad__rule-loading">
-        rule definition unavailable
+        {{ t('rule definition unavailable') }}
       </div>
       <div v-else class="ad__rule-grid">
-        <div class="ad__rule-cell"><span class="ad__rule-label">id</span><code>{{ ruleDetail.ruleId }}</code></div>
-        <div class="ad__rule-cell"><span class="ad__rule-label">period</span>{{ ruleDetail.period }}m</div>
-        <div class="ad__rule-cell"><span class="ad__rule-label">silence</span>{{ ruleDetail.silencePeriod }}m</div>
+        <div class="ad__rule-cell"><span class="ad__rule-label">{{ t('id') }}</span><code>{{ ruleDetail.ruleId }}</code></div>
+        <div class="ad__rule-cell"><span class="ad__rule-label">{{ t('period') }}</span>{{ ruleDetail.period }}m</div>
+        <div class="ad__rule-cell"><span class="ad__rule-label">{{ t('silence') }}</span>{{ ruleDetail.silencePeriod }}m</div>
         <div class="ad__rule-cell">
-          <span class="ad__rule-label">recovery-obs</span>{{ ruleDetail.recoveryObservationPeriod }}m
+          <span class="ad__rule-label">{{ t('recovery-obs') }}</span>{{ ruleDetail.recoveryObservationPeriod }}m
         </div>
         <div v-if="ruleDetail.hooks.length > 0" class="ad__rule-cell ad__rule-cell--wide">
-          <span class="ad__rule-label">hooks</span>
+          <span class="ad__rule-label">{{ t('Hooks') }}</span>
           <span v-for="h in ruleDetail.hooks" :key="h" class="ad__tag">{{ h }}</span>
         </div>
         <div v-if="ruleDetail.includeMetrics.length > 0" class="ad__rule-cell ad__rule-cell--wide">
-          <span class="ad__rule-label">metrics</span>
+          <span class="ad__rule-label">{{ t('Metrics') }}</span>
           <code v-for="m in ruleDetail.includeMetrics" :key="m">{{ m }}</code>
         </div>
       </div>
@@ -259,16 +261,14 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
     </section>
 
     <section v-if="snapshotMetrics.length === 0" class="ad__sec ad__empty">
-      No MQE snapshot was recorded with this alarm. Upgrade OAP or
-      enable the snapshot capture in the alarm rule to see the trigger
-      values here.
+      {{ t('No MQE snapshot was recorded with this alarm. Upgrade OAP or enable the snapshot capture in the alarm rule to see the trigger values here.') }}
     </section>
   </aside>
 
   <aside v-else class="ad ad--empty">
     <div class="ad__placeholder">
-      <div class="ad__placeholder-kicker">No alarm selected</div>
-      <p>Click a marker on the timeline or a row in the list to see its trigger details.</p>
+      <div class="ad__placeholder-kicker">{{ t('No alarm selected') }}</div>
+      <p>{{ t('Click a marker on the timeline or a row in the list to see its trigger details.') }}</p>
     </div>
   </aside>
 </template>

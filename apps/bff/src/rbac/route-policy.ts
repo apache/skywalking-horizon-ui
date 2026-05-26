@@ -204,8 +204,12 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // (push-bundled, save, resync) need overview:write because save is
   // the only path that mutates OAP UI-templates.
   'GET /api/admin/templates/sync-status':          'overview:read',
+  'GET /api/admin/templates/:name/i18n/:locale':   'overview:read',
   'POST /api/admin/templates/resync':              'overview:write',
+  'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save':                'overview:write',
+  'POST /api/admin/templates/save-translation':    'overview:write',
+  'POST /api/admin/templates/delete-translation':  'overview:write',
   'POST /api/admin/templates/save-local':          'overview:write',
   'POST /api/admin/templates/disable':             'overview:write',
   'POST /api/admin/templates/revert-local':        'overview:write',

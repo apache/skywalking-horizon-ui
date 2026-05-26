@@ -1,0 +1,50 @@
+{
+  "alias": "Satellite",
+  "group": "자체 관측가능성",
+  "overview": {
+    "groups": [
+      {
+        "title": "Satellite 상태",
+        "metrics": [
+          {
+            "label": "CPU %",
+            "tip": "Satellite 프로세스 CPU입니다."
+          },
+          {
+            "label": "큐 사용량",
+            "tip": "미처리 큐 항목 — 백로그 지표입니다."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "연결 수"
+      },
+      {
+        "title": "CPU (%)"
+      },
+      {
+        "title": "큐 사용량"
+      },
+      {
+        "title": "수신 이벤트"
+      },
+      {
+        "title": "가져오기 이벤트"
+      },
+      {
+        "title": "큐 입력 / 출력",
+        "expressionLabels": [
+          "입력",
+          "출력"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "services": "Satellite 서비스"
+  }
+}

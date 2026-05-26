@@ -1,0 +1,133 @@
+{
+  "alias": "AWS EKS",
+  "group": "AWS",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Nœuds"
+      },
+      {
+        "label": "Nœuds en échec"
+      },
+      {
+        "label": "Namespaces"
+      },
+      {
+        "label": "Services"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Ressources",
+        "metrics": [
+          {
+            "label": "Nœuds",
+            "tip": "Nombre de nœuds du cluster EKS."
+          },
+          {
+            "label": "Nœuds en échec",
+            "tip": "Nœuds EKS en échec remontés par le cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Nombre de nœuds"
+      },
+      {
+        "title": "Nœuds en échec"
+      },
+      {
+        "title": "Nombre de namespaces"
+      },
+      {
+        "title": "Nombre de services EKS"
+      },
+      {
+        "title": "Erreurs réseau du cluster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      },
+      {
+        "title": "Drops réseau du cluster",
+        "expressionLabels": [
+          "rx",
+          "tx"
+        ]
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Utilisation CPU pod (%)"
+      },
+      {
+        "title": "Utilisation mémoire pod (%)"
+      },
+      {
+        "title": "Réseau pod RX (Ko/s)"
+      },
+      {
+        "title": "Erreurs RX pod / s"
+      },
+      {
+        "title": "Réseau pod TX (Ko/s)"
+      },
+      {
+        "title": "Erreurs TX pod / s"
+      }
+    ],
+    "instance": [
+      {
+        "title": "Nombre de pods"
+      },
+      {
+        "title": "Utilisation CPU (%)"
+      },
+      {
+        "title": "Utilisation mémoire (%)"
+      },
+      {
+        "title": "Utilisation FS (%)"
+      },
+      {
+        "title": "Réseau RX (Ko/s)",
+        "expressionLabels": [
+          "octets",
+          "erreurs"
+        ]
+      },
+      {
+        "title": "Réseau TX (Ko/s)",
+        "expressionLabels": [
+          "octets",
+          "erreurs"
+        ]
+      },
+      {
+        "title": "I/O disque (o/s)",
+        "expressionLabels": [
+          "lecture",
+          "écriture"
+        ]
+      },
+      {
+        "title": "CPU pod sur le nœud"
+      },
+      {
+        "title": "Mémoire pod sur le nœud"
+      }
+    ]
+  },
+  "slots": {
+    "services": "Clusters",
+    "instances": "Nœuds",
+    "endpoints": "Services EKS"
+  }
+}

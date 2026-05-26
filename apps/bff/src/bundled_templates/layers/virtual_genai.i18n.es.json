@@ -1,0 +1,129 @@
+{
+  "alias": "GenAI virtual",
+  "layer-header": {
+    "columns": [
+      {
+        "label": "RPM"
+      },
+      {
+        "label": "Latencia"
+      },
+      {
+        "label": "Tasa de éxito"
+      },
+      {
+        "label": "Tokens de salida"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Latencia y errores",
+        "metrics": [
+          {
+            "label": "Latencia media",
+            "tip": "Latencia media de llamada al proveedor de GenAI."
+          },
+          {
+            "label": "Tasa de errores",
+            "tip": "100 − SLA del proveedor."
+          }
+        ]
+      },
+      {
+        "title": "Coste",
+        "metrics": [
+          {
+            "label": "Coste estimado total",
+            "tip": "Estimación de coste acumulado del proveedor."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Llamadas / min"
+      },
+      {
+        "title": "Tiempo medio de respuesta"
+      },
+      {
+        "title": "Tasa de éxito"
+      },
+      {
+        "title": "Percentil de latencia"
+      },
+      {
+        "title": "Tokens de entrada",
+        "expressionLabels": [
+          "suma",
+          "media"
+        ]
+      },
+      {
+        "title": "Tokens de salida",
+        "expressionLabels": [
+          "suma",
+          "media"
+        ]
+      },
+      {
+        "title": "Coste estimado",
+        "expressionLabels": [
+          "total",
+          "media"
+        ]
+      }
+    ],
+    "instance": [
+      {
+        "title": "Llamadas / min"
+      },
+      {
+        "title": "Latencia media"
+      },
+      {
+        "title": "Tasa de éxito"
+      },
+      {
+        "title": "Percentil de latencia"
+      },
+      {
+        "title": "TTFT",
+        "expressionLabels": [
+          "media",
+          "percentil"
+        ]
+      },
+      {
+        "title": "Tokens de entrada",
+        "expressionLabels": [
+          "suma",
+          "media"
+        ]
+      },
+      {
+        "title": "Tokens de salida",
+        "expressionLabels": [
+          "suma",
+          "media"
+        ]
+      },
+      {
+        "title": "Coste estimado",
+        "expressionLabels": [
+          "total",
+          "media"
+        ]
+      }
+    ]
+  },
+  "slots": {
+    "instances": "Modelos",
+    "services": "Proveedores de GenAI"
+  },
+  "group": "Destinos virtuales"
+}

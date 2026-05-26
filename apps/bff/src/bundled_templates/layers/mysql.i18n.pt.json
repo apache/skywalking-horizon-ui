@@ -1,0 +1,145 @@
+{
+  "alias": "MySQL / MariaDB",
+  "group": "Bancos de dados",
+  "slots": {
+    "services": "Clusters do MySQL",
+    "instances": "Nós"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "QPS"
+      },
+      {
+        "label": "TPS"
+      },
+      {
+        "label": "QPS lentos"
+      },
+      {
+        "label": "Erros de conexão"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Vazão",
+        "metrics": [
+          {
+            "label": "QPS",
+            "tip": "Consultas por segundo no cluster."
+          },
+          {
+            "label": "TPS",
+            "tip": "Transações por segundo."
+          },
+          {
+            "label": "Consultas lentas/s",
+            "tip": "Taxa de consultas lentas no cluster."
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "QPS"
+      },
+      {
+        "title": "TPS"
+      },
+      {
+        "title": "Consultas lentas / s"
+      },
+      {
+        "title": "Erros de conexão",
+        "tip": "Rejeições internas vs por max-connections.",
+        "expressionLabels": [
+          "interno",
+          "max-connections"
+        ]
+      },
+      {
+        "title": "Tendência de comandos",
+        "tip": "Taxa de linhas afetadas por comando (select / insert / update / delete).",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressionLabels": [
+          "conectadas",
+          "running",
+          "em cache",
+          "criadas"
+        ]
+      },
+      {
+        "title": "Statements lentos",
+        "tip": "Top 20 statements mais lentos capturados no cluster."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Uptime"
+      },
+      {
+        "title": "Conexões máximas"
+      },
+      {
+        "title": "Buffer pool do InnoDB"
+      },
+      {
+        "title": "Tamanho do thread cache"
+      },
+      {
+        "title": "QPS / TPS",
+        "expressionLabels": [
+          "QPS",
+          "TPS"
+        ]
+      },
+      {
+        "title": "Consultas lentas / s"
+      },
+      {
+        "title": "Tendência de comandos",
+        "expressionLabels": [
+          "select",
+          "insert",
+          "update",
+          "delete"
+        ]
+      },
+      {
+        "title": "Threads",
+        "expressionLabels": [
+          "conectadas",
+          "running",
+          "em cache",
+          "criadas"
+        ]
+      },
+      {
+        "title": "Conexões",
+        "expressionLabels": [
+          "disponíveis",
+          "abortadas"
+        ]
+      },
+      {
+        "title": "Erros de conexão",
+        "expressionLabels": [
+          "interno",
+          "max-connections"
+        ]
+      }
+    ]
+  }
+}

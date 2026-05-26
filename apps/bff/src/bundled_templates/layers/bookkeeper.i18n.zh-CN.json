@@ -1,0 +1,74 @@
+{
+  "alias": "BookKeeper",
+  "group": "MQ",
+  "slots": {
+    "services": "BookKeeper 集群",
+    "instances": "Bookie"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Ledger 数" },
+      { "label": "Entry 数" },
+      { "label": "可写目录" },
+      { "label": "目录使用" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "吞吐量",
+        "metrics": [
+          { "label": "写入 B/s", "tip": "集群所有 Bookie 的写吞吐量。" },
+          { "label": "读取 B/s", "tip": "集群所有 Bookie 的读吞吐量。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Bookie Ledger 数" },
+      { "title": "Bookie Entry 数" },
+      { "title": "可写 Ledger 目录数" },
+      {
+        "title": "写缓存",
+        "expressionLabels": ["size (MB)", "entries"]
+      },
+      {
+        "title": "读缓存",
+        "expressionLabels": ["size (MB)", "entries"]
+      },
+      {
+        "title": "读 / 写速率（B/s）",
+        "expressionLabels": ["read", "write"]
+      },
+      { "title": "Ledger 目录使用" }
+    ],
+    "instance": [
+      { "title": "JVM 内存池（MB）" },
+      {
+        "title": "JVM 内存（MB）",
+        "expressionLabels": ["used", "committed", "init"]
+      },
+      {
+        "title": "JVM 线程",
+        "expressionLabels": ["current", "daemon", "peak", "deadlocked"]
+      },
+      {
+        "title": "GC",
+        "expressionLabels": ["seconds", "count"]
+      },
+      {
+        "title": "线程执行器",
+        "expressionLabels": ["completed", "tasks completed", "rejected", "failed"]
+      },
+      {
+        "title": "线程池",
+        "expressionLabels": ["high-priority", "read"]
+      },
+      {
+        "title": "线程池最大队列大小",
+        "expressionLabels": ["high-priority", "read"]
+      }
+    ]
+  }
+}
