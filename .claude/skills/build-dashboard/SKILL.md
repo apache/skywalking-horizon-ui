@@ -96,12 +96,75 @@ Procedure:
 
 ---
 
+## Add i18n overlays for every supported locale
+
+Every layer template under `apps/bff/src/bundled_templates/layers/` and every
+overview under `apps/bff/src/bundled_templates/overviews/` ships with a
+sibling per-locale overlay catalog — `<name>.i18n.<locale>.json` — so the
+renderer can serve translated copy without an OAP round-trip. **A new
+dashboard is not done until each supported locale has an overlay file.**
+Horizon ships eight locales: `en` (the source), plus `zh-CN`, `ja`, `ko`,
+`es`, `pt`, `de`, `fr`.
+
+What goes in an overlay file:
+
+- A JSON object whose shape **mirrors the translatable leaves of the
+  source template**. Walk the source and pick out every leaf the
+  operator actually reads: layer `alias`, every `slots.*` label,
+  `header.columns[].label`, `overview.groups[].title`/`description`,
+  every widget's `title` / `tip` / `expressionLabels[]` /
+  `expressionUnits[]` / `tableHeaders[]`, every `traces.tagLabels[]`
+  and `log.tagLabels[]`. Skip OAP-supplied data, metric ids, MQE
+  function names, layer keys, scope enums, file extensions, status
+  enums — those stay verbatim across locales per CLAUDE.md.
+- A missing leaf in an overlay falls back to the English source at the
+  leaf (not the file), so a half-translated overlay is valid and
+  renders the rest of the page in English. The BFF's `i18n:validate`
+  warns about structural drift (an overlay key that doesn't exist in
+  the source); empty `{}` overlays are flagged.
+- The English source has no overlay file — the source IS the English
+  copy. Only non-English locales need overlay files.
+
+How to seed the seven non-English overlays for a new dashboard:
+
+1. **English first.** Finish the source template in English and confirm
+   every translatable leaf is the operator-facing label you want
+   translated. Don't put metric ids or MQE expressions where a `title`
+   should go.
+2. **Seed each locale.** For each of the seven, create
+   `<name>.i18n.<locale>.json` containing the translatable-leaf map.
+   The safest pattern is to start from a copy of the source with
+   non-leaf keys stripped, then translate the leaf values in place.
+   Initial translations are AI-assisted per CLAUDE.md — native
+   speakers refine over time via PR.
+3. **Tech-term policy.** Product / project / protocol names
+   (`SkyWalking`, `OAP`, `Kubernetes`, `Envoy`, `Istio`,
+   `OpenTelemetry`, `Zipkin`, `gRPC`, `GraphQL`, `eBPF`, `pprof`,
+   `BanyanDB`, `Elasticsearch`, `JVM`, `Java`, `Go`, …), OAP scope
+   enums (`Service`, `ServiceInstance`, `Endpoint`, `Process`, `All`),
+   MQE function names, status enums, layer keys, HTTP / SQL keywords
+   are NOT translated in any locale. Translate the prose AROUND the
+   term (`HTTP Connections` → `HTTP 连接` / `HTTP 接続`), not the
+   term itself.
+4. **Validate.** `pnpm --filter @skywalking-horizon-ui/bff run
+   i18n:validate` — every source template must have a sibling overlay
+   per advertised locale.
+5. **Render-check per locale.** Boot the env, switch the top-bar locale
+   chip across all eight, confirm every widget header / KPI label /
+   tooltip / `top` tab label renders translated.
+
+If you change a translatable leaf in the English source later, every
+overlay file's key set drifts and the renderer falls back to English
+for the stale leaves. Re-translate the affected key in each locale's
+overlay file.
+
 ## Validate (code) then render-check (browser)
 
 ```bash
 # from repo root
 pnpm --filter @skywalking-horizon-ui/bff run type-check    # schema typechecks
 pnpm --filter @skywalking-horizon-ui/bff run test:unit      # loaders still parse
+pnpm --filter @skywalking-horizon-ui/bff run i18n:validate  # overlays present for every locale + structurally aligned with source
 pnpm license:check                                          # headers (JSON is exempt, but vue/ts edits aren't)
 ```
 
