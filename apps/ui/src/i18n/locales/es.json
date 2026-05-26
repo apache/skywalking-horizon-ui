@@ -1179,5 +1179,17 @@
   "Showing the OAP-live version. End users render the same bytes.": "Mostrando la versión en vivo de OAP — los usuarios finales ven los mismos bytes.",
   "reset to": "restablecer a",
   "Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).": "Descarta los cambios locales y recarga solo el overlay de disco (ignora el overlay de OAP).",
-  "Discard local edits and reload from the OAP overlay row.": "Descarta los cambios locales y recarga desde la fila de overlay de OAP."
+  "Discard local edits and reload from the OAP overlay row.": "Descarta los cambios locales y recarga desde la fila de overlay de OAP.",
+  "OAP query host is unreachable": "No se puede acceder al host de consultas de OAP",
+  "Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.": "Verifica que el host de consultas de OAP esté en funcionamiento y accesible desde el BFF. Los paneles permanecen ocultos hasta que OAP responda; mostrar los respaldos integrados mostraría datos vacíos y parecería un error de configuración del panel.",
+  "Retrying…": "Reintentando…",
+  "Retry now": "Reintentar ahora",
+  "Auto-retries every 30s in the background. Admin pages remain available in read-only mode.": "Reintenta automáticamente cada 30 s en segundo plano. Las páginas de administración permanecen disponibles en modo solo lectura.",
+  "No data is flowing yet": "Aún no llegan datos",
+  "OAP hasn't received any service data. The relevant overview will appear here automatically as soon as data starts arriving.": "OAP aún no ha recibido datos de servicios. La vista general correspondiente aparecerá aquí automáticamente en cuanto comiencen a llegar datos.",
+  "Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.": "Solicita al equipo de operaciones que verifique que los agents o receivers de tus servicios están configurados y apuntando a este OAP.",
+  "No dashboard configured yet": "Aún no hay un panel configurado",
+  "{n} layer reporting services but no overview dashboard is set up.": "{n} capa(s) están reportando servicios, pero no se ha configurado un panel general.",
+  "Ask your operations team to set up a dashboard for you.": "Pide al equipo de operaciones que configure un panel para ti.",
+  "Routing…": "Redirigiendo…"
 }

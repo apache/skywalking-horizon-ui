@@ -1179,5 +1179,17 @@
   "Showing the OAP-live version. End users render the same bytes.": "Zeigt die OAP-Live-Version — exakt was Endnutzer sehen.",
   "reset to": "zurücksetzen auf",
   "Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).": "Lokale Änderungen verwerfen und nur das mitgelieferte Disk-Overlay neu laden (OAP-Overlay ignorieren).",
-  "Discard local edits and reload from the OAP overlay row.": "Lokale Änderungen verwerfen und aus der OAP-Overlay-Zeile neu laden."
+  "Discard local edits and reload from the OAP overlay row.": "Lokale Änderungen verwerfen und aus der OAP-Overlay-Zeile neu laden.",
+  "OAP query host is unreachable": "OAP-Query-Host ist nicht erreichbar",
+  "Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.": "Prüfe, ob der OAP-Query-Host läuft und vom BFF aus erreichbar ist. Dashboards bleiben verborgen, bis OAP antwortet — mitgelieferte Fallbacks würden leere Daten zeigen und wie eine Dashboard-Fehlkonfiguration aussehen.",
+  "Retrying…": "Erneuter Versuch…",
+  "Retry now": "Jetzt erneut versuchen",
+  "Auto-retries every 30s in the background. Admin pages remain available in read-only mode.": "Automatische Wiederholung alle 30 s im Hintergrund. Admin-Seiten bleiben im Nur-Lese-Modus verfügbar.",
+  "No data is flowing yet": "Es fließen noch keine Daten",
+  "OAP hasn't received any service data. The relevant overview will appear here automatically as soon as data starts arriving.": "OAP hat noch keine Service-Daten empfangen. Die passende Übersicht erscheint hier automatisch, sobald Daten eintreffen.",
+  "Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.": "Bitte das Operations-Team prüfen, ob die Agents oder Receiver für die Services konfiguriert sind und auf dieses OAP zeigen.",
+  "No dashboard configured yet": "Noch kein Dashboard konfiguriert",
+  "{n} layer reporting services but no overview dashboard is set up.": "{n} Ebene(n) melden Services, aber es ist kein Übersichts-Dashboard eingerichtet.",
+  "Ask your operations team to set up a dashboard for you.": "Bitte das Operations-Team, ein Dashboard einzurichten.",
+  "Routing…": "Weiterleitung…"
 }

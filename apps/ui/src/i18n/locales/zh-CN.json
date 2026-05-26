@@ -1179,5 +1179,17 @@
   "Showing the OAP-live version. End users render the same bytes.": "显示 OAP 实时版本 — 与终端用户看到的内容一致。",
   "reset to": "重置为",
   "Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).": "丢弃本地编辑,只重新加载随包的磁盘覆盖层(忽略 OAP 覆盖层)。",
-  "Discard local edits and reload from the OAP overlay row.": "丢弃本地编辑,从 OAP 覆盖行重新加载。"
+  "Discard local edits and reload from the OAP overlay row.": "丢弃本地编辑,从 OAP 覆盖行重新加载。",
+  "OAP query host is unreachable": "OAP 查询主机不可达",
+  "Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.": "请确认 OAP 查询主机已启动并且 BFF 能够访问。OAP 恢复响应前仪表板保持隐藏 — 显示内置回退会带来空数据,看起来像是仪表板配置错误。",
+  "Retrying…": "正在重试…",
+  "Retry now": "立即重试",
+  "Auto-retries every 30s in the background. Admin pages remain available in read-only mode.": "后台每 30 秒自动重试。管理页面仍可在只读模式下访问。",
+  "No data is flowing yet": "还没有数据接入",
+  "OAP hasn't received any service data. The relevant overview will appear here automatically as soon as data starts arriving.": "OAP 尚未收到任何服务数据。数据一旦开始接入,相关概览会自动出现。",
+  "Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.": "请运维团队确认服务的 agent 或 receiver 已配置并指向此 OAP。",
+  "No dashboard configured yet": "尚未配置仪表板",
+  "{n} layer reporting services but no overview dashboard is set up.": "{n} 个分层已上报服务,但尚未配置概览仪表板。",
+  "Ask your operations team to set up a dashboard for you.": "请运维团队为你配置仪表板。",
+  "Routing…": "路由跳转中…"
 }

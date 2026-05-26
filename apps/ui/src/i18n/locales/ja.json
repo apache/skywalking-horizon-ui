@@ -1179,5 +1179,17 @@
   "Showing the OAP-live version. End users render the same bytes.": "OAP のライブ版を表示中 — エンドユーザーが見るものと同じです。",
   "reset to": "リセット先",
   "Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).": "ローカル編集を破棄し、同梱のディスクオーバーレイのみを再読み込み(OAP オーバーレイは無視)。",
-  "Discard local edits and reload from the OAP overlay row.": "ローカル編集を破棄し、OAP オーバーレイ行から再読み込み。"
+  "Discard local edits and reload from the OAP overlay row.": "ローカル編集を破棄し、OAP オーバーレイ行から再読み込み。",
+  "OAP query host is unreachable": "OAP クエリホストに到達できません",
+  "Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.": "OAP クエリホストが起動しており BFF から到達可能か確認してください。OAP が応答するまでダッシュボードは非表示のままです — バンドルされたフォールバックを表示すると空のデータとなり、ダッシュボードの設定ミスのように見えるためです。",
+  "Retrying…": "再試行中…",
+  "Retry now": "今すぐ再試行",
+  "Auto-retries every 30s in the background. Admin pages remain available in read-only mode.": "バックグラウンドで 30 秒ごとに自動再試行します。管理ページは読み取り専用モードで引き続き利用できます。",
+  "No data is flowing yet": "まだデータが流れていません",
+  "OAP hasn't received any service data. The relevant overview will appear here automatically as soon as data starts arriving.": "OAP はまだサービスデータを受信していません。データが届き次第、該当する概要がここに自動的に表示されます。",
+  "Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.": "運用チームに、サービスの agent または receiver が設定されてこの OAP を指しているか確認するよう依頼してください。",
+  "No dashboard configured yet": "まだダッシュボードが設定されていません",
+  "{n} layer reporting services but no overview dashboard is set up.": "{n} 個のレイヤーがサービスを報告していますが、概要ダッシュボードが設定されていません。",
+  "Ask your operations team to set up a dashboard for you.": "運用チームにダッシュボードの設定を依頼してください。",
+  "Routing…": "ルーティング中…"
 }
