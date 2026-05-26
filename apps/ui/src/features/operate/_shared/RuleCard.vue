@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { ListRow } from '@skywalking-horizon-ui/api-client';
 import Pill from '@/components/primitives/Pill.vue';
 import StatusDot from '@/components/primitives/StatusDot.vue';
@@ -25,6 +26,23 @@ import { overrideKind, formatRelativeTime } from './grouping.js';
 const props = defineProps<{ rule: ListRow }>();
 
 const router = useRouter();
+const { t } = useI18n();
+
+/** Translate the status enum for display. The wire value stays the
+ *  ACTIVE/INACTIVE/BUNDLED/n/a token; only the operator-facing label
+ *  swaps with the locale. */
+const statusLabel = computed<string>(() => {
+  switch (props.rule.status) {
+    case 'ACTIVE':
+      return t('active');
+    case 'INACTIVE':
+      return t('inactive');
+    case 'BUNDLED':
+      return t('bundled');
+    case 'n/a':
+      return t('n/a');
+  }
+});
 
 const statusTone = computed(() => {
   switch (props.rule.status) {
@@ -116,22 +134,22 @@ function jumpToDebug(ev: MouseEvent): void {
       <button
         type="button"
         class="card__dbgbtn"
-        :title="`Live debug ${rule.catalog} · ${rule.name}`"
-        :aria-label="`Live debug ${rule.name}`"
+        :title="t('Live debug {catalog} · {name}', { catalog: rule.catalog, name: rule.name })"
+        :aria-label="t('Live debug {name}', { name: rule.name })"
         @click="jumpToDebug"
       >▶</button>
       <div class="card__name" :title="rule.name">{{ rule.name }}</div>
-      <Pill :tone="statusTone">{{ rule.status }}</Pill>
+      <Pill class="card__status" :tone="statusTone">{{ statusLabel }}</Pill>
     </div>
 
     <div class="card__row card__row--badges">
-      <Pill v-if="override === 'modified'" tone="warn">modified</Pill>
-      <Pill v-else-if="override === 'override'" tone="info">override</Pill>
+      <Pill v-if="override === 'modified'" tone="warn">{{ t('modified') }}</Pill>
+      <Pill v-else-if="override === 'override'" tone="info">{{ t('override') }}</Pill>
       <!-- 'bundled-only' is already conveyed by the BUNDLED status pill
            in the header row above — don't duplicate it here. -->
       <span v-if="isSuspended" class="card__suspending">
         <StatusDot tone="warn" :size="6" />
-        applying…
+        {{ t('applying…') }}
       </span>
     </div>
 
@@ -197,7 +215,11 @@ function jumpToDebug(ev: MouseEvent): void {
 .card__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* No `space-between`: with 3 children (arrow + name + status pill) a
+   * short rule name like `default` / `mesh-dp` / `vm` would float
+   * mid-card with a big gap between the arrow and the name. The status
+   * pill alone is pushed right via `margin-left: auto` on
+   * `.card__status` so the arrow stays glued to the name. */
   gap: 8px;
   min-height: 18px;
 }
@@ -210,12 +232,19 @@ function jumpToDebug(ev: MouseEvent): void {
 
 .card__name {
   font-family: var(--rr-font-mono);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
   color: var(--rr-heading);
-  font-weight: 500;
+  font-weight: var(--sw-fw-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Status pill (BUNDLED / SAVED / INACTIVE / …) is pushed to the right
+ * edge of the row; the arrow + name pair stays grouped at the left. */
+.card__status {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .card__suspending {
@@ -223,16 +252,16 @@ function jumpToDebug(ev: MouseEvent): void {
   align-items: center;
   gap: 4px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-warn);
-  letter-spacing: 0.4px;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .card__meta {
   display: flex;
   gap: 6px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
@@ -243,7 +272,7 @@ function jumpToDebug(ev: MouseEvent): void {
 .card__error {
   margin: 0;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-err);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -259,8 +288,8 @@ function jumpToDebug(ev: MouseEvent): void {
   background: transparent;
   color: var(--rr-dim);
   font-family: inherit;
-  font-size: 11px;
-  line-height: 1;
+  font-size: var(--sw-fs-sm);
+  line-height: var(--sw-lh-tight);
   width: 16px;
   flex-shrink: 0;
   cursor: pointer;

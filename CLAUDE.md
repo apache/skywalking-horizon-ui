@@ -25,7 +25,7 @@ When you can't reproduce the user's symptom locally, say so. Don't invent a fix.
 The UI talks to OAP through the **GraphQL query-protocol** (same as booster-ui) and through OAP's admin REST surface. Both contracts are **fixed** — owned by the skywalking repo, not this one.
 
 - **Do not invent fields.** If a screen needs data the protocol doesn't expose, flag it. The right fix is a query-protocol change upstream, not a UI hack or a BFF-side fabrication.
-- **The schemas and Java implementations are the authoritative spec** — read them (`oap-server/server-query-plugin/.../query-protocol/*.graphqls` and `oap-server/server-core/.../query/`) before guessing at a wire shape. The demo at `demo.skywalking.apache.org/graphql` (basic-auth `skywalking:skywalking`) is a fine smoke-test target.
+- **The schemas and Java implementations are the authoritative spec** — read them (`oap-server/server-query-plugin/.../query-protocol/*.graphqls` and `oap-server/server-core/.../query/`) before guessing at a wire shape. Stand up a local OAP (the SkyWalking repo ships a docker-compose) for smoke-testing wire changes.
 - **Booster-ui is the working reference.** When in doubt about how a query is shaped or paged, look at how booster-ui does it.
 
 ### Metric entity-scope is load-bearing

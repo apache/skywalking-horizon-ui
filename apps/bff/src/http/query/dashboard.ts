@@ -47,6 +47,7 @@ import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
   fmtForStep,
+  getServerOffsetMinutes,
   windowFromRange,
   type TimeStep,
   type Window,
@@ -191,8 +192,8 @@ const FIND_FIRST_ENDPOINT = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-function defaultWindow(): Window {
-  return defaultMinuteWindow(DEFAULT_WINDOW_MIN);
+function defaultWindow(offsetMinutes: number) {
+  return defaultMinuteWindow(offsetMinutes, DEFAULT_WINDOW_MIN);
 }
 // Re-export so the existing `./dashboard.js` consumers (the test file
 // today; future fragment helpers that import Window from here) don't
@@ -432,12 +433,17 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       let normal = true;
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
+      // Probe OAP's timezone so the Duration strings we emit match
+      // OAP-server local time (not UTC, not browser-local). Cached 60s
+      // inside getServerOffsetMinutes; ~one OAP round-trip per minute.
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's time picker (step + start/end). Falls back to
       // the last-hour MINUTE default when the caller omits the range.
       const window =
         parsed.data.step && parsed.data.startMs && parsed.data.endMs
-          ? windowFromRange(parsed.data.step, parsed.data.startMs, parsed.data.endMs) ?? defaultWindow()
-          : defaultWindow();
+          ? windowFromRange(parsed.data.step, parsed.data.startMs, parsed.data.endMs, offset) ??
+            defaultWindow(offset)
+          : defaultWindow(offset);
 
       const baseResp: DashboardResponse = {
         layer: layerKey,

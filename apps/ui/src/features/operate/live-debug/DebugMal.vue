@@ -26,6 +26,7 @@
  * (`metric`, `entity`, `valueType`, `value`, `timeBucket`).
  */
 import { computed, ref, shallowRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
@@ -61,6 +62,7 @@ interface RuleOption {
 
 const MAL_CATALOGS: Catalog[] = ['otel-rules', 'log-mal-rules', 'telegraf-rules'];
 
+const { t } = useI18n();
 const route = useRoute();
 const dbg = useDebugSession('mal');
 const history = useDebugHistory('mal');
@@ -700,16 +702,16 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   >
     <template #controls>
       <div class="ctl">
-        <label class="ctl__lbl">rule file</label>
+        <label class="ctl__lbl">{{ t('rule file') }}</label>
         <select v-model="selectedKey" class="ctl__select">
-          <option value="" disabled>select a MAL rule file…</option>
+          <option value="" disabled>{{ t('select a MAL rule file…') }}</option>
           <option v-for="r in ruleOptions" :key="`${r.catalog}/${r.name}`" :value="`${r.catalog}/${r.name}`">
             {{ r.catalog }} · {{ r.name }} · {{ shortHash(r.contentHash) }}
           </option>
         </select>
       </div>
       <div class="ctl">
-        <label class="ctl__lbl">metric</label>
+        <label class="ctl__lbl">{{ t('metric') }}</label>
         <select
           v-model="selectedMetric"
           class="ctl__select"
@@ -717,12 +719,12 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
         >
           <option value="" disabled>
             {{ selectedRule === null
-                ? 'pick a file first…'
+                ? t('pick a file first…')
                 : ruleContentQuery.isPending.value
-                  ? 'loading…'
+                  ? t('loading…')
                   : metricNames.length === 0
-                    ? 'no metricsRules found in file'
-                    : 'select a metric…' }}
+                    ? t('no metricsRules found in file')
+                    : t('select a metric…') }}
           </option>
           <option v-for="m in metricNames" :key="m" :value="m">{{ m }}</option>
         </select>
@@ -732,67 +734,77 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
         <input v-model.number="recordCap" type="number" min="1" :max="RECORD_CAP_MAX" class="ctl__input" />
       </div>
       <div class="ctl">
-        <label class="ctl__lbl">retention (min)</label>
+        <label class="ctl__lbl">{{ t('retention (min)') }}</label>
         <input v-model.number="retentionMinutes" type="number" min="1" max="60" class="ctl__input" />
       </div>
-      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">start sampling</Btn>
-      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">stop</Btn>
+      <Btn kind="primary" :disabled="!startEnabled" @click="startSampling">{{ t('start sampling') }}</Btn>
+      <Btn kind="ghost" :disabled="!stopEnabled" @click="dbg.stop()">{{ t('stop') }}</Btn>
       <router-link
         class="ctl__editlink"
         to="/operate/live-debug/history"
-        title="browse past captures saved locally"
-      >history ({{ history.entries.value.length }}) →</router-link>
+        :title="t('browse past captures saved locally')"
+      >{{ t('history ({n}) →', { n: history.entries.value.length }) }}</router-link>
       <router-link
         v-if="selectedRule"
         class="ctl__editlink"
         :to="{ path: '/operate/dsl/edit', query: { catalog: selectedRule.catalog, name: selectedRule.name } }"
-        :title="`open ${selectedRule.catalog} · ${selectedRule.name} in the editor`"
-      >open in editor →</router-link>
+        :title="t('open {catalog} · {name} in the editor', { catalog: selectedRule.catalog, name: selectedRule.name })"
+      >{{ t('open in editor →') }}</router-link>
     </template>
 
     <template #banner>
       <div v-if="historicalEntry" class="mal__histbanner">
         <span class="mal__histbicon">⟲</span>
-        <span>
-          viewing saved capture from <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
-          · {{ historicalEntry.catalog }} · {{ historicalEntry.name }} · {{ historicalEntry.ruleName }}
-        </span>
-        <button type="button" class="mal__histback" @click="clearHistorical">back to live</button>
+        <i18n-t
+          keypath="Viewing saved capture from {time} · {catalog} · {name} · {rule}"
+          tag="span"
+          scope="global"
+        >
+          <template #time><strong>{{ formatTime(historicalEntry.savedAt) }}</strong></template>
+          <template #catalog>{{ historicalEntry.catalog }}</template>
+          <template #name>{{ historicalEntry.name }}</template>
+          <template #rule>{{ historicalEntry.ruleName }}</template>
+        </i18n-t>
+        <button type="button" class="mal__histback" @click="clearHistorical">{{ t('back to live') }}</button>
       </div>
     </template>
 
     <template #subhead>
       <div v-if="totalRecordCount > 0" class="mal__subhead">
-        <span class="mal__subheadct">{{ totalRecordCount }} records · {{ foldedRecords.size }} folded</span>
+        <span class="mal__subheadct">{{ t('{n} records · {folded} folded', { n: totalRecordCount, folded: foldedRecords.size }) }}</span>
         <div class="mal__subheadbtns">
           <button
             type="button"
             class="mal__subheadbtn"
             :disabled="allFolded"
             @click="foldAllRecords"
-          >fold all</button>
+          >{{ t('fold all') }}</button>
           <button
             type="button"
             class="mal__subheadbtn"
             :disabled="foldedRecords.size === 0"
             @click="expandAllRecords"
-          >expand all</button>
+          >{{ t('expand all') }}</button>
         </div>
       </div>
     </template>
 
     <template #idle-hint>
-      pick a rule and hit start. each captured execution renders as a
-      record card; rows inside walk the chain
-      <code>input → filter → function → output</code> with
-      <em>before</em> / <em>exp</em> / <em>after</em> for every step.
-      click a row to inspect its captured DSL on the source pane (toggle
-      "show source" in the capture header).
+      <i18n-t
+        keypath="Pick a rule and hit start. Each captured execution renders as a record card; rows inside walk the chain {chain} with {before} / {exp} / {after} for every step. Click a row to inspect its captured DSL on the source pane (toggle “show source” in the capture header)."
+        tag="span"
+        scope="global"
+      >
+        <template #chain><code>input → filter → function → output</code></template>
+        <template #before><em>before</em></template>
+        <template #exp><em>exp</em></template>
+        <template #after><em>after</em></template>
+      </i18n-t>
     </template>
 
     <template #node-body="{ node }">
       <div v-if="node.recordViews.length === 0" class="mal__empty">
-        no MAL records from this node
+        {{ t('no MAL records from this node') }}
       </div>
       <div v-else class="mal__records">
         <article
@@ -808,16 +820,16 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
             <span class="mal__reccaret">{{ isRecordFolded(nodeKey(node), rv.recordIdx) ? '▸' : '▾' }}</span>
             <span class="mal__recidx">#{{ rv.recordIdx + 1 }}</span>
             <span class="mal__rectime">{{ formatTime(rv.rec.startedAtMs) }}</span>
-            <span class="mal__recmeta">{{ rv.rows.length }} steps</span>
+            <span class="mal__recmeta">{{ t('{n} steps', { n: rv.rows.length }) }}</span>
           </header>
           <template v-if="!isRecordFolded(nodeKey(node), rv.recordIdx)">
           <dl class="mal__rmeta">
             <div class="mal__rmpair">
-              <dt>metric</dt>
+              <dt>{{ t('metric') }}</dt>
               <dd><code>{{ metricLabel(rv.rec) }}</code></dd>
             </div>
             <div v-if="rv.rec.rule.filter" class="mal__rmpair">
-              <dt>filter</dt>
+              <dt>{{ t('filter') }}</dt>
               <dd><code><template
                 v-for="(seg, i) in highlightSegments(rv.rec.rule.filter, selectedFragment)"
                 :key="i"
@@ -827,7 +839,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
               >{{ seg.text }}</mark><template v-else>{{ seg.text }}</template></template></code></dd>
             </div>
             <div v-if="rv.rec.rule.exp" class="mal__rmpair">
-              <dt>exp</dt>
+              <dt>{{ t('exp') }}</dt>
               <dd><code><template
                 v-for="(seg, i) in highlightSegments(rv.rec.rule.exp, selectedFragment)"
                 :key="i"
@@ -837,7 +849,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
               >{{ seg.text }}</mark><template v-else>{{ seg.text }}</template></template></code></dd>
             </div>
             <div v-if="rv.rec.rule.expSuffix" class="mal__rmpair">
-              <dt>suffix</dt>
+              <dt>{{ t('suffix') }}</dt>
               <dd><code><template
                 v-for="(seg, i) in highlightSegments(rv.rec.rule.expSuffix, selectedFragment)"
                 :key="i"
@@ -868,8 +880,8 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                   <span
                     v-if="!row.sample.continueOn"
                     class="mal__stopflag"
-                    title="chain stopped here"
-                  >stopped</span>
+                    :title="t('chain stopped here')"
+                  >{{ t('stopped') }}</span>
                 </div>
               </div>
               <div class="mal__rail">
@@ -892,23 +904,23 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                        builds serialise it) and renders only when the
                        recorder included it. -->
                   <div class="mal__meter">
-                    <div><span class="mal__mlbl">metric</span><span class="mal__mval">{{ row.output.metric }}</span></div>
-                    <div><span class="mal__mlbl">function</span><span class="mal__mval">{{ row.output.valueType }}</span></div>
+                    <div><span class="mal__mlbl">{{ t('metric') }}</span><span class="mal__mval">{{ row.output.metric }}</span></div>
+                    <div><span class="mal__mlbl">{{ t('function') }}</span><span class="mal__mval">{{ row.output.valueType }}</span></div>
                     <div v-if="row.output.value !== undefined">
-                      <span class="mal__mlbl">value</span>
+                      <span class="mal__mlbl">{{ t('value') }}</span>
                       <span class="mal__mval mal__mvalnum">{{ formatOutputValue(row.output.value) }}</span>
                     </div>
                     <div><span class="mal__mlbl">timeBucket</span><span class="mal__mval">{{ row.output.timeBucket }}</span></div>
                   </div>
                   <div class="mal__entity">
                     <header class="mal__entityh">
-                      <span class="mal__mlbl">entity</span>
+                      <span class="mal__mlbl">{{ t('entity') }}</span>
                       <button
                         type="button"
                         class="mal__entitytog"
                         @click="toggleEntity(row)"
                       >
-                        {{ isEntityExpanded(row) ? 'compact' : 'show all' }}
+                        {{ isEntityExpanded(row) ? t('compact') : t('show all') }}
                       </button>
                     </header>
                     <div class="mal__entitykvs">
@@ -927,13 +939,13 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                         v-if="!isEntityExpanded(row) && entityFields(row.output.entity, true).length > entityFields(row.output.entity, false).length"
                         class="mal__entitymore"
                       >
-                        + {{ entityFields(row.output.entity, true).length - entityFields(row.output.entity, false).length }} null fields hidden
+                        {{ t('+ {n} null fields hidden', { n: entityFields(row.output.entity, true).length - entityFields(row.output.entity, false).length }) }}
                       </div>
                     </div>
                   </div>
                 </template>
                 <template v-else-if="row.samples?.empty === true">
-                  <div class="mal__rtempty">empty family · 0 rows</div>
+                  <div class="mal__rtempty">{{ t('empty family · 0 rows') }}</div>
                 </template>
                 <template v-else>
                   <table class="mal__rtable">
@@ -944,9 +956,9 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                     </colgroup>
                     <thead>
                       <tr>
-                        <th>name</th>
-                        <th>labels</th>
-                        <th class="mal__rtval">value</th>
+                        <th>{{ t('name') }}</th>
+                        <th>{{ t('labels') }}</th>
+                        <th class="mal__rtval">{{ t('value') }}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -959,11 +971,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                         <td class="mal__rtval">{{ it.value }}</td>
                       </tr>
                       <tr v-if="flattenRows(row.samples).length === 0">
-                        <td colspan="3" class="mal__rtempty">no rows in payload</td>
+                        <td colspan="3" class="mal__rtempty">{{ t('no rows in payload') }}</td>
                       </tr>
                       <tr v-if="countRows(row.samples) > flattenRows(row.samples).length">
                         <td colspan="3" class="mal__rtmore">
-                          + {{ countRows(row.samples) - flattenRows(row.samples).length }} more rows
+                          {{ t('+ {n} more rows', { n: countRows(row.samples) - flattenRows(row.samples).length }) }}
                         </td>
                       </tr>
                     </tbody>
@@ -988,10 +1000,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .ctl__lbl {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .ctl__select {
@@ -1005,7 +1018,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-border);
   padding: 4px 8px;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .ctl__input {
@@ -1014,7 +1027,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .ctl__editlink {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
   text-decoration: none;
   padding: 2px 8px;
@@ -1038,13 +1051,13 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-warn, #d6a96d);
   border-left-width: 3px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
 }
 
 .mal__histbicon {
   color: var(--rr-warn, #d6a96d);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
 }
 
 .mal__histback {
@@ -1053,9 +1066,10 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 3px 10px;
   cursor: pointer;
 }
@@ -1067,7 +1081,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__empty {
   padding: 14px;
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   font-style: italic;
 }
@@ -1104,7 +1118,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   width: 12px;
   text-align: center;
   color: var(--rr-dim);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .mal__rec--folded .mal__rech {
@@ -1120,7 +1134,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__subheadct {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   letter-spacing: 0.4px;
 }
@@ -1136,9 +1150,10 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 3px 10px;
   cursor: pointer;
 }
@@ -1156,21 +1171,21 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 .mal__recidx {
   font-family: var(--rr-font-mono);
   color: var(--rr-heading);
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-semibold);
 }
 
 .mal__rectime {
   font-family: var(--rr-font-mono);
   color: var(--rr-ink2);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .mal__recmeta {
   margin-left: auto;
   font-family: var(--rr-font-mono);
   color: var(--rr-dim);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .mal__rmeta {
@@ -1180,7 +1195,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   margin: 0;
   padding: 8px 12px;
   border-bottom: 1px solid var(--rr-border);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .mal__rmpair {
@@ -1188,10 +1203,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 }
 
 .mal__rmpair dt {
-  color: var(--rr-dim);
-  font-size: 11px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: var(--sw-ls-caps);
   align-self: baseline;
 }
 
@@ -1243,10 +1259,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__stagekind {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 1.1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .mal__stagelbl--selected .mal__stagekind {
@@ -1255,7 +1272,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__stagelabel {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-heading);
   word-break: break-word;
   line-height: 1.3;
@@ -1269,7 +1286,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__stageio {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   display: flex;
   align-items: center;
@@ -1289,9 +1306,10 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   padding: 1px 6px;
   border: 1px solid var(--rr-warn, #d6a96d);
   color: var(--rr-warn, #d6a96d);
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--sw-ls-caps);
   cursor: help;
 }
 
@@ -1351,7 +1369,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   width: 100%;
   border-collapse: collapse;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   border: 1px solid var(--rr-border);
   background: var(--rr-bg);
   /* Fixed layout so colgroup widths bind consistently across every
@@ -1377,11 +1395,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 .mal__rtable th {
   text-align: left;
   padding: 5px 8px;
-  font-size: 10px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  font-weight: 400;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   border-bottom: 1px solid var(--rr-border);
 }
 
@@ -1452,7 +1470,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-border);
   background: var(--rr-bg);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .mal__meter > div {
@@ -1460,10 +1478,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 }
 
 .mal__mlbl {
-  color: var(--rr-dim);
-  font-size: 10px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.8px;
+  letter-spacing: var(--sw-ls-caps);
   align-self: center;
 }
 
@@ -1480,7 +1499,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 
 .mal__mvalnum {
   color: var(--rr-accent, var(--rr-active));
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 
 
@@ -1506,9 +1525,10 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 2px 8px;
   cursor: pointer;
 }
@@ -1523,7 +1543,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 2px 12px;
   padding: 8px 10px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .mal__entitykv {
@@ -1531,10 +1551,11 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 }
 
 .mal__entityk {
-  color: var(--rr-dim);
-  font-size: 10.5px;
-  letter-spacing: 0.6px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   align-self: center;
 }
 
@@ -1547,7 +1568,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   grid-column: 1 / -1;
   margin-top: 4px;
   color: var(--rr-dim);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   font-style: italic;
 }
 </style>

@@ -15,6 +15,8 @@
     "test:unit:watch": "vitest --environment jsdom --root src/"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
+    "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@skywalking-horizon-ui/api-client": "workspace:*",
     "@skywalking-horizon-ui/design-tokens": "workspace:*",
     "@skywalking-horizon-ui/templates": "workspace:*",

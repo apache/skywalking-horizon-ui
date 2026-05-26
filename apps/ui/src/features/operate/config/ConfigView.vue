@@ -16,12 +16,14 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useOapConfig } from './useOapConfig';
 
 // Read-only snapshot of OAP's resolved runtime config, grouped by module
 // (the first dotted segment). OAP masks secret values to `******`
 // server-side, so nothing sensitive is exposed here.
 
+const { t } = useI18n({ useScope: 'global' });
 const { reachable, entries, data, isLoading, refetch } = useOapConfig();
 
 const filter = ref('');
@@ -58,29 +60,44 @@ function isMasked(v: string): boolean {
   <div class="cfg">
     <header class="page-head">
       <div>
-        <div class="kicker">Operate · OAP configuration</div>
-        <h1>Runtime config</h1>
+        <!-- Kicker + lede each kept as ONE translation unit so non-English
+             locales render coherent prose; previously the lede was split
+             into three t() calls around two inline <code> elements, which
+             produced "English | translated word | English" mid-sentence
+             when only some fragments had non-English entries. -->
+        <div class="kicker">{{ t('Operate · OAP configuration') }}</div>
+        <h1>{{ t('Runtime config') }}</h1>
         <p class="lede">
-          The connected OAP's resolved configuration, read from the admin port's
-          <code>/debugging/config/dump</code> and grouped by module. Secret values
-          (passwords, tokens, access keys) are masked to <code>******</code> by OAP itself.
-          Read-only — change config on the OAP side and restart.
+          <i18n-t
+            keypath="The connected OAP's resolved configuration, read from the admin port's {endpoint} and grouped by module. Secret values (passwords, tokens, access keys) are masked to {mask} by OAP itself. Read-only — change config on the OAP side and restart."
+            tag="span"
+            scope="global"
+          >
+            <template #endpoint><code>/debugging/config/dump</code></template>
+            <template #mask><code>******</code></template>
+          </i18n-t>
         </p>
       </div>
-      <button type="button" class="refresh" @click="refetch()">refresh</button>
+      <button type="button" class="refresh" @click="refetch()">{{ t('refresh') }}</button>
     </header>
 
     <div v-if="!reachable && data?.error" class="last-error block">
-      <strong>Admin host unreachable</strong>
+      <strong>{{ t('Admin host unreachable') }}</strong>
       <code>{{ data.error }}</code>
       <p class="hint">
-        Tried <code>{{ data.adminUrl }}/debugging/config/dump</code>.
-        Confirm the OAP <code>admin-server</code> module is on
-        (<code>SW_ADMIN_SERVER=default</code>) and the port is exposed.
+        <i18n-t
+          keypath="Tried {url}. Confirm the OAP {module} module is on ({env}) and the port is exposed."
+          tag="span"
+          scope="global"
+        >
+          <template #url><code>{{ data.adminUrl }}/debugging/config/dump</code></template>
+          <template #module><code>admin-server</code></template>
+          <template #env><code>SW_ADMIN_SERVER=default</code></template>
+        </i18n-t>
       </p>
     </div>
 
-    <div v-else-if="isLoading && !data" class="empty">Reading data…</div>
+    <div v-else-if="isLoading && !data" class="empty">{{ t('Reading data…') }}</div>
 
     <template v-else>
       <div class="toolbar">
@@ -88,13 +105,13 @@ function isMasked(v: string): boolean {
           v-model="filter"
           type="text"
           class="filter"
-          placeholder="Filter keys or values…"
+          :placeholder="t('Filter keys or values…')"
           spellcheck="false"
         />
-        <span class="count">{{ matchCount }} of {{ entries.length }} keys</span>
+        <span class="count">{{ t('{matched} of {total} keys', { matched: matchCount, total: entries.length }) }}</span>
       </div>
 
-      <div v-if="groups.length === 0" class="empty">No keys match “{{ filter }}”.</div>
+      <div v-if="groups.length === 0" class="empty">{{ t('No keys match “{q}”.', { q: filter }) }}</div>
 
       <section v-for="g in groups" :key="g.module" class="modblock">
         <header class="modblock-head">
@@ -106,7 +123,7 @@ function isMasked(v: string): boolean {
             <tr v-for="row in g.rows" :key="row.key">
               <td class="ckey"><code>{{ row.key }}</code></td>
               <td class="cval" :class="{ empty: row.value === '', masked: isMasked(row.value) }">
-                <code>{{ row.value === '' ? '(empty)' : row.value }}</code>
+                <code>{{ row.value === '' ? t('(empty)') : row.value }}</code>
               </td>
             </tr>
           </tbody>
@@ -132,23 +149,24 @@ function isMasked(v: string): boolean {
   flex: 1;
 }
 .kicker {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-accent);
   margin-bottom: 6px;
 }
 .page-head h1 {
-  font-size: 22px;
-  font-weight: 600;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
   letter-spacing: -0.02em;
   color: var(--sw-fg-0);
   margin: 0 0 8px;
 }
 .lede {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
   margin: 0;
   max-width: 760px;
 }
@@ -157,13 +175,13 @@ function isMasked(v: string): boolean {
   background: var(--sw-bg-1);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 .refresh {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-1);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -186,7 +204,7 @@ function isMasked(v: string): boolean {
   border: 1px solid var(--sw-line-2);
   border-radius: 6px;
   color: var(--sw-fg-0);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   padding: 7px 10px;
   font-family: var(--sw-mono);
 }
@@ -195,7 +213,7 @@ function isMasked(v: string): boolean {
   border-color: var(--sw-accent);
 }
 .count {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -211,12 +229,12 @@ function isMasked(v: string): boolean {
 }
 .modblock-head .modname {
   font-family: var(--sw-mono);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-accent);
 }
 .modblock-head .modcount {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
   background: var(--sw-bg-1);
   border-radius: 999px;
@@ -231,7 +249,7 @@ function isMasked(v: string): boolean {
   border: 1px solid var(--sw-line);
   border-radius: 8px;
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   table-layout: fixed;
 }
 .cfg-table td {
@@ -260,13 +278,13 @@ function isMasked(v: string): boolean {
 }
 .cval.masked code {
   color: var(--sw-warn);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .empty {
   padding: 14px;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   background: var(--sw-bg-1);
   border: 1px dashed var(--sw-line-2);
   border-radius: 6px;
@@ -278,7 +296,7 @@ function isMasked(v: string): boolean {
   background: var(--sw-err-soft);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
   display: flex;
   flex-direction: column;
@@ -287,22 +305,22 @@ function isMasked(v: string): boolean {
 }
 .last-error strong {
   color: var(--sw-err);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--sw-fs-xs);
+  letter-spacing: var(--sw-ls-caps);
 }
 .last-error code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   word-break: break-all;
 }
 .last-error .hint {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
 }
 .last-error .hint code {
   background: rgba(0, 0, 0, 0.25);

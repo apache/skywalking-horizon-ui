@@ -37,9 +37,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import { bff, type AlertingRuleSummary } from '@/api/client';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -103,12 +105,12 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   <div class="ar">
     <header class="ar__head">
       <div>
-        <div class="ar__kicker">Operate · Alerting</div>
-        <h1>Alerting rules</h1>
+        <div class="ar__kicker">{{ t('Operate · Alerting') }}</div>
+        <h1>{{ t('Alerting rules') }}</h1>
         <p class="ar__lede">
-          Read-only catalog of every alarm rule loaded by OAP, with its body and per-node load
-          state. Rules edit through OAP's <code>alarm-settings.yml</code> + watcher reload —
-          there's no mutation surface here by design.
+          <i18n-t keypath="Read-only catalog of every alarm rule loaded by OAP, with its body and per-node load state. Rules edit through OAP's {file} + watcher reload — there's no mutation surface here by design.">
+            <template #file><code>alarm-settings.yml</code></template>
+          </i18n-t>
         </p>
       </div>
       <div class="ar__head-actions">
@@ -117,16 +119,18 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
           class="ar__refresh"
           :disabled="listQuery.isFetching.value"
           @click="listQuery.refetch()"
-        >{{ listQuery.isFetching.value ? 'refreshing…' : 'refresh' }}</button>
+        >{{ listQuery.isFetching.value ? t('refreshing…') : t('refresh') }}</button>
       </div>
     </header>
 
-    <div v-if="listQuery.isPending.value" class="ar__empty">loading…</div>
+    <div v-if="listQuery.isPending.value" class="ar__empty">{{ t('loading…') }}</div>
 
     <div v-else-if="listQuery.data.value && !listQuery.data.value.reachable" class="ar__empty ar__empty--err">
-      Admin server unreachable —
-      <code>{{ listQuery.data.value.error ?? 'no response' }}</code>.
-      Check the <code>SW_ADMIN_SERVER</code> selector and the BFF's <code>oap.adminUrl</code>.
+      <i18n-t keypath="Admin server unreachable — {err}. Check the {sel} selector and the BFF's {url}.">
+        <template #err><code>{{ listQuery.data.value.error ?? t('no response') }}</code></template>
+        <template #sel><code>SW_ADMIN_SERVER</code></template>
+        <template #url><code>oap.adminUrl</code></template>
+      </i18n-t>
     </div>
 
     <template v-else>
@@ -134,10 +138,10 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
         <input
           v-model="search"
           type="text"
-          placeholder="search rule id or expression…"
+          :placeholder="t('search rule id or expression…')"
           class="ar__search"
         />
-        <span class="ar__count">{{ filteredRules.length }} rule{{ filteredRules.length === 1 ? '' : 's' }}</span>
+        <span class="ar__count">{{ filteredRules.length === 1 ? t('{n} rule', { n: filteredRules.length }) : t('{n} rules', { n: filteredRules.length }) }}</span>
       </div>
 
       <div class="ar__split">
@@ -154,68 +158,68 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
             </div>
             <div class="ar__list-meta">
               <span class="ar__load" :class="{ partial: r.loadedOn < r.totalNodes }">
-                loaded {{ r.loadedOn }}/{{ r.totalNodes }}
+                {{ t('loaded {a}/{b}', { a: r.loadedOn, b: r.totalNodes }) }}
               </span>
               <span v-if="r.detail?.period" class="ar__period">
-                {{ r.detail.period }}m window
+                {{ t('{n}m window', { n: r.detail.period }) }}
               </span>
             </div>
           </li>
           <li v-if="filteredRules.length === 0" class="ar__list-empty">
-            No rules match.
+            {{ t('No rules match.') }}
           </li>
         </ul>
 
         <aside class="ar__detail">
           <div v-if="!selectedSummary && !detail" class="ar__placeholder">
-            Select a rule to see its body.
+            {{ t('Select a rule to see its body.') }}
           </div>
           <template v-else>
             <header class="ar__detail-head">
               <h2><code>{{ selectedId }}</code></h2>
             </header>
 
-            <div v-if="detailQuery.isPending.value && !detail" class="ar__placeholder">loading…</div>
+            <div v-if="detailQuery.isPending.value && !detail" class="ar__placeholder">{{ t('loading…') }}</div>
             <div v-else-if="!detail" class="ar__placeholder">
-              Rule body unavailable on every node.
+              {{ t('Rule body unavailable on every node.') }}
             </div>
             <template v-else>
               <section class="ar__sec">
-                <div class="ar__kicker-s">Expression</div>
+                <div class="ar__kicker-s">{{ t('Expression') }}</div>
                 <pre class="ar__expr">{{ detail.expression }}</pre>
               </section>
 
               <section class="ar__sec">
-                <div class="ar__kicker-s">Window</div>
+                <div class="ar__kicker-s">{{ t('Window') }}</div>
                 <div class="ar__meta-grid">
-                  <div><span class="ar__lbl">period</span><span>{{ detail.period }}m</span></div>
-                  <div><span class="ar__lbl">silence</span><span>{{ detail.silencePeriod }}m</span></div>
-                  <div><span class="ar__lbl">recovery-obs</span><span>{{ detail.recoveryObservationPeriod }}m</span></div>
+                  <div><span class="ar__lbl">{{ t('period') }}</span><span>{{ t('{n}m', { n: detail.period }) }}</span></div>
+                  <div><span class="ar__lbl">{{ t('silence') }}</span><span>{{ t('{n}m', { n: detail.silencePeriod }) }}</span></div>
+                  <div><span class="ar__lbl">{{ t('recovery-obs') }}</span><span>{{ t('{n}m', { n: detail.recoveryObservationPeriod }) }}</span></div>
                   <div v-if="detail.additionalPeriod > 0">
-                    <span class="ar__lbl">additional</span><span>{{ detail.additionalPeriod }}m</span>
+                    <span class="ar__lbl">{{ t('additional') }}</span><span>{{ t('{n}m', { n: detail.additionalPeriod }) }}</span>
                   </div>
                 </div>
               </section>
 
               <section v-if="detail.includeMetrics.length > 0" class="ar__sec">
-                <div class="ar__kicker-s">Metrics referenced</div>
+                <div class="ar__kicker-s">{{ t('Metrics referenced') }}</div>
                 <div class="ar__chips">
                   <code v-for="m in detail.includeMetrics" :key="m">{{ m }}</code>
                 </div>
               </section>
 
               <section v-if="detail.hooks.length > 0" class="ar__sec">
-                <div class="ar__kicker-s">Hooks</div>
+                <div class="ar__kicker-s">{{ t('Hooks') }}</div>
                 <div class="ar__chips">
                   <span v-for="h in detail.hooks" :key="h" class="ar__tag">{{ h }}</span>
                 </div>
               </section>
 
               <section v-if="detail.tags.length > 0" class="ar__sec">
-                <div class="ar__kicker-s">Tags</div>
+                <div class="ar__kicker-s">{{ t('Tags') }}</div>
                 <div class="ar__chips">
-                  <span v-for="t in detail.tags" :key="`${t.key}=${t.value}`" class="ar__tag">
-                    {{ t.key }}={{ t.value }}
+                  <span v-for="tg in detail.tags" :key="`${tg.key}=${tg.value}`" class="ar__tag">
+                    {{ tg.key }}={{ tg.value }}
                   </span>
                 </div>
               </section>
@@ -224,9 +228,9 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
                 v-if="detail.includeEntityNames.length > 0 || detail.includeEntityNamesRegex"
                 class="ar__sec"
               >
-                <div class="ar__kicker-s">Include entities</div>
+                <div class="ar__kicker-s">{{ t('Include entities') }}</div>
                 <div v-if="detail.includeEntityNamesRegex" class="ar__regex">
-                  regex: <code>{{ detail.includeEntityNamesRegex }}</code>
+                  {{ t('regex:') }} <code>{{ detail.includeEntityNamesRegex }}</code>
                 </div>
                 <div v-if="detail.includeEntityNames.length > 0" class="ar__chips">
                   <code v-for="n in detail.includeEntityNames" :key="n">{{ n }}</code>
@@ -237,9 +241,9 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
                 v-if="detail.excludeEntityNames.length > 0 || detail.excludeEntityNamesRegex"
                 class="ar__sec"
               >
-                <div class="ar__kicker-s">Exclude entities</div>
+                <div class="ar__kicker-s">{{ t('Exclude entities') }}</div>
                 <div v-if="detail.excludeEntityNamesRegex" class="ar__regex">
-                  regex: <code>{{ detail.excludeEntityNamesRegex }}</code>
+                  {{ t('regex:') }} <code>{{ detail.excludeEntityNamesRegex }}</code>
                 </div>
                 <div v-if="detail.excludeEntityNames.length > 0" class="ar__chips">
                   <code v-for="n in detail.excludeEntityNames" :key="n">{{ n }}</code>
@@ -248,7 +252,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 
               <section v-if="detail.runningEntities.length > 0" class="ar__sec">
                 <div class="ar__kicker-s">
-                  Currently watching ({{ detail.runningEntities.length }})
+                  {{ t('Currently watching ({n})', { n: detail.runningEntities.length }) }}
                 </div>
                 <ul class="ar__entity-list">
                   <li v-for="re in detail.runningEntities" :key="`${re.scope}/${re.name}`">
@@ -259,13 +263,13 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
               </section>
 
               <section v-if="detailNodes.length > 1" class="ar__sec">
-                <div class="ar__kicker-s">Per-node state</div>
+                <div class="ar__kicker-s">{{ t('Per-node state') }}</div>
                 <table class="ar__node-table">
                   <thead>
                     <tr>
-                      <th>node</th>
-                      <th>ok</th>
-                      <th>note</th>
+                      <th>{{ t('node') }}</th>
+                      <th>{{ t('ok') }}</th>
+                      <th>{{ t('note') }}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -273,9 +277,9 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
                       <td><code>{{ n.address }}</code></td>
                       <td>
                         <span class="ar__dot" :class="n.ok ? 'is-ok' : 'is-err'" />
-                        {{ n.ok ? 'ok' : 'err' }}
+                        {{ n.ok ? t('ok') : t('err') }}
                       </td>
-                      <td class="ar__node-note">{{ n.error ?? (n.detail ? '—' : 'no body returned') }}</td>
+                      <td class="ar__node-note">{{ n.error ?? (n.detail ? '—' : t('no body returned')) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -302,21 +306,22 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 }
 .ar__head > div:first-child { flex: 1; }
 .ar__kicker {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-accent);
   margin-bottom: 4px;
 }
 .ar h1 {
-  font-size: 22px;
+  font-size: var(--sw-fs-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
   color: var(--sw-fg-0);
   margin: 0 0 8px;
 }
 .ar__lede {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
   line-height: 1.5;
   margin: 0;
@@ -324,7 +329,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 }
 .ar__lede code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   padding: 1px 5px;
@@ -335,7 +340,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   padding: 6px 14px;
   border-radius: 6px;
   cursor: pointer;
@@ -347,7 +352,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 .ar__empty {
   padding: 32px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-3);
   background: var(--sw-bg-1);
   border: 1px dashed var(--sw-line);
@@ -359,7 +364,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 }
 .ar__empty code {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   padding: 1px 5px;
@@ -382,14 +387,14 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   border: 1px solid var(--sw-line);
   color: var(--sw-fg-0);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   padding: 5px 8px;
   border-radius: 5px;
   outline: none;
 }
 .ar__search:focus { border-color: var(--sw-accent); }
 .ar__count {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
   font-variant-numeric: tabular-nums;
 }
@@ -424,7 +429,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 }
 .ar__list-name code {
   font-family: var(--sw-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-0);
   background: transparent;
   padding: 0;
@@ -433,7 +438,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   margin-top: 4px;
   display: flex;
   gap: 10px;
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
 }
 .ar__load.partial { color: var(--sw-warn); }
@@ -441,7 +446,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 .ar__list-empty {
   padding: 24px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-3);
 }
 
@@ -459,33 +464,33 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 .ar__placeholder {
   padding: 32px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-3);
 }
 .ar__detail-head h2 {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
   font-weight: 600;
 }
 .ar__detail-head h2 code {
   font-family: var(--sw-mono);
   color: var(--sw-fg-0);
   background: transparent;
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
 }
 .ar__sec { border-top: 1px solid var(--sw-line); padding-top: 12px; }
 .ar__sec:first-of-type { border-top: 0; padding-top: 0; }
 .ar__kicker-s {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
-  font-weight: 600;
   margin-bottom: 6px;
 }
 .ar__expr {
   font-family: var(--sw-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
@@ -509,20 +514,20 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
   border-radius: 4px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   font-variant-numeric: tabular-nums;
 }
 .ar__lbl {
-  font-size: 9.5px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
-  font-weight: 600;
 }
 .ar__chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .ar__chips code {
   font-family: var(--sw-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-1);
   background: var(--sw-bg-2);
   padding: 2px 6px;
@@ -530,17 +535,17 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   border: 1px solid var(--sw-line);
 }
 .ar__tag {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-1);
   background: var(--sw-bg-2);
   padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid var(--sw-line);
 }
-.ar__regex { font-size: 11px; color: var(--sw-fg-2); margin-bottom: 6px; }
+.ar__regex { font-size: var(--sw-fs-sm); color: var(--sw-fg-2); margin-bottom: 6px; }
 .ar__regex code {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   padding: 1px 5px;
@@ -561,7 +566,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 }
 .ar__entity-list code {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   background: var(--sw-bg-2);
   padding: 1px 5px;
@@ -570,7 +575,7 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
 .ar__node-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 .ar__node-table th, .ar__node-table td {
   text-align: left;
@@ -578,15 +583,15 @@ const detailNodes = computed(() => detailQuery.data.value?.nodes ?? []);
   border-bottom: 1px solid var(--sw-line);
 }
 .ar__node-table th {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
-  font-weight: 600;
 }
 .ar__node-table code {
   font-family: var(--sw-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
 }
 .ar__node-note { color: var(--sw-fg-3); font-style: italic; max-width: 320px; overflow-wrap: anywhere; }

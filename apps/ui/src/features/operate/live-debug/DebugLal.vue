@@ -802,10 +802,16 @@ function recordTitle(view: LalRecordView): string {
     <template #banner>
       <div v-if="historicalEntry" class="lal__histbanner">
         <span class="lal__histbicon">⟲</span>
-        <span>
-          {{ t('viewing saved capture from') }} <strong>{{ formatTime(historicalEntry.savedAt) }}</strong>
-          · {{ historicalEntry.catalog }} · {{ historicalEntry.name }} · {{ historicalEntry.ruleName }}
-        </span>
+        <i18n-t
+          keypath="Viewing saved capture from {time} · {catalog} · {name} · {rule}"
+          tag="span"
+          scope="global"
+        >
+          <template #time><strong>{{ formatTime(historicalEntry.savedAt) }}</strong></template>
+          <template #catalog>{{ historicalEntry.catalog }}</template>
+          <template #name>{{ historicalEntry.name }}</template>
+          <template #rule>{{ historicalEntry.ruleName }}</template>
+        </i18n-t>
         <button type="button" class="lal__histback" @click="clearHistorical">{{ t('back to live') }}</button>
       </div>
     </template>
@@ -835,9 +841,14 @@ function recordTitle(view: LalRecordView): string {
     </template>
 
     <template #idle-hint>
-      {{ t('pick a LAL rule and hit start. each captured log becomes one column in the matrix; rows walk the per-record blocks') }}
-      <code>input → function → output</code> {{ t('(statement granularity splits') }}
-      <code>function</code> {{ t("per DSL line). click any cell to open the source pane with that record's captured DSL and the matching fragment highlighted.") }}
+      <i18n-t
+        keypath="Pick a LAL rule and hit start. Each captured log becomes one column in the matrix; rows walk the per-record blocks {chain} (statement granularity splits {fn} per DSL line). Click any cell to open the source pane with that record's captured DSL and the matching fragment highlighted."
+        tag="span"
+        scope="global"
+      >
+        <template #chain><code>input → function → output</code></template>
+        <template #fn><code>function</code></template>
+      </i18n-t>
     </template>
 
     <template #node-body="{ node }">
@@ -919,9 +930,14 @@ function recordTitle(view: LalRecordView): string {
         >
           <template v-if="searchQuery.trim() === ''">{{ t('no records on this node') }}</template>
           <template v-else>
-            {{ t('no records match') }}
-            <code>{{ searchQuery }}</code>
-            ({{ t('{n} captured total', { n: node.recordViews.length }) }})
+            <i18n-t
+              keypath="No records match {query} ({n} captured total)"
+              tag="span"
+              scope="global"
+            >
+              <template #query><code>{{ searchQuery }}</code></template>
+              <template #n>{{ node.recordViews.length }}</template>
+            </i18n-t>
           </template>
         </div>
         <div
@@ -1073,10 +1089,11 @@ function recordTitle(view: LalRecordView): string {
 
 .ctl__lbl {
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .ctl__select {
@@ -1090,7 +1107,7 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   padding: 4px 8px;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 
 .ctl__input {
@@ -1103,7 +1120,7 @@ function recordTitle(view: LalRecordView): string {
 
 .ctl__editlink {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
   text-decoration: none;
   padding: 2px 8px;
@@ -1130,7 +1147,7 @@ function recordTitle(view: LalRecordView): string {
   color: var(--rr-ink2);
   padding: 4px 10px;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   cursor: pointer;
 }
 
@@ -1145,7 +1162,7 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__empty {
   padding: 14px;
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   font-style: italic;
 }
@@ -1170,10 +1187,11 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__sourcestublabel {
   font-family: var(--rr-font-mono);
-  font-size: 10px;
-  letter-spacing: 1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   margin-top: 4px;
@@ -1220,10 +1238,11 @@ function recordTitle(view: LalRecordView): string {
   border-bottom: 1px solid var(--rr-border);
   padding: 4px 8px;
   font-family: var(--rr-font-mono);
-  font-size: 10.5px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -1250,7 +1269,7 @@ function recordTitle(view: LalRecordView): string {
   align-items: baseline;
   padding: 1px 10px 1px 0;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   line-height: 1.5;
 }
 
@@ -1261,14 +1280,14 @@ function recordTitle(view: LalRecordView): string {
 .lal__sourcelno {
   text-align: right;
   color: var(--rr-dim);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
 }
 
 .lal__sourcehook {
   background: transparent;
   border: 0;
   color: var(--rr-accent, var(--rr-active));
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
   padding: 0;
   width: 18px;
@@ -1312,7 +1331,7 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   line-height: 1;
   width: 26px;
   height: 22px;
@@ -1324,7 +1343,7 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__srctogglechev {
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   line-height: 1;
 }
 
@@ -1346,7 +1365,7 @@ function recordTitle(view: LalRecordView): string {
 .lal__matrix {
   display: grid;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   background: var(--rr-bg);
   min-width: 100%;
 }
@@ -1360,16 +1379,17 @@ function recordTitle(view: LalRecordView): string {
   padding: 8px 10px;
   border-right: 1px solid var(--rr-border);
   border-bottom: 1px solid var(--rr-border);
-  color: var(--rr-dim);
-  font-size: 10px;
-  letter-spacing: 1px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .lal__hdrlblct {
   margin-top: 4px;
   font-family: var(--rr-font-mono);
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   letter-spacing: 0;
   text-transform: none;
   color: var(--rr-ink2);
@@ -1392,10 +1412,11 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__searchlbl {
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .lal__searchinput,
@@ -1405,7 +1426,7 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   padding: 3px 8px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .lal__searchinput {
@@ -1419,7 +1440,7 @@ function recordTitle(view: LalRecordView): string {
 .lal__nomatch {
   padding: 24px 18px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   text-align: center;
   font-style: italic;
@@ -1450,7 +1471,7 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__hdrtitle {
   color: var(--rr-heading);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1462,7 +1483,7 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   color: var(--rr-dim);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   width: 20px;
   height: 18px;
   line-height: 1;
@@ -1489,15 +1510,16 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__stepkind {
-  color: var(--rr-dim);
-  font-size: 10.5px;
-  letter-spacing: 0.6px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .lal__stepname {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-heading);
   word-break: break-word;
   line-height: 1.3;
@@ -1511,7 +1533,7 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__stepct {
   color: var(--rr-dim);
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
 }
 
 .lal__cell {
@@ -1550,7 +1572,7 @@ function recordTitle(view: LalRecordView): string {
 .lal__cellabsent {
   color: var(--rr-dim);
   font-style: italic;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .lal__kvs {
@@ -1564,17 +1586,18 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__kvk {
-  color: var(--rr-dim);
-  font-size: 10px;
-  letter-spacing: 0.4px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   align-self: center;
 }
 
 .lal__kvv {
   color: var(--rr-ink);
   word-break: break-all;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 
 .lal__body {
@@ -1582,7 +1605,7 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   padding: 4px 6px;
   color: var(--rr-ink2);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   line-height: 1.4;
   word-break: break-all;
   white-space: pre-wrap;
@@ -1603,17 +1626,18 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__tagheader {
   font-family: var(--rr-font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
   margin-right: 4px;
   flex-shrink: 0;
 }
 
 .lal__tag {
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   border: 1px solid var(--rr-border);
   background: var(--rr-bg);
   color: var(--rr-ink2);
@@ -1639,9 +1663,10 @@ function recordTitle(view: LalRecordView): string {
 
 .lal__abort {
   color: var(--rr-warn, #d6a96d);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--sw-ls-caps);
 }
 
 .lal__histbanner {
@@ -1653,13 +1678,13 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-warn, #d6a96d);
   border-left-width: 3px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-ink2);
 }
 
 .lal__histbicon {
   color: var(--rr-warn, #d6a96d);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
 }
 
 .lal__histback {
@@ -1668,9 +1693,10 @@ function recordTitle(view: LalRecordView): string {
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.6px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
   padding: 3px 10px;
   cursor: pointer;
 }

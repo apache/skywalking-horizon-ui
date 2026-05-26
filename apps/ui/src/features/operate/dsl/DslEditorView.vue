@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, shallowRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { isCatalog, type Catalog, type RuleResponse } from '@skywalking-horizon-ui/api-client';
 import { useAuthStore } from '@/state/auth';
@@ -27,6 +28,7 @@ import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 import DestructiveConfirm from '@/features/operate/_shared/DestructiveConfirm.vue';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
@@ -96,7 +98,7 @@ function setFlash(msg: string): void {
 async function onSave(): Promise<void> {
   const r = await editor.save({ force: force.value });
   if (r.kind === 'ok') {
-    setFlash(`saved · ${r.result.applyStatus}`);
+    setFlash(t('saved · {status}', { status: r.result.applyStatus }));
     return;
   }
   if (r.kind === 'error') {
@@ -105,16 +107,16 @@ async function onSave(): Promise<void> {
   }
   if (r.kind === 'needs-storage-change') {
     confirm.value = {
-      title: 'Storage change required',
-      intent: 'push a STRUCTURAL change to',
+      title: t('Storage change required'),
+      intent: t('push a STRUCTURAL change to'),
       warning: [
-        'This edit moves the metric’s storage identity (scope, downsampling, or single↔labeled↔histogram).',
-        'OAP drops the existing measure’s data on BanyanDB and orphans rows on JDBC / Elasticsearch.',
-        'Alarm rules, dashboards, and historical queries that reference the old shape will miss the pre-change window.',
+        t('This edit moves the metric’s storage identity (scope, downsampling, or single↔labeled↔histogram).'),
+        t('OAP drops the existing measure’s data on BanyanDB and orphans rows on JDBC / Elasticsearch.'),
+        t('Alarm rules, dashboards, and historical queries that reference the old shape will miss the pre-change window.'),
       ],
       perform: async () => {
         const ok = await editor.save({ allowStorageChange: true, force: force.value });
-        if (ok.kind === 'ok') setFlash(`saved · ${ok.result.applyStatus}`);
+        if (ok.kind === 'ok') setFlash(t('saved · {status}', { status: ok.result.applyStatus }));
         else if (ok.kind === 'error') setFlash(extractErrorMessage(ok.error));
       },
     };
@@ -124,7 +126,7 @@ async function onSave(): Promise<void> {
 async function onInactivate(): Promise<void> {
   const r = await editor.inactivate();
   if (r.kind === 'ok') {
-    setFlash(`inactivated · ${r.result.applyStatus}`);
+    setFlash(t('inactivated · {status}', { status: r.result.applyStatus }));
     return;
   }
   if (r.kind === 'error') {
@@ -135,12 +137,12 @@ async function onInactivate(): Promise<void> {
 async function onDeleteDefault(): Promise<void> {
   const r = await editor.deleteRule('');
   if (r.kind === 'ok') {
-    setFlash(`deleted · ${r.result.applyStatus}`);
+    setFlash(t('deleted · {status}', { status: r.result.applyStatus }));
     await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
     return;
   }
   if (r.kind === 'needs-inactivate-first') {
-    setFlash('rule is ACTIVE — inactivate first, then delete');
+    setFlash(t('rule is ACTIVE — inactivate first, then delete'));
     return;
   }
   if (r.kind === 'error') {
@@ -148,29 +150,29 @@ async function onDeleteDefault(): Promise<void> {
     return;
   }
   // 'no-bundled-twin' shouldn't reach the default-delete path.
-  setFlash(`unexpected outcome: ${r.kind}`);
+  setFlash(t('unexpected outcome: {kind}', { kind: r.kind }));
 }
 
 function onDeleteRevertToBundled(): void {
   if (!name.value) return;
   confirm.value = {
-    title: 'Revert to bundled',
-    intent: 'revert to bundled (STRUCTURAL apply)',
+    title: t('Revert to bundled'),
+    intent: t('revert to bundled (STRUCTURAL apply)'),
     warning: [
-      'OAP runs the standard apply pipeline against the bundled YAML — this is a schema change.',
-      'Runtime-only metrics that the bundled rule does not define will be dropped from BanyanDB.',
-      'Bundled-only metrics will be installed.',
-      'Returns 400 no_bundled_twin if the rule has no bundled version on disk.',
+      t('OAP runs the standard apply pipeline against the bundled YAML — this is a schema change.'),
+      t('Runtime-only metrics that the bundled rule does not define will be dropped from BanyanDB.'),
+      t('Bundled-only metrics will be installed.'),
+      t('Returns 400 no_bundled_twin if the rule has no bundled version on disk.'),
     ],
     perform: async () => {
       const r = await editor.deleteRule('revertToBundled');
       if (r.kind === 'ok') {
-        setFlash(`reverted · ${r.result.applyStatus}`);
+        setFlash(t('reverted · {status}', { status: r.result.applyStatus }));
         await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
         return;
       }
       if (r.kind === 'no-bundled-twin') {
-        setFlash('no bundled version on disk for this rule');
+        setFlash(t('no bundled version on disk for this rule'));
         return;
       }
       if (r.kind === 'error') {
@@ -196,7 +198,7 @@ async function loadBundled(): Promise<void> {
   try {
     bundled.value = await editor.fetchBundled();
     if (!bundled.value) {
-      diffLoadError.value = 'no bundled version on disk for this rule';
+      diffLoadError.value = t('no bundled version on disk for this rule');
     }
   } catch (err) {
     diffLoadError.value = err instanceof Error ? err.message : String(err);
@@ -242,7 +244,7 @@ const hasBundledTwin = computed(
 
 <template>
   <div class="ed">
-    <AdminFeatureWarning module="receiver-runtime-rule" feature-label="DSL Editor" />
+    <AdminFeatureWarning module="receiver-runtime-rule" :feature-label="t('DSL Editor')" />
     <header class="ed__header">
       <h1 class="ed__h1">
         <span class="ed__catalog">{{ catalog ?? '?' }}</span>
@@ -252,12 +254,12 @@ const hasBundledTwin = computed(
       <Pill v-if="editor.original.value" :tone="statusTone">
         {{ editor.original.value.status }}
       </Pill>
-      <Pill v-if="editor.dirty.value" tone="active">unsaved</Pill>
+      <Pill v-if="editor.dirty.value" tone="active">{{ t('unsaved') }}</Pill>
       <Pill v-if="editor.lastApplyStatus.value" tone="info">
         {{ editor.lastApplyStatus.value }}
       </Pill>
       <div class="ed__spacer" />
-      <Btn @click="router.back()">← catalog</Btn>
+      <Btn @click="router.back()">{{ t('← catalog') }}</Btn>
     </header>
 
     <div class="ed__toolbar">
@@ -268,7 +270,7 @@ const hasBundledTwin = computed(
           :class="{ 'ed__tab--active': diffMode === 'none' }"
           @click="setDiffMode('none')"
         >
-          edit
+          {{ t('edit') }}
         </button>
         <button
           type="button"
@@ -277,7 +279,7 @@ const hasBundledTwin = computed(
           :disabled="!editor.original.value"
           @click="setDiffMode('current')"
         >
-          diff vs. server
+          {{ t('diff vs. server') }}
         </button>
         <button
           type="button"
@@ -285,7 +287,7 @@ const hasBundledTwin = computed(
           :class="{ 'ed__tab--active': diffMode === 'bundled' }"
           @click="setDiffMode('bundled')"
         >
-          diff vs. bundled
+          {{ t('diff vs. bundled') }}
         </button>
       </div>
 
@@ -297,20 +299,20 @@ const hasBundledTwin = computed(
         :data-testid="'editor-save'"
         @click="onSave"
       >
-        {{ editor.saving.value ? 'saving…' : 'save' }}
+        {{ editor.saving.value ? t('saving…') : t('save') }}
       </Btn>
       <Btn
         :disabled="!canWrite || !editor.exists.value || editor.saving.value"
         @click="onInactivate"
       >
-        inactivate
+        {{ t('inactivate') }}
       </Btn>
       <Btn
         kind="danger"
         :disabled="!canDelete || !editor.exists.value || editor.saving.value"
         @click="onDeleteDefault"
       >
-        delete
+        {{ t('delete') }}
       </Btn>
       <Btn
         v-if="hasBundledTwin"
@@ -319,16 +321,16 @@ const hasBundledTwin = computed(
         :data-testid="'editor-revert'"
         @click="onDeleteRevertToBundled"
       >
-        revert to bundled
+        {{ t('revert to bundled') }}
       </Btn>
     </div>
 
     <p v-if="flash" class="ed__flash" :data-testid="'editor-flash'">{{ flash }}</p>
 
     <div class="ed__editorWrap">
-      <div v-if="editor.loading.value" class="ed__placeholder">loading…</div>
+      <div v-if="editor.loading.value" class="ed__placeholder">{{ t('loading…') }}</div>
       <div v-else-if="editor.loadError.value" class="ed__placeholder ed__placeholder--err">
-        Could not load: {{ editor.loadError.value }}
+        {{ t('Could not load: {err}', { err: editor.loadError.value }) }}
       </div>
 
       <MonacoYaml
@@ -355,7 +357,7 @@ const hasBundledTwin = computed(
           :original="bundled.content"
           :modified="editor.buffer.value"
         />
-        <p v-else class="ed__placeholder">loading bundled…</p>
+        <p v-else class="ed__placeholder">{{ t('loading bundled…') }}</p>
       </div>
     </div>
 
@@ -364,14 +366,18 @@ const hasBundledTwin = computed(
       :open="showAdvanced"
       @toggle="(e: Event) => (showAdvanced = (e.target as HTMLDetailsElement).open)"
     >
-      <summary>advanced</summary>
+      <summary>{{ t('advanced') }}</summary>
       <label class="ed__force">
         <input v-model="force" type="checkbox" :disabled="!canWriteStructural" />
         <span>
-          recovery: <code>force=true</code> on save
+          <i18n-t keypath="recovery: {force} on save" tag="span">
+            <template #force><code>force=true</code></template>
+          </i18n-t>
           <small>
-            re-runs apply on byte-identical content (subsumes the old <code>/fix</code>
-            route). Requires <code>rule:write:structural</code>.
+            <i18n-t keypath="re-runs apply on byte-identical content (subsumes the old {fix} route). Requires {verb}." tag="span">
+              <template #fix><code>/fix</code></template>
+              <template #verb><code>rule:write:structural</code></template>
+            </i18n-t>
           </small>
         </span>
       </label>
@@ -410,8 +416,8 @@ const hasBundledTwin = computed(
 .ed__h1 {
   margin: 0;
   font-family: var(--rr-font-mono);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   color: var(--rr-heading);
 }
 
@@ -450,7 +456,7 @@ const hasBundledTwin = computed(
   border-right: 1px solid var(--rr-border);
   padding: 4px 12px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   cursor: pointer;
 }
 .ed__tab:last-child {
@@ -476,7 +482,7 @@ const hasBundledTwin = computed(
   border-left: 2px solid var(--rr-info);
   border-radius: var(--rr-radius-md);
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-info);
 }
 
@@ -501,7 +507,7 @@ const hasBundledTwin = computed(
   padding: 36px;
   text-align: center;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
 }
 
@@ -510,7 +516,7 @@ const hasBundledTwin = computed(
 }
 
 .ed__advanced {
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
 }
 
@@ -518,7 +524,7 @@ const hasBundledTwin = computed(
   cursor: pointer;
   font-family: var(--rr-font-mono);
   color: var(--rr-dim);
-  letter-spacing: 0.4px;
+  letter-spacing: var(--sw-ls-tight);
   padding: 4px 0;
 }
 
@@ -526,7 +532,7 @@ const hasBundledTwin = computed(
   display: flex;
   gap: 8px;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
 }
 
@@ -537,9 +543,9 @@ const hasBundledTwin = computed(
 
 .ed__force small {
   display: block;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
-  line-height: 1.4;
+  line-height: var(--sw-lh-tight);
   margin-top: 2px;
 }
 </style>

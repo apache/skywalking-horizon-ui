@@ -240,10 +240,14 @@ if (staticDir && existsSync(staticDir)) {
   logger.info({ staticDir }, 'serving SPA from static dir');
 }
 
+// Public liveness probe. Intentionally minimal — kept identifier-free so
+// an unauthenticated caller can confirm "the BFF is up" without leaking
+// operational details (session count, OAP reachability, etc.). Detailed
+// state lives behind /api/auth/health (which requires auth) and the
+// admin status pages.
 app.get('/api/health', async () => ({
   status: 'ok',
   version: process.env.HORIZON_VERSION ?? '0.6.0-dev',
-  sessions: sessions.size(),
 }));
 
 const { host, port } = source.current.server;

@@ -47,7 +47,13 @@ import type {
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
-import { defaultMinuteWindow, windowFromRange, type TimeStep, type Window } from '../../util/window.js';
+import {
+  defaultMinuteWindow,
+  getServerOffsetMinutes,
+  windowFromRange,
+  type TimeStep,
+  type Window,
+} from '../../util/window.js';
 import { getLayerTemplate, topologyConfigFor } from '../../logic/layers/loader.js';
 import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
 
@@ -269,6 +275,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar time picker when all three triplet
       // query-params are present; otherwise fall back to the last-hour
       // MINUTE window. The Overview "topology" widget + per-layer
@@ -281,8 +288,9 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         (stepArg === 'MINUTE' || stepArg === 'HOUR' || stepArg === 'DAY') &&
         Number.isFinite(startMs) &&
         Number.isFinite(endMs)
-          ? windowFromRange(stepArg, startMs, endMs) ?? defaultMinuteWindow(DEFAULT_WINDOW_MIN)
-          : defaultMinuteWindow(DEFAULT_WINDOW_MIN);
+          ? windowFromRange(stepArg, startMs, endMs, offset) ??
+            defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
+          : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
       const oapLayer = layerKey.toUpperCase();
       const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
       const coldStage = !!req.coldStage;
@@ -517,13 +525,12 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
 
       // ── Build response. Connected nodes only — a service with zero
       // edges in the duration window doesn't belong on the topology
-      // map; it's a "service" not a "topology participant". This
-      // matches booster-ui's demo at
-      // https://demo.skywalking.apache.org/Service-Mesh/Services and
-      // /Kubernetes/Service: the canvas only renders nodes that are
-      // endpoints of at least one call edge. We keep idle-but-still-
-      // connected nodes (their metrics may be null on the windowed
-      // sample, but they still take part in the topology graph).
+      // map; it's a "service" not a "topology participant". The canvas
+      // only renders nodes that are endpoints of at least one call
+      // edge. We keep idle-but-still-connected nodes (their metrics may
+      // be null on the windowed sample, but they still take part in
+      // the topology graph). Same rule booster-ui's Service Mesh and
+      // Kubernetes topology pages use.
       const connectedNodeIds = new Set<string>();
       for (const c of calls.values()) {
         connectedNodeIds.add(c.source);

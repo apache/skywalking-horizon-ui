@@ -26,6 +26,7 @@
 
 import * as monaco from 'monaco-editor';
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
 import type { Catalog } from '@skywalking-horizon-ui/api-client';
 import { tokens } from '@skywalking-horizon-ui/design-tokens';
 // Local shim mapping the vantage rrDark slot names to horizon's nested
@@ -71,7 +72,19 @@ export function setupMonaco(): void {
   initialised = true;
 
   (globalThis as MonacoGlobal).MonacoEnvironment = {
-    getWorker(): Worker {
+    // Monaco hands every worker request a `label` matching the model's
+    // language. The generic EditorWorker only knows tokenization +
+    // diffs — the JSON / TS / CSS / HTML language services each ship
+    // their OWN worker that handles language-specific messages like
+    // `resetSchema`. Returning EditorWorker for every label was the
+    // cause of "Uncaught (in promise) Error: Missing requestHandler
+    // or method: resetSchema" surfacing in deployment whenever an
+    // operator opened the JSON diff modal (Check diff & push) — the
+    // diff still rendered, but Monaco's JSON service kept logging the
+    // unanswered message. Dev never hit it because nobody opened that
+    // modal in dev mode.
+    getWorker(_workerId: string, label: string): Worker {
+      if (label === 'json') return new JsonWorker();
       return new EditorWorker();
     },
   };

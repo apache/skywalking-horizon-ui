@@ -28,6 +28,7 @@
  */
 import { computed, onScopeDispose, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import {
   isActive,
   useDebugHistory,
@@ -36,6 +37,7 @@ import {
 } from '@/features/operate/live-debug/useDebugHistory';
 import Pill from '@/components/primitives/Pill.vue';
 
+const { t } = useI18n();
 const router = useRouter();
 /* The composable's `widget` arg only filters `entries`; `all` returns
  * everything. We bind to MAL arbitrarily and use `all` for the table. */
@@ -67,7 +69,7 @@ const completedEntries = computed<HistoryEntry[]>(() =>
 function countdown(deadline: number | undefined): string {
   if (deadline === undefined) return '';
   const remaining = Math.max(0, deadline - nowMs.value);
-  if (remaining === 0) return 'expired';
+  if (remaining === 0) return t('expired');
   const totalSec = Math.floor(remaining / 1000);
   const mm = Math.floor(totalSec / 60);
   const ss = totalSec % 60;
@@ -118,7 +120,7 @@ function deleteEntry(id: string): void {
 }
 
 function clearAll(): void {
-  if (typeof window !== 'undefined' && !window.confirm('delete all saved captures?')) return;
+  if (typeof window !== 'undefined' && !window.confirm(t('delete all saved captures?'))) return;
   // history.clear() only nukes the bound widget; iterate to wipe all.
   for (const e of [...history.all.value]) {
     history.remove(e.id);
@@ -130,10 +132,9 @@ function clearAll(): void {
   <div class="dh">
     <header class="dh__h">
       <div>
-        <h1 class="dh__title">capture history</h1>
+        <h1 class="dh__title">{{ t('capture history') }}</h1>
         <p class="dh__sub">
-          past debug sessions captured locally in this browser. nothing
-          leaves your machine; entries cap at 20 per browser, oldest first.
+          {{ t('past debug sessions captured locally in this browser. nothing leaves your machine; entries cap at 20 per browser, oldest first.') }}
         </p>
       </div>
       <button
@@ -141,7 +142,7 @@ function clearAll(): void {
         type="button"
         class="dh__clearall"
         @click="clearAll"
-      >clear all</button>
+      >{{ t('clear all') }}</button>
     </header>
 
     <div class="dh__filters">
@@ -159,20 +160,26 @@ function clearAll(): void {
 
     <div v-if="filteredEntries.length === 0" class="dh__empty">
       <template v-if="history.all.value.length === 0">
-        no saved captures yet — run a session in the
-        <router-link to="/operate/live-debug">live debugger</router-link>; finished
-        sessions auto-save here.
+        <i18n-t
+          keypath="No saved captures yet — run a session in the {link}; finished sessions auto-save here."
+          tag="span"
+          scope="global"
+        >
+          <template #link>
+            <router-link to="/operate/live-debug">{{ t('Live debugger') }}</router-link>
+          </template>
+        </i18n-t>
       </template>
       <template v-else>
-        no captures match this filter.
+        {{ t('no captures match this filter.') }}
       </template>
     </div>
 
     <template v-else>
       <section v-if="activeEntries.length > 0" class="dh__section">
         <header class="dh__sectionh">
-          <span class="dh__sectiontitle">active</span>
-          <span class="dh__sectionct">{{ activeEntries.length }} ongoing</span>
+          <span class="dh__sectiontitle">{{ t('active') }}</span>
+          <span class="dh__sectionct">{{ t('{n} ongoing', { n: activeEntries.length }) }}</span>
         </header>
         <ul class="dh__list">
           <li
@@ -182,7 +189,7 @@ function clearAll(): void {
           >
             <div class="dh__col dh__col--meta">
               <Pill :tone="widgetTone[entry.widget]">{{ entry.widget }}</Pill>
-              <span class="dh__active">live</span>
+              <span class="dh__active">{{ t('live') }}</span>
               <span class="dh__time">{{ formatDateTime(entry.savedAt) }}</span>
             </div>
             <div class="dh__col dh__col--rule">
@@ -194,18 +201,18 @@ function clearAll(): void {
                 <code class="dh__metric">{{ entry.ruleName }}</code>
               </div>
               <div class="dh__counts">
-                {{ entry.recordCount }} records · {{ entry.nodeCount }} nodes
+                {{ t('{n} records', { n: entry.recordCount }) }} · {{ t('{n} nodes', { n: entry.nodeCount }) }}
                 <template v-if="entry.granularity">· {{ entry.granularity }}</template>
-                <template v-if="entry.recordCap">· cap {{ entry.recordCap }}</template>
-                · ends in <span class="dh__countdown">{{ countdown(entry.retentionDeadline) }}</span>
+                <template v-if="entry.recordCap">· {{ t('cap {n}', { n: entry.recordCap }) }}</template>
+                · {{ t('ends in') }} <span class="dh__countdown">{{ countdown(entry.retentionDeadline) }}</span>
               </div>
             </div>
             <div class="dh__col dh__col--actions">
-              <button type="button" class="dh__load dh__load--resume" @click="loadEntry(entry)">resume →</button>
+              <button type="button" class="dh__load dh__load--resume" @click="loadEntry(entry)">{{ t('resume →') }}</button>
               <button
                 type="button"
                 class="dh__del"
-                title="delete this entry (does not stop the OAP session)"
+                :title="t('delete this entry (does not stop the OAP session)')"
                 @click="deleteEntry(entry.id)"
               >×</button>
             </div>
@@ -215,8 +222,8 @@ function clearAll(): void {
 
       <section v-if="completedEntries.length > 0" class="dh__section">
         <header v-if="activeEntries.length > 0" class="dh__sectionh">
-          <span class="dh__sectiontitle">completed</span>
-          <span class="dh__sectionct">{{ completedEntries.length }} finished</span>
+          <span class="dh__sectiontitle">{{ t('completed') }}</span>
+          <span class="dh__sectionct">{{ t('{n} finished', { n: completedEntries.length }) }}</span>
         </header>
         <ul class="dh__list">
           <li v-for="entry in completedEntries" :key="entry.id" class="dh__item">
@@ -233,17 +240,17 @@ function clearAll(): void {
                 <code class="dh__metric">{{ entry.ruleName }}</code>
               </div>
               <div class="dh__counts">
-                {{ entry.recordCount }} records · {{ entry.nodeCount }} nodes
+                {{ t('{n} records', { n: entry.recordCount }) }} · {{ t('{n} nodes', { n: entry.nodeCount }) }}
                 <template v-if="entry.granularity">· {{ entry.granularity }}</template>
-                <template v-if="entry.recordCap">· cap {{ entry.recordCap }}</template>
+                <template v-if="entry.recordCap">· {{ t('cap {n}', { n: entry.recordCap }) }}</template>
               </div>
             </div>
             <div class="dh__col dh__col--actions">
-              <button type="button" class="dh__load" @click="loadEntry(entry)">load →</button>
+              <button type="button" class="dh__load" @click="loadEntry(entry)">{{ t('load →') }}</button>
               <button
                 type="button"
                 class="dh__del"
-                title="delete this entry"
+                :title="t('delete this entry')"
                 @click="deleteEntry(entry.id)"
               >×</button>
             </div>
@@ -274,15 +281,15 @@ function clearAll(): void {
 .dh__title {
   margin: 0 0 4px;
   font-family: var(--rr-font-mono);
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--sw-fs-lg);
+  font-weight: var(--sw-fw-medium);
   color: var(--rr-heading);
   letter-spacing: 0.4px;
 }
 
 .dh__sub {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   max-width: 640px;
   line-height: 1.5;
@@ -294,7 +301,7 @@ function clearAll(): void {
   border: 1px solid var(--rr-warn, #d6a96d);
   color: var(--rr-warn, #d6a96d);
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   padding: 4px 12px;
@@ -315,7 +322,7 @@ function clearAll(): void {
   border: 1px solid var(--rr-border);
   color: var(--rr-ink2);
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   padding: 4px 12px;
@@ -337,7 +344,7 @@ function clearAll(): void {
 }
 
 .dh__filterct {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--rr-dim);
 }
 
@@ -347,7 +354,7 @@ function clearAll(): void {
 
 .dh__empty {
   padding: 24px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   font-style: italic;
   border: 1px dashed var(--rr-border);
@@ -369,10 +376,11 @@ function clearAll(): void {
   align-items: baseline;
   gap: 10px;
   font-family: var(--rr-font-mono);
-  font-size: 11px;
-  letter-spacing: 1px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 
 .dh__sectiontitle {
@@ -380,7 +388,7 @@ function clearAll(): void {
 }
 
 .dh__sectionct {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
 }
 
 .dh__list {
@@ -398,7 +406,7 @@ function clearAll(): void {
 
 .dh__active {
   font-family: var(--rr-font-mono);
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   padding: 2px 6px;
@@ -409,7 +417,7 @@ function clearAll(): void {
 
 .dh__countdown {
   color: var(--rr-accent, var(--rr-active));
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 
 .dh__load--resume {
@@ -456,7 +464,7 @@ function clearAll(): void {
 
 .dh__time {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   white-space: nowrap;
 }
@@ -467,7 +475,7 @@ function clearAll(): void {
   gap: 6px;
   flex-wrap: wrap;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 
 .dh__rulekey code {
@@ -494,7 +502,7 @@ function clearAll(): void {
 
 .dh__counts {
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
 }
 
@@ -503,7 +511,7 @@ function clearAll(): void {
   border: 1px solid var(--rr-accent, var(--rr-active));
   color: var(--rr-accent, var(--rr-active));
   font-family: var(--rr-font-mono);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   letter-spacing: 0.6px;
   text-transform: uppercase;
   padding: 4px 12px;
@@ -520,7 +528,7 @@ function clearAll(): void {
   background: transparent;
   border: 1px solid var(--rr-border);
   color: var(--rr-dim);
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
   cursor: pointer;
 }
 

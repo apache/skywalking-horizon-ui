@@ -16,20 +16,32 @@
  */
 
 /**
- * Shared time-window helpers for any BFF route that forwards a
- * SPA-supplied time range to OAP. Originally inlined inside
- * `dashboard.ts`; broken out here so `landing.ts` / `topology.ts` /
- * future query routes don't drift their own copies.
+ * Shared time-window helpers for BFF routes that forward an
+ * operator-supplied time range to OAP.
  *
- * OAP's `verifyDateTimeString` rejects when the string precision
- * doesn't match the Duration.step — `fmtForStep` is the only place
- * that knows the mapping. All times are formatted in UTC; callers
- * are responsible for converting the operator's browser-local time
- * to UTC before calling these (the UI does this; see CLAUDE.md
- * "Time, step, and timezone").
+ * OAP's `verifyDateTimeString` parses every Duration `start` / `end`
+ * string in the OAP server's own timezone — NOT UTC, NOT the browser's
+ * timezone. Sending a UTC-formatted string to an OAP running in UTC+8
+ * silently shifts every query by eight hours. The BFF therefore probes
+ * `getTimeInfo.timezone` once (cached for 60s) and emits each Duration
+ * string in OAP-local form via {@link fmtForStep}.
+ *
+ * The step → string-precision mapping is fixed by OAP's
+ * `DurationUtils.java`:
+ *   SECOND → yyyy-MM-dd HHmmss   (event/record queries — traces, logs)
+ *   MINUTE → yyyy-MM-dd HHmm     (metric queries at minute granularity)
+ *   HOUR   → yyyy-MM-dd HH       (metric queries on longer windows)
+ *   DAY    → yyyy-MM-dd          (metric queries on very long windows)
+ *
+ * Mixing precision and step throws upstream. Every BFF route must pass
+ * through these helpers; per-route copies drift.
  */
 
-export type TimeStep = 'MINUTE' | 'HOUR' | 'DAY';
+import type { FetchLike } from '@skywalking-horizon-ui/api-client';
+import type { ConfigSource } from '../config/loader.js';
+import { graphqlPost, buildOapOpts } from '../client/graphql.js';
+
+export type TimeStep = 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY';
 
 export interface Window {
   start: string;
@@ -40,44 +52,151 @@ export interface Window {
 function pad(n: number): string {
   return String(n).padStart(2, '0');
 }
-export function fmtMinute(d: Date): string {
+
+/** Shift an epoch-ms into the OAP server's local wall-clock by adding the
+ *  offset, then read the UTC fields off the shifted Date — which are now
+ *  the OAP-local components. This is the same trick as `alarms.ts`'s
+ *  original `fmtSecond`; it works because `Date` is an absolute instant
+ *  and `getUTC*` doesn't apply the BFF process's TZ. */
+function shifted(epochMs: number, offsetMinutes: number): Date {
+  return new Date(epochMs + offsetMinutes * 60_000);
+}
+
+export function fmtSecond(epochMs: number, offsetMinutes: number): string {
+  const d = shifted(epochMs, offsetMinutes);
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+}
+export function fmtMinute(epochMs: number, offsetMinutes: number): string {
+  const d = shifted(epochMs, offsetMinutes);
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
 }
-export function fmtHour(d: Date): string {
+export function fmtHour(epochMs: number, offsetMinutes: number): string {
+  const d = shifted(epochMs, offsetMinutes);
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}`;
 }
-export function fmtDay(d: Date): string {
+export function fmtDay(epochMs: number, offsetMinutes: number): string {
+  const d = shifted(epochMs, offsetMinutes);
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
 }
 
-/** Format a Date for OAP per the step. */
-export function fmtForStep(step: TimeStep, d: Date): string {
-  if (step === 'DAY') return fmtDay(d);
-  if (step === 'HOUR') return fmtHour(d);
-  return fmtMinute(d);
+/** Format an epoch-ms for OAP per the step. */
+export function fmtForStep(step: TimeStep, epochMs: number, offsetMinutes: number): string {
+  switch (step) {
+    case 'DAY':
+      return fmtDay(epochMs, offsetMinutes);
+    case 'HOUR':
+      return fmtHour(epochMs, offsetMinutes);
+    case 'MINUTE':
+      return fmtMinute(epochMs, offsetMinutes);
+    case 'SECOND':
+      return fmtSecond(epochMs, offsetMinutes);
+  }
 }
 
-/** Last-hour MINUTE window. Used as the fallback when a route runs
- *  without a SPA time range (e.g. background pollers, legacy callers). */
-export function defaultMinuteWindow(minutesBack = 60): Window {
-  const end = new Date();
-  end.setUTCSeconds(0, 0);
-  const start = new Date(end.getTime() - minutesBack * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
+/** Last-hour MINUTE window in OAP-local time. Used as the fallback when a
+ *  route runs without an operator-supplied range (e.g. background pollers,
+ *  legacy callers). */
+export function defaultMinuteWindow(
+  offsetMinutes: number,
+  minutesBack = 60,
+): { start: string; end: string; step: 'MINUTE' } {
+  const endMs = Math.floor(Date.now() / 60_000) * 60_000; // snap to minute
+  const startMs = endMs - minutesBack * 60_000;
+  return {
+    start: fmtMinute(startMs, offsetMinutes),
+    end: fmtMinute(endMs, offsetMinutes),
+    step: 'MINUTE',
+  };
 }
 
-/** Build an OAP {@link Window} from the SPA-supplied range. All three
- *  inputs must be present and `endMs > startMs`; returns null otherwise
- *  so the caller can fall back to {@link defaultMinuteWindow}. */
-export function windowFromRange(
-  step: TimeStep,
+/** Last-N-minutes SECOND window in OAP-local time. Used by record routes
+ *  (traces, logs) when no explicit range is supplied. */
+export function defaultSecondWindow(
+  offsetMinutes: number,
+  minutesBack = 30,
+): { start: string; end: string; step: 'SECOND' } {
+  const endMs = Date.now();
+  const startMs = endMs - minutesBack * 60_000;
+  return {
+    start: fmtSecond(startMs, offsetMinutes),
+    end: fmtSecond(endMs, offsetMinutes),
+    step: 'SECOND',
+  };
+}
+
+/** Build an OAP {@link Window} from an operator-supplied range. All three
+ *  inputs must be present and `endMs > startMs`; returns null otherwise so
+ *  the caller can fall back to a default window. Generic on the step so
+ *  dashboard / landing routes (whose responses declare step as the metric
+ *  subset `'MINUTE' | 'HOUR' | 'DAY'`) keep their narrower types. */
+export function windowFromRange<S extends TimeStep>(
+  step: S,
   startMs: number,
   endMs: number,
-): Window | null {
+  offsetMinutes: number,
+): { start: string; end: string; step: S } | null {
   if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
   return {
-    start: fmtForStep(step, new Date(startMs)),
-    end: fmtForStep(step, new Date(endMs)),
+    start: fmtForStep(step, startMs, offsetMinutes),
+    end: fmtForStep(step, endMs, offsetMinutes),
     step,
   };
+}
+
+// ── Server timezone discovery ─────────────────────────────────────────
+
+interface TzCacheEntry {
+  offsetMinutes: number;
+  fetchedAt: number;
+}
+let tzCache: TzCacheEntry | null = null;
+const TZ_TTL_MS = 60_000;
+
+const TIME_INFO_QUERY = /* GraphQL */ `
+  query HorizonServerTime {
+    time: getTimeInfo {
+      timezone
+    }
+  }
+`;
+
+/** Reset the cached offset. Tests + the `info` route call this on
+ *  reconfigure / health-check so a new OAP target re-probes. */
+export function invalidateServerOffsetCache(): void {
+  tzCache = null;
+}
+
+/** Look up the OAP server's UTC offset in minutes. Cached 60s.
+ *
+ *  Returns 0 (UTC fallback) if the probe fails — same behavior as
+ *  booster-ui, and matches the fallback alarms.ts has carried since
+ *  the original shared-offset implementation. The 60s TTL bounds how
+ *  long a misconfigured BFF would keep sending bad-TZ strings after
+ *  the operator fixes their OAP. */
+export async function getServerOffsetMinutes(
+  config: ConfigSource,
+  fetchImpl?: FetchLike,
+): Promise<number> {
+  const now = Date.now();
+  if (tzCache && now - tzCache.fetchedAt < TZ_TTL_MS) return tzCache.offsetMinutes;
+  try {
+    const env = await graphqlPost<{ time?: { timezone?: string | null } | null }>(
+      buildOapOpts(config.current, fetchImpl),
+      TIME_INFO_QUERY,
+    );
+    const raw = env.time?.timezone ?? '+0000';
+    const m = /^([+-])(\d{2})(\d{2})$/.exec(raw);
+    if (m) {
+      const sign = m[1] === '-' ? -1 : 1;
+      const h = parseInt(m[2], 10);
+      const mi = parseInt(m[3], 10);
+      const offset = sign * (h * 60 + mi);
+      tzCache = { offsetMinutes: offset, fetchedAt: now };
+      return offset;
+    }
+  } catch {
+    /* fall through to 0 */
+  }
+  tzCache = { offsetMinutes: 0, fetchedAt: now };
+  return 0;
 }

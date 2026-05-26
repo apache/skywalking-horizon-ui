@@ -37,6 +37,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
+import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface TraceTagRouteDeps {
   config: ConfigSource;
@@ -46,15 +47,18 @@ export interface TraceTagRouteDeps {
 
 const DEFAULT_WINDOW_MIN = 30;
 const MAX_WINDOW_MIN = 60 * 24 * 7;
-function fmtMinute(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}`;
-}
-function rollingWindow(minutes: number): { start: string; end: string; step: 'MINUTE' } {
+function rollingWindow(
+  minutes: number,
+  offsetMinutes: number,
+): { start: string; end: string; step: 'MINUTE' } {
   const m = Math.max(1, Math.min(MAX_WINDOW_MIN, Math.round(minutes)));
-  const end = new Date();
-  const start = new Date(end.getTime() - m * 60_000);
-  return { start: fmtMinute(start), end: fmtMinute(end), step: 'MINUTE' };
+  const endMs = Date.now();
+  const startMs = endMs - m * 60_000;
+  return {
+    start: fmtMinute(startMs, offsetMinutes),
+    end: fmtMinute(endMs, offsetMinutes),
+    step: 'MINUTE',
+  };
 }
 
 const TRACE_KEYS_QUERY = /* GraphQL */ `
@@ -85,7 +89,8 @@ export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRoute
     return async (req: FastifyRequest, reply: FastifyReply) => {
       const q = req.query as { windowMinutes?: string };
       const m = q.windowMinutes ? Number(q.windowMinutes) : DEFAULT_WINDOW_MIN;
-      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const env = await graphqlPost<{ keys: string[] | null }>(opts, query, { duration });
@@ -105,7 +110,8 @@ export function registerTraceTagRoutes(app: FastifyInstance, deps: TraceTagRoute
       const key = (q.key ?? '').trim();
       if (!key) return reply.code(400).send({ error: 'missing_key' });
       const m = q.windowMinutes ? Number(q.windowMinutes) : DEFAULT_WINDOW_MIN;
-      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const duration = rollingWindow(Number.isFinite(m) ? m : DEFAULT_WINDOW_MIN, offset);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
         const env = await graphqlPost<{ values: string[] | null }>(opts, query, {

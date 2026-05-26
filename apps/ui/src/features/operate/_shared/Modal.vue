@@ -16,6 +16,9 @@
 -->
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -59,7 +62,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
             v-if="dismissable"
             type="button"
             class="modal__close"
-            aria-label="close"
+            :aria-label="t('close')"
             @click="emit('close')"
           >
             ×
@@ -113,8 +116,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 
 .modal__title {
   font-family: var(--rr-font-mono);
-  font-size: 12px;
-  letter-spacing: 0.4px;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-semibold);
+  letter-spacing: var(--sw-ls-caps);
   color: var(--rr-heading);
 }
 
@@ -122,10 +126,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
   background: transparent;
   border: none;
   color: var(--rr-dim);
-  font-size: 14px;
+  font-size: var(--sw-fs-lg);
   cursor: pointer;
   padding: 0 4px;
-  line-height: 1;
+  line-height: var(--sw-lh-tight);
 }
 .modal__close:hover {
   color: var(--rr-ink);
@@ -134,7 +138,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey));
 .modal__body {
   padding: 16px;
   overflow: auto;
-  font-size: 13px;
+  font-size: var(--sw-fs-md);
   color: var(--rr-ink);
 }
 /* Fit mode: fill the panel height, no own scroll — a `flex: 1` child

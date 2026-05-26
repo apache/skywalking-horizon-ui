@@ -38,6 +38,7 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import {
@@ -53,6 +54,8 @@ import AlarmsTimeline from '@/components/charts/AlarmsTimeline.vue';
 import AlarmDetailPanel from './AlarmDetailPanel.vue';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
 import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
+
+const { t } = useI18n();
 
 // ── Time window ──────────────────────────────────────────────────────
 /* Per the alerting redesign: 20m / 2h / 4h presets + custom up to 4h.
@@ -128,15 +131,15 @@ function applyCustom(): void {
   const s = new Date(customStartInput.value).getTime();
   const e = new Date(customEndInput.value).getTime();
   if (!Number.isFinite(s) || !Number.isFinite(e)) {
-    customError.value = 'Invalid date';
+    customError.value = t('Invalid date');
     return;
   }
   if (e <= s) {
-    customError.value = 'End must be after start';
+    customError.value = t('End must be after start');
     return;
   }
   if (e - s > MAX_CUSTOM_MS) {
-    customError.value = `Window exceeds ${MAX_CUSTOM_MS / 60_000 / 60}h cap`;
+    customError.value = t('Window exceeds {h}h cap', { h: MAX_CUSTOM_MS / 60_000 / 60 });
     return;
   }
   customStart.value = s;
@@ -486,7 +489,7 @@ interface ListTab {
 const listTabs = computed<ListTab[]>(() => {
   /* "All" uses `totalCount` (range-scoped), not `alarms.value.length`,
    * so it stays in sync with the per-layer counts after a brush. */
-  const tabs: ListTab[] = [{ key: '', label: 'All', count: totalCount.value }];
+  const tabs: ListTab[] = [{ key: '', label: t('All'), count: totalCount.value }];
   for (const k of pinnedLayers.value) {
     tabs.push({ key: k, label: prettyLayer(k), count: countsByLayer.value.get(k) ?? 0 });
   }
@@ -513,7 +516,7 @@ watch([filteredIncidents, chipLayer, startTime, endTime], () => {
 
 // ── Misc utils ─────────────────────────────────────────────────────
 function prettyLayer(k: string): string {
-  if (k === 'OTHER') return 'Other';
+  if (k === 'OTHER') return t('Other');
   return k
     .toLowerCase()
     .split('_')
@@ -547,7 +550,7 @@ function formatWindowLabel(): string {
   if (windowMode.value === 'custom') {
     return `${fmtStamp(customStart.value)} → ${fmtStamp(customEnd.value)}`;
   }
-  return `last ${windowMode.value}`;
+  return t('last {window}', { window: windowMode.value });
 }
 
 watch([startTime, endTime], () => {
@@ -575,13 +578,15 @@ onMounted(() => {
   <div class="ax">
     <header class="ax__head">
       <div>
-        <div class="ax__kicker">Alarms</div>
-        <h1 class="ax__h1">Active alarms</h1>
+        <div class="ax__kicker">{{ t('Alarms') }}</div>
+        <h1 class="ax__h1">{{ t('Active alarms') }}</h1>
         <p class="ax__lede">
-          {{ formatWindowLabel() }}. Pinned layers come from
-          <RouterLink to="/admin/alert-page-setup">Alert page setup</RouterLink>.
-          Click a layer chip to narrow the list; click a flag on the timeline to inspect one
-          alarm; brush a region to slice the list to that window.
+          <i18n-t keypath="{window}. Pinned layers come from {setupLink}. Click a layer chip to narrow the list; click a flag on the timeline to inspect one alarm; brush a region to slice the list to that window." tag="span" scope="global">
+            <template #window>{{ formatWindowLabel() }}</template>
+            <template #setupLink>
+              <RouterLink to="/admin/alert-page-setup">{{ t('Alert page setup') }}</RouterLink>
+            </template>
+          </i18n-t>
         </p>
       </div>
       <div class="ax__header-actions">
@@ -599,32 +604,32 @@ onMounted(() => {
             class="ax__window-btn"
             :class="{ active: windowMode === 'custom' }"
             @click="openCustom"
-          >custom</button>
+          >{{ t('custom') }}</button>
         </div>
         <button
           type="button"
           class="ax__refresh"
           :disabled="refreshing"
           @click="onRefresh"
-        >{{ refreshing ? 'refreshing…' : 'refresh' }}</button>
+        >{{ refreshing ? t('refreshing…') : t('refresh') }}</button>
       </div>
     </header>
 
     <!-- Custom range editor — sits under the picker; closes on apply. -->
     <div v-if="customOpen" class="ax__custom">
       <label class="ax__custom-field">
-        <span>Start</span>
+        <span>{{ t('Start') }}</span>
         <input v-model="customStartInput" type="datetime-local" step="60" />
       </label>
       <label class="ax__custom-field">
-        <span>End</span>
+        <span>{{ t('End') }}</span>
         <input v-model="customEndInput" type="datetime-local" step="60" />
       </label>
       <div v-if="customError" class="ax__custom-err">{{ customError }}</div>
       <div class="ax__custom-actions">
-        <span class="ax__custom-hint">max {{ MAX_CUSTOM_MS / 60_000 / 60 }}h</span>
-        <button type="button" class="ax__custom-btn" @click="customOpen = false">cancel</button>
-        <button type="button" class="ax__custom-btn ax__custom-btn--primary" @click="applyCustom">apply</button>
+        <span class="ax__custom-hint">{{ t('max {h}h', { h: MAX_CUSTOM_MS / 60_000 / 60 }) }}</span>
+        <button type="button" class="ax__custom-btn" @click="customOpen = false">{{ t('cancel') }}</button>
+        <button type="button" class="ax__custom-btn ax__custom-btn--primary" @click="applyCustom">{{ t('apply') }}</button>
       </div>
     </div>
 
@@ -636,9 +641,9 @@ onMounted(() => {
         :class="{ active: !chipLayer }"
         @click="chipLayer = ''"
       >
-        <div class="ax__kpi-label">Active</div>
+        <div class="ax__kpi-label">{{ t('Active') }}</div>
         <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': totalCount > 0 }">{{ totalCount }}</div>
-        <div class="ax__kpi-sub">{{ rangeIncidents.length }} incident{{ rangeIncidents.length === 1 ? '' : 's' }}</div>
+        <div class="ax__kpi-sub">{{ rangeIncidents.length === 1 ? t('{n} incident', { n: rangeIncidents.length }) : t('{n} incidents', { n: rangeIncidents.length }) }}</div>
       </button>
       <button
         v-for="k in pinnedKpis"
@@ -664,9 +669,9 @@ onMounted(() => {
         type="button"
         disabled
         class="ax__kpi ax__kpi--passive"
-        title="Sum of alarms in non-pinned layers (and unmapped). Use the chips below to filter by a specific other layer."
+        :title="t('Sum of alarms in non-pinned layers (and unmapped). Use the chips below to filter by a specific other layer.')"
       >
-        <div class="ax__kpi-label">Other</div>
+        <div class="ax__kpi-label">{{ t('Other') }}</div>
         <div class="ax__kpi-val" :class="{ 'ax__kpi-val--err': otherKpiCount > 0 }">{{ otherKpiCount }}</div>
       </button>
       <div v-if="overflowChips.length > 0" class="ax__chips">
@@ -687,42 +692,42 @@ onMounted(() => {
     <!-- ── Filter row — conditional on capabilities.queryAlarms ──── -->
     <div v-if="hasQueryAlarms" class="ax__filters">
       <label class="ax__filter">
-        <span>Layer</span>
+        <span>{{ t('Layer') }}</span>
         <select v-model="draft.layer" @change="onLayerChange">
-          <option value="">any layer</option>
+          <option value="">{{ t('any layer') }}</option>
           <option v-for="L in availableLayers" :key="L.key" :value="L.key.toUpperCase()">{{ L.name }}</option>
         </select>
       </label>
       <label class="ax__filter" :class="{ 'is-disabled': !draft.layer }">
-        <span>Service</span>
+        <span>{{ t('Service') }}</span>
         <select v-model="draft.service" :disabled="!draft.layer" @change="onServiceChange">
           <option value="">
-            {{ !draft.layer ? 'pick a layer first' : servicesQuery.isFetching.value ? 'loading…' : 'any service' }}
+            {{ !draft.layer ? t('pick a layer first') : servicesQuery.isFetching.value ? t('loading…') : t('any service') }}
           </option>
           <option v-for="name in serviceOptions" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
       <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
-        <span>Instance</span>
+        <span>{{ t('Instance') }}</span>
         <select v-model="draft.instance" :disabled="!draft.service">
           <option value="">
-            {{ !draft.service ? 'pick a service first' : instancesQuery.isFetching.value ? 'loading…' : 'any instance' }}
+            {{ !draft.service ? t('pick a service first') : instancesQuery.isFetching.value ? t('loading…') : t('any instance') }}
           </option>
           <option v-for="name in instanceOptions" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
       <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
-        <span>Endpoint</span>
+        <span>{{ t('Endpoint') }}</span>
         <select v-model="draft.endpoint" :disabled="!draft.service">
           <option value="">
-            {{ !draft.service ? 'pick a service first' : endpointsQuery.isFetching.value ? 'loading…' : 'any endpoint' }}
+            {{ !draft.service ? t('pick a service first') : endpointsQuery.isFetching.value ? t('loading…') : t('any endpoint') }}
           </option>
           <option v-for="name in endpointOptions" :key="name" :value="name">{{ name }}</option>
         </select>
       </label>
       <label class="ax__filter ax__filter--wide">
-        <span>Keyword</span>
-        <input v-model="draft.keyword" type="text" placeholder="match alarm message" />
+        <span>{{ t('Keyword') }}</span>
+        <input v-model="draft.keyword" type="text" :placeholder="t('match alarm message')" />
       </label>
       <button
         type="button"
@@ -730,18 +735,18 @@ onMounted(() => {
         :class="{ 'is-dirty': isDirty }"
         :disabled="!isDirty"
         @click="applyFilters"
-      >{{ isDirty ? 'apply' : 'applied' }}</button>
+      >{{ isDirty ? t('apply') : t('applied') }}</button>
       <button
         v-if="applied.layer || applied.service || applied.instance || applied.endpoint || applied.keyword"
         type="button"
         class="ax__filter-clear"
         @click="clearFilters"
-      >clear</button>
+      >{{ t('clear') }}</button>
     </div>
     <div v-else class="ax__filters ax__filters--legacy">
       <label class="ax__filter ax__filter--wide">
-        <span>Keyword</span>
-        <input v-model="draft.keyword" type="text" placeholder="match alarm message" />
+        <span>{{ t('Keyword') }}</span>
+        <input v-model="draft.keyword" type="text" :placeholder="t('match alarm message')" />
       </label>
       <button
         type="button"
@@ -749,26 +754,26 @@ onMounted(() => {
         :class="{ 'is-dirty': isDirty }"
         :disabled="!isDirty"
         @click="applyFilters"
-      >{{ isDirty ? 'apply' : 'applied' }}</button>
+      >{{ isDirty ? t('apply') : t('applied') }}</button>
       <span class="ax__legacy-note">
-        This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.
+        {{ t('This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.') }}
       </span>
     </div>
 
     <!-- ── Timeline (flags only) ─────────────────────────────────── -->
     <section class="ax__panel">
       <header class="ax__panel-head">
-        <h3>Timeline</h3>
+        <h3>{{ t('Timeline') }}</h3>
         <button
           type="button"
           class="ax__panel-reset"
           :disabled="!selectedRange && !selectedAlarmKey"
-          title="Clear the selected time range / alarm"
+          :title="t('Clear the selected time range / alarm')"
           @click="clearSelection"
-        >reset</button>
-        <span v-if="alarmsQuery.isFetching.value" class="ax__refreshing">loading…</span>
+        >{{ t('reset') }}</button>
+        <span v-if="alarmsQuery.isFetching.value" class="ax__refreshing">{{ t('loading…') }}</span>
         <span v-else-if="truncated" class="ax__panel-warn">
-          showing {{ totalCount }} rows (page may be truncated — tighten the window)
+          {{ t('showing {n} rows (page may be truncated — tighten the window)', { n: totalCount }) }}
         </span>
       </header>
       <AlarmsTimeline
@@ -804,9 +809,9 @@ onMounted(() => {
           </button>
         </div>
 
-        <div v-if="alarmsQuery.isPending.value" class="ax__empty">loading…</div>
+        <div v-if="alarmsQuery.isPending.value" class="ax__empty">{{ t('loading…') }}</div>
         <div v-else-if="filteredIncidents.length === 0" class="ax__empty">
-          No alarms in the current window.
+          {{ t('No alarms in the current window.') }}
         </div>
 
         <!-- One row per (entity, rule) incident. Click selects the
@@ -840,7 +845,7 @@ onMounted(() => {
                 <div class="ax__row-msg">{{ inc.latest.message }}</div>
                 <div class="ax__row-meta">
                   <span v-if="inc.latest.layerKey" class="ax__row-tag">{{ prettyLayer(inc.latest.layerKey) }}</span>
-                  <span v-else class="ax__row-tag ax__row-tag--other">Other</span>
+                  <span v-else class="ax__row-tag ax__row-tag--other">{{ t('Other') }}</span>
                   <span class="ax__row-time">{{ formatRelative(inc.latest.startTime) }}</span>
                 </div>
               </div>
@@ -853,7 +858,7 @@ onMounted(() => {
                 class="ax__row-expand"
                 :class="{ 'is-open': isExpanded(inc.id) }"
                 :aria-expanded="isExpanded(inc.id)"
-                :title="isExpanded(inc.id) ? 'Hide history' : `Show all ${inc.triggerCount} events`"
+                :title="isExpanded(inc.id) ? t('Hide history') : t('Show all {n} events', { n: inc.triggerCount })"
                 @click.stop="toggleExpanded(inc.id)"
               >▾</button>
               <span v-else class="ax__row-expand-placeholder" aria-hidden="true" />
@@ -880,7 +885,7 @@ onMounted(() => {
                   <span class="ax__hist-idx mono">#{{ evi + 1 }}</span>
                   <span class="ax__hist-dot" :class="ev.recoveryTime !== null ? 'is-ok' : 'is-err'" />
                   <span class="ax__hist-label">
-                    {{ ev.recoveryTime !== null ? 'recovered' : 'fired' }}
+                    {{ ev.recoveryTime !== null ? t('recovered') : t('fired') }}
                   </span>
                   <span class="ax__hist-time mono">
                     {{ formatRelative(ev.recoveryTime ?? ev.startTime) }}
@@ -898,14 +903,14 @@ onMounted(() => {
             class="ax__pager-btn"
             :disabled="page <= 1"
             @click="page = page - 1"
-          >‹ prev</button>
-          <span class="ax__pager-pos mono">page {{ page }} / {{ totalPages }}</span>
+          >{{ t('‹ prev') }}</button>
+          <span class="ax__pager-pos mono">{{ t('page {p} / {total}', { p: page, total: totalPages }) }}</span>
           <button
             type="button"
             class="ax__pager-btn"
             :disabled="page >= totalPages"
             @click="page = page + 1"
-          >next ›</button>
+          >{{ t('next ›') }}</button>
         </nav>
       </div>
 

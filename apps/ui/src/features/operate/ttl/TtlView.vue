@@ -41,10 +41,12 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { TtlStageBreakdown } from '@skywalking-horizon-ui/api-client';
 import { useTtl } from './useTtl';
 import { useColdStageStore } from '@/controls/coldStage';
 
+const { t } = useI18n();
 const { reachable, data, isLoading, refetch } = useTtl();
 const cold = useColdStageStore();
 
@@ -61,25 +63,25 @@ interface Row {
 
 function recordsRows(s: TtlStageBreakdown): Row[] {
   return [
-    { label: 'Normal',           days: s.records.normal },
-    { label: 'Trace',            days: s.records.trace },
-    { label: 'Zipkin trace',     days: s.records.zipkinTrace },
-    { label: 'Log',              days: s.records.log },
-    { label: 'Browser error log', days: s.records.browserErrorLog },
+    { label: t('Normal'),            days: s.records.normal },
+    { label: t('Trace'),             days: s.records.trace },
+    { label: t('Zipkin trace'),      days: s.records.zipkinTrace },
+    { label: t('Log'),               days: s.records.log },
+    { label: t('Browser error log'), days: s.records.browserErrorLog },
   ];
 }
 function metricsRows(s: TtlStageBreakdown): Row[] {
   return [
-    ...(s.metrics.metadata !== undefined ? [{ label: 'Metadata', days: s.metrics.metadata }] : []),
-    { label: 'Minute', days: s.metrics.minute },
-    { label: 'Hour',   days: s.metrics.hour },
-    { label: 'Day',    days: s.metrics.day },
+    ...(s.metrics.metadata !== undefined ? [{ label: t('Metadata'), days: s.metrics.metadata }] : []),
+    { label: t('Minute'), days: s.metrics.minute },
+    { label: t('Hour'),   days: s.metrics.hour },
+    { label: t('Day'),    days: s.metrics.day },
   ];
 }
 function fmtDays(n: number | undefined): string {
   if (n === undefined) return '—';
   if (n < 0) return '—';
-  return `${n} d`;
+  return t('{n} d', { n });
 }
 
 /** Cold-window tip when the toggle is on AND a cold stage is
@@ -99,16 +101,16 @@ const coldTip = computed<string | null>(() => {
   // (hotTrace + coldTrace days back).
   const start = hotTrace;
   const end = hotTrace + coldTrace;
-  return (
-    `Cold-only read is ACTIVE. OAP queries the cold stage INSTEAD of hot+warm — recent windows return empty. ` +
-    `Pick a time range roughly ${start}–${end} days ago to see cold-stage traces; other data classes may have different boundaries — check the cards below.`
+  return t(
+    'Cold-only read is ACTIVE. OAP queries the cold stage INSTEAD of hot+warm — recent windows return empty. Pick a time range roughly {start}–{end} days ago to see cold-stage traces; other data classes may have different boundaries — check the cards below.',
+    { start, end },
   );
 });
 
 const backendPillLabel = computed(() => {
   if (backend.value === 'banyandb') return 'BanyanDB';
-  if (backend.value === 'other') return 'standard';
-  return 'detecting…';
+  if (backend.value === 'other') return t('standard');
+  return t('detecting…');
 });
 
 /** One bar per data class, grouped under Records / Metrics so the
@@ -140,11 +142,11 @@ const lifecycleRecords = computed<LifecycleRow[]>(() => {
   const c = coldStage.value;
   const coldOr0 = (v: number | undefined): number => (v != null && v >= 0 ? v : 0);
   const rows: LifecycleRow[] = [
-    { label: 'Normal',          hotDays: h.records.normal,          coldDays: coldOr0(c?.records.normal),          totalDays: 0 },
-    { label: 'Trace',           hotDays: h.records.trace,           coldDays: coldOr0(c?.records.trace),           totalDays: 0 },
-    { label: 'Zipkin trace',    hotDays: h.records.zipkinTrace,     coldDays: coldOr0(c?.records.zipkinTrace),     totalDays: 0 },
-    { label: 'Log',             hotDays: h.records.log,             coldDays: coldOr0(c?.records.log),             totalDays: 0 },
-    { label: 'Browser err log', hotDays: h.records.browserErrorLog, coldDays: coldOr0(c?.records.browserErrorLog), totalDays: 0 },
+    { label: t('Normal'),          hotDays: h.records.normal,          coldDays: coldOr0(c?.records.normal),          totalDays: 0 },
+    { label: t('Trace'),           hotDays: h.records.trace,           coldDays: coldOr0(c?.records.trace),           totalDays: 0 },
+    { label: t('Zipkin trace'),    hotDays: h.records.zipkinTrace,     coldDays: coldOr0(c?.records.zipkinTrace),     totalDays: 0 },
+    { label: t('Log'),             hotDays: h.records.log,             coldDays: coldOr0(c?.records.log),             totalDays: 0 },
+    { label: t('Browser err log'), hotDays: h.records.browserErrorLog, coldDays: coldOr0(c?.records.browserErrorLog), totalDays: 0 },
   ];
   return rows
     .filter((r) => Number.isFinite(r.hotDays) && r.hotDays > 0)
@@ -162,11 +164,11 @@ const lifecycleMetrics = computed<LifecycleRow[]>(() => {
     // section avoids a tiny zero-cold row dropped between two larger
     // ones with cold.
     ...(h.metrics.metadata !== undefined
-      ? [{ label: 'Metadata', hotDays: h.metrics.metadata, coldDays: 0, totalDays: h.metrics.metadata }]
+      ? [{ label: t('Metadata'), hotDays: h.metrics.metadata, coldDays: 0, totalDays: h.metrics.metadata }]
       : []),
-    { label: 'Minute metric', hotDays: h.metrics.minute, coldDays: coldOr0(c?.metrics.minute), totalDays: 0 },
-    { label: 'Hour metric',   hotDays: h.metrics.hour,   coldDays: coldOr0(c?.metrics.hour),   totalDays: 0 },
-    { label: 'Day metric',    hotDays: h.metrics.day,    coldDays: coldOr0(c?.metrics.day),    totalDays: 0 },
+    { label: t('Minute metric'), hotDays: h.metrics.minute, coldDays: coldOr0(c?.metrics.minute), totalDays: 0 },
+    { label: t('Hour metric'),   hotDays: h.metrics.hour,   coldDays: coldOr0(c?.metrics.hour),   totalDays: 0 },
+    { label: t('Day metric'),    hotDays: h.metrics.day,    coldDays: coldOr0(c?.metrics.day),    totalDays: 0 },
   ];
   return rows
     .filter((r) => Number.isFinite(r.hotDays) && r.hotDays > 0)
@@ -188,7 +190,7 @@ function collapseUniform(rows: LifecycleRow[], categoryLabel: string): Lifecycle
   if (!allMatch) return rows;
   return [
     {
-      label: `All ${categoryLabel.toLowerCase()} (${rows.length})`,
+      label: t('All {category} ({n})', { category: categoryLabel, n: rows.length }),
       hotDays: first.hotDays,
       coldDays: first.coldDays,
       totalDays: first.totalDays,
@@ -196,10 +198,10 @@ function collapseUniform(rows: LifecycleRow[], categoryLabel: string): Lifecycle
   ];
 }
 const lifecycleRecordsForRender = computed<LifecycleRow[]>(() =>
-  collapseUniform(lifecycleRecords.value, 'Records'),
+  collapseUniform(lifecycleRecords.value, t('records')),
 );
 const lifecycleMetricsForRender = computed<LifecycleRow[]>(() =>
-  collapseUniform(lifecycleMetrics.value, 'Metrics'),
+  collapseUniform(lifecycleMetrics.value, t('metrics')),
 );
 
 /** Anchor for proportional row widths — single max across BOTH
@@ -217,8 +219,8 @@ const lifecycleMaxTotal = computed<number>(() => {
   <div class="ttl">
     <header class="page-head">
       <div>
-        <div class="kicker">Operate · Data retention</div>
-        <h1>Time To Live</h1>
+        <div class="kicker">{{ t('Operate · Data retention') }}</div>
+        <h1>{{ t('Time To Live') }}</h1>
         <!-- The page splits sharply by backend: BanyanDB has a real
              multi-stage lifecycle (hot+warm + optional cold) so the
              lede explains the stages + the topbar Cold pill. When
@@ -226,40 +228,55 @@ const lifecycleMaxTotal = computed<number>(() => {
              TTL is a single flat retention per category and the
              stage vocabulary doesn't apply. -->
         <p v-if="isBanyanDB" class="lede">
-          How long the connected OAP keeps each class of data, in whole days. Backend:
-          <span class="backend-pill" :class="`is-${backend}`">{{ backendPillLabel }}</span>.
-          BanyanDB ages data through configurable lifecycle stages — <strong>hot</strong>,
-          optionally <strong>warm</strong>, optionally <strong>cold</strong>.
+          <i18n-t
+            keypath="How long the connected OAP keeps each class of data, in whole days. Backend: {pill}. BanyanDB ages data through configurable lifecycle stages — {hot}, optionally {warm}, optionally {cold}."
+            tag="span"
+          >
+            <template #pill>
+              <span class="backend-pill" :class="`is-${backend}`">{{ backendPillLabel }}</span>
+            </template>
+            <template #hot><strong>{{ t('hot') }}</strong></template>
+            <template #warm><strong>{{ t('warm') }}</strong></template>
+            <template #cold><strong>{{ t('cold') }}</strong></template>
+          </i18n-t>
           <template v-if="coldStage">
-            The topbar <em>Cold</em> pill swaps the read from <strong>hot + warm</strong> to
-            <strong>cold</strong> — <em>it does not union the two</em>, so only enable it when
-            the time range you're looking at is older than the hot+warm boundary.
+            <i18n-t
+              keypath="The topbar {coldPill} pill swaps the read from {hotWarm} to {cold} — {note}, so only enable it when the time range you're looking at is older than the hot+warm boundary."
+              tag="span"
+            >
+              <template #coldPill><em>{{ t('Cold') }}</em></template>
+              <template #hotWarm><strong>{{ t('hot + warm') }}</strong></template>
+              <template #cold><strong>{{ t('cold') }}</strong></template>
+              <template #note><em>{{ t('it does not union the two') }}</em></template>
+            </i18n-t>
           </template>
           <template v-else>
-            This deployment has no cold lifecycle stage configured — only the hot + warm window
-            is queryable.
+            {{ t('This deployment has no cold lifecycle stage configured — only the hot + warm window is queryable.') }}
           </template>
         </p>
         <p v-else class="lede">
-          How long the connected OAP keeps each class of data, in whole days. Backend:
-          <span class="backend-pill" :class="`is-${backend}`">{{ backendPillLabel }}</span>.
-          This backend reports a single flat retention per category — no hot / warm / cold
-          stages (those are BanyanDB-specific). Read-only; change retention on the OAP side.
+          <i18n-t
+            keypath="How long the connected OAP keeps each class of data, in whole days. Backend: {pill}. This backend reports a single flat retention per category — no hot / warm / cold stages (those are BanyanDB-specific). Read-only; change retention on the OAP side."
+            tag="span"
+          >
+            <template #pill>
+              <span class="backend-pill" :class="`is-${backend}`">{{ backendPillLabel }}</span>
+            </template>
+          </i18n-t>
         </p>
       </div>
-      <button type="button" class="refresh" @click="refetch()">refresh</button>
+      <button type="button" class="refresh" @click="refetch()">{{ t('refresh') }}</button>
     </header>
 
     <div v-if="!reachable && data?.error" class="last-error block">
-      <strong>OAP unreachable</strong>
+      <strong>{{ t('OAP unreachable') }}</strong>
       <code>{{ data.error }}</code>
       <p class="hint">
-        Couldn't reach the OAP query port. Confirm the OAP host is up and the configured
-        query URL still resolves from this Horizon server.
+        {{ t("Couldn't reach the OAP query port. Confirm the OAP host is up and the configured query URL still resolves from this Horizon server.") }}
       </p>
     </div>
 
-    <div v-else-if="isLoading && !data" class="empty">Reading data…</div>
+    <div v-else-if="isLoading && !data" class="empty">{{ t('Reading data…') }}</div>
 
     <!-- ── Non-BanyanDB branch ───────────────────────────────────
          When the BFF classifies the wire response as `other`, the
@@ -270,11 +287,11 @@ const lifecycleMaxTotal = computed<number>(() => {
     <template v-else-if="stages && !isBanyanDB">
       <section v-if="hot" class="pane">
         <header class="pane-head">
-          <h2>Retention</h2>
-          <span class="pane-sub">read-only · change on the OAP side</span>
+          <h2>{{ t('Retention') }}</h2>
+          <span class="pane-sub">{{ t('read-only · change on the OAP side') }}</span>
         </header>
         <div class="sub-pane">
-          <h3>Records</h3>
+          <h3>{{ t('Records') }}</h3>
           <div class="grid">
             <div v-for="row in recordsRows(hot)" :key="`flat-r-${row.label}`" class="sw-card kpi">
               <div class="sw-card-head"><h4>{{ row.label }}</h4></div>
@@ -283,7 +300,7 @@ const lifecycleMaxTotal = computed<number>(() => {
           </div>
         </div>
         <div class="sub-pane">
-          <h3>Metrics</h3>
+          <h3>{{ t('Metrics') }}</h3>
           <div class="grid">
             <div v-for="row in metricsRows(hot)" :key="`flat-m-${row.label}`" class="sw-card kpi">
               <div class="sw-card-head"><h4>{{ row.label }}</h4></div>
@@ -292,7 +309,7 @@ const lifecycleMaxTotal = computed<number>(() => {
           </div>
         </div>
         <p class="flat-note">
-          ⓘ Property data is omitted (forever-retained, no TTL reported).
+          {{ t('ⓘ Property data is omitted (forever-retained, no TTL reported).') }}
         </p>
       </section>
     </template>
@@ -314,60 +331,67 @@ const lifecycleMaxTotal = computed<number>(() => {
         class="lifecycle"
       >
         <header class="lifecycle__head">
-          <h2>Data lifecycle</h2>
-          <span class="lifecycle__sub">Per-data-class · widths proportional to total retention</span>
+          <h2>{{ t('Data lifecycle') }}</h2>
+          <span class="lifecycle__sub">{{ t('Per-data-class · widths proportional to total retention') }}</span>
         </header>
 
         <div v-if="lifecycleRecordsForRender.length > 0" class="lifecycle__group">
-          <h3 class="lifecycle__group-h">Records</h3>
+          <h3 class="lifecycle__group-h">{{ t('Records') }}</h3>
           <div v-for="r in lifecycleRecordsForRender" :key="`lc-rec-${r.label}`" class="lc-row">
             <div class="lc-row__label">{{ r.label }}</div>
             <div
               class="lc-row__bar"
               :style="{ width: `${(r.totalDays / lifecycleMaxTotal) * 100}%` }"
-              :aria-label="`Hot + Warm ${r.hotDays} days${r.coldDays > 0 ? `, Cold ${r.coldDays} days` : ''}`"
+              :aria-label="r.coldDays > 0
+                ? t('Hot + Warm {hot} days, Cold {cold} days', { hot: r.hotDays, cold: r.coldDays })
+                : t('Hot + Warm {hot} days', { hot: r.hotDays })"
             >
               <div class="lc-seg lc-seg--hot" :style="{ flex: r.hotDays }">
-                <span class="lc-seg__name">Hot + Warm</span>
-                <span class="lc-seg__days">{{ r.hotDays }} d</span>
+                <span class="lc-seg__name">{{ t('Hot + Warm') }}</span>
+                <span class="lc-seg__days">{{ t('{n} d', { n: r.hotDays }) }}</span>
               </div>
               <div v-if="r.coldDays > 0" class="lc-seg lc-seg--cold" :style="{ flex: r.coldDays }">
-                <span class="lc-seg__name">Cold</span>
-                <span class="lc-seg__days">{{ r.coldDays }} d</span>
+                <span class="lc-seg__name">{{ t('Cold') }}</span>
+                <span class="lc-seg__days">{{ t('{n} d', { n: r.coldDays }) }}</span>
               </div>
             </div>
-            <div class="lc-row__total mono">{{ r.totalDays }} d total</div>
+            <div class="lc-row__total mono">{{ t('{n} d total', { n: r.totalDays }) }}</div>
           </div>
         </div>
 
         <div v-if="lifecycleMetricsForRender.length > 0" class="lifecycle__group">
-          <h3 class="lifecycle__group-h">Metrics</h3>
+          <h3 class="lifecycle__group-h">{{ t('Metrics') }}</h3>
           <div v-for="r in lifecycleMetricsForRender" :key="`lc-met-${r.label}`" class="lc-row">
             <div class="lc-row__label">{{ r.label }}</div>
             <div
               class="lc-row__bar"
               :style="{ width: `${(r.totalDays / lifecycleMaxTotal) * 100}%` }"
-              :aria-label="`Hot + Warm ${r.hotDays} days${r.coldDays > 0 ? `, Cold ${r.coldDays} days` : ''}`"
+              :aria-label="r.coldDays > 0
+                ? t('Hot + Warm {hot} days, Cold {cold} days', { hot: r.hotDays, cold: r.coldDays })
+                : t('Hot + Warm {hot} days', { hot: r.hotDays })"
             >
               <div class="lc-seg lc-seg--hot" :style="{ flex: r.hotDays }">
-                <span class="lc-seg__name">Hot + Warm</span>
-                <span class="lc-seg__days">{{ r.hotDays }} d</span>
+                <span class="lc-seg__name">{{ t('Hot + Warm') }}</span>
+                <span class="lc-seg__days">{{ t('{n} d', { n: r.hotDays }) }}</span>
               </div>
               <div v-if="r.coldDays > 0" class="lc-seg lc-seg--cold" :style="{ flex: r.coldDays }">
-                <span class="lc-seg__name">Cold</span>
-                <span class="lc-seg__days">{{ r.coldDays }} d</span>
+                <span class="lc-seg__name">{{ t('Cold') }}</span>
+                <span class="lc-seg__days">{{ t('{n} d', { n: r.coldDays }) }}</span>
               </div>
             </div>
-            <div class="lc-row__total mono">{{ r.totalDays }} d total</div>
+            <div class="lc-row__total mono">{{ t('{n} d total', { n: r.totalDays }) }}</div>
           </div>
         </div>
 
         <p class="lifecycle__note">
-          ⓘ OAP's TTL response collapses <em>hot</em> + <em>warm</em> into one combined value per
-          class — the bar shows the queryable (hot + warm) window, not the per-stage breakdown.
-          BanyanDB migrates between stages in <em>segments</em>, so a record near a boundary may
-          briefly exist in both stages during the migration window. Property data is omitted
-          (forever-retained, no TTL reported).
+          <i18n-t
+            keypath="ⓘ OAP's TTL response collapses {hot} + {warm} into one combined value per class — the bar shows the queryable (hot + warm) window, not the per-stage breakdown. BanyanDB migrates between stages in {segments}, so a record near a boundary may briefly exist in both stages during the migration window. Property data is omitted (forever-retained, no TTL reported)."
+            tag="span"
+          >
+            <template #hot><em>{{ t('hot') }}</em></template>
+            <template #warm><em>{{ t('warm') }}</em></template>
+            <template #segments><em>{{ t('segments') }}</em></template>
+          </i18n-t>
         </p>
       </section>
 
@@ -405,23 +429,24 @@ const lifecycleMaxTotal = computed<number>(() => {
   flex: 1;
 }
 .kicker {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--sw-ls-caps);
   color: var(--sw-accent);
   margin-bottom: 6px;
 }
 .page-head h1 {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
+  letter-spacing: var(--sw-ls-tight);
   color: var(--sw-fg-0);
   margin: 0 0 8px;
 }
 .lede {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
   margin: 0;
   max-width: 760px;
 }
@@ -430,7 +455,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   background: var(--sw-bg-1);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
 }
 .backend-pill {
   display: inline-flex;
@@ -438,7 +463,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   padding: 1px 7px;
   border-radius: 10px;
   font-family: var(--sw-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   letter-spacing: 0.02em;
   border: 1px solid var(--sw-line-2);
   background: var(--sw-bg-1);
@@ -453,7 +478,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line-2);
   color: var(--sw-fg-1);
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -481,14 +506,14 @@ const lifecycleMaxTotal = computed<number>(() => {
   margin-bottom: 8px;
 }
 .lifecycle__head h2 {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--sw-ls-tight);
 }
 .lifecycle__sub {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
   letter-spacing: 0.02em;
 }
@@ -503,7 +528,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   margin-bottom: 8px;
 }
 .lc-row__label {
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
   white-space: nowrap;
   overflow: hidden;
@@ -529,7 +554,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   position: relative;
 }
 .lc-row__total {
-  font-size: 11px;
+  font-size: var(--sw-fs-sm);
   font-variant-numeric: tabular-nums;
   color: var(--sw-fg-3);
   white-space: nowrap;
@@ -540,8 +565,8 @@ const lifecycleMaxTotal = computed<number>(() => {
   justify-content: space-between;
   padding: 0 12px;
   min-width: 0;
-  font-size: 11.5px;
-  font-weight: 600;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-semibold);
   letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -574,14 +599,14 @@ const lifecycleMaxTotal = computed<number>(() => {
   background: var(--sw-bg-1);
   border: 1px dashed var(--sw-line-2);
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
-  line-height: 1.55;
+  line-height: var(--sw-lh-relaxed);
 }
 .lifecycle__note em {
   color: var(--sw-fg-0);
   font-style: normal;
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 
 /* Non-BanyanDB footer note — small reminder under the flat-
@@ -589,9 +614,9 @@ const lifecycleMaxTotal = computed<number>(() => {
  * are no stages or migrations to caveat. */
 .flat-note {
   margin: 14px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
 }
 
 .cold-tip {
@@ -604,8 +629,8 @@ const lifecycleMaxTotal = computed<number>(() => {
   border: 1px solid var(--sw-accent);
   border-radius: 6px;
   color: var(--sw-accent);
-  font-size: 11.5px;
-  line-height: 1.5;
+  font-size: var(--sw-fs-sm);
+  line-height: var(--sw-lh-relaxed);
 }
 
 .pane {
@@ -624,31 +649,31 @@ const lifecycleMaxTotal = computed<number>(() => {
   margin-bottom: 10px;
 }
 .pane-head h2 {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: var(--sw-fs-lg);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
   margin: 0;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--sw-ls-tight);
 }
 .pane-sub {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
   letter-spacing: 0.02em;
 }
 .pane-sub strong {
   color: var(--sw-accent);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
 }
 
 .sub-pane {
   margin: 6px 0 16px;
 }
 .sub-pane h3 {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sw-fg-2);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  color: var(--sw-fg-3);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: var(--sw-ls-caps);
   margin: 0 0 6px;
 }
 .grid {
@@ -668,18 +693,18 @@ const lifecycleMaxTotal = computed<number>(() => {
   padding: 12px 10px;
 }
 .kpi-value {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-size: var(--sw-fs-2xl);
+  font-weight: var(--sw-fw-semibold);
+  letter-spacing: var(--sw-ls-tight);
   color: var(--sw-fg-0);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: var(--sw-lh-tight);
 }
 
 .empty {
   padding: 14px;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   background: var(--sw-bg-1);
   border: 1px dashed var(--sw-line-2);
   border-radius: 6px;
@@ -691,7 +716,7 @@ const lifecycleMaxTotal = computed<number>(() => {
   background: var(--sw-err-soft);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
   display: flex;
   flex-direction: column;
@@ -700,22 +725,22 @@ const lifecycleMaxTotal = computed<number>(() => {
 }
 .last-error strong {
   color: var(--sw-err);
-  font-weight: 600;
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: var(--sw-fs-xs);
+  letter-spacing: var(--sw-ls-caps);
 }
 .last-error code {
   font-family: var(--sw-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
   word-break: break-all;
 }
 .last-error .hint {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
-  line-height: 1.5;
+  line-height: var(--sw-lh-relaxed);
 }
 .last-error .hint code {
   background: rgba(0, 0, 0, 0.25);

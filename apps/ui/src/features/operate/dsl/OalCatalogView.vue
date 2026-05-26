@@ -28,6 +28,7 @@
  * runtime-bound dispatcher set.
  */
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import { bff } from '@/api/client';
@@ -36,6 +37,7 @@ import Btn from '@/components/primitives/Btn.vue';
 import { tokenizeLine, type Token } from './syntaxHighlight.js';
 import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
 
+const { t } = useI18n();
 const router = useRouter();
 
 /** Detect a rule statement on this line and pull out the metric
@@ -85,7 +87,7 @@ watch(
     fileLoading.value = true;
     try {
       fileContent.value = await bff.dsl.oalFileContent(name);
-      if (fileContent.value === null) fileError.value = 'file not found';
+      if (fileContent.value === null) fileError.value = t('file not found');
     } catch (err) {
       fileError.value = err instanceof Error ? err.message : String(err);
     } finally {
@@ -133,40 +135,40 @@ const fileLines = computed<FileLine[]>(() => {
 
 <template>
   <div class="oal">
-    <AdminFeatureWarning module="receiver-runtime-rule" feature-label="OAL catalog" />
+    <AdminFeatureWarning module="receiver-runtime-rule" :feature-label="t('Observability Analysis Language')" />
     <header class="oal__header">
-      <h1 class="oal__h1">OAL catalog</h1>
-      <Pill tone="dim">read-only</Pill>
+      <h1 class="oal__h1">{{ t('Observability Analysis Language') }}</h1>
+      <Pill tone="dim">{{ t('read-only') }}</Pill>
       <Btn
         size="sm"
         :disabled="filesQuery.isFetching.value"
-        title="re-pull /runtime/oal/files"
+        :title="t('re-pull /runtime/oal/files')"
         @click="filesQuery.refetch()"
-      >{{ filesQuery.isFetching.value ? 'refreshing…' : 'refresh' }}</Btn>
-      <span class="oal__hint">
-        OAL hot-update is upstream-deferred. Each <code>.oal</code> file
-        defines source classes (the input row the analyzer emits, e.g.
-        <code>Endpoint</code>) and the metrics derived from them.
-        Browse the loaded files below; install a live debug session
-        from
-        <router-link to="/operate/live-debug" class="oal__link">Live debugger</router-link>
-        to see runtime metric capture.
-      </span>
+      >{{ filesQuery.isFetching.value ? t('refreshing…') : t('refresh') }}</Btn>
+      <i18n-t keypath="OAL hot-update is upstream-deferred. Each {ext} file defines source classes (the input row the analyzer emits, e.g. {source}) and the metrics derived from them. Browse the loaded files below; install a live debug session from {liveDebugger} to see runtime metric capture." tag="span" class="oal__hint" scope="global">
+        <template #ext><code>.oal</code></template>
+        <template #source><code>Endpoint</code></template>
+        <template #liveDebugger>
+          <router-link to="/operate/live-debug" class="oal__link">{{ t('Live debugger') }}</router-link>
+        </template>
+      </i18n-t>
     </header>
 
     <section class="oal__pane">
       <header class="oal__paneh">
-        files
+        {{ t('files') }}
         <span class="oal__panecount">{{ files.length }}</span>
       </header>
 
-      <div v-if="filesQuery.isPending.value" class="oal__loading">loading…</div>
+      <div v-if="filesQuery.isPending.value" class="oal__loading">{{ t('loading…') }}</div>
       <div v-else-if="filesQuery.isError.value" class="oal__error">
-        Could not load OAL files.
-        <button type="button" @click="filesQuery.refetch()">retry</button>
+        {{ t('Could not load OAL files.') }}
+        <button type="button" @click="filesQuery.refetch()">{{ t('retry') }}</button>
       </div>
       <div v-else-if="files.length === 0" class="oal__empty">
-        no <code>.oal</code> files loaded
+        <i18n-t keypath="no {ext} files loaded" tag="span" scope="global">
+          <template #ext><code>.oal</code></template>
+        </i18n-t>
       </div>
       <div v-else class="oal__filelistwrap">
         <ul class="oal__filelist">
@@ -186,10 +188,10 @@ const fileLines = computed<FileLine[]>(() => {
           <header v-if="selectedFile" class="oal__filehead">
             <code>{{ selectedFile }}</code>
             <span v-if="fileLines.length > 0" class="oal__filemeta">
-              {{ fileLines.length }} lines
+              {{ t('{n} lines', { n: fileLines.length }) }}
             </span>
           </header>
-          <div v-if="fileLoading" class="oal__loading">loading…</div>
+          <div v-if="fileLoading" class="oal__loading">{{ t('loading…') }}</div>
           <div v-else-if="fileError" class="oal__error">{{ fileError }}</div>
           <pre v-else-if="fileContent !== null" class="oal__filepre"><span
             v-for="line in fileLines"
@@ -200,7 +202,7 @@ const fileLines = computed<FileLine[]>(() => {
               v-if="line.debugMetric"
               type="button"
               class="oal__dbgbtn"
-              :title="`Live debug: ${line.debugMetric}`"
+              :title="t('Live debug: {metric}', { metric: line.debugMetric })"
               @click="jumpToDebug(line.debugMetric)"
             >▶</button><span
               v-else
@@ -238,14 +240,14 @@ const fileLines = computed<FileLine[]>(() => {
 }
 
 .oal__h1 {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   margin: 0;
   color: var(--rr-heading);
 }
 
 .oal__hint {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
   flex-basis: 100%;
   line-height: 1.5;
@@ -279,10 +281,11 @@ const fileLines = computed<FileLine[]>(() => {
   justify-content: space-between;
   padding: 8px 12px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
-  letter-spacing: 1.2px;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
+  letter-spacing: var(--sw-ls-caps);
   text-transform: uppercase;
-  color: var(--rr-dim);
+  color: var(--sw-fg-3);
   border-bottom: 1px solid var(--rr-border);
   flex-shrink: 0;
 }
@@ -296,7 +299,7 @@ const fileLines = computed<FileLine[]>(() => {
 .oal__empty,
 .oal__error {
   padding: 14px;
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
 }
 
@@ -330,7 +333,7 @@ const fileLines = computed<FileLine[]>(() => {
   text-align: left;
   cursor: pointer;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink);
 }
 
@@ -360,14 +363,14 @@ const fileLines = computed<FileLine[]>(() => {
   gap: 8px;
   padding: 6px 12px;
   font-family: var(--rr-font-mono);
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-heading);
   border-bottom: 1px solid var(--rr-border);
   flex-shrink: 0;
 }
 
 .oal__filemeta {
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
   letter-spacing: 0.4px;
 }
@@ -376,7 +379,7 @@ const fileLines = computed<FileLine[]>(() => {
   margin: 0;
   padding: 0;
   font-family: var(--rr-font-mono);
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-ink2);
   white-space: pre;
   overflow: auto;
@@ -417,7 +420,7 @@ const fileLines = computed<FileLine[]>(() => {
   color: transparent;
   cursor: pointer;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   line-height: 1;
   user-select: none;
   transition: color 80ms;

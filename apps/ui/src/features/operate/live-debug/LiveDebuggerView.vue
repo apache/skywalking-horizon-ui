@@ -27,6 +27,7 @@
  * for the per-DSL picker to read.
  */
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import DebugMal from './DebugMal.vue';
 import DebugLal from './DebugLal.vue';
@@ -35,6 +36,7 @@ import AdminFeatureWarning from '@/shell/AdminFeatureWarning.vue';
 
 type Tab = 'mal' | 'lal' | 'oal';
 
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 
@@ -44,13 +46,13 @@ const tab = computed<Tab>(() => {
   return 'mal';
 });
 
-const tabs: { id: Tab; label: string; hint: string }[] = [
-  { id: 'mal', label: 'MAL', hint: 'meter analyzer · OTEL + log-mal' },
-  { id: 'lal', label: 'LAL', hint: 'log analyzer · per-block + statement' },
-  { id: 'oal', label: 'OAL', hint: 'observability analysis · per-clause' },
-];
+const tabs = computed<{ id: Tab; label: string; hint: string }[]>(() => [
+  { id: 'mal', label: 'MAL', hint: t('meter analyzer · OTEL + log-mal') },
+  { id: 'lal', label: 'LAL', hint: t('log analyzer · per-block + statement') },
+  { id: 'oal', label: 'OAL', hint: t('observability analysis · per-clause') },
+]);
 
-const activeHint = computed(() => tabs.find((t) => t.id === tab.value)?.hint ?? '');
+const activeHint = computed(() => tabs.value.find((tt) => tt.id === tab.value)?.hint ?? '');
 
 function selectTab(t: Tab): void {
   // Tab clicks clear deep-link query params — they were specific to
@@ -61,22 +63,22 @@ function selectTab(t: Tab): void {
 
 <template>
   <div class="dbg">
-    <AdminFeatureWarning module="dsl-debugging" feature-label="Live debugger" />
+    <AdminFeatureWarning module="dsl-debugging" :feature-label="t('Live debugger')" />
     <header class="dbg__header">
-      <h1 class="dbg__h1">Live debugger</h1>
+      <h1 class="dbg__h1">{{ t('Live debugger') }}</h1>
       <span class="dbg__hint">{{ activeHint }}</span>
     </header>
 
     <nav class="dbg__tabs">
       <button
-        v-for="t in tabs"
-        :key="t.id"
+        v-for="tt in tabs"
+        :key="tt.id"
         type="button"
         class="dbg__tab"
-        :class="{ 'dbg__tab--active': tab === t.id }"
-        @click="selectTab(t.id)"
+        :class="{ 'dbg__tab--active': tab === tt.id }"
+        @click="selectTab(tt.id)"
       >
-        {{ t.label }}
+        {{ tt.label }}
       </button>
     </nav>
 
@@ -103,14 +105,14 @@ function selectTab(t: Tab): void {
 }
 
 .dbg__h1 {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-semibold);
   margin: 0;
   color: var(--rr-heading);
 }
 
 .dbg__hint {
-  font-size: 12.5px;
+  font-size: var(--sw-fs-base);
   color: var(--rr-dim);
 }
 
@@ -126,8 +128,8 @@ function selectTab(t: Tab): void {
   border-bottom: 2px solid transparent;
   padding: 8px 14px;
   font-family: var(--rr-font-mono);
-  font-size: 12px;
-  letter-spacing: 0.5px;
+  font-size: var(--sw-fs-base);
+  letter-spacing: var(--sw-ls-caps);
   text-transform: uppercase;
   color: var(--rr-dim);
   cursor: pointer;

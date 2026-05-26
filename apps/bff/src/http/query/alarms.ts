@@ -55,6 +55,7 @@ import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { withColdStage } from '../../util/duration.js';
+import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 
 export interface AlarmsQueryRouteDeps {
@@ -156,66 +157,6 @@ export interface AlarmsCountResponse {
   startTime: number;
   endTime: number;
   generatedAt: number;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────
-
-interface ServerTzInfo {
-  /** Minutes from UTC (e.g. 480 for UTC+8). 0 fallback. */
-  offsetMinutes: number;
-  fetchedAt: number;
-}
-let tzCache: ServerTzInfo | null = null;
-const TZ_TTL_MS = 60_000;
-
-const TIME_INFO_QUERY = /* GraphQL */ `
-  query HorizonAlarmsTime {
-    time: getTimeInfo {
-      timezone
-      currentTimestamp
-    }
-  }
-`;
-
-async function getServerOffsetMinutes(
-  config: ConfigSource,
-  fetchImpl?: FetchLike,
-): Promise<number> {
-  const now = Date.now();
-  if (tzCache && now - tzCache.fetchedAt < TZ_TTL_MS) return tzCache.offsetMinutes;
-  try {
-    const got = await graphqlPost<{ time?: { timezone?: string | null } | null }>(
-      buildOapOpts(config.current, fetchImpl),
-      TIME_INFO_QUERY,
-    );
-    const raw = got.time?.timezone ?? '+0000';
-    const m = /^([+-])(\d{2})(\d{2})$/.exec(raw);
-    if (m) {
-      const sign = m[1] === '-' ? -1 : 1;
-      const h = parseInt(m[2], 10);
-      const mi = parseInt(m[3], 10);
-      const offset = sign * (h * 60 + mi);
-      tzCache = { offsetMinutes: offset, fetchedAt: now };
-      return offset;
-    }
-  } catch {
-    /* fall through to 0 */
-  }
-  tzCache = { offsetMinutes: 0, fetchedAt: now };
-  return 0;
-}
-
-/** Format an epoch-ms into OAP's `yyyy-MM-dd HHmmss` (SECOND
- *  granularity), in the server's timezone. */
-function fmtSecond(epochMs: number, offsetMinutes: number): string {
-  const shifted = new Date(epochMs + offsetMinutes * 60_000);
-  const y = shifted.getUTCFullYear();
-  const mo = String(shifted.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(shifted.getUTCDate()).padStart(2, '0');
-  const h = String(shifted.getUTCHours()).padStart(2, '0');
-  const mi = String(shifted.getUTCMinutes()).padStart(2, '0');
-  const s = String(shifted.getUTCSeconds()).padStart(2, '0');
-  return `${y}-${mo}-${d} ${h}${mi}${s}`;
 }
 
 // ── GraphQL queries ──────────────────────────────────────────────────

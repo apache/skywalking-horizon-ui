@@ -52,6 +52,67 @@
   --sw-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
   --sw-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 
+  /* Type scale. Every page-level style should reference these tokens
+   * rather than raw pixel values — the older admin pages (Roles, Users,
+   * Auth status, Alert page setup, Global defaults, …) drifted to a
+   * mixed palette (9.5 / 10 / 10.5 / 11 / 11.5 / 12 / 14 / 18 / 20 /
+   * 22) and look uneven beside the newer dashboards. The values below
+   * are the canonical six steps the rest of the UI lives on. */
+  --sw-fs-xs:   10.5px;  /* uppercase labels, kicker text, axis ticks */
+  --sw-fs-sm:   11.5px;  /* secondary text, table cells, chips */
+  --sw-fs-base: 12px;    /* body default — matches body { font-size } */
+  --sw-fs-md:   13px;    /* section heads, picker titles */
+  --sw-fs-lg:   14px;    /* page-level subheads */
+  --sw-fs-xl:   18px;    /* card titles */
+  --sw-fs-2xl:  22px;    /* KPI values */
+
+  /* Font weights. Inter ships 400 / 500 / 600 / 700; nothing else is
+   * loaded. Picking off-scale weights triggers the browser's fake-bold
+   * which looks soft on hi-DPI screens. */
+  --sw-fw-regular:  400;
+  --sw-fw-medium:   500;
+  --sw-fw-semibold: 600;
+  --sw-fw-bold:     700;
+
+  /* Line heights. Use `tight` for single-line controls / buttons,
+   * `normal` for body text, `relaxed` for prose blocks. */
+  --sw-lh-tight:   1.2;
+  --sw-lh-normal:  1.45;
+  --sw-lh-relaxed: 1.6;
+
+  /* Letter spacing for the few places we deviate. `caps` is the
+   * 0.08em tracking the existing `.sw-nav-section` + `.sw-kpi-label`
+   * already use — codify so every uppercase label tracks the same
+   * amount. `tight` pulls big numerals together (KPI values). */
+  --sw-ls-caps:  0.08em;
+  --sw-ls-tight: -0.01em;
+}
+
+/* Canonical uppercase label. Applied to:
+ *   - section heads inside admin pages ("Menu visibility", "Roles")
+ *   - table column headers
+ *   - small kickers above values
+ * Pages should prefer this class over hand-rolled font-size +
+ * text-transform combinations — keeps case + tracking consistent. */
+.sw-uplabel {
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
+}
+
+/* Page-title kickers (above a `<h1>` or main heading). Same uppercase
+ * vocabulary, slightly brighter ink so titles read as titles. */
+.sw-kicker {
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-2);
+}
+
+:root {
   /* ── Vantage-studio (booster-ui) token aliases ────────────────────────
    * Pages migrated from skywalking-booster-ui (Operate · Inspect, DSL
    * editor / catalog / dump, Live Debug MAL/LAL/OAL, primitives, etc.)

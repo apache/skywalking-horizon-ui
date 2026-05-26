@@ -37,6 +37,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import type {
@@ -65,6 +66,7 @@ import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
 // OAP UI-template sync status for the Overview kind. Drives the
 // page-level banner + read-only mode + per-row badge lookup.
+const { t } = useI18n();
 const sync = useTemplateSync({ kind: 'overview' });
 
 const listQuery = useQuery({
@@ -664,13 +666,24 @@ const isDirty = computed<boolean>(() =>
   draft.value ? JSON.stringify(draft.value) !== loadedSnapshot.value : false,
 );
 
-// Which source to seed the editor from for the current selection. Local
-// draft wins; then honour an explicit "remote" choice; then bundled if it
-// exists; else remote (a remote-only dashboard has no bundled base, so
-// bundled would load nothing). Falls back to bundled when nothing exists.
+// Which source to seed the editor from for the current selection.
+// Priority mirrors what the operator sees on the live overview pages:
+//   1. Local draft — unpublished in-progress edits in this browser.
+//   2. Remote — when bundled and remote diverged (or the row is
+//      remote-only), OAP is the source of truth and the runtime bundle
+//      loads remote via `pickOverviewContent` (bundle.ts). Loading
+//      bundled here silently disagrees with the live UI.
+//   3. Bundled — synced rows are byte-equal anyway; bundled-fallback is
+//      the bundle's only source.
+//   4. Last resort: remote when there's no bundled at all
+//      (defensive — every overview ships a bundled default today).
 function defaultEditorSource(): 'local' | 'bundled' | 'remote' {
   if (hasLocalDraft.value) return 'local';
   if (editorSource.value === 'remote' && remoteAvailable.value) return 'remote';
+  const badge = editName.value ? sync.badgeFor(editName.value) : null;
+  if ((badge === 'diverged' || badge === 'remote-only') && remoteAvailable.value) {
+    return 'remote';
+  }
   if (bundledContent()) return 'bundled';
   if (remoteAvailable.value) return 'remote';
   return 'bundled';
@@ -899,14 +912,16 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   <div class="ot">
     <header class="ot__head">
       <div>
-        <div class="ot__kicker">Dashboard setup · Overviews</div>
-        <h1>Overview templates</h1>
+        <div class="ot__kicker">{{ t('Dashboard setup · Overviews') }}</div>
+        <h1>{{ t('Overview templates') }}</h1>
         <p class="ot__lede">
-          Per-widget editor for the overview dashboards. Each widget kind shows only the fields
-          it consumes — e.g. <code>kpi-tile</code> exposes its KPI row list with number /
-          progress-bar style; <code>alarms</code> exposes the row limit. Type and widget set
-          are code-shape decisions and stay frozen; edits write to OAP via the UI-template
-          REST surface (bundled JSON is the seed + read-only fallback).
+          <!-- Single translation unit with three inline <code> slots. Splitting
+               into separate t() chunks left non-English operators seeing a
+               mostly-English sentence with one translated word in the middle. -->
+          <i18n-t keypath="Per-widget editor for the overview dashboards. Each widget kind shows only the fields it consumes — e.g. {kpi} exposes its KPI row list with number / progress-bar style; {alarms} exposes the row limit. Type and widget set are code-shape decisions and stay frozen; edits write to OAP via the UI-template REST surface (bundled JSON is the seed + read-only fallback)." tag="span" scope="global">
+            <template #kpi><code>kpi-tile</code></template>
+            <template #alarms><code>alarms</code></template>
+          </i18n-t>
         </p>
       </div>
     </header>
@@ -1043,11 +1058,24 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             <!-- Source / save / publish actions, right-aligned (same row as
                  the title + tabs, mirroring the layer dashboards editor). -->
             <div class="ot__head-actions">
+              <!-- Source pill. Mirrors the layer dashboards editor wording
+                   ("from <source>") so operators get the same hint about
+                   which bytes are currently in the buffer:
+                     - local   = unpublished browser draft
+                     - remote  = OAP-live (default for diverged / remote-
+                                 only rows so the editor agrees with what
+                                 the live menu renders)
+                     - bundled = shipped default (only when the row is
+                                 bundled-fallback or the operator just
+                                 hit "Reset to bundled")
+                   Hidden when the row is "synced" (bundled === remote) and
+                   no local draft exists, because in that case "from
+                   anything" is unambiguous noise. -->
               <span
                 v-if="editorSource === 'local' || !isSynced"
                 class="ot__src"
                 :title="`Editing from: ${editorSource}`"
-              >{{ editorSource }}</span>
+              >from {{ editorSource }}</span>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
                   reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>

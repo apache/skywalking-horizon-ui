@@ -28,6 +28,7 @@
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type { AdminLayerTemplate } from '@/api/client';
 import type {
@@ -231,6 +232,7 @@ async function loadAll(): Promise<void> {
 // so refreshing the page (or sharing the URL) keeps the admin focused
 // on the same layer + scope. Skipped while initial templates load so
 // the boot-up `loadAll()` hydrate doesn't bounce the URL.
+const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 let suppressRouteSync = true;
@@ -291,11 +293,26 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
   editorSource.value = src;
   saveMsg.value = null;
 }
-/** Seed the editor when the selected layer changes: your local draft if
- *  you have one, else the bundled default (always available; "Reset to →
- *  remote" pulls the live version). */
+/** Seed the editor when the selected layer changes. Priority mirrors
+ *  what the operator actually sees in the live menu / dashboards:
+ *    1. Local draft — unpublished in-progress edits in this browser.
+ *    2. Remote — when bundled and remote diverged (or the layer is
+ *       remote-only), OAP is the source of truth and the runtime
+ *       bundle loads it via `pickLayerContent` (bundle.ts). Showing
+ *       bundled here would silently disagree with the live UI.
+ *    3. Bundled — synced rows are byte-equal anyway; bundled-fallback
+ *       is the bundle's only source. */
 function syncDraft(): void {
-  loadFrom(hasLocalDraft.value ? 'local' : 'bundled');
+  if (hasLocalDraft.value) {
+    loadFrom('local');
+    return;
+  }
+  const badge = sync.badgeFor(editName.value);
+  if ((badge === 'diverged' || badge === 'remote-only') && remoteAvailable.value) {
+    loadFrom('remote');
+    return;
+  }
+  loadFrom('bundled');
 }
 
 /** Write the editor content to the local draft. If it equals remote, the
@@ -1384,13 +1401,10 @@ const namingTest = computed<NamingTestResult>(() => {
   <div class="admin-page">
     <header class="page-head">
       <div>
-        <div class="kicker">Admin</div>
-        <h1>Layer dashboards</h1>
+        <div class="kicker">{{ t('Admin') }}</div>
+        <h1>{{ t('Layer dashboards') }}</h1>
         <p class="lede">
-          Each layer ships with a JSON template (alias, components, metric columns, widgets).
-          Pick a layer on the left, switch scopes (service / instance / endpoint / trace /
-          profiling), edit widgets in place. Edits write to OAP via the UI-template REST
-          surface — bundled JSON is the seed + read-only fallback.
+          {{ t('Each layer ships with a JSON template (alias, components, metric columns, widgets). Pick a layer on the left, switch scopes (service / instance / endpoint / trace / profiling), edit widgets in place. Edits write to OAP via the UI-template REST surface — bundled JSON is the seed + read-only fallback.') }}
         </p>
       </div>
     </header>

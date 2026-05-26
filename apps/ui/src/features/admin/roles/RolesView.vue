@@ -16,6 +16,7 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
 import type { AuthStatus } from '@/api/scopes/admin-auth';
 
@@ -25,6 +26,8 @@ import type { AuthStatus } from '@/api/scopes/admin-auth';
  * server config. To change the policy, an administrator edits the
  * config file and the BFF hot-reloads.
  */
+
+const { t } = useI18n({ useScope: 'global' });
 
 const status = ref<AuthStatus | null>(null);
 const loading = ref(true);
@@ -66,26 +69,26 @@ function grantsFor(role: string): readonly string[] {
  *  AppSidebar.vue). Drives the visibility matrix so operators can read,
  *  per role, exactly which navigation items appear. `null` verb = shown
  *  to any signed-in user (the core data layers, cap-gated only). */
-const MENU_GATES: ReadonlyArray<{ label: string; verb: string | null }> = [
-  { label: 'Layers (per-layer data)', verb: null },
-  { label: 'Alarms', verb: 'alarms:read' },
-  { label: 'Overviews', verb: 'overview:read' },
-  { label: 'Cluster status', verb: 'cluster:read' },
-  { label: 'Platform monitoring (layers)', verb: 'cluster:read' },
-  { label: 'Metrics inspect', verb: 'inspect:read' },
-  { label: 'Data retention', verb: 'ttl:read' },
-  { label: 'OAP configuration', verb: 'config:read' },
-  { label: 'Alerting rules', verb: 'alarm-rule:read' },
-  { label: 'Live debugger · Capture history', verb: 'live-debug:read' },
-  { label: 'DSL management', verb: 'rule:read' },
-  { label: 'Overview templates', verb: 'overview:write' },
-  { label: 'Layer dashboards', verb: 'dashboard:read' },
-  { label: 'Alert page', verb: 'alarm-setup:read' },
-  { label: 'Global defaults', verb: 'setup:read' },
-  { label: 'Users', verb: 'user:read' },
-  { label: 'Auth status', verb: 'auth:read' },
-  { label: 'Roles & permissions', verb: 'role:read' },
-];
+const MENU_GATES = computed<ReadonlyArray<{ label: string; verb: string | null }>>(() => [
+  { label: t('Layers (per-layer data)'), verb: null },
+  { label: t('Alarms'), verb: 'alarms:read' },
+  { label: t('Overviews'), verb: 'overview:read' },
+  { label: t('Cluster status'), verb: 'cluster:read' },
+  { label: t('Platform monitoring (layers)'), verb: 'cluster:read' },
+  { label: t('Metrics inspect'), verb: 'inspect:read' },
+  { label: t('Data retention'), verb: 'ttl:read' },
+  { label: t('OAP configuration'), verb: 'config:read' },
+  { label: t('Alerting rules'), verb: 'alarm-rule:read' },
+  { label: t('Live debugger · Capture history'), verb: 'live-debug:read' },
+  { label: t('DSL management'), verb: 'rule:read' },
+  { label: t('Overview templates'), verb: 'overview:write' },
+  { label: t('Layer dashboards'), verb: 'dashboard:read' },
+  { label: t('Alert page'), verb: 'alarm-setup:read' },
+  { label: t('Global defaults'), verb: 'setup:read' },
+  { label: t('Users'), verb: 'user:read' },
+  { label: t('Auth status'), verb: 'auth:read' },
+  { label: t('Roles & permissions'), verb: 'role:read' },
+]);
 /** Is the menu row visible to the role? `null` verb ⇒ any signed-in user. */
 function menuVisible(role: string, verb: string | null): boolean {
   return verb === null ? true : hasVerb(grantsFor(role), verb);
@@ -108,52 +111,52 @@ function rolePill(role: string): string {
 }
 /** Short, jargon-light description of what a role is for. */
 function roleBlurb(role: string): string {
-  if (role === 'admin') return 'Full access including user & access management.';
-  if (role === 'operator') return 'Configures alerts, dashboards, rules, and runs diagnostics.';
-  if (role === 'maintainer') return 'Watches the SkyWalking platform itself (cluster, internals).';
-  if (role === 'viewer') return 'Reads dashboards, traces, logs, and alarms.';
+  if (role === 'admin') return t('Full access including user & access management.');
+  if (role === 'operator') return t('Configures alerts, dashboards, rules, and runs diagnostics.');
+  if (role === 'maintainer') return t('Watches the SkyWalking platform itself (cluster, internals).');
+  if (role === 'viewer') return t('Reads dashboards, traces, logs, and alarms.');
   return '';
 }
 
 /** User-facing label for each verb. We keep the verb identifier off the
  *  page entirely — admins read these as plain capabilities. */
-const VERB_LABELS: Record<string, { label: string; hint?: string }> = {
-  'metrics:read':           { label: 'See metric dashboards' },
-  'alarms:read':            { label: 'See alarms' },
-  'traces:read':            { label: 'See traces' },
-  'logs:read':              { label: 'See logs' },
-  'topology:read':          { label: 'See service & endpoint topology' },
-  'profile:read':           { label: 'See profiling results' },
-  'cluster:read':           { label: 'See OAP cluster status' },
-  'inspect:read':           { label: 'Inspect OAP internals (catalog, MQE)' },
-  'overview:read':          { label: 'See overview templates' },
-  'overview:write':         { label: 'Edit overview templates' },
-  'dashboard:read':         { label: 'See layer dashboard templates' },
-  'dashboard:write':        { label: 'Edit layer dashboard templates' },
-  'setup:read':             { label: 'See per-layer setup' },
-  'setup:write':            { label: 'Edit per-layer setup' },
-  'alarm-rule:read':        { label: 'See alarm rules' },
-  'alarm-rule:write':       { label: 'Edit alarm rules' },
-  'alarm-setup:read':       { label: 'See alarm-page setup' },
-  'alarm-setup:write':      { label: 'Edit alarm-page setup' },
-  'rule:read':              { label: 'See DSL / OAL / MQE rules' },
-  'rule:write':             { label: 'Edit existing rules' },
-  'rule:write:structural':  { label: 'Change rule schema (OAL files)', hint: 'schema-breaking edits' },
-  'rule:delete':            { label: 'Delete rules' },
-  'rule:debug':             { label: 'Test queries in the MQE sandbox' },
-  'live-debug:read':        { label: 'See live-debug sessions' },
-  'live-debug:write':       { label: 'Start and stop live-debug sessions' },
-  'profile:enable':         { label: 'Start a profiling task on a target' },
-  'user:read':              { label: 'See the user list' },
-  'user:write':             { label: 'Add / remove local users' },
-  'role:read':              { label: 'See this page' },
-  'role:write':             { label: 'Change role grants' },
-  'auth:read':              { label: 'See the auth-status page' },
-  'audit:read':             { label: 'Read the audit log' },
-  'admin':                  { label: 'Everything (escape hatch)' },
-};
+const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>(() => ({
+  'metrics:read':           { label: t('See metric dashboards') },
+  'alarms:read':            { label: t('See alarms') },
+  'traces:read':            { label: t('See traces') },
+  'logs:read':              { label: t('See logs') },
+  'topology:read':          { label: t('See service & endpoint topology') },
+  'profile:read':           { label: t('See profiling results') },
+  'cluster:read':           { label: t('See OAP cluster status') },
+  'inspect:read':           { label: t('Inspect OAP internals (catalog, MQE)') },
+  'overview:read':          { label: t('See overview templates') },
+  'overview:write':         { label: t('Edit overview templates') },
+  'dashboard:read':         { label: t('See layer dashboard templates') },
+  'dashboard:write':        { label: t('Edit layer dashboard templates') },
+  'setup:read':             { label: t('See per-layer setup') },
+  'setup:write':            { label: t('Edit per-layer setup') },
+  'alarm-rule:read':        { label: t('See alarm rules') },
+  'alarm-rule:write':       { label: t('Edit alarm rules') },
+  'alarm-setup:read':       { label: t('See alarm-page setup') },
+  'alarm-setup:write':      { label: t('Edit alarm-page setup') },
+  'rule:read':              { label: t('See DSL / OAL / MQE rules') },
+  'rule:write':             { label: t('Edit existing rules') },
+  'rule:write:structural':  { label: t('Change rule schema (OAL files)'), hint: t('schema-breaking edits') },
+  'rule:delete':            { label: t('Delete rules') },
+  'rule:debug':             { label: t('Test queries in the MQE sandbox') },
+  'live-debug:read':        { label: t('See live-debug sessions') },
+  'live-debug:write':       { label: t('Start and stop live-debug sessions') },
+  'profile:enable':         { label: t('Start a profiling task on a target') },
+  'user:read':              { label: t('See the user list') },
+  'user:write':             { label: t('Add / remove local users') },
+  'role:read':              { label: t('See this page') },
+  'role:write':             { label: t('Change role grants') },
+  'auth:read':              { label: t('See the auth-status page') },
+  'audit:read':             { label: t('Read the audit log') },
+  'admin':                  { label: t('Everything (escape hatch)') },
+}));
 function labelFor(verb: string): { label: string; hint?: string } {
-  return VERB_LABELS[verb] ?? { label: verb };
+  return VERB_LABELS.value[verb] ?? { label: verb };
 }
 
 /** Groups verbs by feature area + supplies a scope mock-sidebar so the
@@ -168,116 +171,116 @@ interface VerbGroup {
   scope: ScopeItem[];
   verbs: string[];
 }
-const VERB_GROUPS: VerbGroup[] = [
+const VERB_GROUPS = computed<VerbGroup[]>(() => [
   {
-    title: 'Data catalog',
-    blurb: 'Read-only data screens. Everyone signed in sees these by default — they are the core observability surface.',
+    title: t('Data catalog'),
+    blurb: t('Read-only data screens. Everyone signed in sees these by default — they are the core observability surface.'),
     scope: [
-      { label: 'Glance', icon: '◧' },
-      { label: 'Service dashboards', icon: '▥' },
-      { label: 'Traces', icon: '↗' },
-      { label: 'Logs', icon: '≡' },
-      { label: 'Topology', icon: '◌' },
-      { label: 'Profiling results', icon: '▦' },
-      { label: 'Alarms', icon: '!' },
+      { label: t('Glance'), icon: '◧' },
+      { label: t('Service dashboards'), icon: '▥' },
+      { label: t('Traces'), icon: '↗' },
+      { label: t('Logs'), icon: '≡' },
+      { label: t('Topology'), icon: '◌' },
+      { label: t('Profiling results'), icon: '▦' },
+      { label: t('Alarms'), icon: '!' },
     ],
     verbs: ['metrics:read', 'alarms:read', 'traces:read', 'logs:read', 'topology:read', 'profile:read'],
   },
   {
-    title: 'Platform monitoring',
-    blurb: 'Watching SkyWalking itself: is the OAP cluster healthy, are modules loaded, what does the internal metric catalog look like.',
+    title: t('Platform monitoring'),
+    blurb: t('Watching SkyWalking itself: is the OAP cluster healthy, are modules loaded, what does the internal metric catalog look like.'),
     scope: [
-      { label: 'OAP cluster status', icon: '⌬' },
-      { label: 'Module inspector', icon: '⌕' },
+      { label: t('OAP cluster status'), icon: '⌬' },
+      { label: t('Module inspector'), icon: '⌕' },
     ],
     verbs: ['cluster:read', 'inspect:read'],
   },
   {
-    title: 'Overview templates',
-    blurb: 'The per-layer landing pages users see when they pick a layer in the sidebar.',
+    title: t('Overview templates'),
+    blurb: t('The per-layer landing pages users see when they pick a layer in the sidebar.'),
     scope: [
-      { label: 'Overview templates editor', icon: '◧' },
+      { label: t('Overview templates editor'), icon: '◧' },
     ],
     verbs: ['overview:read', 'overview:write'],
   },
   {
-    title: 'Layer dashboards',
-    blurb: 'The dashboards and per-layer setup (slot labels, available features, term aliases) operators tune for their org.',
+    title: t('Layer dashboards'),
+    blurb: t('The dashboards and per-layer setup (slot labels, available features, term aliases) operators tune for their org.'),
     scope: [
-      { label: 'Layer dashboard editor', icon: '▥' },
-      { label: 'Per-layer setup', icon: '⚙' },
+      { label: t('Layer dashboard editor'), icon: '▥' },
+      { label: t('Per-layer setup'), icon: '⚙' },
     ],
     verbs: ['dashboard:read', 'dashboard:write', 'setup:read', 'setup:write'],
   },
   {
-    title: 'Alarms',
-    blurb: 'The firing rules behind the Alarms screen plus the alarm-page setup (which layers contribute to the alarm overview).',
+    title: t('Alarms'),
+    blurb: t('The firing rules behind the Alarms screen plus the alarm-page setup (which layers contribute to the alarm overview).'),
     scope: [
-      { label: 'Alarm rules', icon: '!' },
-      { label: 'Alarm page setup', icon: '⚙' },
+      { label: t('Alarm rules'), icon: '!' },
+      { label: t('Alarm page setup'), icon: '⚙' },
     ],
     verbs: ['alarm-rule:read', 'alarm-rule:write', 'alarm-setup:read', 'alarm-setup:write'],
   },
   {
-    title: 'DSL management',
-    blurb: 'The MQE, OAL and runtime-rule editing surface. Schema-breaking edits and deletes are split out so a junior operator can author rules without being able to break things irreversibly.',
+    title: t('DSL management'),
+    blurb: t('The MQE, OAL and runtime-rule editing surface. Schema-breaking edits and deletes are split out so a junior operator can author rules without being able to break things irreversibly.'),
     scope: [
-      { label: 'Rule catalog', icon: '⌗' },
-      { label: 'Rule editor', icon: '✎' },
-      { label: 'OAL files', icon: '⌗' },
+      { label: t('Rule catalog'), icon: '⌗' },
+      { label: t('Rule editor'), icon: '✎' },
+      { label: t('OAL files'), icon: '⌗' },
     ],
     verbs: ['rule:read', 'rule:write', 'rule:write:structural', 'rule:delete'],
   },
   {
-    title: 'Diagnostics & debug',
-    blurb: 'Interactive troubleshooting: the live debugger that streams events from a running rule, and the MQE sandbox for testing queries without saving anything.',
+    title: t('Diagnostics & debug'),
+    blurb: t('Interactive troubleshooting: the live debugger that streams events from a running rule, and the MQE sandbox for testing queries without saving anything.'),
     scope: [
-      { label: 'Live debugger', icon: '◉' },
-      { label: 'MQE sandbox', icon: '▶' },
+      { label: t('Live debugger'), icon: '◉' },
+      { label: t('MQE sandbox'), icon: '▶' },
     ],
     verbs: ['rule:debug', 'live-debug:read', 'live-debug:write'],
   },
   {
-    title: 'Profiling',
-    blurb: 'Starting a profiling task — agent-side sampling, async-profiler, pprof, or eBPF. Reading the results is part of "Data catalog" above.',
+    title: t('Profiling'),
+    blurb: t('Starting a profiling task — agent-side sampling, async-profiler, pprof, or eBPF. Reading the results is part of "Data catalog" above.'),
     scope: [
-      { label: 'Start a profiling task', icon: '▦' },
+      { label: t('Start a profiling task'), icon: '▦' },
     ],
     verbs: ['profile:enable'],
   },
   {
-    title: 'Users & access admin',
-    blurb: 'The administrator surface: who can sign in, what role they have, and the live status of the auth backend.',
+    title: t('Users & access admin'),
+    blurb: t('The administrator surface: who can sign in, what role they have, and the live status of the auth backend.'),
     scope: [
-      { label: 'Users', icon: '◉' },
-      { label: 'Roles & permissions', icon: '⚙' },
-      { label: 'Auth status', icon: '⌬' },
+      { label: t('Users'), icon: '◉' },
+      { label: t('Roles & permissions'), icon: '⚙' },
+      { label: t('Auth status'), icon: '⌬' },
     ],
     verbs: ['user:read', 'user:write', 'role:read', 'role:write', 'auth:read'],
   },
   {
-    title: 'Audit',
-    blurb: 'The auditable record of every sign-in, rule change, and configuration edit. Written to a file the operator can ship to an SIEM; no in-app viewer yet.',
+    title: t('Audit'),
+    blurb: t('The auditable record of every sign-in, rule change, and configuration edit. Written to a file the operator can ship to an SIEM; no in-app viewer yet.'),
     scope: [
-      { label: 'Audit log (file)', icon: '≡' },
+      { label: t('Audit log (file)'), icon: '≡' },
     ],
     verbs: ['audit:read'],
   },
   {
-    title: 'Everything (escape hatch)',
-    blurb: 'A sentinel granted only to the administrator role. Implies every other permission.',
+    title: t('Everything (escape hatch)'),
+    blurb: t('A sentinel granted only to the administrator role. Implies every other permission.'),
     scope: [
-      { label: 'All of the above', icon: '✦' },
+      { label: t('All of the above'), icon: '✦' },
     ],
     verbs: ['admin'],
   },
-];
+]);
 
 const groupedVerbs = computed<Array<VerbGroup & { items: string[] }>>(() => {
   const known = new Set(status.value?.rbac.knownVerbs ?? []);
   const seen = new Set<string>();
   const out: Array<VerbGroup & { items: string[] }> = [];
-  for (const g of VERB_GROUPS) {
+  for (const g of VERB_GROUPS.value) {
     const items = g.verbs.filter((v) => known.has(v));
     items.forEach((v) => seen.add(v));
     if (items.length) out.push({ ...g, items });
@@ -287,8 +290,8 @@ const groupedVerbs = computed<Array<VerbGroup & { items: string[] }>>(() => {
   const leftover = [...known].filter((v) => !seen.has(v));
   if (leftover.length) {
     out.push({
-      title: 'Other',
-      blurb: 'Capabilities that have not been described yet.',
+      title: t('Other'),
+      blurb: t('Capabilities that have not been described yet.'),
       scope: [],
       verbs: leftover,
       items: leftover,
@@ -306,26 +309,28 @@ function grantsOf(role: string): string[] {
   <div class="page">
     <header class="page-head">
       <div class="crumbs">
-        <span>Admin</span><span class="sep">/</span><span class="crumb-cur">Roles &amp; permissions</span>
+        <span>{{ t('Admin') }}</span><span class="sep">/</span><span class="crumb-cur">{{ t('Roles & permissions') }}</span>
       </div>
       <div class="head-actions">
-        <button class="sw-btn" type="button" @click="load">Refresh</button>
+        <button class="sw-btn" type="button" @click="load">{{ t('Refresh') }}</button>
       </div>
     </header>
 
-    <div v-if="loading" class="loading">Loading roles…</div>
-    <div v-else-if="error" class="error">Failed to load: {{ error }}</div>
+    <div v-if="loading" class="loading">{{ t('Loading roles…') }}</div>
+    <div v-else-if="error" class="error">{{ t('Failed to load:') }} {{ error }}</div>
     <template v-else-if="status">
       <!-- Intro -->
       <section class="sw-card intro">
-        <h2 class="intro-title">What each role can do</h2>
-        <p class="intro-body">
-          Your sidebar adapts to your role: anything you can't use is simply not shown. The
-          sections below group SkyWalking's capabilities by feature area. For each area you'll
-          see <b>Menu scope</b> (which sidebar entries fall in the area) and
-          <b>Actions</b> (the concrete things you can do, marked per role). Multiple roles add up
-          — a user holding more than one role gets every permission any of their roles grant.
-        </p>
+        <h2 class="intro-title">{{ t('What each role can do') }}</h2>
+        <i18n-t
+          keypath="Your sidebar adapts to your role: anything you can't use is simply not shown. The sections below group SkyWalking's capabilities by feature area. For each area you'll see {menuScope} (which sidebar entries fall in the area) and {actions} (the concrete things you can do, marked per role). Multiple roles add up — a user holding more than one role gets every permission any of their roles grant."
+          tag="p"
+          class="intro-body"
+          scope="global"
+        >
+          <template #menuScope><b>{{ t('Menu scope') }}</b></template>
+          <template #actions><b>{{ t('Actions') }}</b></template>
+        </i18n-t>
         <div class="role-summary">
           <div v-for="r in roleNames" :key="r" class="role-card">
             <span class="pill" :class="rolePill(r)">{{ r }}</span>
@@ -339,28 +344,28 @@ function grantsOf(role: string): string[] {
            sidebar uses, so it stays honest if roles are reconfigured. -->
       <section class="sw-card menu-matrix">
         <header class="card-head">
-          <h3>Menu visibility</h3>
-          <span class="muted">which sidebar items each role sees · gated by the read verb in the last column (UI hides; the BFF enforces the same server-side)</span>
+          <h3>{{ t('Menu visibility') }}</h3>
+          <span class="muted">{{ t('which sidebar items each role sees · gated by the read verb in the last column (UI hides; the BFF enforces the same server-side)') }}</span>
         </header>
         <div class="matrix-scroll">
           <table class="matrix">
             <thead>
               <tr>
-                <th class="m-menu">Menu</th>
+                <th class="m-menu">{{ t('Menu') }}</th>
                 <th v-for="r in roleNames" :key="r" class="m-role">
                   <span class="pill" :class="rolePill(r)">{{ r }}</span>
                 </th>
-                <th class="m-verb">Read verb</th>
+                <th class="m-verb">{{ t('Read verb') }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="row in MENU_GATES" :key="row.label">
                 <td class="m-menu">{{ row.label }}</td>
                 <td v-for="r in roleNames" :key="r" class="m-cell">
-                  <span v-if="menuVisible(r, row.verb)" class="yes" title="visible">✔</span>
-                  <span v-else class="no" title="hidden">—</span>
+                  <span v-if="menuVisible(r, row.verb)" class="yes" :title="t('visible')">✔</span>
+                  <span v-else class="no" :title="t('hidden')">—</span>
                 </td>
-                <td class="m-verb"><code>{{ row.verb ?? 'any signed-in' }}</code></td>
+                <td class="m-verb"><code>{{ row.verb ?? t('any signed-in') }}</code></td>
               </tr>
             </tbody>
           </table>
@@ -375,11 +380,11 @@ function grantsOf(role: string): string[] {
         </header>
         <div class="group-body">
           <!-- Left: mock menu bar showing what this area covers -->
-          <aside class="scope" aria-label="Menu scope">
+          <aside class="scope" :aria-label="t('Menu scope')">
             <div class="col-head">
               <span class="col-num">1</span>
-              <span class="col-title">Menu scope</span>
-              <span class="col-sub">items in this area</span>
+              <span class="col-title">{{ t('Menu scope') }}</span>
+              <span class="col-sub">{{ t('items in this area') }}</span>
             </div>
             <ul class="scope-list">
               <li v-for="item in g.scope" :key="item.label">
@@ -397,8 +402,8 @@ function grantsOf(role: string): string[] {
           <div class="grid-wrap">
             <div class="col-head">
               <span class="col-num">2</span>
-              <span class="col-title">Actions</span>
-              <span class="col-sub">checked roles can perform each row</span>
+              <span class="col-title">{{ t('Actions') }}</span>
+              <span class="col-sub">{{ t('checked roles can perform each row') }}</span>
             </div>
             <table class="perm">
               <colgroup>
@@ -407,7 +412,7 @@ function grantsOf(role: string): string[] {
               </colgroup>
               <thead>
                 <tr>
-                  <th class="th-cap">What you can do</th>
+                  <th class="th-cap">{{ t('What you can do') }}</th>
                   <th v-for="r in roleNames" :key="r" class="th-role">
                     <span class="pill" :class="rolePill(r)">{{ r }}</span>
                   </th>
@@ -420,8 +425,8 @@ function grantsOf(role: string): string[] {
                     <div v-if="labelFor(v).hint" class="cap-hint">{{ labelFor(v).hint }}</div>
                   </td>
                   <td v-for="r in roleNames" :key="r" class="td-cell">
-                    <span v-if="hasVerb(grantsOf(r), v)" class="check check-on" aria-label="allowed">✓</span>
-                    <span v-else class="check check-off" aria-label="not allowed">·</span>
+                    <span v-if="hasVerb(grantsOf(r), v)" class="check check-on" :aria-label="t('allowed')">✓</span>
+                    <span v-else class="check check-off" :aria-label="t('not allowed')">·</span>
                   </td>
                 </tr>
               </tbody>
@@ -437,9 +442,9 @@ function grantsOf(role: string): string[] {
 <style scoped>
 .page { padding: 18px 22px 32px; color: var(--sw-fg-0); }
 .page-head { display: flex; align-items: center; margin-bottom: 16px; }
-.crumbs { font-size: 12px; color: var(--sw-fg-2); }
+.crumbs { font-size: var(--sw-fs-base); color: var(--sw-fg-2); }
 .crumbs .sep { margin: 0 6px; color: var(--sw-fg-3); }
-.crumb-cur { color: var(--sw-fg-0); font-weight: 600; }
+.crumb-cur { color: var(--sw-fg-0); font-weight: var(--sw-fw-semibold); }
 .head-actions { margin-left: auto; display: flex; gap: 8px; }
 
 .loading, .error { padding: 20px; text-align: center; color: var(--sw-fg-2); }
@@ -462,19 +467,19 @@ function grantsOf(role: string): string[] {
 }
 .card-head h3 {
   margin: 0;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-semibold);
   color: var(--sw-fg-0);
 }
 
 /* ── Intro ───────────────────────────────────────────────────────── */
 .intro { padding: 14px 18px; }
-.intro-title { margin: 0; font-size: 14px; color: var(--sw-fg-0); font-weight: 600; }
+.intro-title { margin: 0; font-size: var(--sw-fs-lg); color: var(--sw-fg-0); font-weight: var(--sw-fw-semibold); }
 .intro-body {
   margin: 8px 0 14px;
   color: var(--sw-fg-2);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--sw-fs-base);
+  line-height: var(--sw-lh-relaxed);
   max-width: 920px;
 }
 .role-summary {
@@ -490,13 +495,13 @@ function grantsOf(role: string): string[] {
 }
 .role-blurb {
   margin: 6px 0 0;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-2);
-  line-height: 1.45;
+  line-height: var(--sw-lh-normal);
 }
 
 /* ── Group card ──────────────────────────────────────────────────── */
-.muted { color: var(--sw-fg-3); font-size: 11px; font-weight: 400; }
+.muted { color: var(--sw-fg-3); font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-regular); }
 .card-head h3 + .muted { margin-left: 6px; }
 
 .group-body {
@@ -525,19 +530,19 @@ function grantsOf(role: string): string[] {
   border-radius: 50%;
   background: var(--sw-accent-soft);
   color: var(--sw-accent-2);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
   flex: 0 0 18px;
 }
 .col-title {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-0);
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
 }
 .col-sub {
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
 }
 
@@ -552,9 +557,9 @@ function grantsOf(role: string): string[] {
   gap: 8px;
   padding: 5px 8px;
   border-radius: 4px;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
   color: var(--sw-fg-1);
-  font-weight: 500;
+  font-weight: var(--sw-fw-medium);
 }
 .scope-list li + li { margin-top: 1px; }
 .scope-list li:hover { background: var(--sw-bg-3, rgba(255,255,255,0.03)); }
@@ -563,7 +568,7 @@ function grantsOf(role: string): string[] {
   width: 14px;
   text-align: center;
   color: var(--sw-fg-3);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
 }
 .scope-empty {
   color: var(--sw-fg-3);
@@ -575,7 +580,7 @@ function grantsOf(role: string): string[] {
   display: grid;
   place-items: center;
   color: var(--sw-fg-3);
-  font-size: 18px;
+  font-size: var(--sw-fs-xl);
   background: var(--sw-bg-2);
   border-right: 1px solid var(--sw-line);
 }
@@ -598,30 +603,30 @@ function grantsOf(role: string): string[] {
 .perm th.th-cap {
   text-align: left;
   padding: 10px 14px;
-  color: var(--sw-fg-2);
-  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
+  letter-spacing: var(--sw-ls-caps);
+  font-weight: var(--sw-fw-bold);
   border-bottom: 1px solid var(--sw-line);
 }
 .perm th.th-role {
   padding: 10px 12px;
   text-align: center;
   border-bottom: 1px solid var(--sw-line);
-  font-weight: 600;
+  font-weight: var(--sw-fw-semibold);
   width: 84px;
 }
 .perm td {
   border-bottom: 1px solid var(--sw-line);
-  font-size: 12px;
+  font-size: var(--sw-fs-base);
   color: var(--sw-fg-1);
 }
 .perm tr:last-child td { border-bottom: none; }
 .perm tbody tr:hover { background: rgba(255,255,255,0.02); }
 .td-cap { padding: 8px 14px; vertical-align: top; }
-.cap-label { color: var(--sw-fg-0); font-weight: 500; }
-.cap-hint { color: var(--sw-fg-3); font-size: 10.5px; margin-top: 2px; }
+.cap-label { color: var(--sw-fg-0); font-weight: var(--sw-fw-medium); }
+.cap-hint { color: var(--sw-fg-3); font-size: var(--sw-fs-xs); margin-top: 2px; }
 .td-cell { text-align: center; padding: 8px 12px; }
 .check {
   display: inline-block;
@@ -629,8 +634,8 @@ function grantsOf(role: string): string[] {
   height: 18px;
   line-height: 18px;
   border-radius: 50%;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
 }
 .check-on {
   background: rgba(34, 197, 94, 0.16);
@@ -639,8 +644,8 @@ function grantsOf(role: string): string[] {
 .check-off {
   color: var(--sw-fg-3);
   background: transparent;
-  font-weight: 400;
-  font-size: 14px;
+  font-weight: var(--sw-fw-regular);
+  font-size: var(--sw-fs-lg);
 }
 
 /* ── Pills ───────────────────────────────────────────────────────── */
@@ -650,8 +655,8 @@ function grantsOf(role: string): string[] {
   padding: 1px 7px;
   height: 18px;
   border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
   border: 1px solid;
 }
 .pill-ok    { color: var(--sw-ok);    background: rgba(34,197,94,0.14);  border-color: rgba(34,197,94,0.33); }
@@ -674,15 +679,15 @@ function grantsOf(role: string): string[] {
   border-radius: 6px;
   padding: 10px 12px;
 }
-.rule-k { font-size: 11.5px; font-weight: 600; color: var(--sw-fg-0); }
-.rule-v { font-size: 11.5px; color: var(--sw-fg-2); margin-top: 4px; line-height: 1.55; }
+.rule-k { font-size: var(--sw-fs-sm); font-weight: var(--sw-fw-semibold); color: var(--sw-fg-0); }
+.rule-v { font-size: var(--sw-fs-sm); color: var(--sw-fg-2); margin-top: 4px; line-height: var(--sw-lh-relaxed); }
 
 .menu-matrix { margin-bottom: 14px; }
 .matrix-scroll { overflow-x: auto; }
 .matrix {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11.5px;
+  font-size: var(--sw-fs-sm);
 }
 .matrix th,
 .matrix td {
@@ -696,10 +701,10 @@ function grantsOf(role: string): string[] {
 .matrix .m-verb { text-align: left; }
 .matrix .m-verb code {
   font-family: var(--sw-mono);
-  font-size: 10.5px;
+  font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
 }
 .matrix tbody tr:hover { background: var(--sw-bg-2); }
-.matrix .yes { color: var(--sw-ok, #34d399); font-weight: 700; }
+.matrix .yes { color: var(--sw-ok, #34d399); font-weight: var(--sw-fw-bold); }
 .matrix .no { color: var(--sw-fg-3); }
 </style>

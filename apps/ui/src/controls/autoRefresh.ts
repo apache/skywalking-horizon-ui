@@ -46,6 +46,13 @@ export const useAutoRefreshStore = defineStore('auto-refresh', () => {
   const lastTickAt = ref(Date.now());
   const suspended = ref(false);
   const nowMs = ref(Date.now());
+  // Track the document's visibility separately from `suspended`. Both
+  // gate the main timer; we keep them distinct so resuming via route
+  // change doesn't accidentally start ticking on a hidden tab, and
+  // returning to the tab doesn't override a route-driven suspend.
+  const tabVisible = ref(
+    typeof document === 'undefined' || document.visibilityState !== 'hidden',
+  );
 
   let timerId: ReturnType<typeof setInterval> | null = null;
   let countdownId: ReturnType<typeof setInterval> | null = null;
@@ -58,7 +65,7 @@ export const useAutoRefreshStore = defineStore('auto-refresh', () => {
   }
   function startMainTimer(): void {
     clearMainTimer();
-    if (intervalSec.value === null || suspended.value) return;
+    if (intervalSec.value === null || suspended.value || !tabVisible.value) return;
     const ms = intervalSec.value * 1000;
     timerId = setInterval(() => {
       lastTickAt.value = Date.now();
@@ -73,6 +80,27 @@ export const useAutoRefreshStore = defineStore('auto-refresh', () => {
   }
   ensureCountdown();
   startMainTimer();
+
+  // Pause the ticker when the tab is backgrounded. Every dashboard
+  // widget + alarm badge poller + topology + layer landing subscribes
+  // to `tickCount`, so an unattended tab quietly burns OAP queries at
+  // 30s × N subscribers. On visibility-return we fire one immediate
+  // tick so the operator sees fresh data right away, then resume the
+  // normal cadence. Stays in sync with route-driven `suspended`
+  // (opt-out pages remain paused regardless of visibility).
+  function onVisibilityChange(): void {
+    const visibleNow = document.visibilityState !== 'hidden';
+    if (visibleNow === tabVisible.value) return;
+    tabVisible.value = visibleNow;
+    if (visibleNow) {
+      if (!suspended.value && intervalSec.value !== null) refreshNow();
+    } else {
+      clearMainTimer();
+    }
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
 
   /** Operator picks a new interval (or `null` to disable). */
   function setInterval_(sec: number | null): void {
@@ -122,6 +150,9 @@ export const useAutoRefreshStore = defineStore('auto-refresh', () => {
     if (countdownId) {
       clearInterval(countdownId);
       countdownId = null;
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     }
   });
 

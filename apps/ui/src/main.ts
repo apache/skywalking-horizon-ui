@@ -25,6 +25,15 @@ import { useAuthStore } from './state/auth';
 import { useThemeStore } from './state/theme';
 import { i18n } from './i18n';
 
+// Self-hosted variable fonts. We used to pull Inter + JetBrains Mono from
+// Google Fonts (see the old <link> in index.html), but that path fails
+// silently in air-gapped / firewalled deployments — operators saw the
+// browser fallback (San Francisco / Segoe UI) and the UI looked
+// inconsistent between machines. @fontsource-variable bundles a single
+// woff2 per family that covers every weight via OpenType axes, so we
+// keep the small payload AND become offline-safe.
+import '@fontsource-variable/inter';
+import '@fontsource-variable/jetbrains-mono';
 import '@skywalking-horizon-ui/design-tokens/tokens.css';
 // The theme-variant overrides — `[data-theme="<id>"]` selectors that swap
 // `--sw-*` palette tokens. The Pinia themeStore writes the active id to

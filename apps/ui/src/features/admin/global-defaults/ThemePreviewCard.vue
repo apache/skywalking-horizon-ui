@@ -262,8 +262,8 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
 .tpc__tag, .tpc__active {
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 9.5px;
-  font-weight: 700;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   backdrop-filter: blur(6px);
 }
 
@@ -285,8 +285,8 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
   letter-spacing: -0.2px;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
@@ -306,8 +306,8 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
 }
 .tpc__chip {
   padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   font-family: inherit;
 }
 .tpc__kpis {
@@ -317,15 +317,15 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
 }
 .tpc__kpi { padding: 5px 6px; }
 .tpc__kpi-k {
-  font-size: 8px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
+  letter-spacing: var(--sw-ls-caps);
 }
 .tpc__kpi-v {
-  font-size: 12px;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-bold);
+  font-family: var(--sw-mono);
 }
 .tpc__chart {
   margin-top: 8px;
@@ -341,7 +341,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
-  font-size: 9px;
+  font-size: var(--sw-fs-xs);
 }
 .tpc__meta-pill {
   padding: 1px 6px;
@@ -355,16 +355,16 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
   margin-top: auto;
 }
 .tpc__name {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: var(--sw-fs-md);
+  font-weight: var(--sw-fw-bold);
 }
 .tpc__tagline {
-  font-size: 10px;
+  font-size: var(--sw-fs-xs);
   margin-top: 2px;
 }
 .tpc__lede {
-  font-size: 10.5px;
-  line-height: 1.5;
+  font-size: var(--sw-fs-xs);
+  line-height: var(--sw-lh-normal);
   margin-top: 6px;
 }
 .tpc__cta {
@@ -378,7 +378,7 @@ function metaBadgeStyle(t: ThemeDef): Record<string, string> {
   height: 26px;
   padding: 0 10px;
   border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-bold);
 }
 </style>
