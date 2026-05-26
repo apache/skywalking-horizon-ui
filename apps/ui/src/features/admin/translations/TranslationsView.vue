@@ -266,6 +266,18 @@ async function ensureOverlayFetched(name: string, loc: Locale, eff: NonNullable<
   if (staged) applyOverlayToDraft(name, loc, staged, eff);
 }
 
+// `target` MUST be declared above the `watch(effective, ...)` below
+// because that watch uses `{ immediate: true }` and reads `target.value`
+// in its callback — which fires DURING setup. Declaring `target` after
+// the watch leaves it in the TDZ at the moment the immediate callback
+// runs, producing a silent ReferenceError that aborts setup and renders
+// the page blank with no console trace (CLAUDE.md flags this as a
+// recurring failure mode for `immediate: true` watchers).
+const target = ref<Locale>(
+  (SUPPORTED_LOCALES.find((l) => l !== 'en') as Locale) ?? 'zh-CN',
+);
+const targetLocales = SUPPORTED_LOCALES.filter((l) => l !== 'en');
+
 watch(
   effective,
   (eff) => {
@@ -278,11 +290,6 @@ watch(
   },
   { immediate: true },
 );
-
-const target = ref<Locale>(
-  (SUPPORTED_LOCALES.find((l) => l !== 'en') as Locale) ?? 'zh-CN',
-);
-const targetLocales = SUPPORTED_LOCALES.filter((l) => l !== 'en');
 
 // When the operator switches target language, lazy-fetch its overlays.
 watch([target, effective], ([loc, eff]) => {
@@ -503,6 +510,58 @@ const dirty = computed<boolean>(() => {
 const saveMsg = ref<string | null>(null);
 const saving = ref(false);
 
+/* ── Editor source tracking ────────────────────────────────────────
+ * Matches the Layer Dashboards + Overview Templates admin editors:
+ * the pill always shows one of three states (`from local` / `from
+ * bundled` / `from remote`) and the dropdown lets the operator reset
+ * to the disk-shipped overlay only ("bundled") or to whatever OAP
+ * currently has ("remote"). Local edits flip the pill to "from
+ * local"; discard flips it back to "from remote". */
+const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
+
+// Switching template or target locale recomputes the source from
+// whether the operator has unstaged local edits for that (name, loc).
+// Don't clobber an explicitly-set source (bundled) inside the same
+// locale — the watcher only fires when name/locale changes.
+watch([selectedName, target], () => {
+  editorSource.value = hasStagedLocal.value ? 'local' : 'remote';
+});
+
+/** Rebuild the draft for one (name, locale) from a specific source.
+ *  - `remote` reproduces the default layering (disk overlay first, OAP
+ *    overlay wins per leaf) — the canonical baseline the operator
+ *    sees in the live UI.
+ *  - `bundled` shows ONLY the disk-shipped overlay, ignoring OAP. Use
+ *    this to compare against the on-disk seed without OAP overrides. */
+function rebuildDraftForLocale(name: string, loc: string, src: 'remote' | 'bundled'): void {
+  const eff = effective.value;
+  if (!eff) return;
+  const tplMap = { ...(draft.value[name] ?? {}) };
+  delete tplMap[loc];
+  draft.value = { ...draft.value, [name]: tplMap };
+  const snap = fetchedOverlays.value[overlayKey(name, loc)];
+  if (!snap) return;
+  applyOverlayToDraft(name, loc, snap.disk, eff);
+  if (src === 'remote') {
+    applyOverlayToDraft(name, loc, snap.oap, eff);
+  }
+}
+
+/** Reset to dropdown — discard the current local draft and reload the
+ *  draft from the picked source. Symmetric with the layer / overview
+ *  editors. */
+const resetDropdownOpen = ref(false);
+function resetTo(src: 'remote' | 'bundled'): void {
+  const name = selectedName.value;
+  const loc = target.value;
+  if (!name) return;
+  localEdits.remove(name, loc);
+  rebuildDraftForLocale(name, loc, src);
+  editorSource.value = src;
+  resetDropdownOpen.value = false;
+  closePanel();
+}
+
 /** Persist the current draft to localStorage for the active locale.
  *  Survives reloads, doesn't reach other users, doesn't touch OAP. */
 function stageLocal(): void {
@@ -512,6 +571,7 @@ function stageLocal(): void {
   if (!name) return;
   if (overlay === null) localEdits.remove(name, loc);
   else localEdits.set(name, loc, overlay);
+  editorSource.value = 'local';
   saveMsg.value = t('Staged {locale} locally.', { locale: LOCALE_NATIVE_LABEL[loc] });
   closePanel();
   setTimeout(() => (saveMsg.value = null), 4000);
@@ -589,17 +649,8 @@ function discardLocal(): void {
   const loc = target.value;
   if (!name) return;
   localEdits.remove(name, loc);
-  // Re-seed the active locale's draft from OAP + disk.
-  const tplMap = { ...(draft.value[name] ?? {}) };
-  delete tplMap[loc];
-  draft.value = { ...draft.value, [name]: tplMap };
-  // Force the snapshot to be re-applied (it was already fetched but
-  // we just dropped the draft for this locale).
-  const snap = fetchedOverlays.value[overlayKey(name, loc)];
-  if (snap && effective.value) {
-    applyOverlayToDraft(name, loc, snap.disk, effective.value);
-    applyOverlayToDraft(name, loc, snap.oap, effective.value);
-  }
+  rebuildDraftForLocale(name, loc, 'remote');
+  editorSource.value = 'remote';
   saveMsg.value = t('Discarded {locale} local draft.', { locale: LOCALE_NATIVE_LABEL[loc] });
   closePanel();
   setTimeout(() => (saveMsg.value = null), 3000);
@@ -700,6 +751,56 @@ function leafLabel(segments: Array<string | number>): string {
       <span class="tv__progress">{{ t('{filled} / {total} translated', { filled: filledCount, total: allFields.length }) }}</span>
 
       <div class="tv__actions">
+        <!-- Source pill — sits at the right edge next to the
+             "reset to" dropdown so the operator's eye reads
+             `state pill → reset to source` left-to-right. Per-state
+             colour: local = warn (action needed), bundled = info
+             (informational), remote = dim (baseline / quiet). -->
+        <span
+          v-if="editorSource === 'local'"
+          class="tv__src is-local"
+          :title="t('Unpublished local edits — Push to publish to OAP.')"
+        >{{ t('from local') }}</span>
+        <span
+          v-else-if="editorSource === 'bundled'"
+          class="tv__src is-bundled"
+          :title="t('Showing the shipped bundled default — Push to overwrite OAP with bundled.')"
+        >{{ t('from bundled') }}</span>
+        <span
+          v-else-if="editorSource === 'remote'"
+          class="tv__src is-remote"
+          :title="t('Showing the OAP-live version. End users render the same bytes.')"
+        >{{ t('from remote') }}</span>
+        <!-- Reset to ▾ dropdown — matches the layer / overview
+             editors. Discards local edits and re-seeds the draft from
+             the picked source. -->
+        <div class="reset-dd">
+          <button
+            type="button"
+            class="sw-btn"
+            :disabled="readOnly || !selectedName"
+            @click="resetDropdownOpen = !resetDropdownOpen"
+          >
+            {{ t('reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
+          </button>
+          <template v-if="resetDropdownOpen">
+            <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
+            <div class="reset-dd-pop">
+              <button
+                class="reset-dd-item"
+                type="button"
+                :title="t('Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).')"
+                @click="resetTo('bundled')"
+              >{{ t('Bundled') }}</button>
+              <button
+                class="reset-dd-item"
+                type="button"
+                :title="t('Discard local edits and reload from the OAP overlay row.')"
+                @click="resetTo('remote')"
+              >{{ t('Remote') }}</button>
+            </div>
+          </template>
+        </div>
         <button
           v-if="hasStagedLocal"
           type="button"
@@ -825,7 +926,62 @@ function leafLabel(segments: Array<string | number>): string {
   padding: 3px 8px; background: var(--sw-bg-2); border-radius: 3px;
   font-variant-numeric: tabular-nums;
 }
-.tv__actions { margin-left: auto; display: inline-flex; gap: 6px; }
+/* Source pill — same shape and vocabulary as the layer + overview
+ * editors. Per-state colour:
+ *   - local   → warn (yellow), background warn-soft : "you have
+ *               unpublished changes, action recommended"
+ *   - bundled → info (cyan), background info-soft : "showing the
+ *               shipped default — informational"
+ *   - remote  → fg-3 (dim), background bg-2 : "you're on the
+ *               canonical baseline — nothing to call out"
+ */
+.tv__src {
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
+  letter-spacing: var(--sw-ls-caps);
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+.tv__src.is-local   { color: var(--sw-warn); background: var(--sw-warn-soft); }
+.tv__src.is-bundled { color: var(--sw-info); background: var(--sw-info-soft); }
+.tv__src.is-remote  { color: var(--sw-fg-3); background: var(--sw-bg-2); }
+.tv__actions { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; }
+
+/* Reset-to dropdown — vocabulary matches the layer + overview admin
+ * editors so the affordance reads the same across all three pages. */
+.reset-dd { position: relative; }
+.reset-dd .caret {
+  display: inline-block; margin-left: 4px;
+  transition: transform 0.1s ease;
+}
+.reset-dd .caret.open { transform: rotate(90deg); }
+.reset-dd-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+}
+.reset-dd-pop {
+  position: absolute; top: calc(100% + 4px); right: 0;
+  z-index: 51;
+  min-width: 160px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.reset-dd-item {
+  text-align: left;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--sw-fg-1);
+  font-size: var(--sw-fs-sm);
+  cursor: pointer;
+}
+.reset-dd-item:hover:not(:disabled) { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.reset-dd-item:disabled { opacity: 0.4; cursor: not-allowed; }
 .tv__msg {
   padding: 6px 10px; font-size: 12px; color: var(--sw-fg-2);
   background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 4px;
