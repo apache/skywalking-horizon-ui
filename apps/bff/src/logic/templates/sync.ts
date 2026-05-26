@@ -304,7 +304,14 @@ export async function createAndConfirm(
   configuration: string,
   _logger: Logger,
 ): Promise<string> {
-  const ack = await client.create(configuration);
+  // Send the envelope name as the requested id. Required by upstream
+  // skywalking#13884 (current OAP rejects POST without an `id`); old
+  // OAP releases that auto-generated UUIDs simply ignored the field,
+  // so this same payload works on both sides. `ack.id` is the row
+  // handle we operate against going forward — same value either way.
+  const env = parseEnvelope(configuration);
+  const requestedId = env?.name ?? '';
+  const ack = await client.create(requestedId, configuration);
   if (!ack.status) {
     throw new Error(`OAP rejected create: ${ack.message || 'no message'}`);
   }

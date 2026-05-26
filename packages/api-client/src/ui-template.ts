@@ -87,13 +87,22 @@ export class UITemplateClient {
     });
   }
 
-  /** `POST /ui-management/templates` — server allocates the UUID. Body
-   *  carries the configuration JSON-as-string. */
-  async create(configuration: string): Promise<TemplateChangeStatus> {
+  /** `POST /ui-management/templates`.
+   *
+   *  `id` is the envelope name (`horizon.<kind>.<key>` for source rows,
+   *  `horizon.<kind>.<key>.i18n.<locale>` for translation overlay
+   *  rows). Upstream skywalking#13884 made `id` REQUIRED — OAP no
+   *  longer auto-generates one. Old OAP releases ignored the field, so
+   *  the same payload is forward- and backward-compatible: against
+   *  legacy OAP the create still works (server assigns a UUID and
+   *  echoes it back in `ack.id`); against current OAP the row lands at
+   *  the requested id, which we already treat as the row's wire
+   *  handle in `ack.id`. */
+  async create(id: string, configuration: string): Promise<TemplateChangeStatus> {
     return this.json<TemplateChangeStatus>('/ui-management/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ configuration }),
+      body: JSON.stringify({ id, configuration }),
     });
   }
 
