@@ -30,6 +30,10 @@ export interface TemplateSyncRow {
   name: string;
   kind: TemplateKind;
   key: string;
+  /** Set on per-locale translation overlay rows (`<name>.i18n.<locale>`).
+   *  Unset on source rows. Pages that only care about source rows must
+   *  filter `locale === undefined`. */
+  locale?: string;
   status: TemplateStatus;
   effective: 'remote' | 'bundled' | null;
   remote: { id: string; configuration: string; disabled: boolean } | null;

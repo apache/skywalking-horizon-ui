@@ -60,9 +60,10 @@ const confirm = ref<ConfirmConfig | null>(null);
 const confirmBusy = ref(false);
 
 /** Live-debugger jump from a `- name: <X>` line in the editor.
- *  MAL catalogs route to `/debug/mal?catalog=&name=<file>&ruleName=<X>`
- *  (file + metric — what OAP needs for the install); LAL routes to
- *  `/debug/lal?name=<X>&file=<file>`. */
+ *  MAL catalogs route to
+ *  `/operate/live-debug/mal?catalog=&name=<file>&ruleName=<X>` (file +
+ *  metric — what OAP needs for the install); LAL routes to
+ *  `/operate/live-debug/lal?name=<X>&file=<file>`. */
 function onDebugClick(ruleName: string): void {
   const c = catalog.value;
   const n = name.value;

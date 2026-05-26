@@ -230,6 +230,14 @@ const displaySession = computed<SessionResponse | null>(
   () => historicalEntry.value?.session ?? dbg.session.value,
 );
 
+/* `selectedCell` is declared HERE (not at its original site further
+ * below) because `loadHistorical` / `clearHistorical` reset it and
+ * the `watch(historyId, …, { immediate: true })` further down runs
+ * synchronously during setup. With the ref declared below those
+ * functions, an `?historyId=` deep-link would throw a TDZ
+ * ReferenceError and blank the page. */
+const selectedCell = ref<LalCell | null>(null);
+
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
   selectedFile.value = entry.name;
@@ -283,7 +291,10 @@ watch(
   (id) => {
     if (typeof id !== 'string' || id === '') return;
     if (dbg.sessionId.value === id) return;
-    const entry = history.entries.value.find((e) => e.session.sessionId === id);
+    // Cross-widget lookup (`history.all`) — routing already pinned us
+    // to the right widget, so filtering again by widget would silently
+    // swallow entries with a mismatched widget field.
+    const entry = history.all.value.find((e) => e.session.sessionId === id);
     if (!entry) return;
     selectedFile.value = entry.name;
     selectedRule.value = entry.ruleName;
@@ -307,7 +318,7 @@ watch(
       return;
     }
     if (historicalEntry.value?.id === id) return;
-    const entry = history.entries.value.find((e) => e.id === id);
+    const entry = history.all.value.find((e) => e.id === id);
     if (entry) loadHistorical(entry);
   },
   { immediate: true },
@@ -316,7 +327,14 @@ watch(
 const nodeViews = computed<LalNodeView[]>(() => {
   const s = displaySession.value;
   if (!s) return [];
-  return s.nodes.map((n) => {
+  // Stable order by nodeKey so cards don't reshuffle between polls
+  // (OAP doesn't guarantee a fixed order in session.nodes).
+  const sortedNodes = s.nodes.slice().sort((a, b) => {
+    const ak = a.nodeId ?? a.peer ?? '?';
+    const bk = b.nodeId ?? b.peer ?? '?';
+    return ak.localeCompare(bk);
+  });
+  return sortedNodes.map((n) => {
     const records = n.records ?? [];
     const recordViews: LalRecordView[] = records.map((rec, recIdx) => ({ rec, recIdx }));
     const steps: LalStep[] = [];
@@ -465,8 +483,8 @@ function contentPreview(p: LalSamplePayload | null): string {
 // ── Selection + source pane ───────────────────────────────────────
 
 /** Single selected cell drives the source-pane open-state and the
- *  `<mark>` highlight inside the captured DSL. */
-const selectedCell = ref<LalCell | null>(null);
+ *  `<mark>` highlight inside the captured DSL. `selectedCell` itself
+ *  is declared above `loadHistorical` (TDZ guard). */
 
 function selectCell(cell: LalCell): void {
   selectedCell.value = selectedCell.value === cell ? null : cell;

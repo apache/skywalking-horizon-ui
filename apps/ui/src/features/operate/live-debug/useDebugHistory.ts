@@ -151,12 +151,33 @@ export function useDebugHistory(widget: DebugWidget): DebugHistoryHandle {
       if (sameCounts && sameDeadline) {
         return existing;
       }
-      const updated: HistoryEntry = {
-        ...existing,
-        ...input,
-        id: existing.id,
-        savedAt: existing.savedAt,
-      };
+      // Don't downgrade an entry whose saved snapshot already carries
+      // records. After `stop()`, the per-DSL view's `session()`
+      // post-stop refresh sees OAP's already-cleaned-up session — all
+      // nodes flip to `not_local` and `records` come back empty. That
+      // poll triggers `persistCapture`, which without this guard
+      // overwrites the entry's record-rich snapshot with the empty
+      // post-stop one and wipes the user's captured data.
+      // Preserve the session payload + counts when the new input would
+      // strictly shrink them; still pick up freshly-arrived metadata
+      // like `retentionDeadline`.
+      const shouldKeepSnapshot =
+        existing.recordCount > 0 && input.recordCount < existing.recordCount;
+      const updated: HistoryEntry = shouldKeepSnapshot
+        ? {
+            ...existing,
+            // Allow only the strictly-additive metadata to update.
+            retentionDeadline: input.retentionDeadline ?? existing.retentionDeadline,
+            retentionMillis: input.retentionMillis ?? existing.retentionMillis,
+            id: existing.id,
+            savedAt: existing.savedAt,
+          }
+        : {
+            ...existing,
+            ...input,
+            id: existing.id,
+            savedAt: existing.savedAt,
+          };
       const next = store.value.slice();
       next[idx] = updated;
       store.value = next;

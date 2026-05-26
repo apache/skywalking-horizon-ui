@@ -168,4 +168,27 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 320px;
 }
+
+/* Live-debug entrance rendered on every `- name: …` row inside the
+ * MAL / LAL editor. Monaco creates the glyph DOM dynamically inside
+ * .monaco, so :deep() is required to reach it from scoped styles.
+ * SVG fill is hard-coded to the resolved --sw-ok value because
+ * background-image: url() cannot reference CSS variables. */
+.monaco :deep(.rr-debug-glyph) {
+  cursor: pointer;
+  width: 14px !important;
+  height: 14px !important;
+  margin-left: 4px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M5 3.5v9l8-4.5z' fill='%2322c55e'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+  opacity: 0.6;
+  border-radius: 2px;
+  transition: opacity 0.12s, background-color 0.12s;
+}
+.monaco :deep(.rr-debug-glyph:hover) {
+  opacity: 1;
+  background-color: var(--sw-ok-soft);
+}
 </style>

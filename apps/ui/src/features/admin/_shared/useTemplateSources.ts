@@ -30,7 +30,7 @@
 import { computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bff } from '@/api/client';
-import type { TemplateKind } from '@/api/scopes/configs';
+import type { TemplateKind, TemplateStatus } from '@/api/scopes/configs';
 
 function envelopeContent<T>(configuration: string | undefined | null): T | null {
   if (!configuration) return null;
@@ -54,14 +54,32 @@ export function useTemplateSources(kind: TemplateKind) {
     staleTime: 30_000,
   });
 
+  /** Source rows only (no overlay siblings). Indexed by name. */
   const rowsByName = computed(() => {
     const m = new Map<string, { bundled: string | null; remote: string | null }>();
     for (const r of q.data.value?.rows ?? []) {
       if (r.kind !== kind) continue;
+      if (r.locale) continue;
       m.set(r.name, {
         bundled: r.bundled?.configuration ?? null,
         remote: r.remote?.configuration ?? null,
       });
+    }
+    return m;
+  });
+
+  /** Overlay-row index keyed by `<sourceName>:<locale>`. Returns the
+   *  row's status so callers (Translations picker) can render per-locale
+   *  chips without doing separate `/i18n` round-trips. */
+  const overlaysBySourceAndLocale = computed(() => {
+    const m = new Map<string, TemplateStatus>();
+    for (const r of q.data.value?.rows ?? []) {
+      if (r.kind !== kind) continue;
+      if (!r.locale) continue;
+      // `<name>` already includes `.i18n.<locale>`. Strip to get the
+      // owning source-row name.
+      const sourceName = r.name.replace(/\.i18n\.[^.]+$/, '');
+      m.set(`${sourceName}:${r.locale}`, r.status);
     }
     return m;
   });
@@ -94,6 +112,13 @@ export function useTemplateSources(kind: TemplateKind) {
      *  to the bundle, so the row would reappear. */
     hasBundled(name: string): boolean {
       return !!rowsByName.value.get(name)?.bundled;
+    },
+    /** Sync status of the per-locale overlay row for (sourceName,
+     *  locale). `null` when no overlay row exists on disk OR remote
+     *  — that locale hasn't been translated for this template. The
+     *  Translations picker uses this for per-locale chips. */
+    overlayStatus(sourceName: string, locale: string): TemplateStatus | null {
+      return overlaysBySourceAndLocale.value.get(`${sourceName}:${locale}`) ?? null;
     },
   };
 }

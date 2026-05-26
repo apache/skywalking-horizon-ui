@@ -260,6 +260,12 @@ const remoteAvailable = computed(() => sources.hasRemote(editName.value));
 // bundle, so the row reappears). Drives the disabled delete button + the
 // guard in deleteCurrentLayer. Effectively true for every shipped layer.
 const bundledExists = computed(() => sources.hasBundled(editName.value));
+// When the bundled default matches the OAP-live copy ("synced"), the
+// BUNDLED and REMOTE views are byte-equal. Surfacing the distinction
+// (`from bundled` pill, "Reset to bundled" / "Preview bundled") tells
+// the operator nothing — hide it. LOCAL drafts always show; BUNDLED
+// resurfaces the moment the layer diverges.
+const isSynced = computed<boolean>(() => sync.badgeFor(editName.value) === 'synced');
 /** Whether a given layer key has an unpublished local browser draft —
  *  drives the "local" badge in the picker (the sync badge only reflects
  *  bundled-vs-remote, not your local draft). */
@@ -1581,7 +1587,11 @@ const namingTest = computed<NamingTestResult>(() => {
               <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
               <!-- Where the editor content was loaded from — distinct from
                    the sync-status chip by the title (prefixed "from "). -->
-              <span class="src-tag" :title="`Editing from: ${editorSource}`">from {{ editorSource }}</span>
+              <span
+                v-if="editorSource === 'local' || !isSynced"
+                class="src-tag"
+                :title="`Editing from: ${editorSource}`"
+              >from {{ editorSource }}</span>
               <!-- Reset the editor to a source (discard current content). -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
@@ -1590,7 +1600,13 @@ const namingTest = computed<NamingTestResult>(() => {
                 <template v-if="resetDropdownOpen">
                   <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
                   <div class="reset-dd-pop">
-                    <button class="reset-dd-item" type="button" title="Discard current edits and reload the bundled (shipped) default." @click="resetTo('bundled')">
+                    <button
+                      v-if="!isSynced"
+                      class="reset-dd-item"
+                      type="button"
+                      title="Discard current edits and reload the bundled (shipped) default."
+                      @click="resetTo('bundled')"
+                    >
                       Bundled
                     </button>
                     <button
@@ -1614,7 +1630,7 @@ const namingTest = computed<NamingTestResult>(() => {
                   <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
                   <div class="reset-dd-pop">
                     <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="previewLive('local')">Local</button>
-                    <button class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
+                    <button v-if="!isSynced" class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
                     <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="previewLive('remote')">Remote</button>
                   </div>
                 </template>

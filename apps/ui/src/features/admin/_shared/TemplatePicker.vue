@@ -45,6 +45,14 @@ export interface TemplatePickerEntry {
   hasLocalDraft?: boolean;
   /** True when the entry's content differs from the live OAP version. */
   isDiverged?: boolean;
+  /** Optional per-locale status chips rendered after the source badge.
+   *  Only the Translations picker passes this — every other admin
+   *  consumer omits it and the chip row stays hidden. Status vocabulary
+   *  matches `syncBadge` (synced / diverged / remote-only / disabled /
+   *  bundled-fallback), plus `local` when there's an unstaged draft for
+   *  that (template, locale) and `empty` when no overlay row exists
+   *  anywhere. */
+  localeBadges?: Array<{ locale: string; status: TemplateStatus | 'local' | 'empty' }>;
 }
 
 const props = defineProps<{
@@ -133,6 +141,15 @@ watch(open, (v) => {
       <code v-if="selected && selected.key && selected.key !== selected.label" class="tp-key">{{ selected.key }}</code>
       <span v-if="selected?.hasLocalDraft" class="tp-local" title="Unpublished local draft">local</span>
       <TemplateStatusBadge v-if="selected" :status="selected.syncBadge ?? null" />
+      <span v-if="selected?.localeBadges?.length" class="tp-locales">
+        <span
+          v-for="lb in selected.localeBadges"
+          :key="lb.locale"
+          class="tp-loc"
+          :class="`tp-loc--${lb.status}`"
+          :title="`${lb.locale}: ${lb.status}`"
+        >{{ lb.locale }}</span>
+      </span>
       <span class="tp-caret" :class="{ open }">›</span>
     </button>
 
@@ -184,6 +201,15 @@ watch(open, (v) => {
             <code v-if="e.key && e.key !== e.label" class="tp-key">{{ e.key }}</code>
             <span v-if="e.hasLocalDraft" class="tp-local" title="Unpublished local draft">local</span>
             <TemplateStatusBadge :status="e.syncBadge ?? null" />
+            <span v-if="e.localeBadges?.length" class="tp-locales">
+              <span
+                v-for="lb in e.localeBadges"
+                :key="lb.locale"
+                class="tp-loc"
+                :class="`tp-loc--${lb.status}`"
+                :title="`${lb.locale}: ${lb.status}`"
+              >{{ lb.locale }}</span>
+            </span>
           </button>
           <p v-if="filtered.length === 0" class="tp-empty">
             {{ divergedOnly && !search.trim()
@@ -333,4 +359,63 @@ watch(open, (v) => {
 }
 .tp-foot-sub { font-size: 10.5px; color: var(--sw-fg-3); }
 .tp-refresh { margin-left: auto; font-size: 11px; height: 24px; padding: 0 8px; }
+
+/* Per-locale translation status chips, used only by the Translations
+ * picker. Colors follow the same palette as TemplateStatusBadge so the
+ * vocabulary stays consistent (green = synced, orange = diverged, …). */
+.tp-locales {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  margin-left: 4px;
+}
+.tp-loc {
+  font-family: var(--sw-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  text-transform: lowercase;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.tp-loc--synced {
+  background: rgba(34, 197, 94, 0.14);
+  color: #4ade80;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+.tp-loc--diverged {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+.tp-loc--remote-only {
+  background: rgba(59, 130, 246, 0.14);
+  color: #60a5fa;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.tp-loc--bundled-fallback {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+  border-color: rgba(148, 163, 184, 0.3);
+}
+.tp-loc--disabled,
+.tp-loc--unknown {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-3);
+  border-color: var(--sw-line);
+}
+.tp-loc--local {
+  background: var(--sw-warn, #f59e0b);
+  color: #1a1a1a;
+  border-color: transparent;
+}
+.tp-loc--empty {
+  background: transparent;
+  color: var(--sw-fg-3);
+  border-color: var(--sw-line);
+  opacity: 0.55;
+}
 </style>

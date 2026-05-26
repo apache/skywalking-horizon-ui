@@ -67,11 +67,11 @@ const localTzLabel = computed<string>(() => {
 });
 
 const healthLabel = computed<string>(() => {
-  if (!reachable.value) return 'unreachable';
-  if (healthScore.value === undefined) return 'unknown';
-  if (healthScore.value < 0) return 'not started';
-  if (healthScore.value > 0) return `degraded (score ${healthScore.value})`;
-  return 'healthy';
+  if (!reachable.value) return t('unreachable');
+  if (healthScore.value === undefined) return t('unknown');
+  if (healthScore.value < 0) return t('not started');
+  if (healthScore.value > 0) return t('degraded (score {n})', { n: healthScore.value });
+  return t('healthy');
 });
 
 const adminBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
@@ -83,11 +83,11 @@ const adminBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
 });
 
 const adminBadgeLabel = computed<string>(() => {
-  if (!preflight.value) return 'loading…';
-  if (!adminReachable.value) return 'unreachable';
+  if (!preflight.value) return t('loading…');
+  if (!adminReachable.value) return t('unreachable');
   const off = preflight.value.modules.filter((m) => m.required && !m.enabled);
-  if (off.length === 0) return 'all selectors on';
-  return `${off.length} selector${off.length === 1 ? '' : 's'} off`;
+  if (off.length === 0) return t('all selectors on');
+  return t('{n} selectors off', { n: off.length });
 });
 
 const adminGeneratedAt = computed<string>(() => {
@@ -106,8 +106,8 @@ const zipkinBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
   return zipkinReachable.value ? 'ok' : 'err';
 });
 const zipkinBadgeLabel = computed<string>(() => {
-  if (zipkinReachable.value === undefined) return 'loading…';
-  return zipkinReachable.value ? 'reachable' : 'unreachable';
+  if (zipkinReachable.value === undefined) return t('loading…');
+  return zipkinReachable.value ? t('reachable') : t('unreachable');
 });
 
 function refreshAll(): void {
@@ -173,7 +173,7 @@ function refreshAll(): void {
       </div>
 
       <div v-if="!reachable && info?.error" class="last-error">
-        <strong>Last error</strong>
+        <strong>{{ t('Last error') }}</strong>
         <code>{{ info.error }}</code>
       </div>
     </section>
@@ -195,23 +195,20 @@ function refreshAll(): void {
       <div v-if="!preflight" class="empty">{{ t('loading preflight…') }}</div>
 
       <div v-else-if="!adminReachable" class="last-error block">
-        <strong>Admin host unreachable</strong>
+        <strong>{{ t('Admin host unreachable') }}</strong>
         <code v-if="adminError">{{ adminError }}</code>
         <p class="hint">
-          Tried <code>{{ adminUrl }}/debugging/config/dump</code>.
-          Confirm the OAP <code>admin-server</code> module is on
-          (<code>SW_ADMIN_SERVER=default</code>) and the port is exposed on the network /
-          k8s Service / ingress.
+          {{ t('Tried {url}. Confirm the OAP admin-server module is on (SW_ADMIN_SERVER=default) and the port is exposed on the network / k8s Service / ingress.', { url: `${adminUrl}/debugging/config/dump` }) }}
         </p>
       </div>
 
       <table v-else class="mod-table">
         <thead>
           <tr>
-            <th>Module</th>
-            <th>State</th>
-            <th>Env var</th>
-            <th>Gates</th>
+            <th>{{ t('Module') }}</th>
+            <th>{{ t('State') }}</th>
+            <th>{{ t('Env var') }}</th>
+            <th>{{ t('Gates') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -219,11 +216,11 @@ function refreshAll(): void {
             <td class="modname"><code>{{ m.name }}</code></td>
             <td>
               <span class="sw-badge" :class="m.enabled ? 'is-ok' : 'is-err'">
-                <span class="state-dot" />{{ m.enabled ? 'enabled' : 'missing' }}
+                <span class="state-dot" />{{ m.enabled ? t('enabled') : t('missing') }}
               </span>
             </td>
             <td class="modenv"><code>{{ m.envVar }}</code></td>
-            <td class="modaffects">{{ m.affects }}</td>
+            <td class="modaffects">{{ t(m.affects) }}</td>
           </tr>
         </tbody>
       </table>
@@ -239,15 +236,12 @@ function refreshAll(): void {
       </header>
 
       <p class="pane-lede">
-        OAP's Zipkin v2 endpoint, source for the <strong>OpenTelemetry &amp; Zipkin</strong>
-        trace menu (shown when a layer's trace source is <code>zipkin</code> or <code>both</code>).
-        This is the <em>only</em> page affected — if it's unreachable, native traces and every
-        other observability page keep working.
+        {{ t("OAP's Zipkin v2 endpoint, source for the OpenTelemetry & Zipkin trace menu (shown when a layer's trace source is zipkin or both). This is the only page affected — if it's unreachable, native traces and every other observability page keep working.") }}
       </p>
 
       <div class="grid">
         <div class="sw-card kpi">
-          <div class="sw-card-head"><h4>Endpoint</h4></div>
+          <div class="sw-card-head"><h4>{{ t('Endpoint') }}</h4></div>
           <div class="kpi-body">
             <div class="kpi-value mono">{{ zipkinBadgeLabel }}</div>
             <div class="kpi-label">{{ info?.zipkinUrl ?? '—' }}</div>
@@ -256,14 +250,10 @@ function refreshAll(): void {
       </div>
 
       <div v-if="zipkinReachable === false" class="last-error block">
-        <strong>Zipkin endpoint unreachable</strong>
+        <strong>{{ t('Zipkin endpoint unreachable') }}</strong>
         <code v-if="info?.zipkinError">{{ info.zipkinError }}</code>
         <p class="hint">
-          Tried <code>{{ info?.zipkinUrl }}/api/v2/services</code>.
-          Confirm OAP's Zipkin receiver / query is enabled and the
-          <code>oap.zipkinUrl</code> in horizon's config points at the right host:port
-          (shared GraphQL port → <code>&lt;queryUrl&gt;/zipkin</code>; standalone → <code>:9412/zipkin</code>).
-          Only the Zipkin trace menu is affected.
+          {{ t("Tried {url}. Confirm OAP's Zipkin receiver / query is enabled and the oap.zipkinUrl in horizon's config points at the right host:port (shared GraphQL port → <queryUrl>/zipkin; standalone → :9412/zipkin). Only the Zipkin trace menu is affected.", { url: `${info?.zipkinUrl ?? ''}/api/v2/services` }) }}
         </p>
       </div>
     </section>

@@ -274,6 +274,19 @@ const displaySession = computed<SessionResponse | null>(
   () => historicalEntry.value?.session ?? dbg.session.value,
 );
 
+/* Transient view state — declared HERE (not at their original
+ * definition sites further below) because `loadHistorical` resets them
+ * and the `watch(historyId, …, { immediate: true })` further down runs
+ * synchronously during setup. With the refs declared below
+ * `loadHistorical`, an `?historyId=` deep-link would throw a TDZ
+ * ReferenceError on the immediate fire — the page would blank without
+ * any console error visible. The original `const` decls (selectRow /
+ * isEntityExpanded / foldedRecords helpers) further down now build on
+ * these. */
+const selectedRow = ref<MalSampleRow | null>(null);
+const expandedEntities = ref<Set<string>>(new Set());
+const foldedRecords = ref<Set<string>>(new Set());
+
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
   selectedKey.value = `${entry.catalog}/${entry.name}`;
@@ -293,10 +306,16 @@ function clearHistorical(): void {
   selectedRow.value = null;
 }
 
-/** Deep-link from `/debug/history` — `?historyId=<id>` loads that
- *  saved capture. Reload-safe (storage is the same browser store the
- *  history page reads). When the id is removed from the URL, the
- *  view falls back to live. */
+/** Deep-link from `/operate/live-debug/history` — `?historyId=<id>`
+ *  loads that saved capture. Reload-safe (storage is the same browser
+ *  store the history page reads). When the id is removed from the
+ *  URL, the view falls back to live.
+ *
+ *  Look-up uses `history.all` (NOT `entries`): `entries` is filtered
+ *  by the bound widget, and an entry written under a stale or
+ *  mismatched `widget` field would be silently filtered out, leaving
+ *  the page blank. We've already routed to the right widget by the
+ *  time we land here; the id alone is the join key. */
 watch(
   () => route.query.historyId,
   (id) => {
@@ -305,7 +324,7 @@ watch(
       return;
     }
     if (historicalEntry.value?.id === id) return;
-    const entry = history.entries.value.find((e) => e.id === id);
+    const entry = history.all.value.find((e) => e.id === id);
     if (entry) loadHistorical(entry);
   },
   { immediate: true },
@@ -360,7 +379,10 @@ watch(
   (id) => {
     if (typeof id !== 'string' || id === '') return;
     if (dbg.sessionId.value === id) return;
-    const entry = history.entries.value.find((e) => e.session.sessionId === id);
+    // Cross-widget lookup for the same reason as the historyId watch:
+    // routing already pinned us to the right widget, and a mismatched
+    // entry.widget shouldn't silently swallow the lookup.
+    const entry = history.all.value.find((e) => e.session.sessionId === id);
     if (!entry) return;
     selectedKey.value = `${entry.catalog}/${entry.name}`;
     selectedMetric.value = entry.ruleName;
@@ -376,7 +398,16 @@ watch(
 const nodeViews = computed<MalNodeView[]>(() => {
   const s = displaySession.value;
   if (!s) return [];
-  return s.nodes.map((n) => {
+  // OAP's session payload isn't guaranteed to list nodes in the same
+  // order across polls. Without a stable sort the per-node cards
+  // visibly reshuffle every refresh — hard to track which node moved.
+  // Sort by nodeKey (nodeId / peer) so each card stays in place.
+  const sortedNodes = s.nodes.slice().sort((a, b) => {
+    const ak = a.nodeId ?? a.peer ?? '?';
+    const bk = b.nodeId ?? b.peer ?? '?';
+    return ak.localeCompare(bk);
+  });
+  return sortedNodes.map((n) => {
     const nKey = n.nodeId ?? n.peer ?? '?';
     const recordViews: MalRecordView[] = (n.records ?? []).map((rec, ri) => {
       const rows: MalSampleRow[] = [];
@@ -431,8 +462,9 @@ function metricLabel(rec: SessionRecord): string {
 /** Single-row selection: clicking a step's label marks it selected,
  *  which (a) lights up the rail dot, (b) opens the top source pane
  *  with the captured DSL, and (c) `<mark>`s the matching expression
- *  fragment inside that DSL. Click the same row again to clear. */
-const selectedRow = ref<MalSampleRow | null>(null);
+ *  fragment inside that DSL. Click the same row again to clear.
+ *  `selectedRow` itself is declared above `loadHistorical` to dodge
+ *  a TDZ crash on `?historyId=` deep-links. */
 
 function selectRow(row: MalSampleRow): void {
   selectedRow.value = selectedRow.value === row ? null : row;
@@ -573,7 +605,7 @@ function entityFields(s: string, includeNulls: boolean): EntityField[] {
   return includeNulls ? all : all.filter((f) => f.v !== 'null');
 }
 
-const expandedEntities = ref<Set<string>>(new Set());
+// `expandedEntities` is declared above `loadHistorical` (TDZ guard).
 
 function rowEntityKey(row: MalSampleRow): string {
   return `${row.nodeKey}:${row.recordIdx}`;
@@ -584,8 +616,7 @@ function isEntityExpanded(row: MalSampleRow): boolean {
 }
 
 // ── Per-record fold state + fold/expand all ────────────────────────
-
-const foldedRecords = ref<Set<string>>(new Set());
+// `foldedRecords` is declared above `loadHistorical` (TDZ guard).
 
 function recordFoldKey(nodeKey: string, recordIdx: number): string {
   return `${nodeKey}#${recordIdx}`;

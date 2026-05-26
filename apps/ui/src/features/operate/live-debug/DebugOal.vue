@@ -204,7 +204,10 @@ watch(
   (id) => {
     if (typeof id !== 'string' || id === '') return;
     if (dbg.sessionId.value === id) return;
-    const entry = history.entries.value.find((e) => e.session.sessionId === id);
+    // Cross-widget lookup (`history.all`) — routing already pinned us
+    // to the right widget, so filtering again by widget would silently
+    // swallow entries with a mismatched widget field.
+    const entry = history.all.value.find((e) => e.session.sessionId === id);
     if (!entry) return;
     selectedFile.value = entry.name;
     selectedMetric.value = entry.ruleName;
@@ -225,7 +228,7 @@ watch(
       return;
     }
     if (historicalEntry.value?.id === id) return;
-    const entry = history.entries.value.find((e) => e.id === id);
+    const entry = history.all.value.find((e) => e.id === id);
     if (entry) loadHistorical(entry);
   },
   { immediate: true },
@@ -234,7 +237,14 @@ watch(
 const nodeViews = computed<OalNodeView[]>(() => {
   const s = displaySession.value;
   if (!s) return [];
-  return s.nodes.map((n) => {
+  // Stable order by nodeKey so cards don't reshuffle between polls
+  // (OAP doesn't guarantee a fixed order in session.nodes).
+  const sortedNodes = s.nodes.slice().sort((a, b) => {
+    const ak = a.nodeId ?? a.peer ?? '?';
+    const bk = b.nodeId ?? b.peer ?? '?';
+    return ak.localeCompare(bk);
+  });
+  return sortedNodes.map((n) => {
     const groups: OalRecordGroup[] = [];
     let idx = 0;
     for (const rec of n.records ?? []) {

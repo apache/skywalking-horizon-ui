@@ -89,15 +89,32 @@ const layerNames = computed<string[]>(() => {
   return s ? s.badges.filter((b) => b.kind === 'layer').map((b) => b.name) : [];
 });
 
-function metaFor(name: string, kind: 'overview' | 'layer'): { syncBadge: ReturnType<typeof layerSync.badgeFor>; hasLocalDraft: boolean; isDiverged: boolean } {
+function metaFor(name: string, kind: 'overview' | 'layer'): {
+  syncBadge: ReturnType<typeof layerSync.badgeFor>;
+  hasLocalDraft: boolean;
+  isDiverged: boolean;
+  localeBadges: TemplatePickerEntry['localeBadges'];
+} {
   const sync = kind === 'overview' ? overviewSync : layerSync;
+  const sources = kind === 'overview' ? overviewSources : layerSources;
   const badge = sync.badgeFor(name);
+  // Per-locale status chips: derived from the overlay sibling rows
+  // already present in sync-status, with the operator's unstaged
+  // browser draft taking precedence ('local' wins over any sync state).
+  const localeBadges = SUPPORTED_LOCALES.filter((l) => l !== 'en').map((locale) => {
+    if (localEdits.has(name, locale)) {
+      return { locale, status: 'local' as const };
+    }
+    const s = sources.overlayStatus(name, locale);
+    return { locale, status: s ?? ('empty' as const) };
+  });
   return {
     syncBadge: badge,
     // Picker chip lights up when ANY locale has an unstaged draft for
     // this template.
     hasLocalDraft: localEdits.localesFor(name).length > 0,
     isDiverged: badge === 'diverged',
+    localeBadges,
   };
 }
 

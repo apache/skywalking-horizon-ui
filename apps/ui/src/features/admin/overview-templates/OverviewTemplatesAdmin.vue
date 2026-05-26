@@ -541,6 +541,14 @@ const remoteAvailable = computed<boolean>(() => !!editName.value && sources.hasR
 // Ships a bundled default → not deletable (delete would fall back to the
 // bundle). Drives both the disabled delete button and the guard above.
 const bundledExists = computed<boolean>(() => !!editName.value && sources.hasBundled(editName.value));
+// When the bundled default matches what's live on OAP, "bundled" and
+// "remote" are byte-equal copies of the same dashboard. Surfacing the
+// distinction (BUNDLED pill, Reset to bundled, Preview bundled) gives
+// the operator no actionable information — hide it. The pill still
+// surfaces for LOCAL drafts (always meaningful) and for diverged rows.
+const isSynced = computed<boolean>(
+  () => !!editName.value && sync.badgeFor(editName.value) === 'synced',
+);
 
 const draft = ref<OverviewDashboard | null>(null);
 const editorSource = ref<'local' | 'bundled' | 'remote'>('bundled');
@@ -1035,7 +1043,11 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             <!-- Source / save / publish actions, right-aligned (same row as
                  the title + tabs, mirroring the layer dashboards editor). -->
             <div class="ot__head-actions">
-              <span class="ot__src" :title="`Editing from: ${editorSource}`">{{ editorSource }}</span>
+              <span
+                v-if="editorSource === 'local' || !isSynced"
+                class="ot__src"
+                :title="`Editing from: ${editorSource}`"
+              >{{ editorSource }}</span>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
                   reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -1043,7 +1055,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                 <template v-if="resetDropdownOpen">
                   <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
                   <div class="reset-dd-pop">
-                    <button class="reset-dd-item" type="button" title="Discard current edits and reload the bundled default." @click="resetTo('bundled')">Bundled</button>
+                    <button v-if="!isSynced" class="reset-dd-item" type="button" title="Discard current edits and reload the bundled default." @click="resetTo('bundled')">Bundled</button>
                     <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="remoteAvailable ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy yet.'" @click="resetTo('remote')">Remote</button>
                   </div>
                 </template>
@@ -1056,7 +1068,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                   <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
                   <div class="reset-dd-pop">
                     <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="previewLive('local')">Local</button>
-                    <button class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
+                    <button v-if="!isSynced" class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
                     <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="previewLive('remote')">Remote</button>
                   </div>
                 </template>

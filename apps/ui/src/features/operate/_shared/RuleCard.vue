@@ -127,7 +127,8 @@ function jumpToDebug(ev: MouseEvent): void {
     <div class="card__row card__row--badges">
       <Pill v-if="override === 'modified'" tone="warn">modified</Pill>
       <Pill v-else-if="override === 'override'" tone="info">override</Pill>
-      <Pill v-else-if="override === 'bundled-only'" tone="dim">bundled</Pill>
+      <!-- 'bundled-only' is already conveyed by the BUNDLED status pill
+           in the header row above — don't duplicate it here. -->
       <span v-if="isSuspended" class="card__suspending">
         <StatusDot tone="warn" :size="6" />
         applying…

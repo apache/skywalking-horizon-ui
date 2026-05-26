@@ -193,6 +193,19 @@ function nodeStatusTone(status: NodeSlice['status']): 'ok' | 'info' | 'warn' | '
             </slot>
           </slot>
         </div>
+        <!-- effectiveSession is set but no nodes were ever populated.
+             Most common in history replay: the capture was archived
+             before the first poll cycle returned data. Surface this
+             explicitly so the view doesn't look broken. -->
+        <div v-if="nodeViews.length === 0" class="dv__nodeempty dv__sessionempty">
+          <template v-if="isHistorical">
+            This capture has no records — the session was archived
+            before any data arrived. Try a longer-running capture.
+          </template>
+          <template v-else>
+            Waiting for the first poll to return records…
+          </template>
+        </div>
       </div>
     </section>
 

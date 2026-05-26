@@ -258,6 +258,27 @@ function validateDir(dir: string, label: string, findings: Finding[]): void {
       });
       continue;
     }
+    // Empty `{}` overlays pass the structural check but render the
+    // template entirely in English at runtime. Flag them so "all
+    // language files provided" can't silently mean "all UI is
+    // English". If a locale genuinely should fall back to English at
+    // every leaf, delete the overlay file — the missing-file check
+    // below reports that as a separate finding so the choice is
+    // explicit.
+    if (
+      overlay !== null &&
+      typeof overlay === 'object' &&
+      !Array.isArray(overlay) &&
+      Object.keys(overlay as Record<string, unknown>).length === 0
+    ) {
+      findings.push({
+        file: `${label}/${file}`,
+        path: '',
+        message:
+          'empty overlay — every translatable string in this template will render in English for this locale',
+      });
+      continue;
+    }
     walk(source, overlay, [], findings, `${label}/${file}`);
   }
 
@@ -271,7 +292,7 @@ function validateDir(dir: string, label: string, findings: Finding[]): void {
         findings.push({
           file: `${label}/${stem}.i18n.${locale}.json`,
           path: '',
-          message: `missing overlay for advertised locale "${locale}" (an empty {} is acceptable)`,
+          message: `missing overlay for advertised locale "${locale}"`,
         });
       }
     }
