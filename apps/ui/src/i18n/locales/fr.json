@@ -1179,5 +1179,17 @@
   "Showing the OAP-live version. End users render the same bytes.": "Affiche la version OAP en ligne — exactement ce que voient les utilisateurs finaux.",
   "reset to": "réinitialiser à",
   "Discard local edits and reload only the disk-shipped overlay (ignore OAP overlay).": "Abandonner les modifications locales et recharger uniquement l'overlay livré sur disque (ignorer l'overlay OAP).",
-  "Discard local edits and reload from the OAP overlay row.": "Abandonner les modifications locales et recharger depuis la ligne d'overlay OAP."
+  "Discard local edits and reload from the OAP overlay row.": "Abandonner les modifications locales et recharger depuis la ligne d'overlay OAP.",
+  "OAP query host is unreachable": "L'hôte de requête OAP est inaccessible",
+  "Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.": "Vérifie que l'hôte de requête OAP est démarré et joignable depuis le BFF. Les tableaux de bord restent masqués jusqu'à ce qu'OAP réponde — afficher les solutions de repli intégrées montrerait des données vides et ressemblerait à une mauvaise configuration de tableau de bord.",
+  "Retrying…": "Nouvelle tentative…",
+  "Retry now": "Réessayer maintenant",
+  "Auto-retries every 30s in the background. Admin pages remain available in read-only mode.": "Réessais automatiques toutes les 30 s en arrière-plan. Les pages d'administration restent accessibles en lecture seule.",
+  "No data is flowing yet": "Aucune donnée ne circule encore",
+  "OAP hasn't received any service data. The relevant overview will appear here automatically as soon as data starts arriving.": "OAP n'a encore reçu aucune donnée de service. La vue d'ensemble correspondante apparaîtra ici automatiquement dès que des données commenceront à arriver.",
+  "Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.": "Demandez à votre équipe d'exploitation de vérifier que les agents ou récepteurs de vos services sont configurés et pointent vers cet OAP.",
+  "No dashboard configured yet": "Aucun tableau de bord configuré pour l'instant",
+  "{n} layer reporting services but no overview dashboard is set up.": "{n} couche(s) signalent des services, mais aucun tableau de bord d'ensemble n'est configuré.",
+  "Ask your operations team to set up a dashboard for you.": "Demandez à votre équipe d'exploitation de configurer un tableau de bord pour vous.",
+  "Routing…": "Routage…"
 }

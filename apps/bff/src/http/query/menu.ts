@@ -31,6 +31,8 @@ import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags, type LayerTemplate } from '../../logic/layers/loader.js';
 import { getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
+import { formatName, parseEnvelope } from '../../logic/templates/names.js';
+import type { TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
@@ -80,28 +82,50 @@ export interface MenuRouteDeps {
   serviceCatalog: ServiceLayerCatalog;
 }
 
-/** Canonical layer keys disabled on OAP (`horizon.layer.<KEY>` rows flagged
- *  disabled). Reads the shared 30s sync cache; soft-fails to an empty set so
- *  the sidebar never breaks because the template status couldn't be read. */
-async function disabledLayerKeys(deps: MenuRouteDeps): Promise<Set<string>> {
-  const out = new Set<string>();
-  if (!deps.uiTemplateClient) return out;
+interface LayerSyncSnapshot {
+  /** Canonical layer keys disabled on OAP (sidebar hides them). */
+  disabled: Set<string>;
+  /** Per-name layer rows for the live OAP UI-template state. Lets the
+   *  menu prefer the operator's published edits (alias / components /
+   *  slots / caps / colour / metrics / overview / log / traces /
+   *  naming) over the disk-bundled defaults — same precedence rule
+   *  the config-bundle endpoint already applies via
+   *  `pickLayerContent`. Empty when OAP is unreachable; the menu
+   *  then falls back to bundled cleanly. */
+  layerRowsByName: Map<string, TemplateRow>;
+}
+
+/** Read the shared 30s sync cache once and project the two things the
+ *  menu needs out of it: which layer rows are admin-disabled, and the
+ *  full per-name remote envelope content so the menu can prefer
+ *  operator edits over disk-bundled defaults. Soft-fails to an empty
+ *  snapshot so the sidebar never breaks because the template status
+ *  couldn't be read. */
+async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot> {
+  const empty: LayerSyncSnapshot = { disabled: new Set(), layerRowsByName: new Map() };
+  if (!deps.uiTemplateClient) return empty;
   try {
     const sync = await getSyncStatus({
       client: deps.uiTemplateClient(),
       bundled: () => iterateBundledTemplates(),
       logger,
     });
-    if (sync.unreachable) return out;
+    if (sync.unreachable) return empty;
+    const disabled = new Set<string>();
+    const layerRowsByName = new Map<string, TemplateRow>();
     for (const row of sync.rows) {
-      if (row.kind === 'layer' && row.status === 'disabled') {
-        out.add(canonical(row.key.toUpperCase()));
+      if (row.kind !== 'layer') continue;
+      if (row.locale !== undefined) continue; // skip i18n overlay rows
+      layerRowsByName.set(row.name, row);
+      if (row.status === 'disabled') {
+        disabled.add(canonical(row.key.toUpperCase()));
       }
     }
+    return { disabled, layerRowsByName };
   } catch {
     // Status unavailable — show every layer rather than hide wrongly.
   }
-  return out;
+  return empty;
 }
 
 // `listLayers` — active layers in this deployment.
@@ -190,6 +214,32 @@ const DEFAULT_FOR_UNKNOWN_LAYER = {
   caps: {dashboards: true } as LayerCaps,
 };
 
+/** Resolve the layer template the menu should serve for `rawKey`,
+ *  matching the bundle endpoint's `pickLayerContent` precedence:
+ *    1. remote OAP UI-template row, when present + not disabled
+ *       (operator edits go live the moment they push) ;
+ *    2. disk-bundled template, when remote is absent ;
+ *    3. null when neither exists (caller falls back to LAYER_DEFAULTS).
+ *  Mirrors the bundle endpoint so the sidebar metadata and the
+ *  rendered per-layer pages agree on which version of a template is
+ *  live — previously the menu always read disk, so an operator who
+ *  pushed an edited `components` set saw the dashboard reflect it
+ *  while the sidebar caps / slots / alias stayed on the disk copy. */
+function resolveLayerTemplate(
+  rawKey: string,
+  layerRowsByName: Map<string, TemplateRow>,
+): LayerTemplate | null {
+  const bundled = getLayerTemplate(rawKey);
+  const row = layerRowsByName.get(formatName('layer', rawKey.toUpperCase()));
+  if (row && row.status !== 'disabled' && row.effective === 'remote' && row.remote) {
+    const env = parseEnvelope(row.remote.configuration);
+    if (env && env.content && typeof env.content === 'object' && 'key' in env.content) {
+      return env.content as LayerTemplate;
+    }
+  }
+  return bundled;
+}
+
 function deriveLayer(
   rawKey: string,
   active: boolean,
@@ -197,12 +247,16 @@ function deriveLayer(
   serviceCount: number,
   normal: boolean | null,
   locale: Locale,
+  layerRowsByName: Map<string, TemplateRow>,
 ): LayerDef {
-  // JSON template wins when present — alias / color / slots / caps /
-  // documentLink all come from there. Hardcoded LAYER_DEFAULTS stays as
-  // the fallback for layers without a template (older OAP layers,
-  // custom layers).
-  const rawTpl = getLayerTemplate(rawKey);
+  // Remote (OAP) wins when present — alias / color / slots / caps /
+  // components / documentLink follow the operator's published edits.
+  // Disk-bundled template is the fallback for remote-absent layers
+  // (bundled-only / OAP unreachable). Hardcoded LAYER_DEFAULTS only
+  // applies for layers without ANY template (older OAP layers, custom
+  // layers added on-the-fly by an OAP plugin we don't ship a template
+  // for).
+  const rawTpl = resolveLayerTemplate(rawKey, layerRowsByName);
   const tpl = rawTpl
     ? localize<LayerTemplate>(rawTpl, getLayerOverlay(rawKey, locale), locale)
     : null;
@@ -307,7 +361,10 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const HIDDEN_LAYERS = new Set(['BANYANDB']);
       // Layers whose template was disabled in the admin — soft-deleted, so
       // drop them from the sidebar (matches how disabled overviews vanish).
-      const disabled = await disabledLayerKeys(deps);
+      // Same sync read also gives us the per-layer remote envelope content
+      // so deriveLayer can prefer operator-pushed edits over disk-bundled
+      // defaults (alias / components / slots / caps / colour).
+      const { disabled, layerRowsByName } = await layerSyncSnapshot(deps);
       const layers = ordered
         .filter((key) => !HIDDEN_LAYERS.has(key) && !disabled.has(key))
         .map((key) =>
@@ -318,6 +375,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             countByCanonical.get(key) ?? (activeCanonical.has(key) ? 0 : -1),
             normalByCanonical.get(key) ?? null,
             locale,
+            layerRowsByName,
           ),
         );
 
@@ -332,15 +390,18 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // sidebar still renders navigation (each page surfaces its own
       // OAP-down state). Service counts are unknown (-1) and layers are
       // marked inactive; everything else (alias / color / slots / caps)
-      // comes from the template, exactly like the live path.
+      // comes from the bundled template — no remote rows available, so
+      // we pass an empty row map and deriveLayer falls through to
+      // bundled cleanly.
       const HIDDEN_LAYERS = new Set(['BANYANDB']);
       const seen = new Set<string>();
       const layers: LayerDef[] = [];
+      const emptyRows = new Map<string, TemplateRow>();
       for (const tpl of allLayerTemplates()) {
         const key = canonical(tpl.key.toUpperCase());
         if (seen.has(key) || HIDDEN_LAYERS.has(key)) continue;
         seen.add(key);
-        layers.push(deriveLayer(key, false, null, -1, null, locale));
+        layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows));
       }
       const body: MenuResponse = {
         layers,

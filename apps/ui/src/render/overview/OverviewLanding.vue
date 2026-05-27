@@ -29,11 +29,13 @@
        editor where they can configure the empty deployment.
 -->
 <script setup lang="ts">
-import { computed, watchEffect } from 'vue';
+import { computed, ref, watchEffect } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { firstLayerTab, useLayers } from '@/shell/useLayers';
 
+const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const route = useRoute();
 const { publicOverviews, isLoading: overviewsLoading } = useOverviewDashboards();
@@ -42,6 +44,7 @@ const {
   oapError,
   availableLayers,
   isLoading: layersLoading,
+  refetch: refetchLayers,
 } = useLayers();
 
 /** Render the empty card (no redirect cascade) when the route is the
@@ -49,10 +52,35 @@ const {
  *  by the cascade itself when there's nothing to land on. */
 const forceEmpty = computed<boolean>(() => route.name === 'landing-empty');
 
+/** Block dashboard render when OAP is unreachable. The landing page
+ *  is the only surface that fully blocks (per the team policy — see
+ *  PR #19 thread): per-layer pages still show their bundled-fallback
+ *  view so an operator can verify a template they just edited.
+ *  Cascade is suppressed alongside so we don't redirect into an
+ *  empty overview / layer page that would just re-show the same
+ *  error one level deeper. */
+const blockForOapDown = computed<boolean>(
+  () => !oapReachable.value && !overviewsLoading.value && !layersLoading.value,
+);
+
+const retrying = ref(false);
+async function retryOap(): Promise<void> {
+  if (retrying.value) return;
+  retrying.value = true;
+  try {
+    await refetchLayers();
+  } finally {
+    retrying.value = false;
+  }
+}
+
 watchEffect(() => {
   // Wait for both data sources — without `layers`, a fresh boot would
   // briefly fall through while the menu is still in flight.
   if (overviewsLoading.value || layersLoading.value) return;
+  // OAP down → freeze the cascade so the operator sits on the warning
+  // page until they retry (or background refetch lands a success).
+  if (blockForOapDown.value) return;
   // Direct visit to `/landing-empty` — render the card, no redirect.
   if (forceEmpty.value) return;
 
@@ -85,9 +113,30 @@ watchEffect(() => {
 
 <template>
   <div class="landing">
-    <div v-if="!oapReachable && !overviewsLoading && !layersLoading" class="banner err">
-      <strong>OAP unreachable.</strong>
-      {{ oapError ?? 'Check that the OAP query host is up and reachable from the BFF.' }}
+    <!-- OAP query host unreachable — render a full-page warning and
+         freeze the redirect cascade. Distinct from `admin host
+         unreachable` (which is acceptable: operators can still browse
+         existing dashboards, admin pages drop to read-only). A dead
+         query port means no service data anywhere, so showing an
+         "empty" dashboard would mislead operators into chasing a
+         dashboard-config problem when the real problem is upstream.
+         Retry button re-runs the menu fetch; the topbar's global
+         retry-poll also keeps firing in the background. -->
+    <div v-if="blockForOapDown" class="oap-down">
+      <div class="oap-down-card">
+        <h2>{{ t('OAP query host is unreachable') }}</h2>
+        <p>
+          {{ oapError ?? t('Check that the OAP query host is up and reachable from the BFF. Dashboards stay hidden until OAP responds — bundled fallbacks would show empty data and look like a dashboard misconfiguration.') }}
+        </p>
+        <div class="oap-down-actions">
+          <button type="button" class="sw-btn is-primary" :disabled="retrying" @click="retryOap">
+            {{ retrying ? t('Retrying…') : t('Retry now') }}
+          </button>
+        </div>
+        <p class="oap-down-foot">
+          {{ t('Auto-retries every 30s in the background. Admin pages remain available in read-only mode.') }}
+        </p>
+      </div>
     </div>
     <!-- Empty landing — rendered for the dedicated `/landing-empty`
          route. Cascade lands here automatically when there's no
@@ -101,40 +150,64 @@ watchEffect(() => {
     -->
     <div v-else-if="forceEmpty" class="empty">
       <div v-if="availableLayers.length === 0" class="empty-card">
-        <h2>No data is flowing yet</h2>
+        <h2>{{ t('No data is flowing yet') }}</h2>
         <p>
-          OAP hasn't received any service data. The relevant overview will appear here
-          automatically as soon as data starts arriving.
+          {{ t('OAP hasn\'t received any service data. The relevant overview will appear here automatically as soon as data starts arriving.') }}
         </p>
         <p class="empty-ask">
-          Ask your operations team to verify that the agents or receivers for your
-          services are configured and pointing at this OAP.
+          {{ t('Ask your operations team to verify that the agents or receivers for your services are configured and pointing at this OAP.') }}
         </p>
       </div>
       <div v-else class="empty-card">
-        <h2>No dashboard configured yet</h2>
+        <h2>{{ t('No dashboard configured yet') }}</h2>
         <p>
-          {{ availableLayers.length }} layer{{ availableLayers.length === 1 ? '' : 's' }}
-          {{ availableLayers.length === 1 ? 'is' : 'are' }} reporting services, but no
-          overview dashboard has been set up for them.
+          {{ t('{n} layer reporting services but no overview dashboard is set up.', { n: availableLayers.length }) }}
         </p>
         <p class="empty-ask">
-          Ask your operations team to set up a dashboard for you.
+          {{ t('Ask your operations team to set up a dashboard for you.') }}
         </p>
       </div>
     </div>
-    <div v-else class="empty">Routing…</div>
+    <div v-else class="empty">{{ t('Routing…') }}</div>
   </div>
 </template>
 
 <style scoped>
 .landing { padding: 20px 20px 60px; max-width: 1440px; margin: 0 auto; }
-.banner.err {
-  margin: 0 0 16px; padding: 10px 12px;
-  background: var(--sw-err-soft);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 6px; color: #f87171; font-size: 12px; line-height: 1.5;
+
+/* OAP query host unreachable — full-page warning card replacing
+ * the redirect cascade. Centered, large enough to be unmissable,
+ * but not so loud the operator can't see the topbar banner above. */
+.oap-down { padding: 60px 20px; display: flex; justify-content: center; }
+.oap-down-card {
+  max-width: 600px;
+  width: 100%;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-err);
+  border-left: 3px solid var(--sw-err);
+  border-radius: 8px;
+  padding: 28px;
+  text-align: left;
 }
+.oap-down-card h2 {
+  margin: 0 0 12px;
+  font-size: var(--sw-fs-lg);
+  color: var(--sw-err);
+  font-weight: var(--sw-fw-semibold);
+}
+.oap-down-card p {
+  margin: 0 0 16px;
+  font-size: var(--sw-fs-base);
+  color: var(--sw-fg-1);
+  line-height: var(--sw-lh-relaxed);
+}
+.oap-down-foot {
+  margin: 16px 0 0 !important;
+  font-size: var(--sw-fs-sm) !important;
+  color: var(--sw-fg-3) !important;
+}
+.oap-down-actions { display: flex; gap: 8px; }
+
 .empty { padding: 60px 20px; text-align: center; color: var(--sw-fg-3); font-size: 13px; }
 .empty-card {
   background: var(--sw-bg-1);

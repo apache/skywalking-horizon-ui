@@ -178,6 +178,74 @@ export async function bootSeed(deps: SyncDeps): Promise<SyncStatus> {
   return status;
 }
 
+/**
+ * Block until OAP admin is reachable, then return. Uses `client.list()`
+ * as the readiness check (same call bootSeed itself runs first, so a
+ * success here proves the seed can proceed). Backs off 1s → 2s → 4s
+ * → … capped at 60s so a slow OAP startup doesn't pin the loop on the
+ * fast end; each failed attempt emits one warn line so an operator
+ * grepping logs sees the wait progress.
+ *
+ * Why we wait here instead of letting `bootSeed` fall through on the
+ * first failure: when OAP and Horizon start in the same compose / k8s
+ * rollout, OAP's admin module often binds after the BFF process is
+ * already up. The old behaviour was a single attempt → warn → no
+ * retry → no templates ever pushed for that BFF lifetime. This
+ * function fixes the race without introducing any steady-state
+ * polling: once `list()` succeeds we return, the seed runs once,
+ * we never touch the admin port from here again until the operator
+ * triggers an admin action.
+ *
+ * `signal` lets the caller (server boot) cancel the wait on shutdown
+ * so the BFF process can exit cleanly even mid-backoff.
+ */
+const READINESS_INITIAL_DELAY_MS = 1000;
+const READINESS_MAX_DELAY_MS = 60_000;
+
+export async function waitForOapAdminReady(
+  deps: SyncDeps,
+  signal?: AbortSignal,
+): Promise<void> {
+  let delay = READINESS_INITIAL_DELAY_MS;
+  let attempt = 0;
+  for (;;) {
+    if (signal?.aborted) return;
+    attempt++;
+    try {
+      await deps.client.list();
+      if (attempt > 1) {
+        deps.logger.info({ attempt }, 'OAP admin reachable — proceeding with boot seed');
+      }
+      return;
+    } catch (err) {
+      deps.logger.warn(
+        { err: errMsg(err), attempt, nextRetryInMs: delay },
+        'OAP admin unreachable — retrying readiness check',
+      );
+    }
+    await sleepCancelable(delay, signal);
+    delay = Math.min(delay * 2, READINESS_MAX_DELAY_MS);
+  }
+}
+
+function sleepCancelable(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
 /** Force the next caller of `getSyncStatus` to re-list OAP. No I/O here. */
 export function resync(): void {
   invalidateSyncCache();
