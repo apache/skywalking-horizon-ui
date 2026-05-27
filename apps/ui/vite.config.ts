@@ -20,6 +20,19 @@ import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueJsx from '@vitejs/plugin-vue-jsx';
 
+// Dev port for Vite itself. Default 9091; 9090 is commonly claimed by
+// ClashX / proxy tools, and 8080 is reserved for the legacy booster-ui
+// that operators may run side-by-side during migration. Override with
+// UI_DEV_PORT when a developer needs a second parallel env.
+const UI_DEV_PORT = Number(process.env.UI_DEV_PORT ?? 9091);
+
+// Where the BFF listens during dev. The /api proxy below targets this.
+// MUST match the `server.port` resolved by the BFF's HORIZON_CONFIG yaml
+// (the yaml resolves the same env var via ${BFF_PORT:8081}), otherwise
+// the proxy points at the wrong process. Prod is unaffected — there the
+// BFF serves the built UI directly on its single configured port.
+const BFF_PORT = Number(process.env.BFF_PORT ?? 8081);
+
 export default defineConfig({
   plugins: [vue(), vueJsx()],
   resolve: {
@@ -28,16 +41,12 @@ export default defineConfig({
     },
   },
   server: {
-    // 9091: horizon-side. 9090 is commonly claimed by ClashX / proxy
-    // tools that bind to all addresses; 8080 is reserved for the
-    // legacy booster-ui that operators may run side-by-side during
-    // migration.
-    port: 9091,
+    port: UI_DEV_PORT,
     strictPort: true,
     proxy: {
       // proxy to the BFF (`apps/bff`) during dev
       '/api': {
-        target: 'http://127.0.0.1:8081',
+        target: `http://127.0.0.1:${BFF_PORT}`,
         changeOrigin: true,
       },
     },

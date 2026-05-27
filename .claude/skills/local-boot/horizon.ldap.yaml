@@ -23,7 +23,7 @@
 
 server:
   host: 127.0.0.1
-  port: 8081
+  port: ${BFF_PORT:8081}
 
 oap:
   queryUrl: http://localhost:12800

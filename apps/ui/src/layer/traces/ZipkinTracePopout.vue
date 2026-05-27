@@ -29,7 +29,7 @@
   is picked. ESC closes; backdrop click closes.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 
@@ -132,6 +132,20 @@ function clearSpan(): void {
 // Drop the selection when the trace changes.
 watch(traceIdRef, () => { selectedSpanId.value = null; });
 
+// Floating span-detail dismiss — click outside the .zk-detail panel
+// (but not on another row, which has its own swap handler) clears the
+// pin. Backdrop clicks still close the whole popout via the existing
+// `@click.self` on .zk-popout-backdrop.
+const spanDetailRef = ref<HTMLElement | null>(null);
+function onSpanDetailDocClick(e: MouseEvent): void {
+  if (!selectedSpan.value) return;
+  const t = e.target as Element | null;
+  if (!t) return;
+  if (spanDetailRef.value?.contains(t)) return;
+  if (t.closest?.('.zk-row')) return;
+  clearSpan();
+}
+
 // ── Color per service so each row reads as a band ────────────────
 // First entry tracks `--sw-accent` so the brand color in the trace
 // waterfall follows the active theme. Rest stay constant for service
@@ -168,15 +182,46 @@ function widthPct(us: number): number {
 }
 
 // ── ESC + backdrop close ─────────────────────────────────────────
+// Escape unwinds one layer at a time: clear span detail first (if a
+// span is pinned), then close the whole popout. Matches the dismiss
+// model of a modal stack — operators expect Escape not to nuke their
+// trace context when they only meant to dismiss the side panel.
 function onKeydown(ev: KeyboardEvent): void {
-  if (ev.key === 'Escape' && openTraceId.value) {
+  if (ev.key !== 'Escape') return;
+  if (selectedSpan.value) {
+    ev.preventDefault();
+    clearSpan();
+    return;
+  }
+  if (openTraceId.value) {
     ev.preventDefault();
     closeTrace();
   }
 }
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', onKeydown);
-}
+
+// Global keydown + mousedown listeners are wired through Vue's
+// lifecycle so they're torn down on unmount. The previous module-level
+// `addEventListener` calls leaked one listener pair per component
+// instance — the popout is usually mounted once for the app's
+// lifetime, but the lifecycle pattern matches LayerZipkinTracesView
+// and is the correct shape for HMR / future split-mount scenarios.
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('keydown', onKeydown);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('mousedown', onSpanDetailDocClick);
+  }
+});
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('keydown', onKeydown);
+  }
+  if (typeof document !== 'undefined') {
+    document.removeEventListener('mousedown', onSpanDetailDocClick);
+  }
+});
+
 function copyTraceId(): void {
   if (!traceIdRef.value) return;
   navigator.clipboard?.writeText(traceIdRef.value).catch(() => {});
@@ -199,7 +244,7 @@ function copyTraceId(): void {
         {{ t('No spans returned for this trace.') }}
       </div>
 
-      <div v-else class="zk-split" :class="{ 'no-detail': !selectedSpan }">
+      <div v-else class="zk-split">
         <!-- Waterfall column -->
         <div class="zk-waterfall">
           <div class="zk-time-axis">
@@ -240,8 +285,10 @@ function copyTraceId(): void {
           </div>
         </div>
 
-        <!-- Span detail rail -->
-        <aside v-if="selectedSpan" class="zk-detail">
+        <!-- Span detail floats as a right-edge overlay; width caps at
+             min(640px, 60%) so long tag values render without
+             compressing the waterfall. Mirrors LayerZipkinTracesView. -->
+        <aside v-if="selectedSpan" ref="spanDetailRef" class="zk-detail">
           <header class="zk-detail-head">
             <h5>{{ t('Span detail') }}</h5>
             <button class="sw-btn small ghost" type="button" @click="clearSpan">×</button>
@@ -327,17 +374,15 @@ function copyTraceId(): void {
 }
 
 .zk-split {
-  display: grid;
-  grid-template-columns: 1fr 360px;
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
-.zk-split.no-detail { grid-template-columns: 1fr; }
 
 .zk-waterfall {
+  height: 100%;
   overflow-y: auto;
-  border-right: 1px solid var(--sw-line);
   padding: 0;
 }
 .zk-time-axis {
@@ -430,8 +475,17 @@ function copyTraceId(): void {
 }
 
 .zk-detail {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 60%);
   overflow-y: auto;
   padding: 12px 14px;
+  background: var(--sw-bg-1);
+  border-left: 1px solid var(--sw-line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  z-index: 5;
 }
 .zk-detail-head {
   display: flex;

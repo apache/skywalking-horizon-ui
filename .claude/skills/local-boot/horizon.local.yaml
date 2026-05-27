@@ -1,22 +1,29 @@
-# Static local-boot config for the Horizon UI BFF — points at a LOCAL
-# OAP on 127.0.0.1 with NO network auth. Boot via the `local-boot` skill
-# (see SKILL.md) which passes this file through HORIZON_CONFIG as an
-# ABSOLUTE path. The local-user password hashes below are throwaway dev
-# credentials (password == username) — safe to commit; do NOT add real
-# secrets here. For demo-OAP access use horizon.demo.yaml instead, which
-# keeps the OAP password out of git via ${OAP_PASSWORD}.
+# Static local-boot config for the Horizon UI BFF. Defaults to a LOCAL
+# OAP on 127.0.0.1 with NO network auth, but the four OAP fields below
+# accept env-var overrides so the same file boots against a remote OAP
+# (any URL), a deliberately-unreachable port (for the "OAP unreachable"
+# landing-block preview), or any other no-auth OAP. For demo-OAP access
+# use horizon.demo.yaml instead, which keeps the password out of git
+# via ${OAP_PASSWORD}.
+#
+# Boot via the `local-boot` skill (see SKILL.md) which passes this
+# file through HORIZON_CONFIG as an ABSOLUTE path. The local-user
+# password hashes below are throwaway dev credentials (password ==
+# username) — safe to commit; do NOT add real secrets here.
 
 server:
   host: 127.0.0.1
-  port: 8081
+  port: ${BFF_PORT:8081}
 
 oap:
-  queryUrl: http://localhost:12800
-  # This OAP serves the debugging/admin REST surface on the SAME port
-  # as GraphQL (12800). Zipkin (9412) may not be exposed locally.
-  adminUrl: http://localhost:12800
-  zipkinUrl: http://localhost:9412/zipkin
-  timeoutMs: 15000
+  # On the default LOCAL OAP, GraphQL and the admin REST surface share
+  # the same port (12800). On the public demo and some k8s deployments
+  # they split (12800 / 17128) — override OAP_ADMIN_URL accordingly.
+  # Zipkin (9412) may not be exposed locally.
+  queryUrl: ${OAP_QUERY_URL:http://localhost:12800}
+  adminUrl: ${OAP_ADMIN_URL:http://localhost:12800}
+  zipkinUrl: ${OAP_ZIPKIN_URL:http://localhost:9412/zipkin}
+  timeoutMs: ${OAP_TIMEOUT_MS:15000}
 
 auth:
   backend: local

@@ -22,7 +22,7 @@
   the parent-id-walking ZipkinTracePopout.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type { ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
@@ -398,6 +398,33 @@ function clearSpan(): void {
 // Clear the pinned span when the operator switches trace.
 watch(selectedTraceId, () => { selectedSpanId.value = null; });
 
+// Dismiss the floating span-detail overlay on Escape or click-outside.
+// A click on another `.ztr-wf-row` is ignored here — the row's own
+// handler swaps to that span; if we closed first we'd lose the new pin.
+const spanDetailRef = ref<HTMLElement | null>(null);
+function onSpanDetailDocClick(e: MouseEvent): void {
+  if (!selectedSpan.value) return;
+  const t = e.target as Element | null;
+  if (!t) return;
+  if (spanDetailRef.value?.contains(t)) return;
+  if (t.closest?.('.ztr-wf-row')) return;
+  clearSpan();
+}
+function onSpanDetailKey(e: KeyboardEvent): void {
+  if (e.key === 'Escape' && selectedSpan.value) {
+    e.stopPropagation();
+    clearSpan();
+  }
+}
+onMounted(() => {
+  document.addEventListener('mousedown', onSpanDetailDocClick);
+  document.addEventListener('keydown', onSpanDetailKey);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', onSpanDetailDocClick);
+  document.removeEventListener('keydown', onSpanDetailKey);
+});
+
 function fmtAbsTime(usSinceEpoch: number): string {
   if (!usSinceEpoch) return '—';
   const d = new Date(usSinceEpoch / 1000);
@@ -721,7 +748,7 @@ function openByInput(): void {
         </header>
         <div v-if="selectedLoading" class="ztr-empty hint">{{ t('loading spans…') }}</div>
         <div v-else-if="detailRows.length === 0" class="ztr-empty">{{ t('No spans for this trace.') }}</div>
-        <div v-else class="ztr-detail-body" :class="{ 'has-span': !!selectedSpan }">
+        <div v-else class="ztr-detail-body">
           <div class="ztr-waterfall">
             <div
               v-for="row in detailRows"
@@ -755,9 +782,11 @@ function openByInput(): void {
             </div>
           </div>
 
-          <!-- Lens-style span detail sidebar. Appears when a span is
-               pinned; renders identity block + tags + annotation timeline. -->
-          <aside v-if="selectedSpan" class="ztr-span-detail">
+          <!-- Span detail floats as a right-edge overlay (width capped
+               at min(640px, 60%)) so it can render long tag values
+               without compressing the waterfall bars. Click ×, click
+               the same span, or pick another span to dismiss / swap. -->
+          <aside v-if="selectedSpan" ref="spanDetailRef" class="ztr-span-detail">
             <header class="ztr-span-detail-head">
               <h5>{{ t('Span detail') }}</h5>
               <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
@@ -1020,7 +1049,13 @@ function openByInput(): void {
 .ztr-detail {
   display: flex;
   flex-direction: column;
-  max-height: 720px;
+  /* Match the rail's sticky viewport-anchored height so the two cards
+     read as equal-height side-by-side. Without this they sized to
+     content independently (rail was viewport-tall, detail capped at
+     720px) and looked visually mismatched. */
+  position: sticky;
+  top: 12px;
+  max-height: calc(100vh - 80px);
   min-height: 240px;
   overflow: hidden;
 }
@@ -1033,22 +1068,30 @@ function openByInput(): void {
 }
 .ztr-tid { flex: 1; color: var(--sw-fg-2); font-size: 11px; }
 
-/* When a span is pinned, the detail card splits into waterfall (left)
-   + span-detail panel (right) — same layout as the popout. */
+/* When a span is pinned, the detail panel floats over the right edge
+   of the waterfall as an overlay so it can be wide enough for long tag
+   values without compressing the waterfall bars. min(640px, 60%) caps
+   the panel at 640px on wide layouts but yields gracefully on narrow
+   ones. Pop-out has the same pattern (.zk-detail). */
 .ztr-detail-body {
   flex: 1;
+  position: relative;
   display: flex;
   min-height: 0;
   overflow: hidden;
 }
-.ztr-detail-body.has-span .ztr-waterfall {
-  border-right: 1px solid var(--sw-line);
-}
 .ztr-span-detail {
-  flex: 0 0 320px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 60%);
   overflow-y: auto;
   padding: 12px 14px;
   background: var(--sw-bg-1);
+  border-left: 1px solid var(--sw-line);
+  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
+  z-index: 5;
 }
 .ztr-span-detail-head {
   display: flex;
@@ -1098,14 +1141,8 @@ function openByInput(): void {
 .zk-annotations .dim { color: var(--sw-fg-3); }
 .zk-ann-val { color: var(--sw-fg-1); word-break: break-all; }
 
-@media (max-width: 1200px) {
-  .ztr-span-detail { flex-basis: 260px; }
-}
-@media (max-width: 980px) {
-  .ztr-detail-body { flex-direction: column; }
-  .ztr-detail-body.has-span .ztr-waterfall { border-right: none; border-bottom: 1px solid var(--sw-line); }
-  .ztr-span-detail { flex: 0 0 auto; max-height: 360px; }
-}
+/* Floating overlay scales with the container via min(640px, 60%) — no
+   width breakpoints needed. */
 
 /* Inline waterfall — each span is a row with `<label> <track> <dur>`.
    Track width is dynamic; the bar inside left/width % positions the
@@ -1191,7 +1228,12 @@ function openByInput(): void {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 12px;
-  align-items: start;
+  /* `stretch` lets the two cards share the row height (max of each
+     side's natural height, capped by their respective max-height
+     rules). With `start` the right detail card collapsed to its
+     content height while the rail extended down with many trace
+     rows, producing a visibly mismatched pair. */
+  align-items: stretch;
 }
 .ztr-detail-split.rail-collapsed { grid-template-columns: 64px 1fr; }
 .ztr-rail {

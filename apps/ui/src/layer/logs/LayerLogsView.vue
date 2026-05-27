@@ -877,7 +877,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
                 >{{ parseServiceName(r.serviceName).group }}</span>
                 {{ r.serviceName ? parseServiceName(r.serviceName).base : '—' }}
               </span>
+              <!-- The trace-link slot is ALWAYS rendered, even when the
+                   row has no traceId — its 60px grid column is fixed,
+                   and skipping the slot collapses every subsequent
+                   column leftward (the 1fr content cell ends up sized
+                   at 60px, truncating the preview to two characters). -->
               <span v-if="r.traceId" class="lg-trace mono" @click.stop="jumpToTrace(r.traceId!, r.timestamp)">↗ trace</span>
+              <span v-else class="lg-trace-spacer" aria-hidden="true"></span>
               <!-- Format chip + flat content preview. Chip is always
                    rendered so the operator can tell at-a-glance which
                    rows are JSON / YAML / plain text. Preview is single
