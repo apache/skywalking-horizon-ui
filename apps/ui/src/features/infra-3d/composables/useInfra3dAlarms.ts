@@ -42,7 +42,7 @@ import { onMounted, onUnmounted, readonly, ref, shallowRef } from 'vue';
 import { bff } from '../../../api/client';
 
 const TWENTY_MIN_MS = 20 * 60_000;
-const POLL_INTERVAL_MS = 30_000;
+const POLL_INTERVAL_MS = 60_000;
 const FETCH_PAGE_SIZE = 500;
 
 const alarmedServiceNames = shallowRef<Set<string>>(new Set());

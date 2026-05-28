@@ -58,6 +58,8 @@ const sceneRef = ref<SceneHandle | null>(null);
 // alarming cubes glow, so the operator's eye goes straight to what's
 // firing. Toggled from the toolbar; the scene reads it as a prop.
 const beaconMode = ref(false);
+// 1-min pipeline refresh (metrics). Cleared on unmount.
+let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
 const planes = ref<PlanePlacement[]>([]);
 const zones = ref<ZonePlacement[]>([]);
@@ -264,6 +266,10 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
           services: chunk.units.map((u) => ({
             name: u.name, layer: u.layer, normal: u.normal, mqe: u.mqe,
           })),
+          // Last 2h at HOUR step — two buckets, the cheapest query that
+          // still smooths a single spiky minute. The BFF reduces the
+          // series to one scalar for the cube's traffic chip.
+          window: { startMs: Date.now() - 2 * 3600_000, endMs: Date.now(), step: 'HOUR' },
         });
         setMetricValues(r.values);
         if (r.errors && Object.keys(r.errors).length > 0) errCount += Object.keys(r.errors).length;
@@ -479,12 +485,16 @@ onMounted(async () => {
     return;
   }
   ready.value = true;
-  // Kick the loading pipeline once. Subsequent runs are operator-
-  // initiated (timeline strip's refresh button).
+  // Kick the loading pipeline once, then refresh every minute. Alarms
+  // poll on their own 1-min timer (20m window); metrics ride the
+  // pipeline (2h @ HOUR). The timeline strip's refresh button still
+  // forces an immediate run.
   void runPipeline();
+  refreshTimer = setInterval(() => void runPipeline(), 60_000);
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
+  if (refreshTimer !== null) clearInterval(refreshTimer);
 });
 
 // Group zones by plane for the side panel — order matches `levels`
@@ -527,6 +537,12 @@ const visibleServices = computed(() => {
         </span>
         <span class="stat">
           <strong>{{ zones.length }}</strong> layers · <strong>{{ planes.length }}</strong> levels
+        </span>
+        <!-- Query scopes so the operator knows what window each signal
+             reflects: topology/metrics roll up the last 2h (HOUR step),
+             alarms the last 20m; everything refreshes each minute. -->
+        <span class="stat scope" title="Topology &amp; metrics: last 2h (HOUR step) · Alarms: last 20m · auto-refresh every 1 min">
+          metrics <strong>2h</strong> · alarms <strong>20m</strong> · ↻ <strong>1m</strong>
         </span>
         <router-link class="back" to="/" title="Exit 3D map">×</router-link>
       </div>
