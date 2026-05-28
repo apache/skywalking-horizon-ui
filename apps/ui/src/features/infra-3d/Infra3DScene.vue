@@ -488,7 +488,11 @@ const _hsl = { h: 0, s: 0, l: 0 };
 function mutedCubeColor(hex: string): Color {
   const c = colorByHex(hex).clone();
   c.getHSL(_hsl);
-  c.setHSL(_hsl.h, _hsl.s * 0.6, Math.min(1, _hsl.l * 1.06 + 0.03));
+  // Pastel pull: drop most of the saturation and lift lightness so the
+  // cubes read as soft, gently-lit tints (think frosted candy) rather
+  // than the gaudy fully-saturated tokens. The side-panel swatches keep
+  // the full tint, so the hue stays recognizable.
+  c.setHSL(_hsl.h, _hsl.s * 0.5, Math.min(1, _hsl.l * 1.1 + 0.06));
   return c;
 }
 
@@ -497,7 +501,8 @@ function nodeMaterial(hex: string): MeshLambertMaterial {
   let m = nodeMaterials.get(hex);
   if (!m) {
     const base = mutedCubeColor(hex);
-    m = new MeshLambertMaterial({ color: base, emissive: base.clone().multiplyScalar(0.3) });
+    // Soft self-glow so the pastel reads luminous, not matte-flat.
+    m = new MeshLambertMaterial({ color: base, emissive: base.clone().multiplyScalar(0.22) });
     nodeMaterials.set(hex, m);
   }
   return m;
