@@ -478,11 +478,25 @@ function zoneMaterial(hex: string): MeshBasicMaterial {
   return m;
 }
 
+// Cubes were reading too saturated against the dark scene (the cache
+// red especially). Pull each resolved layer color toward a calmer tone
+// — drop saturation, nudge lightness up a touch — so the cubes read
+// softer while keeping the hue recognizable next to the side-panel
+// swatches (which stay the full tint). Cloned before mutating; the
+// shared cached Color from colorByHex must not be touched.
+const _hsl = { h: 0, s: 0, l: 0 };
+function mutedCubeColor(hex: string): Color {
+  const c = colorByHex(hex).clone();
+  c.getHSL(_hsl);
+  c.setHSL(_hsl.h, _hsl.s * 0.6, Math.min(1, _hsl.l * 1.06 + 0.03));
+  return c;
+}
+
 const nodeMaterials = new Map<string, MeshLambertMaterial>();
 function nodeMaterial(hex: string): MeshLambertMaterial {
   let m = nodeMaterials.get(hex);
   if (!m) {
-    const base = colorByHex(hex);
+    const base = mutedCubeColor(hex);
     m = new MeshLambertMaterial({ color: base, emissive: base.clone().multiplyScalar(0.3) });
     nodeMaterials.set(hex, m);
   }
@@ -498,7 +512,7 @@ const hoverMaterials = new Map<string, MeshLambertMaterial>();
 function hoverMaterial(hex: string): MeshLambertMaterial {
   let m = hoverMaterials.get(hex);
   if (!m) {
-    const base = colorByHex(hex);
+    const base = mutedCubeColor(hex);
     m = new MeshLambertMaterial({
       color: base.clone().lerp(new Color(0xffffff), 0.25),
       emissive: base.clone(),
@@ -510,27 +524,18 @@ function hoverMaterial(hex: string): MeshLambertMaterial {
 }
 const selectedMat = new MeshLambertMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.85 });
 
-// Alarm beacon — sits on the top-back corner of the cube as a small
-// pulsing red sphere with a soft halo. Two-piece design:
-//   - inner: solid red sphere with high emissive (the "bulb")
-//   - outer: a larger, mostly-transparent sphere whose opacity pulses
-//     in anti-phase, so the beacon visibly breathes without changing
-//     position or affecting the cube's own material.
-// The cube itself keeps its layer color — operators read the beacon
-// as "an alarm fired on this service" instead of mis-reading a red
-// cube as a different layer.
-const sirenInnerGeometry = new SphereGeometry(0.13, 14, 12);
-const sirenHaloGeometry = new SphereGeometry(0.22, 14, 12);
-const sirenInnerMat = new MeshLambertMaterial({
+// Alarm marker — the top ~20% of an alarmed cube is capped in red.
+// The cube is 1.0 tall, so a 0.22-high flat box at its crown reads as
+// "the top fifth is red". Footprint is a hair larger than the cube
+// (1.32 vs 1.3) so the cap's sides clear the cube faces without
+// z-fighting, and it sits just above the cube's top face. Static red,
+// no pulse — the alert is a state, not an animation; the cube keeps
+// its layer color below the cap.
+const alarmCapGeometry = new BoxGeometry(1.32, 0.22, 1.32);
+const alarmCapMat = new MeshLambertMaterial({
   color: 0xef4444,
   emissive: 0xef4444,
-  emissiveIntensity: 0.95,
-});
-const sirenHaloMat = new MeshBasicMaterial({
-  color: new Color(0xef4444),
-  transparent: true,
-  opacity: 0.35,
-  depthWrite: false,
+  emissiveIntensity: 0.5,
 });
 
 /** Intra-layer call edge — calls between two services in the same
@@ -748,15 +753,6 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
     lastLabelTick = ctx.elapsed;
     updateSelectedSide();
     updateCloseNodes();
-  }
-  // Alarm beacon pulse — one shared sine wave drives the inner bulb's
-  // emissive intensity and the halo's opacity in anti-phase, so the
-  // beacon visibly breathes from any camera angle. Period ~1.2s reads
-  // as urgent without strobing.
-  if (alarmedNodes.value.length > 0) {
-    const pulse = 0.5 + 0.5 * Math.sin(ctx.elapsed * 5.2);
-    sirenInnerMat.emissiveIntensity = 0.55 + pulse * 0.55;
-    sirenHaloMat.opacity = 0.18 + (1 - pulse) * 0.35;
   }
 }
 
@@ -1108,10 +1104,8 @@ onUnmounted(() => {
   crossArrowMat.dispose();
   hierarchyMat.dispose();
   crossArrowGeometry.dispose();
-  sirenInnerGeometry.dispose();
-  sirenHaloGeometry.dispose();
-  sirenInnerMat.dispose();
-  sirenHaloMat.dispose();
+  alarmCapGeometry.dispose();
+  alarmCapMat.dispose();
   for (const m of iconStampMaterials.values()) m.dispose();
   disposeLayerIconTextures();
   for (const t of callTubes.value) t.geometry.dispose();
@@ -1217,28 +1211,19 @@ onUnmounted(() => {
         />
       </TresMesh>
 
-      <!-- Alarm beacon — small red pulsing sphere + halo on the top-
-           back-right corner of every alarmed cube. The cube keeps
-           its layer color; the beacon is the alert signal.
-           Position: corner offset is ~0.55 (cube half-extent is 0.65,
-           inset slightly so the bulb visually sits on the cube top
-           rather than floating off the edge). -->
-      <template v-for="n in alarmedNodes" :key="`siren:${n.node.nodeId}`">
-        <TresMesh
-          :position="[n.pos.x + 0.5, n.pos.y + 1.22, n.pos.z + 0.5]"
-          :ref="(el) => disableRaycast(el)"
-        >
-          <primitive :object="sirenHaloGeometry" />
-          <primitive :object="sirenHaloMat" />
-        </TresMesh>
-        <TresMesh
-          :position="[n.pos.x + 0.5, n.pos.y + 1.22, n.pos.z + 0.5]"
-          :ref="(el) => disableRaycast(el)"
-        >
-          <primitive :object="sirenInnerGeometry" />
-          <primitive :object="sirenInnerMat" />
-        </TresMesh>
-      </template>
+      <!-- Alarm cap — the top ~20% of an alarmed cube, painted red. The
+           cube keeps its layer color below; the red crown is the alert
+           signal. raycast disabled (it sits on the cube top and would
+           otherwise steal clicks aimed at the cube). -->
+      <TresMesh
+        v-for="n in alarmedNodes"
+        :key="`alarmcap:${n.node.nodeId}`"
+        :position="[n.pos.x, n.pos.y + 0.95, n.pos.z]"
+        :ref="(el) => disableRaycast(el)"
+      >
+        <primitive :object="alarmCapGeometry" />
+        <primitive :object="alarmCapMat" />
+      </TresMesh>
 
       <!-- Traffic chip — small numeric pill that LIVES WITH its cube.
            Anchored at the cube's centre so the chip follows the
