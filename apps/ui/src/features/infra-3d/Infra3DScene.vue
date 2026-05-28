@@ -603,16 +603,16 @@ const rippleMats = Array.from(
 // wireframe (shared EdgesGeometry of the cube), so the grid reads as a
 // blueprint and only the red alarmed cubes + their glow stand out.
 const ghostMat = new MeshBasicMaterial({
-  color: new Color('#0e131b'),
+  color: new Color('#1b2433'),
   transparent: true,
-  opacity: 0.28,
+  opacity: 0.5,
   depthWrite: false,
 });
 const cubeEdgesGeometry = new EdgesGeometry(nodeGeometry);
 const cubeEdgeMat = new LineBasicMaterial({
-  color: new Color('#3b4658'),
+  color: new Color('#7d8ba3'),
   transparent: true,
-  opacity: 0.55,
+  opacity: 0.9,
 });
 // Soft red radial halo billboarded over each alarmed cube — the "beacon"
 // glow. Built from a canvas radial-gradient texture so it's a cheap
