@@ -166,6 +166,8 @@ const alarmedServiceIds = alarmedServiceNames;
 // subset once per render so the template can iterate ONLY the
 // alarmed cubes (no v-if per cube).
 const alarmedNodes = computed(() => visibleNodes.value.filter((n) => alarmedServiceIds.value.has(n.node.name)));
+/** Alarmed cube ids — O(1) lookup for the per-cube material pick. */
+const alarmedNodeIds = computed(() => new Set(alarmedNodes.value.map((n) => n.node.nodeId)));
 
 // Live traffic-MQE values produced by stage 5 of the pipeline. Each
 // node optionally gets a small numeric chip below its cube; the chip
@@ -530,6 +532,10 @@ function hoverMaterial(hex: string): MeshLambertMaterial {
   return m;
 }
 const selectedMat = new MeshLambertMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.85 });
+// Alarmed cubes burn red (the whole cube, not just a cap) — paired with
+// the radiating ripple below, red is the unmistakable "this service is
+// alarming" signal. Selection still wins so the operator can inspect it.
+const alarmMat = new MeshLambertMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.6 });
 
 // Alarm ripple — a radar / seismic wave radiating out from an alarmed
 // cube across its plane. RIPPLE_PHASES concentric red rings expand and
@@ -1183,6 +1189,7 @@ onUnmounted(() => {
   for (const m of nodeMaterials.values()) m.dispose();
   for (const m of hoverMaterials.values()) m.dispose();
   selectedMat.dispose();
+  alarmMat.dispose();
   callEdgeMat.dispose();
   callPacketMat.dispose();
   crossEdgeMat.dispose();
@@ -1293,6 +1300,8 @@ onUnmounted(() => {
           :object="
             props.selectedNodeId === n.node.nodeId
               ? selectedMat
+              : alarmedNodeIds.has(n.node.nodeId)
+              ? alarmMat
               : props.hoveredNodeId === n.node.nodeId
               ? hoverMaterial(n.colorHex)
               : nodeMaterial(n.colorHex)
