@@ -266,6 +266,7 @@ export interface AdminLayerTemplate {
     topology?: boolean;
     traces?: boolean;
     logs?: boolean;
+    podLogs?: boolean;
     profiling?: boolean;
     traceProfiling?: boolean;
     ebpfProfiling?: boolean;

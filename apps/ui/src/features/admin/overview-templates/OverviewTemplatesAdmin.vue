@@ -688,6 +688,16 @@ const isDirty = computed<boolean>(() =>
   draft.value ? JSON.stringify(draft.value) !== loadedSnapshot.value : false,
 );
 
+/** Editor content differs from the publish target (remote) — gates Save
+ *  so "Reset to bundled" (pristine-vs-load, `isDirty=false`) is still
+ *  publishable when bundled ≠ remote. Key-stable to ignore key order. */
+const editorDiffersFromRemote = computed<boolean>(() => {
+  if (!draft.value) return false;
+  const remote = sources.remote<OverviewDashboard>(editName.value);
+  if (!remote) return true;
+  return stableStringify(draft.value) !== stableStringify(remote);
+});
+
 // Which source to seed the editor from for the current selection.
 // Remote is the canonical baseline — it's what `pickOverviewContent`
 // in the runtime bundle serves to end users — so the editor opens
@@ -1062,8 +1072,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
             <span class="ot__count mono">
               {{ draft.widgets.length }} widget{{ draft.widgets.length === 1 ? '' : 's' }}
             </span>
-            <span v-if="flash" class="ot__flash">{{ flash }}</span>
-            <span v-else-if="isDirty" class="ot__dirty">unsaved changes</span>
+            <span v-if="isDirty" class="ot__dirty">unsaved changes</span>
             <span v-else class="ot__clean">saved</span>
             <!-- Delete. A local-only draft is removed from the browser; a
                  dashboard on OAP (bundled or remote-only) is soft-disabled
@@ -1154,7 +1163,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
               <button
                 type="button"
                 class="ot__btn ot__btn--primary"
-                :disabled="!isDirty || saving"
+                :disabled="(!isDirty && !editorDiffersFromRemote) || saving"
                 title="Save the editor to your browser (local). Publish later with “Check diff & push”."
                 @click="onSave"
               >
@@ -1162,6 +1171,10 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
               </button>
             </div>
           </header>
+          <!-- Own row so a long flash never overlaps the action cluster. -->
+          <div v-if="flash" class="ot__flash-row">
+            <span class="ot__flash">{{ flash }}</span>
+          </div>
 
           <!-- One-page editor: mock-data widget grid (canvas, left) +
                drawer (right) that edits the clicked widget. -->
@@ -2260,6 +2273,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   font-style: italic;
 }
 
+.ot__flash-row { display: flex; justify-content: flex-end; padding: 4px 0 0; }
 .ot__flash { font-size: 11px; color: var(--sw-ok); }
 .ot__dirty { font-size: 11px; color: var(--sw-warn); }
 /* Source pill — per-state theme matched across all three editors

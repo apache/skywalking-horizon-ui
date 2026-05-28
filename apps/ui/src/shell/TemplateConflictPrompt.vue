@@ -26,7 +26,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import { useLayers } from '@/shell/useLayers';
 import { useConfigBundle } from '@/controls/configBundle';
@@ -36,6 +36,18 @@ import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
+const route = useRoute();
+
+// Suppressed on the template-admin editors — the draft state + push
+// button are already in-context there, so the nudge is redundant.
+const onTemplateEditor = computed<boolean>(() => {
+  const p = route.path;
+  return (
+    p.startsWith('/admin/layer-dashboards') ||
+    p.startsWith('/admin/overview-templates') ||
+    p.startsWith('/admin/translations')
+  );
+});
 const previewMode = usePreviewMode();
 const { layers } = useLayers();
 const { bundle } = useConfigBundle();
@@ -85,7 +97,9 @@ const dismissed = ref<boolean>(
 );
 // Not while previewing — a preview tab shows the dedicated preview banner
 // instead of the editor's unpublished-edits reminder.
-const open = computed(() => !previewMode.value && !dismissed.value && draftItems.value.length > 0);
+const open = computed(
+  () => !previewMode.value && !onTemplateEditor.value && !dismissed.value && draftItems.value.length > 0,
+);
 
 function dismiss(): void {
   dismissed.value = true;

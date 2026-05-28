@@ -104,6 +104,13 @@ English is the source of truth. Every UI string and every translatable template 
 
 **Never** add `Co-Authored-By: Claude` (or any AI / Anthropic / claude.com / `noreply@anthropic.com` line) to commit messages or PR bodies. Do not append the "🤖 Generated with Claude Code" footer. Per-project directive.
 
+## Changelog (`CHANGELOG.md`)
+
+Keep `CHANGELOG.md` current as part of the change, not as an afterthought. Written from the operator's point of view — what's new on screen and what's now possible — never file-by-file implementation (that's the git log).
+
+- **New features go in the changelog.** Any operator-visible capability — a new page / tab / widget, a new component flag, **bundled template changes** (a layer gaining a capability, new dashboards / widgets / metrics), a new admin surface — must be recorded under the current **unreleased** version section. If a change alters what an operator sees or can do, it belongs here.
+- **Released version sections are frozen.** A version that's been tagged/released only ever receives **bug-fix** entries afterward (and only for fixes shipped to that line). Never add a new feature to an already-released version's section — features always land under the current/next unreleased version. The current version is `*-dev` in `package.json`; the newest released line is the latest `v*` git tag.
+
 ## Common AI failure modes to avoid
 
 1. **Skipping the read.** If you change a route, composable, store, or template without reading it end-to-end first, you will break something subtle. Read first, every time.

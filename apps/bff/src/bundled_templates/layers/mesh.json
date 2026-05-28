@@ -24,7 +24,8 @@
     "traces": true,
     "logs": true,
     "ebpfProfiling": true,
-    "networkProfiling": true
+    "networkProfiling": true,
+    "podLogs": true
   },
   "layer-header": {
     "orderBy": "cpm",

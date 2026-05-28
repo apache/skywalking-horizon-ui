@@ -23,7 +23,8 @@
     "topology": true,
     "traces": false,
     "logs": false,
-    "ebpfProfiling": true
+    "ebpfProfiling": true,
+    "podLogs": true
   },
   "layer-header": {
     "orderBy": "httpCpm",
