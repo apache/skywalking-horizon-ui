@@ -20,7 +20,7 @@
   "levels": [
     {
       "id":          "apps",
-      "order":       1,
+      "order":       0,
       "label":       "Apps",
       "layerFilter": ".*",
       "layers": [
@@ -40,7 +40,7 @@
     },
     {
       "id":          "mesh",
-      "order":       0,
+      "order":       2,
       "label":       "Service Mesh",
       "layerFilter": ".*",
       "layers": [
@@ -52,7 +52,7 @@
     },
     {
       "id":          "middleware",
-      "order":       2,
+      "order":       1,
       "label":       "Middleware",
       "layerFilter": ".*",
       "layers": [

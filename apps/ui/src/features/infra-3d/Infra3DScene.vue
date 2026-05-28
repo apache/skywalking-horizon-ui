@@ -253,7 +253,14 @@ interface VisibleNode {
   colorHex: string;
 }
 const visibleNodes = computed<VisibleNode[]>(() => {
-  const zoneByLayer = new Map(placement.zones.map((z) => [z.layerKey, z]));
+  // Map every layer to its zone. A group zone is keyed by the group id,
+  // so fan it out to each member layer key — otherwise grouped layers
+  // (e.g. so11y_*) find no zone and their cubes vanish (empty block).
+  const zoneByLayer = new Map<string, ZonePlacement>();
+  for (const z of placement.zones) {
+    if (z.group) for (const k of z.group.layerKeys) zoneByLayer.set(k, z);
+    else zoneByLayer.set(z.layerKey, z);
+  }
   const out: VisibleNode[] = [];
   for (const L of graph.layers) {
     if (!isVisible(L.key)) continue;
