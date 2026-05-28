@@ -54,6 +54,11 @@ interface SceneHandle {
 }
 const sceneRef = ref<SceneHandle | null>(null);
 
+// Beacon mode — dims the whole scene to a dark wireframe and lets only
+// alarming cubes glow, so the operator's eye goes straight to what's
+// firing. Toggled from the toolbar; the scene reads it as a prop.
+const beaconMode = ref(false);
+
 const planes = ref<PlanePlacement[]>([]);
 const zones = ref<ZonePlacement[]>([]);
 const nodesByLayer = ref<Record<string, SceneServiceNode[]>>({});
@@ -543,6 +548,7 @@ const visibleServices = computed(() => {
         :hovered-node-id="hoveredNodeId"
         :selected-node-id="selectedNodeId"
         :focus-target="focusTarget"
+        :beacon-mode="beaconMode"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"
@@ -570,6 +576,18 @@ const visibleServices = computed(() => {
           <button class="cam-btn pad down" title="pan down" @click="btnPan(0, -1)">▼</button>
         </div>
       </aside>
+
+      <!-- Beacon mode toggle — dims the scene to wireframe so only
+           alarming cubes stand out. Sits under the camera toolbar. -->
+      <button
+        class="beacon-toggle"
+        :class="{ 'is-on': beaconMode }"
+        :title="beaconMode ? 'Beacon mode on — click to show all' : 'Beacon mode — focus on alarms'"
+        @click="beaconMode = !beaconMode"
+      >
+        <span class="beacon-dot" />
+        <span class="beacon-label">Beacon</span>
+      </button>
 
       <!-- Side panel — TIERS ONLY. Per-layer rows were removed once
            the 3D scene grew its own brand-stamps on each zone (the
@@ -1011,6 +1029,34 @@ const visibleServices = computed(() => {
   display: flex;
   gap: 4px;
 }
+.beacon-toggle {
+  position: absolute;
+  top: 256px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  background: rgba(15, 19, 26, 0.88);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  color: var(--sw-fg-2);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  z-index: 50;
+  transition: border-color 0.15s, color 0.15s;
+}
+.beacon-toggle:hover { color: var(--sw-fg-0); border-color: var(--sw-line); }
+.beacon-toggle.is-on { border-color: #ef4444; color: #fca5a5; }
+.beacon-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sw-fg-3); }
+.beacon-toggle.is-on .beacon-dot {
+  background: #ef4444;
+  box-shadow: 0 0 8px 1px rgba(239, 68, 68, 0.8);
+  animation: beacon-pulse 1.4s infinite ease-in-out;
+}
+@keyframes beacon-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .cam-pad {
   display: grid;
   grid-template-columns: repeat(3, 26px);

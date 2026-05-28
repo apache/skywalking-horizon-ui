@@ -33,7 +33,9 @@ import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { TresCanvas } from '@tresjs/core';
 import { OrbitControls, Html } from '@tresjs/cientos';
 import {
+  AdditiveBlending,
   BoxGeometry,
+  CanvasTexture,
   CatmullRomCurve3,
   Color,
   ConeGeometry,
@@ -47,6 +49,7 @@ import {
   Quaternion,
   RingGeometry,
   SphereGeometry,
+  SpriteMaterial,
   type Texture,
   TubeGeometry,
   Vector3,
@@ -91,6 +94,10 @@ interface Props {
    *  (re-centers on the zone). The scene lerps the orbit target
    *  toward this each frame for a smooth move. */
   focusTarget: { x: number; y: number; z: number } | null;
+  /** Beacon mode — dim every healthy cube to a dark wireframe ghost and
+   *  let only alarmed cubes glow, so the operator's eye locks onto what
+   *  is firing. */
+  beaconMode?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -590,6 +597,49 @@ const rippleMats = Array.from(
       depthWrite: false,
     }),
 );
+
+// ── Beacon mode resources ──────────────────────────────────────────
+// Healthy cubes drop to a near-invisible dark body plus a faint
+// wireframe (shared EdgesGeometry of the cube), so the grid reads as a
+// blueprint and only the red alarmed cubes + their glow stand out.
+const ghostMat = new MeshBasicMaterial({
+  color: new Color('#0e131b'),
+  transparent: true,
+  opacity: 0.28,
+  depthWrite: false,
+});
+const cubeEdgesGeometry = new EdgesGeometry(nodeGeometry);
+const cubeEdgeMat = new LineBasicMaterial({
+  color: new Color('#3b4658'),
+  transparent: true,
+  opacity: 0.55,
+});
+// Soft red radial halo billboarded over each alarmed cube — the "beacon"
+// glow. Built from a canvas radial-gradient texture so it's a cheap
+// sprite, additively blended for a luminous bloom.
+function makeGlowTexture(): CanvasTexture | null {
+  if (typeof document === 'undefined') return null;
+  const size = 128;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const cx = cv.getContext('2d');
+  if (!cx) return null;
+  const g = cx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,120,110,0.95)');
+  g.addColorStop(0.35, 'rgba(239,68,68,0.55)');
+  g.addColorStop(1, 'rgba(239,68,68,0)');
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, size, size);
+  return new CanvasTexture(cv);
+}
+const glowTexture = makeGlowTexture();
+const glowMat = new SpriteMaterial({
+  map: glowTexture ?? undefined,
+  color: 0xffffff,
+  transparent: true,
+  depthWrite: false,
+  blending: AdditiveBlending,
+});
 
 /** Intra-layer call edge — calls between two services in the same
  *  layer. The previous dark gray (#5b6373, 0.5 opacity) read as
@@ -1231,6 +1281,11 @@ onUnmounted(() => {
   crossArrowGeometry.dispose();
   rippleGeometry.dispose();
   for (const m of rippleMats) m.dispose();
+  ghostMat.dispose();
+  cubeEdgesGeometry.dispose();
+  cubeEdgeMat.dispose();
+  glowTexture?.dispose();
+  glowMat.dispose();
   for (const m of iconStampMaterials.values()) m.dispose();
   disposeLayerIconTextures();
   for (const t of callTubes.value) t.geometry.dispose();
@@ -1339,12 +1394,38 @@ onUnmounted(() => {
               ? selectedMat
               : alarmedNodeIds.has(n.node.nodeId)
               ? alarmMat
+              : props.beaconMode
+              ? ghostMat
               : props.hoveredNodeId === n.node.nodeId
               ? hoverMaterial(n.colorHex)
               : nodeMaterial(n.colorHex)
           "
         />
       </TresMesh>
+
+      <!-- Beacon mode: faint wireframe on every cube (blueprint read)
+           + a red radial glow billboarded over each alarmed cube. Both
+           decorative → raycast disabled. -->
+      <template v-if="props.beaconMode">
+        <TresLineSegments
+          v-for="n in visibleNodes"
+          :key="`cube-edge:${n.node.nodeId}`"
+          :position="[n.pos.x, n.pos.y + 0.55, n.pos.z]"
+          :ref="(el) => disableRaycast(el)"
+        >
+          <primitive :object="cubeEdgesGeometry" />
+          <primitive :object="cubeEdgeMat" />
+        </TresLineSegments>
+        <TresSprite
+          v-for="n in alarmedNodes"
+          :key="`glow:${n.node.nodeId}`"
+          :position="[n.pos.x, n.pos.y + 0.55, n.pos.z]"
+          :scale="[2.8, 2.8, 1]"
+          :ref="(el) => disableRaycast(el)"
+        >
+          <primitive :object="glowMat" />
+        </TresSprite>
+      </template>
 
       <!-- Alarm ripples — concentric red rings radiating across the
            plane from each alarmed cube (radar / seismic pulse). Scale
