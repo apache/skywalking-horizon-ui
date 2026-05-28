@@ -37,6 +37,7 @@ import { bff } from '../../../api/client';
 import type {
   Infra3dConfig,
   InfraLayerSpec,
+  InfraGroupSpec,
   InfraLevelSpec,
   InfraMqe,
 } from '../../../api/client';
@@ -54,6 +55,16 @@ const layerToLevelId = computed<Record<string, string>>(() => {
   if (!c) return {};
   const filter = safeRegex(c.filter.layer);
   const out: Record<string, string> = {};
+
+  // Logic-group membership wins outright: a grouped layer is placed on
+  // the group's level, overriding the layer's own level resolution.
+  for (const g of c.groups ?? []) {
+    for (const k of g.layers) {
+      const u = k.toUpperCase();
+      if (filter && !filter.test(u)) continue;
+      out[u] = g.level;
+    }
+  }
 
   // Explicit `layers` lists are the authoritative source — they always
   // win over regex matches, so an admin pinning `K8S_SERVICE` to a
@@ -88,11 +99,26 @@ const levelsOrdered = computed<InfraLevelSpec[]>(() => {
   return [...cfg.value.levels].sort((a, b) => a.order - b.order);
 });
 
+const groups = computed<InfraGroupSpec[]>(() => cfg.value?.groups ?? []);
+
+/** layer key (upper) → group id, for the layers that belong to a group. */
+const layerToGroupId = computed<Record<string, string>>(() => {
+  const c = cfg.value;
+  if (!c) return {};
+  const out: Record<string, string> = {};
+  for (const g of c.groups ?? []) {
+    for (const k of g.layers) out[k.toUpperCase()] = g.id;
+  }
+  return out;
+});
+
 /** Public reader hook. Multiple callers share the same fetch + snapshot. */
 export function useInfra3dConfig() {
   return {
     config: readonly(cfg),
     levelsOrdered: readonly(levelsOrdered),
+    /** Logic groups from the config (e.g. Self-Observability). */
+    groups: readonly(groups),
     loading: readonly(loading),
     error: readonly(error),
     /** Trigger a fetch if not already loaded. Resolves with the live
@@ -107,6 +133,8 @@ export function useInfra3dConfig() {
     /** Render color for a layer. Falls back to the configured unknown
      *  badge color if the layer is missing from the config. */
     colorForLayer,
+    /** The logic group a layer belongs to, or null if ungrouped. */
+    groupForLayer,
     /** Resolved traffic MQE for a layer — `topology.server` on
      *  topology layers (preferred), `topology.client` as fallback, then
      *  `load` for non-topology layers. Returns null when no MQE is
@@ -155,6 +183,13 @@ export function colorForLayer(layerKey: string): string {
   const u = layerKey.toUpperCase();
   const spec = cfg.value?.layers[u];
   return spec?.color ?? '#8a8a8a';
+}
+
+/** The logic group a layer belongs to, or null if ungrouped. */
+export function groupForLayer(layerKey: string): InfraGroupSpec | null {
+  const id = layerToGroupId.value[layerKey.toUpperCase()];
+  if (!id) return null;
+  return cfg.value?.groups?.find((g) => g.id === id) ?? null;
 }
 
 export function layerSpec(layerKey: string): InfraLayerSpec | null {

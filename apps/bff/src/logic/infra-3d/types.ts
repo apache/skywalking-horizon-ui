@@ -90,6 +90,28 @@ export interface InfraLevelSpec {
   layers: string[];
 }
 
+/** A logic group inside a tier — several layers drawn as ONE colored
+ *  block on `level`, but each member layer keeps its own cube colors and
+ *  starts its own column run (members are row-aligned, never colour-mixed).
+ *  Defined explicitly in the 3D-map config (managed on the config page),
+ *  NOT inferred from a layer template's `group`. A grouped layer is
+ *  placed on the group's `level`, overriding its own level resolution. */
+export interface InfraGroupSpec {
+  /** Stable kebab id (config key + side-panel key). */
+  id: string;
+  /** Operator-facing name (group block label + side-panel row). */
+  label: string;
+  /** Level (tier) id the group sits on. */
+  level: string;
+  /** Group block color (hex `#rrggbb` or any CSS/Three color string). */
+  color: string;
+  /** Icon stamped on the group block. One of the shared 3D icon names
+   *  (see the UI icon catalog); `sky` renders the SkyWalking mark. */
+  icon: string;
+  /** Member OAP layer keys (canonical upper-case). */
+  layers: string[];
+}
+
 export interface InfraEdgeStyle {
   color: string;
   /** `solid` | `dashed` — passed through to the line renderer; anything
@@ -130,6 +152,10 @@ export interface Infra3dConfig {
     badge: string;
   };
   levels: InfraLevelSpec[];
+  /** Logic groups inside tiers (e.g. Self-Observability). Optional;
+   *  defaults to empty. A layer listed in a group is clustered into the
+   *  group's block on the group's level. */
+  groups: InfraGroupSpec[];
   /** Per-layer overrides keyed by canonical upper-case OAP layer key.
    *  Unknown layers fall back to a neutral default at render time. */
   layers: Record<string, InfraLayerSpec>;

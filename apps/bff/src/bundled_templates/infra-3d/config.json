@@ -20,7 +20,7 @@
   "levels": [
     {
       "id":          "apps",
-      "order":       0,
+      "order":       1,
       "label":       "Apps",
       "layerFilter": ".*",
       "layers": [
@@ -40,7 +40,7 @@
     },
     {
       "id":          "mesh",
-      "order":       1,
+      "order":       0,
       "label":       "Service Mesh",
       "layerFilter": ".*",
       "layers": [
@@ -100,6 +100,22 @@
         "OS_WINDOWS",
         "VIRTUAL_MACHINE",
         "AWS_EKS"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "self-observability",
+      "label": "Self-Observability",
+      "level": "middleware",
+      "color": "#a78bfa",
+      "icon": "sky",
+      "layers": [
+        "SO11Y_OAP",
+        "SO11Y_SATELLITE",
+        "SO11Y_BANYANDB",
+        "SO11Y_JAVA_AGENT",
+        "SO11Y_GO_AGENT"
       ]
     }
   ],

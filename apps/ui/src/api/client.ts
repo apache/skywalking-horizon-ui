@@ -601,6 +601,15 @@ export interface InfraLevelSpec {
   layers: string[];
 }
 
+export interface InfraGroupSpec {
+  id: string;
+  label: string;
+  level: string;
+  color: string;
+  icon: string;
+  layers: string[];
+}
+
 export interface InfraEdgeStyle {
   color: string;
   style: 'solid' | 'dashed';
@@ -623,6 +632,7 @@ export interface Infra3dConfig {
   pipeline: InfraPipelineLimits;
   unknownLayer: { level: string; badge: string };
   levels: InfraLevelSpec[];
+  groups?: InfraGroupSpec[];
   layers: Record<string, InfraLayerSpec>;
 }
 

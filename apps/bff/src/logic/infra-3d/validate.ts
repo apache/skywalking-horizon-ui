@@ -62,6 +62,19 @@ const edgeStyleSchema = z
   })
   .strict();
 
+const groupSpecSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9-]*$/, {
+      message: 'group id must be lower-kebab (a-z, 0-9, -; start with a letter)',
+    }),
+    label: z.string().min(1),
+    level: z.string().min(1),
+    color: z.string().min(1),
+    icon: z.string().min(1),
+    layers: z.array(z.string().min(1)).min(1),
+  })
+  .strict();
+
 const levelSpecSchema = z
   .object({
     id: z.string().regex(/^[a-z][a-z0-9-]*$/, {
@@ -106,6 +119,8 @@ const configSchema = z
       })
       .strict(),
     levels: z.array(levelSpecSchema).min(1),
+    // Optional — older saved configs predate groups; default to none.
+    groups: z.array(groupSpecSchema).default([]),
     layers: z.record(z.string().min(1), layerSpecSchema),
   })
   .strict()
