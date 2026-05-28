@@ -117,8 +117,10 @@ export function useInfra3dConfig() {
   return {
     config: readonly(cfg),
     levelsOrdered: readonly(levelsOrdered),
-    /** Logic groups from the config (e.g. Self-Observability). */
-    groups: readonly(groups),
+    /** Logic groups from the config (e.g. Self-Observability). A computed,
+     *  so already read-only; not wrapped in readonly() so it stays
+     *  structurally assignable to the Scene's groups prop. */
+    groups,
     loading: readonly(loading),
     error: readonly(error),
     /** Trigger a fetch if not already loaded. Resolves with the live

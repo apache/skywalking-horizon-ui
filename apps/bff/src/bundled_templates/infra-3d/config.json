@@ -47,8 +47,7 @@
         "MESH",
         "MESH_DP",
         "MESH_CP",
-        "CILIUM_SERVICE",
-        "ENVOY_AI_GATEWAY"
+        "CILIUM_SERVICE"
       ]
     },
     {
@@ -85,7 +84,8 @@
         "AWS_S3",
         "AWS_DYNAMODB",
         "AWS_GATEWAY",
-        "AWS_API_GATEWAY"
+        "AWS_API_GATEWAY",
+        "ENVOY_AI_GATEWAY"
       ]
     },
     {

@@ -76,7 +76,7 @@ const focusTarget = ref<{ x: number; y: number; z: number } | null>(null);
 // running it before the config resolves would freeze the 3-plane
 // fallback into the rendered layout. `ready` flips once the BFF /
 // bundled defaults are in hand.
-const { config: infraConfig, levelsOrdered, ensureLoaded, levelForLayer } = useInfra3dConfig();
+const { config: infraConfig, levelsOrdered, groups: infraGroups, ensureLoaded, levelForLayer } = useInfra3dConfig();
 const ready = ref(false);
 // Set when the config fetch rejects (OAP/BFF offline, or a role without
 // `infra-3d:read`). Without this the page sat on "Loading…" forever —
@@ -565,6 +565,7 @@ const visibleServices = computed(() => {
         :selected-node-id="selectedNodeId"
         :focus-target="focusTarget"
         :beacon-mode="beaconMode"
+        :groups="infraGroups"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"

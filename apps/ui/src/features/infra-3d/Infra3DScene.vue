@@ -64,6 +64,7 @@ import {
 } from './composables/useDemoTopology';
 import {
   computePlacement,
+  type SceneGroupSpec,
   readTintColor,
   type NodePlacement,
   type PlaneSpec,
@@ -98,6 +99,9 @@ interface Props {
    *  let only alarmed cubes glow, so the operator's eye locks onto what
    *  is firing. */
   beaconMode?: boolean;
+  /** Logic groups from the config — clustered into one block per group
+   *  on the group's tier. */
+  groups?: SceneGroupSpec[];
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -116,7 +120,7 @@ const emit = defineEmits<{
 // fallback. `planeOrder` is the source of truth for vertical stacking.
 const topo = loadDemoTopology();
 const graph = buildSceneGraph(topo, levelForLayer);
-const placement = computePlacement(graph, props.planeOrder);
+const placement = computePlacement(graph, props.planeOrder, props.groups);
 
 /** Resolve the per-layer icon glyph. Routed through the same helper
  *  the sidebar uses (`shell/icons.layerIcon`) so the two surfaces
@@ -139,9 +143,7 @@ function iconForLayer(layerKey: string): LayerIconName {
  *  Materials are cached by `(icon-name, hex)` so two zones with the
  *  same brand mark share one GL material. */
 const iconStampMaterials = new Map<string, MeshBasicMaterial>();
-function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial {
-  const hex = resolveLayerColor(layerKey, tint);
-  const name = iconForLayer(layerKey);
+function stampMaterial(name: LayerIconName, hex: string): MeshBasicMaterial {
   const key = `${name}|${hex}`;
   let m = iconStampMaterials.get(key);
   if (!m) {
@@ -159,6 +161,16 @@ function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial 
     iconStampMaterials.set(key, m);
   }
   return m;
+}
+function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial {
+  return stampMaterial(iconForLayer(layerKey), resolveLayerColor(layerKey, tint));
+}
+/** Stamp for a logic group — its configured icon (e.g. `sky` for the
+ *  SkyWalking mark) in the group color. Unknown icon names fall back to
+ *  the generic service glyph. */
+function groupStampMaterial(icon: string, hex: string): MeshBasicMaterial {
+  const name = KNOWN_ICONS.has(icon as LayerIconName) ? (icon as LayerIconName) : 'svc';
+  return stampMaterial(name, hex);
 }
 
 // Past-20m alarm overlay — affected service names get the red alarm
@@ -221,7 +233,13 @@ function isVisible(layerKey: string): boolean {
   return props.visibleLayers.has(layerKey);
 }
 
-const visibleZones = computed(() => placement.zones.filter((z) => isVisible(z.layerKey)));
+const visibleZones = computed(() =>
+  placement.zones.filter((z) =>
+    // A group zone shows if any member layer is visible; a solo zone if
+    // its own layer is.
+    z.group ? z.group.layerKeys.some((k) => isVisible(k)) : isVisible(z.layerKey),
+  ),
+);
 
 interface VisibleNode {
   node: SceneServiceNode;
@@ -1363,7 +1381,7 @@ onUnmounted(() => {
           :rotation="[-Math.PI / 2, 0, 0]"
         >
           <TresPlaneGeometry :args="[Z.width, Z.depth]" />
-          <primitive :object="zoneMaterial(resolveLayerColor(Z.layerKey, Z.tint))" />
+          <primitive :object="zoneMaterial(Z.group ? Z.group.color : resolveLayerColor(Z.layerKey, Z.tint))" />
         </TresMesh>
         <!-- Layer mark — the project's logo PRINTED onto the zone's
              colour swatch. Built as a textured PlaneGeometry rotated
@@ -1380,7 +1398,9 @@ onUnmounted(() => {
           :ref="(el) => disableRaycast(el)"
         >
           <TresPlaneGeometry :args="[1.7, 1.7]" />
-          <primitive :object="iconStampMaterial(Z.layerKey, Z.tint)" />
+          <primitive
+            :object="Z.group ? groupStampMaterial(Z.group.icon, Z.group.color) : iconStampMaterial(Z.layerKey, Z.tint)"
+          />
         </TresMesh>
       </template>
 

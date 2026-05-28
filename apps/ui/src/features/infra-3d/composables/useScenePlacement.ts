@@ -57,7 +57,9 @@ export interface PlanePlacement {
 }
 
 export interface ZonePlacement {
+  /** Solo zone: the layer key. Group zone: the group id. */
   layerKey: string;
+  /** Solo zone: the layer name. Group zone: the group label. */
   layerName: string;
   plane: PlaneId;
   y: number;
@@ -70,6 +72,21 @@ export interface ZonePlacement {
    *  drives the "center zones with topology, sides for the rest"
    *  arrangement on each plane. */
   hasTopology: boolean;
+  /** Present on GROUP zones (a logic group clustering several layers
+   *  into one block). `color` overrides the tint for the backplate;
+   *  `layerKeys` are the member layers (for the side panel). */
+  group?: { id: string; color: string; icon: string; layerKeys: string[] };
+}
+
+/** A logic group passed into placement — clusters several layers into one
+ *  block on `level`. Mirrors the config `InfraGroupSpec`. */
+export interface SceneGroupSpec {
+  id: string;
+  label: string;
+  level: string;
+  color: string;
+  icon: string;
+  layers: string[];
 }
 
 export type ZoneTint =
@@ -113,6 +130,10 @@ const CELL_STRIDE_X = 2.4;
 const CELL_STRIDE_Z = 2.4;
 /** Padding INSIDE a zone — keeps cubes off the colored edge. */
 const ZONE_INNER_PAD = 1.2;
+/** Horizontal gap between member layers tiled inside one group zone.
+ *  Smaller than ZONE_GAP_X so members read as one block, but enough
+ *  that each layer's column run is visually distinct. */
+const GROUP_MEMBER_GAP = 2.0;
 
 // ── Layer → zone tint ───────────────────────────────────────────────────
 
@@ -359,25 +380,66 @@ function rankBasedLayout(L: SceneLayer): { positions: Map<string, LocalPoint>; r
 
 // ── Top-level placement ────────────────────────────────────────────────
 
-/** Sort key for arranging zones on a plane. Topology-bearing zones
- *  (largest first) take the center; non-topology zones tile outward
- *  alternating left/right by size, so the visual weight stays
- *  balanced. The returned `centerIndex` is the index in the input
- *  array that maps to the center slot. */
-function arrangeZonesByCenter(layers: SceneLayer[]): SceneLayer[] {
-  // Center = topology-bearing layers, ordered by node count desc.
-  // Sides = others, ordered by node count desc.
-  const center = layers.filter((L) => L.callEdges.length > 0)
-    .sort((a, b) => b.nodes.length - a.nodes.length);
-  const sides = layers.filter((L) => L.callEdges.length === 0)
-    .sort((a, b) => b.nodes.length - a.nodes.length);
-  // Interleave the sides around the center: side[0] → left, side[1] →
-  // right, side[2] → further left, side[3] → further right, …
-  const left: SceneLayer[] = [];
-  const right: SceneLayer[] = [];
-  sides.forEach((L, i) => {
-    if (i % 2 === 0) left.unshift(L);
-    else right.push(L);
+/** A placement unit on a plane — either a single layer or a logic group
+ *  clustering several layers. `positions` are node offsets relative to
+ *  the unit's center; `width`/`depth` already include the zone pad. */
+interface PreUnit {
+  kind: 'layer' | 'group';
+  key: string;
+  name: string;
+  layer?: SceneLayer;
+  group?: SceneGroupSpec;
+  /** Member layer keys (for the side panel). Solo unit: just its own. */
+  layerKeys: string[];
+  positions: Map<string, LocalPoint>;
+  hasTopology: boolean;
+  width: number;
+  depth: number;
+  nodeCount: number;
+}
+
+/** Lay out one layer and return its node offsets (centered at 0) plus
+ *  the RAW footprint (bbox + one cell stride, no zone pad) so callers
+ *  can either pad it (solo zone) or tile it inside a group. */
+function rawLayout(L: SceneLayer): {
+  positions: Map<string, LocalPoint>;
+  rawW: number;
+  rawD: number;
+  hasTopology: boolean;
+} {
+  const layout = L.callEdges.length > 0 ? rankBasedLayout(L) : columnFillLayout(L.nodes);
+  let minX = 0, maxX = 0, minZ = 0, maxZ = 0, any = false;
+  for (const p of layout.positions.values()) {
+    if (!any) {
+      minX = maxX = p.x;
+      minZ = maxZ = p.z;
+      any = true;
+    } else {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+  }
+  return {
+    positions: layout.positions,
+    rawW: (maxX - minX) + CELL_STRIDE_X,
+    rawD: (maxZ - minZ) + CELL_STRIDE_Z,
+    hasTopology: L.callEdges.length > 0,
+  };
+}
+
+/** Arrange units on a plane: topology-bearing units (largest first) take
+ *  the center; the rest tile outward alternating left/right by size, so
+ *  the visual weight stays balanced. */
+function arrangeUnits(units: PreUnit[]): PreUnit[] {
+  const center = units.filter((u) => u.hasTopology).sort((a, b) => b.nodeCount - a.nodeCount);
+  const sides = units.filter((u) => !u.hasTopology).sort((a, b) => b.nodeCount - a.nodeCount);
+  const left: PreUnit[] = [];
+  const right: PreUnit[] = [];
+  sides.forEach((u, i) => {
+    if (i % 2 === 0) left.unshift(u);
+    else right.push(u);
   });
   return [...left, ...center, ...right];
 }
@@ -396,7 +458,11 @@ export interface PlaneSpec {
  *  each subsequent plane stacks up by `PLANE_VGAP`. An empty array
  *  falls back to the legacy 3-plane order so the function stays useful
  *  in tests and very-early renders. */
-export function computePlacement(graph: SceneGraph, planeOrder?: PlaneSpec[]): ScenePlacement {
+export function computePlacement(
+  graph: SceneGraph,
+  planeOrder?: PlaneSpec[],
+  groups?: SceneGroupSpec[],
+): ScenePlacement {
   const order: PlaneSpec[] =
     planeOrder && planeOrder.length > 0
       ? planeOrder
@@ -406,6 +472,7 @@ export function computePlacement(graph: SceneGraph, planeOrder?: PlaneSpec[]): S
           { id: 'middleware', label: 'Middleware' },
           { id: 'infra', label: 'Infrastructure' },
         ];
+  const groupList = groups ?? [];
 
   const byPlane = new Map<PlaneId, SceneLayer[]>();
   for (const p of order) byPlane.set(p.id, []);
@@ -434,44 +501,78 @@ export function computePlacement(graph: SceneGraph, planeOrder?: PlaneSpec[]): S
 
   for (const spec of order) {
     const id = spec.id;
-    const ordered = arrangeZonesByCenter(byPlane.get(id) ?? []);
+    const planeLayers = byPlane.get(id) ?? [];
     const planeY = planeYById.get(id)!;
 
-    // ── Per-zone layout. We compute the local positions first, then
-    //    derive each zone's footprint from the layout bbox + padding.
-    interface PreZone {
-      layer: SceneLayer;
-      positions: Map<string, LocalPoint>;
-      hasTopology: boolean;
-      width: number;
-      depth: number;
-    }
-    const pre: PreZone[] = ordered.map((L) => {
-      const layout =
-        L.callEdges.length > 0 ? rankBasedLayout(L) : columnFillLayout(L.nodes);
-      // Bounding box from the layout's local points.
-      let minX = 0, maxX = 0, minZ = 0, maxZ = 0;
-      let any = false;
-      for (const p of layout.positions.values()) {
-        if (!any) {
-          minX = maxX = p.x;
-          minZ = maxZ = p.z;
-          any = true;
-        } else {
-          if (p.x < minX) minX = p.x;
-          if (p.x > maxX) maxX = p.x;
-          if (p.z < minZ) minZ = p.z;
-          if (p.z > maxZ) maxZ = p.z;
+    // ── Build units: one per logic group on this plane (clustering its
+    //    present member layers), then one per remaining solo layer.
+    const byKey = new Map(planeLayers.map((L) => [L.key.toUpperCase(), L]));
+    const claimed = new Set<string>();
+    const units: PreUnit[] = [];
+
+    for (const g of groupList) {
+      if (g.level !== id) continue;
+      const members: SceneLayer[] = [];
+      for (const k of g.layers) {
+        const L = byKey.get(k.toUpperCase());
+        if (L && !claimed.has(L.key.toUpperCase())) {
+          members.push(L);
+          claimed.add(L.key.toUpperCase());
         }
       }
-      const w = (maxX - minX) + CELL_STRIDE_X + ZONE_INNER_PAD * 2;
-      const d = (maxZ - minZ) + CELL_STRIDE_Z + ZONE_INNER_PAD * 2;
-      return { layer: L, positions: layout.positions, hasTopology: L.callEdges.length > 0, width: w, depth: d };
-    });
+      if (members.length === 0) continue;
+      // Tile member layers left-to-right inside the group, each starting
+      // its own column run, all sharing the centered Z baseline (row-
+      // aligned). Cubes keep their own per-layer color — only the
+      // backplate is one group block.
+      const ml = members.map((m) => ({ L: m, ...rawLayout(m) }));
+      const rawW = ml.reduce((a, m, i) => a + m.rawW + (i > 0 ? GROUP_MEMBER_GAP : 0), 0);
+      const rawD = ml.reduce((a, m) => Math.max(a, m.rawD), 0);
+      const positions = new Map<string, LocalPoint>();
+      let mc = -rawW / 2;
+      for (const m of ml) {
+        const memberCenterX = mc + m.rawW / 2;
+        mc += m.rawW + GROUP_MEMBER_GAP;
+        for (const [nodeId, p] of m.positions) {
+          positions.set(nodeId, { x: memberCenterX + p.x, z: p.z });
+        }
+      }
+      units.push({
+        kind: 'group',
+        key: g.id,
+        name: g.label,
+        group: g,
+        layerKeys: members.map((m) => m.key),
+        positions,
+        hasTopology: ml.some((m) => m.hasTopology),
+        width: rawW + ZONE_INNER_PAD * 2,
+        depth: rawD + ZONE_INNER_PAD * 2,
+        nodeCount: members.reduce((a, m) => a + m.nodes.length, 0),
+      });
+    }
 
-    // ── Tile zones left-to-right on the plane, centered at X = 0.
-    const totalW = pre.reduce((acc, z, i) => acc + z.width + (i > 0 ? ZONE_GAP_X : 0), 0);
-    const maxD = pre.reduce((acc, z) => Math.max(acc, z.depth), 0);
+    for (const L of planeLayers) {
+      if (claimed.has(L.key.toUpperCase())) continue;
+      const r = rawLayout(L);
+      units.push({
+        kind: 'layer',
+        key: L.key,
+        name: L.name,
+        layer: L,
+        layerKeys: [L.key],
+        positions: r.positions,
+        hasTopology: r.hasTopology,
+        width: r.rawW + ZONE_INNER_PAD * 2,
+        depth: r.rawD + ZONE_INNER_PAD * 2,
+        nodeCount: L.nodes.length,
+      });
+    }
+
+    const ordered = arrangeUnits(units);
+
+    // ── Tile units left-to-right on the plane, centered at X = 0.
+    const totalW = ordered.reduce((acc, u, i) => acc + u.width + (i > 0 ? ZONE_GAP_X : 0), 0);
+    const maxD = ordered.reduce((acc, u) => Math.max(acc, u.depth), 0);
     const planeW = Math.max(totalW + 4, 14);
     const planeD = maxD + 2;
     planes.push({ id, name: spec.label, y: planeY, width: planeW, depth: planeD });
@@ -479,26 +580,28 @@ export function computePlacement(graph: SceneGraph, planeOrder?: PlaneSpec[]): S
     maxPlaneD = Math.max(maxPlaneD, planeD);
 
     let cursor = -totalW / 2;
-    for (const z of pre) {
-      const cx = cursor + z.width / 2;
+    for (const u of ordered) {
+      const cx = cursor + u.width / 2;
       const cz = 0;
-      cursor += z.width + ZONE_GAP_X;
-      const tint = tintForLayer(z.layer.key, z.layer.group);
+      cursor += u.width + ZONE_GAP_X;
       zones.push({
-        layerKey: z.layer.key,
-        layerName: z.layer.name,
+        layerKey: u.key,
+        layerName: u.name,
         plane: id,
         y: planeY,
         centerX: cx,
         centerZ: cz,
-        width: z.width,
-        depth: z.depth,
-        tint,
-        hasTopology: z.hasTopology,
+        width: u.width,
+        depth: u.depth,
+        tint: u.kind === 'layer' ? tintForLayer(u.layer!.key, u.layer!.group) : 'misc',
+        hasTopology: u.hasTopology,
+        group:
+          u.kind === 'group'
+            ? { id: u.group!.id, color: u.group!.color, icon: u.group!.icon, layerKeys: u.layerKeys }
+            : undefined,
       });
-      for (const n of z.layer.nodes) {
-        const off = z.positions.get(n.nodeId) ?? { x: 0, z: 0 };
-        nodes.set(n.nodeId, { nodeId: n.nodeId, x: cx + off.x, y: planeY, z: cz + off.z });
+      for (const [nodeId, off] of u.positions) {
+        nodes.set(nodeId, { nodeId, x: cx + off.x, y: planeY, z: cz + off.z });
       }
     }
   }
