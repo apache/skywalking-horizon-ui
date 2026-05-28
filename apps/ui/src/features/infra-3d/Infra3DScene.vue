@@ -1259,6 +1259,7 @@ onUnmounted(() => {
           center
           :occlude="false"
           pointer-events="none"
+          :z-index-range="[35, 1]"
         >
           <div class="traffic-chip" :style="{ borderColor: n.colorHex }">
             <span class="val">{{ trafficText(n.node) }}</span>
