@@ -1,0 +1,2253 @@
+{
+  "capturedAt": "2026-05-27",
+  "oapDemo": "apache skywalking-showcase",
+  "layers": [
+    {
+      "key": "activemq",
+      "name": "ActiveMQ",
+      "color": "var(--sw-purple)",
+      "level": 2,
+      "group": "MQ",
+      "serviceCount": 1
+    },
+    {
+      "key": "browser",
+      "name": "Browser",
+      "color": "var(--sw-cyan)",
+      "level": null,
+      "group": null,
+      "serviceCount": 1
+    },
+    {
+      "key": "general",
+      "name": "General Service",
+      "color": "var(--sw-accent)",
+      "level": 3,
+      "group": null,
+      "serviceCount": 5
+    },
+    {
+      "key": "k8s",
+      "name": "Kubernetes",
+      "color": "var(--sw-info)",
+      "level": null,
+      "group": "Kubernetes",
+      "serviceCount": 1
+    },
+    {
+      "key": "k8s_service",
+      "name": "Kubernetes Services",
+      "color": "var(--sw-purple)",
+      "level": 0,
+      "group": "Kubernetes",
+      "serviceCount": 35
+    },
+    {
+      "key": "mesh",
+      "name": "Istio Managed SVCs",
+      "color": "var(--sw-info)",
+      "level": 3,
+      "group": "Istio",
+      "serviceCount": 9
+    },
+    {
+      "key": "mesh_cp",
+      "name": "Istio Control Plane",
+      "color": "var(--sw-info)",
+      "level": null,
+      "group": "Istio",
+      "serviceCount": 1
+    },
+    {
+      "key": "mesh_dp",
+      "name": "Istio Data Plane",
+      "color": "var(--sw-info)",
+      "level": 1,
+      "group": "Istio",
+      "serviceCount": 9
+    },
+    {
+      "key": "mysql",
+      "name": "MySQL / MariaDB",
+      "color": "var(--sw-warn)",
+      "level": 2,
+      "group": "Databases",
+      "serviceCount": 1
+    },
+    {
+      "key": "postgresql",
+      "name": "PostgreSQL",
+      "color": "var(--sw-warn)",
+      "level": 2,
+      "group": "Databases",
+      "serviceCount": 1
+    },
+    {
+      "key": "so11y_go_agent",
+      "name": "Go Agent",
+      "color": "var(--sw-fg-2)",
+      "level": null,
+      "group": "Self-Observability",
+      "serviceCount": 1
+    },
+    {
+      "key": "so11y_java_agent",
+      "name": "Java Agent",
+      "color": "var(--sw-fg-2)",
+      "level": null,
+      "group": "Self-Observability",
+      "serviceCount": 2
+    },
+    {
+      "key": "so11y_oap",
+      "name": "OAP",
+      "color": "var(--sw-fg-2)",
+      "level": 3,
+      "group": "Self-Observability",
+      "serviceCount": 1
+    },
+    {
+      "key": "so11y_satellite",
+      "name": "Satellite",
+      "color": "var(--sw-fg-2)",
+      "level": null,
+      "group": "Self-Observability",
+      "serviceCount": 1
+    },
+    {
+      "key": "virtual_cache",
+      "name": "Virtual Cache",
+      "color": "var(--sw-warn)",
+      "level": null,
+      "group": "Virtual targets",
+      "serviceCount": 1
+    },
+    {
+      "key": "virtual_database",
+      "name": "Virtual Database",
+      "color": "var(--sw-warn)",
+      "level": 3,
+      "group": "Virtual targets",
+      "serviceCount": 1
+    },
+    {
+      "key": "virtual_mq",
+      "name": "Virtual MQ",
+      "color": "var(--sw-warn)",
+      "level": 3,
+      "group": "Virtual targets",
+      "serviceCount": 2
+    }
+  ],
+  "servicesByLayer": {
+    "activemq": [
+      {
+        "id": "YWN0aXZlbXE6OmFjdGl2ZW1xLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "activemq::activemq.sample-services",
+        "normal": true
+      }
+    ],
+    "browser": [
+      {
+        "id": "YWdlbnQ6OnVp.1",
+        "name": "agent::ui",
+        "normal": true
+      }
+    ],
+    "general": [
+      {
+        "id": "YWdlbnQ6OnNvbmdz.1",
+        "name": "agent::songs",
+        "normal": true
+      },
+      {
+        "id": "YWdlbnQ6OmFwcA==.1",
+        "name": "agent::app",
+        "normal": true
+      },
+      {
+        "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+        "name": "agent::gateway",
+        "normal": true
+      },
+      {
+        "id": "YWdlbnQ6OnJhdGluZw==.1",
+        "name": "agent::rating",
+        "normal": true
+      },
+      {
+        "id": "YWdlbnQ6OmZyb250ZW5k.1",
+        "name": "agent::frontend",
+        "normal": true
+      }
+    ],
+    "k8s": [
+      {
+        "id": "azhzLWNsdXN0ZXI6OnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "k8s-cluster::skywalking-showcase",
+        "normal": true
+      }
+    ],
+    "k8s_service": [
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "skywalking-showcase::songs.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vcGVudGVsZW1ldHJ5LWNvbGxlY3Rvci5za3l3YWxraW5nLXNob3djYXNl.1",
+        "name": "skywalking-showcase::demo-opentelemetry-collector.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLXdhcm0taGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+        "name": "skywalking-showcase::demo-banyandb-data-warm-headless.skywalking-showc",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWNvbGQtaGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+        "name": "skywalking-showcase::demo-banyandb-data-cold-headless.skywalking-showc",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVmYXVsdC1odHRwLWJhY2tlbmQua3ViZS1zeXN0ZW0=.1",
+        "name": "skywalking-showcase::default-http-backend.kube-system",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "skywalking-showcase::rcmd.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::demo-oap.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "skywalking-showcase::frontend.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby11aS5za3l3YWxraW5nLXNob3djYXNl.1",
+        "name": "skywalking-showcase::demo-ui.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "skywalking-showcase::activemq.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "skywalking-showcase::app.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6dmFudGFnZS1zdHVkaW8uc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::vantage-studio.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLmNlcnQtbWFuYWdlcg==.1",
+        "name": "skywalking-showcase::cert-manager.cert-manager",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+        "name": "skywalking-showcase::psql.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLWNhaW5qZWN0b3IuY2VydC1tYW5hZ2Vy.1",
+        "name": "skywalking-showcase::cert-manager-cainjector.cert-manager",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1ncnBjLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "skywalking-showcase::demo-banyandb-grpc.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "skywalking-showcase::istiod.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLXdlYmhvb2suY2VydC1tYW5hZ2Vy.1",
+        "name": "skywalking-showcase::cert-manager-webhook.cert-manager",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c2t5d2Fsa2luZy1kZW1vLWluZ3Jlc3Muc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::skywalking-demo-ingress.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1rdWJlLXN0YXRlLW1ldHJpY3Muc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::demo-kube-state-metrics.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1mb2RjLXByb3h5LWdycGMuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::demo-banyandb-fodc-proxy-grpc.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "skywalking-showcase::gateway.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::demo-satellite.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cjMuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::r3.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z3JhZmFuYS5tb25pdG9yaW5n.1",
+        "name": "skywalking-showcase::grafana.monitoring",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6bWV0cmljcy1zZXJ2ZXIua3ViZS1zeXN0ZW0=.1",
+        "name": "skywalking-showcase::metrics-server.kube-system",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+        "name": "skywalking-showcase::kube-dns.kube-system",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6bXlzcWwuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "skywalking-showcase::mysql.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "skywalking-showcase::rating.sample-services",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1odHRwLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "skywalking-showcase::demo-banyandb-http.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z3JhZmFuYS5za3l3YWxraW5nLXNob3djYXNl.1",
+        "name": "skywalking-showcase::grafana.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZWxhc3RpYy1vcGVyYXRvci13ZWJob29rLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "skywalking-showcase::elastic-operator-webhook.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWhvdC1oZWFkbGVzcy5za3l3YWxraW5nLXNob3djYQ==.1",
+        "name": "skywalking-showcase::demo-banyandb-data-hot-headless.skywalking-showca",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+        "name": "skywalking-showcase::prometheus-server.monitoring",
+        "normal": true
+      },
+      {
+        "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c3BtZGItc3JlLWFnZW50LnNyZWFnZW50.1",
+        "name": "skywalking-showcase::spmdb-sre-agent.sreagent",
+        "normal": true
+      }
+    ],
+    "mesh": [
+      {
+        "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::r3-load.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::loadgen.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::frontend.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::songs.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::rating.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::recommendation.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::app.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::gateway.sample-services",
+        "normal": true
+      }
+    ],
+    "mesh_cp": [
+      {
+        "id": "aXN0aW8tY3RybDo6c2t5d2Fsa2luZy1zaG93Y2FzZS5pc3Rpb2Q=.1",
+        "name": "istio-ctrl::skywalking-showcase.istiod",
+        "normal": true
+      }
+    ],
+    "mesh_dp": [
+      {
+        "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::r3-load.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::loadgen.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::frontend.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::songs.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::rating.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::recommendation.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::app.sample-services",
+        "normal": true
+      },
+      {
+        "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::gateway.sample-services",
+        "normal": true
+      }
+    ],
+    "mysql": [
+      {
+        "id": "bXlzcWw6Om15c3FsLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "mysql::mysql.skywalking-showcase",
+        "normal": true
+      }
+    ],
+    "postgresql": [
+      {
+        "id": "cG9zdGdyZXNxbDo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+        "name": "postgresql::psql.skywalking-showcase",
+        "normal": true
+      }
+    ],
+    "so11y_go_agent": [
+      {
+        "id": "YWdlbnQ6OnJhdGluZw==.1",
+        "name": "agent::rating",
+        "normal": true
+      }
+    ],
+    "so11y_java_agent": [
+      {
+        "id": "YWdlbnQ6OnNvbmdz.1",
+        "name": "agent::songs",
+        "normal": true
+      },
+      {
+        "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+        "name": "agent::gateway",
+        "normal": true
+      }
+    ],
+    "so11y_oap": [
+      {
+        "id": "ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "demo-oap.skywalking-showcase",
+        "normal": true
+      }
+    ],
+    "so11y_satellite": [
+      {
+        "id": "c2F0ZWxsaXRlLXNlcnZpY2U=.1",
+        "name": "satellite-service",
+        "normal": true
+      }
+    ],
+    "virtual_cache": [
+      {
+        "id": "R3VhdmFDYWNoZS1sb2NhbA==.0",
+        "name": "GuavaCache-local",
+        "normal": false
+      }
+    ],
+    "virtual_database": [
+      {
+        "id": "cHNxbC5za3l3YWxraW5nLXNob3djYXNlLnN2Yy5jbHVzdGVyLmxvY2FsOjU0MzI=.0",
+        "name": "psql.skywalking-showcase.svc.cluster.local:5432",
+        "normal": false
+      }
+    ],
+    "virtual_mq": [
+      {
+        "id": "MTAuMTAwLjIwNC4yMDY6NjE2MTY=.0",
+        "name": "10.100.204.206:61616",
+        "normal": false
+      },
+      {
+        "id": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+        "name": "10.100.200.52:61616",
+        "normal": false
+      }
+    ]
+  },
+  "hierarchy": [
+    {
+      "fromLayer": "general",
+      "fromService": {
+        "id": "YWdlbnQ6OnNvbmdz.1",
+        "name": "agent::songs",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "skywalking-showcase::songs.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::songs.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::songs.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OnNvbmdz.1",
+              "name": "agent::songs",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "general",
+      "fromService": {
+        "id": "YWdlbnQ6OmFwcA==.1",
+        "name": "agent::app",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "skywalking-showcase::app.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::app.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::app.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmFwcA==.1",
+              "name": "agent::app",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "general",
+      "fromService": {
+        "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+        "name": "agent::gateway",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "skywalking-showcase::gateway.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::gateway.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::gateway.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+              "name": "agent::gateway",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "general",
+      "fromService": {
+        "id": "YWdlbnQ6OnJhdGluZw==.1",
+        "name": "agent::rating",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "skywalking-showcase::rating.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::rating.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::rating.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OnJhdGluZw==.1",
+              "name": "agent::rating",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "general",
+      "fromService": {
+        "id": "YWdlbnQ6OmZyb250ZW5k.1",
+        "name": "agent::frontend",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "skywalking-showcase::frontend.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::frontend.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::frontend.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmZyb250ZW5k.1",
+              "name": "agent::frontend",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::r3-load.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::r3-load.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::r3-load.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::loadgen.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::loadgen.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::loadgen.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::frontend.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "skywalking-showcase::frontend.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::frontend.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmZyb250ZW5k.1",
+              "name": "agent::frontend",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::frontend.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::songs.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "skywalking-showcase::songs.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::songs.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OnNvbmdz.1",
+              "name": "agent::songs",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::songs.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::rating.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "skywalking-showcase::rating.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::rating.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OnJhdGluZw==.1",
+              "name": "agent::rating",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::rating.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+        "name": "mesh-svr::recommendation.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::recommendation.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "mesh-svr::recommendation.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+        "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c2t5d2Fsa2luZy1kZW1vLWluZ3Jlc3Muc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+              "name": "skywalking-showcase::skywalking-demo-ingress.skywalking-showcase",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+              "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+              "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+        "name": "mesh-svr::app.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+              "name": "skywalking-showcase::app.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::app.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmFwcA==.1",
+              "name": "agent::app",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "mesh-svr::app.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "mesh",
+      "fromService": {
+        "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+        "name": "mesh-svr::gateway.sample-services",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+              "name": "skywalking-showcase::gateway.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH_DP",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::gateway.sample-services",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "GENERAL",
+          "services": [
+            {
+              "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+              "name": "agent::gateway",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "MESH",
+          "services": [
+            {
+              "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+              "name": "mesh-svr::gateway.sample-services",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "so11y_oap",
+      "fromService": {
+        "id": "ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+        "name": "demo-oap.skywalking-showcase",
+        "normal": true
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+              "name": "skywalking-showcase::demo-oap.skywalking-showcase",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "SO11Y_OAP",
+          "services": [
+            {
+              "id": "ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+              "name": "demo-oap.skywalking-showcase",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "virtual_database",
+      "fromService": {
+        "id": "cHNxbC5za3l3YWxraW5nLXNob3djYXNlLnN2Yy5jbHVzdGVyLmxvY2FsOjU0MzI=.0",
+        "name": "psql.skywalking-showcase.svc.cluster.local:5432",
+        "normal": false
+      },
+      "peers": [
+        {
+          "layer": "K8S_SERVICE",
+          "services": [
+            {
+              "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+              "name": "skywalking-showcase::psql.skywalking-showcase",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "POSTGRESQL",
+          "services": [
+            {
+              "id": "cG9zdGdyZXNxbDo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+              "name": "postgresql::psql.skywalking-showcase",
+              "normal": true,
+              "role": "lower"
+            }
+          ]
+        },
+        {
+          "layer": "VIRTUAL_DATABASE",
+          "services": [
+            {
+              "id": "cHNxbC5za3l3YWxraW5nLXNob3djYXNlLnN2Yy5jbHVzdGVyLmxvY2FsOjU0MzI=.0",
+              "name": "psql.skywalking-showcase.svc.cluster.local:5432",
+              "normal": false,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "virtual_mq",
+      "fromService": {
+        "id": "MTAuMTAwLjIwNC4yMDY6NjE2MTY=.0",
+        "name": "10.100.204.206:61616",
+        "normal": false
+      },
+      "peers": [
+        {
+          "layer": "VIRTUAL_MQ",
+          "services": [
+            {
+              "id": "MTAuMTAwLjIwNC4yMDY6NjE2MTY=.0",
+              "name": "MTAuMTAwLjIwNC4yMDY6NjE2MTY=.0",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "fromLayer": "virtual_mq",
+      "fromService": {
+        "id": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+        "name": "10.100.200.52:61616",
+        "normal": false
+      },
+      "peers": [
+        {
+          "layer": "VIRTUAL_MQ",
+          "services": [
+            {
+              "id": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+              "name": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+              "normal": true,
+              "role": "self"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "topologies": {
+    "general": {
+      "nodes": [
+        {
+          "id": "VXNlcg==.0",
+          "name": "User",
+          "layer": ""
+        },
+        {
+          "id": "cHNxbC5za3l3YWxraW5nLXNob3djYXNlLnN2Yy5jbHVzdGVyLmxvY2FsOjU0MzI=.0",
+          "name": "psql.skywalking-showcase.svc.cluster.local:5432",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OnNvbmdz.1",
+          "name": "agent::songs",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OnJhdGluZw==.1",
+          "name": "agent::rating",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OmdhdGV3YXk=.1",
+          "name": "agent::gateway",
+          "layer": ""
+        },
+        {
+          "id": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+          "name": "10.100.200.52:61616",
+          "layer": ""
+        },
+        {
+          "id": "cmNtZDo4MA==.1",
+          "name": "rcmd:80",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OmFwcA==.1",
+          "name": "agent::app",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OmZyb250ZW5k.1",
+          "name": "agent::frontend",
+          "layer": ""
+        },
+        {
+          "id": "YWdlbnQ6OnVp.1",
+          "name": "agent::ui",
+          "layer": ""
+        }
+      ],
+      "calls": [
+        {
+          "source": "YWdlbnQ6OmZyb250ZW5k.1",
+          "target": "YWdlbnQ6OmFwcA==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OnNvbmdz.1",
+          "target": "cHNxbC5za3l3YWxraW5nLXNob3djYXNlLnN2Yy5jbHVzdGVyLmxvY2FsOjU0MzI=.0",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OnVp.1",
+          "target": "YWdlbnQ6OmZyb250ZW5k.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OmdhdGV3YXk=.1",
+          "target": "cmNtZDo4MA==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OmdhdGV3YXk=.1",
+          "target": "YWdlbnQ6OnNvbmdz.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OmFwcA==.1",
+          "target": "YWdlbnQ6OmdhdGV3YXk=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "YWdlbnQ6OnNvbmdz.1",
+          "target": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "VXNlcg==.0",
+          "target": "YWdlbnQ6OnNvbmdz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VXNlcg==.0",
+          "target": "YWdlbnQ6OnJhdGluZw==.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "MTAuMTAwLjIwMC41Mjo2MTYxNg==.0",
+          "target": "YWdlbnQ6OnNvbmdz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        }
+      ]
+    },
+    "mesh": {
+      "nodes": [
+        {
+          "id": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+          "name": "mesh-svr::app.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "mesh-svr::songs.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "mesh-svr::loadgen.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmRlbW8tb2FwLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "name": "mesh-svr::demo-oap.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmRlbW8tc2F0ZWxsaXRlLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "name": "mesh-svr::demo-satellite.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmFjdGl2ZW1xLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "mesh-svr::activemq.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "mesh-svr::recommendation.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmRlbW8tdWkuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "mesh-svr::demo-ui.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+          "name": "mesh-svr::rating.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnJjbWQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "mesh-svr::rcmd.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "name": "mesh-svr::skywalking-demo-ingress.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnBzcWwuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "mesh-svr::psql.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "mesh-svr::r3-load.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "mesh-svr::gateway.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "mesh-svr::frontend.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "bWVzaC1zdnI6OmdyYWZhbmEuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "mesh-svr::grafana.skywalking-showcase",
+          "layer": ""
+        }
+      ],
+      "calls": [
+        {
+          "source": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OnJjbWQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmxvYWRnZW4uc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tc2F0ZWxsaXRlLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tb2FwLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tdWkuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OnBzcWwuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OnJlY29tbWVuZGF0aW9uLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNreXdhbGtpbmctZGVtby1pbmdyZXNzLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "target": "bWVzaC1zdnI6OmdyYWZhbmEuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tc2F0ZWxsaXRlLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OmFjdGl2ZW1xLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmFwcC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tc2F0ZWxsaXRlLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tc2F0ZWxsaXRlLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmdhdGV3YXkuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OmZyb250ZW5kLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "bWVzaC1zdnI6OmRlbW8tb2FwLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "bWVzaC1zdnI6OnIzLWxvYWQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "bWVzaC1zdnI6OnJhdGluZy5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        }
+      ]
+    },
+    "k8s_service": {
+      "nodes": [
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vcGVudGVsZW1ldHJ5LWNvbGxlY3Rvci5za3l3YWxraW5nLXNob3djYXNl.1",
+          "name": "skywalking-showcase::demo-opentelemetry-collector.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLXdlYmhvb2suY2VydC1tYW5hZ2Vy.1",
+          "name": "skywalking-showcase::cert-manager-webhook.cert-manager",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "skywalking-showcase::rating.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "VW5rbm93bg==.1",
+          "name": "Unknown",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "skywalking-showcase::demo-satellite.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z3JhZmFuYS5tb25pdG9yaW5n.1",
+          "name": "skywalking-showcase::grafana.monitoring",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "name": "skywalking-showcase::kube-dns.kube-system",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWhvdC1oZWFkbGVzcy5za3l3YWxraW5nLXNob3djYQ==.1",
+          "name": "skywalking-showcase::demo-banyandb-data-hot-headless.skywalking-showca",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1ncnBjLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "name": "skywalking-showcase::demo-banyandb-grpc.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "skywalking-showcase::demo-oap.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "name": "skywalking-showcase::rcmd.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+          "name": "skywalking-showcase::psql.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "name": "skywalking-showcase::prometheus-server.monitoring",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1mb2RjLXByb3h5LWdycGMuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "name": "skywalking-showcase::demo-banyandb-fodc-proxy-grpc.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "name": "skywalking-showcase::istiod.skywalking-showcase",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWNvbGQtaGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+          "name": "skywalking-showcase::demo-banyandb-data-cold-headless.skywalking-showc",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "skywalking-showcase::songs.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "skywalking-showcase::frontend.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLmNlcnQtbWFuYWdlcg==.1",
+          "name": "skywalking-showcase::cert-manager.cert-manager",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "name": "skywalking-showcase::app.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "name": "skywalking-showcase::gateway.sample-services",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLXdhcm0taGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+          "name": "skywalking-showcase::demo-banyandb-data-warm-headless.skywalking-showc",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLWNhaW5qZWN0b3IuY2VydC1tYW5hZ2Vy.1",
+          "name": "skywalking-showcase::cert-manager-cainjector.cert-manager",
+          "layer": ""
+        },
+        {
+          "id": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+          "name": "skywalking-showcase::activemq.sample-services",
+          "layer": ""
+        }
+      ],
+      "calls": [
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLXdlYmhvb2suY2VydC1tYW5hZ2Vy.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWNvbGQtaGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLXdhcm0taGVhZGxlc3Muc2t5d2Fsa2luZy1zaG93Yw==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1kYXRhLWhvdC1oZWFkbGVzcy5za3l3YWxraW5nLXNob3djYQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1mb2RjLXByb3h5LWdycGMuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHNxbC5za3l3YWxraW5nLXNob3djYXNl.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLWNhaW5qZWN0b3IuY2VydC1tYW5hZ2Vy.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1iYW55YW5kYi1ncnBjLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Y2VydC1tYW5hZ2VyLmNlcnQtbWFuYWdlcg==.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "CLIENT",
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6aXN0aW9kLnNreXdhbGtpbmctc2hvd2Nhc2U=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1zYXRlbGxpdGUuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vYXAuc2t5d2Fsa2luZy1zaG93Y2FzZQ==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z3JhZmFuYS5tb25pdG9yaW5n.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z3JhZmFuYS5tb25pdG9yaW5n.1",
+          "target": "VW5rbm93bg==.1",
+          "detectPoints": [
+            "CLIENT"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZGVtby1vcGVudGVsZW1ldHJ5LWNvbGxlY3Rvci5za3l3YWxraW5nLXNob3djYXNl.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6ZnJvbnRlbmQuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmNtZC5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YWN0aXZlbXEuc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cHJvbWV0aGV1cy1zZXJ2ZXIubW9uaXRvcmluZw==.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6Z2F0ZXdheS5zYW1wbGUtc2VydmljZXM=.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6c29uZ3Muc2FtcGxlLXNlcnZpY2Vz.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6cmF0aW5nLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "VW5rbm93bg==.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        },
+        {
+          "source": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6a3ViZS1kbnMua3ViZS1zeXN0ZW0=.1",
+          "target": "c2t5d2Fsa2luZy1zaG93Y2FzZTo6YXBwLnNhbXBsZS1zZXJ2aWNlcw==.1",
+          "detectPoints": [
+            "SERVER"
+          ]
+        }
+      ]
+    }
+  }
+}

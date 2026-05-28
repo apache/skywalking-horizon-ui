@@ -19,6 +19,7 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import vueJsx from '@vitejs/plugin-vue-jsx';
+import { templateCompilerOptions } from '@tresjs/core';
 
 // Dev port for Vite itself. Default 9091; 9090 is commonly claimed by
 // ClashX / proxy tools, and 8080 is reserved for the legacy booster-ui
@@ -34,7 +35,15 @@ const UI_DEV_PORT = Number(process.env.UI_DEV_PORT ?? 9091);
 const BFF_PORT = Number(process.env.BFF_PORT ?? 8081);
 
 export default defineConfig({
-  plugins: [vue(), vueJsx()],
+  plugins: [
+    // TresJS's template-compiler options tell Vue that any `<Tres*>` tag
+    // (TresMesh, TresPerspectiveCamera, …) is a custom element handled
+    // by the TresJS renderer, not a Vue component. Without this Vue
+    // logs a `Failed to resolve component: TresPerspectiveCamera`
+    // warning per Tres element on the 3D Infra Map route.
+    vue({ ...templateCompilerOptions }),
+    vueJsx(),
+  ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

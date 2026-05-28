@@ -1,0 +1,167 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
+ * Zod-validated shape for `Infra3dConfig`. The HTTP route uses this on
+ * inbound PUTs; the store uses it again on its own writes (defence in
+ * depth) and on reads (so a hand-edited file with the wrong shape falls
+ * back to bundled defaults instead of crashing the UI). The schema is
+ * deliberately strict (`.strict()` everywhere) — unknown keys are an
+ * error, not a forward-compat hint, because admin saves are full-doc
+ * replacements: an extra key is almost always a typo or a stale field
+ * from a UI bug.
+ *
+ * Returns a tagged-union result rather than throwing — the validation
+ * paths above all want issue lists to render in the admin UI / logs.
+ */
+
+import { z } from 'zod';
+import type { Infra3dConfig } from './types.js';
+
+const mqeSchema = z
+  .object({
+    mqe: z.string().min(1),
+    label: z.string().min(1),
+    unit: z.string(),
+  })
+  .strict();
+
+const layerSpecSchema = z
+  .object({
+    color: z.string().min(1),
+    topology: z
+      .object({
+        server: mqeSchema.optional(),
+        client: mqeSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    load: mqeSchema.optional(),
+  })
+  .strict();
+
+const edgeStyleSchema = z
+  .object({
+    color: z.string().min(1),
+    style: z.enum(['solid', 'dashed']),
+    arrow: z.boolean(),
+  })
+  .strict();
+
+const levelSpecSchema = z
+  .object({
+    id: z.string().regex(/^[a-z][a-z0-9-]*$/, {
+      message: 'level id must be lower-kebab (a-z, 0-9, -; start with a letter)',
+    }),
+    order: z.number().int().nonnegative(),
+    label: z.string().min(1),
+    layerFilter: z.string().refine(isValidRegex, { message: 'invalid regex' }),
+    layers: z.array(z.string().min(1)),
+  })
+  .strict();
+
+const configSchema = z
+  .object({
+    filter: z
+      .object({
+        layer: z.string().refine(isValidRegex, { message: 'invalid regex' }),
+      })
+      .strict(),
+    edges: z
+      .object({
+        hierarchy: edgeStyleSchema,
+        crossLevelCall: edgeStyleSchema,
+        intraCall: edgeStyleSchema,
+      })
+      .strict(),
+    pipeline: z
+      .object({
+        metricChunkSize: z.number().int().min(1).max(50),
+        topologyConcurrency: z.number().int().min(1).max(16),
+        templateConcurrency: z.number().int().min(1).max(32),
+      })
+      .strict(),
+    unknownLayer: z
+      .object({
+        level: z.string().min(1),
+        badge: z.string(),
+      })
+      .strict(),
+    levels: z.array(levelSpecSchema).min(1),
+    layers: z.record(z.string().min(1), layerSpecSchema),
+  })
+  .strict()
+  .superRefine((cfg, ctx) => {
+    // Cross-field invariants the per-field schemas can't see.
+    const levelIds = new Set<string>();
+    for (const lvl of cfg.levels) {
+      if (levelIds.has(lvl.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate level id: ${lvl.id}`,
+          path: ['levels'],
+        });
+      }
+      levelIds.add(lvl.id);
+    }
+    if (!levelIds.has(cfg.unknownLayer.level)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `unknownLayer.level "${cfg.unknownLayer.level}" must be one of: ${Array.from(levelIds).join(', ')}`,
+        path: ['unknownLayer', 'level'],
+      });
+    }
+    // A layer can be referenced by an explicit list only once across all
+    // levels — otherwise the level membership is ambiguous.
+    const claimed = new Map<string, string>();
+    for (const lvl of cfg.levels) {
+      for (const key of lvl.layers) {
+        const k = key.toUpperCase();
+        const prev = claimed.get(k);
+        if (prev && prev !== lvl.id) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `layer ${k} claimed by both levels: ${prev}, ${lvl.id}`,
+            path: ['levels'],
+          });
+        }
+        claimed.set(k, lvl.id);
+      }
+    }
+  });
+
+function isValidRegex(s: string): boolean {
+  try {
+    new RegExp(s);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export type ValidationResult =
+  | { ok: true; value: Infra3dConfig }
+  | { ok: false; issues: string[] };
+
+export function validateInfra3dConfig(input: unknown): ValidationResult {
+  const parsed = configSchema.safeParse(input);
+  if (parsed.success) return { ok: true, value: parsed.data as Infra3dConfig };
+  const issues = parsed.error.issues.map(
+    (i) => `${i.path.join('.') || '<root>'}: ${i.message}`,
+  );
+  return { ok: false, issues };
+}

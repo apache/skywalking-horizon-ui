@@ -31,18 +31,16 @@ const { t } = useI18n();
 /** Translate the status enum for display. The wire value stays the
  *  ACTIVE/INACTIVE/BUNDLED/n/a token; only the operator-facing label
  *  swaps with the locale. */
-const statusLabel = computed<string>(() => {
-  switch (props.rule.status) {
-    case 'ACTIVE':
-      return t('active');
-    case 'INACTIVE':
-      return t('inactive');
-    case 'BUNDLED':
-      return t('bundled');
-    case 'n/a':
-      return t('n/a');
-  }
-});
+/** Status token → localized label. A keyed record (vs a switch)
+ *  returns a value directly — no dead fallback branch to satisfy the
+ *  computed-must-return lint — while TS still enforces that every
+ *  member of the status union has an entry (a drift errors here). */
+const statusLabel = computed<string>(() => ({
+  ACTIVE: t('active'),
+  INACTIVE: t('inactive'),
+  BUNDLED: t('bundled'),
+  'n/a': t('n/a'),
+}[props.rule.status]));
 
 const statusTone = computed(() => {
   switch (props.rule.status) {

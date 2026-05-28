@@ -87,6 +87,7 @@ import { LiveDebugApi } from './scopes/live-debug';
 import { InspectApi } from './scopes/inspect';
 import { OapOpsApi } from './scopes/oap-ops';
 import { AlarmsApi } from './scopes/alarms';
+import { Infra3dApi } from './scopes/infra-3d';
 import { LayerTemplatesApi } from './scopes/layer-template';
 import { ConfigsApi } from './scopes/configs';
 import { AdminAuthApi } from './scopes/admin-auth';
@@ -572,6 +573,58 @@ export interface AlarmsConfig {
   overviewAlarmsLimit: number;
 }
 
+// ── 3D Infrastructure Map admin config ───────────────────────────────
+// Mirrors `apps/bff/src/logic/infra-3d/types.ts`. Kept structurally
+// identical (no API smoothing) so the Monaco YAML editor renders the
+// exact shape persisted on disk — easier to debug field-by-field.
+
+/** MQE entry — used for topology server/client pairs AND for the
+ *  single load metric on non-topology layers. */
+export interface InfraMqe {
+  mqe: string;
+  label: string;
+  unit: string;
+}
+
+export interface InfraLayerSpec {
+  color: string;
+  topology?: { server?: InfraMqe; client?: InfraMqe };
+  load?: InfraMqe;
+}
+
+export interface InfraLevelSpec {
+  id: string;
+  order: number;
+  label: string;
+  layerFilter: string;
+  layers: string[];
+}
+
+export interface InfraEdgeStyle {
+  color: string;
+  style: 'solid' | 'dashed';
+  arrow: boolean;
+}
+
+export interface InfraPipelineLimits {
+  metricChunkSize: number;
+  topologyConcurrency: number;
+  templateConcurrency: number;
+}
+
+export interface Infra3dConfig {
+  filter: { layer: string };
+  edges: {
+    hierarchy: InfraEdgeStyle;
+    crossLevelCall: InfraEdgeStyle;
+    intraCall: InfraEdgeStyle;
+  };
+  pipeline: InfraPipelineLimits;
+  unknownLayer: { level: string; badge: string };
+  levels: InfraLevelSpec[];
+  layers: Record<string, InfraLayerSpec>;
+}
+
 type On401 = () => void;
 
 export class BffClient {
@@ -703,6 +756,7 @@ export class BffClient {
   readonly inspect = new InspectApi(this);
   readonly oapOps = new OapOpsApi(this);
   readonly alarms = new AlarmsApi(this);
+  readonly infra3d = new Infra3dApi(this);
   readonly layerTemplates = new LayerTemplatesApi(this);
   readonly configs = new ConfigsApi(this);
   readonly adminAuth = new AdminAuthApi(this);

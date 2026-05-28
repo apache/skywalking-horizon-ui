@@ -236,11 +236,22 @@ export const useSetupStore = defineStore('setup', () => {
   const bootstrapped = ref(false);
   /** Last server-known shape; used by `discard()` to revert. */
   let serverSnapshot: Record<string, LayerConfig> = {};
+  /** Set of layers whose persisted config has been reconciled against the
+   *  current bundle defaults. Each layer is reconciled exactly ONCE per
+   *  server snapshot — re-running the patches on every `ensure()` call
+   *  was unconditionally re-assigning `landing.headerColumns` (and
+   *  similar) and triggering a reactive cascade. With many components
+   *  reading `ensure(...).landing` from inside a `computed`, the cascade
+   *  hit Vue's recursive-update cap and froze the page. The bootstrap +
+   *  discard paths reset this set so the next reconciliation pass runs
+   *  against the freshly-loaded server data. */
+  const reconciledLayers = new Set<string>();
 
   function applyServerSnapshot(layers: Record<string, LayerConfig>): void {
     serverSnapshot = JSON.parse(JSON.stringify(layers));
     for (const k of Object.keys(configs)) delete configs[k];
     for (const [k, v] of Object.entries(layers)) configs[k] = JSON.parse(JSON.stringify(v));
+    reconciledLayers.clear();
     dirty.value = false;
   }
 
@@ -282,7 +293,21 @@ export const useSetupStore = defineStore('setup', () => {
     if (!cfg) {
       cfg = defaultLayerConfig(layerKey, defaults);
       configs[layerKey] = cfg;
-    } else {
+      // Freshly built from defaults — already in canonical shape.
+      reconciledLayers.add(layerKey);
+      return cfg;
+    }
+    // Reconciliation is a one-time bootstrap step per server snapshot,
+    // not a per-read action. The earlier code re-ran the reconciliation
+    // on every `ensure()` call, and several of those writes were
+    // unconditional (e.g. `cfg.landing.headerColumns = fresh...`). Since
+    // many computeds call `ensure()`, that turned every read into a
+    // reactive mutation and produced "Maximum recursive updates exceeded"
+    // in AppSidebar / LayerShell. Now we early-return for already-
+    // reconciled layers — the reactive read stays pure.
+    if (reconciledLayers.has(layerKey)) return cfg;
+    reconciledLayers.add(layerKey);
+    {
       // Reconcile stale persisted state — three issues to patch:
       //   1. caps fields added after the persisted snapshot. We fill
       //      undefined caps from the template defaults so checkbox
@@ -388,6 +413,19 @@ export const useSetupStore = defineStore('setup', () => {
   // a programmatic write from a user edit without an explicit signal.
   // → expose `markDirty` and call it from LayerSetupCard on input.
 
+  /** Side-effect-free priority read. Returns the persisted priority
+   *  for a layer when one exists, or the static default otherwise.
+   *
+   *  Critically, this MUST NOT call `ensure()` or otherwise mutate the
+   *  store. `useLandingOrder` reads priority from inside a computed —
+   *  using `ensure()` there triggered a recursive-update loop
+   *  ("Maximum recursive updates exceeded in component <AppSidebar>")
+   *  because `ensure` writes to `configs.<layer>.landing.headerColumns`
+   *  on every call, and that's a dependency of the same computed. */
+  function priorityFor(layerKey: string): number {
+    return configs[layerKey]?.landing.priority ?? defaultPriority(layerKey);
+  }
+
   return {
     // state
     configs,
@@ -401,6 +439,7 @@ export const useSetupStore = defineStore('setup', () => {
     // actions
     bootstrap,
     ensure,
+    priorityFor,
     reset,
     markDirty,
     save,

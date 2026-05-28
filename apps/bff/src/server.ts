@@ -53,6 +53,8 @@ import { registerDashboardConfigRoute } from './http/config/dashboard.js';
 import { registerLayerTemplateRoutes } from './http/config/layer-template.js';
 import { startLayerTemplateWatcher } from './logic/layers/loader.js';
 import { registerAlarmsConfigRoutes } from './http/config/alarms.js';
+import { registerInfra3dConfigRoutes } from './http/config/infra-3d.js';
+import { registerInfra3dMetricsRoute } from './http/query/infra-3d-metrics.js';
 import { registerSetupRoutes } from './http/config/setup.js';
 import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
@@ -77,6 +79,7 @@ import { registerAuthHealthRoute } from './http/auth-health.js';
 import { registerColdStageHook } from './util/duration.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
+import { Infra3dStore } from './logic/infra-3d/store.js';
 import { SetupStore } from './logic/setup/store.js';
 import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
@@ -128,6 +131,8 @@ const setupStore = new SetupStore(source.current.setup.file);
 await setupStore.load();
 const alarmsStore = new AlarmsStore(source.current.alarms.file);
 await alarmsStore.load();
+const infra3dStore = new Infra3dStore(source.current.infra3d.file);
+await infra3dStore.load();
 // Server-global service-by-layer index — shared by the sidebar menu, the
 // alarms tagger, and any other surface that needs the service ↔ layer
 // mapping. 60s TTL + single-flight dedup; one OAP fan-out per minute
@@ -194,6 +199,8 @@ registerLayerTemplateRoutes(app, { config: source, sessions });
 // would exhaust the fd ceiling on low-ulimit CI).
 if (process.env.NODE_ENV === 'development') startLayerTemplateWatcher();
 registerAlarmsConfigRoutes(app, { config: source, sessions, audit, store: alarmsStore, serviceLayer });
+registerInfra3dConfigRoutes(app, { config: source, sessions, audit, store: infra3dStore });
+registerInfra3dMetricsRoute(app, { config: source, sessions });
 registerSetupRoutes(app, { config: source, sessions, audit, store: setupStore });
 registerOverviewRoutes(app, { config: source, sessions });
 registerConfigBundleRoute(app, {
