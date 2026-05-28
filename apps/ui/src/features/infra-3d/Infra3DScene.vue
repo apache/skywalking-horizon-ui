@@ -808,6 +808,9 @@ function onNodePointerOut(node: SceneServiceNode): void {
  * safe).
  */
 function onNodeClick(node: SceneServiceNode): void {
+  // Stamp so the canvas-host pointerup handler knows a cube absorbed
+  // this gesture and must not treat the same release as an empty click.
+  lastCubeClickAt = performance.now();
   dbgBadge(`CUBE CLICKED → ${node.shortName}`, '#f97316', `(${node.layerKey})`);
   dbg('node.pointerdown', {
     shortName: node.shortName,
@@ -853,12 +856,30 @@ function nodeHandlers(node: SceneServiceNode): NodeHandlers {
   return h;
 }
 
-/** Fired by TresCanvas when a pointer event hits nothing in the
- *  scene — the pmndrs "pointer-missed" pattern. Empty-space click =
- *  clear the current selection. */
-function onPointerMissed(): void {
-  dbg('canvas.pointermissed', { selected: props.selectedNodeId });
-  emit('select', null);
+// Empty-space deselect. pmndrs `pointermissed` only fires on a true
+// void hit (the ray hits nothing) — clicking a colored zone/tier plane
+// hits the plane (raycast stays on so planes occlude cubes), so it
+// never cleared the selection. We can't add a deselect handler to the
+// planes either: operators orbit-drag FROM empty plane space to rotate
+// WITHOUT changing selection (see CLAUDE.md). So detect an empty click
+// at the DOM level on the canvas itself, with three guards:
+//   - target is the <canvas> (not a portaled <Html> overlay like the
+//     detail card — clicking the card must not deselect)
+//   - the pointer barely moved (a click, not an orbit/pan drag)
+//   - no cube absorbed this gesture (onNodeClick stamped recently)
+let lastCubeClickAt = 0;
+let pointerDownX = 0;
+let pointerDownY = 0;
+const CLICK_SLOP_PX = 5;
+function onHostPointerDown(e: PointerEvent): void {
+  pointerDownX = e.clientX;
+  pointerDownY = e.clientY;
+}
+function onHostPointerUp(e: PointerEvent): void {
+  if ((e.target as HTMLElement | null)?.tagName !== 'CANVAS') return;
+  if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > CLICK_SLOP_PX) return;
+  if (performance.now() - lastCubeClickAt < 120) return;
+  if (props.selectedNodeId !== null) emit('select', null);
 }
 
 // Diagnostic — fires whenever the parent updates `selectedNodeId`.
@@ -1116,13 +1137,17 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="canvasHostEl" class="canvas-host">
+  <div
+    ref="canvasHostEl"
+    class="canvas-host"
+    @pointerdown="onHostPointerDown"
+    @pointerup="onHostPointerUp"
+  >
     <TresCanvas
       clear-color="#0a0d12"
       :antialias="true"
       power-preference="high-performance"
       @loop="onSceneLoop"
-      @pointermissed="onPointerMissed"
     >
       <TresPerspectiveCamera
         ref="cameraRef"
