@@ -675,13 +675,17 @@ const visibleServices = computed(() => {
            SkyWalking product identity. No link / no chrome; pure
            identification so an operator opening the page mid-incident
            still knows where they are. -->
-      <a class="sw-brand" href="/" title="Back to Horizon">
+      <!-- router-link, not a bare <a href="/">: a hardcoded "/" ignores
+           the router base (import.meta.env.BASE_URL) and full-reloads to
+           the server root, which lands on an empty page under a gateway
+           sub-path. router-link prepends the base and stays in-SPA. -->
+      <router-link class="sw-brand" to="/" title="Back to Horizon">
         <span class="sw-brand-logo" v-html="logoSw" />
         <span class="sw-brand-text">
           <span class="sw-brand-line1">Apache SkyWalking</span>
           <span class="sw-brand-line2">Horizon · 3D Infra Map</span>
         </span>
-      </a>
+      </router-link>
 
     </div>
   </div>

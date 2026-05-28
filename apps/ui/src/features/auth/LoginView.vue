@@ -91,8 +91,11 @@ async function submit(): Promise<void> {
     const ok = await auth.login(username.value, password.value);
     if (ok) {
       const raw = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-      const landing = auth.user?.landingRoute ?? '/';
-      const redirect = raw && raw !== '/login' ? raw : landing;
+      // `||` not `??`: landingRoute can be an empty string, which would
+      // otherwise push('') → an empty address. Belt-and-suspenders final
+      // fallback too.
+      const landing = auth.user?.landingRoute || '/';
+      const redirect = (raw && raw !== '/login' ? raw : landing) || '/';
       await router.push(redirect);
     }
   } finally {
