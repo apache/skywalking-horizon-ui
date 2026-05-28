@@ -531,20 +531,6 @@ function hoverMaterial(hex: string): MeshLambertMaterial {
 }
 const selectedMat = new MeshLambertMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.85 });
 
-// Alarm marker — the top ~20% of an alarmed cube is capped in red.
-// The cube is 1.0 tall, so a 0.22-high flat box at its crown reads as
-// "the top fifth is red". Footprint is a hair larger than the cube
-// (1.32 vs 1.3) so the cap's sides clear the cube faces without
-// z-fighting, and it sits just above the cube's top face. Static red,
-// no pulse — the alert is a state, not an animation; the cube keeps
-// its layer color below the cap.
-const alarmCapGeometry = new BoxGeometry(1.32, 0.22, 1.32);
-const alarmCapMat = new MeshLambertMaterial({
-  color: 0xef4444,
-  emissive: 0xef4444,
-  emissiveIntensity: 0.5,
-});
-
 // Alarm ripple — a radar / seismic wave radiating out from an alarmed
 // cube across its plane. RIPPLE_PHASES concentric red rings expand and
 // fade on staggered phases so the waves read as a continuous outward
@@ -1203,8 +1189,6 @@ onUnmounted(() => {
   crossArrowMat.dispose();
   hierarchyMat.dispose();
   crossArrowGeometry.dispose();
-  alarmCapGeometry.dispose();
-  alarmCapMat.dispose();
   rippleGeometry.dispose();
   for (const m of rippleMats) m.dispose();
   for (const m of iconStampMaterials.values()) m.dispose();
@@ -1314,20 +1298,6 @@ onUnmounted(() => {
               : nodeMaterial(n.colorHex)
           "
         />
-      </TresMesh>
-
-      <!-- Alarm cap — the top ~20% of an alarmed cube, painted red. The
-           cube keeps its layer color below; the red crown is the alert
-           signal. raycast disabled (it sits on the cube top and would
-           otherwise steal clicks aimed at the cube). -->
-      <TresMesh
-        v-for="n in alarmedNodes"
-        :key="`alarmcap:${n.node.nodeId}`"
-        :position="[n.pos.x, n.pos.y + 0.95, n.pos.z]"
-        :ref="(el) => disableRaycast(el)"
-      >
-        <primitive :object="alarmCapGeometry" />
-        <primitive :object="alarmCapMat" />
       </TresMesh>
 
       <!-- Alarm ripples — concentric red rings radiating across the
