@@ -40,8 +40,10 @@ import {
   DoubleSide,
   MeshBasicMaterial,
   MeshLambertMaterial,
+  type Object3D,
   PerspectiveCamera,
   Quaternion,
+  RingGeometry,
   SphereGeometry,
   type Texture,
   TubeGeometry,
@@ -543,6 +545,32 @@ const alarmCapMat = new MeshLambertMaterial({
   emissiveIntensity: 0.5,
 });
 
+// Alarm ripple — a radar / seismic wave radiating out from an alarmed
+// cube across its plane. RIPPLE_PHASES concentric red rings expand and
+// fade on staggered phases so the waves read as a continuous outward
+// pulse. The rings are driven DIRECTLY on the THREE meshes in
+// onSceneLoop (TresJS copies Vector3 props on patch, so a reactive
+// scale binding wouldn't animate per frame) — the same direct-mutation
+// approach the camera and the old beacon pulse use. One shared material
+// per phase (opacity animated); the per-ring scale is set on each mesh.
+const RIPPLE_PHASES = 3;
+const RIPPLE_PERIOD = 3.2; // seconds for a ring to travel fully out
+const RIPPLE_MIN_SCALE = 0.9;
+const RIPPLE_MAX_SCALE = 4.2;
+const RIPPLE_MAX_OPACITY = 0.5;
+const rippleGeometry = new RingGeometry(0.6, 0.78, 44);
+const rippleMats = Array.from(
+  { length: RIPPLE_PHASES },
+  () =>
+    new MeshBasicMaterial({
+      color: 0xef4444,
+      transparent: true,
+      opacity: 0,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
+);
+
 /** Intra-layer call edge — calls between two services in the same
  *  layer. The previous dark gray (#5b6373, 0.5 opacity) read as
  *  "broken / barely there" on the dark scene background. Switched to
@@ -645,6 +673,40 @@ function rebuildPackets(): void {
 }
 watch(visibleCallEdges, rebuildPackets, { immediate: true });
 
+// One ripple entry per (alarmed cube × phase). `pos` is the ring's
+// anchor on the plane (static — the cube doesn't move); `mesh` is the
+// live THREE mesh captured via the template ref so onSceneLoop can set
+// its scale each frame.
+interface AlarmRipple {
+  pos: [number, number, number];
+  phase: number;
+  mesh: Object3D | null;
+}
+const alarmRipples = shallowRef<AlarmRipple[]>([]);
+function rebuildAlarmRipples(): void {
+  const out: AlarmRipple[] = [];
+  for (const n of alarmedNodes.value) {
+    for (let p = 0; p < RIPPLE_PHASES; p++) {
+      out.push({ pos: [n.pos.x, n.pos.y + 0.03, n.pos.z], phase: p, mesh: null });
+    }
+  }
+  alarmRipples.value = out;
+}
+watch(alarmedNodes, rebuildAlarmRipples, { immediate: true });
+function bindRipple(r: AlarmRipple, el: unknown): void {
+  if (!el) {
+    r.mesh = null;
+    return;
+  }
+  const obj = (el as { isObject3D?: boolean }).isObject3D
+    ? (el as Object3D)
+    : (el as { value?: { isObject3D?: boolean } }).value?.isObject3D
+      ? (el as { value: Object3D }).value
+      : null;
+  r.mesh = obj;
+  if (obj) obj.raycast = _noopRaycast;
+}
+
 // ── Frame loop: animate packets + lerp the orbit controls' target
 // toward the caller's focus target (when the operator clicks a node
 // or a zone). Also recomputes which zone labels overflow their
@@ -724,6 +786,17 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   for (const p of packets.value) {
     const t = ((ctx.elapsed / period) + p.phase) % 1;
     p.curve.getPoint(t, p.pos);
+  }
+  // Alarm ripples — expand + fade each phase's ring; the shared
+  // per-phase material carries the opacity, each ring mesh its scale.
+  if (alarmRipples.value.length > 0) {
+    const scaleByPhase: number[] = [];
+    for (let p = 0; p < RIPPLE_PHASES; p++) {
+      const t = ((ctx.elapsed / RIPPLE_PERIOD) + p / RIPPLE_PHASES) % 1;
+      scaleByPhase[p] = RIPPLE_MIN_SCALE + t * (RIPPLE_MAX_SCALE - RIPPLE_MIN_SCALE);
+      rippleMats[p]!.opacity = (1 - t) * RIPPLE_MAX_OPACITY;
+    }
+    for (const r of alarmRipples.value) r.mesh?.scale.setScalar(scaleByPhase[r.phase]!);
   }
   // Focus lerp — write straight into the live OrbitControls.target so
   // the move sticks even when the operator mouses on top of it. We
@@ -1132,6 +1205,8 @@ onUnmounted(() => {
   crossArrowGeometry.dispose();
   alarmCapGeometry.dispose();
   alarmCapMat.dispose();
+  rippleGeometry.dispose();
+  for (const m of rippleMats) m.dispose();
   for (const m of iconStampMaterials.values()) m.dispose();
   disposeLayerIconTextures();
   for (const t of callTubes.value) t.geometry.dispose();
@@ -1253,6 +1328,21 @@ onUnmounted(() => {
       >
         <primitive :object="alarmCapGeometry" />
         <primitive :object="alarmCapMat" />
+      </TresMesh>
+
+      <!-- Alarm ripples — concentric red rings radiating across the
+           plane from each alarmed cube (radar / seismic pulse). Scale
+           is driven per-frame on the THREE mesh in onSceneLoop; raycast
+           disabled so the flat rings never absorb cube clicks. -->
+      <TresMesh
+        v-for="(r, ri) in alarmRipples"
+        :key="`ripple:${ri}`"
+        :position="r.pos"
+        :rotation="[-Math.PI / 2, 0, 0]"
+        :ref="(el) => bindRipple(r, el)"
+      >
+        <primitive :object="rippleGeometry" />
+        <primitive :object="rippleMats[r.phase]" />
       </TresMesh>
 
       <!-- Traffic chip — small numeric pill that LIVES WITH its cube.
