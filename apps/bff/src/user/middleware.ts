@@ -60,6 +60,20 @@ export function requireAuth(deps: AuthDeps) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
     req.session = session;
+    // Sliding session: touch() just slid the server-side TTL, so
+    // re-stamp the cookie's maxAge to match. The cookie's expiry was
+    // set only at login, so without this an actively-used session still
+    // expires in the browser at login + ttl while the server believes
+    // it's alive — the user is logged out mid-session. Mirror the login
+    // cookie options exactly so only maxAge slides.
+    const s = deps.config.current.session;
+    reply.setCookie(s.cookieName, sid, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: s.cookieSecure,
+      path: '/',
+      maxAge: s.ttlMinutes * 60,
+    });
   };
 }
 
