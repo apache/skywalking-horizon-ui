@@ -22,7 +22,7 @@
     "endpointDependency": false,
     "topology": true,
     "traces": false,
-    "logs": true,
+    "logs": false,
     "ebpfProfiling": true
   },
   "layer-header": {
