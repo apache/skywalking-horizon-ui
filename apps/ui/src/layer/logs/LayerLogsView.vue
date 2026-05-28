@@ -1540,7 +1540,8 @@ function jumpToTrace(traceId: string, ts?: number): void {
 }
 .lg-popout {
   width: min(1100px, 92vw);
-  max-height: 86vh;
+  min-height: 70vh;
+  max-height: 92vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
