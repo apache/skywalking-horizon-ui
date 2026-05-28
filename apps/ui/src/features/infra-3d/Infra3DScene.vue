@@ -76,8 +76,8 @@ import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMe
 
 interface Props {
   /** Ordered (top-down) list of planes from the admin config. Drives
-   *  vertical stacking AND label rendering; passed as a prop so the
-   *  Scene stays a pure render of whatever the parent resolved. */
+   *  vertical stacking; passed as a prop so the Scene stays a pure
+   *  render of whatever the parent resolved. */
   planeOrder: PlaneSpec[];
   visibleLayers: Set<string>;
   hoveredNodeId: string | null;
@@ -602,6 +602,20 @@ const hierarchyTubes = computed(() =>
     geometry: new TubeGeometry(e.curve, 24, 0.07, 8, false),
   })),
 );
+
+// Each tube computed mints a fresh TubeGeometry per edge on every
+// recompute (a layer visibility toggle or selection change re-runs the
+// `visible*Edges` deps). The old GPU buffers are otherwise abandoned —
+// only the *current* batch was freed, on unmount. Free the previous
+// batch when the set changes; flush:'post' so the new geometries have
+// already rendered and the old meshes are detached before we dispose.
+function disposeTubeBatch(batch: ReadonlyArray<{ geometry: TubeGeometry }>): void {
+  for (const t of batch) t.geometry.dispose();
+}
+watch(callTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
+watch(crossTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
+watch(verticalTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
+watch(hierarchyTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
 
 const crossArrowGeometry = new ConeGeometry(0.18, 0.5, 10);
 
@@ -1415,26 +1429,6 @@ onUnmounted(() => {
 </style>
 
 <style>
-.plane-label {
-  display: flex;
-  align-items: center;
-  padding: 4px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--sw-fg-0);
-  background: rgba(15, 19, 26, 0.93);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 5px;
-  white-space: nowrap;
-  transform: translateX(-100%);
-  pointer-events: none;
-}
-.plane-label[data-plane='apps']  { border-color: rgba(249, 115, 22, 0.65); color: #fb923c; }
-.plane-label[data-plane='mesh']  { border-color: rgba(168, 85, 247, 0.65); color: #c084fc; }
-.plane-label[data-plane='infra'] { border-color: rgba(34, 197, 94, 0.65); color: #4ade80; }
-
 /* NOTE: pointer-events on cientos <Html> wrappers is set via the
    component's `pointer-events="none"` prop (NOT a CSS class). Cientos
    applies `pointerEvents` as an INLINE style on the wrapper, which

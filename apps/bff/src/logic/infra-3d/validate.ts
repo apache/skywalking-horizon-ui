@@ -90,7 +90,11 @@ const configSchema = z
       .strict(),
     pipeline: z
       .object({
-        metricChunkSize: z.number().int().min(1).max(50),
+        // Cap matches the metrics route's MAX_SERVICES (infra-3d-metrics.ts):
+        // each metric chunk is one GraphQL request, and OAP's complexity
+        // ceiling 5xx's beyond 12 services. A larger chunk size makes every
+        // oversized request fail, so reject it at config-save time.
+        metricChunkSize: z.number().int().min(1).max(12),
         topologyConcurrency: z.number().int().min(1).max(16),
         templateConcurrency: z.number().int().min(1).max(32),
       })

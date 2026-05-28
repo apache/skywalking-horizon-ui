@@ -726,7 +726,9 @@ function edgeRef(key: 'hierarchy' | 'crossLevelCall' | 'intraCall'): InfraEdgeSt
           <div class="sect-body">
             <label class="field">
               <span class="lbl">metricChunkSize</span>
-              <input type="number" class="inp" v-model.number="draft.pipeline.metricChunkSize" min="1" max="50" />
+              <!-- Capped at 12: the BFF metrics route (MAX_SERVICES) rejects
+                   larger chunks — OAP's GraphQL complexity ceiling 5xx's. -->
+              <input type="number" class="inp" v-model.number="draft.pipeline.metricChunkSize" min="1" max="12" />
             </label>
             <label class="field">
               <span class="lbl">topologyConcurrency</span>

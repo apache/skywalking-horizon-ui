@@ -71,6 +71,10 @@ const focusTarget = ref<{ x: number; y: number; z: number } | null>(null);
 // bundled defaults are in hand.
 const { config: infraConfig, levelsOrdered, ensureLoaded, levelForLayer } = useInfra3dConfig();
 const ready = ref(false);
+// Set when the config fetch rejects (OAP/BFF offline, or a role without
+// `infra-3d:read`). Without this the page sat on "Loading…" forever —
+// the operator couldn't tell a slow load from a hard failure.
+const configError = ref<string | null>(null);
 
 // Resolver + plane order are bound to the loaded config; both are
 // passed into the Scene AND used to build the local placement copy
@@ -459,10 +463,16 @@ function onKeyDown(e: KeyboardEvent): void {
 // pan + arrow keys / WASD work without any chrome to fight.
 onMounted(async () => {
   window.addEventListener('keydown', onKeyDown);
-  // Fetch the admin config; gate scene mount on success. A failure
-  // (offline / 401) leaves `ready` false and the operator sees the
-  // load message — no broken-render between 3-plane and 4-plane.
-  await ensureLoaded();
+  // Fetch the admin config; gate scene mount on success. On failure
+  // (offline / 401 from a role without infra-3d:read) surface the
+  // reason instead of hanging on the load message — no broken-render
+  // between 3-plane and 4-plane.
+  try {
+    await ensureLoaded();
+  } catch (err) {
+    configError.value = err instanceof Error ? err.message : String(err);
+    return;
+  }
   ready.value = true;
   // Kick the loading pipeline once. Subsequent runs are operator-
   // initiated (timeline strip's refresh button).
@@ -518,7 +528,13 @@ const visibleServices = computed(() => {
     </header>
 
     <div class="canvas-shell">
-      <div v-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
+      <div v-if="configError" class="cfg-error">
+        <strong>Couldn’t load the 3D map.</strong>
+        <span class="cfg-error__detail">{{ configError }}</span>
+        <span class="cfg-error__hint">Check that OAP is reachable and your role has 3D Infra Map access (<code>infra-3d:read</code>).</span>
+        <router-link class="cfg-error__back" to="/">← Back</router-link>
+      </div>
+      <div v-else-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
       <Infra3DScene
         v-else
         ref="sceneRef"
@@ -757,6 +773,24 @@ const visibleServices = computed(() => {
   letter-spacing: 0.02em;
   color: var(--sw-fg-3);
 }
+.cfg-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--sw-fg-1);
+}
+.cfg-error strong { color: var(--sw-err); font-size: 13px; }
+.cfg-error__detail { color: var(--sw-fg-2); font-family: var(--sw-font-mono, monospace); font-size: 11px; }
+.cfg-error__hint { color: var(--sw-fg-3); max-width: 420px; line-height: 1.5; }
+.cfg-error__back { margin-top: 6px; color: var(--sw-accent); text-decoration: none; }
+.cfg-error__back:hover { text-decoration: underline; }
 .pipeline-strip {
   position: absolute;
   left: 0;
