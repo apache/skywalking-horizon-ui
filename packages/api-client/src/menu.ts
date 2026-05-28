@@ -58,6 +58,10 @@ export interface LayerCaps {
   networkProfiling?: boolean;
   /** Go pprof integration. */
   pprofProfiling?: boolean;
+  /** On-demand Kubernetes pod logs — live-tail a pod's container logs
+   *  fetched on demand from the K8s API (never persisted). Gates the
+   *  per-layer "Pod Logs" tab; only K8s-deployed layers set it. */
+  podLogs?: boolean;
   events?: boolean;
   /** Bundle a dedicated square tile per layer on the Overview strip,
    *  showing live service count. When on, regular tiles drop the

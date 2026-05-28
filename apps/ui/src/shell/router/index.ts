@@ -73,6 +73,9 @@ function layerRoute(): RouteRecordRaw {
       // this path regardless of source.
       { path: 'zipkin-trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
+      // On-demand pod logs (live tail). Instance-pinned; only K8s-
+      // deployed layers (caps.podLogs) surface the tab in the sidebar.
+      { path: 'pod-logs', component: () => import('@/layer/pod-logs/LayerPodLogsView.vue') },
       { path: 'trace-profiling', component: () => import('@/layer/profiling/LayerTraceProfilingView.vue') },
       { path: 'ebpf-profiling', component: () => import('@/layer/profiling/LayerEBPFProfilingView.vue') },
       { path: 'async-profiling', component: () => import('@/layer/profiling/LayerAsyncProfilingView.vue') },

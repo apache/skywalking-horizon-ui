@@ -204,6 +204,10 @@ const TIME_RANGE_OPT_OUT = [
   // operator is mid-investigation. Block the global picker + pause the
   // auto-refresher whenever the operator is on a Logs tab.
   /^\/layer\/[^/]+\/logs$/,
+  // Pod Logs is a live tail driven by its own interval poll — the
+  // global ticker would double-fire and the page has no rolling window
+  // to refresh. Pause it while on the Pod Logs tab.
+  /^\/layer\/[^/]+\/pod-logs$/,
   // Alarms is a triage view — auto-refresh shifts the visible window
   // out from under any selection / brush the operator is making, and
   // we already chunk the traffic backfill ourselves with explicit

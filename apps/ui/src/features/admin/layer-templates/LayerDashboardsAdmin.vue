@@ -485,6 +485,16 @@ const dirty = computed(() => {
   return JSON.stringify(draft.template) !== loadedSnapshot.value;
 });
 
+/** Editor content differs from the publish target (remote) — gates Save
+ *  so "Reset to bundled" (pristine-vs-load, `dirty=false`) is still
+ *  publishable when bundled ≠ remote. Key-stable to ignore key order. */
+const editorDiffersFromRemote = computed<boolean>(() => {
+  if (!draft.template) return false;
+  const remote = sources.remote<AdminLayerTemplate>(editName.value);
+  if (!remote) return true;
+  return stableStringify(draft.template) !== stableStringify(remote);
+});
+
 function widgetsFor(scope: AdminScope): DashboardWidget[] {
   const tpl = draft.template;
   if (!tpl) return [];
@@ -1226,6 +1236,7 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer.' },
   { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
   { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
+  { key: 'podLogs', label: 'Pod Logs', hint: 'On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.' },
   { key: 'traceProfiling', label: 'Trace Profiling', hint: 'Trace-driven thread profiling — the original SkyWalking profile.' },
   { key: 'ebpfProfiling', label: 'eBPF Profiling', hint: 'Kernel-level CPU / off-CPU profiling via eBPF agents.' },
   { key: 'asyncProfiling', label: 'Async Profiling', hint: 'JVM async-profiler integration (Java-only).' },
@@ -1254,6 +1265,9 @@ const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
   topology: 'topology',
   traces: 'trace',
   logs: 'logs',
+  // Pod Logs has no editable widget grid — filler to satisfy the
+  // exhaustive Record; the menu-preview click no-ops for it.
+  podLogs: 'logs',
   traceProfiling: 'traceProfiling',
   ebpfProfiling: 'ebpfProfiling',
   asyncProfiling: 'asyncProfiling',
@@ -1647,7 +1661,6 @@ const namingTest = computed<NamingTestResult>(() => {
               </button>
             </div>
             <div class="actions">
-              <span v-if="saveMsg" class="save-msg">{{ saveMsg }}</span>
               <!-- Source pill — three visible states, one per
                    `editorSource`. The pill is gated on
                    `sourcesReady` to suppress the flash on initial
@@ -1738,13 +1751,17 @@ const namingTest = computed<NamingTestResult>(() => {
               <button
                 class="sw-btn is-primary"
                 type="button"
-                :disabled="!dirty || isSaving"
+                :disabled="(!dirty && !editorDiffersFromRemote) || isSaving"
                 title="Save the editor to your browser (local). Publish later with “Push local → OAP”."
                 @click="save"
               >
                 {{ isSaving ? 'Saving…' : 'Save (local)' }}
               </button>
             </div>
+          </div>
+          <!-- Own row so a long flash never overlaps the action cluster. -->
+          <div v-if="saveMsg" class="save-msg-row">
+            <span class="save-msg">{{ saveMsg }}</span>
           </div>
           <!-- Sidebar placement: `public` (default) → regular Layers
                section. `operate` → operations block (alongside Cluster,
@@ -3284,6 +3301,7 @@ const namingTest = computed<NamingTestResult>(() => {
 .confirm-msg { margin: 0; font-size: 13px; line-height: 1.55; color: var(--sw-fg-1); }
 .push-diff { height: 50vh; min-height: 320px; border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; }
 .actions .sw-btn[disabled] { opacity: 0.4; pointer-events: none; }
+.save-msg-row { display: flex; justify-content: flex-end; }
 .save-msg {
   font-size: 11px;
   color: var(--sw-ok);

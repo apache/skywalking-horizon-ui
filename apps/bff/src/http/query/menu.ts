@@ -44,6 +44,20 @@ import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.j
  * consults. We expand a few aliases (service ⇒ no separate cap; the
  * components flag is the source of truth for whether the page exists).
  */
+/** Fill component flags the live template omits from the bundled one, so
+ *  a newly-shipped capability surfaces on an OAP whose stored template
+ *  predates it (no re-push needed). Flags the live template defines
+ *  (true OR false) are kept; bundled only fills `undefined` keys. */
+function mergeComponentFallback(rawKey: string, live: LayerComponentFlags): LayerComponentFlags {
+  const bundled = getLayerTemplate(rawKey)?.components;
+  if (!bundled) return live;
+  const merged: LayerComponentFlags = { ...live };
+  for (const [k, v] of Object.entries(bundled) as [keyof LayerComponentFlags, boolean][]) {
+    if (merged[k] === undefined) merged[k] = v;
+  }
+  return merged;
+}
+
 function componentsToCaps(components: LayerComponentFlags): LayerCaps {
   return {
     dashboards: components.service !== false,
@@ -60,6 +74,7 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     asyncProfiling: !!components.asyncProfiling,
     networkProfiling: !!components.networkProfiling,
     pprofProfiling: !!components.pprofProfiling,
+    podLogs: !!components.podLogs,
     events: false,
     // Bundled service-count tile defaults on — every layer benefits
     // from the headline count, and operators can opt out per-layer
@@ -273,7 +288,9 @@ function deriveLayer(
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
       slots: tpl.slots,
-      caps: componentsToCaps(tpl.components),
+      // Bundled fills component flags the live template omits (see
+      // mergeComponentFallback) — scoped to caps, not widgets/metrics.
+      caps: componentsToCaps(mergeComponentFallback(rawKey, tpl.components)),
       header: tpl.header,
       metrics: tpl.metrics,
       overview: tpl.overview,
