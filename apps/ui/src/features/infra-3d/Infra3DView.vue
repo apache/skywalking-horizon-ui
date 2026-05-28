@@ -1,0 +1,1017 @@
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!--
+  Infra3DView — the /3d/map page chrome around the WebGL scene.
+
+  Three planes (apps / service mesh / infra), each with per-layer
+  colored zones. The side panel lists layers grouped by plane so the
+  operator can toggle whole tiers or individual zones.
+-->
+<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref } from 'vue';
+import Infra3DScene from './Infra3DScene.vue';
+import PipelineTimeline from './PipelineTimeline.vue';
+import {
+  buildSceneGraph,
+  loadDemoTopology,
+  type SceneServiceNode,
+} from './composables/useDemoTopology';
+import {
+  computePlacement,
+  type PlaneSpec,
+  type PlanePlacement,
+  type ZonePlacement,
+} from './composables/useScenePlacement';
+import logoSw from '@/assets/icons/logo-sw.svg?raw';
+import { useInfra3dConfig } from './composables/useInfra3dConfig';
+import { useInfra3dPipeline, type PipelineStageId, type StageImpl } from './composables/useInfra3dPipeline';
+import { setValues as setMetricValues, setUnitForLayer, reset as resetMetrics } from './composables/useInfra3dMetrics';
+import { bff, type Infra3dConfig } from '@/api/client';
+
+/** Imperative handle on the scene's camera-control methods. The
+ *  top-left toolbar buttons go through this ref so the toolbar is
+ *  decoupled from the WebGL plumbing — Scene owns the camera, View
+ *  owns the chrome that drives it. */
+interface SceneHandle {
+  zoom: (factor: number) => void;
+  rotateY: (degrees: number) => void;
+  pan: (rightAmount: number, upAmount: number) => void;
+  resetView: () => void;
+}
+const sceneRef = ref<SceneHandle | null>(null);
+
+const planes = ref<PlanePlacement[]>([]);
+const zones = ref<ZonePlacement[]>([]);
+const nodesByLayer = ref<Record<string, SceneServiceNode[]>>({});
+const visibleLayers = ref<Set<string>>(new Set());
+/** Where the orbit camera should look. Updated when the user selects
+ *  a service node (recenters on the node) or clicks a layer label /
+ *  side-panel row (recenters on the zone's center). The scene lerps
+ *  toward this each frame so the camera glides rather than teleports. */
+const focusTarget = ref<{ x: number; y: number; z: number } | null>(null);
+
+// Admin config gates the scene mount — the build-graph pass below is
+// config-aware (level resolver, plane order, per-layer color) and
+// running it before the config resolves would freeze the 3-plane
+// fallback into the rendered layout. `ready` flips once the BFF /
+// bundled defaults are in hand.
+const { config: infraConfig, levelsOrdered, ensureLoaded, levelForLayer } = useInfra3dConfig();
+const ready = ref(false);
+
+// Resolver + plane order are bound to the loaded config; both are
+// passed into the Scene AND used to build the local placement copy
+// the side panel needs for layer-focus.
+const planeOrder = computed<PlaneSpec[]>(() =>
+  (levelsOrdered.value ?? []).map((lvl) => ({ id: lvl.id, label: lvl.label })),
+);
+
+
+// ── Loading pipeline ─────────────────────────────────────────────────
+// Five-stage state machine fed by the existing static demo topology
+// today; stage 5 (metrics) is a stub awaiting the live MQE wire-up.
+// The timeline strip subscribes to the same shared state so the
+// operator sees stage transitions as they happen.
+const { stages, stageOrder, running: pipelineRunning, run: runPipelineState } = useInfra3dPipeline();
+
+interface PipelineCtx {
+  servicesByLayer: Record<string, SceneServiceNode[]>;
+}
+const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
+  services: async (rep, ctx) => {
+    rep.start();
+    const topo = loadDemoTopology();
+    const byLayer: Record<string, SceneServiceNode[]> = {};
+    let total = 0;
+    for (const L of topo.layers) {
+      const list = (topo.servicesByLayer[L.key] ?? []).map((s) => ({
+        nodeId: `${L.key.toUpperCase()}::${s.id}`,
+        layerKey: L.key,
+        serviceId: s.id,
+        name: s.name,
+        shortName: s.name.split('::').slice(-1)[0]!.split('.')[0]!,
+        normal: s.normal,
+      }));
+      if (list.length > 0) byLayer[L.key] = list;
+      total += list.length;
+    }
+    ctx.servicesByLayer = byLayer;
+    rep.ok(`${total} services / ${Object.keys(byLayer).length} layers`, {
+      kind: 'services',
+      servicesTotal: total,
+      layersTotal: Object.keys(byLayer).length,
+      addedSince: null,
+      removedSince: null,
+    });
+  },
+  templates: async (rep, _ctx) => {
+    rep.start();
+    const topo = loadDemoTopology();
+    const withTopology: string[] = [];
+    const withoutTopology: string[] = [];
+    for (const L of topo.layers) {
+      const t = topo.topologies?.[L.key];
+      if (t && t.calls.length > 0) withTopology.push(L.key);
+      else withoutTopology.push(L.key);
+    }
+    rep.ok(`${withTopology.length} with topology`, {
+      kind: 'templates',
+      layersWithTopology: withTopology,
+      layersWithoutTopology: withoutTopology,
+    });
+  },
+  topologies: async (rep, _ctx) => {
+    rep.start();
+    const topo = loadDemoTopology();
+    const probes = Object.entries(topo.topologies ?? {}).map(([layerKey, t]) => ({
+      layerKey,
+      status: (t.calls.length > 0 ? 'ok' : 'empty') as 'ok' | 'empty',
+      ms: 0,
+      nodeCount: t.nodes.length,
+      edgeCount: t.calls.length,
+    }));
+    rep.ok(`${probes.filter((p) => p.status === 'ok').length} topologies`, {
+      kind: 'topologies',
+      probes,
+    });
+  },
+  layout: async (rep, _ctx) => {
+    rep.start();
+    const t0 = performance.now();
+    // The scene rebuilds placement on its own; we just measure the cost.
+    const topo = loadDemoTopology();
+    const g = buildSceneGraph(topo, levelForLayer);
+    const p = computePlacement(g, planeOrder.value);
+    const ms = Math.round(performance.now() - t0);
+    rep.ok(`${p.zones.length} zones laid in ${ms} ms`, {
+      kind: 'layout',
+      layersReLaid: p.zones.length,
+      ms,
+    });
+  },
+  metrics: async (rep, ctx) => {
+    rep.start();
+    resetMetrics();
+    const cfg = infraConfig.value as Infra3dConfig | null;
+    if (!cfg) {
+      rep.warn('config not loaded', {
+        kind: 'metrics', servicesTotal: 0, servicesDone: 0,
+        chunkIndex: 0, chunkTotal: 0, currentLevel: null,
+      });
+      return;
+    }
+    const chunkSize = Math.max(1, cfg.pipeline.metricChunkSize);
+
+    // Resolve each service to its (mqe, layer, normal). Server-side
+    // preferred for topology layers, client-side fallback, then `load`
+    // for non-topology layers. Services whose layer has no MQE
+    // configured are skipped — their cube renders without a chip.
+    interface FetchUnit { name: string; layer: string; normal: boolean; mqe: string; nodeKey: string }
+    const units: FetchUnit[] = [];
+    for (const [layerKey, nodes] of Object.entries(ctx.servicesByLayer)) {
+      const upperLayer = layerKey.toUpperCase();
+      const spec = cfg.layers[upperLayer];
+      if (!spec) continue;
+      const mqe = spec.topology?.server ?? spec.topology?.client ?? spec.load ?? null;
+      if (!mqe) continue;
+      setUnitForLayer(upperLayer, mqe.unit);
+      for (const n of nodes) {
+        units.push({
+          name: n.name,
+          layer: upperLayer,
+          normal: n.normal,
+          mqe: mqe.mqe,
+          nodeKey: `${upperLayer}::${n.name}`,
+        });
+      }
+    }
+
+    if (units.length === 0) {
+      rep.ok('no services with a configured MQE', {
+        kind: 'metrics', servicesTotal: 0, servicesDone: 0,
+        chunkIndex: 0, chunkTotal: 0, currentLevel: null,
+      });
+      return;
+    }
+
+    // Group chunks by level so the drawer can label the in-flight
+    // batch with the level the operator is watching land. Within a
+    // level, slice by chunkSize. Sequential per chunk so the timeline
+    // progress reads honestly (parallel-chunks would jump the bar).
+    const byLevel = new Map<string, FetchUnit[]>();
+    for (const u of units) {
+      const lvl = levelForLayer(u.layer);
+      const arr = byLevel.get(lvl) ?? [];
+      arr.push(u);
+      byLevel.set(lvl, arr);
+    }
+    // Walk levels top-down so the most-visible cubes light up first.
+    const levelOrder = (levelsOrdered.value ?? []).map((l) => l.id);
+    const chunks: { level: string; units: FetchUnit[] }[] = [];
+    for (const lvlId of levelOrder) {
+      const lvlUnits = byLevel.get(lvlId) ?? [];
+      for (let i = 0; i < lvlUnits.length; i += chunkSize) {
+        chunks.push({ level: lvlId, units: lvlUnits.slice(i, i + chunkSize) });
+      }
+    }
+    // Catch any unknown-level units that fell outside the ordered list.
+    for (const [lvlId, lvlUnits] of byLevel) {
+      if (levelOrder.includes(lvlId)) continue;
+      for (let i = 0; i < lvlUnits.length; i += chunkSize) {
+        chunks.push({ level: lvlId, units: lvlUnits.slice(i, i + chunkSize) });
+      }
+    }
+
+    let servicesDone = 0;
+    let errCount = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i]!;
+      rep.progress(
+        `fetching ${chunk.level} · chunk ${i + 1} / ${chunks.length}`,
+        {
+          kind: 'metrics',
+          servicesTotal: units.length,
+          servicesDone,
+          chunkIndex: i + 1,
+          chunkTotal: chunks.length,
+          currentLevel: chunk.level,
+        },
+      );
+      try {
+        const r = await bff.infra3d.metrics({
+          services: chunk.units.map((u) => ({
+            name: u.name, layer: u.layer, normal: u.normal, mqe: u.mqe,
+          })),
+        });
+        setMetricValues(r.values);
+        if (r.errors && Object.keys(r.errors).length > 0) errCount += Object.keys(r.errors).length;
+      } catch (err) {
+        errCount += chunk.units.length;
+        // Whole-chunk failure → mark every node in the chunk null.
+        const fallback: Record<string, number | null> = {};
+        for (const u of chunk.units) fallback[u.nodeKey] = null;
+        setMetricValues(fallback);
+        console.warn('[infra-3d] metrics chunk failed:', err);
+      }
+      servicesDone += chunk.units.length;
+    }
+
+    const summary = errCount === 0
+      ? `${servicesDone} / ${units.length} services updated`
+      : `${servicesDone} updated · ${errCount} OAP errors`;
+    const finalDetail = {
+      kind: 'metrics' as const,
+      servicesTotal: units.length,
+      servicesDone,
+      chunkIndex: chunks.length,
+      chunkTotal: chunks.length,
+      currentLevel: null,
+    };
+    if (errCount === 0) rep.ok(summary, finalDetail);
+    else rep.warn(summary, finalDetail);
+  },
+};
+
+async function runPipeline(): Promise<void> {
+  const ctx: PipelineCtx = { servicesByLayer: {} };
+  await runPipelineState(ctx, pipelineImpls);
+}
+
+function onPlanes(p: PlanePlacement[]): void {
+  planes.value = p;
+}
+function onZones(z: ZonePlacement[]): void {
+  zones.value = z;
+  // Default: every zone visible.
+  visibleLayers.value = new Set(z.map((zz) => zz.layerKey));
+}
+function onNodesByLayer(byLayer: Record<string, SceneServiceNode[]>): void {
+  nodesByLayer.value = byLayer;
+}
+function togglePlane(planeId: string): void {
+  const inPlane = zones.value.filter((z) => z.plane === planeId).map((z) => z.layerKey);
+  const allOn = inPlane.every((k) => visibleLayers.value.has(k));
+  const next = new Set(visibleLayers.value);
+  if (allOn) inPlane.forEach((k) => next.delete(k));
+  else inPlane.forEach((k) => next.add(k));
+  visibleLayers.value = next;
+}
+
+const hoveredNodeId = ref<string | null>(null);
+const selectedNodeId = ref<string | null>(null);
+function onHover(node: SceneServiceNode | null): void {
+  hoveredNodeId.value = node?.nodeId ?? null;
+}
+/**
+ * Selecting a service is decoupled from moving the camera. Operators
+ * pick a cube to see its detail card; they move the orbit center via
+ * the explicit affordances (side-panel row, toolbar buttons, arrow
+ * keys / WASD). The detail card itself lives inside Infra3DScene as
+ * a cientos <Html> anchored at the selected cube — this view just
+ * tracks which node is selected.
+ */
+function onSelect(node: SceneServiceNode | null): void {
+  if (!node || selectedNodeId.value === node.nodeId) {
+    selectedNodeId.value = null;
+  } else {
+    selectedNodeId.value = node.nodeId;
+  }
+}
+/** Tier-level focus: re-centre the camera on the geometric centroid
+ *  of every visible zone within this tier. Falls back to the tier's
+ *  baseline Y when the tier has no zones rendered (defensive). */
+function onPanelTierFocus(planeId: string, _event: MouseEvent): void {
+  const inTier = zones.value.filter((z) => z.plane === planeId);
+  if (inTier.length === 0) return;
+  let sx = 0;
+  let sz = 0;
+  for (const z of inTier) { sx += z.centerX; sz += z.centerZ; }
+  focusTarget.value = {
+    x: sx / inTier.length,
+    y: inTier[0]!.y + 0.5,
+    z: sz / inTier.length,
+  };
+}
+
+/** "all" → every layer in this tier is on; "none" → every layer is
+ *  off; "some" → mixed. Drives the eye-toggle icon state and the
+ *  hidden-row class on the tier row. */
+function tierVisibility(tierZones: ZonePlacement[]): 'all' | 'some' | 'none' {
+  if (tierZones.length === 0) return 'none';
+  let on = 0;
+  for (const z of tierZones) if (visibleLayers.value.has(z.layerKey)) on++;
+  if (on === 0) return 'none';
+  if (on === tierZones.length) return 'all';
+  return 'some';
+}
+function visibleServicesInTier(tierZones: ZonePlacement[]): number {
+  let n = 0;
+  for (const z of tierZones) {
+    if (!visibleLayers.value.has(z.layerKey)) continue;
+    n += (nodesByLayer.value[z.layerKey] || []).length;
+  }
+  return n;
+}
+function totalServicesInTier(tierZones: ZonePlacement[]): number {
+  let n = 0;
+  for (const z of tierZones) n += (nodesByLayer.value[z.layerKey] || []).length;
+  return n;
+}
+
+// ── Camera toolbar handlers — straight pass-through to the scene
+//    handle. The numeric scales are tuned to feel like one "step" of
+//    a typical scroll-zoom / drag-rotate, so each click is a small
+//    nudge an operator can chain. ─────────────────────────────────────
+function btnZoomIn(): void {
+  sceneRef.value?.zoom(0.8);
+}
+function btnZoomOut(): void {
+  sceneRef.value?.zoom(1.25);
+}
+function btnRotateLeft(): void {
+  sceneRef.value?.rotateY(-15);
+}
+function btnRotateRight(): void {
+  sceneRef.value?.rotateY(15);
+}
+function btnPan(rx: number, uy: number): void {
+  sceneRef.value?.pan(rx, uy);
+}
+function btnReset(): void {
+  sceneRef.value?.resetView();
+  focusTarget.value = null;
+  selectedNodeId.value = null;
+}
+
+// ── Keyboard pan ─────────────────────────────────────────────────────
+// Arrow keys nudge the orbit center along the camera's screen-relative
+// axes (up = pan up, left = pan left, …). Holding the key auto-repeats
+// via the browser's native keydown repeat. WASD aliases the same
+// gestures so a gamer-style operator can drive the scene without
+// reaching for the arrow cluster.
+//
+// We attach to `window` so the keys work without first clicking the
+// canvas — but only suppress the default when the focus isn't on a
+// text input (the side panel doesn't have any, so this is just defence
+// against future inputs added to this view).
+function onKeyDown(e: KeyboardEvent): void {
+  const tgt = e.target as HTMLElement | null;
+  // Don't hijack typing if the operator happens to be in an input.
+  if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
+    return;
+  }
+  if (e.altKey || e.metaKey || e.ctrlKey) return;
+  let rx = 0;
+  let uy = 0;
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'a':
+    case 'A':
+      rx = -1;
+      break;
+    case 'ArrowRight':
+    case 'd':
+    case 'D':
+      rx = 1;
+      break;
+    case 'ArrowUp':
+    case 'w':
+    case 'W':
+      uy = 1;
+      break;
+    case 'ArrowDown':
+    case 's':
+    case 'S':
+      uy = -1;
+      break;
+    case 'Escape':
+      // Reliable deselect — independent of the canvas-click race, so
+      // operators always have a guaranteed dismiss key even if
+      // pointer-event ordering ever drifts.
+      e.preventDefault();
+      onSelect(null);
+      return;
+    default:
+      return;
+  }
+  e.preventDefault();
+  // Shift = bigger step (3×) for fast traverse across the scene.
+  const factor = e.shiftKey ? 3 : 1;
+  sceneRef.value?.pan(rx * factor, uy * factor);
+}
+
+// Standalone-mode lifecycle. This view lives at the top-level router
+// path (`/3d/map`), OUTSIDE the AppShell, so there's no sidebar /
+// topbar to coordinate with. The full viewport is ours — keyboard
+// pan + arrow keys / WASD work without any chrome to fight.
+onMounted(async () => {
+  window.addEventListener('keydown', onKeyDown);
+  // Fetch the admin config; gate scene mount on success. A failure
+  // (offline / 401) leaves `ready` false and the operator sees the
+  // load message — no broken-render between 3-plane and 4-plane.
+  await ensureLoaded();
+  ready.value = true;
+  // Kick the loading pipeline once. Subsequent runs are operator-
+  // initiated (timeline strip's refresh button).
+  void runPipeline();
+});
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeyDown);
+});
+
+// Group zones by plane for the side panel — order matches `levels`
+// from the admin config (apps on top, infra at the bottom by default).
+const groupedZones = computed(() => {
+  return (levelsOrdered.value ?? []).map((lvl) => ({
+    id: lvl.id,
+    name: lvl.label,
+    zones: zones.value.filter((z) => z.plane === lvl.id),
+  }));
+});
+
+const totalServices = computed(() =>
+  Object.values(nodesByLayer.value).reduce((acc, arr) => acc + arr.length, 0),
+);
+const visibleServices = computed(() => {
+  let n = 0;
+  for (const [k, arr] of Object.entries(nodesByLayer.value)) {
+    if (visibleLayers.value.has(k)) n += arr.length;
+  }
+  return n;
+});
+
+</script>
+
+<template>
+  <div class="infra3d">
+    <!-- Floating top bar — sits above the scene rather than taking
+         vertical space, so the WebGL canvas gets the full viewport.
+         Compact and unobtrusive; the operator's eye lands on the
+         scene first, the chrome is glanceable when they need stats. -->
+    <header class="bar floating">
+      <div class="title">
+        <span class="kicker">3D Infrastructure Map</span>
+        <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
+      </div>
+      <div class="stats">
+        <span class="stat">
+          <strong>{{ visibleServices }}</strong> / {{ totalServices }} services
+        </span>
+        <span class="stat">
+          <strong>{{ zones.length }}</strong> layers · <strong>{{ planes.length }}</strong> levels
+        </span>
+        <router-link class="back" to="/" title="Exit 3D map">×</router-link>
+      </div>
+    </header>
+
+    <div class="canvas-shell">
+      <div v-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
+      <Infra3DScene
+        v-else
+        ref="sceneRef"
+        :plane-order="planeOrder"
+        :visible-layers="visibleLayers"
+        :hovered-node-id="hoveredNodeId"
+        :selected-node-id="selectedNodeId"
+        :focus-target="focusTarget"
+        @hover="onHover"
+        @select="onSelect"
+        @planes="onPlanes"
+        @zones="onZones"
+        @nodes-by-layer="onNodesByLayer"
+      />
+
+      <!-- Top-left camera-control toolbar. Mouse rotate/zoom/pan still
+           work; these buttons give explicit affordances for the same
+           gestures (useful on trackpads + as a discoverability cue). -->
+      <aside class="cam-tools">
+        <div class="cam-row">
+          <button class="cam-btn" title="zoom in" @click="btnZoomIn">＋</button>
+          <button class="cam-btn" title="zoom out" @click="btnZoomOut">−</button>
+        </div>
+        <div class="cam-row">
+          <button class="cam-btn" title="rotate left" @click="btnRotateLeft">↺</button>
+          <button class="cam-btn" title="rotate right" @click="btnRotateRight">↻</button>
+        </div>
+        <div class="cam-pad">
+          <button class="cam-btn pad up" title="pan up" @click="btnPan(0, 1)">▲</button>
+          <button class="cam-btn pad left" title="pan left" @click="btnPan(-1, 0)">◀</button>
+          <button class="cam-btn pad reset" title="reset view" @click="btnReset">⌂</button>
+          <button class="cam-btn pad right" title="pan right" @click="btnPan(1, 0)">▶</button>
+          <button class="cam-btn pad down" title="pan down" @click="btnPan(0, -1)">▼</button>
+        </div>
+      </aside>
+
+      <!-- Side panel — TIERS ONLY. Per-layer rows were removed once
+           the 3D scene grew its own brand-stamps on each zone (the
+           layer becomes identifiable visually, on the map, not in
+           chrome). The remaining controls are tier-level toggles:
+           click a row to focus the camera on the tier; click the eye
+           to show/hide every layer in that tier at once. -->
+      <aside class="layer-panel">
+        <div class="panel-head">
+          <span>Tiers</span>
+        </div>
+        <div class="panel-body">
+          <ul class="tier-list">
+            <li
+              v-for="g in groupedZones"
+              :key="g.id"
+              class="tier-item"
+              :class="{ hidden: tierVisibility(g.zones) === 'none' }"
+              @click="(e) => onPanelTierFocus(g.id, e)"
+            >
+              <span class="grp-dot" :data-plane="g.id" />
+              <span class="tier-name">{{ g.name }}</span>
+              <span class="tier-stat">
+                {{ visibleServicesInTier(g.zones) }} / {{ totalServicesInTier(g.zones) }}
+              </span>
+              <button
+                type="button"
+                class="eye-btn"
+                :title="tierVisibility(g.zones) === 'all' ? 'hide this tier' : 'show this tier'"
+                :aria-pressed="tierVisibility(g.zones) !== 'none'"
+                @click.stop="togglePlane(g.id)"
+              >
+                <svg
+                  v-if="tierVisibility(g.zones) !== 'none'"
+                  viewBox="0 0 16 16"
+                  width="14"
+                  height="14"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                  />
+                  <circle cx="8" cy="8" r="2" fill="currentColor" />
+                </svg>
+                <svg v-else viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                  <path
+                    d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    opacity="0.6"
+                  />
+                  <line
+                    x1="2.5"
+                    y1="2.5"
+                    x2="13.5"
+                    y2="13.5"
+                    stroke="currentColor"
+                    stroke-width="1.4"
+                    stroke-linecap="round"
+                  />
+                </svg>
+              </button>
+            </li>
+          </ul>
+        </div>
+        <div class="panel-foot">
+          source: apache skywalking-showcase
+        </div>
+      </aside>
+
+      <PipelineTimeline
+        v-if="ready"
+        class="pipeline-strip"
+        :stages="stages"
+        :stage-order="stageOrder"
+        :running="pipelineRunning"
+        @refresh="runPipeline"
+      />
+
+      <!-- Bottom-left brand mark — anchors the standalone view to the
+           SkyWalking product identity. No link / no chrome; pure
+           identification so an operator opening the page mid-incident
+           still knows where they are. -->
+      <a class="sw-brand" href="/" title="Back to Horizon">
+        <span class="sw-brand-logo" v-html="logoSw" />
+        <span class="sw-brand-text">
+          <span class="sw-brand-line1">Apache SkyWalking</span>
+          <span class="sw-brand-line2">Horizon · 3D Infra Map</span>
+        </span>
+      </a>
+
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.infra3d {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  min-height: 0;
+  background: var(--sw-bg-0);
+  overflow: hidden;
+}
+/* Floating top bar — overlays the canvas so the scene gets the full
+   viewport. Compact, glass-backed, with a small × that returns the
+   operator to the rest of Horizon. */
+.bar.floating {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: rgba(15, 19, 26, 0.7);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  backdrop-filter: blur(8px);
+  z-index: 40;
+}
+.title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.kicker { font-weight: 700; font-size: 12.5px; letter-spacing: 0.03em; color: var(--sw-fg-0); }
+.hint   { font-size: 10.5px; color: var(--sw-fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stats  { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.stat   { font-size: 11px; color: var(--sw-fg-2); }
+.stat strong { color: var(--sw-fg-0); font-weight: 700; margin-right: 4px; }
+.back {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sw-fg-2);
+  text-decoration: none;
+  font-size: 16px;
+  line-height: 1;
+  transition: background 0.15s, color 0.15s;
+}
+.back:hover { background: var(--sw-bg-3); color: var(--sw-fg-0); }
+
+.canvas-shell {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* SkyWalking brand — bottom-left, sits above the timeline strip's z.
+   Subtle glass background so it reads on bright cube tints behind it. */
+.sw-brand {
+  position: absolute;
+  left: 14px;
+  bottom: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 8px;
+  background: rgba(15, 19, 26, 0.72);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  text-decoration: none;
+  color: var(--sw-fg-0);
+  backdrop-filter: blur(6px);
+  z-index: 70;
+  transition: background 0.15s;
+}
+.sw-brand:hover { background: rgba(15, 19, 26, 0.88); }
+.sw-brand-logo {
+  display: inline-flex;
+  align-items: center;
+}
+.sw-brand-logo :deep(svg) { width: auto; height: 18px; display: block; }
+.sw-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.sw-brand-line1 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--sw-fg-0);
+}
+.sw-brand-line2 {
+  font-size: 9.5px;
+  color: var(--sw-fg-3);
+  letter-spacing: 0.04em;
+}
+.cfg-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--sw-fg-3);
+}
+.pipeline-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.layer-panel {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  width: 250px;
+  max-height: calc(100% - 120px);
+  display: flex;
+  flex-direction: column;
+  background: rgba(15, 19, 26, 0.88);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  /* High z so cientos <Html> labels (also DOM, portaled near the
+     canvas) can't bleed over the chrome panels. */
+  z-index: 50;
+}
+.panel-head {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sw-line);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--sw-fg-2);
+}
+.panel-body {
+  overflow-y: auto;
+  flex: 1;
+}
+.grp {
+  border-bottom: 1px solid var(--sw-line);
+}
+.grp:last-child {
+  border-bottom: none;
+}
+.grp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-1);
+}
+.grp-head:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--sw-fg-0);
+}
+.grp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+/* Fallback for admin-added custom level ids — listed first so the
+   per-level selectors below win when their attribute matches. */
+.grp-dot                            { background: var(--sw-fg-3); }
+.grp-dot[data-plane='apps']         { background: var(--sw-accent); }
+.grp-dot[data-plane='mesh']         { background: var(--sw-info); }
+.grp-dot[data-plane='middleware']   { background: var(--sw-purple); }
+.grp-dot[data-plane='infra']        { background: var(--sw-ok); }
+.grp-name { flex: 1; min-width: 0; }
+.grp-count {
+  font-size: 9.5px;
+  background: var(--sw-bg-3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--sw-fg-1);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+/* Tier-list — replaces the legacy nested grp-head + layer-list. One
+   row per tier (apps / mesh / middleware / infra in the bundled
+   config); click the row to fly the camera to the tier, click the
+   eye to hide / show every layer in that tier at once. */
+.tier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tier-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+  border-bottom: 1px solid var(--sw-line);
+}
+.tier-item:last-child { border-bottom: none; }
+.tier-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sw-fg-0);
+}
+.tier-item.hidden { opacity: 0.5; }
+.tier-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.tier-stat {
+  font-size: 10px;
+  color: var(--sw-fg-3);
+  font-variant-numeric: tabular-nums;
+  background: var(--sw-bg-3);
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.layer-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+}
+.layer-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 22px;
+  cursor: pointer;
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+}
+.layer-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--sw-fg-0);
+}
+.layer-item.hidden {
+  opacity: 0.4;
+}
+.layer-item.hidden .swatch { opacity: 0.3; }
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: 0 0 10px;
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.count {
+  background: var(--sw-bg-3);
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--sw-fg-1);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.eye-btn {
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  margin-left: 2px;
+}
+.eye-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--sw-fg-0);
+}
+.layer-item.hidden .eye-btn { color: var(--sw-fg-3); }
+.layer-item:not(.hidden) .eye-btn[aria-pressed='true'] { color: var(--sw-fg-1); }
+.layer-item.topo .name {
+  color: var(--sw-fg-0);
+  font-weight: 600;
+}
+.panel-foot {
+  padding: 7px 10px;
+  border-top: 1px solid var(--sw-line);
+  font-size: 9.5px;
+  color: var(--sw-fg-3);
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+/* Detail card moved INTO the Scene component as a cientos <Html>
+   anchored at the selected cube — its styles now live alongside the
+   floating tooltip in Infra3DScene.vue's non-scoped style block. */
+
+/* ── Top-left camera toolbar ─────────────────────────────────────── */
+.cam-tools {
+  position: absolute;
+  top: 60px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: rgba(15, 19, 26, 0.88);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  backdrop-filter: blur(6px);
+  /* High z so cientos <Html> labels (also DOM, portaled near the
+     canvas) can't bleed over the chrome panels. */
+  z-index: 50;
+}
+.cam-row {
+  display: flex;
+  gap: 4px;
+}
+.cam-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 26px);
+  grid-template-rows: repeat(3, 26px);
+  gap: 2px;
+  margin-top: 2px;
+}
+.cam-pad .up    { grid-column: 2; grid-row: 1; }
+.cam-pad .left  { grid-column: 1; grid-row: 2; }
+.cam-pad .reset { grid-column: 2; grid-row: 2; }
+.cam-pad .right { grid-column: 3; grid-row: 2; }
+.cam-pad .down  { grid-column: 2; grid-row: 3; }
+.cam-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-grid;
+  place-items: center;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-1);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  padding: 0;
+}
+.cam-btn:hover {
+  background: var(--sw-bg-3);
+  border-color: var(--sw-line-3);
+  color: var(--sw-fg-0);
+}
+.cam-btn:active { transform: translateY(1px); }
+.cam-btn.pad.reset {
+  color: var(--sw-accent-2);
+  border-color: var(--sw-accent-line);
+}
+</style>

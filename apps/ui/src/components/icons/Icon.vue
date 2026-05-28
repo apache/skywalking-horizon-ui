@@ -182,22 +182,30 @@ export type IconName =
       <path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
     </template>
     <template v-else-if="name === 'mesh'">
-      <circle cx="5" cy="6" r="2" />
-      <circle cx="19" cy="6" r="2" />
-      <circle cx="12" cy="14" r="2" />
-      <circle cx="5" cy="20" r="2" />
-      <circle cx="19" cy="20" r="2" />
-      <path d="M6.5 7.5L10.5 13M17.5 7.5L13.5 13M10.5 15L6.5 19M13.5 15L17.5 19" />
+      <!-- Istio mark — true two-sail composition rendered as FILLED
+           shapes (the only filled icon in the set). Matches the
+           project's mark: a tall right main sail, a smaller left
+           jib, a narrow vertical mast gap between them, and a
+           trapezoidal hull below. The brand colour is blue; per
+           user request we paint it in a neutral gray. Drawn with
+           right-triangle geometry so the mast edges are exactly
+           vertical (matches the canonical mark). -->
+      <polygon points="13,1 13,19 21.5,19" fill="#8a8f96" stroke="none" />
+      <polygon points="11,7 11,19 3,19" fill="#8a8f96" stroke="none" />
+      <polygon points="2.5,20 21.5,20 18.5,22.5 5.5,22.5" fill="#8a8f96" stroke="none" />
     </template>
     <template v-else-if="name === 'db'">
       <ellipse cx="12" cy="5" rx="8" ry="3" />
       <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
     </template>
     <template v-else-if="name === 'cluster'">
-      <rect x="3" y="3" width="8" height="8" rx="1" />
-      <rect x="13" y="3" width="8" height="8" rx="1" />
-      <rect x="3" y="13" width="8" height="8" rx="1" />
-      <rect x="13" y="13" width="8" height="8" rx="1" />
+      <!-- Kubernetes helm wheel — 7-pointed outline + spokes + hub.
+           Heptagon vertices computed from a circle of r≈9 around
+           (12,12). The brand color is project blue; we render only
+           the outline so the icon style stays consistent. -->
+      <path d="M12 3 L19.6 7 L20.7 15.6 L15 21 L9 21 L3.3 15.6 L4.4 7 Z" />
+      <path d="M12 3 L12 9 M19.6 7 L14.5 10 M20.7 15.6 L14.5 13.5 M15 21 L13 13.5 M9 21 L11 13.5 M3.3 15.6 L9.5 13.5 M4.4 7 L9.5 10" />
+      <circle cx="12" cy="12" r="2.4" />
     </template>
     <template v-else-if="name === 'web'">
       <circle cx="12" cy="12" r="9" />

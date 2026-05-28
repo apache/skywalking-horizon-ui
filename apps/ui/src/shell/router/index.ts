@@ -141,6 +141,11 @@ const shellRoutes: RouteRecordRaw[] = [
   // OAP `getAlarm` proxy + background-traffic timeline + per-layer
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
+  // 3D Infra Map lives as a TOP-LEVEL standalone route OUTSIDE
+  // AppShell (see the createRouter call below). The shellRoutes entry
+  // here is kept only so reverse-route lookups by name (`infra-3d-map`)
+  // continue to resolve, redirecting to the standalone path.
+  { path: '3d/map', redirect: '/3d/map' },
   // Cluster
   {
     path: 'operate/cluster',
@@ -246,6 +251,12 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'setup:read' },
   },
   {
+    path: 'admin/3d-map',
+    name: 'admin-3d-map',
+    component: () => import('@/features/admin/infra-3d/Infra3dAdminView.vue'),
+    meta: { verb: 'infra-3d:write' },
+  },
+  {
     path: 'admin/overview-templates',
     name: 'overview-templates',
     component: () => import('@/features/admin/overview-templates/OverviewTemplatesAdmin.vue'),
@@ -285,6 +296,17 @@ const router = createRouter({
       name: 'login',
       component: () => import('@/features/auth/LoginView.vue'),
       meta: { public: true },
+    },
+    // 3D Infra Map — standalone fullscreen route OUTSIDE the AppShell.
+    // No sidebar, no topbar, no time-range ticker, no global refresh —
+    // the 3D scene owns the viewport. Operators land directly on the
+    // map; the SkyWalking logo at the bottom-left is the only chrome.
+    // Still requires authentication (handled by the global beforeEach
+    // guard below), so `meta.public` stays false.
+    {
+      path: '/3d/map',
+      name: 'infra-3d-map',
+      component: () => import('@/features/infra-3d/Infra3DView.vue'),
     },
     {
       path: '/',

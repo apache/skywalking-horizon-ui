@@ -86,3 +86,5 @@ dependency:
     - name: vue-grid-layout
       version: 3.0.0-beta1
       license: MIT # ships an MIT LICENSE file; package.json omits `license`
+    - name: '@pmndrs/pointer-events'
+      license: MIT # ships a verbatim MIT LICENSE file; package.json declares the non-SPDX "SEE LICENSE IN LICENSE"

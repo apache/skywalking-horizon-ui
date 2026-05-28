@@ -22,18 +22,27 @@ import { useSetupStore } from '@/state/setup';
 /**
  * Sort layers by `landing.priority` (lower first). Ties break by the OAP
  * catalog order already present in `layers` (since the BFF returned them
- * that way). Lazy-creates a default config for each layer the user hasn't
- * touched, using `defaultPriority` baked into the setup store.
+ * that way). Falls back to the `defaultPriority` table baked into the
+ * setup store for layers the operator hasn't touched.
  *
  * Used by BOTH the Overview page (card order) and the sidebar's Layers
  * section (row order) so the two stay in lockstep.
+ *
+ * IMPORTANT: reads priority via `store.priorityFor()`, which is side-
+ * effect-free. The earlier version called `store.ensure()` here — and
+ * `ensure` writes to `configs.<layer>.landing.headerColumns` on every
+ * call. Inside a computed that READS the store, those writes invalidate
+ * the same computed, producing "Maximum recursive updates exceeded in
+ * component <AppSidebar>" and freezing the page on any layer route.
+ * Setup reconciliation runs on the admin pages that explicitly call
+ * `ensure`, NOT from this read.
  */
 export function useLandingOrder(layers: ComputedRef<readonly LayerDef[]>) {
   const store = useSetupStore();
   return computed<LayerDef[]>(() => {
     return [...layers.value].sort((a, b) => {
-      const pa = store.ensure(a.key, { slots: a.slots, caps: a.caps, metrics: a.metrics, overview: a.overview }).landing.priority;
-      const pb = store.ensure(b.key, { slots: b.slots, caps: b.caps, metrics: b.metrics, overview: b.overview }).landing.priority;
+      const pa = store.priorityFor(a.key);
+      const pb = store.priorityFor(b.key);
       if (pa !== pb) return pa - pb;
       return 0; // preserve incoming catalog order
     });
