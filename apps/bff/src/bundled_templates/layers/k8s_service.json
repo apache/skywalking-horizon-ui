@@ -21,8 +21,8 @@
     "endpoints": true,
     "endpointDependency": false,
     "topology": true,
-    "traces": true,
-    "logs": true,
+    "traces": false,
+    "logs": false,
     "ebpfProfiling": true
   },
   "layer-header": {
