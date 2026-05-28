@@ -78,7 +78,7 @@ import {
   getLayerIconTexture,
   type LayerIconName,
 } from './composables/useLayerIconTexture';
-import { useInfra3dAlarms } from './composables/useInfra3dAlarms';
+import { useInfra3dAlarms, alarmKey } from './composables/useInfra3dAlarms';
 import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMetrics';
 
 interface Props {
@@ -164,17 +164,20 @@ function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial 
 // Past-20m alarm overlay — affected service names get the red alarm
 // material in place of the layer tint. Polled at 30s on a shared
 // timer (refcount inside the composable).
-const { alarmedServiceNames } = useInfra3dAlarms();
-// Convenience name kept short for the template's per-cube material
-// expression; the actual set value reactively drives Vue re-render.
-const alarmedServiceIds = alarmedServiceNames;
+const { alarmedKeys, alarmedNamesNoLayer } = useInfra3dAlarms();
 
-// Visible cubes that currently carry an active 20m alarm. The cube's
-// own material stays the layer color; the beacon below picks these up
-// to render a small red sphere on the top corner. We compute the
-// subset once per render so the template can iterate ONLY the
-// alarmed cubes (no v-if per cube).
-const alarmedNodes = computed(() => visibleNodes.value.filter((n) => alarmedServiceIds.value.has(n.node.name)));
+// Visible cubes that currently carry an active 20m alarm. Matched on
+// (layer, name) so an alarm reddens only the exact service in the exact
+// tier — never every same-named cube across layers; alarms with no
+// resolved layer fall back to name-only. We compute the subset once per
+// render so the template iterates ONLY the alarmed cubes (no per-cube v-if).
+const alarmedNodes = computed(() =>
+  visibleNodes.value.filter(
+    (n) =>
+      alarmedKeys.value.has(alarmKey(n.node.layerKey, n.node.name)) ||
+      alarmedNamesNoLayer.value.has(n.node.name),
+  ),
+);
 /** Alarmed cube ids — O(1) lookup for the per-cube material pick. */
 const alarmedNodeIds = computed(() => new Set(alarmedNodes.value.map((n) => n.node.nodeId)));
 
