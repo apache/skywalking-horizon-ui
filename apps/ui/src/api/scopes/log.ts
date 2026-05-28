@@ -60,4 +60,55 @@ export class LogApi {
       `/api/log-tags/values?key=${encodeURIComponent(key)}&windowMinutes=${windowMinutes}`,
     );
   }
+
+  // ── On-demand pod logs (live tail) ───────────────────────────────
+
+  /** List a pod's containers. `errorReason` is non-null when the pod
+   *  can't be resolved (stale instance) or the OAP feature is off. */
+  podContainers(layerKey: string, instanceId: string): Promise<PodContainersResponse> {
+    return this.bff.request<PodContainersResponse>(
+      'GET',
+      `/api/layer/${encodeURIComponent(layerKey)}/pod-logs/containers?instance=${encodeURIComponent(instanceId)}`,
+    );
+  }
+
+  /** Tail one container's logs over a rolling SECOND window. */
+  podLogs(layerKey: string, body: PodLogsRequest): Promise<PodLogsResponse> {
+    return this.bff.request<PodLogsResponse>(
+      'POST',
+      `/api/layer/${encodeURIComponent(layerKey)}/pod-logs`,
+      body,
+    );
+  }
+}
+
+export interface PodContainersResponse {
+  containers: string[];
+  errorReason: string | null;
+  reachable: boolean;
+  error?: string;
+  generatedAt: number;
+}
+
+export interface PodLogsRequest {
+  serviceInstanceId: string;
+  container: string;
+  windowSeconds?: number;
+  keywordsOfContent?: string[];
+  excludingKeywordsOfContent?: string[];
+}
+
+export interface PodLogLine {
+  content: string;
+  /** ms epoch (BFF converts OAP's epoch-seconds), or null. */
+  timestamp: number | null;
+}
+
+export interface PodLogsResponse {
+  lines: PodLogLine[];
+  errorReason: string | null;
+  reachable: boolean;
+  error?: string;
+  generatedAt: number;
+  window: { start: string; end: string; step: 'SECOND' };
 }

@@ -292,6 +292,31 @@ one click away on every selected hex.
   no longer sit on *"Resolving service…"* forever waiting for a row
   that won't arrive.
 
+### On-demand pod logs (live tail)
+
+A new per-layer **Pod Logs** tab live-tails a Kubernetes pod's container
+logs, pulled on demand from the K8s API through OAP and never persisted.
+
+- **Instance-pinned tail.** Pick a pod, pick one of its containers, press
+  Start; the trailing window (30s / 1m / 5m / 15m / 30m) streams into a
+  read-only log pane and refreshes on a chosen interval (2s / 5s / 10s /
+  30s) until paused. A header strip shows the container, line count, a
+  live dot, and "updated Ns ago".
+- **Include / Exclude filtering** forwards to OAP's content keyword
+  filters — full-line regex, so a substring match reads `.*error.*`.
+- **Enabled on the Kubernetes-deployed layers** — Kubernetes Services
+  (`K8S_SERVICE`), Istio Managed Services (`MESH`), and Istio Data Plane
+  (`MESH_DP`) — whose service instances resolve to a pod. The tab is gated
+  by a new `podLogs` component flag added to those bundled layer
+  templates; an existing OAP whose stored template predates the flag still
+  gets the tab, because the flag is back-filled from the bundled default
+  (no re-push needed).
+- The page **owns its own refresh** — the global auto-refresh ticker and
+  the topbar time picker are paused while on it, the same as Traces / Logs.
+- When the selected instance carries no pod metadata (or the pod has
+  rotated away), OAP's reason is shown verbatim with a hint to pick a
+  currently-running pod or enable the feature on OAP.
+
 ### BanyanDB cold-stage query
 
 The cold lifecycle stage is now reachable from the UI on BanyanDB
@@ -386,7 +411,11 @@ live, shared version is whatever OAP serves.
 - **Publish with a diff.** **Check diff & push** shows a side-by-side
   local→remote diff and publishes to OAP; it's enabled only when your local
   draft actually differs from remote. Bundled can also be pushed straight to
-  OAP. Resetting to remote clears the local draft.
+  OAP. Resetting to remote clears the local draft. **Reset to bundled** then
+  publishes correctly when the bundled default differs from remote — Save
+  (local) and Check diff & push now compare the editor against remote, not
+  just against what was first loaded, so a bundled-vs-remote divergence is
+  no longer mistaken for "no changes" (layer + overview editors).
 - Preview faithfully reflects your draft's **enabled components / menu
   labels** — disabled tabs disappear and renamed nouns ("Nodes", "Topics")
   show through — without pushing anything to the server. Preview works even

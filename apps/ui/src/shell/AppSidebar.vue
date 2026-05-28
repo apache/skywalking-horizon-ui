@@ -572,6 +572,14 @@ watch(
                   <Icon name="log" /><span>Logs</span>
                 </RouterLink>
                 <RouterLink
+                  v-if="L.caps.podLogs"
+                  :to="`/layer/${L.key}/pod-logs`"
+                  class="sw-nav-item"
+                  :class="{ 'is-active': isActive(`/layer/${L.key}/pod-logs`) }"
+                >
+                  <Icon name="log" /><span>Pod Logs</span>
+                </RouterLink>
+                <RouterLink
                   v-if="L.caps.traceProfiling"
                   :to="`/layer/${L.key}/trace-profiling`"
                   class="sw-nav-item"
@@ -709,6 +717,14 @@ watch(
             :class="{ 'is-active': isActive(`/layer/${E.layer.key}/logs`) }"
           >
             <Icon name="log" /><span>Logs</span>
+          </RouterLink>
+          <RouterLink
+            v-if="E.layer.caps.podLogs"
+            :to="`/layer/${E.layer.key}/pod-logs`"
+            class="sw-nav-item"
+            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/pod-logs`) }"
+          >
+            <Icon name="log" /><span>Pod Logs</span>
           </RouterLink>
           <RouterLink
             v-if="E.layer.caps.traceProfiling"

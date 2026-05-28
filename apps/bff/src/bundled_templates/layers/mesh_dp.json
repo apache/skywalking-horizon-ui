@@ -21,7 +21,8 @@
     "topology": false,
     "traces": false,
     "logs": true,
-    "ebpfProfiling": true
+    "ebpfProfiling": true,
+    "podLogs": true
   },
   "log": {
     "scope": "instance"

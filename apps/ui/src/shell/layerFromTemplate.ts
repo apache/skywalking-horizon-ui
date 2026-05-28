@@ -52,6 +52,7 @@ export function componentsToCaps(components: Record<string, boolean | undefined>
     endpointDependency: !!c.endpointDependency,
     traces: !!c.traces,
     logs: !!c.logs,
+    podLogs: !!c.podLogs,
     traceProfiling: !!c.traceProfiling,
     ebpfProfiling: !!c.ebpfProfiling,
     asyncProfiling: !!c.asyncProfiling,

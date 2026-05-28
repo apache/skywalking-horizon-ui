@@ -155,6 +155,7 @@ export function firstLayerTab(L: LayerDef | undefined): string {
   if (L.caps?.endpointDependency) return 'dependency';
   if (L.caps?.traces) return 'trace';
   if (L.caps?.logs) return 'logs';
+  if (L.caps?.podLogs) return 'pod-logs';
   if (L.caps?.traceProfiling) return 'trace-profiling';
   if (L.caps?.ebpfProfiling) return 'ebpf-profiling';
   if (L.caps?.networkProfiling) return 'network-profiling';
