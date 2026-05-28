@@ -38,6 +38,8 @@ import {
   Color,
   ConeGeometry,
   DoubleSide,
+  EdgesGeometry,
+  LineBasicMaterial,
   MeshBasicMaterial,
   MeshLambertMaterial,
   type Object3D,
@@ -452,15 +454,41 @@ function resolveLayerColor(layerKey: string, tintFallback: ZoneTint): string {
   return readTintColor(tintFallback);
 }
 
+// Tier "planes" are volumetric glass slabs, not flat sheets — a box of
+// PLANE_THICKNESS whose TOP face sits at the plane's Y (where cubes
+// rest). Transparent slate glass so the slab reads as a physical tray
+// the cubes sit on. Backface culling off so the slab looks solid glass
+// from any angle; depthWrite off so cubes/zones blend through cleanly.
+const PLANE_THICKNESS = 0.5;
 const planeMaterial = new MeshBasicMaterial({
   color: new Color('#151a23'),
   transparent: true,
-  opacity: 0.55,
+  opacity: 0.4,
   side: DoubleSide,
   depthWrite: false,
   polygonOffset: true,
   polygonOffsetFactor: 1,
   polygonOffsetUnits: 1,
+});
+// Bright rim on the slab edges — sells the "pane of glass" read and
+// gives each tier a crisp footprint in the dark scene.
+const planeEdgeMaterial = new LineBasicMaterial({
+  color: new Color('#3a4658'),
+  transparent: true,
+  opacity: 0.8,
+});
+// Slab geometry is per-plane (each tier has its own footprint) and the
+// layout is static, so bake the box + its edge wireframe once. Centred
+// half a thickness BELOW the plane Y so the slab's top face is exactly
+// where the cubes rest.
+const planeSlabs = placement.planes.map((P) => {
+  const box = new BoxGeometry(P.width, PLANE_THICKNESS, P.depth);
+  return {
+    id: P.id,
+    y: P.y - PLANE_THICKNESS / 2,
+    box,
+    edges: new EdgesGeometry(box),
+  };
 });
 
 const zoneMaterials = new Map<string, MeshBasicMaterial>();
@@ -1185,6 +1213,11 @@ onUnmounted(() => {
   nodeGeometry.dispose();
   packetGeometry.dispose();
   planeMaterial.dispose();
+  planeEdgeMaterial.dispose();
+  for (const s of planeSlabs) {
+    s.box.dispose();
+    s.edges.dispose();
+  }
   for (const m of zoneMaterials.values()) m.dispose();
   for (const m of nodeMaterials.values()) m.dispose();
   for (const m of hoverMaterials.values()) m.dispose();
@@ -1249,15 +1282,19 @@ onUnmounted(() => {
            handler, so a click on an empty plane area lands on the
            plane and is harmlessly dropped — exactly what we want for
            empty-space behaviour. -->
-      <TresMesh
-        v-for="P in placement.planes"
-        :key="`plane:${P.id}`"
-        :position="[0, P.y, 0]"
-        :rotation="[-Math.PI / 2, 0, 0]"
-      >
-        <TresPlaneGeometry :args="[P.width, P.depth]" />
-        <primitive :object="planeMaterial" />
-      </TresMesh>
+      <template v-for="s in planeSlabs" :key="`plane:${s.id}`">
+        <!-- Volumetric glass slab — raycast left ON so it occludes
+             cubes behind it and absorbs empty clicks (see CLAUDE.md). -->
+        <TresMesh :position="[0, s.y, 0]">
+          <primitive :object="s.box" />
+          <primitive :object="planeMaterial" />
+        </TresMesh>
+        <!-- Rim wireframe — decorative, raycast disabled. -->
+        <TresLineSegments :position="[0, s.y, 0]" :ref="(el) => disableRaycast(el)">
+          <primitive :object="s.edges" />
+          <primitive :object="planeEdgeMaterial" />
+        </TresLineSegments>
+      </template>
 
       <!-- Layer zones — colored backplates. Same occlusion rule as
            the tier planes above: they raycast, so they hide cubes
