@@ -21,7 +21,7 @@
     "endpoints": true,
     "endpointDependency": false,
     "topology": true,
-    "traces": true,
+    "traces": false,
     "logs": true,
     "ebpfProfiling": true
   },
