@@ -22,7 +22,7 @@
   operator can toggle whole tiers or individual zones.
 -->
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
@@ -31,6 +31,7 @@ import PipelineTimeline from './PipelineTimeline.vue';
 import {
   buildSceneGraph,
   loadDemoTopology,
+  type DemoTopology,
   type SceneServiceNode,
 } from './composables/useDemoTopology';
 import {
@@ -43,6 +44,14 @@ import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useInfra3dConfig } from './composables/useInfra3dConfig';
 import { useInfra3dPipeline, type PipelineStageId, type StageImpl } from './composables/useInfra3dPipeline';
 import { setValues as setMetricValues, setUnitForLayer, reset as resetMetrics } from './composables/useInfra3dMetrics';
+import {
+  isTopologyBearing,
+  liveRoster,
+  liveSkeleton,
+  loadLiveServices,
+  loadLiveTopologies,
+  type LiveWindow,
+} from './composables/useLiveTopology';
 import { bff, type Infra3dConfig } from '@/api/client';
 
 /** Imperative handle on the scene's camera-control methods. The
@@ -139,7 +148,22 @@ const { stages, stageOrder, running: pipelineRunning, run: runPipelineState } = 
 
 interface PipelineCtx {
   servicesByLayer: Record<string, SceneServiceNode[]>;
+  /** Live path only: the DemoTopology assembled as stages land. The
+   *  snapshot impls leave it null and read loadDemoTopology() directly. */
+  topo: DemoTopology | null;
 }
+
+// Phase-1 seam for live data. Opt-in per visit with `?live=1`; with no
+// param (default) the scene renders from the committed snapshot exactly
+// as before, so the live wire can't break the map. `liveTopo` holds the
+// latest assembly so a later phase can swap the scene's data source.
+const liveTopologyEnabled = computed(() => route.query.live === '1');
+const liveTopo = shallowRef<DemoTopology | null>(null);
+const liveWindow = (): LiveWindow => ({
+  startMs: Date.now() - 2 * 3600_000,
+  endMs: Date.now(),
+  step: 'HOUR',
+});
 const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
     rep.start();
@@ -341,9 +365,72 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   },
 };
 
+// Live variant of the pipeline: same five stages, but `services` /
+// `templates` / `topologies` / `layout` read from sequential per-layer OAP
+// queries (assembled into a DemoTopology) instead of the snapshot. The
+// `metrics` stage is identical — it consumes ctx.servicesByLayer either way.
+const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
+  services: async (rep, ctx) => {
+    const roster = liveRoster(menuLayers.value);
+    const topo = liveSkeleton(roster);
+    await loadLiveServices(rep, roster, topo);
+    ctx.topo = topo;
+    liveTopo.value = topo;
+    const byLayer: Record<string, SceneServiceNode[]> = {};
+    for (const [key, refs] of Object.entries(topo.servicesByLayer)) {
+      byLayer[key] = refs.map((s) => ({
+        nodeId: `${key.toUpperCase()}::${s.id}`,
+        layerKey: key,
+        serviceId: s.id,
+        name: s.name,
+        shortName: s.name.split('::').slice(-1)[0]!.split('.')[0]!,
+        normal: s.normal,
+      }));
+    }
+    ctx.servicesByLayer = byLayer;
+  },
+  templates: async (rep, ctx) => {
+    rep.start();
+    const rosterKeys = new Set((ctx.topo?.layers ?? []).map((l) => l.key));
+    const withTopology = menuLayers.value
+      .filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L))
+      .map((L) => L.key);
+    const withoutTopology = [...rosterKeys].filter((k) => !withTopology.includes(k));
+    rep.ok(`${withTopology.length} topology-bearing`, {
+      kind: 'templates',
+      layersWithTopology: withTopology,
+      layersWithoutTopology: withoutTopology,
+    });
+  },
+  topologies: async (rep, ctx) => {
+    const topo = ctx.topo;
+    if (!topo) {
+      rep.ok('no topology', { kind: 'topologies', probes: [] });
+      return;
+    }
+    const rosterKeys = new Set(topo.layers.map((l) => l.key));
+    const bearing = menuLayers.value.filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L));
+    await loadLiveTopologies(rep, bearing, topo, liveWindow());
+    liveTopo.value = topo;
+  },
+  layout: async (rep, ctx) => {
+    rep.start();
+    const t0 = performance.now();
+    const g = buildSceneGraph(ctx.topo ?? loadDemoTopology(), levelForLayer);
+    const p = computePlacement(g, planeOrder.value, infraGroups.value);
+    const ms = Math.round(performance.now() - t0);
+    rep.ok(`${p.zones.length} zones laid in ${ms} ms`, {
+      kind: 'layout',
+      layersReLaid: p.zones.length,
+      ms,
+    });
+  },
+  metrics: pipelineImpls.metrics,
+};
+
 async function runPipeline(): Promise<void> {
-  const ctx: PipelineCtx = { servicesByLayer: {} };
-  await runPipelineState(ctx, pipelineImpls);
+  const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
+  await runPipelineState(ctx, liveTopologyEnabled.value ? livePipelineImpls : pipelineImpls);
 }
 
 /** Arm (or re-arm) the auto-refresh timer + countdown anchor. */
