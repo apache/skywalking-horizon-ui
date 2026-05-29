@@ -1687,7 +1687,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           >
             <h5>{{ t('Cross-trace refs') }}</h5>
             <table class="kv-table">
-              <thead><tr><th>{{ t('Trace ID') }}</th><th>{{ t('Parent segment') }}</th><th class="num">{{ t('Parent span') }}</th><th>{{ t('Kind') }}</th></tr></thead>
+              <thead><tr><th>{{ t('Trace ID') }}</th><th>{{ t('Parent segment') }}</th><th class="num">{{ t('Parent span') }}</th><th>{{ t('Ref type') }}</th></tr></thead>
               <tbody>
                 <template v-for="(r, i) in openSpan.refs" :key="i">
                   <tr v-if="r.traceId !== selectedTraceId">
