@@ -109,7 +109,7 @@
       "label": "Self-Observability",
       "level": "middleware",
       "color": "#a78bfa",
-      "icon": "sky",
+      "icon": "skywalking",
       "layers": [
         "SO11Y_OAP",
         "SO11Y_SATELLITE",
@@ -281,10 +281,12 @@
       "color": "#a8d5ff"
     },
     "SO11Y_JAVA_AGENT": {
-      "color": "#9fb3c2"
+      "color": "#9fb3c2",
+      "$note": "No traffic chip by design: every meter_java_agent_* metric is ServiceInstance-scope (verified against the OAP metric catalog); OAP does not roll ServiceInstance up to Service, and the cube queries at Service scope. No Service-scope agent metric exists to put on the cube."
     },
     "SO11Y_GO_AGENT": {
-      "color": "#80b8c0"
+      "color": "#80b8c0",
+      "$note": "No traffic chip by design: every meter_sw_go_* metric is ServiceInstance-scope (verified against the OAP metric catalog); the cube queries at Service scope and OAP won't roll up. No Service-scope agent metric exists."
     },
     "AWS_S3": {
       "color": "#ff9900",

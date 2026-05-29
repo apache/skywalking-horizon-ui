@@ -58,8 +58,13 @@ const sceneRef = ref<SceneHandle | null>(null);
 // alarming cubes glow, so the operator's eye goes straight to what's
 // firing. Toggled from the toolbar; the scene reads it as a prop.
 const beaconMode = ref(false);
-// 1-min pipeline refresh (metrics). Cleared on unmount.
-let refreshTimer: ReturnType<typeof setInterval> | null = null;
+// Auto-refresh: re-run the pipeline every REFRESH_MS. A self-rescheduling
+// timeout (not setInterval) so a manual refresh resets the countdown
+// cleanly instead of drifting against a fixed interval. `nextRefreshAt`
+// (epoch ms) feeds the timeline strip's live countdown. Cleared on unmount.
+const REFRESH_MS = 60_000;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+const nextRefreshAt = ref<number | null>(null);
 
 const planes = ref<PlanePlacement[]>([]);
 const zones = ref<ZonePlacement[]>([]);
@@ -165,7 +170,9 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
     // The scene rebuilds placement on its own; we just measure the cost.
     const topo = loadDemoTopology();
     const g = buildSceneGraph(topo, levelForLayer);
-    const p = computePlacement(g, planeOrder.value);
+    // Pass groups so the measured zone count matches the rendered scene
+    // (Infra3DScene collapses each logic group into one zone).
+    const p = computePlacement(g, planeOrder.value, infraGroups.value);
     const ms = Math.round(performance.now() - t0);
     rep.ok(`${p.zones.length} zones laid in ${ms} ms`, {
       kind: 'layout',
@@ -305,19 +312,47 @@ async function runPipeline(): Promise<void> {
   await runPipelineState(ctx, pipelineImpls);
 }
 
+/** Arm (or re-arm) the auto-refresh timer + countdown anchor. */
+function scheduleRefresh(): void {
+  if (refreshTimer !== null) clearTimeout(refreshTimer);
+  nextRefreshAt.value = Date.now() + REFRESH_MS;
+  refreshTimer = setTimeout(() => {
+    void runPipeline();
+    scheduleRefresh();
+  }, REFRESH_MS);
+}
+
+/** Manual refresh from the timeline strip — run now and reset the
+ *  countdown so the next auto-refresh is a full interval away. */
+function refreshNow(): void {
+  void runPipeline();
+  scheduleRefresh();
+}
+
 function onPlanes(p: PlanePlacement[]): void {
   planes.value = p;
 }
+/** Expand a zone to the layer key(s) the Scene gates visibility on. A
+ *  solo zone keys on its own layer; a GROUP zone (e.g. Self-Observability
+ *  clustering so11y_*) keys on its MEMBER layers. The Scene checks
+ *  `visibleNodes` / `visibleZones` against member layer keys, never the
+ *  group id — so visibility seeding, the tier toggle, and per-layer
+ *  counts must all use the members. Keying on the group id alone leaves
+ *  grouped cubes unrendered and undercounts the tier. */
+function zoneLayerKeys(z: ZonePlacement): string[] {
+  return z.group ? z.group.layerKeys : [z.layerKey];
+}
 function onZones(z: ZonePlacement[]): void {
   zones.value = z;
-  // Default: every zone visible.
-  visibleLayers.value = new Set(z.map((zz) => zz.layerKey));
+  // Default: every layer visible — group zones expand to their member
+  // keys so the Scene's member-key gate lets the grouped cubes render.
+  visibleLayers.value = new Set(z.flatMap(zoneLayerKeys));
 }
 function onNodesByLayer(byLayer: Record<string, SceneServiceNode[]>): void {
   nodesByLayer.value = byLayer;
 }
 function togglePlane(planeId: string): void {
-  const inPlane = zones.value.filter((z) => z.plane === planeId).map((z) => z.layerKey);
+  const inPlane = zones.value.filter((z) => z.plane === planeId).flatMap(zoneLayerKeys);
   const allOn = inPlane.every((k) => visibleLayers.value.has(k));
   const next = new Set(visibleLayers.value);
   if (allOn) inPlane.forEach((k) => next.delete(k));
@@ -365,24 +400,25 @@ function onPanelTierFocus(planeId: string, _event: MouseEvent): void {
  *  off; "some" → mixed. Drives the eye-toggle icon state and the
  *  hidden-row class on the tier row. */
 function tierVisibility(tierZones: ZonePlacement[]): 'all' | 'some' | 'none' {
-  if (tierZones.length === 0) return 'none';
+  const keys = tierZones.flatMap(zoneLayerKeys);
+  if (keys.length === 0) return 'none';
   let on = 0;
-  for (const z of tierZones) if (visibleLayers.value.has(z.layerKey)) on++;
+  for (const k of keys) if (visibleLayers.value.has(k)) on++;
   if (on === 0) return 'none';
-  if (on === tierZones.length) return 'all';
+  if (on === keys.length) return 'all';
   return 'some';
 }
 function visibleServicesInTier(tierZones: ZonePlacement[]): number {
   let n = 0;
-  for (const z of tierZones) {
-    if (!visibleLayers.value.has(z.layerKey)) continue;
-    n += (nodesByLayer.value[z.layerKey] || []).length;
+  for (const k of tierZones.flatMap(zoneLayerKeys)) {
+    if (!visibleLayers.value.has(k)) continue;
+    n += (nodesByLayer.value[k] || []).length;
   }
   return n;
 }
 function totalServicesInTier(tierZones: ZonePlacement[]): number {
   let n = 0;
-  for (const z of tierZones) n += (nodesByLayer.value[z.layerKey] || []).length;
+  for (const k of tierZones.flatMap(zoneLayerKeys)) n += (nodesByLayer.value[k] || []).length;
   return n;
 }
 
@@ -490,11 +526,11 @@ onMounted(async () => {
   // pipeline (2h @ HOUR). The timeline strip's refresh button still
   // forces an immediate run.
   void runPipeline();
-  refreshTimer = setInterval(() => void runPipeline(), 60_000);
+  scheduleRefresh();
 });
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown);
-  if (refreshTimer !== null) clearInterval(refreshTimer);
+  if (refreshTimer !== null) clearTimeout(refreshTimer);
 });
 
 // Group zones by plane for the side panel — order matches `levels`
@@ -685,7 +721,8 @@ const visibleServices = computed(() => {
         :stages="stages"
         :stage-order="stageOrder"
         :running="pipelineRunning"
-        @refresh="runPipeline"
+        :next-refresh-at="nextRefreshAt"
+        @refresh="refreshNow"
       />
 
       <!-- Bottom-left brand mark — anchors the standalone view to the

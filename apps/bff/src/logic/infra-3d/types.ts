@@ -106,7 +106,8 @@ export interface InfraGroupSpec {
   /** Group block color (hex `#rrggbb` or any CSS/Three color string). */
   color: string;
   /** Icon stamped on the group block. One of the shared 3D icon names
-   *  (see the UI icon catalog); `sky` renders the SkyWalking mark. */
+   *  (see the UI icon catalog); `skywalking` renders the SkyWalking
+   *  crescent brand mark. */
   icon: string;
   /** Member OAP layer keys (canonical upper-case). */
   layers: string[];

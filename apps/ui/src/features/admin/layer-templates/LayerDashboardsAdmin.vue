@@ -1417,16 +1417,6 @@ const showGroupForScope = computed<boolean>(() => {
   return false;
 });
 
-// Pointer from the topology scope panel ⤴ to the always-visible
-// Topology cluster card. Smooth-scrolls and briefly highlights so the
-// operator's eye lands on it without ambiguity.
-function scrollToClusterCard(): void {
-  const el = document.getElementById('topology-cluster');
-  if (!el) return;
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  el.classList.add('cluster-pulse');
-  setTimeout(() => el.classList.remove('cluster-pulse'), 1400);
-}
 const namingSample = ref<string>('songs.sample.svc.cluster.local');
 interface NamingTestResult {
   ok: boolean;
@@ -1898,130 +1888,6 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <!-- Topology cluster setup: a named-capture regex run against
-             every service name. The topology view buckets nodes by the
-             resolved cluster value (e.g. k8s namespace) and renders an
-             `<alias · value>` chip next to the service display label.
-             Distinct from the layer-agnostic OAP `<group>::<base>`
-             prefix convention, which is global and never produces a
-             topology cluster — clusters are explicit per-layer opt-in.
-             Live tester at the bottom evaluates the current draft
-             against a sample name so the operator can see the result
-             before saving. -->
-        <section
-          v-if="selectedTpl.components?.topology"
-          id="topology-cluster"
-          class="sw-card components-card"
-        >
-          <div class="card-head">
-            <h4>Topology cluster setup</h4>
-            <span class="sub">parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)</span>
-            <button
-              v-if="!selectedTpl.naming"
-              class="sw-btn add"
-              type="button"
-              @click="enableNaming"
-            >＋ Enable rule</button>
-            <button
-              v-else
-              class="sw-btn small ghost danger"
-              type="button"
-              @click="disableNaming"
-            >Remove rule</button>
-          </div>
-          <div v-if="!selectedTpl.naming" class="topo-cfg-help" style="padding: 12px 16px;">
-            No cluster rule configured — the topology view renders without cluster bounding
-            boxes. Enable a rule for layers whose service names encode a cluster dimension
-            (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.
-          </div>
-          <div v-else class="naming-body">
-            <div class="naming-row">
-              <label class="mf mf-wide">
-                <span>regex pattern</span>
-                <input
-                  v-model="selectedTpl.naming.pattern"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
-                />
-              </label>
-              <label class="mf mf-narrow" title="JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.">
-                <span>regex flags</span>
-                <input
-                  v-model="selectedTpl.naming.flags"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="(empty)"
-                />
-              </label>
-            </div>
-            <div class="naming-flags-hint">
-              <code>flags</code> are passed as the second argument to
-              <code>new RegExp(pattern, flags)</code>. Common values: <code>i</code>
-              (case-insensitive), <code>m</code> (multiline). Leave empty for typical
-              k8s/mesh service names.
-            </div>
-            <div class="naming-row">
-              <label class="mf">
-                <span>display capture</span>
-                <input
-                  v-model="selectedTpl.naming.displayGroup"
-                  class="mf-input mono"
-                  type="text"
-                  placeholder="service"
-                />
-              </label>
-              <label class="mf">
-                <span>cluster capture</span>
-                <input
-                  v-model="selectedTpl.naming.valueGroup"
-                  class="mf-input mono"
-                  type="text"
-                  placeholder="namespace"
-                />
-              </label>
-              <label class="mf">
-                <span>alias (cluster label)</span>
-                <input
-                  v-model="selectedTpl.naming.alias"
-                  class="mf-input"
-                  type="text"
-                  placeholder="namespace"
-                />
-              </label>
-            </div>
-            <div class="naming-test">
-              <label class="mf mf-wide">
-                <span>test service name</span>
-                <input
-                  v-model="namingSample"
-                  class="mf-input mono"
-                  type="text"
-                  spellcheck="false"
-                  placeholder="songs.sample"
-                />
-              </label>
-              <div class="naming-result" :class="{ ok: namingTest.ok, err: !namingTest.ok }">
-                <div v-if="namingTest.error" class="naming-error">
-                  <span class="naming-tag">error</span>
-                  <span>{{ namingTest.error }}</span>
-                </div>
-                <template v-else>
-                  <div class="naming-result-row">
-                    <span class="naming-tag">display</span>
-                    <span class="mono">{{ namingTest.display ?? '—' }}</span>
-                  </div>
-                  <div class="naming-result-row">
-                    <span class="naming-tag">{{ namingTest.alias ?? 'group' }}</span>
-                    <span class="mono accent">{{ namingTest.group ?? '—' }}</span>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </section>
 
         <!-- Service-list metrics: the columns shown in the picker
              zone's services table + the default sort. Used across
@@ -2172,6 +2038,130 @@ const namingTest = computed<NamingTestResult>(() => {
              Drawer (right): config fields for the selected widget.
              Hidden when nothing is selected so the canvas gets the
              full width. -->
+        <!-- Topology cluster setup: a named-capture regex run against
+             every service name. The topology view buckets nodes by the
+             resolved cluster value (e.g. k8s namespace) and renders an
+             `<alias · value>` chip next to the service display label.
+             Distinct from the layer-agnostic OAP `<group>::<base>`
+             prefix convention, which is global and never produces a
+             topology cluster — clusters are explicit per-layer opt-in.
+             Live tester at the bottom evaluates the current draft
+             against a sample name so the operator can see the result
+             before saving. -->
+        <section
+          v-if="selectedTpl.components?.topology && activeScope === 'topology'"
+          class="sw-card components-card"
+        >
+          <div class="card-head">
+            <h4>Topology cluster setup</h4>
+            <span class="sub">parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)</span>
+            <button
+              v-if="!selectedTpl.naming"
+              class="sw-btn add"
+              type="button"
+              @click="enableNaming"
+            >＋ Enable rule</button>
+            <button
+              v-else
+              class="sw-btn small ghost danger"
+              type="button"
+              @click="disableNaming"
+            >Remove rule</button>
+          </div>
+          <div v-if="!selectedTpl.naming" class="topo-cfg-help" style="padding: 12px 16px;">
+            No cluster rule configured — the topology view renders without cluster bounding
+            boxes. Enable a rule for layers whose service names encode a cluster dimension
+            (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.
+          </div>
+          <div v-else class="naming-body">
+            <div class="naming-row">
+              <label class="mf mf-wide">
+                <span>regex pattern</span>
+                <input
+                  v-model="selectedTpl.naming.pattern"
+                  class="mf-input mono"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
+                />
+              </label>
+              <label class="mf mf-narrow" title="JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.">
+                <span>regex flags</span>
+                <input
+                  v-model="selectedTpl.naming.flags"
+                  class="mf-input mono"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="(empty)"
+                />
+              </label>
+            </div>
+            <div class="naming-flags-hint">
+              <code>flags</code> are passed as the second argument to
+              <code>new RegExp(pattern, flags)</code>. Common values: <code>i</code>
+              (case-insensitive), <code>m</code> (multiline). Leave empty for typical
+              k8s/mesh service names.
+            </div>
+            <div class="naming-row">
+              <label class="mf">
+                <span>display capture</span>
+                <input
+                  v-model="selectedTpl.naming.displayGroup"
+                  class="mf-input mono"
+                  type="text"
+                  placeholder="service"
+                />
+              </label>
+              <label class="mf">
+                <span>cluster capture</span>
+                <input
+                  v-model="selectedTpl.naming.valueGroup"
+                  class="mf-input mono"
+                  type="text"
+                  placeholder="namespace"
+                />
+              </label>
+              <label class="mf">
+                <span>alias (cluster label)</span>
+                <input
+                  v-model="selectedTpl.naming.alias"
+                  class="mf-input"
+                  type="text"
+                  placeholder="namespace"
+                />
+              </label>
+            </div>
+            <div class="naming-test">
+              <label class="mf mf-wide">
+                <span>test service name</span>
+                <input
+                  v-model="namingSample"
+                  class="mf-input mono"
+                  type="text"
+                  spellcheck="false"
+                  placeholder="songs.sample"
+                />
+              </label>
+              <div class="naming-result" :class="{ ok: namingTest.ok, err: !namingTest.ok }">
+                <div v-if="namingTest.error" class="naming-error">
+                  <span class="naming-tag">error</span>
+                  <span>{{ namingTest.error }}</span>
+                </div>
+                <template v-else>
+                  <div class="naming-result-row">
+                    <span class="naming-tag">display</span>
+                    <span class="mono">{{ namingTest.display ?? '—' }}</span>
+                  </div>
+                  <div class="naming-result-row">
+                    <span class="naming-tag">{{ namingTest.alias ?? 'group' }}</span>
+                    <span class="mono accent">{{ namingTest.group ?? '—' }}</span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Topology + API dependency config editor — node + line
              metric definitions, with optional 4-band thresholds.
              Each metric edits id / label / MQE / unit / role /
@@ -2183,14 +2173,6 @@ const namingTest = computed<NamingTestResult>(() => {
           <div class="card-head">
             <h4>Topology config</h4>
             <span class="sub">node + server-side + client-side line metrics. Add rows; bind a metric to a visual role.</span>
-          </div>
-          <div class="topo-cluster-pointer">
-            <span class="topo-cluster-pointer-icon">⤴</span>
-            <span>
-              Cluster setup (k8s/mesh namespace grouping) lives in
-              <a href="#topology-cluster" @click.prevent="scrollToClusterCard">Topology cluster setup</a>
-              above.
-            </span>
           </div>
           <!-- showGroup: per-topology toggle for the legacy `<group>::`
                prefix chip in the node detail panel. Off (default) ⇒
@@ -3522,36 +3504,6 @@ const namingTest = computed<NamingTestResult>(() => {
   background: var(--sw-accent-soft);
   border-color: var(--sw-accent-line);
   color: var(--sw-accent-2);
-}
-/* Topology-config → cluster-setup pointer banner. */
-.topo-cluster-pointer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 14px 0;
-  padding: 8px 12px;
-  background: var(--sw-accent-soft);
-  border: 1px solid var(--sw-accent-line);
-  border-radius: 6px;
-  font-size: 11.5px;
-  color: var(--sw-fg-1);
-}
-.topo-cluster-pointer-icon {
-  font-size: 14px;
-  color: var(--sw-accent-2);
-}
-.topo-cluster-pointer a {
-  color: var(--sw-accent-2);
-  text-decoration: underline;
-}
-/* Brief pulse when arrowed-into from the topology config panel. */
-@keyframes cluster-pulse-frames {
-  0%   { box-shadow: 0 0 0 0 var(--sw-accent-line); }
-  40%  { box-shadow: 0 0 0 6px var(--sw-accent-line); }
-  100% { box-shadow: 0 0 0 0 transparent; }
-}
-.cluster-pulse {
-  animation: cluster-pulse-frames 1.2s ease-out;
 }
 .naming-flags-hint {
   margin: -4px 0 4px;

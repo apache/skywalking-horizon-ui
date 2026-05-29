@@ -128,7 +128,7 @@ const placement = computePlacement(graph, props.planeOrder, props.groups);
  *  Narrowed to the subset the texture baker knows; unknown glyphs
  *  fall back to the generic service mark. */
 const KNOWN_ICONS: ReadonlySet<LayerIconName> = new Set([
-  'mesh', 'cluster', 'sky', 'web', 'fn', 'db', 'cache', 'topic', 'flame', 'svc',
+  'mesh', 'cluster', 'sky', 'skywalking', 'web', 'fn', 'db', 'cache', 'topic', 'flame', 'svc',
 ]);
 function iconForLayer(layerKey: string): LayerIconName {
   const n = layerIconByKey(layerKey);
@@ -174,7 +174,7 @@ function groupStampMaterial(icon: string, hex: string): MeshBasicMaterial {
 }
 
 // Past-20m alarm overlay — affected service names get the red alarm
-// material in place of the layer tint. Polled at 30s on a shared
+// material in place of the layer tint. Polled every 1 min on a shared
 // timer (refcount inside the composable).
 const { alarmedKeys, alarmedNamesNoLayer } = useInfra3dAlarms();
 
@@ -1246,6 +1246,20 @@ const selectedNodeDetail = computed(() => {
   return { node: n, pos, layer };
 });
 
+/** Deep-link to the selected service's layer dashboard, pre-selecting
+ *  the service. The layer page seeds its pick from `?service=<id>` where
+ *  `<id>` is the OAP service id (the cube carries the real id, e.g.
+ *  `base64(name).1`); without it the page just auto-picks the first
+ *  service. `import.meta.env.BASE_URL` keeps the path correct under a
+ *  gateway sub-path (a bare `/layer/...` ignores the router base — the
+ *  same trap fixed for the brand / login links). */
+const openDashboardHref = computed<string>(() => {
+  const d = selectedNodeDetail.value;
+  if (!d) return import.meta.env.BASE_URL;
+  const base = import.meta.env.BASE_URL; // ends with '/'
+  return `${base}layer/${d.node.layerKey}/service?service=${encodeURIComponent(d.node.serviceId)}`;
+});
+
 // ── Detail-card side: flip to whichever side of the canvas has more
 //    room. Recomputed during the render loop alongside the label-hide
 //    pass so it tracks orbit / pan / zoom. The card itself is
@@ -1631,7 +1645,7 @@ onUnmounted(() => {
                  real new tab. We point at the layer's main service view,
                  which is the default landing for every active layer. -->
             <a
-              :href="`/layer/${selectedNodeDetail.node.layerKey}/service`"
+              :href="openDashboardHref"
               target="_blank"
               rel="noopener"
               class="d-btn"

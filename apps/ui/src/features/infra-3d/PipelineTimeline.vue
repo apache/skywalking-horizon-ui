@@ -30,7 +30,7 @@
   want to render a half-state timeline before the config is loaded.
 -->
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { DeepReadonly } from 'vue';
 import type { PipelineStageId, StageState } from './composables/useInfra3dPipeline';
 
@@ -40,7 +40,28 @@ const props = defineProps<{
   stages: DeepReadonly<Record<PipelineStageId, StageState>>;
   stageOrder: readonly PipelineStageId[];
   running: boolean;
+  /** Epoch ms of the next scheduled auto-refresh (parent-owned). Drives
+   *  the live countdown beside the refresh button. Null = no countdown. */
+  nextRefreshAt?: number | null;
 }>();
+
+// Live 1 Hz clock so the countdown ticks down on its own — the parent
+// only updates `nextRefreshAt` once per (re)schedule, not every second.
+const now = ref(Date.now());
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+  clockTimer = setInterval(() => { now.value = Date.now(); }, 1000);
+});
+onUnmounted(() => {
+  if (clockTimer !== null) clearInterval(clockTimer);
+});
+/** `m:ss` until the next auto-refresh; null while a run is in flight
+ *  (the strip shows "refreshing…" then) or when no refresh is armed. */
+const countdown = computed<string | null>(() => {
+  if (props.running || props.nextRefreshAt == null) return null;
+  const secs = Math.max(0, Math.ceil((props.nextRefreshAt - now.value) / 1000));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+});
 
 const emit = defineEmits<{
   /** Operator clicked the refresh button — re-run the whole pipeline. */
@@ -196,11 +217,21 @@ const openStageState = computed<ROStageState | null>(() => {
         <span class="step-sum" :title="props.stages[id].summary">{{ props.stages[id].summary }}</span>
       </button>
       <span class="spacer" />
+      <span
+        v-if="props.running"
+        class="next-refresh running"
+        title="pipeline is running…"
+      >refreshing…</span>
+      <span
+        v-else-if="countdown"
+        class="next-refresh"
+        title="time until the next auto-refresh"
+      >next ↻ {{ countdown }}</span>
       <button
         type="button"
         class="refresh"
         :disabled="props.running"
-        :title="props.running ? 'pipeline is running…' : 're-run pipeline'"
+        :title="props.running ? 'pipeline is running…' : 're-run pipeline now'"
         @click="emit('refresh')"
       >↻</button>
     </div>
@@ -263,6 +294,18 @@ const openStageState = computed<ROStageState | null>(() => {
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 
 .spacer { flex: 1; }
+.next-refresh {
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.next-refresh.running { color: #fcc419; }
 .refresh {
   width: 28px;
   border: 1px solid var(--sw-line-2);

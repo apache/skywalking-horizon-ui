@@ -144,6 +144,27 @@ const configSchema = z
         path: ['unknownLayer', 'level'],
       });
     }
+    // Each group must sit on a real level (a dangling `level` silently
+    // drops the group block + scatters its members at render time), and
+    // group ids must be unique (placement + side panel key on the id).
+    const groupIds = new Set<string>();
+    for (const g of cfg.groups) {
+      if (groupIds.has(g.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `duplicate group id: ${g.id}`,
+          path: ['groups'],
+        });
+      }
+      groupIds.add(g.id);
+      if (!levelIds.has(g.level)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `group "${g.id}" level "${g.level}" must be one of: ${Array.from(levelIds).join(', ')}`,
+          path: ['groups'],
+        });
+      }
+    }
     // A layer can be referenced by an explicit list only once across all
     // levels — otherwise the level membership is ambiguous.
     const claimed = new Map<string, string>();

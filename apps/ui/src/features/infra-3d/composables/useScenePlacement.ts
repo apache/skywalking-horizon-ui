@@ -131,9 +131,10 @@ const CELL_STRIDE_Z = 2.4;
 /** Padding INSIDE a zone — keeps cubes off the colored edge. */
 const ZONE_INNER_PAD = 1.2;
 /** Horizontal gap between member layers tiled inside one group zone.
- *  Smaller than ZONE_GAP_X so members read as one block, but enough
- *  that each layer's column run is visually distinct. */
-const GROUP_MEMBER_GAP = 2.0;
+ *  Kept well below ZONE_GAP_X (and below the cube stride) so the member
+ *  layers sit tight against each other and read as ONE block — only a
+ *  hairline separates each layer's column run. */
+const GROUP_MEMBER_GAP = 1.0;
 
 // ── Layer → zone tint ───────────────────────────────────────────────────
 
