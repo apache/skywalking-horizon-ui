@@ -342,7 +342,7 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
                   </dd>
                   <dt>{{ t('Instance') }}</dt><dd class="mono wba">{{ selectedSpan.serviceInstanceName }}</dd>
                   <dt>{{ t('Endpoint') }}</dt><dd class="mono wba">{{ selectedSpan.endpointName || '—' }}</dd>
-                  <dt>{{ t('Type') }}</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.type) }">{{ selectedSpan.type }}</span></dd>
+                  <dt>{{ t('Kind') }}</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.type) }">{{ selectedSpan.type }}</span></dd>
                   <dt>{{ t('Component') }}</dt><dd class="mono">{{ selectedSpan.component || '—' }}</dd>
                   <dt>{{ t('Peer') }}</dt><dd class="mono wba">{{ selectedSpan.peer || '—' }}</dd>
                   <dt>{{ t('Layer') }}</dt><dd class="mono dim">{{ selectedSpan.layer || '—' }}</dd>
@@ -724,8 +724,10 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
   margin: 0;
   font-size: 11px;
 }
-.kv dt { color: var(--sw-fg-3); font-size: 10.5px; }
-.kv dd { margin: 0; color: var(--sw-fg-1); }
+/* Long dotted tag keys (e.g. gen_ai.response.finish_reasons) must wrap
+   inside the 100px key column instead of spilling over the value. */
+.kv dt { color: var(--sw-fg-3); font-size: 10.5px; min-width: 0; overflow-wrap: anywhere; }
+.kv dd { margin: 0; color: var(--sw-fg-1); min-width: 0; }
 .kv-table {
   width: 100%;
   border-collapse: collapse;

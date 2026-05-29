@@ -1754,8 +1754,7 @@ onUnmounted(() => {
            hiding the tooltip behind 3D geometry would be surprising. -->
       <Html
         v-if="hoveredNode"
-        :position="[hoveredNode.pos.x, hoveredNode.pos.y + 1.3, hoveredNode.pos.z]"
-        center
+        :position="[hoveredNode.pos.x, hoveredNode.pos.y + 0.6, hoveredNode.pos.z]"
         :occlude="false"
         pointer-events="none"
         :z-index-range="[2000000000, 2000000000]"

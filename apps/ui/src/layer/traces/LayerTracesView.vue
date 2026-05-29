@@ -1672,7 +1672,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               </dd>
               <dt>{{ t('Instance') }}</dt><dd class="mono">{{ openSpan.serviceInstanceName }}</dd>
               <dt>{{ t('Endpoint') }}</dt><dd class="mono">{{ openSpan.endpointName || '—' }}</dd>
-              <dt>{{ t('Type') }}</dt><dd><span class="tr-kind" :style="{ color: kindColor(openSpan.type) }">{{ openSpan.type }}</span></dd>
+              <dt>{{ t('Kind') }}</dt><dd><span class="tr-kind" :style="{ color: kindColor(openSpan.type) }">{{ openSpan.type }}</span></dd>
               <dt>{{ t('Component') }}</dt><dd class="mono">{{ openSpan.component || '—' }}</dd>
               <dt>{{ t('Peer') }}</dt><dd class="mono">{{ openSpan.peer || '—' }}</dd>
               <dt>{{ t('Layer') }}</dt><dd class="mono dim">{{ openSpan.layer || '—' }}</dd>
@@ -1687,7 +1687,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           >
             <h5>{{ t('Cross-trace refs') }}</h5>
             <table class="kv-table">
-              <thead><tr><th>{{ t('Trace ID') }}</th><th>{{ t('Parent segment') }}</th><th class="num">{{ t('Parent span') }}</th><th>{{ t('Type') }}</th></tr></thead>
+              <thead><tr><th>{{ t('Trace ID') }}</th><th>{{ t('Parent segment') }}</th><th class="num">{{ t('Parent span') }}</th><th>{{ t('Kind') }}</th></tr></thead>
               <tbody>
                 <template v-for="(r, i) in openSpan.refs" :key="i">
                   <tr v-if="r.traceId !== selectedTraceId">
