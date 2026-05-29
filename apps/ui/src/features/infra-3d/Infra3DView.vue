@@ -54,6 +54,12 @@ interface SceneHandle {
   rotateY: (degrees: number) => void;
   pan: (rightAmount: number, upAmount: number) => void;
   resetView: () => void;
+  /** Reset the orbit to the default isometric orientation, then glide to
+   *  FACE the target and zoom to fit `radius`. Used by the side panel. */
+  focusOn: (target: { x: number; y: number; z: number }, radius: number) => void;
+  /** Briefly flash the given layers' zone plates (light pulse, ~4s) to
+   *  show which region a side-panel click selected. */
+  flashZones: (layerKeys: string[]) => void;
 }
 const sceneRef = ref<SceneHandle | null>(null);
 
@@ -108,6 +114,9 @@ const namingByLayer = computed<Record<string, ServiceNamingRule | null>>(() => {
   for (const L of menuLayers.value) out[L.key.toUpperCase()] = L.naming ?? null;
   return out;
 });
+// Scene builds placement once at setup from namingByLayer; if the menu
+// lands AFTER the mount gate, re-key so it rebuilds with the cluster rules.
+const namingReady = computed(() => menuLayers.value.length > 0);
 // Set when the config fetch rejects (OAP/BFF offline, or a role without
 // `infra-3d:read`). Without this the page sat on "Loading…" forever —
 // the operator couldn't tell a slow load from a hard failure.
@@ -431,22 +440,6 @@ function onSelect(node: SceneServiceNode | null): void {
     selectedNodeId.value = node.nodeId;
   }
 }
-/** Tier-level focus: re-centre the camera on the geometric centroid
- *  of every visible zone within this tier. Falls back to the tier's
- *  baseline Y when the tier has no zones rendered (defensive). */
-function onPanelTierFocus(planeId: string, _event: MouseEvent): void {
-  const inTier = zones.value.filter((z) => z.plane === planeId);
-  if (inTier.length === 0) return;
-  let sx = 0;
-  let sz = 0;
-  for (const z of inTier) { sx += z.centerX; sz += z.centerZ; }
-  focusTarget.value = {
-    x: sx / inTier.length,
-    y: inTier[0]!.y + 0.5,
-    z: sz / inTier.length,
-  };
-}
-
 /** "all" → every layer in this tier is on; "none" → every layer is
  *  off; "some" → mixed. Drives the eye-toggle icon state and the
  *  hidden-row class on the tier row. */
@@ -597,55 +590,59 @@ onUnmounted(() => {
 
 // Group zones by plane for the side panel — order matches `levels`
 // from the admin config (apps on top, infra at the bottom by default).
-/** Human layer name from the live menu (falls back to the key). */
-function layerDisplayName(key: string): string {
-  const k = key.toLowerCase();
-  return menuLayers.value.find((L) => L.key.toLowerCase() === k)?.name ?? key;
-}
 function servicesIn(key: string): number {
   return nodesByLayer.value[key]?.length ?? 0;
 }
-/** Recenter the camera on a specific zone (side-panel layer/group row). */
-function onPanelZoneFocus(zoneKey: string): void {
-  const z = zones.value.find((zz) => zz.layerKey === zoneKey);
-  if (!z) return;
-  focusTarget.value = { x: z.centerX, y: z.y + 0.5, z: z.centerZ };
-}
 
-interface PanelMember { key: string; name: string; services: number }
-interface PanelCluster { label: string; alias: string | null }
 interface PanelEntry {
   kind: 'layer' | 'group';
   key: string;
   name: string;
   color?: string;
   services: number;
-  members: PanelMember[];
-  clusters: PanelCluster[];
 }
-/** Side-panel hierarchy: tier → layer | logic-group → group members →
- *  clusters-in-layer. Built from the placed zones so it mirrors exactly
- *  what the scene draws. */
+/** Side-panel hierarchy: tier → layer | logic-group (2 levels). */
 const panelTree = computed(() =>
   (levelsOrdered.value ?? []).map((lvl) => {
     const tierZones = zones.value.filter((z) => z.plane === lvl.id);
-    const entries: PanelEntry[] = tierZones.map((z) => {
-      if (z.group) {
-        const members = z.group.layerKeys.map((k) => ({ key: k, name: layerDisplayName(k), services: servicesIn(k) }));
-        return {
-          kind: 'group', key: z.layerKey, name: z.layerName, color: z.group.color,
-          services: members.reduce((a, m) => a + m.services, 0), members, clusters: [],
-        };
-      }
-      return {
-        kind: 'layer', key: z.layerKey, name: z.layerName,
-        services: servicesIn(z.layerKey), members: [],
-        clusters: (z.clusters ?? []).map((c) => ({ label: c.label, alias: c.alias })),
-      };
-    });
+    const entries: PanelEntry[] = tierZones.map((z) =>
+      z.group
+        ? {
+            kind: 'group',
+            key: z.layerKey,
+            name: z.layerName,
+            color: z.group.color,
+            services: z.group.layerKeys.reduce((a, k) => a + servicesIn(k), 0),
+          }
+        : { kind: 'layer', key: z.layerKey, name: z.layerName, services: servicesIn(z.layerKey) },
+    );
     return { id: lvl.id, name: lvl.label, zones: tierZones, entries };
   }),
 );
+
+/** Focus a tier (all its zones) — face + zoom the scene there and flash
+ *  the region. Called from the side-panel tier row. */
+function onPanelTierFocus(planeId: string): void {
+  const inTier = zones.value.filter((z) => z.plane === planeId);
+  if (inTier.length === 0) return;
+  let sx = 0, sz = 0, halfW = 0, halfD = 0;
+  for (const z of inTier) {
+    sx += z.centerX;
+    sz += z.centerZ;
+    halfW = Math.max(halfW, Math.abs(z.centerX) + z.width / 2);
+    halfD = Math.max(halfD, Math.abs(z.centerZ) + z.depth / 2);
+  }
+  const center = { x: sx / inTier.length, y: inTier[0]!.y + 0.5, z: sz / inTier.length };
+  sceneRef.value?.focusOn(center, Math.max(halfW, halfD));
+  sceneRef.value?.flashZones(inTier.flatMap(zoneLayerKeys));
+}
+/** Focus a single zone (layer / logic group) — face + zoom + flash. */
+function onPanelZoneFocus(zoneKey: string): void {
+  const z = zones.value.find((zz) => zz.layerKey === zoneKey);
+  if (!z) return;
+  sceneRef.value?.focusOn({ x: z.centerX, y: z.y + 0.5, z: z.centerZ }, Math.max(z.width, z.depth) / 2);
+  sceneRef.value?.flashZones(zoneLayerKeys(z));
+}
 
 const totalServices = computed(() =>
   Object.values(nodesByLayer.value).reduce((acc, arr) => acc + arr.length, 0),
@@ -708,6 +705,7 @@ const visibleServices = computed(() => {
       <div v-else-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
       <Infra3DScene
         v-else
+        :key="namingReady ? 'with-naming' : 'no-naming'"
         ref="sceneRef"
         :plane-order="planeOrder"
         :visible-layers="visibleLayers"
@@ -758,15 +756,11 @@ const visibleServices = computed(() => {
         <span class="beacon-label">Beacon</span>
       </button>
 
-      <!-- Side panel — TIERS ONLY. Per-layer rows were removed once
-           the 3D scene grew its own brand-stamps on each zone (the
-           layer becomes identifiable visually, on the map, not in
-           chrome). The remaining controls are tier-level toggles:
-           click a row to focus the camera on the tier; click the eye
-           to show/hide every layer in that tier at once. -->
+      <!-- Side panel: tier → layer/logic-group. Click focuses + flashes
+           that region; the eye toggles the tier. -->
       <aside class="layer-panel">
         <div class="panel-head">
-          <span>Layers</span>
+          <span>Tiers</span>
         </div>
         <div class="panel-body">
           <ul class="tier-list">
@@ -777,7 +771,7 @@ const visibleServices = computed(() => {
               :class="{ hidden: tierVisibility(g.zones) === 'none' }"
             >
               <!-- Tier row — click to focus the tier, eye to toggle it. -->
-              <div class="tier-item" @click="(e) => onPanelTierFocus(g.id, e)">
+              <div class="tier-item" @click="onPanelTierFocus(g.id)">
                 <span class="grp-dot" :data-plane="g.id" />
                 <span class="tier-name">{{ g.name }}</span>
                 <span class="tier-stat">
@@ -801,39 +795,20 @@ const visibleServices = computed(() => {
                 </button>
               </div>
 
-              <!-- Layers + logic groups on this tier; groups expand to
-                   their member layers, layers to their clusters. -->
+              <!-- Layers + logic groups on this tier (level 2). -->
               <ul v-if="g.entries.length" class="layer-sublist">
-                <li v-for="e in g.entries" :key="e.key" class="layer-row-wrap">
-                  <div
-                    class="layer-row"
-                    :class="{ 'is-group': e.kind === 'group' }"
-                    :title="`Focus ${e.name}`"
-                    @click="onPanelZoneFocus(e.key)"
-                  >
-                    <span class="lr-dot" :style="e.color ? { background: e.color } : undefined" />
-                    <span class="lr-name">{{ e.name }}</span>
-                    <span v-if="e.kind === 'group'" class="lr-tag">group</span>
-                    <span class="lr-stat">{{ e.services }}</span>
-                  </div>
-                  <ul v-if="e.members.length" class="sub-sublist">
-                    <li
-                      v-for="m in e.members"
-                      :key="m.key"
-                      class="sub-row"
-                      :title="`Focus ${e.name}`"
-                      @click="onPanelZoneFocus(e.key)"
-                    >
-                      <span class="sr-name">{{ m.name }}</span>
-                      <span class="sr-stat">{{ m.services }}</span>
-                    </li>
-                  </ul>
-                  <ul v-if="e.clusters.length" class="sub-sublist">
-                    <li v-for="(c, ci) in e.clusters" :key="ci" class="sub-row cluster">
-                      <span class="sr-alias" v-if="c.alias">{{ c.alias }}</span>
-                      <span class="sr-name">{{ c.label }}</span>
-                    </li>
-                  </ul>
+                <li
+                  v-for="e in g.entries"
+                  :key="e.key"
+                  class="layer-row"
+                  :class="{ 'is-group': e.kind === 'group' }"
+                  :title="`Focus ${e.name}`"
+                  @click="onPanelZoneFocus(e.key)"
+                >
+                  <span class="lr-dot" :style="e.color ? { background: e.color } : undefined" />
+                  <span class="lr-name">{{ e.name }}</span>
+                  <span v-if="e.kind === 'group'" class="lr-tag">group</span>
+                  <span class="lr-stat">{{ e.services }}</span>
                 </li>
               </ul>
             </li>
@@ -1105,8 +1080,7 @@ const visibleServices = computed(() => {
 }
 /* ── Nested hierarchy: layers / logic groups under a tier, members /
       clusters under those. Indented, lighter than the tier row. ── */
-.layer-sublist, .sub-sublist { list-style: none; margin: 0; padding: 0; }
-.layer-sublist { padding: 2px 0 6px; }
+.layer-sublist { list-style: none; margin: 0; padding: 2px 0 6px; }
 .layer-row {
   display: flex;
   align-items: center;
@@ -1126,20 +1100,6 @@ const visibleServices = computed(() => {
   border-radius: 3px; padding: 0 4px;
 }
 .lr-stat { font-size: 9.5px; color: var(--sw-fg-3); font-variant-numeric: tabular-nums; }
-.sub-row {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 2px 12px 2px 38px;
-  font-size: 10px;
-  color: var(--sw-fg-3);
-}
-.sub-row.cluster .sr-name { color: var(--sw-fg-2); font-family: var(--sw-mono, monospace); }
-.sr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sr-alias {
-  font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3);
-}
-.sr-stat { font-variant-numeric: tabular-nums; }
 .tier-name {
   flex: 1;
   min-width: 0;

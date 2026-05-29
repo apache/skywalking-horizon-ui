@@ -179,9 +179,9 @@ function stampMaterial(name: LayerIconName, hex: string): MeshBasicMaterial {
 function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial {
   return stampMaterial(iconForLayer(layerKey), resolveLayerColor(layerKey, tint));
 }
-/** Stamp for a logic group — its configured icon (e.g. `sky` for the
- *  SkyWalking mark) in the group color. Unknown icon names fall back to
- *  the generic service glyph. */
+/** Stamp for a logic group — its configured icon (e.g. `skywalking` for
+ *  the SkyWalking brand mark) in the group color. Unknown icon names
+ *  fall back to the generic service glyph. */
 function groupStampMaterial(icon: string, hex: string): MeshBasicMaterial {
   const name = KNOWN_ICONS.has(icon as LayerIconName) ? (icon as LayerIconName) : 'svc';
   return stampMaterial(name, hex);
@@ -995,7 +995,20 @@ function updateCloseNodes(): void {
  *  lerping — saves work and prevents jitter at the destination. */
 let lastFocusKey: string | null = null;
 const FOCUS_SNAP_EPS = 0.04;
+let sceneElapsed = 0;
+// Side-panel focus goal (pos+target), lerped per frame; precedes focusTarget.
+const camGoal = shallowRef<{ pos: Vector3; target: Vector3 } | null>(null);
+const FLASH_SECONDS = 4;
+const flashMat = new MeshBasicMaterial({
+  color: new Color('#cfe3ff'),
+  transparent: true,
+  opacity: 0,
+  side: DoubleSide,
+  depthWrite: false,
+});
+const flashState = shallowRef<{ keys: Set<string>; start: number } | null>(null);
 function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
+  sceneElapsed = ctx.elapsed;
   for (const p of packets.value) {
     const t = ((ctx.elapsed / period) + p.phase) % 1;
     p.curve.getPoint(t, p.pos);
@@ -1015,11 +1028,29 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
     }
     for (const r of alarmRipples.value) r.mesh?.scale.setScalar(scaleByPhase[r.phase]!);
   }
-  // Focus lerp — write straight into the live OrbitControls.target so
-  // the move sticks even when the operator mouses on top of it. We
-  // snap when close enough so the loop doesn't keep nudging the
-  // sub-pixel residual forever.
-  if (props.focusTarget) {
+  // Side-panel focus — glide pos+target; precedes the target-only path.
+  if (camGoal.value) {
+    const cam = getCamera();
+    const c = getControls();
+    if (cam && c) {
+      const g = camGoal.value;
+      const k = Math.min(1, ctx.delta * 4);
+      cam.position.lerp(g.pos, k);
+      c.target.lerp(g.target, k);
+      c.update();
+      if (cam.position.distanceTo(g.pos) < 0.15 && c.target.distanceTo(g.target) < 0.1) {
+        cam.position.copy(g.pos);
+        c.target.copy(g.target);
+        c.update();
+        camGoal.value = null;
+      }
+    } else {
+      camGoal.value = null;
+    }
+  } else if (props.focusTarget) {
+    // Focus lerp — write straight into the live OrbitControls.target so
+    // the move sticks even when the operator mouses on top of it. Snap
+    // when close so the loop doesn't keep nudging the sub-pixel residual.
     const c = getControls();
     if (c) {
       const ft = props.focusTarget;
@@ -1043,6 +1074,17 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
     }
   } else {
     lastFocusKey = null;
+  }
+  // Region flash — pulse + fade the selected zones' plates over ~4s.
+  if (flashState.value) {
+    const age = ctx.elapsed - flashState.value.start;
+    if (age >= FLASH_SECONDS) {
+      flashState.value = null;
+      flashMat.opacity = 0;
+    } else {
+      const pulse = 0.5 + 0.5 * Math.sin(age * Math.PI * 2.2);
+      flashMat.opacity = pulse * (1 - age / FLASH_SECONDS) * 0.4;
+    }
   }
   if (ctx.elapsed - lastLabelTick > 0.15) {
     lastLabelTick = ctx.elapsed;
@@ -1330,7 +1372,26 @@ function resetView(): void {
   c.update();
 }
 
-defineExpose({ zoom, rotateY, pan, resetView });
+/** Glide the camera to face `target` from the default isometric heading,
+ *  zoomed to fit `radius` (side panel — moves, doesn't pivot in place). */
+function focusOn(t: { x: number; y: number; z: number }, radius: number): void {
+  const target = new Vector3(t.x, t.y, t.z);
+  const dir = new Vector3(0.62, 0.62, 0.62).normalize();
+  const dist = Math.min(220, Math.max(9, radius * 2.6 + 6));
+  camGoal.value = { target, pos: target.clone().addScaledVector(dir, dist) };
+}
+function flashZones(layerKeys: string[]): void {
+  flashState.value = { keys: new Set(layerKeys), start: sceneElapsed };
+}
+const flashRender = computed(() => {
+  const fs = flashState.value;
+  if (!fs) return [];
+  return placement.zones.filter((z) =>
+    z.group ? z.group.layerKeys.some((k) => fs.keys.has(k)) : fs.keys.has(z.layerKey),
+  );
+});
+
+defineExpose({ zoom, rotateY, pan, resetView, focusOn, flashZones });
 
 // Pre-built layer-key → {name, group} + layer-key → tier (plane) name,
 // so the hover + detail cards can show the human-readable layer, its
@@ -1465,6 +1526,7 @@ onUnmounted(() => {
   callEdgeMat.dispose();
   callPacketMat.dispose();
   crossPacketMat.dispose();
+  flashMat.dispose();
   crossEdgeMat.dispose();
   crossArrowMat.dispose();
   hierarchyMat.dispose();
@@ -1584,11 +1646,8 @@ onUnmounted(() => {
         </TresMesh>
       </template>
 
-      <!-- Topology-cluster frames (k8s/mesh namespace). A thin wireframe
-           rectangle around each cluster of cubes, with the namespace baked
-           as a flat texture stamp at the frame's bottom-left corner — same
-           baked-plane treatment as the layer icons, so it reads in 3D.
-           Both decorative → raycast disabled. -->
+      <!-- Cluster frames (k8s/mesh namespace): wireframe rect + baked
+           namespace stamp at the bottom-left. Decorative → raycast off. -->
       <template v-for="f in clusterFrames" :key="`cframe:${f.band.key}`">
         <TresLineSegments
           :position="[f.band.centerX, f.band.y + 0.05, f.band.centerZ]"
@@ -1611,6 +1670,18 @@ onUnmounted(() => {
           <primitive :object="f.labelMat" />
         </TresMesh>
       </template>
+
+      <!-- Side-panel selection flash. -->
+      <TresMesh
+        v-for="z in flashRender"
+        :key="`flash:${z.layerKey}`"
+        :position="[z.centerX, z.y + 0.04, z.centerZ]"
+        :rotation="[-Math.PI / 2, 0, 0]"
+        :ref="(el) => disableRaycast(el)"
+      >
+        <TresPlaneGeometry :args="[z.width, z.depth]" />
+        <primitive :object="flashMat" />
+      </TresMesh>
 
       <TresMesh
         v-for="n in visibleNodes"

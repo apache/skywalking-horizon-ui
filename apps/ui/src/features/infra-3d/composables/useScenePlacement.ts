@@ -476,7 +476,7 @@ function clusteredLayout(L: SceneLayer, rule: ServiceNamingRule): RawLayout | nu
         d: (bb.maxZ - bb.minZ) + CELL_STRIDE_Z + CLUSTER_INNER_PAD * 2,
       };
     })
-    // Widest cluster first → stable, balanced row.
+    // Largest cluster (by service count) first — stable order.
     .sort((a, c) => c.b.nodes.length - a.b.nodes.length);
 
   const totalW = laid.reduce((a, l, i) => a + l.w + (i > 0 ? CLUSTER_GAP_X : 0), 0);
