@@ -102,6 +102,12 @@ interface Props {
   /** Logic groups from the config — clustered into one block per group
    *  on the group's tier. */
   groups?: SceneGroupSpec[];
+  /** Single-layer focus mode (`/3d/map?layer=<key>`): render ONLY this
+   *  plane's slab so the scene reads as one layer's internal topology
+   *  rather than the full multi-tier map. Null = full map (default). The
+   *  parent also narrows `visibleLayers` to the focused layer, so only
+   *  its zone + cubes draw. */
+  soloPlane?: string | null;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -1379,7 +1385,14 @@ onUnmounted(() => {
            handler, so a click on an empty plane area lands on the
            plane and is harmlessly dropped — exactly what we want for
            empty-space behaviour. -->
-      <template v-for="s in planeSlabs" :key="`plane:${s.id}`">
+      <template
+        v-for="s in planeSlabs"
+        :key="`plane:${s.id}`"
+      >
+        <!-- In single-layer focus mode only the focused layer's plane
+             slab renders; the other tiers are hidden so the view reads
+             as one layer's internal topology. -->
+        <template v-if="!props.soloPlane || s.id === props.soloPlane">
         <!-- Volumetric glass slab — raycast left ON so it occludes
              cubes behind it and absorbs empty clicks (see CLAUDE.md). -->
         <TresMesh :position="[0, s.y, 0]">
@@ -1391,6 +1404,7 @@ onUnmounted(() => {
           <primitive :object="s.edges" />
           <primitive :object="planeEdgeMaterial" />
         </TresLineSegments>
+        </template>
       </template>
 
       <!-- Layer zones — colored backplates. Same occlusion rule as

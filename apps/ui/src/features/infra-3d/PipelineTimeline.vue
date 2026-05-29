@@ -216,7 +216,10 @@ const openStageState = computed<ROStageState | null>(() => {
         <span class="step-label">{{ stageLabels[id] }}</span>
         <span class="step-sum" :title="props.stages[id].summary">{{ props.stages[id].summary }}</span>
       </button>
-      <span class="spacer" />
+      <!-- Countdown sits right after the stages — next to the data that
+           re-runs on each refresh (Metrics is the live-window stage) —
+           rather than by the button, so it reads as "this data refreshes
+           in m:ss". -->
       <span
         v-if="props.running"
         class="next-refresh running"
@@ -227,6 +230,7 @@ const openStageState = computed<ROStageState | null>(() => {
         class="next-refresh"
         title="time until the next auto-refresh"
       >next ↻ {{ countdown }}</span>
+      <span class="spacer" />
       <button
         type="button"
         class="refresh"

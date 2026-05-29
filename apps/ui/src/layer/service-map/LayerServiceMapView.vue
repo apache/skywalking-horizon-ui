@@ -498,7 +498,7 @@ function computeBoosterLevels(
 // Sentinel encoding for the cluster key — `null` (unclustered) gets
 // pinned to a stable string so it can serve as a Map key alongside
 // real cluster values. Decoded back on the read side.
-const UNCLUSTERED = ' __ungrouped__';
+const UNCLUSTERED = '\u0000__ungrouped__';
 function ckeyEnc(k: string | null): string { return k ?? UNCLUSTERED; }
 function ckeyDec(s: string): string | null { return s === UNCLUSTERED ? null : s; }
 
@@ -1487,6 +1487,14 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <option :value="3">3 hops</option>
           </select>
         </label>
+        <!-- Open this layer's topology in the 3D map, focused on just
+             this layer (the existing /3d/map scene scoped via ?layer). -->
+        <router-link
+          class="sw-btn small"
+          :to="{ path: '/3d/map', query: { layer: layerKey } }"
+          target="_blank"
+          title="View this layer's topology in 3D"
+        >View in 3D</router-link>
         <button class="sw-btn small" type="button" @click="() => refetch()">Refresh</button>
       </div>
     </header>

@@ -22,7 +22,8 @@
   operator can toggle whole tiers or individual zones.
 -->
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import Infra3DScene from './Infra3DScene.vue';
 import PipelineTimeline from './PipelineTimeline.vue';
 import {
@@ -75,6 +76,18 @@ const visibleLayers = ref<Set<string>>(new Set());
  *  side-panel row (recenters on the zone's center). The scene lerps
  *  toward this each frame so the camera glides rather than teleports. */
 const focusTarget = ref<{ x: number; y: number; z: number } | null>(null);
+
+// Single-layer focus mode: `/3d/map?layer=<key>` (linked from a layer's
+// 2D Service Map) opens the existing 3D scene zoomed to ONE layer's
+// internal topology — only that layer's cubes + its tier plane render,
+// and the camera recenters on its zone. `null` ⇒ the full multi-tier map.
+const route = useRoute();
+const focusLayer = computed<string | null>(() => {
+  const q = route.query.layer;
+  return typeof q === 'string' && q.length > 0 ? q.toLowerCase() : null;
+});
+/** Plane to render solo in focus mode (the focused layer's tier). */
+const soloPlane = ref<string | null>(null);
 
 // Admin config gates the scene mount — the build-graph pass below is
 // config-aware (level resolver, plane order, per-layer color) and
@@ -143,7 +156,7 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       if (t && t.calls.length > 0) withTopology.push(L.key);
       else withoutTopology.push(L.key);
     }
-    rep.ok(`${withTopology.length} with topology`, {
+    rep.ok(`${withTopology.length} topology-bearing`, {
       kind: 'templates',
       layersWithTopology: withTopology,
       layersWithoutTopology: withoutTopology,
@@ -159,7 +172,7 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       nodeCount: t.nodes.length,
       edgeCount: t.calls.length,
     }));
-    rep.ok(`${probes.filter((p) => p.status === 'ok').length} topologies`, {
+    rep.ok(`${probes.filter((p) => p.status === 'ok').length} maps with edges`, {
       kind: 'topologies',
       probes,
     });
@@ -342,12 +355,38 @@ function onPlanes(p: PlanePlacement[]): void {
 function zoneLayerKeys(z: ZonePlacement): string[] {
   return z.group ? z.group.layerKeys : [z.layerKey];
 }
-function onZones(z: ZonePlacement[]): void {
-  zones.value = z;
+/** Derive cube/plane visibility from the current zones + focus state.
+ *  Focus mode (`?layer=`) shows only the one layer's cubes on its plane
+ *  and recenters the camera on its zone — the existing scene scoped to a
+ *  single layer's internal topology. A solo layer matches its own zone;
+ *  a grouped layer matches the group zone that lists it. */
+function applyVisibility(z: ZonePlacement[]): void {
+  if (focusLayer.value) {
+    const fz = z.find(
+      (zz) =>
+        zz.layerKey.toLowerCase() === focusLayer.value ||
+        (zz.group?.layerKeys ?? []).some((k) => k.toLowerCase() === focusLayer.value),
+    );
+    if (fz) {
+      visibleLayers.value = new Set([focusLayer.value]);
+      soloPlane.value = fz.plane;
+      focusTarget.value = { x: fz.centerX, y: fz.y + 0.5, z: fz.centerZ };
+      return;
+    }
+    // Unknown layer in the URL → fall through to the full map.
+  }
   // Default: every layer visible — group zones expand to their member
   // keys so the Scene's member-key gate lets the grouped cubes render.
+  soloPlane.value = null;
   visibleLayers.value = new Set(z.flatMap(zoneLayerKeys));
 }
+function onZones(z: ZonePlacement[]): void {
+  zones.value = z;
+  applyVisibility(z);
+}
+// Re-derive visibility when the focus changes after mount (e.g. the
+// "view full map" link flips `?layer` off) — no reload needed.
+watch(focusLayer, () => applyVisibility(zones.value));
 function onNodesByLayer(byLayer: Record<string, SceneServiceNode[]>): void {
   nodesByLayer.value = byLayer;
 }
@@ -564,8 +603,18 @@ const visibleServices = computed(() => {
          scene first, the chrome is glanceable when they need stats. -->
     <header class="bar floating">
       <div class="title">
-        <span class="kicker">3D Infrastructure Map</span>
-        <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
+        <template v-if="focusLayer">
+          <span class="kicker">3D Layer Topology</span>
+          <span class="hint">
+            focused on <strong>{{ focusLayer.toUpperCase() }}</strong> ·
+            <router-link class="title-link" :to="{ path: '/3d/map' }">view full map</router-link>
+            · drag to rotate · scroll to zoom
+          </span>
+        </template>
+        <template v-else>
+          <span class="kicker">3D Infrastructure Map</span>
+          <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
+        </template>
       </div>
       <div class="stats">
         <span class="stat">
@@ -602,6 +651,7 @@ const visibleServices = computed(() => {
         :focus-target="focusTarget"
         :beacon-mode="beaconMode"
         :groups="infraGroups"
+        :solo-plane="soloPlane"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"
@@ -775,6 +825,8 @@ const visibleServices = computed(() => {
 .title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .kicker { font-weight: 700; font-size: 12.5px; letter-spacing: 0.03em; color: var(--sw-fg-0); }
 .hint   { font-size: 10.5px; color: var(--sw-fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.title-link { color: var(--sw-accent); text-decoration: none; }
+.title-link:hover { text-decoration: underline; }
 .stats  { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 .stat   { font-size: 11px; color: var(--sw-fg-2); }
 .stat strong { color: var(--sw-fg-0); font-weight: 700; margin-right: 4px; }
