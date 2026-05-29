@@ -528,6 +528,26 @@ link into that layer's dashboard.
 - **Configurable tiers + layers.** Tier order, per-layer plane mapping,
   cube colors, and the traffic MQE per layer are all driven by the 3D
   map config (bundled defaults, admin-overridable).
+- **Topology clustering.** Within layers that carry a service map,
+  services group into named clusters drawn as a wireframe frame with the
+  cluster name baked into the frame's lower-left corner — service-mesh
+  services cluster by their showcase group, Kubernetes services by
+  namespace. Clustering follows each layer's naming rule, so layers
+  without one keep rendering flat.
+- **Navigate by tier.** The right-side **Tiers** panel is a two-level
+  tree (tier → layer / logic-group). Clicking any entry resets the
+  view, glides the camera to face that region, zooms in, and flashes
+  the region for a few seconds so it is easy to spot. A **Reset** button
+  in the panel header restores the initial framing.
+- **Hover = preview.** Hovering a cube shows the same detail card as a
+  click — tier, layer, service, and (when present) group and cluster —
+  anchored at the cube, minus the open-in-dashboard link.
+- **Call-direction flow.** Call relationships animate directional
+  particles so the direction of traffic reads at a glance.
+- **Focus one layer.** The per-layer service map gains a **View in 3D**
+  link that opens the map focused on just that layer.
+- **Refresh countdown.** The load status strip shows a live countdown to
+  the next refresh, anchored to the stage that will run next.
 
 ### Reliability
 
@@ -542,6 +562,11 @@ link into that layer's dashboard.
   their own poll, so OAP sees at most one fan-out per minute regardless
   of how many routes are polling — and the two views can no longer drift
   by 60s relative to each other.
+- The brand link and the post-login redirect no longer resolve to an
+  empty address — both now land on the operator's actual landing route.
+- Trace span detail now labels the span direction as **Kind** (the noun)
+  rather than the mistranslated verb form, and long tag keys wrap inside
+  the panel instead of overflowing their column.
 
 ## 0.5.0
 
