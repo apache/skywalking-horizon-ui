@@ -59,6 +59,7 @@ import {
 import {
   buildSceneGraph,
   loadDemoTopology,
+  type DemoTopology,
   type SceneCallEdge,
   type SceneCrossLayerEdge,
   type SceneHierarchyEdge,
@@ -116,6 +117,11 @@ interface Props {
    *  layer with a rule yielding ≥2 clusters is laid out cluster-by-
    *  cluster (k8s/mesh namespace grouping), matching the 2D map. */
   namingByLayer?: Record<string, ServiceNamingRule | null>;
+  /** Live-assembled topology to render instead of the committed snapshot.
+   *  Null/absent ⇒ the snapshot. The build below runs once at setup, so
+   *  the parent re-keys this component to rebuild when the live structure
+   *  changes. */
+  topology?: DemoTopology | null;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -132,7 +138,7 @@ const emit = defineEmits<{
 // loaded before mounting this component (see Infra3DView.vue), so
 // `levelForLayer` returns deterministic values here, not the synchronous
 // fallback. `planeOrder` is the source of truth for vertical stacking.
-const topo = loadDemoTopology();
+const topo = props.topology ?? loadDemoTopology();
 const graph = buildSceneGraph(topo, levelForLayer);
 const placement = computePlacement(graph, props.planeOrder, props.groups, props.namingByLayer);
 
@@ -1262,8 +1268,10 @@ function defaultCameraPos(): [number, number, number] {
   const cz = (b.minZ + b.maxZ) / 2;
   const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
   const spanY = Math.max(8, b.maxY - b.minY);
-  const radius = spanXZ * 1.0 + 6;
-  return [cx + radius * 0.8, b.minY + spanY * 0.55 + radius * 0.55, cz + radius * 0.8];
+  // Tighter, slightly lower 3/4 framing — fills the viewport with the tier
+  // stack rather than a wide, high isometric.
+  const radius = spanXZ * 0.78 + 5;
+  return [cx + radius * 0.8, b.minY + spanY * 0.5 + radius * 0.5, cz + radius * 0.8];
 }
 function defaultTargetPos(): [number, number, number] {
   const b = placement.bounds;

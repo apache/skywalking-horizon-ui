@@ -153,16 +153,41 @@ interface PipelineCtx {
   topo: DemoTopology | null;
 }
 
-// Phase-1 seam for live data. Opt-in per visit with `?live=1`; with no
-// param (default) the scene renders from the committed snapshot exactly
-// as before, so the live wire can't break the map. `liveTopo` holds the
-// latest assembly so a later phase can swap the scene's data source.
-const liveTopologyEnabled = computed(() => route.query.live === '1');
+// Live data is the default. `?live=0` forces the committed snapshot (a
+// debug / comparison escape hatch). `liveTopo` holds the latest sequential
+// assembly; until the first run lands (or if it comes back empty) the
+// scene falls back to the snapshot so the map is never blank.
+const liveTopologyEnabled = computed(() => route.query.live !== '0');
 const liveTopo = shallowRef<DemoTopology | null>(null);
 const liveWindow = (): LiveWindow => ({
   startMs: Date.now() - 2 * 3600_000,
   endMs: Date.now(),
   step: 'HOUR',
+});
+
+// Topology the scene renders. The scene builds its graph once at setup, so
+// it is re-keyed on a STRUCTURE hash (per-layer service rosters + edge
+// counts): a 60s refresh that finds the same structure leaves the key
+// unchanged — no remount, so the camera and metric/alarm visuals persist —
+// while a service appearing / disappearing rebuilds the scene.
+const sceneTopology = computed<DemoTopology | null>(() => {
+  if (!liveTopologyEnabled.value) return null;
+  const t = liveTopo.value;
+  if (!t || Object.keys(t.servicesByLayer).length === 0) return null;
+  return t;
+});
+const sceneKey = computed(() => {
+  const naming = namingReady.value ? 'n' : '-';
+  const t = sceneTopology.value;
+  if (!t) return `${naming}:snapshot`;
+  const struct = t.layers
+    .map((L) => {
+      const ids = (t.servicesByLayer[L.key] ?? []).map((s) => s.id).sort();
+      const calls = t.topologies[L.key]?.calls.length ?? 0;
+      return `${L.key}:${calls}:${ids.join(',')}`;
+    })
+    .join('|');
+  return `${naming}:${struct}`;
 });
 const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
@@ -792,9 +817,10 @@ const visibleServices = computed(() => {
       <div v-else-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
       <Infra3DScene
         v-else
-        :key="namingReady ? 'with-naming' : 'no-naming'"
+        :key="sceneKey"
         ref="sceneRef"
         :plane-order="planeOrder"
+        :topology="sceneTopology"
         :visible-layers="visibleLayers"
         :hovered-node-id="hoveredNodeId"
         :selected-node-id="selectedNodeId"
