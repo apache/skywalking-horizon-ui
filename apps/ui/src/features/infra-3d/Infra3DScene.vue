@@ -1362,6 +1362,7 @@ function pan(rightAmount: number, upAmount: number): void {
 
 /** Reset to the initial framing. */
 function resetView(): void {
+  camGoal.value = null; // cancel any in-flight side-panel focus
   const cam = getCamera();
   const c = getControls();
   if (!cam || !c) return;

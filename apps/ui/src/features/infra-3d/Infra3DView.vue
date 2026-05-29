@@ -761,6 +761,7 @@ const visibleServices = computed(() => {
       <aside class="layer-panel">
         <div class="panel-head">
           <span>Tiers</span>
+          <button type="button" class="panel-reset" title="Reset the view to the default framing" @click="btnReset">⌂ Reset</button>
         </div>
         <div class="panel-body">
           <ul class="tier-list">
@@ -813,9 +814,6 @@ const visibleServices = computed(() => {
               </ul>
             </li>
           </ul>
-        </div>
-        <div class="panel-foot">
-          source: apache skywalking-showcase
         </div>
       </aside>
 
@@ -997,6 +995,9 @@ const visibleServices = computed(() => {
   z-index: 50;
 }
 .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 8px 10px;
   border-bottom: 1px solid var(--sw-line);
   font-size: 10.5px;
@@ -1005,6 +1006,21 @@ const visibleServices = computed(() => {
   letter-spacing: 0.1em;
   color: var(--sw-fg-2);
 }
+.panel-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-2);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.panel-reset:hover { background: var(--sw-bg-3); color: var(--sw-fg-0); border-color: var(--sw-line-3); }
 .panel-body {
   overflow-y: auto;
   flex: 1;
@@ -1180,14 +1196,6 @@ const visibleServices = computed(() => {
 .layer-item.topo .name {
   color: var(--sw-fg-0);
   font-weight: 600;
-}
-.panel-foot {
-  padding: 7px 10px;
-  border-top: 1px solid var(--sw-line);
-  font-size: 9.5px;
-  color: var(--sw-fg-3);
-  text-align: center;
-  letter-spacing: 0.02em;
 }
 
 /* Detail card moved INTO the Scene component as a cientos <Html>
