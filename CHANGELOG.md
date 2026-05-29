@@ -517,6 +517,13 @@ link into that layer's dashboard.
   the active scopes (`metrics 2h · alarms 20m · ↻ 1m`). An alarmed cube
   burns red with a radiating ripple, matched to its service by (layer,
   name) so only the firing service in the right tier is flagged.
+- **Live topology.** The deployment structure is read live from OAP rather
+  than a bundled snapshot: each layer's service roster and service map are
+  fetched one at a time (low concurrency) and assembled into the scene, so
+  the map is correct on any deployment. It refreshes on the same one-minute
+  cycle — an unchanged structure updates metrics/alarms in place without
+  disturbing the camera, while a service appearing or disappearing rebuilds
+  the affected tier. The load progresses stage by stage in the status strip.
 - **Beacon mode.** A toolbar toggle dims every healthy cube to a
   wireframe ghost and lets only alarming cubes glow, so the services
   that are firing jump out instantly during an incident.

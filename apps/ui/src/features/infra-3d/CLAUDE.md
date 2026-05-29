@@ -474,10 +474,21 @@ raycaster's bounding box mid-pointer-event and made clicks miss /
 require a second tap). Same single `BoxGeometry` for every cube;
 every transition is a property change on the existing mesh.
 
+## Live data vs. the snapshot
+
+The scene now reads its structure live from OAP by default: the pipeline's
+`services` / `topologies` stages fetch each layer's roster + service map one
+at a time (`useLiveTopology.ts`), assembling a `DemoTopology` that
+`buildSceneGraph` consumes exactly like the snapshot. `data/demo-topology.json`
+remains the **fallback** — rendered until the first sequential load lands, if
+the load comes back empty, or when `?live=0` forces it for comparison. The
+scene is re-keyed on a per-layer structure hash so an unchanged refresh keeps
+the camera; only a roster/edge change rebuilds. The cross-layer hierarchy
+(`hierarchy`) is still left empty in live mode — Smartscape peers are a later,
+per-service fetch.
+
 ## What this PoC is NOT
 
-- **Not** wired to live OAP data yet. Demo data is a snapshot committed
-  in `data/demo-topology.json`.
 - **Not** showing cross-plane edges as static geometry — that's a
   future interaction.
 - **Not** persisting visibility / camera state across reloads.
