@@ -868,6 +868,24 @@ function rebuildPackets(): void {
 }
 watch(visibleCallEdges, rebuildPackets, { immediate: true });
 
+// Cross-layer call edges flow too — packets travel caller→callee along
+// the curve (getPoint 0→1 = from→to) so the operator reads the call
+// DIRECTION, not just the static arrow head. Covers the always-on
+// same-plane edges and the selection-gated vertical ones. Amber to
+// match the cross-edge tubes; intra-layer packets stay cyan.
+const crossPacketMat = new MeshBasicMaterial({ color: new Color('#ffd9b0') });
+const crossPackets = shallowRef<Packet[]>([]);
+function rebuildCrossPackets(): void {
+  const out: Packet[] = [];
+  const add = (e: { curve: CatmullRomCurve3 }): void => {
+    for (let k = 0; k < 2; k++) out.push({ curve: e.curve, phase: k / 2, pos: new Vector3() });
+  };
+  visibleCrossEdges.value.forEach(add);
+  visibleVerticalEdges.value.forEach(add);
+  crossPackets.value = out;
+}
+watch([visibleCrossEdges, visibleVerticalEdges], rebuildCrossPackets, { immediate: true });
+
 // One ripple entry per (alarmed cube × phase). `pos` is the ring's
 // anchor on the plane (static — the cube doesn't move); `mesh` is the
 // live THREE mesh captured via the template ref so onSceneLoop can set
@@ -979,6 +997,10 @@ let lastFocusKey: string | null = null;
 const FOCUS_SNAP_EPS = 0.04;
 function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   for (const p of packets.value) {
+    const t = ((ctx.elapsed / period) + p.phase) % 1;
+    p.curve.getPoint(t, p.pos);
+  }
+  for (const p of crossPackets.value) {
     const t = ((ctx.elapsed / period) + p.phase) % 1;
     p.curve.getPoint(t, p.pos);
   }
@@ -1442,6 +1464,7 @@ onUnmounted(() => {
   alarmMat.dispose();
   callEdgeMat.dispose();
   callPacketMat.dispose();
+  crossPacketMat.dispose();
   crossEdgeMat.dispose();
   crossArrowMat.dispose();
   hierarchyMat.dispose();
@@ -1746,6 +1769,17 @@ onUnmounted(() => {
       >
         <primitive :object="packetGeometry" />
         <primitive :object="callPacketMat" />
+      </TresMesh>
+
+      <!-- Cross-layer call-edge packets — flow caller→callee. -->
+      <TresMesh
+        v-for="(p, pi) in crossPackets"
+        :key="`xpkt:${pi}`"
+        :position="p.pos"
+        :ref="(el) => disableRaycast(el)"
+      >
+        <primitive :object="packetGeometry" />
+        <primitive :object="crossPacketMat" />
       </TresMesh>
 
       <!-- Hover tooltip — anchored above the hovered cube via cientos
