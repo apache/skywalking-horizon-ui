@@ -72,6 +72,7 @@ import {
   type ZonePlacement,
   type ZoneTint,
 } from './composables/useScenePlacement';
+import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import { colorForLayer, levelForLayer } from './composables/useInfra3dConfig';
 import { layerIcon as layerIconByKey } from '@/shell/icons';
 import {
@@ -108,6 +109,10 @@ interface Props {
    *  parent also narrows `visibleLayers` to the focused layer, so only
    *  its zone + cubes draw. */
   soloPlane?: string | null;
+  /** Per-layer topology-cluster rules (upper-case key → rule). A solo
+   *  layer with a rule yielding ≥2 clusters is laid out cluster-by-
+   *  cluster (k8s/mesh namespace grouping), matching the 2D map. */
+  namingByLayer?: Record<string, ServiceNamingRule | null>;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -126,7 +131,7 @@ const emit = defineEmits<{
 // fallback. `planeOrder` is the source of truth for vertical stacking.
 const topo = loadDemoTopology();
 const graph = buildSceneGraph(topo, levelForLayer);
-const placement = computePlacement(graph, props.planeOrder, props.groups);
+const placement = computePlacement(graph, props.planeOrder, props.groups, props.namingByLayer);
 
 /** Resolve the per-layer icon glyph. Routed through the same helper
  *  the sidebar uses (`shell/icons.layerIcon`) so the two surfaces
@@ -244,6 +249,15 @@ const visibleZones = computed(() =>
     // A group zone shows if any member layer is visible; a solo zone if
     // its own layer is.
     z.group ? z.group.layerKeys.some((k) => isVisible(k)) : isVisible(z.layerKey),
+  ),
+);
+
+// Topology-cluster bands (k8s/mesh namespace grouping) of the visible
+// zones, flattened with their plane Y for the floating labels. Absent
+// for layers without a naming rule (most), so this is usually empty.
+const clusterBands = computed(() =>
+  visibleZones.value.flatMap((z) =>
+    (z.clusters ?? []).map((b, i) => ({ ...b, y: z.y, key: `${z.layerKey}:${i}` })),
   ),
 );
 
@@ -1439,6 +1453,26 @@ onUnmounted(() => {
         </TresMesh>
       </template>
 
+      <!-- Topology-cluster labels (k8s/mesh namespace). Placement already
+           groups each layer's cubes per cluster; this floats the namespace
+           name over each group (the 3D analogue of the 2D cluster boxes).
+           Decorative DOM overlay → pointer-events off so it never steals a
+           cube click. -->
+      <Html
+        v-for="b in clusterBands"
+        :key="`cluster:${b.key}`"
+        :position="[b.centerX, b.y + 0.06, b.centerZ - b.depth / 2]"
+        center
+        :occlude="false"
+        pointer-events="none"
+        :z-index-range="[30, 1]"
+      >
+        <div class="cluster-label">
+          <span v-if="b.alias" class="cluster-alias">{{ b.alias }}</span>
+          <span class="cluster-val">{{ b.label }}</span>
+        </div>
+      </Html>
+
       <TresMesh
         v-for="n in visibleNodes"
         :key="n.node.nodeId"
@@ -1765,6 +1799,32 @@ onUnmounted(() => {
   /* Quiet fade so a fresh value reads as "new" without distracting. */
   animation: chip-fade 0.45s ease-out;
 }
+/* Topology-cluster label (k8s/mesh namespace) — a small pill floated
+   over each cluster of cubes. Portaled via cientos <Html>, hence
+   non-scoped + pointer-events: none. */
+.cluster-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px 7px;
+  background: rgba(15, 19, 26, 0.82);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  font-size: 9.5px;
+  color: var(--sw-fg-1);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(-50%);
+}
+.cluster-label .cluster-alias {
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+}
+.cluster-label .cluster-val { font-weight: 700; color: var(--sw-fg-0); }
+
 .traffic-chip .val  { font-variant-numeric: tabular-nums; }
 .traffic-chip .unit { font-size: 8.5px; color: var(--sw-fg-3); font-weight: 500; }
 @keyframes chip-fade {

@@ -38,6 +38,8 @@
  */
 
 import type { PlaneId, SceneGraph, SceneLayer, SceneServiceNode } from './useDemoTopology';
+import { resolveServiceIdentity } from '@/utils/serviceName';
+import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 
 // ── Output types ────────────────────────────────────────────────────────
 
@@ -76,6 +78,26 @@ export interface ZonePlacement {
    *  into one block). `color` overrides the tint for the backplate;
    *  `layerKeys` are the member layers (for the side panel). */
   group?: { id: string; color: string; icon: string; layerKeys: string[] };
+  /** Topology-cluster bands (k8s/mesh namespace grouping) when the
+   *  layer has a naming rule yielding ≥2 clusters — the 3D analogue of
+   *  the 2D map's cluster bounding boxes. `centerX`/`centerZ` are
+   *  ABSOLUTE (same frame as the zone), so the renderer draws each band
+   *  + its label directly. Absent when the layer isn't clustered. */
+  clusters?: ClusterBand[];
+}
+
+/** One topology-cluster band inside a zone (e.g. a k8s/mesh namespace).
+ *  Drawn as a labelled boundary around the cluster's cubes. */
+export interface ClusterBand {
+  /** Cluster value (e.g. the namespace), or `(ungrouped)` for the
+   *  rule-miss bucket. */
+  label: string;
+  /** Cluster dimension name (e.g. `namespace`), from the naming rule. */
+  alias: string | null;
+  centerX: number;
+  centerZ: number;
+  width: number;
+  depth: number;
 }
 
 /** A logic group passed into placement — clusters several layers into one
@@ -135,6 +157,10 @@ const ZONE_INNER_PAD = 1.2;
  *  layers sit tight against each other and read as ONE block — only a
  *  hairline separates each layer's column run. */
 const GROUP_MEMBER_GAP = 1.0;
+/** Gap between topology-cluster blocks inside one layer zone, and the
+ *  pad between a cluster's cubes and its boundary band. */
+const CLUSTER_GAP_X = 2.2;
+const CLUSTER_INNER_PAD = 0.9;
 
 // ── Layer → zone tint ───────────────────────────────────────────────────
 
@@ -397,17 +423,90 @@ interface PreUnit {
   width: number;
   depth: number;
   nodeCount: number;
+  /** Cluster bands (local to the unit center) when the solo layer is
+   *  cluster-grouped. Offset to the zone frame on push. */
+  clusters?: ClusterBand[];
 }
 
-/** Lay out one layer and return its node offsets (centered at 0) plus
- *  the RAW footprint (bbox + one cell stride, no zone pad) so callers
- *  can either pad it (solo zone) or tile it inside a group. */
-function rawLayout(L: SceneLayer): {
+interface RawLayout {
   positions: Map<string, LocalPoint>;
   rawW: number;
   rawD: number;
   hasTopology: boolean;
-} {
+  clusters?: ClusterBand[];
+}
+
+/** Bbox of a positions map (empty → all zeros). */
+function bboxOf(positions: Iterable<LocalPoint>): { minX: number; maxX: number; minZ: number; maxZ: number } {
+  let minX = 0, maxX = 0, minZ = 0, maxZ = 0, any = false;
+  for (const p of positions) {
+    if (!any) { minX = maxX = p.x; minZ = maxZ = p.z; any = true; }
+    else { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; if (p.z < minZ) minZ = p.z; if (p.z > maxZ) maxZ = p.z; }
+  }
+  return { minX, maxX, minZ, maxZ };
+}
+
+/** Cluster a layer's nodes by its topology-cluster rule (k8s/mesh
+ *  namespace) and lay each cluster out as its own column-fill block,
+ *  arranged left-to-right — the 3D analogue of the 2D map's cluster
+ *  buckets. Returns null (caller falls back to the normal layout) when
+ *  the rule yields fewer than two distinct clusters, so layers without a
+ *  meaningful cluster split are untouched. Node offsets + band centers
+ *  are local to the layer center; the caller offsets them to the zone. */
+function clusteredLayout(L: SceneLayer, rule: ServiceNamingRule): RawLayout | null {
+  interface Bucket { label: string; alias: string | null; nodes: SceneServiceNode[] }
+  const buckets = new Map<string, Bucket>();
+  for (const n of L.nodes) {
+    const id = resolveServiceIdentity(n.name, rule);
+    const key = id.cluster ?? '';
+    let b = buckets.get(key);
+    if (!b) { b = { label: id.cluster ?? '(ungrouped)', alias: id.clusterAlias, nodes: [] }; buckets.set(key, b); }
+    b.nodes.push(n);
+  }
+  if (buckets.size < 2) return null;
+
+  // Lay each bucket out (column-fill, centered) and measure its footprint.
+  const laid = [...buckets.values()]
+    .map((b) => {
+      const cf = columnFillLayout(b.nodes);
+      const bb = bboxOf(cf.positions.values());
+      return {
+        b, cf, bb,
+        w: (bb.maxX - bb.minX) + CELL_STRIDE_X + CLUSTER_INNER_PAD * 2,
+        d: (bb.maxZ - bb.minZ) + CELL_STRIDE_Z + CLUSTER_INNER_PAD * 2,
+      };
+    })
+    // Widest cluster first → stable, balanced row.
+    .sort((a, c) => c.b.nodes.length - a.b.nodes.length);
+
+  const totalW = laid.reduce((a, l, i) => a + l.w + (i > 0 ? CLUSTER_GAP_X : 0), 0);
+  const maxD = laid.reduce((a, l) => Math.max(a, l.d), 0);
+  const positions = new Map<string, LocalPoint>();
+  const clusters: ClusterBand[] = [];
+  let cursor = -totalW / 2;
+  for (const l of laid) {
+    const cxLocal = cursor + l.w / 2;
+    cursor += l.w + CLUSTER_GAP_X;
+    const bcx = (l.bb.minX + l.bb.maxX) / 2;
+    const bcz = (l.bb.minZ + l.bb.maxZ) / 2;
+    for (const [nodeId, p] of l.cf.positions) {
+      positions.set(nodeId, { x: cxLocal + (p.x - bcx), z: p.z - bcz });
+    }
+    clusters.push({ label: l.b.label, alias: l.b.alias, centerX: cxLocal, centerZ: 0, width: l.w, depth: l.d });
+  }
+  return { positions, rawW: totalW + CELL_STRIDE_X, rawD: maxD + CELL_STRIDE_Z, hasTopology: L.callEdges.length > 0, clusters };
+}
+
+/** Lay out one layer and return its node offsets (centered at 0) plus
+ *  the RAW footprint (bbox + one cell stride, no zone pad) so callers
+ *  can either pad it (solo zone) or tile it inside a group. When a
+ *  topology-cluster `rule` is supplied and yields ≥2 clusters, the layer
+ *  is laid out cluster-by-cluster (k8s/mesh namespace grouping). */
+function rawLayout(L: SceneLayer, rule?: ServiceNamingRule | null): RawLayout {
+  if (rule) {
+    const clustered = clusteredLayout(L, rule);
+    if (clustered) return clustered;
+  }
   const layout = L.callEdges.length > 0 ? rankBasedLayout(L) : columnFillLayout(L.nodes);
   let minX = 0, maxX = 0, minZ = 0, maxZ = 0, any = false;
   for (const p of layout.positions.values()) {
@@ -463,6 +562,11 @@ export function computePlacement(
   graph: SceneGraph,
   planeOrder?: PlaneSpec[],
   groups?: SceneGroupSpec[],
+  /** Per-layer topology-cluster rules (upper-case layer key → rule),
+   *  e.g. from each layer's `naming`. A solo layer with a rule that
+   *  yields ≥2 clusters is laid out cluster-by-cluster (k8s/mesh
+   *  namespace grouping). */
+  namingByLayer?: Record<string, ServiceNamingRule | null>,
 ): ScenePlacement {
   const order: PlaneSpec[] =
     planeOrder && planeOrder.length > 0
@@ -554,7 +658,7 @@ export function computePlacement(
 
     for (const L of planeLayers) {
       if (claimed.has(L.key.toUpperCase())) continue;
-      const r = rawLayout(L);
+      const r = rawLayout(L, namingByLayer?.[L.key.toUpperCase()] ?? null);
       units.push({
         kind: 'layer',
         key: L.key,
@@ -563,6 +667,7 @@ export function computePlacement(
         layerKeys: [L.key],
         positions: r.positions,
         hasTopology: r.hasTopology,
+        clusters: r.clusters,
         width: r.rawW + ZONE_INNER_PAD * 2,
         depth: r.rawD + ZONE_INNER_PAD * 2,
         nodeCount: L.nodes.length,
@@ -600,6 +705,11 @@ export function computePlacement(
           u.kind === 'group'
             ? { id: u.group!.id, color: u.group!.color, icon: u.group!.icon, layerKeys: u.layerKeys }
             : undefined,
+        clusters: u.clusters?.map((b) => ({
+          ...b,
+          centerX: cx + b.centerX,
+          centerZ: cz + b.centerZ,
+        })),
       });
       for (const [nodeId, off] of u.positions) {
         nodes.set(nodeId, { nodeId, x: cx + off.x, y: planeY, z: cz + off.z });

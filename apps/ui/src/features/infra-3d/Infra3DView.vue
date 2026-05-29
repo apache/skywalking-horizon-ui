@@ -24,6 +24,8 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useLayers } from '@/shell/useLayers';
+import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import Infra3DScene from './Infra3DScene.vue';
 import PipelineTimeline from './PipelineTimeline.vue';
 import {
@@ -96,6 +98,16 @@ const soloPlane = ref<string | null>(null);
 // bundled defaults are in hand.
 const { config: infraConfig, levelsOrdered, groups: infraGroups, ensureLoaded, levelForLayer } = useInfra3dConfig();
 const ready = ref(false);
+
+// Per-layer topology-cluster rules (k8s/mesh namespace) from the live
+// layer menu — drives the 3D namespace clustering, matching the 2D
+// Service Map. Keyed upper-case to match the scene's lookup.
+const { layers: menuLayers, isLoading: menuLoading } = useLayers();
+const namingByLayer = computed<Record<string, ServiceNamingRule | null>>(() => {
+  const out: Record<string, ServiceNamingRule | null> = {};
+  for (const L of menuLayers.value) out[L.key.toUpperCase()] = L.naming ?? null;
+  return out;
+});
 // Set when the config fetch rejects (OAP/BFF offline, or a role without
 // `infra-3d:read`). Without this the page sat on "Loading…" forever —
 // the operator couldn't tell a slow load from a hard failure.
@@ -559,6 +571,17 @@ onMounted(async () => {
     configError.value = err instanceof Error ? err.message : String(err);
     return;
   }
+  // Wait for the layer menu too — it carries the per-layer naming rules
+  // that drive namespace clustering, and the scene reads them ONCE when
+  // it builds placement. Bounded so a slow/unreachable menu just renders
+  // the map unclustered rather than hanging on the loading state.
+  await new Promise<void>((resolve) => {
+    if (!menuLoading.value) return resolve();
+    const stop = watch(menuLoading, (loading) => {
+      if (!loading) { stop(); resolve(); }
+    });
+    setTimeout(() => { stop(); resolve(); }, 4000);
+  });
   ready.value = true;
   // Kick the loading pipeline once, then refresh every minute. Alarms
   // poll on their own 1-min timer (20m window); metrics ride the
@@ -652,6 +675,7 @@ const visibleServices = computed(() => {
         :beacon-mode="beaconMode"
         :groups="infraGroups"
         :solo-plane="soloPlane"
+        :naming-by-layer="namingByLayer"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"
