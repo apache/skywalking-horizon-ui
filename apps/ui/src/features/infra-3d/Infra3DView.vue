@@ -597,13 +597,55 @@ onUnmounted(() => {
 
 // Group zones by plane for the side panel — order matches `levels`
 // from the admin config (apps on top, infra at the bottom by default).
-const groupedZones = computed(() => {
-  return (levelsOrdered.value ?? []).map((lvl) => ({
-    id: lvl.id,
-    name: lvl.label,
-    zones: zones.value.filter((z) => z.plane === lvl.id),
-  }));
-});
+/** Human layer name from the live menu (falls back to the key). */
+function layerDisplayName(key: string): string {
+  const k = key.toLowerCase();
+  return menuLayers.value.find((L) => L.key.toLowerCase() === k)?.name ?? key;
+}
+function servicesIn(key: string): number {
+  return nodesByLayer.value[key]?.length ?? 0;
+}
+/** Recenter the camera on a specific zone (side-panel layer/group row). */
+function onPanelZoneFocus(zoneKey: string): void {
+  const z = zones.value.find((zz) => zz.layerKey === zoneKey);
+  if (!z) return;
+  focusTarget.value = { x: z.centerX, y: z.y + 0.5, z: z.centerZ };
+}
+
+interface PanelMember { key: string; name: string; services: number }
+interface PanelCluster { label: string; alias: string | null }
+interface PanelEntry {
+  kind: 'layer' | 'group';
+  key: string;
+  name: string;
+  color?: string;
+  services: number;
+  members: PanelMember[];
+  clusters: PanelCluster[];
+}
+/** Side-panel hierarchy: tier → layer | logic-group → group members →
+ *  clusters-in-layer. Built from the placed zones so it mirrors exactly
+ *  what the scene draws. */
+const panelTree = computed(() =>
+  (levelsOrdered.value ?? []).map((lvl) => {
+    const tierZones = zones.value.filter((z) => z.plane === lvl.id);
+    const entries: PanelEntry[] = tierZones.map((z) => {
+      if (z.group) {
+        const members = z.group.layerKeys.map((k) => ({ key: k, name: layerDisplayName(k), services: servicesIn(k) }));
+        return {
+          kind: 'group', key: z.layerKey, name: z.layerName, color: z.group.color,
+          services: members.reduce((a, m) => a + m.services, 0), members, clusters: [],
+        };
+      }
+      return {
+        kind: 'layer', key: z.layerKey, name: z.layerName,
+        services: servicesIn(z.layerKey), members: [],
+        clusters: (z.clusters ?? []).map((c) => ({ label: c.label, alias: c.alias })),
+      };
+    });
+    return { id: lvl.id, name: lvl.label, zones: tierZones, entries };
+  }),
+);
 
 const totalServices = computed(() =>
   Object.values(nodesByLayer.value).reduce((acc, arr) => acc + arr.length, 0),
@@ -724,63 +766,76 @@ const visibleServices = computed(() => {
            to show/hide every layer in that tier at once. -->
       <aside class="layer-panel">
         <div class="panel-head">
-          <span>Tiers</span>
+          <span>Layers</span>
         </div>
         <div class="panel-body">
           <ul class="tier-list">
             <li
-              v-for="g in groupedZones"
+              v-for="g in panelTree"
               :key="g.id"
-              class="tier-item"
+              class="tier-block"
               :class="{ hidden: tierVisibility(g.zones) === 'none' }"
-              @click="(e) => onPanelTierFocus(g.id, e)"
             >
-              <span class="grp-dot" :data-plane="g.id" />
-              <span class="tier-name">{{ g.name }}</span>
-              <span class="tier-stat">
-                {{ visibleServicesInTier(g.zones) }} / {{ totalServicesInTier(g.zones) }}
-              </span>
-              <button
-                type="button"
-                class="eye-btn"
-                :title="tierVisibility(g.zones) === 'all' ? 'hide this tier' : 'show this tier'"
-                :aria-pressed="tierVisibility(g.zones) !== 'none'"
-                @click.stop="togglePlane(g.id)"
-              >
-                <svg
-                  v-if="tierVisibility(g.zones) !== 'none'"
-                  viewBox="0 0 16 16"
-                  width="14"
-                  height="14"
-                  aria-hidden="true"
+              <!-- Tier row — click to focus the tier, eye to toggle it. -->
+              <div class="tier-item" @click="(e) => onPanelTierFocus(g.id, e)">
+                <span class="grp-dot" :data-plane="g.id" />
+                <span class="tier-name">{{ g.name }}</span>
+                <span class="tier-stat">
+                  {{ visibleServicesInTier(g.zones) }} / {{ totalServicesInTier(g.zones) }}
+                </span>
+                <button
+                  type="button"
+                  class="eye-btn"
+                  :title="tierVisibility(g.zones) === 'all' ? 'hide this tier' : 'show this tier'"
+                  :aria-pressed="tierVisibility(g.zones) !== 'none'"
+                  @click.stop="togglePlane(g.id)"
                 >
-                  <path
-                    d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                  />
-                  <circle cx="8" cy="8" r="2" fill="currentColor" />
-                </svg>
-                <svg v-else viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-                  <path
-                    d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                    opacity="0.6"
-                  />
-                  <line
-                    x1="2.5"
-                    y1="2.5"
-                    x2="13.5"
-                    y2="13.5"
-                    stroke="currentColor"
-                    stroke-width="1.4"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
+                  <svg v-if="tierVisibility(g.zones) !== 'none'" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z" fill="none" stroke="currentColor" stroke-width="1.4" />
+                    <circle cx="8" cy="8" r="2" fill="currentColor" />
+                  </svg>
+                  <svg v-else viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                    <path d="M8 4c-3.5 0-6 4-6 4s2.5 4 6 4 6-4 6-4-2.5-4-6-4z" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.6" />
+                    <line x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Layers + logic groups on this tier; groups expand to
+                   their member layers, layers to their clusters. -->
+              <ul v-if="g.entries.length" class="layer-sublist">
+                <li v-for="e in g.entries" :key="e.key" class="layer-row-wrap">
+                  <div
+                    class="layer-row"
+                    :class="{ 'is-group': e.kind === 'group' }"
+                    :title="`Focus ${e.name}`"
+                    @click="onPanelZoneFocus(e.key)"
+                  >
+                    <span class="lr-dot" :style="e.color ? { background: e.color } : undefined" />
+                    <span class="lr-name">{{ e.name }}</span>
+                    <span v-if="e.kind === 'group'" class="lr-tag">group</span>
+                    <span class="lr-stat">{{ e.services }}</span>
+                  </div>
+                  <ul v-if="e.members.length" class="sub-sublist">
+                    <li
+                      v-for="m in e.members"
+                      :key="m.key"
+                      class="sub-row"
+                      :title="`Focus ${e.name}`"
+                      @click="onPanelZoneFocus(e.key)"
+                    >
+                      <span class="sr-name">{{ m.name }}</span>
+                      <span class="sr-stat">{{ m.services }}</span>
+                    </li>
+                  </ul>
+                  <ul v-if="e.clusters.length" class="sub-sublist">
+                    <li v-for="(c, ci) in e.clusters" :key="ci" class="sub-row cluster">
+                      <span class="sr-alias" v-if="c.alias">{{ c.alias }}</span>
+                      <span class="sr-name">{{ c.label }}</span>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
             </li>
           </ul>
         </div>
@@ -1040,14 +1095,51 @@ const visibleServices = computed(() => {
   cursor: pointer;
   font-size: 11.5px;
   color: var(--sw-fg-1);
-  border-bottom: 1px solid var(--sw-line);
 }
-.tier-item:last-child { border-bottom: none; }
+.tier-block { border-bottom: 1px solid var(--sw-line); }
+.tier-block:last-child { border-bottom: none; }
+.tier-block.hidden { opacity: 0.5; }
 .tier-item:hover {
   background: rgba(255, 255, 255, 0.04);
   color: var(--sw-fg-0);
 }
-.tier-item.hidden { opacity: 0.5; }
+/* ── Nested hierarchy: layers / logic groups under a tier, members /
+      clusters under those. Indented, lighter than the tier row. ── */
+.layer-sublist, .sub-sublist { list-style: none; margin: 0; padding: 0; }
+.layer-sublist { padding: 2px 0 6px; }
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 22px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--sw-fg-2);
+}
+.layer-row:hover { background: rgba(255, 255, 255, 0.04); color: var(--sw-fg-0); }
+.layer-row.is-group .lr-name { font-weight: 700; }
+.lr-dot { width: 7px; height: 7px; border-radius: 2px; flex: 0 0 7px; background: var(--sw-fg-3); }
+.lr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lr-tag {
+  font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--sw-accent-2); background: var(--sw-accent-soft);
+  border-radius: 3px; padding: 0 4px;
+}
+.lr-stat { font-size: 9.5px; color: var(--sw-fg-3); font-variant-numeric: tabular-nums; }
+.sub-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 12px 2px 38px;
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
+.sub-row.cluster .sr-name { color: var(--sw-fg-2); font-family: var(--sw-mono, monospace); }
+.sr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-alias {
+  font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3);
+}
+.sr-stat { font-variant-numeric: tabular-nums; }
 .tier-name {
   flex: 1;
   min-width: 0;
