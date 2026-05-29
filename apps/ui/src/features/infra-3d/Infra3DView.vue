@@ -1016,7 +1016,8 @@ const visibleServices = computed(() => {
   overflow: hidden;
 }
 
-/* SkyWalking brand — bottom-left, sits above the timeline strip's z.
+/* SkyWalking brand — bottom-left. Sits below the timeline (z 80) so the
+   stage-detail drawer, which expands up over this corner, is not blocked.
    Subtle glass background so it reads on bright cube tints behind it. */
 .sw-brand {
   position: absolute;
