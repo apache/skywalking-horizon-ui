@@ -41,11 +41,13 @@ import {
   ConeGeometry,
   DoubleSide,
   EdgesGeometry,
+  LinearFilter,
   LineBasicMaterial,
   MeshBasicMaterial,
   MeshLambertMaterial,
   type Object3D,
   PerspectiveCamera,
+  PlaneGeometry,
   Quaternion,
   RingGeometry,
   SphereGeometry,
@@ -74,6 +76,7 @@ import {
 } from './composables/useScenePlacement';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import { colorForLayer, levelForLayer } from './composables/useInfra3dConfig';
+import { resolveServiceIdentity } from '@/utils/serviceName';
 import { layerIcon as layerIconByKey } from '@/shell/icons';
 import {
   disposeLayerIconTextures,
@@ -257,9 +260,83 @@ const visibleZones = computed(() =>
 // for layers without a naming rule (most), so this is usually empty.
 const clusterBands = computed(() =>
   visibleZones.value.flatMap((z) =>
-    (z.clusters ?? []).map((b, i) => ({ ...b, y: z.y, key: `${z.layerKey}:${i}` })),
+    (z.clusters ?? []).map((b, i) => ({
+      ...b,
+      y: z.y,
+      colorHex: resolveLayerColor(z.layerKey, z.tint),
+      key: `${z.layerKey}:${i}`,
+    })),
   ),
 );
+
+// ── Cluster frames + baked-text labels ─────────────────────────────
+// Each topology-cluster band draws as a thin wireframe rectangle on the
+// plane (一个线条的框) with its namespace baked into a flat texture stamp
+// at the frame's bottom-left corner — the same baked-plane treatment as
+// the layer-icon stamps, so the name tilts with the camera in 3D.
+const clusterFrameMat = new LineBasicMaterial({
+  color: new Color('#5a6b86'),
+  transparent: true,
+  opacity: 0.85,
+});
+// Baked namespace labels (cached by text|colour). The canvas is sized to
+// the TEXT (up to a wide cap) so the namespace isn't truncated; the plane
+// then uses the frame width. Mirrors the icon-stamp baker.
+const clusterLabels = new Map<string, { mat: MeshBasicMaterial; aspect: number }>();
+function bakeClusterLabel(text: string, hex: string): { tex: CanvasTexture; aspect: number } | null {
+  if (typeof document === 'undefined') return null;
+  const H = 128, FONT = 84, MAXW = 2048, PAD = 18;
+  const probe = document.createElement('canvas').getContext('2d');
+  if (!probe) return null;
+  const font = `700 ${FONT}px system-ui, -apple-system, sans-serif`;
+  probe.font = font;
+  let t = text;
+  while (probe.measureText(t).width > MAXW - PAD * 2 && t.length > 1) t = `${t.slice(0, -2)}…`;
+  const W = Math.max(Math.ceil(probe.measureText(t).width) + PAD * 2, 64);
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  const cx = cv.getContext('2d');
+  if (!cx) return null;
+  cx.font = font;
+  cx.fillStyle = hex;
+  cx.textBaseline = 'middle';
+  cx.textAlign = 'left';
+  cx.fillText(t, PAD, H / 2 + 2);
+  const tex = new CanvasTexture(cv);
+  tex.minFilter = LinearFilter;
+  tex.magFilter = LinearFilter;
+  tex.anisotropy = 4;
+  return { tex, aspect: W / H };
+}
+function clusterLabel(text: string, hex: string): { mat: MeshBasicMaterial; aspect: number } {
+  const key = `${text}|${hex}`;
+  let e = clusterLabels.get(key);
+  if (!e) {
+    const baked = bakeClusterLabel(text, hex);
+    const mat = new MeshBasicMaterial({ map: baked?.tex ?? undefined, transparent: true, depthWrite: false, opacity: 0.95 });
+    e = { mat, aspect: baked?.aspect ?? 4 };
+    clusterLabels.set(key, e);
+  }
+  return e;
+}
+/** Base world height of a cluster label stamp. The width follows the
+ *  frame (left-anchored), capped at the label's natural width so a short
+ *  namespace isn't blown up; aspect keeps the baked text un-stretched. */
+const CLUSTER_LABEL_H = 0.66;
+const clusterFrames = computed(() =>
+  clusterBands.value.map((b) => {
+    const pg = new PlaneGeometry(b.width, b.depth);
+    const geom = new EdgesGeometry(pg);
+    pg.dispose();
+    const { mat, aspect } = clusterLabel(b.label, b.colorHex);
+    const labelW = Math.min(b.width - 0.4, aspect * CLUSTER_LABEL_H);
+    const labelH = labelW / aspect;
+    return { band: b, geom, labelMat: mat, labelW, labelH };
+  }),
+);
+// Free the previous frame batch when a visibility change re-mints the set.
+watch(clusterFrames, (_now, prev) => { for (const f of prev) f.geom.dispose(); }, { flush: 'post' });
 
 interface VisibleNode {
   node: SceneServiceNode;
@@ -1233,28 +1310,57 @@ function resetView(): void {
 
 defineExpose({ zoom, rotateY, pan, resetView });
 
+// Pre-built layer-key → {name, group} + layer-key → tier (plane) name,
+// so the hover + detail cards can show the human-readable layer, its
+// family group, and the tier the cube sits on.
+const layerInfo = new Map<string, { name: string; group: string | null }>();
+for (const L of graph.layers) layerInfo.set(L.key, { name: L.name, group: L.group });
+const planeNameById = new Map(placement.planes.map((p) => [p.id, p.name]));
+const layerPlaneName = new Map<string, string>();
+for (const z of placement.zones) {
+  const pn = planeNameById.get(z.plane) ?? z.plane;
+  if (z.group) for (const k of z.group.layerKeys) layerPlaneName.set(k, pn);
+  else layerPlaneName.set(z.layerKey, pn);
+}
+
+/** Shared cube description — drives BOTH the hover preview and the click
+ *  detail card so they read identically. `group` is the service's
+ *  `<group>::` prefix; `cluster` is the topology-cluster (k8s/mesh
+ *  namespace) when the layer has a naming rule. */
+interface NodeInfo {
+  display: string;
+  service: string;
+  tier: string | null;
+  layer: string;
+  group: string | null;
+  cluster: string | null;
+  clusterAlias: string | null;
+}
+function describeNode(node: SceneServiceNode): NodeInfo {
+  const li = layerInfo.get(node.layerKey);
+  const rule = props.namingByLayer?.[node.layerKey.toUpperCase()] ?? null;
+  const id = resolveServiceIdentity(node.name, rule);
+  return {
+    display: id.display || node.shortName,
+    service: node.name,
+    tier: layerPlaneName.get(node.layerKey) ?? null,
+    layer: li?.name ?? node.layerKey,
+    group: id.legacyGroup,
+    cluster: id.cluster,
+    clusterAlias: id.clusterAlias,
+  };
+}
+
+// Hover preview is suppressed while a node is selected — the detail card
+// is the active info surface and a concurrent hover would double up.
 const hoveredNode = computed(() => {
-  if (!props.hoveredNodeId) return null;
-  // Suppress the hover preview entirely whenever a node is selected —
-  // the detail card next to the selected cube is the active info
-  // surface, and any concurrent hover tooltip just doubles up the
-  // same content on screen ("info shows twice"). Operators can still
-  // see hover previews on every other cube once they dismiss the
-  // selection.
-  if (props.selectedNodeId) return null;
+  if (!props.hoveredNodeId || props.selectedNodeId) return null;
   const n = graph.nodesByKey.get(props.hoveredNodeId);
   if (!n) return null;
   const pos = placement.nodes.get(props.hoveredNodeId);
   if (!pos) return null;
-  return { node: n, pos };
+  return { node: n, pos, info: describeNode(n) };
 });
-
-// Pre-built layer-key → {name, group} map so the detail card can show
-// the human-readable layer name + group alongside the cube it sits on.
-const layerInfo = new Map<string, { name: string; group: string | null }>();
-for (const L of graph.layers) {
-  layerInfo.set(L.key, { name: L.name, group: L.group });
-}
 
 const selectedNodeDetail = computed(() => {
   if (!props.selectedNodeId) return null;
@@ -1262,8 +1368,7 @@ const selectedNodeDetail = computed(() => {
   if (!n) return null;
   const pos = placement.nodes.get(props.selectedNodeId);
   if (!pos) return null;
-  const layer = layerInfo.get(n.layerKey) ?? null;
-  return { node: n, pos, layer };
+  return { node: n, pos, info: describeNode(n) };
 });
 
 /** Deep-link to the selected service's layer dashboard, pre-selecting
@@ -1354,6 +1459,9 @@ onUnmounted(() => {
   for (const t of crossTubes.value) t.geometry.dispose();
   for (const t of verticalTubes.value) t.geometry.dispose();
   for (const t of hierarchyTubes.value) t.geometry.dispose();
+  clusterFrameMat.dispose();
+  for (const f of clusterFrames.value) f.geom.dispose();
+  for (const e of clusterLabels.values()) { e.mat.map?.dispose(); e.mat.dispose(); }
 });
 </script>
 
@@ -1453,25 +1561,33 @@ onUnmounted(() => {
         </TresMesh>
       </template>
 
-      <!-- Topology-cluster labels (k8s/mesh namespace). Placement already
-           groups each layer's cubes per cluster; this floats the namespace
-           name over each group (the 3D analogue of the 2D cluster boxes).
-           Decorative DOM overlay → pointer-events off so it never steals a
-           cube click. -->
-      <Html
-        v-for="b in clusterBands"
-        :key="`cluster:${b.key}`"
-        :position="[b.centerX, b.y + 0.06, b.centerZ - b.depth / 2]"
-        center
-        :occlude="false"
-        pointer-events="none"
-        :z-index-range="[30, 1]"
-      >
-        <div class="cluster-label">
-          <span v-if="b.alias" class="cluster-alias">{{ b.alias }}</span>
-          <span class="cluster-val">{{ b.label }}</span>
-        </div>
-      </Html>
+      <!-- Topology-cluster frames (k8s/mesh namespace). A thin wireframe
+           rectangle around each cluster of cubes, with the namespace baked
+           as a flat texture stamp at the frame's bottom-left corner — same
+           baked-plane treatment as the layer icons, so it reads in 3D.
+           Both decorative → raycast disabled. -->
+      <template v-for="f in clusterFrames" :key="`cframe:${f.band.key}`">
+        <TresLineSegments
+          :position="[f.band.centerX, f.band.y + 0.05, f.band.centerZ]"
+          :rotation="[-Math.PI / 2, 0, 0]"
+          :ref="(el) => disableRaycast(el)"
+        >
+          <primitive :object="f.geom" />
+          <primitive :object="clusterFrameMat" />
+        </TresLineSegments>
+        <TresMesh
+          :position="[
+            f.band.centerX - f.band.width / 2 + f.labelW / 2 + 0.25,
+            f.band.y + 0.06,
+            f.band.centerZ + f.band.depth / 2 - f.labelH / 2 - 0.25,
+          ]"
+          :rotation="[-Math.PI / 2, 0, 0]"
+          :ref="(el) => disableRaycast(el)"
+        >
+          <TresPlaneGeometry :args="[f.labelW, f.labelH]" />
+          <primitive :object="f.labelMat" />
+        </TresMesh>
+      </template>
 
       <TresMesh
         v-for="n in visibleNodes"
@@ -1644,10 +1760,34 @@ onUnmounted(() => {
         pointer-events="none"
         :z-index-range="[2000000000, 2000000000]"
       >
-        <div class="floating-tip">
-          <span class="tip-name">{{ hoveredNode.node.shortName }}</span>
-          <span class="tip-layer">{{ hoveredNode.node.layerKey }}</span>
-          <span class="tip-full">{{ hoveredNode.node.name }}</span>
+        <!-- Hover preview — SAME card as the click detail, minus the
+             "Open dashboard" footer (hover is read-only) and pointer-
+             events (must never steal the click). -->
+        <div class="detail-card hover">
+          <div class="d-head">
+            <div class="d-title">
+              <span class="d-name">{{ hoveredNode.info.display }}</span>
+              <span class="d-sub">service</span>
+            </div>
+          </div>
+          <div class="d-rows">
+            <div v-if="hoveredNode.info.tier" class="d-row">
+              <span class="d-label">Tier</span><span class="d-val">{{ hoveredNode.info.tier }}</span>
+            </div>
+            <div class="d-row">
+              <span class="d-label">Layer</span><span class="d-val">{{ hoveredNode.info.layer }}</span>
+            </div>
+            <div v-if="hoveredNode.info.group" class="d-row">
+              <span class="d-label">Group</span><span class="d-val">{{ hoveredNode.info.group }}</span>
+            </div>
+            <div v-if="hoveredNode.info.cluster" class="d-row">
+              <span class="d-label">{{ hoveredNode.info.clusterAlias || 'Cluster' }}</span>
+              <span class="d-val">{{ hoveredNode.info.cluster }}</span>
+            </div>
+            <div class="d-row">
+              <span class="d-label">Service</span><span class="d-val mono">{{ hoveredNode.info.service }}</span>
+            </div>
+          </div>
         </div>
       </Html>
 
@@ -1666,7 +1806,7 @@ onUnmounted(() => {
         <div class="detail-card" :data-side="selectedSide">
           <div class="d-head">
             <div class="d-title">
-              <span class="d-name">{{ selectedNodeDetail.node.shortName }}</span>
+              <span class="d-name">{{ selectedNodeDetail.info.display }}</span>
               <span class="d-sub">service</span>
             </div>
             <button
@@ -1677,15 +1817,21 @@ onUnmounted(() => {
             >×</button>
           </div>
           <div class="d-rows">
-            <div class="d-row">
-              <span class="d-label">Layer</span>
-              <span class="d-val">
-                {{ selectedNodeDetail.layer?.name ?? selectedNodeDetail.node.layerKey }}
-              </span>
+            <div v-if="selectedNodeDetail.info.tier" class="d-row">
+              <span class="d-label">Tier</span><span class="d-val">{{ selectedNodeDetail.info.tier }}</span>
             </div>
-            <div v-if="selectedNodeDetail.layer?.group" class="d-row">
-              <span class="d-label">Group</span>
-              <span class="d-val">{{ selectedNodeDetail.layer.group }}</span>
+            <div class="d-row">
+              <span class="d-label">Layer</span><span class="d-val">{{ selectedNodeDetail.info.layer }}</span>
+            </div>
+            <div v-if="selectedNodeDetail.info.group" class="d-row">
+              <span class="d-label">Group</span><span class="d-val">{{ selectedNodeDetail.info.group }}</span>
+            </div>
+            <div v-if="selectedNodeDetail.info.cluster" class="d-row">
+              <span class="d-label">{{ selectedNodeDetail.info.clusterAlias || 'Cluster' }}</span>
+              <span class="d-val">{{ selectedNodeDetail.info.cluster }}</span>
+            </div>
+            <div class="d-row">
+              <span class="d-label">Service</span><span class="d-val mono">{{ selectedNodeDetail.info.service }}</span>
             </div>
           </div>
           <div class="d-foot">
@@ -1730,45 +1876,6 @@ onUnmounted(() => {
    has higher specificity than any external class rule we could write.
    See CLAUDE.md "click-thief" section. */
 
-/* Hover tooltip — portaled via cientos <Html>, so non-scoped.
-   Anchored at the hovered cube; the translate-Y offset lifts it
-   slightly above the cube so the cube stays visible while the
-   tooltip reads. pointer-events: none keeps it from absorbing
-   the click the operator's about to make on the cube. */
-.floating-tip {
-  background: rgba(15, 19, 26, 0.96);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 6px;
-  padding: 5px 9px;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  font-size: 11px;
-  color: var(--sw-fg-0);
-  pointer-events: none;
-  white-space: nowrap;
-  transform: translateY(-100%);
-  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.6);
-  /* Sits above every traffic chip — cientos portals every <Html> as a
-     stacking-context-less absolute element, and without an explicit
-     z-index the per-cube chips (rendered later in the v-for) end up
-     painted on top of the hover tooltip. The tooltip is the operator's
-     focused-on info, so it always wins. */
-  position: relative;
-  z-index: 20;
-}
-.floating-tip .tip-name { font-weight: 700; font-size: 12px; }
-.floating-tip .tip-layer {
-  font-size: 9px;
-  color: var(--sw-fg-3);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.floating-tip .tip-full {
-  font-size: 10px;
-  color: var(--sw-fg-2);
-  font-family: var(--sw-mono, monospace);
-}
 
 /* Traffic chip — small numeric pill below each cube reading the
    stage-5 MQE result. Border picks up the layer color so the chip
@@ -1799,32 +1906,6 @@ onUnmounted(() => {
   /* Quiet fade so a fresh value reads as "new" without distracting. */
   animation: chip-fade 0.45s ease-out;
 }
-/* Topology-cluster label (k8s/mesh namespace) — a small pill floated
-   over each cluster of cubes. Portaled via cientos <Html>, hence
-   non-scoped + pointer-events: none. */
-.cluster-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  padding: 1px 7px;
-  background: rgba(15, 19, 26, 0.82);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 8px;
-  font-size: 9.5px;
-  color: var(--sw-fg-1);
-  white-space: nowrap;
-  pointer-events: none;
-  user-select: none;
-  transform: translateY(-50%);
-}
-.cluster-label .cluster-alias {
-  font-size: 8px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-}
-.cluster-label .cluster-val { font-weight: 700; color: var(--sw-fg-0); }
-
 .traffic-chip .val  { font-variant-numeric: tabular-nums; }
 .traffic-chip .unit { font-size: 8.5px; color: var(--sw-fg-3); font-weight: 500; }
 @keyframes chip-fade {
@@ -1858,6 +1939,12 @@ onUnmounted(() => {
 }
 .detail-card[data-side='left'] {
   transform: translate(calc(-100% - 20px), -50%);
+}
+/* Hover variant — same card, but read-only: centred above the cube and
+   never absorbs pointer events (the click must reach the cube). */
+.detail-card.hover {
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 8px));
 }
 .detail-card .d-head {
   display: flex;
@@ -1922,6 +2009,12 @@ onUnmounted(() => {
   flex: 1 1 auto;
   min-width: 0;
   word-break: break-word;
+}
+.detail-card .d-val.mono {
+  font-family: var(--sw-mono, monospace);
+  font-size: 11px;
+  color: var(--sw-fg-2);
+  word-break: break-all;
 }
 .detail-card .d-foot {
   padding: 0 12px 12px;
