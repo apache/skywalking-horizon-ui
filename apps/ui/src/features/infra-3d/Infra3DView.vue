@@ -722,8 +722,8 @@ function onKeyDown(e: KeyboardEvent): void {
       return;
   }
   e.preventDefault();
-  // Shift = bigger step (3×) for fast traverse across the scene.
-  const factor = e.shiftKey ? 3 : 1;
+  // Half-step pan by default; Shift = 3× for fast traverse.
+  const factor = e.shiftKey ? 1.5 : 0.5;
   sceneRef.value?.pan(rx * factor, uy * factor);
 }
 
