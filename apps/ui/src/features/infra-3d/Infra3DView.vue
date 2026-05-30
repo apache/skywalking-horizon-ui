@@ -222,24 +222,6 @@ function sceneNodesFrom(topo: DemoTopology): Record<string, SceneServiceNode[]> 
   return byLayer;
 }
 
-// Camera tuning readout (?cam=1) — live pose for dialing in a framing.
-interface CameraReadout {
-  x: number;
-  y: number;
-  z: number;
-  tx: number;
-  ty: number;
-  tz: number;
-  azimuthDeg: number;
-  polarDeg: number;
-  distance: number;
-}
-const camReadoutOn = computed(() => route.query.cam === '1');
-const camReadout = shallowRef<CameraReadout | null>(null);
-function onCamera(r: CameraReadout): void {
-  camReadout.value = r;
-}
-
 const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
     rep.start();
@@ -880,21 +862,12 @@ function onPanelZoneFocus(zoneKey: string): void {
         :groups="infraGroups"
         :solo-plane="soloPlane"
         :naming-by-layer="namingByLayer"
-        :emit-camera="camReadoutOn"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"
         @zones="onZones"
         @nodes-by-layer="onNodesByLayer"
-        @camera="onCamera"
       />
-
-      <!-- Camera tuning readout (?cam=1): live pose to dial in a framing. -->
-      <div v-if="camReadoutOn && camReadout" class="cam-readout">
-        <div>pos&nbsp;&nbsp;{{ camReadout.x }}, {{ camReadout.y }}, {{ camReadout.z }}</div>
-        <div>look&nbsp;{{ camReadout.tx }}, {{ camReadout.ty }}, {{ camReadout.tz }}</div>
-        <div>az {{ camReadout.azimuthDeg }}° · pol {{ camReadout.polarDeg }}° · dist {{ camReadout.distance }}</div>
-      </div>
 
       <!-- Top-left camera-control toolbar. Mouse rotate/zoom/pan still
            work; these buttons give explicit affordances for the same
@@ -1127,24 +1100,6 @@ function onPanelZoneFocus(zoneKey: string): void {
   font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--sw-fg-3);
-}
-/* Camera tuning readout (?cam=1) — bottom-right, above the status strip. */
-.cam-readout {
-  position: absolute;
-  right: 14px;
-  bottom: 52px;
-  z-index: 75;
-  padding: 6px 9px;
-  background: rgba(15, 19, 26, 0.82);
-  border: 1px solid var(--sw-line);
-  border-radius: 6px;
-  font-family: var(--sw-font-mono, monospace);
-  font-size: 11px;
-  line-height: 1.5;
-  color: var(--sw-fg-1);
-  backdrop-filter: blur(6px);
-  pointer-events: none;
-  white-space: nowrap;
 }
 .cfg-error {
   position: absolute;
