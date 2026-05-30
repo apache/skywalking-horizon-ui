@@ -1592,6 +1592,7 @@ onUnmounted(() => {
       clear-color="#0a0d12"
       :antialias="true"
       power-preference="high-performance"
+      :fps-limit="30"
       @loop="onSceneLoop"
     >
       <TresPerspectiveCamera
