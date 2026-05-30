@@ -1301,28 +1301,42 @@ watch(
 // The initial pose is applied via `:position` / `:target` on first
 // mount; after that, all updates go through the refs.
 
+// Initial camera heading — azimuth 15° off front, 62° polar from vertical
+// (matching OrbitControls' getAzimuthal/getPolarAngle), tuned on the
+// showcase to read the stacked tiers. Scale-invariant; the reset AND the
+// side-panel focus reuse it so every camera move keeps the same angle.
+const CAMERA_AZ = (15 * Math.PI) / 180;
+const CAMERA_POL = (62 * Math.PI) / 180;
+/** Unit camera→position offset direction for the tuned heading. */
+function headingDir(): Vector3 {
+  const s = Math.sin(CAMERA_POL);
+  return new Vector3(s * Math.sin(CAMERA_AZ), Math.cos(CAMERA_POL), s * Math.cos(CAMERA_AZ));
+}
+
 function defaultCameraPos(): [number, number, number] {
   const b = placement.bounds;
   const [tx, ty, tz] = defaultTargetPos();
   const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
-  // Orbit the camera around the target at a fixed near-front 3/4 heading —
-  // azimuth 15° off front, 62° polar (matching OrbitControls' getAzimuthal/
-  // getPolarAngle) — the angle that reads the stacked tiers clearly at the
-  // showcase's topology complexity. Distance scales with the scene footprint
-  // so larger / smaller deployments keep the same fill.
+  // Distance scales with the scene footprint so larger / smaller deployments
+  // keep the same fill.
   const dist = spanXZ * 0.97 + 6;
-  const az = (15 * Math.PI) / 180;
-  const pol = (62 * Math.PI) / 180;
-  const sinPol = Math.sin(pol);
-  return [
-    tx + dist * sinPol * Math.sin(az),
-    ty + dist * Math.cos(pol),
-    tz + dist * sinPol * Math.cos(az),
-  ];
+  const o = headingDir().multiplyScalar(dist);
+  return [tx + o.x, ty + o.y, tz + o.z];
 }
 function defaultTargetPos(): [number, number, number] {
   const b = placement.bounds;
-  return [(b.minX + b.maxX) / 2, b.minY + (b.maxY - b.minY) * 0.4, (b.minZ + b.maxZ) / 2];
+  const cx = (b.minX + b.maxX) / 2;
+  const cz = (b.minZ + b.maxZ) / 2;
+  const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
+  // Shift the look-point along the camera's screen-right axis (cos az, 0,
+  // -sin az) so the scene sits left-of-centre, clear of the right-hand
+  // TIERS panel.
+  const shift = spanXZ * 0.1;
+  return [
+    cx + Math.cos(CAMERA_AZ) * shift,
+    b.minY + (b.maxY - b.minY) * 0.4,
+    cz - Math.sin(CAMERA_AZ) * shift,
+  ];
 }
 const initialCameraPos = defaultCameraPos();
 const initialTarget = defaultTargetPos();
@@ -1428,13 +1442,13 @@ function resetView(): void {
   c.update();
 }
 
-/** Glide the camera to face `target` from the default isometric heading,
- *  zoomed to fit `radius` (side panel — moves, doesn't pivot in place). */
+/** Glide the camera to face `target` from the tuned heading (same angle as
+ *  the default / reset), zoomed to fit `radius`. Side panel — moves, doesn't
+ *  pivot in place. */
 function focusOn(t: { x: number; y: number; z: number }, radius: number): void {
   const target = new Vector3(t.x, t.y, t.z);
-  const dir = new Vector3(0.62, 0.62, 0.62).normalize();
   const dist = Math.min(220, Math.max(9, radius * 2.6 + 6));
-  camGoal.value = { target, pos: target.clone().addScaledVector(dir, dist) };
+  camGoal.value = { target, pos: target.clone().addScaledVector(headingDir(), dist) };
 }
 function flashZones(layerKeys: string[]): void {
   flashState.value = { keys: new Set(layerKeys), start: sceneElapsed };
