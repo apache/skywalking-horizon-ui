@@ -85,7 +85,7 @@ const route = useRoute();
 
 /** The 3D Infra Map entry pill lives in the topbar on every page. It
  *  stays compact ("3D Infra") by default and expands to the full
- *  "3D Infra Map · EXPERIMENTAL" wordmark ONLY on hover — including
+ *  "3D Infrastructure Map" wordmark ONLY on hover — including
  *  while the operator is on /3d/map itself. The 3D route already
  *  collapses the sidebar to give the canvas every horizontal pixel;
  *  keeping the topbar pill compact in 3D mode matches that intent
@@ -495,16 +495,16 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
       <small>Horizon</small>
     </RouterLink>
     <!-- 3D Infra Map entry point — always-on in the topbar. Compact
-         "3D Infra" by default; expands to "3D Infra Map EXPERIMENTAL"
-         on hover or while the operator is already on /3d/map. The
-         stacked-tier icon mirrors the page's three planes (apps /
+         "3D Infra" by default; expands to the full "3D Infra Map"
+         wordmark on hover or while the operator is already on /3d/map.
+         The stacked-tier icon mirrors the page's three planes (apps /
          mesh / infra) using the same tint colors so the pill reads
          as a microcosm of the view it leads to. -->
     <RouterLink
       to="/3d/map"
       class="exp-badge"
       :class="{ 'is-on': exp3dExpanded }"
-      aria-label="3D Infra Map — experimental"
+      aria-label="3D Infra Map"
       @mouseenter="exp3dHover = true"
       @mouseleave="exp3dHover = false"
     >
@@ -529,8 +529,7 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
         <path d="M12 13 L21 17 L12 21 L3 17 Z" fill="url(#expTierMesh)" opacity="0.18" />
         <path d="M12 16 L21 20 L12 24 L3 20 Z" fill="url(#expTierInfra)" />
       </svg>
-      <span class="exp-name">{{ exp3dExpanded ? '3D Infra Map' : '3D Infra' }}</span>
-      <span v-if="exp3dExpanded" class="exp-tag">EXPERIMENTAL</span>
+      <span class="exp-name">{{ exp3dExpanded ? '3D Infrastructure Map' : '3D Infra' }}</span>
     </RouterLink>
     <div class="sw-top-spacer" />
     <div class="sw-top-actions">
@@ -798,9 +797,9 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
 }
 
 /* ── 3D Infra Map entry pill ────────────────────────────────────────
-   Always-present topbar affordance for the experimental 3D view.
-   Compact "3D Infra" by default; on hover OR while on /3d/map it
-   swaps content to the full "3D Infra Map" + "EXPERIMENTAL" tag
+   Always-present topbar affordance for the 3D view. Compact "3D Infra"
+   by default; on hover OR while on /3d/map it swaps content to the full
+   "3D Infrastructure Map" wordmark
    (driven from the `.is-on` class — see exp3dExpanded in <script>).
    The container width changes naturally with the rendered text; we
    transition the border/glow/background so the visual emphasis lands
@@ -849,16 +848,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
   color: #f5f3ff;
   letter-spacing: 0.01em;
   white-space: nowrap;
-  line-height: 1;
-}
-.exp-tag {
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-  color: #fb923c;
-  text-transform: uppercase;
-  white-space: nowrap;
-  margin-left: 2px;
   line-height: 1;
 }
 
