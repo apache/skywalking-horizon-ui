@@ -155,8 +155,8 @@ interface PipelineCtx {
 
 // Live data is the default. `?live=0` forces the committed snapshot (a
 // debug / comparison escape hatch). `liveTopo` holds the latest sequential
-// assembly; until the first run lands (or if it comes back empty) the
-// scene falls back to the snapshot so the map is never blank.
+// assembly, published atomically once a run has the full structure so the
+// scene renders complete (see sceneReady), never piecemeal.
 const liveTopologyEnabled = computed(() => route.query.live !== '0');
 const liveTopo = shallowRef<DemoTopology | null>(null);
 const liveWindow = (): LiveWindow => ({
@@ -189,6 +189,57 @@ const sceneKey = computed(() => {
     .join('|');
   return `${naming}:${struct}`;
 });
+
+// Render gate: in live mode hold the scene until the first full assembly
+// lands so it appears complete, not piecemeal. Snapshot mode (?live=0) is
+// ready immediately.
+const sceneReady = computed(() => !liveTopologyEnabled.value || liveTopo.value !== null);
+
+// Refresh modes. Landing + manual refresh run the FULL pipeline (templates
+// + layout/clustering resolve here, once). The 60s auto-refresh runs LIGHT
+// — services + topologies + metrics only — reusing templates/layout from
+// the last full run. `knownLayers` is the template set captured at the last
+// full run; a layer that appears only on a light refresh has no template,
+// so its services are hidden until the next full (manual / page) refresh.
+type PipelineMode = 'full' | 'light';
+const pipelineMode = ref<PipelineMode>('full');
+const knownLayers = shallowRef<Set<string> | null>(null);
+
+// SceneServiceNode view of a DemoTopology — what the metrics stage and the
+// scene's node grid consume. shortName = last `::` segment, pre-dot.
+function sceneNodesFrom(topo: DemoTopology): Record<string, SceneServiceNode[]> {
+  const byLayer: Record<string, SceneServiceNode[]> = {};
+  for (const [key, refs] of Object.entries(topo.servicesByLayer)) {
+    byLayer[key] = refs.map((s) => ({
+      nodeId: `${key.toUpperCase()}::${s.id}`,
+      layerKey: key,
+      serviceId: s.id,
+      name: s.name,
+      shortName: s.name.split('::').slice(-1)[0]!.split('.')[0]!,
+      normal: s.normal,
+    }));
+  }
+  return byLayer;
+}
+
+// Camera tuning readout (?cam=1) — live pose for dialing in a framing.
+interface CameraReadout {
+  x: number;
+  y: number;
+  z: number;
+  tx: number;
+  ty: number;
+  tz: number;
+  azimuthDeg: number;
+  polarDeg: number;
+  distance: number;
+}
+const camReadoutOn = computed(() => route.query.cam === '1');
+const camReadout = shallowRef<CameraReadout | null>(null);
+function onCamera(r: CameraReadout): void {
+  camReadout.value = r;
+}
+
 const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
     rep.start();
@@ -390,37 +441,36 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   },
 };
 
-// Live variant of the pipeline: same five stages, but `services` /
-// `templates` / `topologies` / `layout` read from sequential per-layer OAP
-// queries (assembled into a DemoTopology) instead of the snapshot. The
-// `metrics` stage is identical — it consumes ctx.servicesByLayer either way.
+// Live variant of the pipeline: `services` / `topologies` read from
+// sequential per-layer OAP queries (assembled into a DemoTopology); the
+// `liveTopo` ref is published atomically at the END of `topologies`, so the
+// scene renders the full structure once. `templates` / `layout` resolve
+// once per FULL run (skipped on light auto-refresh). `metrics` is shared.
 const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
     const roster = liveRoster(menuLayers.value);
-    const topo = liveSkeleton(roster);
-    await loadLiveServices(rep, roster, topo);
+    const known = knownLayers.value;
+    const light = pipelineMode.value === 'light' && known !== null;
+    // Light refresh renders only layers known at the last full load. A layer
+    // that appeared since has no template — hide its services until the next
+    // full (manual / page) refresh, and surface it in the stage detail.
+    const active = light ? roster.filter((L) => known!.has(L.key)) : roster;
+    const hidden = light ? roster.filter((L) => !known!.has(L.key)).map((L) => L.key) : [];
+    const topo = liveSkeleton(active);
+    await loadLiveServices(rep, active, topo, hidden);
     ctx.topo = topo;
-    liveTopo.value = topo;
-    const byLayer: Record<string, SceneServiceNode[]> = {};
-    for (const [key, refs] of Object.entries(topo.servicesByLayer)) {
-      byLayer[key] = refs.map((s) => ({
-        nodeId: `${key.toUpperCase()}::${s.id}`,
-        layerKey: key,
-        serviceId: s.id,
-        name: s.name,
-        shortName: s.name.split('::').slice(-1)[0]!.split('.')[0]!,
-        normal: s.normal,
-      }));
-    }
-    ctx.servicesByLayer = byLayer;
+    ctx.servicesByLayer = sceneNodesFrom(topo);
   },
   templates: async (rep, ctx) => {
     rep.start();
-    const rosterKeys = new Set((ctx.topo?.layers ?? []).map((l) => l.key));
+    const rosterKeys = (ctx.topo?.layers ?? []).map((l) => l.key);
+    // The template set — captured once per full run. Light refreshes hide
+    // any layer outside it (no template loaded for it yet).
+    knownLayers.value = new Set(rosterKeys);
     const withTopology = menuLayers.value
-      .filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L))
+      .filter((L) => knownLayers.value!.has(L.key) && isTopologyBearing(L))
       .map((L) => L.key);
-    const withoutTopology = [...rosterKeys].filter((k) => !withTopology.includes(k));
+    const withoutTopology = rosterKeys.filter((k) => !withTopology.includes(k));
     rep.ok(`${withTopology.length} topology-bearing`, {
       kind: 'templates',
       layersWithTopology: withTopology,
@@ -436,6 +486,7 @@ const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
     const rosterKeys = new Set(topo.layers.map((l) => l.key));
     const bearing = menuLayers.value.filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L));
     await loadLiveTopologies(rep, bearing, topo, liveWindow());
+    // Publish the complete structure (services + topology) in one shot.
     liveTopo.value = topo;
   },
   layout: async (rep, ctx) => {
@@ -450,12 +501,28 @@ const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       ms,
     });
   },
+  // Shared with the snapshot pipeline: it reads ctx.servicesByLayer, which
+  // both services stages populate with the same SceneServiceNode[] shape.
   metrics: pipelineImpls.metrics,
 };
 
-async function runPipeline(): Promise<void> {
+// FULL run — landing + manual refresh. Resolves templates + layout/clustering
+// and captures the known-layer set.
+async function runFull(): Promise<void> {
+  pipelineMode.value = 'full';
   const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
   await runPipelineState(ctx, liveTopologyEnabled.value ? livePipelineImpls : pipelineImpls);
+}
+
+// LIGHT run — the 60s auto-refresh. Re-reads services + topologies + metrics
+// only; templates + layout keep their last full-run state in the strip.
+// Snapshot mode (?live=0) has no cheaper path, so it re-runs the full
+// in-memory pipeline.
+async function runLight(): Promise<void> {
+  if (!liveTopologyEnabled.value) return runFull();
+  pipelineMode.value = 'light';
+  const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
+  await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'metrics']);
 }
 
 /** Arm (or re-arm) the auto-refresh timer + countdown anchor. */
@@ -463,15 +530,15 @@ function scheduleRefresh(): void {
   if (refreshTimer !== null) clearTimeout(refreshTimer);
   nextRefreshAt.value = Date.now() + REFRESH_MS;
   refreshTimer = setTimeout(() => {
-    void runPipeline();
+    void runLight();
     scheduleRefresh();
   }, REFRESH_MS);
 }
 
-/** Manual refresh from the timeline strip — run now and reset the
- *  countdown so the next auto-refresh is a full interval away. */
+/** Manual refresh from the timeline strip — a FULL reload (re-checks
+ *  templates + layout) and resets the countdown. */
 function refreshNow(): void {
-  void runPipeline();
+  void runFull();
   scheduleRefresh();
 }
 
@@ -688,11 +755,11 @@ onMounted(async () => {
     setTimeout(() => { stop(); resolve(); }, 4000);
   });
   ready.value = true;
-  // Kick the loading pipeline once, then refresh every minute. Alarms
-  // poll on their own 1-min timer (20m window); metrics ride the
-  // pipeline (2h @ HOUR). The timeline strip's refresh button still
-  // forces an immediate run.
-  void runPipeline();
+  // Full load once at landing (templates + layout + structure), then a
+  // light refresh every minute (services + topologies + metrics). Alarms
+  // poll on their own 1-min timer (20m window). The strip's refresh button
+  // forces an immediate full run.
+  void runFull();
   scheduleRefresh();
 });
 onUnmounted(() => {
@@ -756,17 +823,6 @@ function onPanelZoneFocus(zoneKey: string): void {
   sceneRef.value?.flashZones(zoneLayerKeys(z));
 }
 
-const totalServices = computed(() =>
-  Object.values(nodesByLayer.value).reduce((acc, arr) => acc + arr.length, 0),
-);
-const visibleServices = computed(() => {
-  let n = 0;
-  for (const [k, arr] of Object.entries(nodesByLayer.value)) {
-    if (visibleLayers.value.has(k)) n += arr.length;
-  }
-  return n;
-});
-
 </script>
 
 <template>
@@ -790,19 +846,9 @@ const visibleServices = computed(() => {
           <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
         </template>
       </div>
+      <!-- Counts + query-scope live in the bottom status strip; the
+           header keeps only the title and the exit affordance. -->
       <div class="stats">
-        <span class="stat">
-          <strong>{{ visibleServices }}</strong> / {{ totalServices }} services
-        </span>
-        <span class="stat">
-          <strong>{{ zones.length }}</strong> layers · <strong>{{ planes.length }}</strong> levels
-        </span>
-        <!-- Query scopes so the operator knows what window each signal
-             reflects: topology/metrics roll up the last 2h (HOUR step),
-             alarms the last 20m; everything refreshes each minute. -->
-        <span class="stat scope" title="Topology &amp; metrics: last 2h (HOUR step) · Alarms: last 20m · auto-refresh every 1 min">
-          metrics <strong>2h</strong> · alarms <strong>20m</strong> · ↻ <strong>1m</strong>
-        </span>
         <router-link class="back" to="/" title="Exit 3D map">×</router-link>
       </div>
     </header>
@@ -815,6 +861,11 @@ const visibleServices = computed(() => {
         <router-link class="cfg-error__back" to="/">← Back</router-link>
       </div>
       <div v-else-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
+      <!-- Hold the render until the FULL context is in hand (layers,
+           templates, services, topology, clustering) so the scene appears
+           once, complete — never a partial layout that rebuilds as data
+           lands. The bottom strip shows which stage is in flight. -->
+      <div v-else-if="!sceneReady" class="cfg-loading">Reading topology from OAP…</div>
       <Infra3DScene
         v-else
         :key="sceneKey"
@@ -829,17 +880,26 @@ const visibleServices = computed(() => {
         :groups="infraGroups"
         :solo-plane="soloPlane"
         :naming-by-layer="namingByLayer"
+        :emit-camera="camReadoutOn"
         @hover="onHover"
         @select="onSelect"
         @planes="onPlanes"
         @zones="onZones"
         @nodes-by-layer="onNodesByLayer"
+        @camera="onCamera"
       />
+
+      <!-- Camera tuning readout (?cam=1): live pose to dial in a framing. -->
+      <div v-if="camReadoutOn && camReadout" class="cam-readout">
+        <div>pos&nbsp;&nbsp;{{ camReadout.x }}, {{ camReadout.y }}, {{ camReadout.z }}</div>
+        <div>look&nbsp;{{ camReadout.tx }}, {{ camReadout.ty }}, {{ camReadout.tz }}</div>
+        <div>az {{ camReadout.azimuthDeg }}° · pol {{ camReadout.polarDeg }}° · dist {{ camReadout.distance }}</div>
+      </div>
 
       <!-- Top-left camera-control toolbar. Mouse rotate/zoom/pan still
            work; these buttons give explicit affordances for the same
            gestures (useful on trackpads + as a discoverability cue). -->
-      <aside class="cam-tools">
+      <aside v-if="sceneReady" class="cam-tools">
         <div class="cam-row">
           <button class="cam-btn" title="zoom in" @click="btnZoomIn">＋</button>
           <button class="cam-btn" title="zoom out" @click="btnZoomOut">−</button>
@@ -860,6 +920,7 @@ const visibleServices = computed(() => {
       <!-- Beacon mode toggle — dims the scene to wireframe so only
            alarming cubes stand out. Sits under the camera toolbar. -->
       <button
+        v-if="sceneReady"
         class="beacon-toggle"
         :class="{ 'is-on': beaconMode }"
         :title="beaconMode ? 'Beacon mode on — click to show all' : 'Beacon mode — focus on alarms'"
@@ -871,7 +932,7 @@ const visibleServices = computed(() => {
 
       <!-- Side panel: tier → layer/logic-group. Click focuses + flashes
            that region; the eye toggles the tier. -->
-      <aside class="layer-panel">
+      <aside v-if="sceneReady" class="layer-panel">
         <div class="panel-head">
           <span>Tiers</span>
           <button type="button" class="panel-reset" title="Reset the view to the default framing" @click="btnReset">⌂ Reset</button>
@@ -1066,6 +1127,24 @@ const visibleServices = computed(() => {
   font-size: 12px;
   letter-spacing: 0.02em;
   color: var(--sw-fg-3);
+}
+/* Camera tuning readout (?cam=1) — bottom-right, above the status strip. */
+.cam-readout {
+  position: absolute;
+  right: 14px;
+  bottom: 52px;
+  z-index: 75;
+  padding: 6px 9px;
+  background: rgba(15, 19, 26, 0.82);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  font-family: var(--sw-font-mono, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--sw-fg-1);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+  white-space: nowrap;
 }
 .cfg-error {
   position: absolute;

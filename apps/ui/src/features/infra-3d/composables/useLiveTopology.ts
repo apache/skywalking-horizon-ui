@@ -103,6 +103,7 @@ export async function loadLiveServices(
   rep: StageReporter,
   roster: LayerDef[],
   topo: DemoTopology,
+  hiddenNoTemplate: string[] = [],
 ): Promise<number> {
   rep.start();
   let total = 0;
@@ -114,6 +115,7 @@ export async function loadLiveServices(
       layersTotal: Object.keys(topo.servicesByLayer).length,
       addedSince: null,
       removedSince: null,
+      hiddenNoTemplate,
     });
     try {
       const resp = await bff.layer.services(L.key);
@@ -130,12 +132,18 @@ export async function loadLiveServices(
       console.warn(`[infra-3d] live services failed for ${L.key}:`, err);
     }
   }
-  rep.ok(`${total} services / ${Object.keys(topo.servicesByLayer).length} layers`, {
+  const layerCount = Object.keys(topo.servicesByLayer).length;
+  const summary =
+    hiddenNoTemplate.length > 0
+      ? `${total} services / ${layerCount} layers · ${hiddenNoTemplate.length} hidden (no template)`
+      : `${total} services / ${layerCount} layers`;
+  rep.ok(summary, {
     kind: 'services',
     servicesTotal: total,
-    layersTotal: Object.keys(topo.servicesByLayer).length,
+    layersTotal: layerCount,
     addedSince: null,
     removedSince: null,
+    hiddenNoTemplate,
   });
   return total;
 }

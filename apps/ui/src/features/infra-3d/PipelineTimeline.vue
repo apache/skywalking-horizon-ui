@@ -135,6 +135,10 @@ const openStageState = computed<ROStageState | null>(() => {
               <b>removed since last run</b><span>{{ openStageState.detail.removedSince }}</span>
             </li>
           </ul>
+          <details v-if="(openStageState.detail.hiddenNoTemplate?.length ?? 0) > 0">
+            <summary>hidden — no layer template (refresh to load)</summary>
+            <code class="layer-list">{{ openStageState.detail.hiddenNoTemplate?.join(', ') }}</code>
+          </details>
         </template>
 
         <!-- Templates -->

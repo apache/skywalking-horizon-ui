@@ -72,7 +72,7 @@ export interface StageState {
 }
 
 export type StageDetail =
-  | { kind: 'services'; servicesTotal: number; layersTotal: number; addedSince: number | null; removedSince: number | null }
+  | { kind: 'services'; servicesTotal: number; layersTotal: number; addedSince: number | null; removedSince: number | null; hiddenNoTemplate?: string[] }
   | { kind: 'templates'; layersWithTopology: string[]; layersWithoutTopology: string[] }
   | { kind: 'topologies'; probes: TopologyProbe[] }
   | { kind: 'layout'; layersReLaid: number; ms: number }
@@ -153,11 +153,17 @@ export type StageImpl<C> = (reporter: StageReporter, ctx: C) => Promise<void>;
  *  Cancellation: re-invoking `run()` while one is in-flight is a
  *  no-op; the caller should debounce or wait. The current call's
  *  signal is exposed via `running`. */
-export async function run<C>(ctx: C, impls: Record<PipelineStageId, StageImpl<C>>): Promise<void> {
+export async function run<C>(
+  ctx: C,
+  impls: Record<PipelineStageId, StageImpl<C>>,
+  only?: PipelineStageId[],
+): Promise<void> {
   if (running.value) return;
   running.value = true;
   completedAt.value = null;
-  stages.value = initialState();
+  // A full run resets every stage; a partial (light) run runs only `only`
+  // and leaves the unselected stages showing their last full-run result.
+  if (!only) stages.value = initialState();
   await ensureInfraConfigLoaded().catch(() => {
     // Config load is a hard prereq; without it the scene can't even
     // mount, so a failure here should still let the pipeline fail
@@ -166,6 +172,7 @@ export async function run<C>(ctx: C, impls: Record<PipelineStageId, StageImpl<C>
   });
   try {
     for (const id of STAGE_ORDER) {
+      if (only && !only.includes(id)) continue;
       const reporter = reporterFor(id);
       try {
         await impls[id](reporter, ctx);

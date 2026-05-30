@@ -87,6 +87,20 @@ import {
 import { useInfra3dAlarms, alarmKey } from './composables/useInfra3dAlarms';
 import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMetrics';
 
+/** Live camera pose for the on-screen tuning readout (camera position,
+ *  orbit target, and orbit angles). Emitted ~6Hz while `emitCamera` is on. */
+interface CameraReadout {
+  x: number;
+  y: number;
+  z: number;
+  tx: number;
+  ty: number;
+  tz: number;
+  azimuthDeg: number;
+  polarDeg: number;
+  distance: number;
+}
+
 interface Props {
   /** Ordered (top-down) list of planes from the admin config. Drives
    *  vertical stacking; passed as a prop so the Scene stays a pure
@@ -122,6 +136,8 @@ interface Props {
    *  the parent re-keys this component to rebuild when the live structure
    *  changes. */
   topology?: DemoTopology | null;
+  /** Emit the live camera pose (~6Hz) for the on-screen tuning readout. */
+  emitCamera?: boolean;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -130,6 +146,7 @@ const emit = defineEmits<{
   (e: 'zones', zones: ZonePlacement[]): void;
   (e: 'planes', planes: PlanePlacement[]): void;
   (e: 'nodes-by-layer', byLayer: Record<string, SceneServiceNode[]>): void;
+  (e: 'camera', readout: CameraReadout): void;
 }>();
 
 // ── Graph + placement ────────────────────────────────────────────────
@@ -935,6 +952,7 @@ const period = 2.6;
 const canvasHostEl = ref<HTMLElement | null>(null);
 const cameraRef = shallowRef<PerspectiveCamera | null>(null);
 let lastLabelTick = 0;
+let lastCamTick = 0;
 const _v1 = new Vector3();
 const _v2 = new Vector3();
 
@@ -1096,6 +1114,27 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
     lastLabelTick = ctx.elapsed;
     updateSelectedSide();
     updateCloseNodes();
+  }
+  if (props.emitCamera && ctx.elapsed - lastCamTick > 0.12) {
+    lastCamTick = ctx.elapsed;
+    const cam = getCamera();
+    const c = getControls();
+    if (cam && c) {
+      const r1 = (n: number): number => Math.round(n * 10) / 10;
+      const p = cam.position;
+      const t = c.target;
+      emit('camera', {
+        x: r1(p.x),
+        y: r1(p.y),
+        z: r1(p.z),
+        tx: r1(t.x),
+        ty: r1(t.y),
+        tz: r1(t.z),
+        azimuthDeg: Math.round((c.getAzimuthalAngle() * 180) / Math.PI),
+        polarDeg: Math.round((c.getPolarAngle() * 180) / Math.PI),
+        distance: r1(c.getDistance()),
+      });
+    }
   }
 }
 
