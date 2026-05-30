@@ -1303,14 +1303,22 @@ watch(
 
 function defaultCameraPos(): [number, number, number] {
   const b = placement.bounds;
-  const cx = (b.minX + b.maxX) / 2;
-  const cz = (b.minZ + b.maxZ) / 2;
+  const [tx, ty, tz] = defaultTargetPos();
   const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
-  const spanY = Math.max(8, b.maxY - b.minY);
-  // Tighter, slightly lower 3/4 framing — fills the viewport with the tier
-  // stack rather than a wide, high isometric.
-  const radius = spanXZ * 0.78 + 5;
-  return [cx + radius * 0.8, b.minY + spanY * 0.5 + radius * 0.5, cz + radius * 0.8];
+  // Orbit the camera around the target at a fixed near-front 3/4 heading —
+  // azimuth 15° off front, 62° polar (matching OrbitControls' getAzimuthal/
+  // getPolarAngle) — the angle that reads the stacked tiers clearly at the
+  // showcase's topology complexity. Distance scales with the scene footprint
+  // so larger / smaller deployments keep the same fill.
+  const dist = spanXZ * 0.97 + 6;
+  const az = (15 * Math.PI) / 180;
+  const pol = (62 * Math.PI) / 180;
+  const sinPol = Math.sin(pol);
+  return [
+    tx + dist * sinPol * Math.sin(az),
+    ty + dist * Math.cos(pol),
+    tz + dist * sinPol * Math.cos(az),
+  ];
 }
 function defaultTargetPos(): [number, number, number] {
   const b = placement.bounds;
