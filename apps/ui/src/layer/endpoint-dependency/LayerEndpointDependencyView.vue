@@ -432,6 +432,71 @@ const visibleCalls = computed<EndpointDependencyCall[]>(() => {
   return calls.value.filter((c) => ids.has(c.source) && ids.has(c.target));
 });
 
+// ── Pan / zoom. The SVG fits the whole graph by default (viewBox = full
+// extent, aspect-preserved), so every column is visible — no edge dangles
+// off a clipped column. Wheel + ＋/−/fit buttons zoom; drag pans.
+const svgRef = ref<SVGSVGElement | null>(null);
+const viewBox = ref<{ x: number; y: number; w: number; h: number } | null>(null);
+const viewBoxStr = computed(() => {
+  const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
+  return `${v.x} ${v.y} ${v.w} ${v.h}`;
+});
+function fitView(): void {
+  viewBox.value = { x: 0, y: 0, w: W.value, h: H.value };
+}
+// Refit when the graph itself changes (focus pick / first load / refresh
+// that adds or drops a column). Operator zoom/pan persists otherwise.
+watch([focusedId, () => layerColumns.value.length], () => fitView(), { immediate: true });
+
+/** Rendered scale + letterbox offset for the current viewBox under
+ *  preserveAspectRatio="xMidYMid meet" — so cursor zoom + drag pan map
+ *  screen pixels to graph coordinates exactly. */
+function viewMetrics() {
+  const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
+  const r = svgRef.value?.getBoundingClientRect();
+  const rw = r?.width || v.w;
+  const rh = r?.height || v.h;
+  const scale = Math.min(rw / v.w, rh / v.h) || 1;
+  return { v, left: r?.left ?? 0, top: r?.top ?? 0, scale, offX: (rw - v.w * scale) / 2, offY: (rh - v.h * scale) / 2 };
+}
+function clientToView(clientX: number, clientY: number): { x: number; y: number } {
+  const { v, left, top, scale, offX, offY } = viewMetrics();
+  return { x: v.x + (clientX - left - offX) / scale, y: v.y + (clientY - top - offY) / scale };
+}
+function zoomAround(factor: number, cx: number, cy: number): void {
+  const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
+  // viewBox width bounded to [30%, 160%] of the full graph (zoom-in / out caps).
+  const newW = Math.min(W.value * 1.6, Math.max(W.value * 0.3, v.w * factor));
+  const k = newW / v.w;
+  viewBox.value = { x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k, w: newW, h: v.h * k };
+}
+function onWheel(e: WheelEvent): void {
+  e.preventDefault();
+  const p = clientToView(e.clientX, e.clientY);
+  zoomAround(e.deltaY > 0 ? 1.12 : 0.89, p.x, p.y);
+}
+function zoomBtn(factor: number): void {
+  const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
+  zoomAround(factor, v.x + v.w / 2, v.y + v.h / 2);
+}
+// Drag-pan from the background (node/edge clicks keep their own handlers).
+let panning = false;
+let panStart = { cx: 0, cy: 0, vx: 0, vy: 0 };
+function onPanStart(e: PointerEvent): void {
+  panning = true;
+  const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
+  panStart = { cx: e.clientX, cy: e.clientY, vx: v.x, vy: v.y };
+  (e.target as Element).setPointerCapture?.(e.pointerId);
+}
+function onPanMove(e: PointerEvent): void {
+  if (!panning) return;
+  const { v, scale } = viewMetrics();
+  viewBox.value = { ...v, x: panStart.vx - (e.clientX - panStart.cx) / scale, y: panStart.vy - (e.clientY - panStart.cy) / scale };
+}
+function onPanEnd(): void {
+  panning = false;
+}
+
 // Kind colour band — uses the endpoint's `type` field, then service
 // name fallbacks (db/cache/mq/ext).
 /**
@@ -724,26 +789,45 @@ function edgeRowCrosshair(rowId: string): number | null {
           </span>
         </header>
 
-        <!-- Layer headers row -->
-        <div class="layer-hdr-row" :style="{ minWidth: W + 'px' }">
-          <div
-            v-for="(col, i) in layerColumns"
-            :key="col.index"
-            class="layer-hdr"
-            :style="{ left: 40 + i * COL_GAP + 'px', width: NW + 'px' }"
-          >
-            <span>{{ col.label }}</span>
-            <span v-if="col.hidden > 0" class="hdr-overflow">+{{ col.hidden }} more</span>
-          </div>
-        </div>
-
         <div class="ep-scroll">
+        <!-- Zoom toolbar — over the canvas (not the header); wheel + drag
+             also work directly on the graph. -->
+        <div v-if="layoutNodes.length > 0" class="ep-zoom">
+          <button type="button" title="Zoom in" @click="zoomBtn(0.8)">＋</button>
+          <button type="button" title="Zoom out" @click="zoomBtn(1.25)">−</button>
+          <button type="button" title="Fit to view" @click="fitView">⤢</button>
+        </div>
         <svg
           v-if="layoutNodes.length > 0"
-          :viewBox="`0 0 ${W} ${H}`"
-          :style="{ width: W + 'px', height: H + 'px', display: 'block' }"
+          ref="svgRef"
+          class="ep-svg"
+          :viewBox="viewBoxStr"
+          preserveAspectRatio="xMidYMid meet"
+          @wheel="onWheel"
         >
           <!-- No arrow markers — the animated dots advertise direction. -->
+          <defs>
+            <!-- Clip node text to the box interior so long endpoint names
+                 are cut at the boundary instead of overflowing it. Evaluated
+                 in each node's local space, so one def clips every node. -->
+            <clipPath id="ep-node-text-clip">
+              <rect :x="8" :y="0" :width="NW - 16" :height="NH" />
+            </clipPath>
+          </defs>
+          <!-- Background pan target. Behind everything; node / edge clicks
+               keep their own handlers. -->
+          <rect
+            class="ep-pan-bg"
+            :x="-W"
+            :y="-H"
+            :width="W * 3"
+            :height="H * 3"
+            fill="transparent"
+            @pointerdown="onPanStart"
+            @pointermove="onPanMove"
+            @pointerup="onPanEnd"
+            @pointerleave="onPanEnd"
+          />
 
           <!-- column guide lines -->
           <line
@@ -904,9 +988,10 @@ function edgeRowCrosshair(rowId: string): number | null {
               fill="var(--sw-fg-3)"
               font-size="10"
               font-family="var(--sw-mono)"
+              clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.serviceName }}</title>
-              {{ identity(n.serviceName).display.length > 26 ? identity(n.serviceName).display.slice(0, 24) + '…' : identity(n.serviceName).display }}
+              {{ identity(n.serviceName).display.length > 24 ? identity(n.serviceName).display.slice(0, 22) + '…' : identity(n.serviceName).display }}
             </text>
             <!-- Row 2: API (endpoint) name — the headline. -->
             <text
@@ -916,9 +1001,10 @@ function edgeRowCrosshair(rowId: string): number | null {
               font-size="12"
               font-family="var(--sw-mono)"
               :font-weight="n.id === focusedId ? 700 : 600"
+              clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.name }}</title>
-              {{ n.name.length > 28 ? n.name.slice(0, 26) + '…' : n.name }}
+              {{ n.name.length > 21 ? n.name.slice(0, 19) + '…' : n.name }}
             </text>
             <!-- Row 3: configured `center` metric (typically RPM).
                  Coloured in the ring band so the visual signal
@@ -1306,6 +1392,7 @@ function edgeRowCrosshair(rowId: string): number | null {
   border-radius: 2px;
 }
 .ep-graph {
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1524,37 +1611,52 @@ function edgeRowCrosshair(rowId: string): number | null {
   font-weight: 600;
   color: var(--sw-fg-0);
 }
-.layer-hdr-row {
-  position: relative;
-  height: 30px;
-  border-bottom: 1px solid var(--sw-line);
-}
-.layer-hdr {
-  position: absolute;
-  top: 8px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sw-fg-3);
-  font-weight: 700;
-}
-.hdr-overflow {
-  font-size: 9px;
-  color: var(--sw-fg-2);
-  padding: 1px 5px;
-  background: var(--sw-bg-2);
-  border-radius: 3px;
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 500;
-}
+/* The graph fits-to-view by default and zooms via the viewBox, so the
+   container no longer scrolls — it just gives the SVG its height. */
 .ep-scroll {
   position: relative;
-  overflow: auto;
-  max-height: 640px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.ep-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Stop the page from scrolling while wheel-zooming / dragging. */
+  touch-action: none;
+}
+.ep-pan-bg {
+  cursor: grab;
+}
+.ep-pan-bg:active {
+  cursor: grabbing;
+}
+/* Zoom toolbar — top-right of the graph column. */
+.ep-zoom {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  display: flex;
+  gap: 4px;
+}
+.ep-zoom button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--sw-fg-1);
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ep-zoom button:hover {
+  border-color: var(--sw-accent);
+  color: var(--sw-fg-0);
 }
 .ep-node { cursor: pointer; }
 .ep-node:hover rect { stroke: var(--sw-accent-2); }
