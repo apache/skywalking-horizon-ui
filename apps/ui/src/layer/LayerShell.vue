@@ -80,16 +80,26 @@ const scopeSegment = computed<string>(() => {
 onBeforeUnmount(() => {
   selectionStore.clear();
 });
+// Re-seed the selection store on layer ENTRY and on any SAME-LAYER
+// navigation that arrives with fresh ?service/?instance/?endpoint (deep
+// links into the layer the operator is already on). Keyed on the layer
+// key plus the three seed params — but the strip below removes those
+// params right after seeding, and that removal (params → absent) must NOT
+// re-seed, so we only act when the layer changed OR seed params are
+// actually present.
 watch(
-  layerKey,
-  (key) => {
+  [layerKey, () => route.query.service, () => route.query.instance, () => route.query.endpoint],
+  ([key], prev) => {
     if (!key) return;
-    selectionStore.resetForLayer(key, route.query);
-    // After hydrating, strip the seed params so the address bar reads
-    // as a clean `/layer/<key>/<scope>` URL. The store now owns the
-    // live selection; the params were a one-shot seed.
     const q = route.query;
-    if (q.service != null || q.instance != null || q.endpoint != null) {
+    const hasSeed = q.service != null || q.instance != null || q.endpoint != null;
+    const layerChanged = key !== (prev?.[0] as string | undefined);
+    if (!layerChanged && !hasSeed) return;
+    selectionStore.resetForLayer(key, q);
+    // After hydrating, strip the seed params so the address bar reads as a
+    // clean `/layer/<key>/<scope>` URL. The store now owns the live
+    // selection; the params were a one-shot seed.
+    if (hasSeed) {
       const { service: _s, instance: _i, endpoint: _e, ...rest } = q;
       void _s; void _i; void _e;
       void router.replace({ path: route.path, query: rest });
