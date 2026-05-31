@@ -264,6 +264,18 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
   endpointQuery,
   endpointLimit,
 );
+// URL-pinned endpoint validation. The list above is the recent top-N
+// (empty query); a deep-linked endpoint outside it would look "stale".
+// This re-queries by the pinned endpoint's own name to confirm it really
+// exists for this service before we discard the deep link. Inactive
+// (empty query) once the pin is null or already present in the default list.
+const pinnedEndpointQuery = computed(() => {
+  const pinned = selectedEndpoint.value;
+  if (!pinned) return '';
+  return endpointList.value.some((e) => e.name === pinned) ? '' : pinned;
+});
+const { endpoints: pinnedEndpointMatches, isFetching: pinnedEndpointLoading } =
+  useLayerEndpoints(layerKey, serviceName, pinnedEndpointQuery, endpointLimit);
 // Endpoint-scope orchestration — explicit sequence so the loading
 // flow is deterministic:
 //   1. wait for landing rows
@@ -293,10 +305,14 @@ watchEffect(() => {
     return;
   }
   if (!list.some((e) => e.name === selectedEndpoint.value)) {
+    // Outside the default top-N — confirm via the targeted name search
+    // before discarding the deep link.
+    if (pinnedEndpointQuery.value && pinnedEndpointLoading.value) return; // wait for the lookup
+    if (pinnedEndpointMatches.value.some((e) => e.name === selectedEndpoint.value)) return; // valid → keep
     pushEvent(
       'fallback',
       'info',
-      `URL endpoint "${selectedEndpoint.value}" not in ${serviceName.value} · falling back to "${list[0].name}"`,
+      `URL endpoint "${selectedEndpoint.value}" not found in ${serviceName.value} · falling back to "${list[0].name}"`,
     );
     setSelectedEndpoint(list[0].name);
   }
@@ -334,6 +350,9 @@ const effectiveEndpoint = computed<string | null>(() => {
   return endpointList.value.some((e) => e.name === v) ? v : null;
 });
 const widgetsForQuery = computed(() => config.value?.widgets ?? []);
+// Hold the metrics fetch until the dashboard config bundle has resolved,
+// so the widget list fires once (resolved) rather than empty-then-refetch.
+const configReady = computed(() => config.value !== null);
 const { data, isFetching, error } = useLayerDashboard(
   layerKey,
   serviceName,
@@ -342,6 +361,7 @@ const { data, isFetching, error } = useLayerDashboard(
   { instance: effectiveInstance, endpoint: effectiveEndpoint },
   rangeRef,
   widgetsForQuery,
+  configReady,
 );
 
 // Sequential page-init events for the EventTicker — config →

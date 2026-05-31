@@ -110,6 +110,13 @@ export function useLayerDashboard(
    *  back to a single BFF call that resolves widgets server-side
    *  (used by callers that don't have the config bundle handy). */
   widgetsList?: Ref<DashboardWidget[]>,
+  /** Optional config-bundle readiness gate. When supplied, the metrics
+   *  query waits until it is true, so the dashboard fires ONCE with the
+   *  resolved widget list instead of firing first with an empty list
+   *  (which makes the BFF substitute defaults) and refetching when the
+   *  bundle lands. Callers without a config bundle omit it (treated as
+   *  ready) and keep the server-resolves-widgets behaviour. */
+  configReady?: Ref<boolean>,
 ) {
   // Auto-refresh is metrics-only. Trace / log / profiling pages are
   // explore-style (operator-driven queries, log tails, etc.) and would
@@ -194,6 +201,9 @@ export function useLayerDashboard(
     //   - endpoint scope needs service + endpoint.
     enabled: computed(() => {
       if (layerKey.value.length === 0) return false;
+      // Wait for the config bundle so widgets are resolved before the
+      // metrics fire (no empty-list → BFF-default → refetch round-trip).
+      if (configReady && !configReady.value) return false;
       const s = scope?.value ?? 'service';
       if (s === 'service') return Boolean(service.value);
       if (s === 'instance') return Boolean(service.value && entityRefs.instance?.value);
