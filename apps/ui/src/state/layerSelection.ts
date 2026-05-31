@@ -64,7 +64,13 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
    * a no-op — the operator's pick survives.
    */
   function resetForLayer(layerKey: string, query: Record<string, unknown>): void {
-    if (ownerKey.value === layerKey) return;
+    const hasSeed =
+      query.service != null || query.instance != null || query.endpoint != null;
+    // Same layer + NO deep-link params → keep the sticky pick (scope/tab
+    // nav within the layer). Same layer WITH params (a deep link into the
+    // layer the operator is already on) DOES re-seed, otherwise the new
+    // ?service/?instance/?endpoint would be silently ignored.
+    if (ownerKey.value === layerKey && !hasSeed) return;
     ownerKey.value = layerKey;
     service.value = pickQueryString(query.service);
     instance.value = pickQueryString(query.instance);
