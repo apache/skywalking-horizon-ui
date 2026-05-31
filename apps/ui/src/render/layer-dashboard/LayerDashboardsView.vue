@@ -704,7 +704,10 @@ function isVisible(
          sequence (which read as a slow, jumpy entry). The "no widgets"
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
-    <div v-if="reachable && (configLoading || !dataIsFresh)" class="empty reading">
+    <div
+      v-if="reachable && (configLoading || (!dataIsFresh && widgets.length > 0))"
+      class="empty reading"
+    >
       <span class="reading-dot" />
       <span>
         Reading data
