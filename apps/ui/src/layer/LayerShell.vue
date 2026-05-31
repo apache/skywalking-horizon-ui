@@ -42,6 +42,7 @@ import { useTimeRangeStore } from '@/controls/timeRange';
 import { useLayers, firstLayerTab } from '@/shell/useLayers';
 import { layerContentToDef, type LayerTemplateContent } from '@/shell/layerFromTemplate';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
@@ -303,19 +304,31 @@ const isZipkinTrace = computed<boolean>(() => {
   return scopeSegment.value === 'trace' && layer.value?.traces?.source === 'zipkin';
 });
 
+// Full service roster (the layer's REAL catalog, independent of landing's
+// top-N sample which misses low-traffic services). A URL `?service=` is
+// validated against THIS, not the sample — otherwise a valid but
+// low-traffic deep link is wrongly treated as stale.
+const { services: fullRoster, isLoading: rosterLoading } = useLayerServices(layerKey);
+
 // Keep the URL-backed service selection honest for every page that
-// uses the shell picker. A stale `?service=` can survive navigation or
-// manual URL entry; the switch label used to fall back visually to the
-// first row while the metric query still waited for a valid service.
+// uses the shell picker. A `?service=` outside the landing sample is
+// trusted when it exists in the full roster; only a genuinely stale id
+// (absent from the roster) auto-corrects to the first sampled row, and
+// only once the roster has loaded so a valid pin isn't clobbered in flight.
 watch(
-  [sampledServices, selectedId, viewOwnsServiceSelector],
-  ([rows, id, ownsSelector]) => {
+  [sampledServices, selectedId, viewOwnsServiceSelector, fullRoster, rosterLoading],
+  ([rows, id, ownsSelector, roster, rosterIsLoading]) => {
     if (ownsSelector) return;
     const first = rows[0];
     if (!first) return;
-    if (!id || !rows.some((s) => s.serviceId === id)) {
+    if (!id) {
       setSelected(first.serviceId);
+      return;
     }
+    if (rows.some((s) => s.serviceId === id)) return; // in the sample → keep
+    if (rosterIsLoading) return; // don't clobber a pin while the roster loads
+    if (roster.some((s) => s.id === id)) return; // valid in the full roster → keep
+    setSelected(first.serviceId); // genuinely stale → fall back
   },
   { immediate: true },
 );
