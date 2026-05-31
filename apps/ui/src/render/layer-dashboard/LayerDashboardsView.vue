@@ -347,12 +347,19 @@ const effectiveInstance = computed<string | null>(() => {
 const effectiveEndpoint = computed<string | null>(() => {
   const v = selectedEndpoint.value;
   if (!v) return null;
-  return endpointList.value.some((e) => e.name === v) ? v : null;
+  // Valid if in the default top-N OR confirmed by the targeted name lookup
+  // (a deep-linked endpoint outside the recent list) — otherwise the
+  // dashboard would stay gated forever for a perfectly valid pin.
+  if (endpointList.value.some((e) => e.name === v)) return v;
+  if (pinnedEndpointMatches.value.some((e) => e.name === v)) return v;
+  return null;
 });
 const widgetsForQuery = computed(() => config.value?.widgets ?? []);
-// Hold the metrics fetch until the dashboard config bundle has resolved,
-// so the widget list fires once (resolved) rather than empty-then-refetch.
-const configReady = computed(() => config.value !== null);
+// Hold the metrics fetch until the config bundle has resolved WITH widgets.
+// A resolved-but-empty config means "no dashboard for this layer/scope",
+// so we don't fire (which would otherwise make the BFF substitute its own
+// default widget set); metrics run only for resolved widgets.
+const configReady = computed(() => widgetsForQuery.value.length > 0);
 const { data, isFetching, error } = useLayerDashboard(
   layerKey,
   serviceName,
@@ -376,9 +383,9 @@ useLayerPageOrchestrator({
   serviceList: landingRows,
   effectiveService: serviceName,
   instanceList,
-  effectiveInstance: selectedInstance,
+  effectiveInstance,
   endpointList,
-  effectiveEndpoint: selectedEndpoint,
+  effectiveEndpoint,
   dashboard: data,
 });
 
