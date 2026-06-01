@@ -58,13 +58,13 @@ import {
 } from 'three';
 import {
   buildSceneGraph,
-  loadDemoTopology,
-  type DemoTopology,
+  loadFallbackTopology,
+  type MapTopology,
   type SceneCallEdge,
   type SceneCrossLayerEdge,
   type SceneHierarchyEdge,
   type SceneServiceNode,
-} from './composables/useDemoTopology';
+} from './composables/useMapTopology';
 import {
   computePlacement,
   type SceneGroupSpec,
@@ -76,7 +76,7 @@ import {
   type ZoneTint,
 } from './composables/useScenePlacement';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
-import { colorForLayer, levelForLayer } from './composables/useInfra3dConfig';
+import { colorForLayer, levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import { layerIcon as layerIconByKey } from '@/shell/icons';
 import {
@@ -121,7 +121,7 @@ interface Props {
    *  Null/absent ⇒ the snapshot. The build below runs once at setup, so
    *  the parent re-keys this component to rebuild when the live structure
    *  changes. */
-  topology?: DemoTopology | null;
+  topology?: MapTopology | null;
 }
 const props = defineProps<Props>();
 const emit = defineEmits<{
@@ -138,8 +138,8 @@ const emit = defineEmits<{
 // loaded before mounting this component (see Infra3DView.vue), so
 // `levelForLayer` returns deterministic values here, not the synchronous
 // fallback. `planeOrder` is the source of truth for vertical stacking.
-const topo = props.topology ?? loadDemoTopology();
-const graph = buildSceneGraph(topo, levelForLayer);
+const topo = props.topology ?? loadFallbackTopology();
+const graph = buildSceneGraph(topo, levelForLayer, isLayerExcluded);
 const placement = computePlacement(graph, props.planeOrder, props.groups, props.namingByLayer);
 
 /** Resolve the per-layer icon glyph. Routed through the same helper

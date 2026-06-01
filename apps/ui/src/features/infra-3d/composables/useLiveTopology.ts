@@ -17,30 +17,30 @@
 
 /**
  * Live assembly of the 3D-map topology — the sequential, low-concurrency
- * counterpart to the committed `demo-topology.json` snapshot.
+ * counterpart to the committed `fallback-topology.json` snapshot.
  *
- * The output is a `DemoTopology` byte-compatible with `loadDemoTopology()`,
- * so `buildSceneGraph` consumes either source unchanged. It is built one
- * layer at a time (concurrency 1) from OAP: per-layer service rosters
- * (stage `services`) and per-layer service maps (stage `topologies`).
- *
- * Phase-1 scope: cross-layer call edges fall out of `buildSceneGraph`
- * itself (it derives them from cross-layer entries in `topologies[].calls`),
- * so nothing here pre-computes them; `hierarchy` stays `[]` (the Smartscape
- * peers are a later phase, fetched per-service). The reporter wiring is
- * split across the two stages by the caller so each owns its own
- * `StageReporter` — see Infra3DView's live pipeline impls.
+ * The output is a `MapTopology` byte-compatible with `loadFallbackTopology()`,
+ * so `buildSceneGraph` consumes either source unchanged. It is built from OAP
+ * one layer at a time: per-layer service rosters (stage `services`), per-layer
+ * service maps (stage `topologies`), and the cross-layer Smartscape peers
+ * (stage `hierarchy`, `loadLiveHierarchy` — incremental: only newly-appeared
+ * services are fetched, the rest reused from the caller's cache). Cross-layer
+ * CALL edges, by contrast, fall out of `buildSceneGraph` from cross-layer
+ * entries in `topologies[].calls`, so nothing here pre-computes those. Each
+ * stage owns its own `StageReporter` — see Infra3DView's live pipeline impls.
  */
 
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { LayerDef, ServiceHierarchyResponse } from '@skywalking-horizon-ui/api-client';
 import { bff } from '@/api/client';
 import type {
-  DemoLayer,
-  DemoLayerTopology,
-  DemoServiceRef,
-  DemoTopology,
-  DemoTopologyCall,
-} from './useDemoTopology';
+  MapHierarchyEntry,
+  MapHierarchyPeer,
+  MapLayer,
+  MapLayerTopology,
+  MapServiceRef,
+  MapTopology,
+  MapTopologyCall,
+} from './useMapTopology';
 import type { StageReporter, TopologyProbe } from './useInfra3dPipeline';
 
 export interface LiveWindow {
@@ -70,7 +70,7 @@ export function liveRoster(layers: LayerDef[]): LayerDef[] {
     );
 }
 
-function toDemoLayer(L: LayerDef): DemoLayer {
+function toMapLayer(L: LayerDef): MapLayer {
   return {
     key: L.key,
     name: L.name,
@@ -83,11 +83,11 @@ function toDemoLayer(L: LayerDef): DemoLayer {
 
 /** Layers-only skeleton; `servicesByLayer` / `topologies` fill in as the
  *  sequential stages land. `hierarchy` stays `[]` in Phase 1. */
-export function liveSkeleton(roster: LayerDef[]): DemoTopology {
+export function liveSkeleton(roster: LayerDef[]): MapTopology {
   return {
     capturedAt: new Date().toISOString(),
-    oapDemo: 'live',
-    layers: roster.map(toDemoLayer),
+    source: 'live',
+    layers: roster.map(toMapLayer),
     servicesByLayer: {},
     hierarchy: [],
     topologies: {},
@@ -102,7 +102,7 @@ export function liveSkeleton(roster: LayerDef[]): DemoTopology {
 export async function loadLiveServices(
   rep: StageReporter,
   roster: LayerDef[],
-  topo: DemoTopology,
+  topo: MapTopology,
   hiddenNoTemplate: string[] = [],
 ): Promise<number> {
   rep.start();
@@ -120,7 +120,7 @@ export async function loadLiveServices(
     try {
       const resp = await bff.layer.services(L.key);
       if (resp.reachable && resp.services.length > 0) {
-        const refs: DemoServiceRef[] = resp.services.map((s) => ({
+        const refs: MapServiceRef[] = resp.services.map((s) => ({
           id: s.id,
           name: s.name,
           normal: s.normal ?? true,
@@ -149,13 +149,13 @@ export async function loadLiveServices(
 }
 
 /** Stage `topologies` — pull each topology-bearing layer's service map one
- *  at a time. Builds a `DemoLayerTopology` (calls + faithful-but-inert nodes)
+ *  at a time. Builds a `MapLayerTopology` (calls + faithful-but-inert nodes)
  *  and a per-layer `TopologyProbe`. Per-layer try/catch so one failure
  *  records a `failed` probe and continues. */
 export async function loadLiveTopologies(
   rep: StageReporter,
   topoLayers: LayerDef[],
-  topo: DemoTopology,
+  topo: MapTopology,
   window: LiveWindow,
 ): Promise<TopologyProbe[]> {
   rep.start();
@@ -169,9 +169,9 @@ export async function loadLiveTopologies(
     const t0 = performance.now();
     try {
       const resp = await bff.layer.topology(L.key, undefined, 1, window);
-      const map: DemoLayerTopology = {
+      const map: MapLayerTopology = {
         nodes: resp.nodes.map((n) => ({ id: n.id, name: n.name, layer: L.key })),
-        calls: resp.calls.map<DemoTopologyCall>((c) => ({
+        calls: resp.calls.map<MapTopologyCall>((c) => ({
           source: c.source,
           target: c.target,
           detectPoints: c.detectPoints,
@@ -201,4 +201,100 @@ export async function loadLiveTopologies(
   if (failed > 0) rep.warn(`${okCount} maps with edges · ${failed} failed`, detail);
   else rep.ok(`${okCount} maps with edges`, detail);
   return probes;
+}
+
+/** Cache key — `LAYER::serviceId`, the unique identity of a service projection. */
+function hierKey(layer: string, id: string): string {
+  return `${layer.toUpperCase()}::${id}`;
+}
+
+/** Flatten OAP's per-layer hierarchy response into the snapshot's
+ *  `MapHierarchyEntry` shape: drop the focused service's own layer + the
+ *  `self` peer, keep the cross-layer twins. Returns null when the service
+ *  has no cross-layer projection (so the cache records "checked, none"). */
+function toHierarchyEntry(
+  layer: string,
+  ref: MapServiceRef,
+  resp: ServiceHierarchyResponse,
+): MapHierarchyEntry | null {
+  if (!resp.reachable || resp.relations <= 0) return null;
+  const peers: MapHierarchyPeer[] = resp.peers
+    .filter((g) => g.layer.toUpperCase() !== layer.toUpperCase())
+    .map((g) => ({
+      layer: g.layer,
+      services: g.services
+        .filter((s) => s.role !== 'self')
+        .map((s) => ({ id: s.id, name: s.name, normal: s.normal, role: s.role })),
+    }))
+    .filter((g) => g.services.length > 0);
+  if (peers.length === 0) return null;
+  return {
+    fromLayer: layer,
+    fromService: { id: ref.id, name: ref.name, normal: ref.normal },
+    peers,
+  };
+}
+
+/** Stage `hierarchy` — restore the cross-layer Smartscape peers the static
+ *  snapshot carried (lost when the dynamic loader hard-coded `hierarchy: []`).
+ *
+ *  INCREMENTAL: `getServiceHierarchy` is one call per service, so only
+ *  services NOT already in `cache` are fetched; existing entries are reused
+ *  and entries for services that vanished are dropped. `cache` is owned by
+ *  the caller and persists across refreshes, so an unchanged roster costs
+ *  ZERO OAP calls — the "reuse the initialization data, only fetch new
+ *  services" contract. The scene reveals these tubes only for the selected
+ *  cube, so the caller must populate `topo.hierarchy` (done here) BEFORE
+ *  publishing `liveTopo` / building the scene graph. */
+export async function loadLiveHierarchy(
+  rep: StageReporter,
+  topo: MapTopology,
+  cache: Map<string, MapHierarchyEntry | null>,
+): Promise<void> {
+  rep.start();
+  const current: Array<{ layer: string; ref: MapServiceRef }> = [];
+  for (const [layer, refs] of Object.entries(topo.servicesByLayer)) {
+    for (const ref of refs) current.push({ layer, ref });
+  }
+  const present = new Set(current.map((c) => hierKey(c.layer, c.ref.id)));
+  for (const k of [...cache.keys()]) if (!present.has(k)) cache.delete(k);
+
+  const fresh = current.filter((c) => !cache.has(hierKey(c.layer, c.ref.id)));
+  const reused = current.length - fresh.length;
+  const CONC = 6;
+  for (let i = 0; i < fresh.length; i += CONC) {
+    const batch = fresh.slice(i, i + CONC);
+    rep.progress(`reading hierarchy (${Math.min(i + CONC, fresh.length)}/${fresh.length} new · ${reused} reused)`, {
+      kind: 'hierarchy',
+      servicesTotal: current.length,
+      fetched: i,
+      reused,
+      links: 0,
+    });
+    await Promise.all(
+      batch.map(async (c) => {
+        const k = hierKey(c.layer, c.ref.id);
+        try {
+          const resp = await bff.layer.serviceHierarchy(c.layer, c.ref.id);
+          // Success caches the result (an entry, or null for "checked, no
+          // peers") so it isn't re-probed. A FAILURE is NOT cached — leaving
+          // the key absent re-fetches it next refresh rather than freezing a
+          // transient error into a permanent "no hierarchy" for the page.
+          cache.set(k, toHierarchyEntry(c.layer, c.ref, resp));
+        } catch (err) {
+          console.warn(`[infra-3d] live hierarchy failed for ${k}:`, err);
+        }
+      }),
+    );
+  }
+
+  const entries = [...cache.values()].filter((e): e is MapHierarchyEntry => e !== null);
+  topo.hierarchy = entries;
+  rep.ok(`${entries.length} cross-layer links · ${fresh.length} fetched / ${reused} reused`, {
+    kind: 'hierarchy',
+    servicesTotal: current.length,
+    fetched: fresh.length,
+    reused,
+    links: entries.length,
+  });
 }

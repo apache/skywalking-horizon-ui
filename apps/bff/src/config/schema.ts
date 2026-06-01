@@ -221,7 +221,6 @@ const rbacSchema = z
           'alarm-rule:read',
           'alarm-rule:write',
           'infra-3d:read',
-          'infra-3d:write',
           'rule:read',
           'rule:write',
           'rule:write:structural',
@@ -266,7 +265,6 @@ const sessionSchema = z
 const auditDefault = process.env.HORIZON_AUDIT_FILE ?? './horizon-audit.jsonl';
 const setupDefault = process.env.HORIZON_SETUP_FILE ?? './horizon-setup.json';
 const alarmsDefault = process.env.HORIZON_ALARMS_FILE ?? './horizon-alarms.json';
-const infra3dDefault = process.env.HORIZON_INFRA3D_FILE ?? './horizon-infra3d.json';
 const wireLogDefault = process.env.HORIZON_WIRE_LOG_FILE ?? './horizon-wire.jsonl';
 
 const auditSchema = z
@@ -290,12 +288,6 @@ const alarmsSchema = z
   .strict()
   .default({ file: alarmsDefault });
 
-const infra3dSchema = z
-  .object({
-    file: z.string().default(infra3dDefault),
-  })
-  .strict()
-  .default({ file: infra3dDefault });
 
 const debugLogSchema = z
   .object({
@@ -322,8 +314,12 @@ export const configSchema = z
     audit: auditSchema,
     setup: setupSchema,
     alarms: alarmsSchema,
-    infra3d: infra3dSchema,
     debugLog: debugLogSchema,
+    // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
+    // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
+    // than rejected by `.strict()`) so an existing config carrying the block
+    // still boots — the value is unused.
+    infra3d: z.unknown().optional(),
   })
   .strict();
 

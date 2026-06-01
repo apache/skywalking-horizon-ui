@@ -30,10 +30,11 @@ import Infra3DScene from './Infra3DScene.vue';
 import PipelineTimeline from './PipelineTimeline.vue';
 import {
   buildSceneGraph,
-  loadDemoTopology,
-  type DemoTopology,
+  loadFallbackTopology,
+  type MapTopology,
+  type MapHierarchyEntry,
   type SceneServiceNode,
-} from './composables/useDemoTopology';
+} from './composables/useMapTopology';
 import {
   computePlacement,
   type PlaneSpec,
@@ -50,6 +51,7 @@ import {
   liveSkeleton,
   loadLiveServices,
   loadLiveTopologies,
+  loadLiveHierarchy,
   type LiveWindow,
 } from './composables/useLiveTopology';
 import { bff, type Infra3dConfig } from '@/api/client';
@@ -111,7 +113,7 @@ const soloPlane = ref<string | null>(null);
 // running it before the config resolves would freeze the 3-plane
 // fallback into the rendered layout. `ready` flips once the BFF /
 // bundled defaults are in hand.
-const { config: infraConfig, levelsOrdered, groups: infraGroups, ensureLoaded, levelForLayer } = useInfra3dConfig();
+const { config: infraConfig, levelsOrdered, groups: infraGroups, ensureLoaded, levelForLayer, isLayerExcluded } = useInfra3dConfig();
 const ready = ref(false);
 
 // Per-layer topology-cluster rules (k8s/mesh namespace) from the live
@@ -148,9 +150,9 @@ const { stages, stageOrder, running: pipelineRunning, run: runPipelineState } = 
 
 interface PipelineCtx {
   servicesByLayer: Record<string, SceneServiceNode[]>;
-  /** Live path only: the DemoTopology assembled as stages land. The
-   *  snapshot impls leave it null and read loadDemoTopology() directly. */
-  topo: DemoTopology | null;
+  /** Live path only: the MapTopology assembled as stages land. The
+   *  snapshot impls leave it null and read loadFallbackTopology() directly. */
+  topo: MapTopology | null;
 }
 
 // Live data is the default. `?live=0` forces the committed snapshot (a
@@ -158,7 +160,7 @@ interface PipelineCtx {
 // assembly, published atomically once a run has the full structure so the
 // scene renders complete (see sceneReady), never piecemeal.
 const liveTopologyEnabled = computed(() => route.query.live !== '0');
-const liveTopo = shallowRef<DemoTopology | null>(null);
+const liveTopo = shallowRef<MapTopology | null>(null);
 const liveWindow = (): LiveWindow => ({
   startMs: Date.now() - 2 * 3600_000,
   endMs: Date.now(),
@@ -170,7 +172,7 @@ const liveWindow = (): LiveWindow => ({
 // counts): a 60s refresh that finds the same structure leaves the key
 // unchanged — no remount, so the camera and metric/alarm visuals persist —
 // while a service appearing / disappearing rebuilds the scene.
-const sceneTopology = computed<DemoTopology | null>(() => {
+const sceneTopology = computed<MapTopology | null>(() => {
   if (!liveTopologyEnabled.value) return null;
   const t = liveTopo.value;
   if (!t || Object.keys(t.servicesByLayer).length === 0) return null;
@@ -187,7 +189,15 @@ const sceneKey = computed(() => {
       return `${L.key}:${calls}:${ids.join(',')}`;
     })
     .join('|');
-  return `${naming}:${struct}`;
+  // Hierarchy is built into the graph at scene setup, so fold a signature of
+  // it into the key — otherwise a hierarchy change with the same roster +
+  // call counts (e.g. a transiently-failed fetch succeeding on a later
+  // refresh) wouldn't re-key and the new peers would never render.
+  const hier = t.hierarchy
+    .map((h) => `${h.fromLayer}/${h.fromService.id}:${h.peers.reduce((a, p) => a + p.services.length, 0)}`)
+    .sort()
+    .join(',');
+  return `${naming}:${struct}#${hier}`;
 });
 
 // Render gate: in live mode hold the scene until the first full assembly
@@ -204,10 +214,15 @@ const sceneReady = computed(() => !liveTopologyEnabled.value || liveTopo.value !
 type PipelineMode = 'full' | 'light';
 const pipelineMode = ref<PipelineMode>('full');
 const knownLayers = shallowRef<Set<string> | null>(null);
+// Cross-layer hierarchy cache (LAYER::serviceId → entry | null), persisted
+// across refreshes. The hierarchy stage fetches ONLY services missing from
+// here and reuses the rest, so a steady roster costs zero OAP calls; a
+// `null` records "checked, no peers" so it isn't re-probed.
+const hierarchyCache = new Map<string, MapHierarchyEntry | null>();
 
-// SceneServiceNode view of a DemoTopology — what the metrics stage and the
+// SceneServiceNode view of a MapTopology — what the metrics stage and the
 // scene's node grid consume. shortName = last `::` segment, pre-dot.
-function sceneNodesFrom(topo: DemoTopology): Record<string, SceneServiceNode[]> {
+function sceneNodesFrom(topo: MapTopology): Record<string, SceneServiceNode[]> {
   const byLayer: Record<string, SceneServiceNode[]> = {};
   for (const [key, refs] of Object.entries(topo.servicesByLayer)) {
     byLayer[key] = refs.map((s) => ({
@@ -225,7 +240,7 @@ function sceneNodesFrom(topo: DemoTopology): Record<string, SceneServiceNode[]> 
 const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
     rep.start();
-    const topo = loadDemoTopology();
+    const topo = loadFallbackTopology();
     const byLayer: Record<string, SceneServiceNode[]> = {};
     let total = 0;
     for (const L of topo.layers) {
@@ -251,7 +266,7 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   },
   templates: async (rep, _ctx) => {
     rep.start();
-    const topo = loadDemoTopology();
+    const topo = loadFallbackTopology();
     const withTopology: string[] = [];
     const withoutTopology: string[] = [];
     for (const L of topo.layers) {
@@ -267,7 +282,7 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   },
   topologies: async (rep, _ctx) => {
     rep.start();
-    const topo = loadDemoTopology();
+    const topo = loadFallbackTopology();
     const probes = Object.entries(topo.topologies ?? {}).map(([layerKey, t]) => ({
       layerKey,
       status: (t.calls.length > 0 ? 'ok' : 'empty') as 'ok' | 'empty',
@@ -280,12 +295,26 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       probes,
     });
   },
+  hierarchy: async (rep, _ctx) => {
+    // Snapshot mode already ships the cross-layer hierarchy in the bundled
+    // topology — nothing to fetch; just report what it carries.
+    rep.start();
+    const topo = loadFallbackTopology();
+    const peers = topo.hierarchy.reduce((a, h) => a + h.peers.reduce((b, p) => b + p.services.length, 0), 0);
+    rep.ok(`${topo.hierarchy.length} cross-layer links`, {
+      kind: 'hierarchy',
+      servicesTotal: topo.hierarchy.length,
+      fetched: 0,
+      reused: topo.hierarchy.length,
+      links: peers,
+    });
+  },
   layout: async (rep, _ctx) => {
     rep.start();
     const t0 = performance.now();
     // The scene rebuilds placement on its own; we just measure the cost.
-    const topo = loadDemoTopology();
-    const g = buildSceneGraph(topo, levelForLayer);
+    const topo = loadFallbackTopology();
+    const g = buildSceneGraph(topo, levelForLayer, isLayerExcluded);
     // Pass groups so the measured zone count matches the rendered scene
     // (Infra3DScene collapses each logic group into one zone).
     const p = computePlacement(g, planeOrder.value, infraGroups.value);
@@ -309,9 +338,9 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
     }
     const chunkSize = Math.max(1, cfg.pipeline.metricChunkSize);
 
-    // Resolve each service to its (mqe, layer, normal). Server-side
-    // preferred for topology layers, client-side fallback, then `load`
-    // for non-topology layers. Services whose layer has no MQE
+    // Resolve each service to its (mqe, layer, normal) via the single
+    // `metric` (canonical), falling back to the deprecated topology/load
+    // shapes for older saved rows. Services whose layer has no MQE
     // configured are skipped — their cube renders without a chip.
     interface FetchUnit { name: string; layer: string; normal: boolean; mqe: string; nodeKey: string }
     const units: FetchUnit[] = [];
@@ -319,7 +348,7 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       const upperLayer = layerKey.toUpperCase();
       const spec = cfg.layers[upperLayer];
       if (!spec) continue;
-      const mqe = spec.topology?.server ?? spec.topology?.client ?? spec.load ?? null;
+      const mqe = spec.metric ?? spec.topology?.server ?? spec.topology?.client ?? spec.load ?? null;
       if (!mqe) continue;
       setUnitForLayer(upperLayer, mqe.unit);
       for (const n of nodes) {
@@ -424,13 +453,16 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
 };
 
 // Live variant of the pipeline: `services` / `topologies` read from
-// sequential per-layer OAP queries (assembled into a DemoTopology); the
+// sequential per-layer OAP queries (assembled into a MapTopology); the
 // `liveTopo` ref is published atomically at the END of `topologies`, so the
 // scene renders the full structure once. `templates` / `layout` resolve
 // once per FULL run (skipped on light auto-refresh). `metrics` is shared.
 const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
   services: async (rep, ctx) => {
-    const roster = liveRoster(menuLayers.value);
+    // Drop globally-filtered layers up front — `filter.layer` puts them OFF
+    // the map, so the pipeline must not spend services / topology / hierarchy
+    // / metric OAP calls on them. Everything downstream derives from `roster`.
+    const roster = liveRoster(menuLayers.value).filter((L) => !isLayerExcluded(L.key));
     const known = knownLayers.value;
     const light = pipelineMode.value === 'light' && known !== null;
     // Light refresh renders only layers known at the last full load. A layer
@@ -468,13 +500,29 @@ const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
     const rosterKeys = new Set(topo.layers.map((l) => l.key));
     const bearing = menuLayers.value.filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L));
     await loadLiveTopologies(rep, bearing, topo, liveWindow());
-    // Publish the complete structure (services + topology) in one shot.
-    liveTopo.value = topo;
+  },
+  hierarchy: async (rep, ctx) => {
+    const topo = ctx.topo;
+    if (!topo) {
+      rep.ok('no services', { kind: 'hierarchy', servicesTotal: 0, fetched: 0, reused: 0, links: 0 });
+      return;
+    }
+    try {
+      await loadLiveHierarchy(rep, topo, hierarchyCache);
+    } finally {
+      // Publish the assembled structure (services + topology + whatever
+      // hierarchy landed) in one shot. In `finally` so a hierarchy fault
+      // degrades to "no peer tubes" rather than blanking the whole map —
+      // the base structure is already complete and independent of hierarchy.
+      // `sceneKey` folds in a hierarchy signature, so a later refresh that
+      // fills it in re-keys and the tubes appear.
+      liveTopo.value = topo;
+    }
   },
   layout: async (rep, ctx) => {
     rep.start();
     const t0 = performance.now();
-    const g = buildSceneGraph(ctx.topo ?? loadDemoTopology(), levelForLayer);
+    const g = buildSceneGraph(ctx.topo ?? loadFallbackTopology(), levelForLayer, isLayerExcluded);
     const p = computePlacement(g, planeOrder.value, infraGroups.value);
     const ms = Math.round(performance.now() - t0);
     rep.ok(`${p.zones.length} zones laid in ${ms} ms`, {
@@ -504,7 +552,7 @@ async function runLight(): Promise<void> {
   if (!liveTopologyEnabled.value) return runFull();
   pipelineMode.value = 'light';
   const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
-  await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'metrics']);
+  await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'hierarchy', 'metrics']);
 }
 
 /** Arm (or re-arm) the auto-refresh timer + countdown anchor. */

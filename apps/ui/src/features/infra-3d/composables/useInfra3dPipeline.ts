@@ -21,8 +21,10 @@
  *   stage 1: services    — list services with their layer
  *   stage 2: templates   — flag layers that ship a topology widget
  *   stage 3: topologies  — pull per-layer service-map snapshot
- *   stage 4: layout      — client-side placement (re)compute
- *   stage 5: metrics     — chunked traffic-MQE fetch, server-pref
+ *   stage 4: hierarchy   — cross-layer Smartscape peers (NEW services only;
+ *                          existing entries are reused, not re-fetched)
+ *   stage 5: layout      — client-side placement (re)compute
+ *   stage 6: metrics     — chunked traffic-MQE fetch
  *
  * Each stage owns a typed state + detail blob the bottom-of-page
  * timeline reads to render its drawer. The pipeline is iteration-1
@@ -41,7 +43,7 @@
 import { readonly, shallowRef } from 'vue';
 import { ensureLoaded as ensureInfraConfigLoaded } from './useInfra3dConfig';
 
-export type PipelineStageId = 'services' | 'templates' | 'topologies' | 'layout' | 'metrics';
+export type PipelineStageId = 'services' | 'templates' | 'topologies' | 'hierarchy' | 'layout' | 'metrics';
 export type PipelineStageStatus = 'idle' | 'running' | 'ok' | 'warn' | 'error';
 
 /** A row inside the drawer for stage 3 (per-layer topology probe).
@@ -75,13 +77,14 @@ export type StageDetail =
   | { kind: 'services'; servicesTotal: number; layersTotal: number; addedSince: number | null; removedSince: number | null; hiddenNoTemplate?: string[] }
   | { kind: 'templates'; layersWithTopology: string[]; layersWithoutTopology: string[] }
   | { kind: 'topologies'; probes: TopologyProbe[] }
+  | { kind: 'hierarchy'; servicesTotal: number; fetched: number; reused: number; links: number }
   | { kind: 'layout'; layersReLaid: number; ms: number }
   | { kind: 'metrics'; servicesTotal: number; servicesDone: number; chunkIndex: number; chunkTotal: number; currentLevel: string | null }
   | { kind: 'empty' };
 
 const emptyDetail: StageDetail = { kind: 'empty' };
 
-const STAGE_ORDER: PipelineStageId[] = ['services', 'templates', 'topologies', 'layout', 'metrics'];
+const STAGE_ORDER: PipelineStageId[] = ['services', 'templates', 'topologies', 'hierarchy', 'layout', 'metrics'];
 
 function initialState(): Record<PipelineStageId, StageState> {
   return Object.fromEntries(

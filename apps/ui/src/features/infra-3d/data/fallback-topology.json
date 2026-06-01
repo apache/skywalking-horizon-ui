@@ -1,6 +1,6 @@
 {
   "capturedAt": "2026-05-27",
-  "oapDemo": "apache skywalking-showcase",
+  "source": "apache skywalking-showcase",
   "layers": [
     {
       "key": "activemq",

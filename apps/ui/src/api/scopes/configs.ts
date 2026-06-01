@@ -27,9 +27,15 @@ export type BundleScopeMap = Partial<
   Record<'service' | 'instance' | 'endpoint', DashboardWidget[]>
 >;
 
-/** What kind of template a sync-status row describes. Five reserved
- *  kinds — see the BFF's `apps/bff/src/logic/templates/names.ts`. */
-export type TemplateKind = 'overview' | 'layer' | 'alert' | 'theme' | 'time-defaults';
+/** What kind of template a sync-status row describes. Reserved kinds —
+ *  see the BFF's `apps/bff/src/logic/templates/names.ts`. */
+export type TemplateKind =
+  | 'overview'
+  | 'layer'
+  | 'alert'
+  | 'theme'
+  | 'time-defaults'
+  | 'infra-3d';
 
 /** Status of a single template, mirrored from the BFF sync orchestrator.
  *  - `synced`           — bundled == remote, byte-equal

@@ -57,38 +57,26 @@ const layerToLevelId = computed<Record<string, string>>(() => {
   const out: Record<string, string> = {};
 
   // Logic-group membership wins outright: a grouped layer is placed on
-  // the group's level, overriding the layer's own level resolution.
+  // the group's level, overriding the layer's own level resolution. A
+  // layer belongs to one group (validated), but resolve first-match to
+  // agree with placement (useScenePlacement) should that ever be violated.
   for (const g of c.groups ?? []) {
     for (const k of g.layers) {
       const u = k.toUpperCase();
       if (filter && !filter.test(u)) continue;
-      out[u] = g.level;
+      if (!out[u]) out[u] = g.level;
     }
   }
 
-  // Explicit `layers` lists are the authoritative source — they always
-  // win over regex matches, so an admin pinning `K8S_SERVICE` to a
-  // specific level is never overridden by a permissive regex elsewhere.
+  // Explicit `layers` lists are the only per-level placement mechanism —
+  // a layer pinned to a level lands there. Anything no group or explicit
+  // list claims falls to `unknownLayer.level` (the single failover tier)
+  // via `levelForLayer` below.
   for (const lvl of c.levels) {
     for (const k of lvl.layers) {
       const u = k.toUpperCase();
       if (filter && !filter.test(u)) continue;
       if (!out[u]) out[u] = lvl.id;
-    }
-  }
-  // Regex pass — only fills holes the explicit lists left open.
-  // First-matching-level wins, ordered by `level.order` ascending so the
-  // resolution is deterministic when two levels' regexes overlap.
-  const ordered = [...c.levels].sort((a, b) => a.order - b.order);
-  for (const u of Object.keys(c.layers)) {
-    if (out[u]) continue;
-    if (filter && !filter.test(u)) continue;
-    for (const lvl of ordered) {
-      const r = safeRegex(lvl.layerFilter);
-      if (r && r.test(u)) {
-        out[u] = lvl.id;
-        break;
-      }
     }
   }
   return out;
@@ -106,8 +94,12 @@ const layerToGroupId = computed<Record<string, string>>(() => {
   const c = cfg.value;
   if (!c) return {};
   const out: Record<string, string> = {};
+  // First-match wins, matching placement (a layer is in one group anyway).
   for (const g of c.groups ?? []) {
-    for (const k of g.layers) out[k.toUpperCase()] = g.id;
+    for (const k of g.layers) {
+      const u = k.toUpperCase();
+      if (!out[u]) out[u] = g.id;
+    }
   }
   return out;
 });
@@ -137,14 +129,14 @@ export function useInfra3dConfig() {
     colorForLayer,
     /** The logic group a layer belongs to, or null if ungrouped. */
     groupForLayer,
-    /** Resolved traffic MQE for a layer — `topology.server` on
-     *  topology layers (preferred), `topology.client` as fallback, then
-     *  `load` for non-topology layers. Returns null when no MQE is
-     *  configured (e.g. SO11Y_OAP). */
+    /** Resolved single traffic MQE for a layer — `metric` (canonical),
+     *  falling back to the deprecated `topology` / `load` shapes for
+     *  older saved rows. Returns null when no MQE is configured. */
     trafficMqeForLayer,
-    /** Raw per-layer spec — useful when the caller needs the full
-     *  topology pair (e.g. for a future server-vs-client toggle). */
+    /** Raw per-layer spec (color + metric). */
     layerSpec,
+    /** True when the global filter excludes a layer from the map. */
+    isLayerExcluded,
   };
 }
 
@@ -181,6 +173,16 @@ export function levelForLayer(layerKey: string): string {
   return cfg.value?.unknownLayer.level ?? 'middleware';
 }
 
+/** True when the global `filter.layer` regex excludes this layer — it is
+ *  OFF the 3D map entirely (not rendered on any tier), matching the admin
+ *  editor's treatment. Default `.*` excludes nothing. */
+export function isLayerExcluded(layerKey: string): boolean {
+  const f = cfg.value?.filter.layer;
+  if (!f) return false;
+  const r = safeRegex(f);
+  return r ? !r.test(layerKey.toUpperCase()) : false;
+}
+
 export function colorForLayer(layerKey: string): string {
   const u = layerKey.toUpperCase();
   const spec = cfg.value?.layers[u];
@@ -205,6 +207,9 @@ export function layerSpec(layerKey: string): InfraLayerSpec | null {
 export function trafficMqeForLayer(layerKey: string): InfraMqe | null {
   const spec = layerSpec(layerKey);
   if (!spec) return null;
+  // `metric` is canonical; topology/load are accepted for back-compat
+  // (older saved rows) and collapse to the same single value.
+  if (spec.metric) return spec.metric;
   if (spec.topology?.server) return spec.topology.server;
   if (spec.topology?.client) return spec.topology.client;
   return spec.load ?? null;

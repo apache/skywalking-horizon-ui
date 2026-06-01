@@ -37,7 +37,7 @@
  *   - See CLAUDE.md in this directory for the full layout-rule spec.
  */
 
-import type { PlaneId, SceneGraph, SceneLayer, SceneServiceNode } from './useDemoTopology';
+import type { PlaneId, SceneGraph, SceneLayer, SceneServiceNode } from './useMapTopology';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 

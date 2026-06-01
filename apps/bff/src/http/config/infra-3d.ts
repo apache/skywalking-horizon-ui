@@ -16,27 +16,37 @@
  */
 
 /**
- * `/api/infra-3d/config` — read + write the 3D Infrastructure Map admin
- * config. The GET path is the same source the `/3d/map` view consumes;
- * the POST path is what the `/admin/3d-map` Monaco YAML editor calls on
- * save. Validation happens at the route edge so a bad PUT never reaches
- * the store — the response carries the issue list back to the editor.
+ * `GET /api/infra-3d/config` — the EFFECTIVE 3D Infrastructure Map config
+ * the `/3d/map` view consumes. The config is a first-class template kind
+ * (`horizon.infra-3d.config`), so it follows the same bundled → remote
+ * policy as every other template: when OAP holds a non-disabled remote
+ * row, that wins; otherwise the bundled default is served. Writes do NOT
+ * happen here — the admin editor publishes through the generic template
+ * sync surface (`POST /api/admin/templates/save`), which validates the
+ * 3D-map content before it reaches OAP.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
-import type { AuditLogger } from '../../audit/logger.js';
 import { requireAuth } from '../../user/middleware.js';
-import type { Infra3dStore } from '../../logic/infra-3d/store.js';
-import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import { getSyncStatus } from '../../logic/templates/sync.js';
+import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
+import {
+  formatName,
+  parseEnvelope,
+  INFRA3D_CONFIG_KEY,
+} from '../../logic/templates/names.js';
 import { loadBundledInfra3dConfig } from '../../logic/infra-3d/bundled.js';
+import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import type { Infra3dConfig } from '../../logic/infra-3d/types.js';
+import { logger } from '../../logger.js';
 
 export interface Infra3dConfigRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
-  audit: AuditLogger;
-  store: Infra3dStore;
+  uiTemplateClient: () => UITemplateClient;
 }
 
 export function registerInfra3dConfigRoutes(
@@ -49,43 +59,36 @@ export function registerInfra3dConfigRoutes(
     '/api/infra-3d/config',
     { preHandler: auth },
     async (_req: FastifyRequest, reply: FastifyReply) => {
-      const cfg = await deps.store.load();
+      const cfg = await resolveEffectiveConfig(deps);
       return reply.send(cfg);
     },
   );
+}
 
-  // Read-only bundled defaults — the admin editor's "Reset to bundled"
-  // button needs a way to retrieve the unsaved baseline so it can POST
-  // it back. Same `infra-3d:read` verb as the main GET.
-  app.get(
-    '/api/infra-3d/config/bundled',
-    { preHandler: auth },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
-      return reply.send(loadBundledInfra3dConfig());
-    },
-  );
-
-  app.post(
-    '/api/infra-3d/config',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const parsed = validateInfra3dConfig(req.body);
-      if (!parsed.ok) {
-        return reply.code(400).send({ error: 'invalid_body', issues: parsed.issues });
+/** Remote-wins resolution, mirroring `pickLayerContent` in the config
+ *  bundle. The remote envelope is re-validated defensively — a row
+ *  hand-edited on OAP into an invalid shape falls back to bundled rather
+ *  than breaking the map. */
+async function resolveEffectiveConfig(deps: Infra3dConfigRouteDeps): Promise<Infra3dConfig> {
+  const bundled = loadBundledInfra3dConfig();
+  try {
+    const sync = await getSyncStatus({
+      client: deps.uiTemplateClient(),
+      bundled: () => iterateBundledTemplates(),
+      logger,
+    });
+    const name = formatName('infra-3d', INFRA3D_CONFIG_KEY);
+    const row = sync.rows.find((r) => r.name === name);
+    if (row && row.status !== 'disabled' && row.effective === 'remote' && row.remote) {
+      const env = parseEnvelope(row.remote.configuration);
+      if (env) {
+        const v = validateInfra3dConfig(env.content);
+        if (v.ok) return v.value;
+        logger.warn({ issues: v.issues }, 'remote infra-3d config invalid; using bundled');
       }
-      await deps.store.save(parsed.value);
-      deps.audit.record({
-        action: 'infra-3d.config.save',
-        actor: req.session?.username ?? null,
-        outcome: 'ok',
-        details: {
-          levels: parsed.value.levels.map((l) => l.id),
-          layers: Object.keys(parsed.value.layers).length,
-        },
-        fromIp: req.ip,
-        sessionId: req.session?.sid,
-      });
-      return reply.send(parsed.value);
-    },
-  );
+    }
+  } catch (err) {
+    logger.warn({ err }, 'infra-3d effective resolve failed; using bundled');
+  }
+  return bundled;
 }

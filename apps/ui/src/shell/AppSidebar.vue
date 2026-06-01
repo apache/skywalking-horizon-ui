@@ -282,7 +282,7 @@ const sections = computed<NavSection[]>(() => [
       { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'dashboard:read' },
       { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'overview:write' },
       { icon: 'alert', label: t('Alert page'), to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
-      { icon: 'set', label: t('3D Infra Map'), to: '/admin/3d-map', verb: 'infra-3d:write' },
+      { icon: 'set', label: t('3D Infra Map'), to: '/admin/3d-map', verb: 'overview:write' },
       { icon: 'set', label: t('Global defaults'), to: '/admin/global-defaults', verb: 'setup:read' },
     ],
   },

@@ -189,12 +189,15 @@ const localTzLabel = computed<string>(() => {
 // browser-vs-server TZ check returns, derive from `useOapInfo().timezone`.
 
 /**
- * Routes that own their own time range — the global topbar picker +
- * refresh button get disabled (greyed + non-clickable) so the
- * operator knows the page's local picker is the source of truth.
+ * Routes where the global topbar time picker + auto-refresh are disabled
+ * (greyed + non-clickable). Two reasons land a route here:
+ *   1. The page owns its OWN time range (traces / logs / alarms /
+ *      profiling) — its local picker is the source of truth.
+ *   2. The page has NO time context at all (every config/admin page and
+ *      every operate page) — they never poll metrics, so a rolling window
+ *      + auto-refresh make no sense. See `noTimeContext` for the wording.
  *
- * Add more routes here as Logs / Traces / etc. each opt out of the
- * global rolling window in favour of a per-page picker.
+ * Add more per-page-picker routes here as Logs / Traces / etc. opt out.
  */
 const TIME_RANGE_OPT_OUT = [
   /^\/layer\/[^/]+\/trace$/,
@@ -224,8 +227,16 @@ const TIME_RANGE_OPT_OUT = [
   /^\/layer\/[^/]+\/network-profiling$/,
   /^\/layer\/[^/]+\/async-profiling$/,
   /^\/layer\/[^/]+\/pprof$/,
+  // Config (admin) + operate pages have no time concept — they never poll
+  // metrics, so the global picker + auto-refresh are off on all of them.
+  /^\/admin\//,
+  /^\/operate\//,
 ];
 const ownsTimeRange = computed<boolean>(() => TIME_RANGE_OPT_OUT.some((r) => r.test(route.path)));
+/** The no-time-context subset of the opt-out (config/admin + operate),
+ *  vs. pages that own a page-local picker (traces / logs / …). Only
+ *  changes the tooltip wording — the disable behaviour is the same. */
+const noTimeContext = computed<boolean>(() => /^\/(admin|operate)\//.test(route.path));
 /** Auto-refresh is paused whenever the operator has frozen the window
  *  to a custom range — polling a fixed snapshot just re-fetches the
  *  same bytes. The button still works for a one-shot manual refresh. */
@@ -234,6 +245,7 @@ const hasFrozenRange = computed<boolean>(
 );
 const autoSuspended = computed<boolean>(() => ownsTimeRange.value || hasFrozenRange.value);
 const globalTimeTooltip = computed<string>(() => {
+  if (noTimeContext.value) return 'No time range on config / operate pages.';
   if (ownsTimeRange.value) {
     return 'This page uses its own time range — disable the page picker to use the global one.';
   }
@@ -288,6 +300,7 @@ const refreshLabel = computed<string>(() => {
   return `${auto.secondsUntilNext}s`;
 });
 const refreshTooltip = computed<string>(() => {
+  if (noTimeContext.value) return t('Auto-refresh is off on config / operate pages');
   if (ownsTimeRange.value) return t('Auto-refresh paused on this page');
   if (hasFrozenRange.value) return t('Auto-refresh paused while a custom time range is selected');
   if (auto.intervalSec === null) return t('Auto-refresh off · click to refresh now');
@@ -333,6 +346,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('click', onTimeMenuClickClose);
 }
 const timeChipLabel = computed<string>(() => {
+  if (noTimeContext.value) return t('Time range N/A');
   if (ownsTimeRange.value) return t('This page uses its own time range');
   if (timeRange.presetId === 'custom') {
     const r = timeRange.range;

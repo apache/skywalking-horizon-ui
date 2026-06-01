@@ -79,6 +79,7 @@ import { writeLayerTemplate } from '../../logic/layers/loader.js';
 import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 import { writeOverviewDashboard } from '../../logic/overview/loader.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
+import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
 import { logger } from '../../logger.js';
 
 export interface TemplateSyncAdminDeps {
@@ -556,6 +557,17 @@ export function registerTemplateSyncAdminRoutes(
         code: 'invalid_template_name',
         message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
       });
+    }
+    // Per-kind content validation. The envelope machinery is content-opaque,
+    // so the 3D-map config (the one kind with a strict structural schema)
+    // is checked here before it can reach OAP — a bad regex / dangling
+    // group level is rejected with the same issue list the admin editor
+    // already surfaces, rather than silently shipping garbage to remote.
+    if (parsed.kind === 'infra-3d') {
+      const v = validateInfra3dConfig(content);
+      if (!v.ok) {
+        return reply.code(400).send({ code: 'invalid_content', issues: v.issues });
+      }
     }
     resync(); // fresh OAP read before deciding create-vs-update — peers / past races shouldn't leave us writing duplicates
     const status = await loadStatus(deps);

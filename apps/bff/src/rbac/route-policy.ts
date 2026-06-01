@@ -145,8 +145,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/alarms/config':                        'alarm-setup:read',
   'POST /api/alarms/config':                       'alarm-setup:write',
   'GET /api/infra-3d/config':                      'infra-3d:read',
-  'GET /api/infra-3d/config/bundled':              'infra-3d:read',
-  'POST /api/infra-3d/config':                     'infra-3d:write',
   'POST /api/infra-3d/metrics':                    'infra-3d:read',
   'GET /api/setup':                                'setup:read',
   'POST /api/setup':                               'setup:write',

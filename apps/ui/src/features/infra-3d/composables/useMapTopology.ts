@@ -16,19 +16,20 @@
  */
 
 /**
- * Demo topology loader for the 3D infra map. Reads a snapshot of the
- * SkyWalking showcase deployment captured from the running BFF (layers,
- * services per layer, cross-layer hierarchy peers, per-layer service
- * topology for the layers that have a service map).
+ * The 3D infra map's topology model (`MapTopology`) + the `buildSceneGraph`
+ * pass that turns it into the renderable `SceneGraph`. The model is the same
+ * whether assembled live from OAP (see `useLiveTopology`) or read from the
+ * committed fallback snapshot via `loadFallbackTopology()` — layers, services
+ * per layer, cross-layer hierarchy peers, and per-layer service maps.
  *
- * The snapshot is committed JSON, not a live fetch — first iteration
- * of this view ships as a static page so we can iterate on the visual
- * vocabulary before wiring it to the per-session BFF.
+ * `loadFallbackTopology()` reads `data/fallback-topology.json` (a snapshot of
+ * the showcase deployment) — rendered until the first live load lands and as
+ * the offline fallback when OAP is unreachable.
  */
 
-import demoJson from '../data/demo-topology.json';
+import fallbackJson from '../data/fallback-topology.json';
 
-export interface DemoLayer {
+export interface MapLayer {
   key: string;
   name: string;
   level: number | null;
@@ -36,40 +37,40 @@ export interface DemoLayer {
   serviceCount: number;
   color: string | null;
 }
-export interface DemoServiceRef {
+export interface MapServiceRef {
   id: string;
   name: string;
   normal: boolean;
 }
-export interface DemoHierarchyPeer {
+export interface MapHierarchyPeer {
   layer: string;
   services: Array<{ id: string; name: string; normal: boolean; role: string }>;
 }
-export interface DemoHierarchyEntry {
+export interface MapHierarchyEntry {
   fromLayer: string;
-  fromService: DemoServiceRef;
-  peers: DemoHierarchyPeer[];
+  fromService: MapServiceRef;
+  peers: MapHierarchyPeer[];
 }
-export interface DemoTopologyCall {
+export interface MapTopologyCall {
   source: string;
   target: string;
   detectPoints: string[];
 }
-export interface DemoLayerTopology {
+export interface MapLayerTopology {
   nodes: Array<{ id: string; name: string; layer: string }>;
-  calls: DemoTopologyCall[];
+  calls: MapTopologyCall[];
 }
 
-export interface DemoTopology {
+export interface MapTopology {
   capturedAt: string;
-  oapDemo: string;
-  layers: DemoLayer[];
-  servicesByLayer: Record<string, DemoServiceRef[]>;
-  hierarchy: DemoHierarchyEntry[];
+  source: string;
+  layers: MapLayer[];
+  servicesByLayer: Record<string, MapServiceRef[]>;
+  hierarchy: MapHierarchyEntry[];
   /** Per-layer service-map snapshot. Only layers whose template carries
    *  a topology component populate this (general / mesh / k8s_service in
    *  the showcase demo). */
-  topologies: Record<string, DemoLayerTopology>;
+  topologies: Record<string, MapLayerTopology>;
 }
 
 /** Level id from the admin config (`apps` / `mesh` / `middleware` /
@@ -158,7 +159,7 @@ export interface SceneCrossLayerEdge {
   detectPoints: string[];
 }
 
-export interface SceneLayer extends DemoLayer {
+export interface SceneLayer extends MapLayer {
   plane: PlaneId;
   nodes: SceneServiceNode[];
   /** Same-plane call edges between this layer's services. */
@@ -191,13 +192,21 @@ function shortName(name: string): string {
   return afterColon.split('.')[0] || afterColon;
 }
 
-export function loadDemoTopology(): DemoTopology {
-  return demoJson as DemoTopology;
+export function loadFallbackTopology(): MapTopology {
+  return fallbackJson as MapTopology;
 }
 
-export function buildSceneGraph(topo: DemoTopology, resolver?: LevelResolver): SceneGraph {
-  // Build the per-layer node + call-edge view.
-  const layers: SceneLayer[] = topo.layers.map((L) => {
+export function buildSceneGraph(
+  topo: MapTopology,
+  resolver?: LevelResolver,
+  /** Layers this returns true for are dropped from the graph entirely —
+   *  the global `filter.layer` gate, so an excluded layer is off the map
+   *  (not silently re-homed on the failover tier). */
+  isExcluded?: (layerKey: string) => boolean,
+): SceneGraph {
+  // Build the per-layer node + call-edge view (filter-excluded layers out).
+  const visibleLayers = isExcluded ? topo.layers.filter((L) => !isExcluded(L.key)) : topo.layers;
+  const layers: SceneLayer[] = visibleLayers.map((L) => {
     const plane = planeForLayer(L.key, resolver);
     const nodes: SceneServiceNode[] = (topo.servicesByLayer[L.key] ?? []).map((s) => ({
       nodeId: nodeKey(L.key, s.id),

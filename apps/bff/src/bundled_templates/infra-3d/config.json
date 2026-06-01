@@ -22,7 +22,6 @@
       "id":          "apps",
       "order":       0,
       "label":       "Apps",
-      "layerFilter": ".*",
       "layers": [
         "GENERAL",
         "BROWSER",
@@ -42,7 +41,6 @@
       "id":          "mesh",
       "order":       2,
       "label":       "Service Mesh",
-      "layerFilter": ".*",
       "layers": [
         "MESH",
         "MESH_DP",
@@ -54,7 +52,6 @@
       "id":          "middleware",
       "order":       1,
       "label":       "Middleware",
-      "layerFilter": ".*",
       "layers": [
         "MYSQL",
         "POSTGRESQL",
@@ -92,7 +89,6 @@
       "id":          "infra",
       "order":       3,
       "label":       "Infra",
-      "layerFilter": ".*",
       "layers": [
         "K8S",
         "K8S_SERVICE",
@@ -122,25 +118,23 @@
   "layers": {
     "GENERAL": {
       "color": "#e76f00",
-      "topology": {
-        "server": { "mqe": "service_cpm", "label": "RPM", "unit": "rpm" }
-      }
+      "metric": { "mqe": "service_cpm", "label": "RPM", "unit": "rpm" }
     },
     "BROWSER": {
       "color": "#c9a227",
-      "load":  { "mqe": "browser_app_pv", "label": "Page Views", "unit": "pv/min" }
+      "metric":  { "mqe": "browser_app_pv", "label": "Page Views", "unit": "pv/min" }
     },
     "IOS": {
       "color": "#a3aaae",
-      "load":  { "mqe": "meter_ios_foreground_abnormal_exit_count + meter_ios_background_abnormal_exit_count", "label": "Crashes", "unit": "crashes" }
+      "metric":  { "mqe": "meter_ios_foreground_abnormal_exit_count + meter_ios_background_abnormal_exit_count", "label": "Crashes", "unit": "crashes" }
     },
     "WECHAT_MINI_PROGRAM": {
       "color": "#07c160",
-      "load":  { "mqe": "meter_wechat_mp_request_cpm", "label": "Request RPM", "unit": "rpm" }
+      "metric":  { "mqe": "meter_wechat_mp_request_cpm", "label": "Request RPM", "unit": "rpm" }
     },
     "ALIPAY_MINI_PROGRAM": {
       "color": "#1677ff",
-      "load":  { "mqe": "meter_alipay_mp_request_cpm", "label": "Request RPM", "unit": "rpm" }
+      "metric":  { "mqe": "meter_alipay_mp_request_cpm", "label": "Request RPM", "unit": "rpm" }
     },
     "BAIDU_MINI_PROGRAM": {
       "color": "#3385ff"
@@ -150,29 +144,27 @@
     },
     "VIRTUAL_DATABASE": {
       "color": "#5c8bc6",
-      "load":  { "mqe": "database_access_cpm", "label": "Access RPM", "unit": "rpm" }
+      "metric":  { "mqe": "database_access_cpm", "label": "Access RPM", "unit": "rpm" }
     },
     "VIRTUAL_CACHE": {
       "color": "#dc382d",
-      "load":  { "mqe": "cache_access_cpm", "label": "Access RPM", "unit": "rpm" }
+      "metric":  { "mqe": "cache_access_cpm", "label": "Access RPM", "unit": "rpm" }
     },
     "VIRTUAL_MQ": {
       "color": "#d97706",
-      "load":  { "mqe": "mq_service_consume_cpm", "label": "Consume RPM", "unit": "rpm" }
+      "metric":  { "mqe": "mq_service_consume_cpm", "label": "Consume RPM", "unit": "rpm" }
     },
     "VIRTUAL_GATEWAY": {
       "color": "#00aa55"
     },
     "VIRTUAL_GENAI": {
       "color": "#a855f7",
-      "load":  { "mqe": "gen_ai_provider_resp_time", "label": "Avg Latency", "unit": "ms" }
+      "metric":  { "mqe": "gen_ai_provider_resp_time", "label": "Avg Latency", "unit": "ms" }
     },
 
     "MESH": {
       "color": "#466bb0",
-      "topology": {
-        "server": { "mqe": "service_cpm", "label": "RPM", "unit": "rpm" }
-      }
+      "metric": { "mqe": "service_cpm", "label": "RPM", "unit": "rpm" }
     },
     "MESH_DP": {
       "color": "#5e87cf",
@@ -180,69 +172,67 @@
     },
     "MESH_CP": {
       "color": "#7da4dc",
-      "load":  { "mqe": "meter_istio_cpu", "label": "CPU", "unit": "%" }
+      "metric":  { "mqe": "meter_istio_cpu", "label": "CPU", "unit": "%" }
     },
     "CILIUM_SERVICE": {
       "color": "#f8c517",
-      "topology": {
-        "server": { "mqe": "cilium_service_protocol_cpm", "label": "RPM", "unit": "rpm" }
-      }
+      "metric": { "mqe": "cilium_service_protocol_cpm", "label": "RPM", "unit": "rpm" }
     },
     "ENVOY_AI_GATEWAY": {
       "color": "#ac6dcc",
-      "load":  { "mqe": "meter_envoy_ai_gw_input_token_rate + meter_envoy_ai_gw_output_token_rate", "label": "Tokens/min", "unit": "tok/min" }
+      "metric":  { "mqe": "meter_envoy_ai_gw_input_token_rate + meter_envoy_ai_gw_output_token_rate", "label": "Tokens/min", "unit": "tok/min" }
     },
 
     "MYSQL": {
       "color": "#00758f",
-      "load":  { "mqe": "aggregate_labels(meter_mysql_qps,sum)", "label": "QPS", "unit": "qps" }
+      "metric":  { "mqe": "aggregate_labels(meter_mysql_qps,sum)", "label": "QPS", "unit": "qps" }
     },
     "POSTGRESQL": {
       "color": "#336791",
-      "load":  { "mqe": "aggregate_labels(meter_pg_fetched_rows_rate,sum)", "label": "Fetched rows/s", "unit": "rows/s" }
+      "metric":  { "mqe": "aggregate_labels(meter_pg_fetched_rows_rate,sum)", "label": "Fetched rows/s", "unit": "rows/s" }
     },
     "MARIADB": {
       "color": "#003545"
     },
     "ELASTICSEARCH": {
       "color": "#005571",
-      "load":  { "mqe": "meter_elasticsearch_cluster_health_status", "label": "Health", "unit": "status" }
+      "metric":  { "mqe": "meter_elasticsearch_cluster_health_status", "label": "Health", "unit": "status" }
     },
     "MONGODB": {
       "color": "#47a248",
-      "load":  { "mqe": "aggregate_labels(meter_mongodb_cluster_document_avg_qps, sum(doc_op_type))", "label": "Doc QPS", "unit": "qps" }
+      "metric":  { "mqe": "aggregate_labels(meter_mongodb_cluster_document_avg_qps, sum(doc_op_type))", "label": "Doc QPS", "unit": "qps" }
     },
     "REDIS": {
       "color": "#dc382d",
-      "load":  { "mqe": "aggregate_labels(meter_redis_total_commands_rate,sum(cmd))", "label": "Commands/s", "unit": "ops/s" }
+      "metric":  { "mqe": "aggregate_labels(meter_redis_total_commands_rate,sum(cmd))", "label": "Commands/s", "unit": "ops/s" }
     },
     "KAFKA": {
       "color": "#7d2929",
-      "load":  { "mqe": "meter_kafka_max_lag", "label": "Max Lag", "unit": "msgs" }
+      "metric":  { "mqe": "meter_kafka_max_lag", "label": "Max Lag", "unit": "msgs" }
     },
     "ROCKETMQ": {
       "color": "#d2691e",
-      "load":  { "mqe": "meter_rocketmq_cluster_total_producer_tps + meter_rocketmq_cluster_total_consumer_tps", "label": "Producer + Consumer TPS", "unit": "msg/s" }
+      "metric":  { "mqe": "meter_rocketmq_cluster_total_producer_tps + meter_rocketmq_cluster_total_consumer_tps", "label": "Producer + Consumer TPS", "unit": "msg/s" }
     },
     "RABBITMQ": {
       "color": "#ff6600",
-      "load":  { "mqe": "aggregate_labels(meter_rabbitmq_messages_published,sum)", "label": "Published / min", "unit": "msg/min" }
+      "metric":  { "mqe": "aggregate_labels(meter_rabbitmq_messages_published,sum)", "label": "Published / min", "unit": "msg/min" }
     },
     "PULSAR": {
       "color": "#188fff",
-      "load":  { "mqe": "aggregate_labels(meter_pulsar_message_rate_in,sum) + aggregate_labels(meter_pulsar_message_rate_out,sum)", "label": "Msg In + Out", "unit": "msg/s" }
+      "metric":  { "mqe": "aggregate_labels(meter_pulsar_message_rate_in,sum) + aggregate_labels(meter_pulsar_message_rate_out,sum)", "label": "Msg In + Out", "unit": "msg/s" }
     },
     "ACTIVEMQ": {
       "color": "#78bc1b",
-      "load":  { "mqe": "meter_activemq_cluster_enqueue_rate", "label": "Enqueue/s", "unit": "msg/s" }
+      "metric":  { "mqe": "meter_activemq_cluster_enqueue_rate", "label": "Enqueue/s", "unit": "msg/s" }
     },
     "BOOKKEEPER": {
       "color": "#188fff",
-      "load":  { "mqe": "aggregate_labels(meter_bookkeeper_bookie_write_rate,sum)", "label": "Write B/s", "unit": "B/s" }
+      "metric":  { "mqe": "aggregate_labels(meter_bookkeeper_bookie_write_rate,sum)", "label": "Write B/s", "unit": "B/s" }
     },
     "CLICKHOUSE": {
       "color": "#ffcc00",
-      "load":  { "mqe": "aggregate_labels(meter_clickhouse_query_select_rate,sum) + aggregate_labels(meter_clickhouse_query_insert_rate,sum)", "label": "Select + Insert QPS", "unit": "qps" }
+      "metric":  { "mqe": "aggregate_labels(meter_clickhouse_query_select_rate,sum) + aggregate_labels(meter_clickhouse_query_insert_rate,sum)", "label": "Select + Insert QPS", "unit": "qps" }
     },
     "INFLUXDB": {
       "color": "#22adf6"
@@ -255,19 +245,19 @@
     },
     "APISIX": {
       "color": "#00bfa6",
-      "load":  { "mqe": "aggregate_labels(meter_apisix_sv_http_requests,sum(service_instance_id))", "label": "RPS", "unit": "rps" }
+      "metric":  { "mqe": "aggregate_labels(meter_apisix_sv_http_requests,sum(service_instance_id))", "label": "RPS", "unit": "rps" }
     },
     "NGINX": {
       "color": "#009639",
-      "load":  { "mqe": "aggregate_labels(meter_nginx_service_http_requests, sum)", "label": "RPS", "unit": "rps" }
+      "metric":  { "mqe": "aggregate_labels(meter_nginx_service_http_requests, sum)", "label": "RPS", "unit": "rps" }
     },
     "KONG": {
       "color": "#003459",
-      "load":  { "mqe": "aggregate_labels(meter_kong_service_http_requests,sum)", "label": "RPS", "unit": "rps" }
+      "metric":  { "mqe": "aggregate_labels(meter_kong_service_http_requests,sum)", "label": "RPS", "unit": "rps" }
     },
     "FLINK": {
       "color": "#e6526f",
-      "load":  { "mqe": "latest(meter_flink_jobManager_running_job_number)", "label": "Running Jobs", "unit": "jobs" }
+      "metric":  { "mqe": "latest(meter_flink_jobManager_running_job_number)", "label": "Running Jobs", "unit": "jobs" }
     },
     "SO11Y_OAP": {
       "color": "#69b1ff",
@@ -275,7 +265,7 @@
     },
     "SO11Y_SATELLITE": {
       "color": "#85c1ff",
-      "load":  { "mqe": "satellite_service_server_cpu_utilization", "label": "CPU", "unit": "%" }
+      "metric":  { "mqe": "satellite_service_server_cpu_utilization", "label": "CPU", "unit": "%" }
     },
     "SO11Y_BANYANDB": {
       "color": "#a8d5ff"
@@ -290,15 +280,15 @@
     },
     "AWS_S3": {
       "color": "#ff9900",
-      "load":  { "mqe": "latest(aws_s3_all_requests)", "label": "Requests", "unit": "req" }
+      "metric":  { "mqe": "latest(aws_s3_all_requests)", "label": "Requests", "unit": "req" }
     },
     "AWS_DYNAMODB": {
       "color": "#4053d6",
-      "load":  { "mqe": "aws_dynamodb_read_throttled_requests + aws_dynamodb_write_throttled_requests", "label": "Throttled Requests", "unit": "req" }
+      "metric":  { "mqe": "aws_dynamodb_read_throttled_requests + aws_dynamodb_write_throttled_requests", "label": "Throttled Requests", "unit": "req" }
     },
     "AWS_GATEWAY": {
       "color": "#cc6600",
-      "load":  { "mqe": "aws_gateway_service_count", "label": "Requests", "unit": "req" }
+      "metric":  { "mqe": "aws_gateway_service_count", "label": "Requests", "unit": "req" }
     },
     "AWS_API_GATEWAY": {
       "color": "#ff9900"
@@ -306,28 +296,26 @@
 
     "K8S": {
       "color": "#326ce5",
-      "load":  { "mqe": "k8s_cluster_pod_total", "label": "Pods", "unit": "pods" }
+      "metric":  { "mqe": "k8s_cluster_pod_total", "label": "Pods", "unit": "pods" }
     },
     "K8S_SERVICE": {
       "color": "#5a8de6",
-      "topology": {
-        "server": { "mqe": "kubernetes_service_http_call_cpm", "label": "RPM", "unit": "rpm" }
-      }
+      "metric": { "mqe": "kubernetes_service_http_call_cpm", "label": "RPM", "unit": "rpm" }
     },
     "OS_LINUX": {
       "color": "#fcc419",
-      "load":  { "mqe": "meter_vm_cpu_total_percentage", "label": "CPU", "unit": "%" }
+      "metric":  { "mqe": "meter_vm_cpu_total_percentage", "label": "CPU", "unit": "%" }
     },
     "OS_WINDOWS": {
       "color": "#0078d4",
-      "load":  { "mqe": "meter_win_cpu_total_percentage", "label": "CPU", "unit": "%" }
+      "metric":  { "mqe": "meter_win_cpu_total_percentage", "label": "CPU", "unit": "%" }
     },
     "VIRTUAL_MACHINE": {
       "color": "#f0b429"
     },
     "AWS_EKS": {
       "color": "#ff9900",
-      "load":  { "mqe": "latest(eks_cluster_node_count)", "label": "Nodes", "unit": "nodes" }
+      "metric":  { "mqe": "latest(eks_cluster_node_count)", "label": "Nodes", "unit": "nodes" }
     }
   }
 }

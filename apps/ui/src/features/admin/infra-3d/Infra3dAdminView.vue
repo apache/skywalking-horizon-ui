@@ -17,43 +17,50 @@
 <!--
   Admin: 3D Infrastructure Map · structured config editor.
 
-  Sections (top-to-bottom):
-    1. Header + action bar (Save / Reset to bundled / Discard).
-    2. Banner — dirty / saved / issues list from server validation.
-    3. Global filter — one regex (`filter.layer`).
-    4. Levels — per-level cards (id, order, label, layerFilter regex,
-       explicit-layer chip grid).
-    5. Layers — table over the UNION of (a) OAP `listLayers` catalog
-       (live, refetched on the menu's TTL) and (b) layer keys already
-       in the config. Each row carries color, level dropdown, has-
-       topology badge (from `caps.serviceMap`), and an expandable MQE
-       editor (server + client pair OR single load).
-    6. Edges — three cards (hierarchy / cross-level call / intra-layer
-       call) with color + style + arrow toggle.
-    7. Pipeline — three numeric inputs (chunk + concurrency limits).
-    8. Unknown layer — fallback level dropdown + badge text.
-    9. Advanced (collapsible) — Monaco JSON editor showing the full
-       resolved doc, for power-edits the structured UI can't express.
+  The 3D-map config is a singleton template kind (`horizon.infra-3d.config`)
+  on the same bundled → local(browser) → remote(OAP) machinery as the layer
+  / overview dashboards: edits save to a browser-local draft, "Check diff &
+  push" publishes to OAP, and the map renders the remote (bundled fallback).
 
-  Editing is local-first: the page hydrates from
-  `GET /api/infra-3d/config`, mutates a draft, and POSTs the whole doc
-  on Save. Server validation issues land back in the banner with the
-  exact field path so the operator can jump to the input that failed.
+  Sections (top-to-bottom):
+    1. Header — source pill + sync badge + Reset menu (to remote / to
+       bundled) + Save (local draft) + Check diff & push (Monaco diff vs
+       remote, then publish).
+    2. SyncStatusBanner — synced / diverged / OAP-unreachable state.
+    3. Global filter — one regex (`filter.layer`).
+    4. Tiers & layers — per-tier cards: id / order / label + the layers
+       pinned to each tier (explicit `layers` lists are the only placement
+       mechanism). Anything unpinned falls to the failover tier.
+    5. Layers — color + traffic MQE per layer, with each layer's RESOLVED
+       level shown read-only (assignment lives in Levels).
+    6. Groups — logic-group cards (id / label / tier / color / icon +
+       member chips).
+    7. Failover tier — the single catch-all for unpinned layers.
+
+  Validation runs server-side on push (the generic save endpoint checks
+  3D-map content before it reaches OAP); issues land in the push error list.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import * as monaco from 'monaco-editor';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useLayers } from '@/shell/useLayers';
 import {
   bff,
   type Infra3dConfig,
-  type InfraEdgeStyle,
+  type InfraGroupSpec,
   type InfraLayerSpec,
   type InfraLevelSpec,
   type InfraMqe,
 } from '@/api/client';
 import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composables/useInfra3dConfig';
-import { setupMonaco, RR_THEME_NAME } from '@/monaco/setup';
+import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
+import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
+import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
+import { refreshConfigBundle } from '@/controls/configBundle';
+import { stableStringify } from '@/utils/stableJson';
+import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
+import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+import Modal from '@/features/operate/_shared/Modal.vue';
+import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
 // ── Live OAP layer catalog ────────────────────────────────────────────
 // We hydrate the Layers section from the catalog union'd with config
@@ -62,107 +69,194 @@ import { setupMonaco, RR_THEME_NAME } from '@/monaco/setup';
 // also shows so the admin can remove it.
 const { availableLayers } = useLayers();
 
-// ── State ─────────────────────────────────────────────────────────────
-const loading = ref(true);
-const saving = ref(false);
-const flash = ref<{ kind: 'ok' | 'err'; text: string } | null>(null);
-const issues = ref<string[]>([]);
+// ── Template-sync state ───────────────────────────────────────────────
+// The 3D-map config is a singleton template kind — ONE row,
+// `horizon.infra-3d.config`. It rides the same bundled → local(browser)
+// → remote(OAP) machinery as the layer / overview dashboards: edits save
+// to a browser-local draft, "Check diff & push" publishes to OAP, and
+// the map renders the remote (with bundled as fallback).
+const NAME = 'horizon.infra-3d.config';
+const sources = useTemplateSources('infra-3d');
+const sync = useTemplateSync({ kind: 'infra-3d' });
+const localEdits = useLocalTemplateEdits();
+
+/** Working copy the structured editor below mutates. */
 const draft = ref<Infra3dConfig | null>(null);
-/** Persisted snapshot — used as the dirty-check baseline and as the
- *  "Discard changes" target. Updated on every successful load / save. */
-const orig = ref<string | null>(null);
-/** Per-row UI state — which layer rows are expanded for MQE editing. */
-const expandedLayers = ref<Set<string>>(new Set());
 const layerSearch = ref('');
-const advancedOpen = ref(false);
+/** Which of the three sources the editor is currently showing. */
+const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
+const pushing = ref(false);
+const pushErr = ref<string[] | null>(null);
+const pushDiffOpen = ref(false);
+const resetMenuOpen = ref(false);
 
-function setFlash(kind: 'ok' | 'err', text: string): void {
-  flash.value = { kind, text };
-  setTimeout(() => {
-    if (flash.value && flash.value.text === text) flash.value = null;
-  }, 4000);
+const readOnly = computed(() => sync.readOnly.value);
+const ready = computed(() => !sources.isLoading.value && draft.value !== null);
+const hasLocalDraft = computed(() => localEdits.has(NAME));
+const hasRemote = computed(() => sources.hasRemote(NAME));
+/** Per-row sync badge (synced / diverged / …) for the source pill. */
+const badge = computed(() => sync.badgeFor(NAME));
+/** Bundled byte-equals OAP-live — resetting to bundled is then a no-op. */
+const isSynced = computed(() => badge.value === 'synced');
+
+function clone<T>(v: T): T {
+  return JSON.parse(JSON.stringify(v)) as T;
 }
 
-function snapshot(cfg: Infra3dConfig): string {
-  return JSON.stringify(cfg);
-}
-
-const dirty = computed(() => {
-  if (!draft.value || orig.value === null) return false;
-  return snapshot(draft.value) !== orig.value;
-});
-
-async function loadConfig(): Promise<void> {
-  loading.value = true;
-  try {
-    const live = await bff.infra3d.config();
-    draft.value = live;
-    orig.value = snapshot(live);
-    issues.value = [];
-  } catch (err) {
-    setFlash('err', err instanceof Error ? err.message : String(err));
-  } finally {
-    loading.value = false;
+/** Collapse the deprecated `topology` / `load` shapes into the single
+ *  `metric` the editor edits, so an OAP row saved before the single-metric
+ *  change still shows its metric. Mutates in place. */
+function normalizeSpecs(cfg: Infra3dConfig): void {
+  for (const spec of Object.values(cfg.layers)) {
+    if (!spec.metric) {
+      const m = spec.topology?.server ?? spec.topology?.client ?? spec.load;
+      if (m) spec.metric = m;
+    }
+    delete spec.topology;
+    delete spec.load;
   }
 }
 
-onMounted(() => {
-  void loadConfig();
+/** Cloned + normalized — used as a comparison baseline so an old-shape
+ *  remote doesn't read as "dirty" the moment it loads. */
+function normalizedClone(cfg: Infra3dConfig | null): Infra3dConfig | null {
+  if (!cfg) return null;
+  const c = clone(cfg);
+  normalizeSpecs(c);
+  return c;
+}
+
+function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
+  let next: Infra3dConfig | null = null;
+  if (src === 'local') next = localEdits.get<Infra3dConfig>(NAME) ?? null;
+  else if (src === 'remote') next = sources.remote<Infra3dConfig>(NAME);
+  else next = sources.bundled<Infra3dConfig>(NAME);
+  // Bundled always exists; remote/local may be null — fall back so the
+  // editor always has a working doc.
+  if (!next) next = sources.bundled<Infra3dConfig>(NAME);
+  draft.value = normalizedClone(next);
+  editorSource.value = src;
+}
+
+/** Pick the source on (re)load: local draft if present, else remote (the
+ *  runtime source of truth), else bundled. */
+function syncDraft(): void {
+  if (hasLocalDraft.value) loadFrom('local');
+  else if (hasRemote.value) loadFrom('remote');
+  else loadFrom('bundled');
+}
+
+/** Set when the sources settle but still produce no working doc (the BFF
+ *  itself is unreachable — bundled rows are absent, so there's nothing to
+ *  edit). Surfaces an error instead of an indefinite spinner. */
+const loadError = ref(false);
+
+onMounted(async () => {
+  // Force a fresh OAP read so badges + remote content are current.
+  await refreshConfigBundle({ force: true });
+  await sources.refetch();
+  syncDraft();
+  loadError.value = draft.value === null;
 });
 
-async function onSave(): Promise<void> {
-  if (!draft.value || saving.value) return;
-  saving.value = true;
-  issues.value = [];
+// Cold-cache arrival — hydrate once the sources land if mount raced ahead.
+watch(
+  () => sources.isLoading.value,
+  (loading) => {
+    if (loading) return;
+    if (!draft.value) syncDraft();
+    loadError.value = draft.value === null;
+  },
+);
+
+const localContent = computed<Infra3dConfig | null>(
+  () => localEdits.get<Infra3dConfig>(NAME) ?? null,
+);
+const remoteContent = computed<Infra3dConfig | null>(() => sources.remote<Infra3dConfig>(NAME));
+
+/** Dirty = the editor diverges from its baseline (the local draft when
+ *  one exists, otherwise remote / bundled). Drives the Save button. */
+const dirty = computed(() => {
+  if (!draft.value) return false;
+  const baseline = hasLocalDraft.value
+    ? localContent.value
+    : (remoteContent.value ?? sources.bundled<Infra3dConfig>(NAME));
+  // Normalize the baseline to the single-metric shape so an old-shape
+  // remote (topology/load) doesn't read as dirty against the normalized draft.
+  return stableStringify(draft.value) !== stableStringify(normalizedClone(baseline ?? null));
+});
+
+/** Save the current editor state as a browser-local draft. The only
+ *  "save" — it never writes OAP. Publish via "Check diff & push". */
+function save(): void {
+  if (!draft.value) return;
+  localEdits.set(NAME, clone(draft.value));
+  editorSource.value = 'local';
+}
+
+const pushLocalPretty = computed(() => (draft.value ? stableStringify(draft.value, 2) : ''));
+const pushRemotePretty = computed(() => stableStringify(remoteContent.value ?? null, 2));
+
+function openPushDiff(): void {
+  if (!draft.value) return;
+  // Persist the editor state first so the diff reflects exactly what
+  // would be pushed.
+  save();
+  pushErr.value = null;
+  pushDiffOpen.value = true;
+}
+
+async function pushToOap(): Promise<void> {
+  if (!draft.value || pushing.value) return;
+  pushing.value = true;
+  pushErr.value = null;
+  // 1) The publish — the only thing whose failure means "not saved".
   try {
-    const saved = await bff.infra3d.saveConfig(draft.value);
-    draft.value = saved;
-    orig.value = snapshot(saved);
-    // Pop the next /3d/map view's read cache so it picks up the new
-    // config without a page reload.
-    await refreshLiveInfraConfig();
-    setFlash('ok', 'Saved. The 3D map will reload on next visit.');
+    await bff.templateSync.save(NAME, draft.value);
   } catch (err) {
     const anyErr = err as { body?: { issues?: string[] }; message?: string };
-    if (anyErr.body?.issues && Array.isArray(anyErr.body.issues)) {
-      issues.value = anyErr.body.issues;
-      setFlash('err', `Rejected: ${anyErr.body.issues.length} issue(s) — see below.`);
-    } else {
-      setFlash('err', anyErr.message ?? String(err));
-    }
-  } finally {
-    saving.value = false;
+    pushErr.value = anyErr.body?.issues ?? [anyErr.message ?? String(err)];
+    pushing.value = false;
+    return; // keep the modal open with the error; nothing was committed
   }
-}
-
-function onDiscard(): void {
-  if (!orig.value) return;
-  draft.value = JSON.parse(orig.value) as Infra3dConfig;
-  issues.value = [];
-}
-
-async function onResetBundled(): Promise<void> {
+  // Committed. Clear the local draft + close the modal regardless of the
+  // post-write cache refresh outcome below.
+  localEdits.remove(NAME);
+  pushDiffOpen.value = false;
+  // 2) Best-effort cache refreshes. A failure here (e.g. the /3d/map read
+  //    cache pop 403-ing for a role without infra-3d:read) does NOT undo the
+  //    publish, so it must never surface as a "push failed".
   try {
-    const b = await bff.infra3d.bundledConfig();
-    draft.value = b;
-    // dirty intentionally — operator reviews and clicks Save.
-    setFlash('ok', 'Bundled defaults loaded — review and Save to apply.');
+    await bff.templateSync.resync();
+    await Promise.all([sources.refetch(), refreshConfigBundle({ force: true })]);
+    await refreshLiveInfraConfig();
+    loadFrom('remote');
   } catch (err) {
-    setFlash('err', err instanceof Error ? err.message : String(err));
+    console.warn('[infra-3d] post-push refresh failed (the publish already committed):', err);
+  } finally {
+    pushing.value = false;
   }
+}
+
+/** Reset the editor to a clean source and drop any local draft. */
+function resetTo(src: 'bundled' | 'remote'): void {
+  loadFrom(src);
+  localEdits.remove(NAME);
+  pushErr.value = null;
+  resetMenuOpen.value = false;
 }
 
 // ── Levels editing ────────────────────────────────────────────────────
 function addLevel(): void {
   if (!draft.value) return;
   const maxOrder = Math.max(-1, ...draft.value.levels.map((l) => l.order));
-  draft.value.levels.push({
-    id: `level-${draft.value.levels.length + 1}`,
-    order: maxOrder + 1,
-    label: 'New level',
-    layerFilter: '.*',
-    layers: [],
-  });
+  // Unique id — a length-based id collides after add-then-remove editing
+  // (and a duplicate level id aliases tier buckets + fails save validation).
+  const taken = new Set(draft.value.levels.map((l) => l.id));
+  let n = draft.value.levels.length + 1;
+  let id = `level-${n}`;
+  while (taken.has(id)) id = `level-${++n}`;
+  draft.value.levels.push({ id, order: maxOrder + 1, label: 'New level', layers: [] });
 }
 function removeLevel(id: string): void {
   if (!draft.value) return;
@@ -171,22 +265,74 @@ function removeLevel(id: string): void {
     draft.value.unknownLayer.level = draft.value.levels[0]!.id;
   }
 }
+const levelsSorted = computed<InfraLevelSpec[]>(() => {
+  if (!draft.value) return [];
+  return [...draft.value.levels].sort((a, b) => a.order - b.order);
+});
+
+/** `idx` is the index in `levelsSorted` (what the template renders) — NOT
+ *  the unsorted `draft.levels` array, whose order can differ from the sort
+ *  (bundled has mesh order 2 before middleware order 1). Swap the `order`
+ *  values of the two SORTED neighbours so ↑/↓ moves the intended tier. */
 function moveLevel(idx: number, delta: number): void {
-  if (!draft.value) return;
+  const sorted = levelsSorted.value;
   const target = idx + delta;
-  if (target < 0 || target >= draft.value.levels.length) return;
-  // Swap `order` values so the resulting sort is stable.
-  const a = draft.value.levels[idx]!;
-  const b = draft.value.levels[target]!;
+  if (target < 0 || target >= sorted.length) return;
+  const a = sorted[idx]!;
+  const b = sorted[target]!;
   const ao = a.order;
   a.order = b.order;
   b.order = ao;
 }
 
-const levelsSorted = computed<InfraLevelSpec[]>(() => {
-  if (!draft.value) return [];
-  return [...draft.value.levels].sort((a, b) => a.order - b.order);
+// ── Layer ⇄ level resolution ──────────────────────────────────────────
+// Level membership is edited in ONE place — the Levels section's member
+// chips. The Layers section only DISPLAYS where each layer lands, using
+// the same resolution order the BFF applies, so the two surfaces never
+// drift into the old "edit the same array twice" redundancy.
+
+/** Compile that never throws — a half-typed regex in an input just stops
+ *  matching rather than blowing up the page. */
+function safeRegex(src: string): RegExp | null {
+  try {
+    return new RegExp(src);
+  } catch {
+    return null;
+  }
+}
+
+/** Union of OAP-reported + config-declared layer keys (canonical upper). */
+const allLayerKeys = computed<string[]>(() => {
+  const s = new Set<string>();
+  for (const L of availableLayers.value ?? []) s.add(L.key.toUpperCase());
+  if (draft.value) for (const k of Object.keys(draft.value.layers)) s.add(k.toUpperCase());
+  return [...s].sort((a, b) => a.localeCompare(b));
 });
+
+type LevelVia = 'group' | 'explicit' | 'default' | 'filtered';
+
+/** Mirror the BFF's layer→level resolution (see useInfra3dConfig): global
+ *  filter → group membership → explicit list → unknownLayer fallback.
+ *  Returns HOW it resolved so the unpinned rows can flag fallback / filtered
+ *  layers the operator didn't pin by hand. */
+function resolveLevel(key: string): { levelId: string | null; via: LevelVia } {
+  if (!draft.value) return { levelId: null, via: 'default' };
+  const u = key.toUpperCase();
+  const gf = safeRegex(draft.value.filter.layer);
+  if (gf && !gf.test(u)) return { levelId: null, via: 'filtered' };
+  for (const g of draft.value.groups ?? []) {
+    if (g.layers.some((k) => k.toUpperCase() === u)) return { levelId: g.level, via: 'group' };
+  }
+  for (const lvl of draft.value.levels) {
+    if (lvl.layers.some((k) => k.toUpperCase() === u)) return { levelId: lvl.id, via: 'explicit' };
+  }
+  return { levelId: draft.value.unknownLayer.level, via: 'default' };
+}
+
+function levelLabel(levelId: string | null): string {
+  if (!levelId) return '—';
+  return draft.value?.levels.find((l) => l.id === levelId)?.label ?? levelId;
+}
 
 // ── Layers editing ────────────────────────────────────────────────────
 /** Union of OAP-known + config-known layers. The keys are canonical
@@ -196,19 +342,14 @@ interface LayerRow {
   inOap: boolean;
   inConfig: boolean;
   hasTopology: boolean;
-  /** Layer template's `group` / OAP grouping. Surfaces as a row badge. */
-  group: string | null;
   spec: InfraLayerSpec | null;
 }
 
 const layerRows = computed<LayerRow[]>(() => {
   if (!draft.value) return [];
-  const oap = new Map<string, { hasTopology: boolean; group: string | null }>();
+  const oap = new Map<string, { hasTopology: boolean }>();
   for (const L of availableLayers.value ?? []) {
-    oap.set(L.key.toUpperCase(), {
-      hasTopology: !!L.caps?.serviceMap,
-      group: L.group ?? null,
-    });
+    oap.set(L.key.toUpperCase(), { hasTopology: !!L.caps?.serviceMap });
   }
   const keys = new Set<string>([...oap.keys(), ...Object.keys(draft.value.layers).map((k) => k.toUpperCase())]);
   const out: LayerRow[] = [];
@@ -219,7 +360,6 @@ const layerRows = computed<LayerRow[]>(() => {
       inOap: !!o,
       inConfig: !!draft.value.layers[k],
       hasTopology: o?.hasTopology ?? !!draft.value.layers[k]?.topology,
-      group: o?.group ?? null,
       spec: draft.value.layers[k] ?? null,
     });
   }
@@ -232,10 +372,71 @@ const layerRows = computed<LayerRow[]>(() => {
 });
 
 const filteredLayerRows = computed<LayerRow[]>(() => {
+  // Search-only. The global `filter.layer` does NOT hide rows here — an
+  // excluded layer still shows (in Unpinned, tagged "filtered out") so the
+  // operator can see what the filter drops; it's the SCENE that omits it.
   const q = layerSearch.value.trim().toUpperCase();
   if (!q) return layerRows.value;
   return layerRows.value.filter((r) => r.key.includes(q));
 });
+
+/** Layers whose template provides a service map (`caps.serviceMap`) — their
+ *  cubes render as a call graph on the map. Read-only here (it's a layer
+ *  template property, not a 3D-config field), surfaced in its own section. */
+const serviceMapLayers = computed<string[]>(() =>
+  layerRows.value.filter((r) => r.hasTopology).map((r) => r.key),
+);
+
+/** Resolved level per layer-key — drives the read-only "via" qualifier on
+ *  UNPINNED rows so the operator sees how a layer lands when no tier pins
+ *  it (regex / fallback / filtered). */
+const resolvedLevels = computed<Record<string, { levelId: string | null; via: LevelVia }>>(() => {
+  const out: Record<string, { levelId: string | null; via: LevelVia }> = {};
+  for (const r of layerRows.value) out[r.key] = resolveLevel(r.key);
+  return out;
+});
+
+/** Explicit tier (level id) a layer is pinned to, or absent when unpinned. */
+const explicitTier = computed<Record<string, string>>(() => {
+  const m: Record<string, string> = {};
+  for (const lvl of draft.value?.levels ?? []) {
+    for (const k of lvl.layers) m[k.toUpperCase()] = lvl.id;
+  }
+  return m;
+});
+
+/** Filtered layer rows grouped under their pinned tier. Every tier gets an
+ *  entry (possibly empty) so the combined view renders one block per tier. */
+const layersByTier = computed<Record<string, LayerRow[]>>(() => {
+  const out: Record<string, LayerRow[]> = {};
+  for (const lvl of draft.value?.levels ?? []) out[lvl.id] = [];
+  for (const r of filteredLayerRows.value) {
+    // Filter-excluded layers are OFF the map — they belong in the Unpinned
+    // bucket (tagged "filtered out"), never under a tier even if pinned, so
+    // the editor matches what the scene renders.
+    if (resolvedLevels.value[r.key]?.via === 'filtered') continue;
+    const t = explicitTier.value[r.key];
+    if (t && out[t]) out[t].push(r);
+  }
+  return out;
+});
+
+/** Rows not shown under a tier: not pinned (→ failover) OR filter-excluded
+ *  (→ off the map). The via tag distinguishes "→ <tier>" from "filtered out". */
+const unpinnedRows = computed<LayerRow[]>(() =>
+  filteredLayerRows.value.filter((r) => {
+    const via = resolvedLevels.value[r.key]?.via;
+    return via === 'filtered' || !explicitTier.value[r.key];
+  }),
+);
+
+/** A layer is "unclassified" when nothing places it — it lands on the
+ *  failover tier (or is filtered out). Highlights the unpinned row so the
+ *  operator notices layers that silently fall through. */
+function isUnclassified(key: string): boolean {
+  const via = resolvedLevels.value[key]?.via;
+  return via === 'default' || via === 'filtered';
+}
 
 function ensureLayerSpec(key: string): InfraLayerSpec {
   const u = key.toUpperCase();
@@ -245,30 +446,25 @@ function ensureLayerSpec(key: string): InfraLayerSpec {
   return draft.value!.layers[u]!;
 }
 
-function levelForLayerKey(key: string): string | null {
-  if (!draft.value) return null;
-  const u = key.toUpperCase();
-  for (const l of draft.value.levels) {
-    if (l.layers.some((k) => k.toUpperCase() === u)) return l.id;
-  }
-  return null;
-}
-
+/** Pin a layer to one tier, or unpin (nextLevelId null → falls to
+ *  failover). A layer belongs to at most one tier's explicit list. */
 function assignLayerToLevel(key: string, nextLevelId: string | null): void {
   if (!draft.value) return;
   const u = key.toUpperCase();
-  // Remove from all levels first — a layer can only belong to one
-  // explicit list (the validator rejects otherwise).
   for (const lvl of draft.value.levels) {
     lvl.layers = lvl.layers.filter((k) => k.toUpperCase() !== u);
   }
   if (nextLevelId) {
     const lvl = draft.value.levels.find((l) => l.id === nextLevelId);
     if (lvl) lvl.layers.push(u);
+    // Pinning implies the layer is configured (gets a spec to colour/metric).
+    ensureLayerSpec(u);
   }
-  // Make sure the layer has a config entry so the row doesn't snap
-  // back to "unconfigured" once a level is picked.
-  ensureLayerSpec(u);
+}
+
+/** Tier dropdown handler — empty value unpins (→ failover). */
+function onMoveTier(key: string, e: Event): void {
+  assignLayerToLevel(key, (e.target as HTMLSelectElement).value || null);
 }
 
 function removeLayerFromConfig(key: string): void {
@@ -278,128 +474,93 @@ function removeLayerFromConfig(key: string): void {
   for (const lvl of draft.value.levels) {
     lvl.layers = lvl.layers.filter((k) => k.toUpperCase() !== u);
   }
-  expandedLayers.value.delete(u);
-}
-
-function setLayerMode(key: string, mode: 'topology' | 'load' | 'none'): void {
-  if (!draft.value) return;
-  const spec = ensureLayerSpec(key);
-  if (mode === 'topology') {
-    spec.load = undefined;
-    spec.topology = spec.topology ?? { server: emptyMqe('Server RPM', 'rpm') };
-  } else if (mode === 'load') {
-    spec.topology = undefined;
-    spec.load = spec.load ?? emptyMqe('Load', '');
-  } else {
-    spec.topology = undefined;
-    spec.load = undefined;
+  // Also drop it from any logic group — otherwise a "deleted" layer keeps
+  // rendering inside its group block (spec-less, default colour).
+  for (const g of draft.value.groups ?? []) {
+    g.layers = g.layers.filter((k) => k.toUpperCase() !== u);
   }
 }
 
-function ensureTopologyHalf(key: string, side: 'server' | 'client'): void {
+/** Ensure a single metric object exists to bind the mqe/label/unit inputs
+ *  to (creates the layer spec if missing). */
+function ensureMetric(key: string): InfraMqe {
   const spec = ensureLayerSpec(key);
-  if (!spec.topology) spec.topology = {};
-  if (!spec.topology[side]) {
-    spec.topology[side] = emptyMqe(side === 'server' ? 'Server RPM' : 'Client RPM', 'rpm');
-  }
+  if (!spec.metric) spec.metric = { mqe: '', label: '', unit: '' };
+  return spec.metric;
 }
 
-function dropTopologyHalf(key: string, side: 'server' | 'client'): void {
+function clearMetric(key: string): void {
   const spec = draft.value?.layers[key.toUpperCase()];
-  if (spec?.topology) delete spec.topology[side];
+  if (spec) spec.metric = undefined;
 }
 
-function emptyMqe(label: string, unit: string): InfraMqe {
-  return { mqe: '', label, unit };
-}
+// ── Groups editing ────────────────────────────────────────────────────
+// Logic groups (e.g. Self-Observability) cluster several layers into one
+// block on a tier. The icon set is the bakeable subset the 3D stamp
+// renderer knows (useLayerIconTexture.LayerIconName); an unknown name
+// falls back to the generic `svc` glyph at render time.
+const ICON_NAMES = [
+  'svc', 'sky', 'skywalking', 'mesh', 'cluster',
+  'web', 'fn', 'db', 'cache', 'topic', 'flame',
+] as const;
 
-function toggleLayerExpand(key: string): void {
+function addGroup(): void {
+  if (!draft.value) return;
+  // `groups` is optional on the wire (older saved configs predate it) —
+  // materialise it before pushing so the rest of the editor can treat
+  // it as always-present.
+  const groups = draft.value.groups ?? (draft.value.groups = []);
+  const taken = new Set(groups.map((g) => g.id));
+  let n = groups.length + 1;
+  let id = `group-${n}`;
+  while (taken.has(id)) id = `group-${++n}`;
+  groups.push({
+    id,
+    label: 'New group',
+    level: levelsSorted.value[0]?.id ?? '',
+    color: '#a78bfa',
+    icon: 'svc',
+    layers: [],
+  });
+}
+function removeGroup(id: string): void {
+  if (!draft.value?.groups) return;
+  draft.value.groups = draft.value.groups.filter((g) => g.id !== id);
+}
+function onAddLayerToGroup(g: InfraGroupSpec, e: Event): void {
+  const sel = e.target as HTMLSelectElement;
+  const key = sel.value;
+  sel.value = '';
   const u = key.toUpperCase();
-  const s = new Set(expandedLayers.value);
-  if (s.has(u)) s.delete(u);
-  else s.add(u);
-  expandedLayers.value = s;
+  if (u && !g.layers.some((k) => k.toUpperCase() === u)) g.layers.push(u);
+}
+function removeLayerFromGroup(g: InfraGroupSpec, key: string): void {
+  const u = key.toUpperCase();
+  g.layers = g.layers.filter((k) => k.toUpperCase() !== u);
+}
+/** A group's add-picker candidates — every layer not already in ANY group
+ *  (a layer belongs to at most one logic group; the validator rejects double
+ *  membership). Group membership is independent of tier pinning. */
+function groupCandidates(_g: InfraGroupSpec): string[] {
+  const inAnyGroup = new Set<string>();
+  for (const gr of draft.value?.groups ?? []) {
+    for (const k of gr.layers) inAnyGroup.add(k.toUpperCase());
+  }
+  return allLayerKeys.value.filter((k) => !inAnyGroup.has(k));
 }
 
-// ── Advanced JSON editor ──────────────────────────────────────────────
-const advHost = ref<HTMLDivElement | null>(null);
-let advEditor: monaco.editor.IStandaloneCodeEditor | null = null;
-let advModel: monaco.editor.ITextModel | null = null;
-let suppressAdvChange = false;
-
-watch(advancedOpen, async (open) => {
-  if (!open) return;
-  // Lazy-init Monaco only when the operator actually expands the
-  // section — avoids paying the editor cost for everyone.
-  await Promise.resolve();
-  if (advEditor || !advHost.value || !draft.value) return;
-  setupMonaco();
-  advModel = monaco.editor.createModel(JSON.stringify(draft.value, null, 2), 'json');
-  advEditor = monaco.editor.create(advHost.value, {
-    model: advModel,
-    theme: RR_THEME_NAME,
-    automaticLayout: true,
-    minimap: { enabled: false },
-    folding: true,
-    scrollBeyondLastLine: false,
-    fontSize: 12.5,
-    tabSize: 2,
-  });
-  advModel.onDidChangeContent(() => {
-    if (suppressAdvChange) return;
-    if (!advModel) return;
-    try {
-      draft.value = JSON.parse(advModel.getValue()) as Infra3dConfig;
-    } catch {
-      // Parse error — operator is mid-typing; ignore. Save catches it.
-    }
-  });
-});
-
-// Keep advanced editor synchronised when the structured UI mutates
-// draft. We diff to avoid clobbering operator cursor when the
-// structured edit is from the editor itself.
-watch(
-  draft,
-  (next) => {
-    if (!advEditor || !advModel || !next) return;
-    const want = JSON.stringify(next, null, 2);
-    if (advModel.getValue() === want) return;
-    suppressAdvChange = true;
-    advModel.setValue(want);
-    suppressAdvChange = false;
-  },
-  { deep: true },
-);
-
-onBeforeUnmount(() => {
-  advEditor?.dispose();
-  advModel?.dispose();
-});
-
-// ── Edge style helpers ────────────────────────────────────────────────
-const EDGE_STYLES = ['solid', 'dashed'] as const;
-type EdgeStyleKind = (typeof EDGE_STYLES)[number];
-function castEdgeStyle(s: string): EdgeStyleKind {
-  return s === 'dashed' ? 'dashed' : 'solid';
-}
-
-// Quick-stat counts for the section heads.
+// Quick-stat counts for the Layers section head. `oap` = layers OAP
+// actually reports; `unclassified` = live OAP layers that nothing places
+// (they fall to the unknown-layer level). We deliberately don't surface a
+// "configured" count — every layer carries a spec, so it was always ~52
+// and told the operator nothing.
 const stats = computed(() => {
-  if (!draft.value) return { layersConfigured: 0, layersOap: 0, layersUnclassified: 0 };
-  const oap = (availableLayers.value ?? []).map((l) => l.key.toUpperCase());
-  const claimed = new Set<string>();
-  for (const lvl of draft.value.levels) for (const k of lvl.layers) claimed.add(k.toUpperCase());
+  const rows = layerRows.value;
   return {
-    layersConfigured: Object.keys(draft.value.layers).length,
-    layersOap: oap.length,
-    layersUnclassified: oap.filter((k) => !claimed.has(k)).length,
+    oap: rows.filter((r) => r.inOap).length,
+    unclassified: rows.filter((r) => r.inOap && isUnclassified(r.key)).length,
   };
 });
-
-function edgeRef(key: 'hierarchy' | 'crossLevelCall' | 'intraCall'): InfraEdgeStyle | null {
-  return draft.value?.edges[key] ?? null;
-}
 </script>
 
 <template>
@@ -409,33 +570,63 @@ function edgeRef(key: 'hierarchy' | 'crossLevelCall' | 'intraCall'): InfraEdgeSt
         <span class="kicker">Dashboard setup · 3D Infra Map</span>
         <h1>3D Infrastructure Map</h1>
         <p class="lede">
-          Global config for the <code>/3d/map</code> view. Levels control
-          the vertical stack; per-layer color + metrics drive each cube.
-          Bundled defaults ship with the BFF; saves shadow them locally and
-          take effect on the next visit to the map.
+          Config for the <code>/3d/map</code> view, published to OAP. Levels
+          control the vertical stack; per-layer color + metrics drive each
+          cube. Edits save to a <strong>local draft in this browser</strong>;
+          <strong>Check diff &amp; push</strong> publishes to OAP — the map
+          renders the remote, with bundled defaults as fallback.
         </p>
       </div>
       <div class="hd-actions">
-        <button class="btn" :disabled="saving || !dirty" @click="onDiscard">Discard changes</button>
-        <button class="btn" :disabled="saving" @click="onResetBundled">Reset to bundled</button>
-        <button class="btn primary" :disabled="!dirty || saving" @click="onSave">
-          {{ saving ? 'Saving…' : dirty ? 'Save' : 'Saved' }}
+        <span class="src-pill" :data-src="editorSource">
+          editing: {{ editorSource }}
+          <TemplateStatusBadge v-if="badge" :status="badge" />
+        </span>
+        <div class="reset-wrap">
+          <button class="btn" :disabled="pushing" @click="resetMenuOpen = !resetMenuOpen">Reset to ▾</button>
+          <div v-if="resetMenuOpen" class="reset-menu">
+            <button
+              class="reset-item"
+              :disabled="isSynced"
+              :title="isSynced ? 'Bundled equals OAP-live — nothing to reset to.' : 'Discard current edits and reload the bundled (shipped) default.'"
+              @click="resetTo('bundled')"
+            >
+              Bundled<span v-if="isSynced" class="reset-suffix"> (synced)</span>
+            </button>
+            <button
+              class="reset-item"
+              :disabled="!hasRemote"
+              :title="hasRemote ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy of this config yet.'"
+              @click="resetTo('remote')"
+            >
+              Remote
+            </button>
+          </div>
+        </div>
+        <button class="btn" :disabled="!dirty" @click="save">
+          {{ hasLocalDraft && !dirty ? 'Saved local' : 'Save local' }}
+        </button>
+        <button class="btn primary" :disabled="readOnly || (!dirty && !hasLocalDraft)" @click="openPushDiff">
+          Check diff &amp; push
         </button>
       </div>
     </header>
 
-    <div v-if="flash" class="flash" :data-kind="flash.kind">{{ flash.text }}</div>
-    <ul v-if="issues.length" class="issues">
-      <li v-for="(it, i) in issues" :key="i"><code>{{ it }}</code></li>
+    <SyncStatusBanner :banner="sync.banner.value" />
+    <ul v-if="pushErr && pushErr.length" class="issues">
+      <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
     </ul>
 
-    <div v-if="loading" class="loading">Loading config…</div>
+    <div v-if="loadError" class="loading">
+      Couldn't load the 3D-map config — the BFF may be unreachable. Refresh the page to retry.
+    </div>
+    <div v-else-if="!ready" class="loading">Loading config…</div>
     <template v-else-if="draft">
       <!-- ── Global filter ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>Global layer filter</h2>
-          <span class="sec-hint">JS regex applied before levelling. Default <code>.*</code>.</span>
+          <span class="sec-hint">The one top-level gate — a layer this JS regex excludes is off the map (it still shows below in Unpinned, tagged "filtered out"). Default <code>.*</code> admits all.</span>
         </header>
         <div class="sect-body">
           <label class="field">
@@ -445,329 +636,210 @@ function edgeRef(key: 'hierarchy' | 'crossLevelCall' | 'intraCall'): InfraEdgeSt
         </div>
       </section>
 
-      <!-- ── Levels ────────────────────────────────────────────────── -->
+      <!-- ── Tiers & layers ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Levels (top → bottom)</h2>
-          <span class="sec-hint">Each level is one plane on the 3D map. Order = vertical stacking.</span>
-          <button type="button" class="btn small" @click="addLevel">+ add level</button>
+          <h2>Tiers &amp; layers (top → bottom)</h2>
+          <span class="sec-hint">
+            Every layer belongs to one tier — set it with the tier dropdown; order = vertical stacking.
+            <strong>{{ stats.oap }}</strong> in OAP<template v-if="stats.unclassified > 0"> ·
+            <strong class="warn-count">{{ stats.unclassified }}</strong> unpinned → fallback</template>
+          </span>
+          <input class="inp search" v-model="layerSearch" placeholder="filter layers…" />
+          <button type="button" class="btn small" @click="addLevel">+ add tier</button>
         </header>
         <div class="sect-body">
-          <article
-            v-for="(lvl, idx) in levelsSorted"
-            :key="lvl.id"
-            class="lvl-card"
-          >
+          <article v-for="(lvl, idx) in levelsSorted" :key="lvl.id" class="tier-card">
             <header class="lvl-head">
               <span class="lvl-order">#{{ lvl.order }}</span>
               <input class="inp lvl-id mono" v-model="lvl.id" placeholder="apps" />
               <input class="inp lvl-label" v-model="lvl.label" placeholder="Apps" />
+              <span class="tier-count">{{ layersByTier[lvl.id]?.length ?? 0 }} layers</span>
               <div class="lvl-spacer" />
               <button type="button" class="btn tiny" :disabled="idx === 0" @click="moveLevel(idx, -1)">↑</button>
               <button type="button" class="btn tiny" :disabled="idx === levelsSorted.length - 1" @click="moveLevel(idx, 1)">↓</button>
               <button type="button" class="btn tiny danger" @click="removeLevel(lvl.id)">remove</button>
             </header>
-            <div class="lvl-body">
-              <label class="field">
-                <span class="lbl">layerFilter (regex)</span>
-                <input class="inp mono" v-model="lvl.layerFilter" placeholder=".*" />
-              </label>
-              <div class="field">
-                <span class="lbl">explicit layers ({{ lvl.layers.length }})</span>
-                <div class="chips">
-                  <span v-for="k in lvl.layers" :key="k" class="chip">
-                    {{ k }}
-                    <button class="x" type="button" @click="assignLayerToLevel(k, null)">×</button>
-                  </span>
-                  <span v-if="lvl.layers.length === 0" class="chips-empty">(none — admit by regex)</span>
+            <div class="tier-body">
+              <div class="layer-rows">
+                <div v-for="row in layersByTier[lvl.id]" :key="row.key" class="layer-row">
+                  <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)" />
+                  <span class="layer-key">{{ row.key }}</span>
+                  <template v-if="row.spec?.metric">
+                    <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" placeholder="mqe e.g. service_cpm" />
+                    <input class="inp metric-lbl" v-model="row.spec.metric.label" placeholder="label" />
+                    <input class="inp metric-unit" v-model="row.spec.metric.unit" placeholder="unit" />
+                    <button class="btn tiny danger" type="button" title="remove metric" @click="clearMetric(row.key)">⊘</button>
+                  </template>
+                  <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">+ metric</button>
+                  <div class="row-spacer" />
+                  <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
+                    <option value="">— unpinned —</option>
+                    <option v-for="t in levelsSorted" :key="t.id" :value="t.id">{{ t.label }}</option>
+                  </select>
+                  <button class="btn tiny ghost" type="button" title="Remove from this tier (moves to Unpinned)" @click="assignLayerToLevel(row.key, null)">×</button>
                 </div>
+                <div v-if="(layersByTier[lvl.id]?.length ?? 0) === 0" class="tier-empty">No layers pinned — use a layer's tier dropdown to move one here.</div>
               </div>
             </div>
           </article>
         </div>
       </section>
 
-      <!-- ── Layers ────────────────────────────────────────────────── -->
+      <!-- ── Unpinned → failover ────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Layers</h2>
+          <h2>Unpinned layers</h2>
           <span class="sec-hint">
-            <strong>{{ stats.layersOap }}</strong> OAP · <strong>{{ stats.layersConfigured }}</strong> configured ·
-            <strong>{{ stats.layersUnclassified }}</strong> unclassified
+            Pinned to no tier — they land on the failover tier
+            (<strong>{{ levelLabel(draft.unknownLayer.level) }}</strong>). Pick a tier to pin one.
           </span>
-          <input class="inp search" v-model="layerSearch" placeholder="filter by key…" />
         </header>
         <div class="sect-body">
-          <div class="layers-grid">
-            <article
-              v-for="row in filteredLayerRows"
+          <div class="layer-rows">
+            <div
+              v-for="row in unpinnedRows"
               :key="row.key"
-              class="layer-card"
-              :class="{ unclassified: !levelForLayerKey(row.key) }"
+              class="layer-row"
+              :class="{ unclassified: isUnclassified(row.key) }"
             >
-              <header class="layer-head" @click="toggleLayerExpand(row.key)">
+              <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)" />
+              <span class="layer-key">{{ row.key }}</span>
+              <template v-if="row.spec?.metric">
+                <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" placeholder="mqe" />
+                <input class="inp metric-lbl" v-model="row.spec.metric.label" placeholder="label" />
+                <input class="inp metric-unit" v-model="row.spec.metric.unit" placeholder="unit" />
+                <button class="btn tiny danger" type="button" title="remove metric" @click="clearMetric(row.key)">⊘</button>
+              </template>
+              <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">+ metric</button>
+              <div class="row-spacer" />
+              <span class="via-tag" :data-via="resolvedLevels[row.key]?.via" :title="`falls to ${resolvedLevels[row.key]?.via}`">
+                {{ resolvedLevels[row.key]?.via === 'filtered' ? 'filtered out' : '→ ' + levelLabel(resolvedLevels[row.key]?.levelId ?? null) }}
+              </span>
+              <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
+                <option value="">— pin to tier —</option>
+                <option v-for="t in levelsSorted" :key="t.id" :value="t.id">{{ t.label }}</option>
+              </select>
+              <button class="btn tiny danger" type="button" title="Delete this layer from the config entirely" @click="removeLayerFromConfig(row.key)">×</button>
+            </div>
+            <div v-if="unpinnedRows.length === 0" class="empty">No unpinned layers.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Groups ────────────────────────────────────────────────── -->
+      <section class="sect">
+        <header class="sect-head">
+          <h2>Logic groups</h2>
+          <span class="sec-hint">Several layers drawn as one labelled block on a tier (e.g. Self-Observability). Each member keeps its own cube color.</span>
+          <button type="button" class="btn small" @click="addGroup">+ add group</button>
+        </header>
+        <div class="sect-body">
+          <div class="groups-grid">
+            <article v-for="g in (draft.groups ?? [])" :key="g.id" class="group-card">
+              <header class="group-head">
                 <input
                   type="color"
                   class="color-pick"
-                  :value="row.spec?.color ?? '#8a8a8a'"
-                  @click.stop
-                  @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)"
+                  :value="parseHexColor(g.color)"
+                  @input="(e) => (g.color = (e.target as HTMLInputElement).value)"
                 />
-                <span class="layer-key">{{ row.key }}</span>
-                <span v-if="row.group" class="badge muted">{{ row.group }}</span>
-                <span v-if="row.hasTopology" class="badge topo">topology</span>
-                <span v-if="!row.inOap" class="badge stale">no OAP data</span>
-                <span v-if="!row.inConfig" class="badge new">new</span>
-
-                <select
-                  class="inp level-pick"
-                  :value="levelForLayerKey(row.key) ?? ''"
-                  @click.stop
-                  @change="(e) => assignLayerToLevel(row.key, (e.target as HTMLSelectElement).value || null)"
-                >
-                  <option value="">— pick level —</option>
-                  <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }}</option>
-                </select>
-
-                <span class="layer-mqe-summary mono">
-                  <template v-if="row.spec?.topology?.server">srv: {{ row.spec.topology.server.mqe.slice(0, 36) }}{{ row.spec.topology.server.mqe.length > 36 ? '…' : '' }}</template>
-                  <template v-else-if="row.spec?.load">load: {{ row.spec.load.mqe.slice(0, 36) }}{{ row.spec.load.mqe.length > 36 ? '…' : '' }}</template>
-                  <template v-else>—</template>
-                </span>
-
-                <button class="btn tiny" type="button" @click.stop="toggleLayerExpand(row.key)">
-                  {{ expandedLayers.has(row.key) ? 'collapse' : 'edit' }}
-                </button>
+                <input class="inp group-id mono" v-model="g.id" placeholder="self-observability" />
+                <input class="inp group-label" v-model="g.label" placeholder="Self-Observability" />
+                <div class="lvl-spacer" />
+                <button type="button" class="btn tiny danger" @click="removeGroup(g.id)">remove</button>
               </header>
-
-              <div v-if="expandedLayers.has(row.key)" class="layer-body">
-                <div class="field mode-pick">
-                  <span class="lbl">metric mode</span>
-                  <div class="seg">
-                    <button
-                      type="button"
-                      class="seg-btn"
-                      :class="{ on: row.spec?.topology }"
-                      @click="setLayerMode(row.key, 'topology')"
-                    >topology (server + client)</button>
-                    <button
-                      type="button"
-                      class="seg-btn"
-                      :class="{ on: row.spec?.load }"
-                      @click="setLayerMode(row.key, 'load')"
-                    >single load</button>
-                    <button
-                      type="button"
-                      class="seg-btn"
-                      :class="{ on: !row.spec?.topology && !row.spec?.load }"
-                      @click="setLayerMode(row.key, 'none')"
-                    >no metric</button>
-                  </div>
-                </div>
-
-                <!-- Topology editor -->
-                <template v-if="row.spec?.topology">
-                  <div class="mqe-pair">
-                    <div class="mqe-half">
-                      <div class="half-head">
-                        <span class="lbl">server</span>
-                        <button
-                          v-if="!row.spec.topology.server"
-                          class="btn tiny"
-                          type="button"
-                          @click="ensureTopologyHalf(row.key, 'server')"
-                        >+ add</button>
-                        <button
-                          v-else
-                          class="btn tiny danger"
-                          type="button"
-                          @click="dropTopologyHalf(row.key, 'server')"
-                        >remove</button>
-                      </div>
-                      <template v-if="row.spec.topology.server">
-                        <label class="field">
-                          <span class="lbl small">MQE</span>
-                          <input class="inp mono" v-model="row.spec.topology.server.mqe" />
-                        </label>
-                        <div class="row-2">
-                          <label class="field">
-                            <span class="lbl small">label</span>
-                            <input class="inp" v-model="row.spec.topology.server.label" />
-                          </label>
-                          <label class="field">
-                            <span class="lbl small">unit</span>
-                            <input class="inp" v-model="row.spec.topology.server.unit" />
-                          </label>
-                        </div>
-                      </template>
-                    </div>
-                    <div class="mqe-half">
-                      <div class="half-head">
-                        <span class="lbl">client</span>
-                        <button
-                          v-if="!row.spec.topology.client"
-                          class="btn tiny"
-                          type="button"
-                          @click="ensureTopologyHalf(row.key, 'client')"
-                        >+ add</button>
-                        <button
-                          v-else
-                          class="btn tiny danger"
-                          type="button"
-                          @click="dropTopologyHalf(row.key, 'client')"
-                        >remove</button>
-                      </div>
-                      <template v-if="row.spec.topology.client">
-                        <label class="field">
-                          <span class="lbl small">MQE</span>
-                          <input class="inp mono" v-model="row.spec.topology.client.mqe" />
-                        </label>
-                        <div class="row-2">
-                          <label class="field">
-                            <span class="lbl small">label</span>
-                            <input class="inp" v-model="row.spec.topology.client.label" />
-                          </label>
-                          <label class="field">
-                            <span class="lbl small">unit</span>
-                            <input class="inp" v-model="row.spec.topology.client.unit" />
-                          </label>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                  <p class="hint-sm">Server-side preferred at render time; client falls in when server has no data.</p>
-                </template>
-
-                <!-- Load editor -->
-                <template v-else-if="row.spec?.load">
+              <div class="group-body">
+                <div class="row-2">
                   <label class="field">
-                    <span class="lbl small">MQE</span>
-                    <input class="inp mono" v-model="row.spec.load.mqe" />
+                    <span class="lbl small">level</span>
+                    <select class="inp" v-model="g.level">
+                      <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
+                    </select>
                   </label>
-                  <div class="row-2">
-                    <label class="field">
-                      <span class="lbl small">label</span>
-                      <input class="inp" v-model="row.spec.load.label" />
-                    </label>
-                    <label class="field">
-                      <span class="lbl small">unit</span>
-                      <input class="inp" v-model="row.spec.load.unit" />
-                    </label>
+                  <label class="field">
+                    <span class="lbl small">icon</span>
+                    <select class="inp" v-model="g.icon">
+                      <option v-for="ic in ICON_NAMES" :key="ic" :value="ic">{{ ic }}</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field">
+                  <span class="lbl small">member layers ({{ g.layers.length }})</span>
+                  <div class="chips">
+                    <span v-for="k in g.layers" :key="k" class="chip">
+                      {{ k }}
+                      <button class="x" type="button" title="remove from group" @click="removeLayerFromGroup(g, k)">×</button>
+                    </span>
+                    <select class="add-layer" :value="''" @change="(e) => onAddLayerToGroup(g, e)">
+                      <option value="">＋ add layer…</option>
+                      <option v-for="k in groupCandidates(g)" :key="k" :value="k">{{ k }}</option>
+                    </select>
                   </div>
-                </template>
-
-                <template v-else>
-                  <p class="hint-sm">Cube renders without a traffic ring. Choose a mode above to attach an MQE.</p>
-                </template>
-
-                <footer class="layer-foot">
-                  <button class="btn tiny danger" type="button" @click="removeLayerFromConfig(row.key)">
-                    remove layer from config
-                  </button>
-                </footer>
+                  <p v-if="g.layers.length === 0" class="hint-sm warn">A group needs at least one layer — pushing will be rejected until you add one.</p>
+                </div>
               </div>
             </article>
-            <div v-if="filteredLayerRows.length === 0" class="empty">No layers match the filter.</div>
+            <div v-if="(draft.groups ?? []).length === 0" class="empty">No logic groups. Add one to cluster related layers into a single block.</div>
           </div>
         </div>
       </section>
 
-      <!-- ── Edges ─────────────────────────────────────────────────── -->
+      <!-- ── Service-map layers ─────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Edge styling</h2>
-          <span class="sec-hint">Colors for the three edge classes drawn on the map.</span>
+          <h2>Service-map layers</h2>
+          <span class="sec-hint">
+            These layers' templates provide a service map, so their cubes render
+            as a call graph (and seed the cross-layer hierarchy). Read-only —
+            it's a layer-template property, not a 3D-map setting.
+          </span>
         </header>
-        <div class="sect-body edges-grid">
-          <article
-            v-for="key in (['hierarchy', 'crossLevelCall', 'intraCall'] as const)"
-            :key="key"
-            class="edge-card"
-          >
-            <header class="edge-head">
-              <span class="edge-name">{{ key }}</span>
-            </header>
-            <template v-if="edgeRef(key)">
-              <label class="field">
-                <span class="lbl small">color</span>
-                <div class="color-row">
-                  <input
-                    type="color"
-                    class="color-pick"
-                    :value="parseHexColor(edgeRef(key)!.color)"
-                    @input="(e) => (edgeRef(key)!.color = (e.target as HTMLInputElement).value)"
-                  />
-                  <input class="inp mono small" v-model="edgeRef(key)!.color" />
-                </div>
-              </label>
-              <label class="field">
-                <span class="lbl small">style</span>
-                <select
-                  class="inp"
-                  :value="edgeRef(key)!.style"
-                  @change="(e) => (edgeRef(key)!.style = castEdgeStyle((e.target as HTMLSelectElement).value))"
-                >
-                  <option v-for="s in EDGE_STYLES" :key="s" :value="s">{{ s }}</option>
-                </select>
-              </label>
-              <label class="field row">
-                <input type="checkbox" v-model="edgeRef(key)!.arrow" />
-                <span class="lbl small">arrow at target</span>
-              </label>
-            </template>
-          </article>
-        </div>
-      </section>
-
-      <!-- ── Pipeline + Unknown ─────────────────────────────────────── -->
-      <section class="sect two-col">
-        <div class="col">
-          <header class="sect-head"><h2>Loading pipeline</h2></header>
-          <div class="sect-body">
-            <label class="field">
-              <span class="lbl">metricChunkSize</span>
-              <!-- Capped at 12: the BFF metrics route (MAX_SERVICES) rejects
-                   larger chunks — OAP's GraphQL complexity ceiling 5xx's. -->
-              <input type="number" class="inp" v-model.number="draft.pipeline.metricChunkSize" min="1" max="12" />
-            </label>
-            <label class="field">
-              <span class="lbl">topologyConcurrency</span>
-              <input type="number" class="inp" v-model.number="draft.pipeline.topologyConcurrency" min="1" max="16" />
-            </label>
-            <label class="field">
-              <span class="lbl">templateConcurrency</span>
-              <input type="number" class="inp" v-model.number="draft.pipeline.templateConcurrency" min="1" max="32" />
-            </label>
-          </div>
-        </div>
-        <div class="col">
-          <header class="sect-head"><h2>Unknown layer fallback</h2></header>
-          <div class="sect-body">
-            <label class="field">
-              <span class="lbl">level</span>
-              <select class="inp" v-model="draft.unknownLayer.level">
-                <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
-              </select>
-            </label>
-            <label class="field">
-              <span class="lbl">badge text</span>
-              <input class="inp" v-model="draft.unknownLayer.badge" />
-            </label>
+        <div class="sect-body">
+          <div class="chips">
+            <span v-for="k in serviceMapLayers" :key="k" class="chip">{{ k }}</span>
+            <span v-if="serviceMapLayers.length === 0" class="chips-empty">None reporting a service map.</span>
           </div>
         </div>
       </section>
 
-      <!-- ── Advanced ──────────────────────────────────────────────── -->
+      <!-- ── Unknown layer fallback ─────────────────────────────────── -->
       <section class="sect">
-        <header class="sect-head clickable" @click="advancedOpen = !advancedOpen">
-          <h2>{{ advancedOpen ? '▾' : '▸' }} Advanced — raw JSON</h2>
-          <span class="sec-hint">Edit the full document directly. Two-way bound with the structured editor above.</span>
+        <header class="sect-head">
+          <h2>Failover tier</h2>
+          <span class="sec-hint">The single catch-all: any layer no tier pins lands here.</span>
         </header>
-        <div v-show="advancedOpen" class="sect-body">
-          <div ref="advHost" class="adv-editor" />
+        <div class="sect-body">
+          <label class="field">
+            <span class="lbl">level</span>
+            <select class="inp fallback-level" v-model="draft.unknownLayer.level">
+              <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
+            </select>
+          </label>
         </div>
       </section>
+
     </template>
+
+    <!-- ── Check diff & push ──────────────────────────────────────────── -->
+    <Modal :open="pushDiffOpen" title="Push 3D-map config to OAP" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+      <div class="push-modal">
+        <p class="push-lede">
+          Left = live on OAP (remote). Right = your local draft. Pushing
+          replaces the OAP copy — the map renders it on the next visit.
+        </p>
+        <ul v-if="pushErr && pushErr.length" class="issues">
+          <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
+        </ul>
+        <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
+      </div>
+      <template #footer>
+        <button class="btn" :disabled="pushing" @click="pushDiffOpen = false">Cancel</button>
+        <button class="btn primary" :disabled="pushing || readOnly" @click="pushToOap">
+          {{ pushing ? 'Pushing…' : 'Push to OAP' }}
+        </button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -811,7 +883,56 @@ export { parseHexColor };
 .hd-text h1 { margin: 2px 0 4px; font-size: 16px; color: var(--sw-fg-0); }
 .lede   { font-size: 11.5px; color: var(--sw-fg-2); margin: 0; max-width: 760px; line-height: 1.5; }
 .lede code { background: var(--sw-bg-3); padding: 1px 4px; border-radius: 3px; }
-.hd-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.hd-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+
+/* Source pill + reset menu */
+.src-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+  font-size: 10.5px;
+  text-transform: capitalize;
+}
+.src-pill[data-src='local'] { border-color: rgba(94, 234, 212, 0.5); color: #5eead4; }
+.reset-wrap { position: relative; }
+.reset-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  padding: 4px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  background: var(--sw-bg-2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.reset-item {
+  height: 26px;
+  padding: 0 8px;
+  text-align: left;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sw-fg-1);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.reset-item:hover:not([disabled]) { background: var(--sw-bg-3); color: var(--sw-fg-0); }
+.reset-item[disabled] { opacity: 0.45; cursor: default; }
+.reset-suffix { color: var(--sw-fg-3); font-size: 10px; }
+
+/* Push diff modal */
+.push-modal { display: flex; flex-direction: column; gap: 10px; min-width: min(1040px, 90vw); }
+.push-lede { font-size: 11.5px; color: var(--sw-fg-2); margin: 0; }
 
 /* Buttons */
 .btn {
@@ -835,14 +956,6 @@ export { parseHexColor };
 .btn.danger:hover:not([disabled]) { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 
 /* Banners */
-.flash {
-  margin: 8px 20px 0;
-  padding: 6px 10px;
-  font-size: 11.5px;
-  border-radius: 4px;
-}
-.flash[data-kind='ok']  { background: rgba(34, 197, 94, 0.16); color: #4ade80; }
-.flash[data-kind='err'] { background: rgba(239, 68, 68, 0.16); color: #f87171; }
 .issues {
   margin: 8px 20px 0;
   padding: 8px 12px;
@@ -873,14 +986,11 @@ export { parseHexColor };
   border-bottom: 1px solid var(--sw-line);
   background: var(--sw-bg-2);
 }
-.sect-head.clickable { cursor: pointer; }
 .sect-head h2 { margin: 0; font-size: 12px; color: var(--sw-fg-0); font-weight: 700; letter-spacing: 0.02em; }
 .sec-hint    { font-size: 11px; color: var(--sw-fg-3); }
 .sec-hint code { background: var(--sw-bg-3); padding: 0 4px; border-radius: 3px; }
 .sect-body  { padding: 12px 14px; }
-.sect.two-col .sect-body { padding: 0; }
-.sect.two-col { display: flex; gap: 12px; padding: 0; background: transparent; border: none; }
-.sect.two-col > .col { flex: 1; border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1); }
+.fallback-level { max-width: 260px; }
 
 /* Inputs */
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -902,8 +1012,8 @@ export { parseHexColor };
 .inp.search { height: 22px; width: 180px; margin-left: auto; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
 
-/* Levels */
-.lvl-card {
+/* Tiers */
+.tier-card {
   border: 1px solid var(--sw-line);
   border-radius: 4px;
   background: var(--sw-bg-2);
@@ -917,10 +1027,18 @@ export { parseHexColor };
   border-bottom: 1px solid var(--sw-line);
 }
 .lvl-order { font-size: 10.5px; color: var(--sw-fg-3); width: 28px; font-family: var(--sw-mono-font, monospace); }
-.lvl-id    { width: 140px; }
-.lvl-label { width: 200px; }
+.lvl-id    { width: 130px; }
+.lvl-label { width: 170px; }
 .lvl-spacer { flex: 1; }
-.lvl-body  { padding: 8px 10px; }
+.tier-count { font-size: 10.5px; color: var(--sw-fg-3); white-space: nowrap; }
+.tier-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
+.btn.ghost {
+  align-self: flex-start;
+  background: transparent;
+  border-style: dashed;
+  color: var(--sw-fg-3);
+}
+.btn.ghost:hover:not([disabled]) { color: var(--sw-fg-1); border-color: var(--sw-accent); background: transparent; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .chip {
   display: inline-flex;
@@ -943,22 +1061,35 @@ export { parseHexColor };
 }
 .chip .x:hover { color: #f87171; }
 .chips-empty { font-size: 11px; color: var(--sw-fg-3); font-style: italic; }
-
-/* Layers */
-.layers-grid { display: flex; flex-direction: column; gap: 6px; }
-.layer-card {
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-2);
-}
-.layer-card.unclassified { border-color: rgba(239, 158, 68, 0.5); }
-.layer-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
+/* Inline "＋ add layer" picker — shares the chip row, styled to read as
+   an affordance rather than a form control. */
+.add-layer {
+  height: 22px;
+  padding: 0 6px;
+  background: var(--sw-bg-3);
+  border: 1px dashed var(--sw-line-2);
+  border-radius: 10px;
+  color: var(--sw-fg-2);
+  font-size: 10.5px;
+  font-family: inherit;
   cursor: pointer;
 }
+.add-layer:hover { border-color: var(--sw-accent); color: var(--sw-fg-0); }
+.add-layer:focus { outline: 1px solid var(--sw-accent); }
+
+/* Layer rows — one dense line per layer (inside a tier or the unpinned
+   bucket): colour · key · badges · metric (mqe/label/unit) · tier · remove. */
+.layer-rows { display: flex; flex-direction: column; gap: 4px; }
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  background: var(--sw-bg-1);
+}
+.layer-row.unclassified { border-color: rgba(239, 158, 68, 0.5); }
 .color-pick {
   width: 24px;
   height: 20px;
@@ -967,86 +1098,54 @@ export { parseHexColor };
   border-radius: 3px;
   background: transparent;
   cursor: pointer;
+  flex: 0 0 auto;
 }
 .layer-key {
   font-family: var(--sw-mono-font, monospace);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--sw-fg-0);
-  min-width: 160px;
-}
-.badge {
-  font-size: 9.5px;
-  letter-spacing: 0.04em;
-  padding: 1px 6px;
-  border-radius: 8px;
-  text-transform: uppercase;
-}
-.badge.muted { background: var(--sw-bg-3); color: var(--sw-fg-3); }
-.badge.topo  { background: rgba(94, 177, 191, 0.2); color: #5eb1bf; }
-.badge.stale { background: rgba(239, 158, 68, 0.18); color: #f0a04b; }
-.badge.new   { background: rgba(94, 234, 212, 0.16); color: #5eead4; }
-.level-pick { min-width: 160px; }
-.layer-mqe-summary {
-  flex: 1;
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
+  /* Fixed column so the metric fields line up across every row regardless
+     of key length (GENERAL … BYTEDANCE_MINI_PROGRAM). */
+  flex: 0 0 190px;
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.layer-body {
-  padding: 10px 12px;
-  border-top: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.mode-pick { flex-direction: row; align-items: center; gap: 8px; }
-.seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 4px; overflow: hidden; }
-.seg-btn {
-  height: 22px;
-  padding: 0 10px;
-  background: var(--sw-bg-2);
-  border: none;
-  border-right: 1px solid var(--sw-line-2);
-  color: var(--sw-fg-2);
-  font-size: 10.5px;
-  cursor: pointer;
-}
-.seg-btn:last-child { border-right: none; }
-.seg-btn.on { background: var(--sw-accent); color: #1a1106; }
+.via-tag { font-size: 10px; color: var(--sw-fg-3); white-space: nowrap; flex: 0 0 auto; }
+.via-tag[data-via='default'],
+.via-tag[data-via='filtered'] { color: #f0a04b; }
+.metric-mqe { flex: 0 1 200px; min-width: 110px; }
+.metric-lbl { flex: 0 0 110px; }
+.metric-unit { flex: 0 0 72px; }
+.row-spacer { flex: 1 1 auto; min-width: 8px; }
+.tier-select { flex: 0 0 130px; }
+.tier-empty { font-size: 11px; color: var(--sw-fg-3); font-style: italic; padding: 2px 2px 4px; }
+.warn-count { color: #f0a04b; }
 .row-2 { display: flex; gap: 8px; }
 .row-2 .field { flex: 1; }
-.mqe-pair { display: flex; gap: 10px; }
-.mqe-half {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-2);
-}
-.half-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .hint-sm { font-size: 10.5px; color: var(--sw-fg-3); margin: 0; }
-.layer-foot { display: flex; justify-content: flex-end; padding-top: 4px; border-top: 1px dashed var(--sw-line); }
 .empty { padding: 14px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
 
-/* Edges */
-.edges-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.edge-card {
+/* Groups */
+.groups-grid { display: flex; flex-direction: column; gap: 8px; }
+.group-card {
   border: 1px solid var(--sw-line);
   border-radius: 4px;
   background: var(--sw-bg-2);
-  padding: 8px 10px;
 }
-.edge-head .edge-name {
-  font-family: var(--sw-mono-font, monospace);
-  font-size: 11px;
-  color: var(--sw-fg-1);
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--sw-line);
 }
-.color-row { display: flex; align-items: center; gap: 6px; }
+.group-id    { width: 200px; }
+.group-label { width: 220px; }
+.group-body  { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.group-body .row-2 { max-width: 420px; }
+.hint-sm.warn { color: #f0a04b; }
 
 /* Advanced */
-.adv-editor { width: 100%; height: 360px; border: 1px solid var(--sw-line); border-radius: 4px; overflow: hidden; }
 </style>

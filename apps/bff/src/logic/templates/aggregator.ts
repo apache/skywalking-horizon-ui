@@ -32,10 +32,12 @@ import {
   loadBundledThemeActive,
   loadBundledTimeDefaults,
 } from './global-defaults-bundled.js';
+import { loadBundledInfra3dConfig } from '../infra-3d/bundled.js';
 import {
   ALERT_PAGE_SETUP_KEY,
   THEME_ACTIVE_KEY,
   TIME_DEFAULTS_KEY,
+  INFRA3D_CONFIG_KEY,
   type TemplateKind,
 } from './names.js';
 import type { BundledTemplate } from './sync.js';
@@ -62,6 +64,11 @@ export function* iterateBundledTemplates(): IterableIterator<BundledTemplate> {
     kind: 'time-defaults' satisfies TemplateKind,
     key: TIME_DEFAULTS_KEY,
     content: loadBundledTimeDefaults(),
+  };
+  yield {
+    kind: 'infra-3d' satisfies TemplateKind,
+    key: INFRA3D_CONFIG_KEY,
+    content: loadBundledInfra3dConfig(),
   };
 }
 

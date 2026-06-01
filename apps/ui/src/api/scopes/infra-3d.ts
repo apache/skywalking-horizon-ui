@@ -17,25 +17,16 @@
 
 import type { BffClient, Infra3dConfig } from '../client';
 
-/** `bff.infra3d` — 3D Infrastructure Map admin config CRUD. The GET
- *  returns the live config (admin-saved override OR bundled defaults
- *  when no save exists). The POST accepts the full document — server
- *  validates and returns 400 with `{issues:[...]}` on failure. */
+/** `bff.infra3d` — 3D Infrastructure Map read surface. `config()` returns
+ *  the EFFECTIVE config (remote OAP copy when present, bundled fallback).
+ *  Writes go through the generic template-sync surface
+ *  (`bff.templateSync.save('horizon.infra-3d.config', content)`), same as
+ *  layer / overview dashboards. */
 export class Infra3dApi {
   constructor(private readonly bff: BffClient) {}
 
   config(): Promise<Infra3dConfig> {
     return this.bff.request<Infra3dConfig>('GET', '/api/infra-3d/config');
-  }
-
-  /** Bundled defaults — independent of admin saves. Used by the
-   *  admin editor's "Reset to bundled" button. */
-  bundledConfig(): Promise<Infra3dConfig> {
-    return this.bff.request<Infra3dConfig>('GET', '/api/infra-3d/config/bundled');
-  }
-
-  saveConfig(next: Infra3dConfig): Promise<Infra3dConfig> {
-    return this.bff.request<Infra3dConfig>('POST', '/api/infra-3d/config', next);
   }
 
   /** Batched per-service MQE fetch for the cube traffic ring. Caller

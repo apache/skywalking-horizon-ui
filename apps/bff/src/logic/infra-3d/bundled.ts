@@ -21,8 +21,9 @@
  * path-search as the alarms / overview loaders so dev + container layouts
  * both resolve.
  *
- * The bundled file is the BFF's read-only baseline; admin-saved deltas
- * shadow it via `Infra3dStore` (file-backed at `source.current.infra3d.file`).
+ * The bundled file is the BFF's read-only baseline; admin edits live on
+ * OAP as the `horizon.infra-3d.config` template row (remote wins at
+ * render, same policy as layer / overview dashboards).
  * `loadBundledInfra3dConfig` strips the `$comment` / `$note` JSON-Schema
  * helper keys so the returned object matches `Infra3dConfig` exactly.
  */

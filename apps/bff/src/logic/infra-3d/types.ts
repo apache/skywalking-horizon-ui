@@ -17,33 +17,27 @@
 
 /**
  * Shape of the 3D Infrastructure Map admin config. Bundled defaults live
- * at `apps/bff/src/bundled_templates/infra-3d/config.json`. Admin saves
- * shadow the bundled file via `Infra3dStore` (same file-backed pattern as
- * alarms / setup) — the resolved config the UI consumes is `store.load()`,
- * which returns the saved file when present, otherwise the bundled
- * defaults verbatim.
+ * at `apps/bff/src/bundled_templates/infra-3d/config.json`. The config is
+ * a first-class template kind (`horizon.infra-3d.config`): admin edits are
+ * published to OAP through the generic template-sync surface and win over
+ * bundled at render, exactly like layer / overview dashboards.
  *
  * Vocabulary:
- *   - level    — one of the four planes the operator sees stacked top↓bottom
- *                (apps / mesh / middleware / infra). Owns a label, a layer
- *                allow-list, and an additional per-level regex filter.
+ *   - level    — one of the planes the operator sees stacked top↓bottom
+ *                (apps / mesh / middleware / infra). Owns a label and an
+ *                explicit layer allow-list — the only way to pin a layer.
  *   - layer    — OAP layer key (GENERAL, MESH, K8S_SERVICE, …). Carries
- *                its render color and either a `topology` (server + client)
- *                metric pair OR a single `load` metric. Topology layers
- *                prefer server-side for the cube traffic ring, fall back
- *                to client-side; non-topology layers always use `load`.
- *   - filter   — two-tier: `filter.layer` global regex AND the per-level
- *                `layerFilter` regex (intersection). A layer is admitted
- *                to a level if it passes the global regex AND (matches
- *                the level's regex OR appears in the explicit `layers`
- *                list).
- *   - edges    — render styling for the three edge classes drawn on the
- *                map (hierarchy / cross-level call / intra-layer call).
+ *                its render color and a single traffic `metric`.
+ *   - filter   — `filter.layer`, ONE global regex applied before levelling:
+ *                a layer it excludes is off the map entirely. There is no
+ *                per-level regex — pinning is via the explicit `layers` list,
+ *                and anything unpinned falls to `unknownLayer.level`.
+ *   - edges    — render styling carried for a future interaction layer;
+ *                not rendered on the always-on map today.
  *
- * Schema versioning: there is none on the wire — admin saves are full-doc
- * replacements, structural drift is detected at load time and falls back
- * to bundled defaults (the operator sees a stale UI rather than a hard
- * 500). Bump intentionally if the shape ever changes incompatibly.
+ * Schema versioning: there is none on the wire — saves are full-doc
+ * replacements validated before they reach OAP (see validate.ts); a
+ * remote row that's somehow invalid falls back to bundled at read.
  */
 
 /** MQE entry — used for both topology-pair metrics and the single load
@@ -59,18 +53,19 @@ export interface InfraLayerSpec {
   /** Render color for the cube + level tinting. Hex (`#rrggbb`) or any
    *  CSS color string accepted by Three.js (`new THREE.Color(str)`). */
   color: string;
-  /** Two metrics for layers whose template carries a topology widget.
-   *  `server` is preferred for the cube traffic; `client` is the
-   *  fallback when server data is empty. `client` may be omitted (e.g.
-   *  `cilium_service` ships server-only). */
+  /** The cube's traffic ring is a single scalar, so each layer carries
+   *  ONE metric. Absent ⇒ the cube renders without a ring. This is the
+   *  canonical shape; new saves write only this. */
+  metric?: InfraMqe;
+  /** @deprecated Pre-single-metric shapes. The cube ring always resolves
+   *  to one value (`server ?? client ?? load`), so these collapsed into
+   *  `metric`. Still accepted on the wire so an older saved OAP row keeps
+   *  rendering; the renderer prefers `metric`, then falls back to these. */
   topology?: {
     server?: InfraMqe;
     client?: InfraMqe;
   };
-  /** Single metric for layers without a topology widget. Mutually
-   *  exclusive with `topology` at the bundled layer; admin overrides
-   *  may set either. If neither is present the cube renders without a
-   *  traffic ring. */
+  /** @deprecated See `topology` — folded into `metric`. */
   load?: InfraMqe;
 }
 
@@ -82,11 +77,9 @@ export interface InfraLevelSpec {
   order: number;
   /** Operator-facing name for the level (rendered in the side panel). */
   label: string;
-  /** Per-level layer regex. Default `.*`. A layer is admitted to a
-   *  level when it passes the global filter AND (matches this regex OR
-   *  appears in `layers`). */
-  layerFilter: string;
-  /** Explicit allow-list of OAP layer keys (canonical upper-case form). */
+  /** Explicit allow-list of OAP layer keys (canonical upper-case form).
+   *  The ONLY way a layer is pinned to a level — there is no per-level
+   *  regex; layers no level claims fall to `unknownLayer.level`. */
   layers: string[];
 }
 

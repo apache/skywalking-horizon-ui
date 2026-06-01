@@ -47,7 +47,13 @@
  * key order is stable.
  */
 
-export type TemplateKind = 'overview' | 'layer' | 'alert' | 'theme' | 'time-defaults';
+export type TemplateKind =
+  | 'overview'
+  | 'layer'
+  | 'alert'
+  | 'theme'
+  | 'time-defaults'
+  | 'infra-3d';
 
 export const TEMPLATE_KINDS: readonly TemplateKind[] = [
   'overview',
@@ -55,6 +61,7 @@ export const TEMPLATE_KINDS: readonly TemplateKind[] = [
   'alert',
   'theme',
   'time-defaults',
+  'infra-3d',
 ] as const;
 
 /** Single alert template key — alert page-setup is a singleton. */
@@ -63,14 +70,16 @@ export const ALERT_PAGE_SETUP_KEY = 'page-setup' as const;
 export const THEME_ACTIVE_KEY = 'active' as const;
 /** Singleton key for the global time-defaults setup. */
 export const TIME_DEFAULTS_KEY = 'global' as const;
+/** Singleton key for the 3D Infrastructure Map config. */
+export const INFRA3D_CONFIG_KEY = 'config' as const;
 
 // Source-row name (no `.i18n.` segment). Layer / overview keys are
 // `[A-Za-z0-9_-]+` — no dots, so the `.i18n.` discriminator can't
 // collide with a real key.
-const SOURCE_NAME_RE = /^horizon\.(overview|layer|alert|theme|time-defaults)\.([A-Za-z0-9_-]+)$/;
+const SOURCE_NAME_RE = /^horizon\.(overview|layer|alert|theme|time-defaults|infra-3d)\.([A-Za-z0-9_-]+)$/;
 // Per-locale overlay row. Locale segment matches BCP-47 forms shipped
 // by Horizon today: `zh-CN`, `es`, `pt`, `ja`, `ko` (`en` has no row).
-const OVERLAY_NAME_RE = /^horizon\.(overview|layer|alert|theme|time-defaults)\.([A-Za-z0-9_-]+)\.i18n\.([A-Za-z][A-Za-z0-9-]*)$/;
+const OVERLAY_NAME_RE = /^horizon\.(overview|layer|alert|theme|time-defaults|infra-3d)\.([A-Za-z0-9_-]+)\.i18n\.([A-Za-z][A-Za-z0-9-]*)$/;
 
 export interface ParsedName {
   kind: TemplateKind;

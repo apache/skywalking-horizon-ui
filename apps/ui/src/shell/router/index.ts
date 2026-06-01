@@ -257,7 +257,10 @@ const shellRoutes: RouteRecordRaw[] = [
     path: 'admin/3d-map',
     name: 'admin-3d-map',
     component: () => import('@/features/admin/infra-3d/Infra3dAdminView.vue'),
-    meta: { verb: 'infra-3d:write' },
+    // The config is a template kind published via the generic template-sync
+    // API (overview:write) — gate the editor on the same verb so page
+    // visibility matches what the push actually requires.
+    meta: { verb: 'overview:write' },
   },
   {
     path: 'admin/overview-templates',

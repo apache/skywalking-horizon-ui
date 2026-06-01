@@ -16,14 +16,14 @@
  */
 
 /**
- * Zod-validated shape for `Infra3dConfig`. The HTTP route uses this on
- * inbound PUTs; the store uses it again on its own writes (defence in
- * depth) and on reads (so a hand-edited file with the wrong shape falls
- * back to bundled defaults instead of crashing the UI). The schema is
- * deliberately strict (`.strict()` everywhere) — unknown keys are an
- * error, not a forward-compat hint, because admin saves are full-doc
- * replacements: an extra key is almost always a typo or a stale field
- * from a UI bug.
+ * Zod-validated shape for `Infra3dConfig`. Used in two places: the
+ * generic template save route validates 3D-map content before it reaches
+ * OAP, and `resolveEffectiveConfig` re-validates the remote envelope on
+ * read so a row hand-edited on OAP into the wrong shape falls back to
+ * bundled instead of breaking the map. The schema is deliberately strict
+ * (`.strict()` everywhere) — unknown keys are an error, not a forward-compat
+ * hint, because saves are full-doc replacements: an extra key is almost
+ * always a typo or a stale field from a UI bug.
  *
  * Returns a tagged-union result rather than throwing — the validation
  * paths above all want issue lists to render in the admin UI / logs.
@@ -43,6 +43,11 @@ const mqeSchema = z
 const layerSpecSchema = z
   .object({
     color: z.string().min(1),
+    // Canonical single metric for the cube ring.
+    metric: mqeSchema.optional(),
+    // Deprecated pre-single-metric shapes — still accepted so older saved
+    // rows validate; the renderer folds them into `metric` (server ??
+    // client ?? load). New saves write `metric` only.
     topology: z
       .object({
         server: mqeSchema.optional(),
@@ -82,7 +87,6 @@ const levelSpecSchema = z
     }),
     order: z.number().int().nonnegative(),
     label: z.string().min(1),
-    layerFilter: z.string().refine(isValidRegex, { message: 'invalid regex' }),
     layers: z.array(z.string().min(1)),
   })
   .strict();
@@ -163,6 +167,24 @@ const configSchema = z
           message: `group "${g.id}" level "${g.level}" must be one of: ${Array.from(levelIds).join(', ')}`,
           path: ['groups'],
         });
+      }
+    }
+    // A layer belongs to at most ONE logic group — multiple memberships make
+    // the group/tier lookup ambiguous (different render passes pick different
+    // groups). Same single-claim rule as the per-level `layers` lists below.
+    const groupClaimed = new Map<string, string>();
+    for (const g of cfg.groups) {
+      for (const key of g.layers) {
+        const k = key.toUpperCase();
+        const prev = groupClaimed.get(k);
+        if (prev && prev !== g.id) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `layer ${k} claimed by both groups: ${prev}, ${g.id}`,
+            path: ['groups'],
+          });
+        }
+        groupClaimed.set(k, g.id);
       }
     }
     // A layer can be referenced by an explicit list only once across all

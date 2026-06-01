@@ -533,8 +533,16 @@ link into that layer's dashboard.
   Go agents) on the middleware tier. Members keep their own cube colors
   but read as one block on the map.
 - **Configurable tiers + layers.** Tier order, per-layer plane mapping,
-  cube colors, and the traffic MQE per layer are all driven by the 3D
-  map config (bundled defaults, admin-overridable).
+  cube colors, the traffic MQE per layer, and the logic groups are all
+  driven by the 3D map config, edited on a structured admin page at
+  `/admin/3d-map`. Pin each layer to a tier (with a single global layer
+  filter as the top-level gate), edit each layer's color + traffic metric,
+  manage logic groups (members, color, icon, tier), and choose the single
+  failover tier for anything unpinned. The
+  config is published to OAP and shared across the deployment the same
+  way as dashboards: edits save to a local draft in your browser, then
+  **Check diff & push** publishes to OAP — the map renders the remote,
+  with the bundled defaults as fallback.
 - **Topology clustering.** Within layers that carry a service map,
   services group into named clusters drawn as a wireframe frame with the
   cluster name baked into the frame's lower-left corner — service-mesh

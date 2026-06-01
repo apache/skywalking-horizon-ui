@@ -94,6 +94,7 @@ const stageLabels: Record<PipelineStageId, string> = {
   services: 'Services',
   templates: 'Templates',
   topologies: 'Topologies',
+  hierarchy: 'Hierarchy',
   layout: 'Layout',
   metrics: 'Metrics',
 };

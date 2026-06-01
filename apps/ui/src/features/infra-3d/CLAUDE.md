@@ -35,7 +35,7 @@ is fine for the dedicated route).
 | `mesh` (middle) | 8 | service-mesh sidecars and control planes | `mesh`, `mesh_cp`, `mesh_dp`, `cilium_service`, `envoy_*` |
 | `infra` (bottom) | 0 | everything else: K8s, VM, databases, MQ, caches, gateways, cloud, FaaS | the catch-all |
 
-The mapping is in `planeForLayer()` in `composables/useDemoTopology.ts`.
+The mapping is in `planeForLayer()` in `composables/useMapTopology.ts`.
 A layer **belongs to exactly one plane**. Adding a new layer means
 adding one branch to that function — not introducing new planes.
 
@@ -478,14 +478,17 @@ every transition is a property change on the existing mesh.
 
 The scene now reads its structure live from OAP by default: the pipeline's
 `services` / `topologies` stages fetch each layer's roster + service map one
-at a time (`useLiveTopology.ts`), assembling a `DemoTopology` that
-`buildSceneGraph` consumes exactly like the snapshot. `data/demo-topology.json`
+at a time (`useLiveTopology.ts`), assembling a `MapTopology` that
+`buildSceneGraph` consumes exactly like the snapshot. `data/fallback-topology.json`
 remains the **fallback** — rendered until the first sequential load lands, if
 the load comes back empty, or when `?live=0` forces it for comparison. The
 scene is re-keyed on a per-layer structure hash so an unchanged refresh keeps
 the camera; only a roster/edge change rebuilds. The cross-layer hierarchy
-(`hierarchy`) is still left empty in live mode — Smartscape peers are a later,
-per-service fetch.
+(`hierarchy`) is fetched live by the `hierarchy` stage (`loadLiveHierarchy`,
+`getServiceHierarchy` per service) — **incrementally**: only newly-appeared
+services are probed each refresh, the rest reused from a persistent cache, so a
+steady roster costs zero hierarchy calls. The selected cube reveals its peers
+from this data.
 
 ## What this PoC is NOT
 
