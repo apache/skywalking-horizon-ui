@@ -210,6 +210,10 @@ export {
   type AlarmRuleList,
   type AlarmRuleDetail,
   type AlarmRunningContext,
+  type AlarmWindowBucket,
+  type AlarmWindowMetric,
+  type AlarmMqeSnapshotSeries,
+  type AlarmMqeSnapshotValue,
   type ClusterAlarmStatus,
   type InstanceAlarmStatus,
 } from './alarm-status.js';

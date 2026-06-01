@@ -24,6 +24,10 @@
  *                                        round-trip per rule, runs
  *                                        in parallel).
  *   GET /api/admin/alarm-rules/:id     — full detail for one rule.
+ *   GET /api/admin/alarm-rules/:id/context?entity=…
+ *                                      — running window for one entity
+ *                                        (the metric snapshot the rule
+ *                                        is evaluating right now).
  *
  * Read-only. The OAP alarm-rule lifecycle is "edit the YAML, restart
  * (or let the watcher pick up the change)"; no mutation surface
@@ -38,6 +42,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type {
   AlarmRuleDetail,
+  AlarmRunningContext,
   AlarmStatusClient,
   ClusterAlarmStatus,
   FetchLike,
@@ -107,6 +112,26 @@ export interface AlertingRuleDetailResponse {
     error?: string;
     detail: AlarmRuleDetail | null;
   }>;
+}
+
+export interface AlertingRuleContextNode {
+  address: string;
+  ok: boolean;
+  error?: string;
+  /** Running window for this entity on this node. Null on a node that
+   *  isn't evaluating the entity (or that failed). */
+  context: AlarmRunningContext | null;
+}
+
+export interface AlertingRuleContextResponse {
+  ruleId: string;
+  entityName: string;
+  generatedAt: number;
+  reachable: boolean;
+  error?: string;
+  /** Per-node running context. Only the node evaluating the entity
+   *  carries a populated body; the rest are stubs. */
+  nodes: AlertingRuleContextNode[];
 }
 
 /* Pivot a per-rule x per-node matrix from the two-step fan-out. */
@@ -265,6 +290,53 @@ export function registerAlarmRulesRoutes(
         reachable: perNode.some((n) => n.ok),
         detail,
         nodes: perNode,
+      };
+      return reply.send(body);
+    },
+  );
+
+  // ── GET /api/admin/alarm-rules/:id/context?entity=… ───────────────
+  // `entity` rides as a query param (not a path segment) because entity
+  // names carry `::` and may carry `/` (endpoint scope) — path-segment
+  // encoding of those is a portability minefield across proxies.
+  app.get(
+    '/api/admin/alarm-rules/:id/context',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const id = (req.params as { id?: string }).id;
+      const entity = (req.query as { entity?: string }).entity;
+      if (!id) return reply.code(400).send({ error: 'missing_id' });
+      if (!entity) return reply.code(400).send({ error: 'missing_entity' });
+      const c = client();
+      let env: ClusterAlarmStatus<AlarmRunningContext>;
+      try {
+        env = await c.ruleContext(id, entity);
+      } catch (err) {
+        const status =
+          err instanceof AlarmStatusApiError && err.status === 404 ? 404 : 502;
+        return reply.code(status).send({
+          ruleId: id,
+          entityName: entity,
+          generatedAt: Date.now(),
+          reachable: false,
+          error: err instanceof Error ? err.message : String(err),
+          nodes: [],
+        } satisfies AlertingRuleContextResponse);
+      }
+      const nodes = env.oapInstances.map<AlertingRuleContextNode>(
+        (i: InstanceAlarmStatus<AlarmRunningContext>) => ({
+          address: i.address,
+          ok: !i.errorMsg && !!i.status,
+          error: i.errorMsg ?? undefined,
+          context: i.status ?? null,
+        }),
+      );
+      const body: AlertingRuleContextResponse = {
+        ruleId: id,
+        entityName: entity,
+        generatedAt: Date.now(),
+        reachable: nodes.some((n) => n.ok),
+        nodes,
       };
       return reply.send(body);
     },
