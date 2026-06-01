@@ -25,7 +25,7 @@ per device.
 - **UI chrome.** Every routed page and every shared sub-component
   renders through `vue-i18n`; non-English locales now cover every
   admin page (Roles, Users, Auth status, Alert page setup, Global
-  defaults), every operate page (Alerting rules, DSL catalog / editor /
+  defaults, 3D-map config), every operate page (Alerting rules, DSL catalog / editor /
   dump, OAL catalog, Live debugger + MAL / LAL / OAL, Capture history,
   Metrics inspect, OAP config, TTL), the alarms surface, and the
   shared modals. Long lede paragraphs that previously rendered as

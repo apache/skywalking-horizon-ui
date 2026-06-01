@@ -42,6 +42,7 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import {
   bff,
@@ -68,6 +69,7 @@ import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 // and an out-of-tree layer (config exists, OAP no longer reports it)
 // also shows so the admin can remove it.
 const { availableLayers } = useLayers();
+const { t } = useI18n();
 
 // ── Template-sync state ───────────────────────────────────────────────
 // The 3D-map config is a singleton template kind — ONE row,
@@ -415,8 +417,8 @@ const layersByTier = computed<Record<string, LayerRow[]>>(() => {
     // bucket (tagged "filtered out"), never under a tier even if pinned, so
     // the editor matches what the scene renders.
     if (resolvedLevels.value[r.key]?.via === 'filtered') continue;
-    const t = explicitTier.value[r.key];
-    if (t && out[t]) out[t].push(r);
+    const tierId = explicitTier.value[r.key];
+    if (tierId && out[tierId]) out[tierId].push(r);
   }
   return out;
 });
@@ -567,47 +569,47 @@ const stats = computed(() => {
   <div class="i3d-admin">
     <header class="hd">
       <div class="hd-text">
-        <span class="kicker">Dashboard setup · 3D Infra Map</span>
-        <h1>3D Infrastructure Map</h1>
+        <span class="kicker">{{ t('Dashboard setup · 3D Infra Map') }}</span>
+        <h1>{{ t('3D Infrastructure Map') }}</h1>
         <p class="lede">
-          Config for the <code>/3d/map</code> view, published to OAP. Levels
-          control the vertical stack; per-layer color + metrics drive each
-          cube. Edits save to a <strong>local draft in this browser</strong>;
-          <strong>Check diff &amp; push</strong> publishes to OAP — the map
-          renders the remote, with bundled defaults as fallback.
+          <i18n-t keypath="Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback." tag="span" scope="global">
+            <template #mapPath><code>/3d/map</code></template>
+            <template #localDraft><strong>{{ t('local draft in this browser') }}</strong></template>
+            <template #checkDiffPush><strong>{{ t('Check diff & push') }}</strong></template>
+          </i18n-t>
         </p>
       </div>
       <div class="hd-actions">
         <span class="src-pill" :data-src="editorSource">
-          editing: {{ editorSource }}
+          {{ t('editing: {source}', { source: editorSource }) }}
           <TemplateStatusBadge v-if="badge" :status="badge" />
         </span>
         <div class="reset-wrap">
-          <button class="btn" :disabled="pushing" @click="resetMenuOpen = !resetMenuOpen">Reset to ▾</button>
+          <button class="btn" :disabled="pushing" @click="resetMenuOpen = !resetMenuOpen">{{ t('Reset to') }} ▾</button>
           <div v-if="resetMenuOpen" class="reset-menu">
             <button
               class="reset-item"
               :disabled="isSynced"
-              :title="isSynced ? 'Bundled equals OAP-live — nothing to reset to.' : 'Discard current edits and reload the bundled (shipped) default.'"
+              :title="isSynced ? t('Bundled equals OAP-live — nothing to reset to.') : t('Discard current edits and reload the bundled (shipped) default.')"
               @click="resetTo('bundled')"
             >
-              Bundled<span v-if="isSynced" class="reset-suffix"> (synced)</span>
+              {{ t('Bundled') }}<span v-if="isSynced" class="reset-suffix"> ({{ t('synced') }})</span>
             </button>
             <button
               class="reset-item"
               :disabled="!hasRemote"
-              :title="hasRemote ? 'Discard current edits and reload OAP\'s live version.' : 'OAP has no copy of this config yet.'"
+              :title="hasRemote ? t('Discard current edits and reload OAP\'s live version.') : t('OAP has no copy of this config yet.')"
               @click="resetTo('remote')"
             >
-              Remote
+              {{ t('Remote') }}
             </button>
           </div>
         </div>
         <button class="btn" :disabled="!dirty" @click="save">
-          {{ hasLocalDraft && !dirty ? 'Saved local' : 'Save local' }}
+          {{ hasLocalDraft && !dirty ? t('Saved local') : t('Save local') }}
         </button>
         <button class="btn primary" :disabled="readOnly || (!dirty && !hasLocalDraft)" @click="openPushDiff">
-          Check diff &amp; push
+          {{ t('Check diff & push') }}
         </button>
       </div>
     </header>
@@ -618,15 +620,19 @@ const stats = computed(() => {
     </ul>
 
     <div v-if="loadError" class="loading">
-      Couldn't load the 3D-map config — the BFF may be unreachable. Refresh the page to retry.
+      {{ t('Couldn\'t load the 3D-map config — the BFF may be unreachable. Refresh the page to retry.') }}
     </div>
-    <div v-else-if="!ready" class="loading">Loading config…</div>
+    <div v-else-if="!ready" class="loading">{{ t('Loading config…') }}</div>
     <template v-else-if="draft">
       <!-- ── Global filter ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Global layer filter</h2>
-          <span class="sec-hint">The one top-level gate — a layer this JS regex excludes is off the map (it still shows below in Unpinned, tagged "filtered out"). Default <code>.*</code> admits all.</span>
+          <h2>{{ t('Global layer filter') }}</h2>
+          <span class="sec-hint">
+            <i18n-t keypath='The one top-level gate — a layer this JS regex excludes is off the map (it still shows below in Unpinned, tagged "filtered out"). Default {dotStar} admits all.' tag="span" scope="global">
+              <template #dotStar><code>.*</code></template>
+            </i18n-t>
+          </span>
         </header>
         <div class="sect-body">
           <label class="field">
@@ -639,14 +645,18 @@ const stats = computed(() => {
       <!-- ── Tiers & layers ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Tiers &amp; layers (top → bottom)</h2>
+          <h2>{{ t('Tiers & layers (top → bottom)') }}</h2>
           <span class="sec-hint">
-            Every layer belongs to one tier — set it with the tier dropdown; order = vertical stacking.
-            <strong>{{ stats.oap }}</strong> in OAP<template v-if="stats.unclassified > 0"> ·
-            <strong class="warn-count">{{ stats.unclassified }}</strong> unpinned → fallback</template>
+            {{ t('Every layer belongs to one tier — set it with the tier dropdown; order = vertical stacking.') }}
+            <i18n-t keypath="{count} in OAP" tag="span" scope="global">
+              <template #count><strong>{{ stats.oap }}</strong></template>
+            </i18n-t><template v-if="stats.unclassified > 0"> ·
+            <i18n-t keypath="{count} unpinned → fallback" tag="span" scope="global">
+              <template #count><strong class="warn-count">{{ stats.unclassified }}</strong></template>
+            </i18n-t></template>
           </span>
-          <input class="inp search" v-model="layerSearch" placeholder="filter layers…" />
-          <button type="button" class="btn small" @click="addLevel">+ add tier</button>
+          <input class="inp search" v-model="layerSearch" :placeholder="t('filter layers…')" />
+          <button type="button" class="btn small" @click="addLevel">{{ t('+ add tier') }}</button>
         </header>
         <div class="sect-body">
           <article v-for="(lvl, idx) in levelsSorted" :key="lvl.id" class="tier-card">
@@ -654,11 +664,11 @@ const stats = computed(() => {
               <span class="lvl-order">#{{ lvl.order }}</span>
               <input class="inp lvl-id mono" v-model="lvl.id" placeholder="apps" />
               <input class="inp lvl-label" v-model="lvl.label" placeholder="Apps" />
-              <span class="tier-count">{{ layersByTier[lvl.id]?.length ?? 0 }} layers</span>
+              <span class="tier-count">{{ t('{count} layers', { count: layersByTier[lvl.id]?.length ?? 0 }) }}</span>
               <div class="lvl-spacer" />
               <button type="button" class="btn tiny" :disabled="idx === 0" @click="moveLevel(idx, -1)">↑</button>
               <button type="button" class="btn tiny" :disabled="idx === levelsSorted.length - 1" @click="moveLevel(idx, 1)">↓</button>
-              <button type="button" class="btn tiny danger" @click="removeLevel(lvl.id)">remove</button>
+              <button type="button" class="btn tiny danger" @click="removeLevel(lvl.id)">{{ t('remove') }}</button>
             </header>
             <div class="tier-body">
               <div class="layer-rows">
@@ -666,20 +676,20 @@ const stats = computed(() => {
                   <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)" />
                   <span class="layer-key">{{ row.key }}</span>
                   <template v-if="row.spec?.metric">
-                    <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" placeholder="mqe e.g. service_cpm" />
-                    <input class="inp metric-lbl" v-model="row.spec.metric.label" placeholder="label" />
-                    <input class="inp metric-unit" v-model="row.spec.metric.unit" placeholder="unit" />
-                    <button class="btn tiny danger" type="button" title="remove metric" @click="clearMetric(row.key)">⊘</button>
+                    <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" :placeholder="t('mqe e.g. service_cpm')" />
+                    <input class="inp metric-lbl" v-model="row.spec.metric.label" :placeholder="t('label')" />
+                    <input class="inp metric-unit" v-model="row.spec.metric.unit" :placeholder="t('unit')" />
+                    <button class="btn tiny danger" type="button" :title="t('remove metric')" @click="clearMetric(row.key)">⊘</button>
                   </template>
-                  <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">+ metric</button>
+                  <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">{{ t('+ metric') }}</button>
                   <div class="row-spacer" />
                   <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
-                    <option value="">— unpinned —</option>
-                    <option v-for="t in levelsSorted" :key="t.id" :value="t.id">{{ t.label }}</option>
+                    <option value="">{{ t('— unpinned —') }}</option>
+                    <option v-for="tier in levelsSorted" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
                   </select>
-                  <button class="btn tiny ghost" type="button" title="Remove from this tier (moves to Unpinned)" @click="assignLayerToLevel(row.key, null)">×</button>
+                  <button class="btn tiny ghost" type="button" :title="t('Remove from this tier (moves to Unpinned)')" @click="assignLayerToLevel(row.key, null)">×</button>
                 </div>
-                <div v-if="(layersByTier[lvl.id]?.length ?? 0) === 0" class="tier-empty">No layers pinned — use a layer's tier dropdown to move one here.</div>
+                <div v-if="(layersByTier[lvl.id]?.length ?? 0) === 0" class="tier-empty">{{ t('No layers pinned — use a layer\'s tier dropdown to move one here.') }}</div>
               </div>
             </div>
           </article>
@@ -689,10 +699,11 @@ const stats = computed(() => {
       <!-- ── Unpinned → failover ────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Unpinned layers</h2>
+          <h2>{{ t('Unpinned layers') }}</h2>
           <span class="sec-hint">
-            Pinned to no tier — they land on the failover tier
-            (<strong>{{ levelLabel(draft.unknownLayer.level) }}</strong>). Pick a tier to pin one.
+            <i18n-t keypath="Pinned to no tier — they land on the failover tier ({failoverTier}). Pick a tier to pin one." tag="span" scope="global">
+              <template #failoverTier><strong>{{ levelLabel(draft.unknownLayer.level) }}</strong></template>
+            </i18n-t>
           </span>
         </header>
         <div class="sect-body">
@@ -707,22 +718,22 @@ const stats = computed(() => {
               <span class="layer-key">{{ row.key }}</span>
               <template v-if="row.spec?.metric">
                 <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" placeholder="mqe" />
-                <input class="inp metric-lbl" v-model="row.spec.metric.label" placeholder="label" />
-                <input class="inp metric-unit" v-model="row.spec.metric.unit" placeholder="unit" />
-                <button class="btn tiny danger" type="button" title="remove metric" @click="clearMetric(row.key)">⊘</button>
+                <input class="inp metric-lbl" v-model="row.spec.metric.label" :placeholder="t('label')" />
+                <input class="inp metric-unit" v-model="row.spec.metric.unit" :placeholder="t('unit')" />
+                <button class="btn tiny danger" type="button" :title="t('remove metric')" @click="clearMetric(row.key)">⊘</button>
               </template>
-              <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">+ metric</button>
+              <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">{{ t('+ metric') }}</button>
               <div class="row-spacer" />
-              <span class="via-tag" :data-via="resolvedLevels[row.key]?.via" :title="`falls to ${resolvedLevels[row.key]?.via}`">
-                {{ resolvedLevels[row.key]?.via === 'filtered' ? 'filtered out' : '→ ' + levelLabel(resolvedLevels[row.key]?.levelId ?? null) }}
+              <span class="via-tag" :data-via="resolvedLevels[row.key]?.via" :title="t('falls to {via}', { via: resolvedLevels[row.key]?.via })">
+                {{ resolvedLevels[row.key]?.via === 'filtered' ? t('filtered out') : '→ ' + levelLabel(resolvedLevels[row.key]?.levelId ?? null) }}
               </span>
               <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
-                <option value="">— pin to tier —</option>
-                <option v-for="t in levelsSorted" :key="t.id" :value="t.id">{{ t.label }}</option>
+                <option value="">{{ t('— pin to tier —') }}</option>
+                <option v-for="tier in levelsSorted" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
               </select>
-              <button class="btn tiny danger" type="button" title="Delete this layer from the config entirely" @click="removeLayerFromConfig(row.key)">×</button>
+              <button class="btn tiny danger" type="button" :title="t('Delete this layer from the config entirely')" @click="removeLayerFromConfig(row.key)">×</button>
             </div>
-            <div v-if="unpinnedRows.length === 0" class="empty">No unpinned layers.</div>
+            <div v-if="unpinnedRows.length === 0" class="empty">{{ t('No unpinned layers.') }}</div>
           </div>
         </div>
       </section>
@@ -730,9 +741,9 @@ const stats = computed(() => {
       <!-- ── Groups ────────────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Logic groups</h2>
-          <span class="sec-hint">Several layers drawn as one labelled block on a tier (e.g. Self-Observability). Each member keeps its own cube color.</span>
-          <button type="button" class="btn small" @click="addGroup">+ add group</button>
+          <h2>{{ t('Logic groups') }}</h2>
+          <span class="sec-hint">{{ t('Several layers drawn as one labelled block on a tier (e.g. Self-Observability). Each member keeps its own cube color.') }}</span>
+          <button type="button" class="btn small" @click="addGroup">{{ t('+ add group') }}</button>
         </header>
         <div class="sect-body">
           <div class="groups-grid">
@@ -747,40 +758,40 @@ const stats = computed(() => {
                 <input class="inp group-id mono" v-model="g.id" placeholder="self-observability" />
                 <input class="inp group-label" v-model="g.label" placeholder="Self-Observability" />
                 <div class="lvl-spacer" />
-                <button type="button" class="btn tiny danger" @click="removeGroup(g.id)">remove</button>
+                <button type="button" class="btn tiny danger" @click="removeGroup(g.id)">{{ t('remove') }}</button>
               </header>
               <div class="group-body">
                 <div class="row-2">
                   <label class="field">
-                    <span class="lbl small">level</span>
+                    <span class="lbl small">{{ t('level') }}</span>
                     <select class="inp" v-model="g.level">
                       <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
                     </select>
                   </label>
                   <label class="field">
-                    <span class="lbl small">icon</span>
+                    <span class="lbl small">{{ t('icon') }}</span>
                     <select class="inp" v-model="g.icon">
                       <option v-for="ic in ICON_NAMES" :key="ic" :value="ic">{{ ic }}</option>
                     </select>
                   </label>
                 </div>
                 <div class="field">
-                  <span class="lbl small">member layers ({{ g.layers.length }})</span>
+                  <span class="lbl small">{{ t('member layers ({count})', { count: g.layers.length }) }}</span>
                   <div class="chips">
                     <span v-for="k in g.layers" :key="k" class="chip">
                       {{ k }}
-                      <button class="x" type="button" title="remove from group" @click="removeLayerFromGroup(g, k)">×</button>
+                      <button class="x" type="button" :title="t('remove from group')" @click="removeLayerFromGroup(g, k)">×</button>
                     </span>
                     <select class="add-layer" :value="''" @change="(e) => onAddLayerToGroup(g, e)">
-                      <option value="">＋ add layer…</option>
+                      <option value="">{{ t('＋ add layer…') }}</option>
                       <option v-for="k in groupCandidates(g)" :key="k" :value="k">{{ k }}</option>
                     </select>
                   </div>
-                  <p v-if="g.layers.length === 0" class="hint-sm warn">A group needs at least one layer — pushing will be rejected until you add one.</p>
+                  <p v-if="g.layers.length === 0" class="hint-sm warn">{{ t('A group needs at least one layer — pushing will be rejected until you add one.') }}</p>
                 </div>
               </div>
             </article>
-            <div v-if="(draft.groups ?? []).length === 0" class="empty">No logic groups. Add one to cluster related layers into a single block.</div>
+            <div v-if="(draft.groups ?? []).length === 0" class="empty">{{ t('No logic groups. Add one to cluster related layers into a single block.') }}</div>
           </div>
         </div>
       </section>
@@ -788,17 +799,15 @@ const stats = computed(() => {
       <!-- ── Service-map layers ─────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Service-map layers</h2>
+          <h2>{{ t('Service-map layers') }}</h2>
           <span class="sec-hint">
-            These layers' templates provide a service map, so their cubes render
-            as a call graph (and seed the cross-layer hierarchy). Read-only —
-            it's a layer-template property, not a 3D-map setting.
+            {{ t('These layers\' templates provide a service map, so their cubes render as a call graph (and seed the cross-layer hierarchy). Read-only — it\'s a layer-template property, not a 3D-map setting.') }}
           </span>
         </header>
         <div class="sect-body">
           <div class="chips">
             <span v-for="k in serviceMapLayers" :key="k" class="chip">{{ k }}</span>
-            <span v-if="serviceMapLayers.length === 0" class="chips-empty">None reporting a service map.</span>
+            <span v-if="serviceMapLayers.length === 0" class="chips-empty">{{ t('None reporting a service map.') }}</span>
           </div>
         </div>
       </section>
@@ -806,12 +815,12 @@ const stats = computed(() => {
       <!-- ── Unknown layer fallback ─────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
-          <h2>Failover tier</h2>
-          <span class="sec-hint">The single catch-all: any layer no tier pins lands here.</span>
+          <h2>{{ t('Failover tier') }}</h2>
+          <span class="sec-hint">{{ t('The single catch-all: any layer no tier pins lands here.') }}</span>
         </header>
         <div class="sect-body">
           <label class="field">
-            <span class="lbl">level</span>
+            <span class="lbl">{{ t('level') }}</span>
             <select class="inp fallback-level" v-model="draft.unknownLayer.level">
               <option v-for="lvl in levelsSorted" :key="lvl.id" :value="lvl.id">{{ lvl.label }} ({{ lvl.id }})</option>
             </select>
@@ -822,11 +831,10 @@ const stats = computed(() => {
     </template>
 
     <!-- ── Check diff & push ──────────────────────────────────────────── -->
-    <Modal :open="pushDiffOpen" title="Push 3D-map config to OAP" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+    <Modal :open="pushDiffOpen" :title="t('Push 3D-map config to OAP')" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
       <div class="push-modal">
         <p class="push-lede">
-          Left = live on OAP (remote). Right = your local draft. Pushing
-          replaces the OAP copy — the map renders it on the next visit.
+          {{ t('Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.') }}
         </p>
         <ul v-if="pushErr && pushErr.length" class="issues">
           <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
@@ -834,9 +842,9 @@ const stats = computed(() => {
         <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
       </div>
       <template #footer>
-        <button class="btn" :disabled="pushing" @click="pushDiffOpen = false">Cancel</button>
+        <button class="btn" :disabled="pushing" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
         <button class="btn primary" :disabled="pushing || readOnly" @click="pushToOap">
-          {{ pushing ? 'Pushing…' : 'Push to OAP' }}
+          {{ pushing ? t('Pushing…') : t('Push to OAP') }}
         </button>
       </template>
     </Modal>
