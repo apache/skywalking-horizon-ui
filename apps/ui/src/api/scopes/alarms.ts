@@ -20,6 +20,7 @@ import type {
   AlarmsCountResponse,
   AlarmsQuery,
   AlarmsResponse,
+  AlertingRuleContextResponse,
   AlertingRuleDetailResponse,
   AlertingRulesListResponse,
   BffClient,
@@ -85,6 +86,17 @@ export class AlarmsApi {
     return this.bff.request<AlertingRuleDetailResponse>(
       'GET',
       `/api/admin/alarm-rules/${encodeURIComponent(id)}`,
+    );
+  }
+
+  /** Per-entity running window — the metric snapshot the rule is
+   *  evaluating for one entity right now, per OAP node. Drives the
+   *  alerting-rules row-click popup. */
+  adminRuleContext(id: string, entityName: string): Promise<AlertingRuleContextResponse> {
+    const p = new URLSearchParams({ entity: entityName });
+    return this.bff.request<AlertingRuleContextResponse>(
+      'GET',
+      `/api/admin/alarm-rules/${encodeURIComponent(id)}/context?${p.toString()}`,
     );
   }
 }
