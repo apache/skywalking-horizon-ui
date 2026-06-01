@@ -189,6 +189,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // ── Alarm-rule catalog (admin read-only) ─────────────────────────
   'GET /api/admin/alarm-rules':                    'alarm-rule:read',
   'GET /api/admin/alarm-rules/:id':                'alarm-rule:read',
+  'GET /api/admin/alarm-rules/:id/context':        'alarm-rule:read',
 
   // ── Overview-template editor (admin) ─────────────────────────────
   // The admin editor is an operate-only surface — even reading the

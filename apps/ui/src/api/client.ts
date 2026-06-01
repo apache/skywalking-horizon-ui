@@ -546,6 +546,42 @@ export interface AlertingRuleDetailResponse {
   detail: AlarmRuleDetail | null;
   nodes: Array<{ address: string; ok: boolean; error?: string; detail: AlarmRuleDetail | null }>;
 }
+/** Per-entity running window from `/status/alarm/{ruleId}/{entityName}`.
+ *  Only the node evaluating the entity returns a populated body; other
+ *  nodes return a stub and omit the evaluation-only fields. Mirrors the
+ *  BFF's `AlarmRunningContext`. */
+export interface AlarmRunningContext {
+  ruleId: string;
+  expression: string;
+  endTime?: string;
+  additionalPeriod: number;
+  size: number;
+  silencePeriod?: number;
+  recoveryObservationPeriod?: number;
+  silenceCountdown: number;
+  recoveryObservationCountdown: number;
+  currentState?: string;
+  entityName?: string;
+  windowValues: Array<{ index: number; metrics: Array<{ name: string; timeBucket: number; value: string }> }>;
+  /** Metric name → JSON-encoded MQE series array. */
+  mqeMetricsSnapshot?: Record<string, string>;
+  lastAlarmTime: number | string;
+  lastAlarmMessage?: string;
+  lastAlarmMqeMetricsSnapshot?: Record<string, string>;
+}
+/** One series inside a parsed `mqeMetricsSnapshot` value. */
+export interface AlarmMqeSnapshotSeries {
+  metric: { labels: Array<{ key: string; value: string }> };
+  values: Array<{ id: string; doubleValue: number; isEmptyValue: boolean }>;
+}
+export interface AlertingRuleContextResponse {
+  ruleId: string;
+  entityName: string;
+  generatedAt: number;
+  reachable: boolean;
+  error?: string;
+  nodes: Array<{ address: string; ok: boolean; error?: string; context: AlarmRunningContext | null }>;
+}
 /** Allowed values for `AlarmsConfig.defaultWindowMs`, in ms. Matches
  *  the alarms page's preset list so the admin's choice always
  *  corresponds to a real tab. */

@@ -189,6 +189,30 @@ sync-status banners count source rows only.
   picker lists the canonical English bundled dashboards once each,
   and the preview renders the English source as the baseline.
 
+### Alerting rules — running entities show their OAP node
+
+The **Operate › Alerting rules** detail pane's **Currently watching**
+list now spans the whole cluster and tags each entity with the OAP
+node evaluating it. Each OAP instance evaluates a rule independently
+over the slice of entities it holds, so the watched set is the union
+across nodes — the page previously showed only the first responding
+node's entities, which misread as "these are all the entities the rule
+watches." The list now aggregates every instance's entities and labels
+each row with its node (e.g. `SERVICE  agent::app  NODE 10.116.3.26_11800`),
+with the per-entity alarm message on hover. The per-node load-state
+table is unchanged. Single-instance deployments simply show one node
+label per row.
+
+Clicking a watched entity now opens a **running-context popup** — the
+live evaluation window the rule is computing for that entity, per OAP
+node. It shows the current state (`FIRING` / `SILENCED_FIRING` /
+`RECOVERY_OBSERVATION`), the window size and silence / recovery
+countdowns, the window end, the last-alarm time and message, and the
+per-metric snapshot the expression was evaluated against — rendered as
+a sparkline plus per-bucket values so an operator can see exactly why a
+rule is (or isn't) firing. Nodes not evaluating the entity are marked
+as such, and a raw-JSON disclosure carries the full payload.
+
 ### Live debugger fixes
 
 A clutch of small but visible bugs were caught while exercising the

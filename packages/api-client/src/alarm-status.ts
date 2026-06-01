@@ -96,17 +96,70 @@ export interface AlarmRuleDetail {
   includeMetrics: string[];
 }
 
-/** Returned by `/status/alarm/{ruleId}/{entityName}` — per-entity
- *  running window state. Used for the "what's the rule currently
- *  seeing for this entity?" pane. */
+/** One raw metric reading inside a `windowValues` bucket. `value` is a
+ *  string on the wire (OAP serialises the metric's stored value as-is). */
+export interface AlarmWindowMetric {
+  name: string;
+  timeBucket: number;
+  value: string;
+}
+
+/** One bucket of the rule's sliding evaluation window. `index` runs
+ *  0..size-1; `metrics` is empty for buckets that received no data. */
+export interface AlarmWindowBucket {
+  index: number;
+  metrics: AlarmWindowMetric[];
+}
+
+/** One value point in a parsed MQE snapshot series. */
+export interface AlarmMqeSnapshotValue {
+  id: string;
+  doubleValue: number;
+  isEmptyValue: boolean;
+}
+
+/** A single MQE series as produced by the alarm checker. Lives inside
+ *  the `mqeMetricsSnapshot` map JSON-encoded per metric — callers parse
+ *  the string value into `AlarmMqeSnapshotSeries[]`. */
+export interface AlarmMqeSnapshotSeries {
+  metric: { labels: Array<{ key: string; value: string }> };
+  values: AlarmMqeSnapshotValue[];
+}
+
+/** Returned by `/status/alarm/{ruleId}/{entityName}` — the rule's
+ *  running window state for ONE entity, per OAP node. Only the node
+ *  actually evaluating the entity returns a populated body; other nodes
+ *  return a stub (`size: 0`, empty `windowValues`, `lastAlarmTime: 0`)
+ *  and OMIT the evaluation-only fields (`currentState`, `entityName`,
+ *  `mqeMetricsSnapshot`, …) — hence the optionals. */
 export interface AlarmRunningContext {
-  ruleName: string;
-  entity: string;
-  /** Sliding window snapshot — bucket-per-metric values currently in
-   *  the rule's evaluation window. Shape varies by rule; the UI
-   *  renders as raw JSON for now. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
+  ruleId: string;
+  expression: string;
+  /** Window end as an OAP-server-local datetime string. Absent on a
+   *  node that isn't evaluating this entity. */
+  endTime?: string;
+  additionalPeriod: number;
+  /** Window size = `period + additionalPeriod`. `0` on a non-evaluating
+   *  node. */
+  size: number;
+  silencePeriod?: number;
+  recoveryObservationPeriod?: number;
+  /** Silence countdown; `-1` means not running. */
+  silenceCountdown: number;
+  recoveryObservationCountdown: number;
+  /** e.g. `FIRING` / `SILENCED_FIRING` / `RECOVERY_OBSERVATION`. Absent
+   *  when this node isn't evaluating the entity. */
+  currentState?: string;
+  entityName?: string;
+  windowValues: AlarmWindowBucket[];
+  /** Metric name → JSON-encoded `AlarmMqeSnapshotSeries[]` (the data the
+   *  expression was evaluated against this tick). */
+  mqeMetricsSnapshot?: Record<string, string>;
+  /** Epoch-ms of the last fire; `0` once recovered. Wire type is loose
+   *  (number or numeric string), so callers coerce. */
+  lastAlarmTime: number | string;
+  lastAlarmMessage?: string;
+  lastAlarmMqeMetricsSnapshot?: Record<string, string>;
 }
 
 export class AlarmStatusApiError extends Error {
