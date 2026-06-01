@@ -7,6 +7,10 @@ file-by-file implementation. For per-commit detail, see the git log.
 The version line is shared by every package in the monorepo (apps + shared
 packages) plus the BFF's `HORIZON_VERSION` default.
 
+## 0.7.0
+
+(In development — fill in highlights here before cutting the release.)
+
 ## 0.6.0
 
 This release is the production-readiness pass for Horizon UI: every page
