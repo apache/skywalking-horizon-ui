@@ -263,7 +263,7 @@ if (staticDir && existsSync(staticDir)) {
 // admin status pages.
 app.get('/api/health', async () => ({
   status: 'ok',
-  version: process.env.HORIZON_VERSION ?? '0.6.0-dev',
+  version: process.env.HORIZON_VERSION ?? '0.6.0',
 }));
 
 const { host, port } = source.current.server;

@@ -1,6 +1,6 @@
 {
   "name": "@skywalking-horizon-ui/bff",
-  "version": "0.6.0-dev",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "main": "dist/server.js",
