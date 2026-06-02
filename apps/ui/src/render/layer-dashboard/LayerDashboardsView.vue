@@ -78,6 +78,12 @@ const { selectedId } = useSelectedService();
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
 const instanceSlotLabel = computed(() => layer.value?.slots?.instances ?? 'Instance');
+const instanceEmptyHint = computed(() => {
+  if (layerKey.value === 'AIRFLOW') {
+    return 'Ensure Airflow OpenTelemetry export is enabled and scheduler / worker / triggerer hosts report metrics with host.name in the active time window.';
+  }
+  return 'Keep the app running with native meter and set APP_VERSION or SW_AGENT_INSTANCE_NAME.';
+});
 
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -697,8 +703,7 @@ function isVisible(
     <div v-if="reachable && dashboardUpstreamBlocked" class="empty">
       <template v-if="scope === 'instance'">
         No {{ instanceSlotLabel.toLowerCase() }} to chart for <b>{{ serviceName }}</b>.
-        Keep the app running with native meter and set
-        <code>APP_VERSION</code> or <code>SW_AGENT_INSTANCE_NAME</code>.
+        {{ instanceEmptyHint }}
       </template>
       <template v-else-if="scope === 'endpoint'">
         No endpoints to chart for <b>{{ serviceName }}</b> in the active window.
