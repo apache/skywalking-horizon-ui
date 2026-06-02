@@ -12,11 +12,11 @@ This page is the shortest path from "no Horizon" to "Horizon in front of a runni
 
 ### 1. Unpack Horizon
 
-Unpack the binary tarball and copy the example config:
+Unpack the binary tarball (substitute the release version you downloaded for `<version>`) and copy the example config:
 
 ```sh
-tar -xzf apache-skywalking-horizon-ui-0.5.0-bin.tar.gz
-cd apache-skywalking-horizon-ui-0.5.0-bin
+tar -xzf apache-skywalking-horizon-ui-<version>-bin.tar.gz
+cd apache-skywalking-horizon-ui-<version>-bin
 cp horizon.example.yaml horizon.yaml
 ```
 
@@ -100,7 +100,7 @@ docker run -d --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
   -v horizon-state:/data \
-  ghcr.io/apache/skywalking-horizon-ui:0.5.0
+  ghcr.io/apache/skywalking-horizon-ui:<version>
 ```
 
 See [Container Image](container-image.md) for image tags, Kubernetes YAML, log handling, and probes.

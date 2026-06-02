@@ -9,7 +9,20 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
-(In development — fill in highlights here before cutting the release.)
+### Documentation & release tooling
+
+- The website docs were brought current with the 0.6.0 build and the
+  configuration pages restructured around the admin UI — the JSON shape is
+  now a reference appendix, not an authoring surface (these admin pages are
+  structured editors, not raw-JSON editors). Accuracy fixes span the RBAC
+  verbs (incl. `infra-3d:read`), the audit-log action set, the Metrics
+  Inspect API paths, the layer-template component flags, and the redesigned
+  3D-map config + loading stages. A new `docs/CLAUDE.md` records the
+  doc-writing principles, and the i18n docs gain a language × scope coverage
+  matrix plus a translation step in the add-a-layer recipe.
+- The container image is published to Docker Hub by CI on every `v*` tag;
+  the post-vote finalize script now only verifies the published tags (the
+  manual local-push fallback and Docker Hub login preflight were removed).
 
 ## 0.6.0
 

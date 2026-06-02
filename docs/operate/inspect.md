@@ -24,7 +24,7 @@ If any of these is missing, the page surfaces a hint banner directing the operat
 
 ## Catalog browser
 
-**Endpoint:** `GET /inspect/metrics?regex=<pattern>&type=<type>&catalog=<catalog>&mqeQueryable=<bool>`
+**Endpoint:** `GET /api/inspect/metrics?regex=<pattern>&type=<type>&catalog=<catalog>&mqeQueryable=<bool>`
 
 Filters:
 
@@ -48,7 +48,7 @@ The list is virtualized — a typical OAP exposes hundreds of metrics; scrolling
 
 ## Entity enumerator
 
-**Endpoint:** `GET /inspect/entities?metric=<name>&start=<...>&end=<...>&step=<DAY|HOUR|MINUTE>&limit=<n>`
+**Endpoint:** `GET /api/inspect/entities?metric=<name>&start=<...>&end=<...>&step=<DAY|HOUR|MINUTE>&limit=<n>`
 
 For a chosen metric, OAP returns the set of entities that have data in the window. Useful for:
 

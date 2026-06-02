@@ -26,12 +26,13 @@ Known verbs are grouped into areas:
 | `topology:read` | Topology tab, topology widgets on overviews. |
 | `profile:read` | Profiling tab (results read-only). |
 | `overview:read` | Public overview dashboards. |
+| `infra-3d:read` | 3D Infrastructure Map — the map's config + live traffic metrics. |
 
 ### Operate — dashboards, rules, diagnostics
 
 | Verb | Gates |
 |---|---|
-| `overview:write` | Overview templates admin page (`/admin/overview-templates`): edit. |
+| `overview:write` | Overview templates (`/admin/overview-templates`) and the 3D-map config (`/admin/3d-map`): edit / publish. |
 | `dashboard:read` / `dashboard:write` | Layer dashboard templates admin page: list / edit. |
 | `alarm-setup:read` / `alarm-setup:write` | Alarm Setup page: list / edit. |
 | `alarm-rule:read` / `alarm-rule:write` | Alarm Rule catalog: list / edit. |

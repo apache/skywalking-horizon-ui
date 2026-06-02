@@ -39,16 +39,16 @@
 #   3. Verify the Docker Hub multi-arch image — CI's publish-image
 #      workflow mirrors the GHCR image to Docker Hub automatically on
 #      every `v*` tag push (apache/skywalking-ui:horizon-<v> and
-#      apache/skywalking-ui:latest). This step just confirms the two
-#      expected tags are present. Falls back to a manual local mirror
-#      (same `docker buildx imagetools create` CI runs) if CI didn't
-#      publish — needs Docker Hub push rights on apache/skywalking-ui.
+#      apache/skywalking-ui:latest). This step only CONFIRMS the two
+#      expected tags are present; publishing is CI's job. There is no
+#      local-push fallback — if the tags are missing, re-run the
+#      publish-image workflow and re-run this script.
 #
 # Usage:  bash scripts/release-finalize.sh
 #
 # The script is idempotent-ish and confirms before every irreversible step
-# (SVN move, SVN delete, gh release, each image push). Nothing destructive
-# happens without a y/N.
+# (SVN move, SVN delete, gh release). Nothing destructive happens without
+# a y/N. The Docker Hub image is published by CI, not here.
 
 set -e -o pipefail
 
@@ -80,7 +80,7 @@ svn_exists() {
 note "Step 1 — Tool + auth preflight"
 
 MISSING=()
-for t in svn gh git docker shasum curl node; do
+for t in svn gh git docker shasum curl; do
     command -v "$t" >/dev/null || MISSING+=("$t")
 done
 if [ ${#MISSING[@]} -gt 0 ]; then
@@ -89,8 +89,8 @@ if [ ${#MISSING[@]} -gt 0 ]; then
 fi
 
 if ! docker buildx version >/dev/null 2>&1; then
-    err "docker buildx is required (Step 5 uses 'imagetools create' to copy"
-    err "the CI-built multi-arch manifest from GHCR to Docker Hub)."
+    err "docker buildx is required (Step 5 uses 'imagetools inspect' to"
+    err "verify the CI-published Docker Hub tags)."
     exit 1
 fi
 
@@ -100,21 +100,6 @@ if ! gh auth status >/dev/null 2>&1; then
     exit 1
 fi
 echo "gh: $(gh auth status 2>&1 | grep -m1 'Logged in' | sed 's/^[[:space:]]*//')"
-
-# Docker Hub: confirm a stored login. The push itself will 403 if the
-# logged-in account lacks push rights to the apache org — surface the
-# identity now so a wrong account is caught before the long build.
-DOCKER_USER=$(printf 'https://index.docker.io/v1/' | docker-credential-desktop get 2>/dev/null \
-    | node -e "let s='';process.stdin.on('data',d=>s+=d);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(s).Username||'')}catch(e){}})" 2>/dev/null || true)
-if [ -z "${DOCKER_USER}" ]; then
-    echo "Could not read a Docker Hub login from the credential store."
-    echo "If you are not logged in, run:  docker login"
-    confirm "Continue anyway (the push will fail if not authorized)?" || { echo "Aborted."; exit 1; }
-else
-    echo "Docker Hub login: ${DOCKER_USER}"
-    echo "  NOTE: pushing to ${DOCKERHUB_REPO} needs this account to have push rights"
-    echo "        in the 'apache' Docker Hub org. The push 403s otherwise."
-fi
 
 # ========================== Step 2: Detect version ==========================
 note "Step 2 — Detect release version"
@@ -263,55 +248,31 @@ else
     fi
 fi
 
-# ========================== Step 5: Docker Hub multi-arch image ==========================
-note "Step 5 — Docker Hub image: ${DOCKERHUB_REPO}"
+# ========================== Step 5: Verify Docker Hub image ==========================
+note "Step 5 — Verify Docker Hub image: ${DOCKERHUB_REPO}"
 
 # CI (.github/workflows/publish-image.yaml) mirrors the multi-arch image
 # to Docker Hub automatically on every `v*` tag push, so by the time
-# you're finalizing a passed vote this should already be live. We just
-# verify the two expected tags are present.
-#
-# Fallback: if CI didn't publish (workflow failed / secrets missing /
-# tag pushed before this workflow shipped), we fall back to the manual
-# `docker buildx imagetools create` mirror from the GHCR canonical tag
-# — same operation CI does, run locally. That needs Docker Hub push
-# rights on `apache/skywalking-ui`.
+# you're finalizing a passed vote it is already live. This step only
+# VERIFIES the expected tags are present — publishing is CI's job, there
+# is no local-push fallback.
 DH_VERSION_TAG="${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}"
 DH_LATEST_TAG="${DOCKERHUB_REPO}:latest"
-GHCR_SRC="ghcr.io/apache/skywalking-horizon-ui:${RELEASE_VERSION}"
 
 echo "Expected on Docker Hub:"
 echo "  ${DH_VERSION_TAG}   (immutable, this release)"
 echo "  ${DH_LATEST_TAG}                      (moving — newest Horizon release)"
 
 if docker buildx imagetools inspect "${DH_VERSION_TAG}" >/dev/null 2>&1; then
-    echo "✓ ${DH_VERSION_TAG} already on Docker Hub — CI's publish-image mirror succeeded."
-    echo "  Verify:  docker buildx imagetools inspect ${DH_VERSION_TAG}"
+    echo "✓ ${DH_VERSION_TAG} is on Docker Hub — CI's publish-image mirror succeeded."
+    echo "  Inspect:  docker buildx imagetools inspect ${DH_VERSION_TAG}"
 else
-    echo "✗ ${DH_VERSION_TAG} NOT on Docker Hub yet."
-    echo "  This is the expected outcome only if the publish-image workflow"
-    echo "  failed or didn't run on tag ${TAG}. Check:"
-    echo "    https://github.com/apache/skywalking-horizon-ui/actions/workflows/publish-image.yaml"
-    if ! docker buildx imagetools inspect "${GHCR_SRC}" >/dev/null 2>&1; then
-        err "Source ${GHCR_SRC} not on GHCR either — CI didn't produce a multi-arch"
-        err "image to mirror. Re-run publish-image on ${TAG} from the Actions UI"
-        err "and then re-run this script."
-        exit 1
-    fi
-    if confirm "Fall back to a manual local mirror from ${GHCR_SRC}?"; then
-        docker buildx imagetools create \
-            -t "${DH_VERSION_TAG}" \
-            -t "${DH_LATEST_TAG}" \
-            "${GHCR_SRC}"
-        echo "Pushed multi-arch manifest to ${DOCKERHUB_REPO}."
-    else
-        echo "Skipped Docker Hub push — fix CI and re-run, OR run the imagetools"
-        echo "create manually:"
-        echo "  docker buildx imagetools create \\"
-        echo "    -t ${DH_VERSION_TAG} \\"
-        echo "    -t ${DH_LATEST_TAG} \\"
-        echo "    ${GHCR_SRC}"
-    fi
+    err "✗ ${DH_VERSION_TAG} is NOT on Docker Hub."
+    err "  CI's publish-image workflow did not mirror tag ${TAG}. The SVN promote +"
+    err "  GitHub release above already succeeded; only the image is missing. Re-run"
+    err "  the workflow (workflow_dispatch with tag ${TAG}), then re-run this script:"
+    err "    https://github.com/apache/skywalking-horizon-ui/actions/workflows/publish-image.yaml"
+    exit 1
 fi
 
 # ========================== Done ==========================

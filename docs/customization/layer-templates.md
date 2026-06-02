@@ -2,9 +2,9 @@
 
 A **layer template** is a single JSON file that describes everything Horizon needs to know about one OAP layer: its display name, color, sidebar grouping, which sub-tabs to expose, the service-list picker columns, the per-scope widget grids, the trace/log/topology routing, and the service-name parsing rule.
 
-There is **one template per layer**, stored under `apps/bff/src/bundled_templates/layers/<key>.json` (lowercase filename matches the OAP layer enum, e.g. `general.json` for the `GENERAL` layer).
+There is **one template per layer**. Horizon ships a bundled template for every supported layer, and an administrator customizes them in the **Layer Dashboards** admin page (under *Dashboard setup*) — a visual editor that saves a local draft and publishes to OAP with **Check diff & push**. You don't hand-edit JSON on the page; the shape documented below is the stored format the editor reads and writes, useful for understanding what each control maps to and for authoring templates as files.
 
-## Top-level shape
+## Template shape (reference)
 
 ```json
 {
@@ -22,6 +22,7 @@ There is **one template per layer**, stored under `apps/bff/src/bundled_template
     "service":   [ ... widgets ... ],
     "instance":  [ ... widgets ... ],
     "endpoint":  [ ... widgets ... ],
+    "dependency":[ ... widgets ... ],
     "topology":  [ ... widgets ... ],
     "trace":     [ ... widgets ... ],
     "logs":      [ ... widgets ... ],
@@ -83,17 +84,21 @@ Per-tab feature toggles. A `false` value hides the tab.
 
 ```json
 "components": {
-  "service":   true,
-  "instance":  true,
-  "endpoint":  true,
-  "topology":  true,
-  "trace":     true,
-  "logs":      false,
-  "profiling": true
+  "service":            true,
+  "instances":          true,
+  "endpoints":          true,
+  "endpointDependency": true,
+  "topology":           true,
+  "traces":             true,
+  "logs":               true,
+  "traceProfiling":     true,
+  "ebpfProfiling":      false,
+  "asyncProfiling":     false,
+  "pprofProfiling":     false
 }
 ```
 
-The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instance → endpoint → topology → trace → logs → profiling`.
+The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available; any key omitted defaults to enabled. The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instances → endpoints → endpointDependency → topology → traces → logs → traceProfiling`.
 
 ## `header`
 

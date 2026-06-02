@@ -10,10 +10,10 @@ Each event has these fields:
 |---|---|
 | `ts` | ISO-8601 timestamp. |
 | `actor` | Username, or `null` for system events. |
-| `action` | Operation name, such as `auth.login` or `rule.addOrUpdate`. |
+| `action` | Operation name, such as `auth.login` or `addOrUpdate`. |
 | `verb` | RBAC verb checked, when applicable. |
 | `target` | Resource id or name, when applicable. |
-| `outcome` | `success`, `failure`, `break-glass`, or the upstream HTTP/OAP status. |
+| `outcome` | `success` / `ok` / `break-glass` for normal flows; the OAP `applyStatus` or `http_<code>` on an upstream failure. |
 | `details` | Extra context for the operation. |
 | `fromIp` | Requester IP. |
 | `sessionId` | Session id, when a session exists. |
@@ -26,21 +26,22 @@ tail -f horizon-audit.jsonl | jq -c 'select(.action | startswith("auth."))'
 
 ## Recorded actions
 
-The recorded set can grow between releases. In 0.5.0:
+The recorded set can grow between releases. The current set:
 
 | Action | Outcome values | Notes |
 |---|---|---|
 | `auth.login` | `success`, `failure` | Standard login. `details.backend` is `local` or `ldap`. On success `details.roles` carries the resolved role list. |
 | `auth.login.break-glass` | `break-glass` | Emergency admin login. Logged in addition to a WARN application log line. |
 | `auth.logout` | `success` | Explicit logout (cookie cleared). Sessions that simply expire are not logged. |
-| `rule.addOrUpdate` | `success`, HTTP status on failure | DSL Management create / update. `target` is the rule name; `details` carries the diff summary. |
-| `rule.delete` | `success`, HTTP status on failure | DSL Management delete. |
-| `alarm-rule.addOrUpdate` | `success`, HTTP status on failure | Alarm Rule editor write. |
-| `setup.write` | `success`, HTTP status on failure | Per-user setup state write. |
-| `overview-template.write` | `success` | Overview template admin edits. |
-| `layer-template.write` | `success` | Layer template admin edits. |
+| `addOrUpdate` | OAP `applyStatus`, or `http_<code>` on failure | DSL Management — create / update a rule. `target` is the rule name; `details.catalog` is the rule catalog (alarm, MAL, OAL, …). |
+| `inactivate` | OAP `applyStatus`, or `http_<code>` | DSL Management — deactivate a rule. |
+| `delete` | OAP `applyStatus`, or `http_<code>` | DSL Management — delete a rule. `details.mode` is the delete mode. |
+| `alarms.config.save` | `ok`, or an error status on failure | Alarm page setup save. |
+| `setup.save` | `success`, or an error status on failure | Per-user setup state write (service / instance / endpoint setup). |
+| `debug.start` | `ok`, or an error status on failure | Live Debugger — start a session. |
+| `debug.stop` | `ok`, or an error status on failure | Live Debugger — stop a session. |
 
-`outcome` is the literal string for normal flows (`success`, `failure`, `break-glass`) and a stringified HTTP / OAP status code when the underlying call failed. This makes audit-time error correlation straightforward: an entry with `outcome: "503"` tells you OAP returned a server error.
+`outcome` is a short literal for normal flows (`success`, `ok`, or `break-glass`) and, when the underlying OAP call fails, the OAP `applyStatus` value or `http_<code>`. This makes audit-time error correlation straightforward: an entry with `outcome: "http_503"` tells you OAP returned a server error.
 
 ## Example entries
 
@@ -93,10 +94,11 @@ The recorded set can grow between releases. In 0.5.0:
 {
   "ts": "2026-05-18T15:02:11.004Z",
   "actor": "alice",
-  "action": "rule.addOrUpdate",
+  "action": "addOrUpdate",
   "verb": "rule:write",
   "target": "service_resp_time_rule",
   "outcome": "success",
+  "details": { "catalog": "alarm" },
   "fromIp": "10.0.5.12",
   "sessionId": "k7r..."
 }

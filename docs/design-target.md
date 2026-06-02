@@ -23,6 +23,7 @@ Horizon ships dedicated widget primitives for observability stacks instead of ge
 - **KpiTileWidget** — compound tile combining a service count with N KPI rows (number or progress-bar style).
 - **MetricCompositeWidget** — mixed-style KPI grid (e.g., Kubernetes cluster summary: node count + CPU/memory progress bars).
 - **AlarmsWidget** — read-only active-incident rail with a 60-minute window, dual-mode (modern `queryAlarms` capability + legacy `getAlarm` fallback).
+- **Topology** — embedded service-map snapshot for the configured layer, showing live services and call flows on an overview.
 - **TimeChart** — multi-series line chart with dual y-axis, synced crosshairs across all widgets on the same page.
 - **TopList** — top-N sorted list with optional tab switcher for multiple expressions.
 - **AlarmsTimeline** — per-minute stacked bar with brush selection for triage.

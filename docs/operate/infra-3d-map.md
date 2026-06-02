@@ -128,8 +128,12 @@ progress live:
 1. **Services** — the service roster and which layers they belong to.
 2. **Templates** — which layers carry a topology.
 3. **Topologies** — each topology-bearing layer's call graph.
-4. **Layout** — placing the cubes.
-5. **Metrics** — the per-service traffic numbers, fetched in batches so
+4. **Hierarchy** — the cross-tier identity links between the different
+   views of the same service. Only services that are new since the last
+   run are fetched; the rest are reused, so a steady deployment costs
+   nothing here on refresh.
+5. **Layout** — placing the cubes.
+6. **Metrics** — the per-service traffic numbers, fetched in batches so
    the cubes light up progressively.
 
 Each step shows its status as the map builds; click a step to open a
@@ -139,33 +143,42 @@ strip re-runs the whole sequence.
 
 ## Configuration
 
-The map is driven by a global configuration that an administrator edits
-at `/admin/3d-map` (linked under **Dashboard setup** in the sidebar).
-The editor is the same dark, dense surface as the rest of Horizon's
-admin pages, with a structured form plus an advanced raw-JSON view.
+What the map shows is driven by a single configuration that an
+administrator edits in the UI at `/admin/3d-map` (linked under
+**Dashboard setup** in the sidebar). It is a **structured editor** — you
+work with tiers, layers, colors, and metrics through form controls, not
+raw JSON. Horizon ships a bundled default so the map is useful out of the
+box; your edits are kept as a local draft in your browser, and **Check
+diff & push** publishes them to OAP — which is the copy the map then
+renders (falling back to the bundled default if OAP has none).
 
-From it you can:
+From the editor you can:
 
-- **Filter layers** — a global filter, plus a per-tier filter, to choose
-  which layers appear on the map.
-- **Arrange tiers** — rename tiers, reorder them top-to-bottom, and
-  assign each layer to a tier.
+- **Filter layers** — one global layer filter, written as a regex. A
+  layer it excludes is dropped from the map entirely. This is the only
+  filter; everything it admits is then placed on a tier.
+- **Arrange tiers** — rename tiers, reorder them top-to-bottom, and pin
+  each layer to a tier. A layer you don't pin lands on the **failover
+  tier** you nominate, so nothing silently falls off the map.
+- **Group layers** — cluster several related layers (for example the
+  SkyWalking self-observability components) into one labelled block on a
+  tier, while each member keeps its own cube color.
 - **Color layers** — pick each layer's brand color (used for the cube,
   zone, and stamp).
-- **Choose traffic metrics** — pick the throughput metric and unit each
-  layer's cubes display. Topology layers can carry both a server-side and
-  client-side metric (the server side is preferred, with the client side
-  as a fallback); other layers carry a single load metric. The bundled
-  defaults are seeded from each layer's dashboard template, so most
-  layers show a sensible number out of the box.
-- **Style connections** — adjust the color and weight of the in-layer,
-  cross-layer, and hierarchy lines.
+- **Choose a traffic metric** — for each layer, set the single throughput
+  metric its cubes display: the MQE expression, a display label, and a
+  unit. The bundled defaults are seeded from each layer's dashboard
+  template, so most layers show a sensible number out of the box.
 
-Saving takes effect the next time the map is opened. A **Reset to
-bundled** action restores the shipped defaults for review before saving.
+A read-only **Service-map layers** list shows which layers lay their
+cubes out as a call graph — that comes from each layer's template (its
+service-map capability), not from this page.
 
-The bundled configuration is the read-only baseline; saved changes
-shadow it. Both the map and the editor are gated by access control — any
-signed-in user with read access can view the map, while editing the
-configuration requires the 3D-map write permission (granted to operators
-and admins by default). See [Roles and Permissions](../access-control/rbac.md).
+Pushed changes take effect the next time the map is opened. A **Reset**
+action reloads either the shipped bundled default or OAP's current
+version, so you can start over before saving.
+
+Viewing the map needs read access (`infra-3d:read`, held by the built-in
+viewer role and above); editing and publishing the configuration needs
+`overview:write` (operators and admins by default). See
+[Roles and Permissions](../access-control/rbac.md).

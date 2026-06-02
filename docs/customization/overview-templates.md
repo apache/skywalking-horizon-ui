@@ -2,12 +2,12 @@
 
 An **overview template** is a JSON file describing a war-room / cross-cutting dashboard composed from MQE-driven widgets on a 12-column grid. Overviews are independent of any single layer and are designed for the operator's "is everything OK?" pane.
 
-Bundled templates: `apps/bff/src/bundled_templates/overviews/<id>.json`. Examples:
+Horizon ships bundled overview templates, and an administrator customizes them in the **Overview Templates** admin page (`/admin/overview-templates`, under *Dashboard setup*) — a visual editor that saves a local draft and publishes to OAP with **Check diff & push**. You don't hand-edit JSON on the page; the shape documented below is the stored format the editor reads and writes. Bundled examples:
 
-- `services.json` — cross-layer service health + Kubernetes capacity summary.
-- `mesh.json` — Istio data-plane services + pilot activity + Kubernetes.
+- **Service Health** — cross-layer service health + Kubernetes capacity summary.
+- **Mesh** — Istio data-plane services + pilot activity + Kubernetes.
 
-## Top-level shape
+## Template shape (reference)
 
 ```json
 {
