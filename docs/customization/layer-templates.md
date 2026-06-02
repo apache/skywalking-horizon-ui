@@ -339,6 +339,14 @@ Your work-in-progress lives **in your browser**, never on the server until you p
 
 A top banner summarizes page state — *Synced from OAP — N diverged, Y local* — and **Diverged** / **Local** filters narrow the picker. Each row shows a status chip: **synced** (bundled == OAP), **diverged** (OAP differs from bundled — OAP wins at render), **remote-only** (on OAP, no bundled default), **disabled** (deleted — see below), or **bundled** (OAP has no copy right now).
 
+### Import / Export
+
+**Export** downloads the layer's **in-use version** — what end users render now (the OAP-live copy, or the bundled default when OAP has none) — as a JSON file, for backup, sharing, or moving the dashboard to another OAP.
+
+**Import** reads a layer-template JSON file and loads it as a **local draft** in this browser — it never writes OAP directly. Preview it, then **Check diff & push** to publish. Because layer keys are a fixed set, import targets the layer the file names (e.g. `MESH`), and that layer must already be present on this deployment; a file for a layer not loaded here, or one that isn't a valid layer template, is rejected with a message.
+
+Import/export covers the **source layer template** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](/customization/i18n) page — they're not part of this file. A layer exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
+
 ### Disabling / reactivating a layer
 
 OAP has no hard delete, so the **Disable** button next to the layer title soft-disables the layer on OAP. A disabled layer is dropped from the sidebar and renders nowhere, for everyone.

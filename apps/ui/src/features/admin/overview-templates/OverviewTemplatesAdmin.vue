@@ -36,7 +36,7 @@
   decisions, not config tweaks.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
@@ -50,6 +50,7 @@ import type { OverviewTemplateSummary } from '@/api/scopes/overview';
 import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplateEdits';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
+import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
 import { useLayers } from '@/shell/useLayers';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
@@ -809,6 +810,46 @@ async function pushToOap(): Promise<void> {
   }
 }
 
+// ── Import / Export ────────────────────────────────────────────────
+// Export downloads the IN-USE version (what end users render: remote,
+// else bundled) — never the editor draft. A never-published local-only
+// draft has no in-use version, so Export is disabled there.
+const canExport = computed<boolean>(() => remoteAvailable.value || bundledExists.value);
+function onExport(): void {
+  if (!editName.value) return;
+  const inUse =
+    sources.remote<OverviewDashboard>(editName.value) ??
+    sources.bundled<OverviewDashboard>(editName.value);
+  if (!inUse) return;
+  downloadJson(`${editName.value}.json`, buildExportEnvelope('overview', editName.value, inUse));
+}
+// Import stages a file as a LOCAL draft for the dashboard the file names
+// (a new id creates a new local-only draft), then selects it. Order
+// matters: set the draft first so `localOnlyDrafts` sees a new id before
+// the auto-select watchEffect runs, then select + force-load local so an
+// unsaved-but-dirty editor doesn't suppress the seed watcher.
+async function onImportFile(): Promise<void> {
+  const text = await pickJsonFile();
+  if (text === null) return;
+  const res = validateImport('overview', text);
+  if (!res.ok) {
+    setFlash(res.error);
+    return;
+  }
+  const id = res.key;
+  const existed = dashboards.value.some((d) => d.id === id);
+  localEdits.set(overviewEditName(id), res.content);
+  await nextTick();
+  selectedId.value = id;
+  selectedWidgetId.value = null;
+  loadFrom('local');
+  setFlash(
+    existed
+      ? `Imported · overwrote the local draft “${id}”. Preview, then “Check diff & push”.`
+      : `Imported “${id}” as a new local draft. Preview, then “Check diff & push”.`,
+  );
+}
+
 // ── KPI row helpers (kpi-tile only) ────────────────────────────────
 function addKpi(w: OverviewWidget): void {
   const next = [...(w.kpis ?? []), { label: 'new KPI', mqe: '' } as OverviewKpi];
@@ -1113,6 +1154,24 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                 class="ot__src is-remote"
                 :title="t('Showing the OAP-live version. End users render the same bytes.')"
               >{{ t('from remote') }}</span>
+              <!-- Export the in-use version to a file; import a file as a
+                   local draft. Export is disabled for a never-published
+                   local-only draft (nothing in use to download). -->
+              <button
+                type="button"
+                class="ot__btn"
+                :disabled="!canExport"
+                :title="canExport
+                  ? 'Download the in-use version (live on OAP, or the bundled default) as a JSON file.'
+                  : 'Nothing published yet to export — push this draft first.'"
+                @click="onExport"
+              >export</button>
+              <button
+                type="button"
+                class="ot__btn"
+                title="Import a dashboard JSON file as a local draft — preview, then publish."
+                @click="onImportFile"
+              >import</button>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
                   reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>

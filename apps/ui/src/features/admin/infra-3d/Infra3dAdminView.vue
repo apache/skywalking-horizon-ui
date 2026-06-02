@@ -56,6 +56,7 @@ import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composabl
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
+import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { stableStringify } from '@/utils/stableJson';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
@@ -246,6 +247,35 @@ function resetTo(src: 'bundled' | 'remote'): void {
   localEdits.remove(NAME);
   pushErr.value = null;
   resetMenuOpen.value = false;
+}
+
+// ── Import / Export ────────────────────────────────────────────────
+// Export downloads the IN-USE config (remote, else bundled) — what the map
+// renders — not the editor draft. Import stages a file as a local draft;
+// `loadFrom('local')` normalizes any legacy topology/load shapes. Errors
+// reuse the push-issue list; success shows a transient note.
+const importMsg = ref<string | null>(null);
+function onExport(): void {
+  const inUse = sources.remote<Infra3dConfig>(NAME) ?? sources.bundled<Infra3dConfig>(NAME);
+  if (!inUse) return;
+  downloadJson(`${NAME}.json`, buildExportEnvelope('infra-3d', NAME, inUse));
+}
+async function onImportFile(): Promise<void> {
+  const text = await pickJsonFile();
+  if (text === null) return;
+  const res = validateImport('infra-3d', text);
+  if (!res.ok) {
+    pushErr.value = [res.error];
+    importMsg.value = null;
+    return;
+  }
+  localEdits.set(NAME, res.content);
+  loadFrom('local');
+  pushErr.value = null;
+  importMsg.value = t('Imported as a local draft — preview, then “Check diff & push”.');
+  setTimeout(() => {
+    importMsg.value = null;
+  }, 6000);
 }
 
 // ── Levels editing ────────────────────────────────────────────────────
@@ -605,6 +635,23 @@ const stats = computed(() => {
             </button>
           </div>
         </div>
+        <!-- Export the in-use config to a file; import a file as a local
+             draft. Export needs the sources loaded; bundled always exists. -->
+        <button
+          class="btn"
+          :disabled="!ready"
+          :title="t('Download the in-use config (live on OAP, or the bundled default) as a JSON file.')"
+          @click="onExport"
+        >
+          {{ t('Export') }}
+        </button>
+        <button
+          class="btn"
+          :title="t('Load a config JSON file as a local draft — preview, then publish.')"
+          @click="onImportFile"
+        >
+          {{ t('Import') }}
+        </button>
         <button class="btn" :disabled="!dirty" @click="save">
           {{ hasLocalDraft && !dirty ? t('Saved local') : t('Save local') }}
         </button>
@@ -618,6 +665,7 @@ const stats = computed(() => {
     <ul v-if="pushErr && pushErr.length" class="issues">
       <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
     </ul>
+    <p v-if="importMsg" class="import-msg">{{ importMsg }}</p>
 
     <div v-if="loadError" class="loading">
       {{ t('Couldn\'t load the 3D-map config — the BFF may be unreachable. Refresh the page to retry.') }}
@@ -977,6 +1025,15 @@ export { parseHexColor };
   overflow-y: auto;
 }
 .issues code { color: #fff; }
+.import-msg {
+  margin: 8px 20px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  background: var(--sw-bg-2);
+  font-size: 11px;
+  color: var(--sw-fg-2);
+}
 .loading { padding: 20px; color: var(--sw-fg-3); font-size: 12px; }
 
 /* Sections */

@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "唯一の受け皿です。どのティアにもピン留めされていないレイヤーはここに配置されます。",
   "Push 3D-map config to OAP": "3D-map 設定を OAP に公開",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "左 = OAP 上の公開版（リモート）。右 = あなたのローカル草稿。公開すると OAP 上のコピーが置き換えられ、次回アクセス時にマップへ反映されます。",
-  "Push to OAP": "OAP に公開"
+  "Push to OAP": "OAP に公開",
+  "Export": "エクスポート",
+  "Import": "インポート",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "使用中の設定（OAP 上のライブ版、またはバンドルされた既定値）を JSON ファイルとしてダウンロードします。",
+  "Load a config JSON file as a local draft — preview, then publish.": "設定の JSON ファイルをローカルの下書きとして読み込みます — プレビューしてから公開します。",
+  "Imported as a local draft — preview, then “Check diff & push”.": "ローカルの下書きとしてインポートしました — プレビューしてから「差分を確認して公開」します。",
+  "Download the in-use {locale} translation as a JSON file.": "使用中の {locale} 翻訳を JSON ファイルとしてダウンロードします。",
+  "No published {locale} translation to export yet.": "エクスポートできる公開済みの {locale} 翻訳がまだありません。",
+  "Import a translation JSON file as a local draft — review, then publish.": "翻訳の JSON ファイルをローカルの下書きとして読み込みます — 確認してから公開します。",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "{locale} の翻訳をローカルの下書きとしてインポートしました — 確認してから「差分を確認して公開」します。",
+  "Import failed: {error}": "インポートに失敗しました: {error}",
+  "Unsupported language: {locale}": "サポートされていない言語: {locale}",
+  "Template {name} is not loaded on this deployment.": "テンプレート {name} はこのデプロイメントに読み込まれていません。",
+  "Could not load the target template.": "対象のテンプレートを読み込めませんでした。"
 }

@@ -243,6 +243,14 @@ A **+ New dashboard** form (inside the picker) creates a dashboard the same way:
 
 A top banner summarizes state — *Synced from OAP — N diverged, Y local* — with **Diverged** / **Local** filters. Status chips per row: **synced**, **diverged** (OAP wins at render), **remote-only**, **disabled** (deleted), **bundled**.
 
+### Import / Export
+
+**Export** downloads the dashboard's **in-use version** — the copy end users render right now (the version live on OAP, or the bundled default when OAP has none) — as a JSON file. Use it to back up a dashboard, share it, or move it to another OAP. Export is unavailable for a brand-new local draft you haven't published yet, since nothing is in use to download.
+
+**Import** reads a dashboard JSON file and loads it as a **local draft** — it never writes OAP directly. After a valid import the dashboard is selected and tagged **local**; preview it, then **Check diff & push** to publish, exactly like any other edit. The file targets the dashboard it names: an existing id is replaced as a local draft, and a new id creates a new dashboard (like **+ New dashboard**, pre-filled from the file) — handy for restoring one you deleted. A file that isn't a valid overview dashboard is rejected with a message.
+
+Import/export covers the **source dashboard** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](/customization/i18n) page — they're not part of this file. A dashboard exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
+
 ### Deleting a dashboard
 
 OAP has no hard delete, so the **Delete** button next to the title soft-disables the dashboard on OAP (a disabled dashboard drops from the picker's live state, the sidebar, and the live page). A dashboard that exists only as an unpublished local draft is removed from your browser instead. Either action is confirmed in a dialog first; deletion is irreversible from the UI, but a new dashboard can always be created with the same id.

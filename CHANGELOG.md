@@ -9,6 +9,23 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Dashboard template portability
+
+- Every template admin page — Overview templates, Layer dashboards, and the
+  3D-map config — now has **Export** and **Import** actions. Export downloads
+  the *in-use* version (what end users render: the version live on OAP, or the
+  bundled default when OAP has none) as a JSON file, for backup, sharing, or
+  moving a dashboard to another OAP. Import reads a JSON file, validates it,
+  and loads it as a local draft in this browser — preview it, then publish
+  with “Check diff & push” as usual. Importing never writes OAP directly.
+  Overview import can recreate a deleted dashboard or seed a brand-new one;
+  layer import targets a layer already present on this deployment.
+- The **Translations** page has matching **Export** / **Import**, scoped to
+  the current language: export the in-use translation for a template + locale
+  as a JSON file, or import one as a local draft to review and push. (Source
+  templates and their translations are edited on separate pages, so their
+  import/export are separate too — each on its own page.)
+
 ### Documentation & release tooling
 
 - The website docs were brought current with the 0.6.0 build and the

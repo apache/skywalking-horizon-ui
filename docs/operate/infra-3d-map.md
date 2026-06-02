@@ -178,6 +178,13 @@ Pushed changes take effect the next time the map is opened. A **Reset**
 action reloads either the shipped bundled default or OAP's current
 version, so you can start over before saving.
 
+**Export** downloads the map's in-use configuration — the version live on
+OAP, or the bundled default when OAP has none — as a JSON file, for backup,
+sharing, or moving it to another OAP. **Import** reads a configuration JSON
+file and loads it as a local draft; preview it, then **Check diff & push**
+to publish. Import never writes OAP directly, and a file that isn't a valid
+3D-map configuration is rejected with a message.
+
 Viewing the map needs read access (`infra-3d:read`, held by the built-in
 viewer role and above); editing and publishing the configuration needs
 `overview:write` (operators and admins by default). See

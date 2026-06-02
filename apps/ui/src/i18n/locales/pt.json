@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "O único nível coringa: toda camada que nenhum nível fixa cai aqui.",
   "Push 3D-map config to OAP": "Publicar a configuração do 3D-map no OAP",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "Esquerda = em produção no OAP (remote). Direita = seu rascunho local. Publicar substitui a cópia do OAP — o mapa passa a renderizá-la na próxima visita.",
-  "Push to OAP": "Publicar no OAP"
+  "Push to OAP": "Publicar no OAP",
+  "Export": "Exportar",
+  "Import": "Importar",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "Baixa a configuração em uso (a versão ativa no OAP, ou o padrão incluído) como um arquivo JSON.",
+  "Load a config JSON file as a local draft — preview, then publish.": "Carrega um arquivo JSON de configuração como rascunho local — visualize e depois publique.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "Importado como rascunho local — visualize e depois «Ver diff e publicar».",
+  "Download the in-use {locale} translation as a JSON file.": "Baixa a tradução {locale} em uso como um arquivo JSON.",
+  "No published {locale} translation to export yet.": "Ainda não há uma tradução {locale} publicada para exportar.",
+  "Import a translation JSON file as a local draft — review, then publish.": "Importa um arquivo JSON de tradução como rascunho local — revise e depois publique.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "Traduções {locale} importadas como rascunho local — revise e depois «Ver diff e publicar».",
+  "Import failed: {error}": "Falha na importação: {error}",
+  "Unsupported language: {locale}": "Idioma não suportado: {locale}",
+  "Template {name} is not loaded on this deployment.": "O modelo {name} não está carregado nesta implantação.",
+  "Could not load the target template.": "Não foi possível carregar o modelo de destino."
 }

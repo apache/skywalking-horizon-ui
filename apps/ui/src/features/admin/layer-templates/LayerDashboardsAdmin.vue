@@ -49,6 +49,7 @@ type AdminScope = DashboardScope | 'networkProfiling';
 import { bff, bffClient, BffApiError } from '@/api/client';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
+import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
@@ -830,6 +831,50 @@ async function pushToOap(): Promise<void> {
   } finally {
     isSaving.value = false;
   }
+}
+
+// ── Import / Export ────────────────────────────────────────────────
+function flashMsg(msg: string): void {
+  saveMsg.value = msg;
+  setTimeout(() => {
+    if (saveMsg.value === msg) saveMsg.value = null;
+  }, 6000);
+}
+// Export downloads the IN-USE version (remote, else bundled) — what end
+// users render — not the editor draft. Every shipped layer has a bundled
+// default, so Export is effectively always available.
+const canExport = computed<boolean>(() => remoteAvailable.value || bundledExists.value);
+function onExport(): void {
+  const name = editName.value;
+  const inUse =
+    sources.remote<AdminLayerTemplate>(name) ??
+    sources.bundled<AdminLayerTemplate>(name) ??
+    templates.value.find((t) => t.key === selectedKey.value) ??
+    null;
+  if (!inUse) return;
+  downloadJson(`${name}.json`, buildExportEnvelope('layer', name, inUse));
+}
+// Import stages a file as a local draft for the layer the file names. Layer
+// keys are a closed enum — you can't invent a layer here — so the target
+// KEY must already be loaded on this deployment; otherwise reject.
+async function onImportFile(): Promise<void> {
+  const text = await pickJsonFile();
+  if (text === null) return;
+  const res = validateImport('layer', text);
+  if (!res.ok) {
+    flashMsg(res.error);
+    return;
+  }
+  const key = res.key; // already upper-cased by the validator
+  if (!templates.value.some((t) => t.key === key)) {
+    flashMsg(`Layer “${key}” is not loaded on this deployment — import is limited to layers present here.`);
+    return;
+  }
+  selectedKey.value = key;
+  selectedIdx.value = null;
+  localEdits.set(layerEditName(key), res.content);
+  loadFrom('local');
+  flashMsg(`Imported “${key}” as a local draft. Preview, then “Check diff & push”.`);
 }
 
 // ── Disable / reactivate (OAP has no hard DELETE) ──────────────────
@@ -1674,6 +1719,23 @@ const namingTest = computed<NamingTestResult>(() => {
                 class="src-tag is-remote"
                 :title="t('Showing the OAP-live version. End users render the same bytes.')"
               >{{ t('from remote') }}</span>
+              <!-- Export the in-use version to a file; import a file as a
+                   local draft for the layer it names. -->
+              <button
+                class="sw-btn"
+                type="button"
+                :disabled="!canExport"
+                :title="canExport
+                  ? 'Download the in-use version (live on OAP, or the bundled default) as a JSON file.'
+                  : 'Nothing to export yet.'"
+                @click="onExport"
+              >Export</button>
+              <button
+                class="sw-btn"
+                type="button"
+                title="Import a layer dashboard JSON file as a local draft — preview, then publish."
+                @click="onImportFile"
+              >Import</button>
               <!-- Reset the editor to a source (discard current content). -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">

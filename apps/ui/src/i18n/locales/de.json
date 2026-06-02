@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "Die einzige Auffangstufe: jede Ebene, die an keine Stufe angeheftet ist, landet hier.",
   "Push 3D-map config to OAP": "3D-map-Konfiguration auf OAP veröffentlichen",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "Links = live auf OAP (Remote). Rechts = dein lokaler Entwurf. Die Veröffentlichung ersetzt die OAP-Kopie — die Karte zeigt sie beim nächsten Besuch.",
-  "Push to OAP": "Auf OAP veröffentlichen"
+  "Push to OAP": "Auf OAP veröffentlichen",
+  "Export": "Exportieren",
+  "Import": "Importieren",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "Lädt die aktive Konfiguration (live auf OAP, oder die mitgelieferte Vorgabe) als JSON-Datei herunter.",
+  "Load a config JSON file as a local draft — preview, then publish.": "Lädt eine JSON-Konfigurationsdatei als lokalen Entwurf — Vorschau, dann veröffentlichen.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "Als lokaler Entwurf importiert — Vorschau, dann „Diff prüfen & übertragen“.",
+  "Download the in-use {locale} translation as a JSON file.": "Lädt die aktive {locale}-Übersetzung als JSON-Datei herunter.",
+  "No published {locale} translation to export yet.": "Noch keine veröffentlichte {locale}-Übersetzung zum Exportieren.",
+  "Import a translation JSON file as a local draft — review, then publish.": "Importiert eine Übersetzungs-JSON-Datei als lokalen Entwurf — prüfen, dann veröffentlichen.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "{locale}-Übersetzungen als lokaler Entwurf importiert — prüfen, dann „Diff prüfen & übertragen“.",
+  "Import failed: {error}": "Import fehlgeschlagen: {error}",
+  "Unsupported language: {locale}": "Nicht unterstützte Sprache: {locale}",
+  "Template {name} is not loaded on this deployment.": "Vorlage {name} ist auf dieser Instanz nicht geladen.",
+  "Could not load the target template.": "Die Zielvorlage konnte nicht geladen werden."
 }

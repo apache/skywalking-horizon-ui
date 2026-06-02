@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "唯一的兜底层组：任何未被固定到具体层组的 layer 都会落到这里。",
   "Push 3D-map config to OAP": "将 3D-map 配置推送至 OAP",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "左侧 = OAP 上的线上版本（远端）。右侧 = 你的本地草稿。推送会替换 OAP 上的副本 —— 下次访问时地图便以其渲染。",
-  "Push to OAP": "推送至 OAP"
+  "Push to OAP": "推送至 OAP",
+  "Export": "导出",
+  "Import": "导入",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "将使用中的配置（OAP 上的实时版本，或内置默认值）下载为 JSON 文件。",
+  "Load a config JSON file as a local draft — preview, then publish.": "将配置 JSON 文件作为本地草稿载入——预览后再发布。",
+  "Imported as a local draft — preview, then “Check diff & push”.": "已作为本地草稿导入——预览后“查看差异并发布”。",
+  "Download the in-use {locale} translation as a JSON file.": "将使用中的 {locale} 翻译下载为 JSON 文件。",
+  "No published {locale} translation to export yet.": "尚无已发布的 {locale} 翻译可导出。",
+  "Import a translation JSON file as a local draft — review, then publish.": "将翻译 JSON 文件作为本地草稿载入——检查后再发布。",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "已将 {locale} 翻译作为本地草稿导入——检查后“查看差异并发布”。",
+  "Import failed: {error}": "导入失败：{error}",
+  "Unsupported language: {locale}": "不支持的语言：{locale}",
+  "Template {name} is not loaded on this deployment.": "模板 {name} 未在此部署中加载。",
+  "Could not load the target template.": "无法加载目标模板。"
 }

@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "단일 포괄 티어입니다: 어느 티어에도 고정되지 않은 레이어가 모두 여기에 배치됩니다.",
   "Push 3D-map config to OAP": "3D-map 설정을 OAP에 게시",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "왼쪽 = OAP 라이브(원격). 오른쪽 = 내 로컬 초안. 게시하면 OAP 복사본을 교체하며, 다음 방문 시 맵이 이를 렌더링합니다.",
-  "Push to OAP": "OAP에 게시"
+  "Push to OAP": "OAP에 게시",
+  "Export": "내보내기",
+  "Import": "가져오기",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "사용 중인 구성(OAP의 라이브 버전 또는 번들된 기본값)을 JSON 파일로 다운로드합니다.",
+  "Load a config JSON file as a local draft — preview, then publish.": "구성 JSON 파일을 로컬 초안으로 불러옵니다 — 미리 본 후 게시하세요.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "로컬 초안으로 가져왔습니다 — 미리 본 후 “차이 보고 게시”하세요.",
+  "Download the in-use {locale} translation as a JSON file.": "사용 중인 {locale} 번역을 JSON 파일로 다운로드합니다.",
+  "No published {locale} translation to export yet.": "내보낼 게시된 {locale} 번역이 아직 없습니다.",
+  "Import a translation JSON file as a local draft — review, then publish.": "번역 JSON 파일을 로컬 초안으로 불러옵니다 — 검토한 후 게시하세요.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "{locale} 번역을 로컬 초안으로 가져왔습니다 — 검토한 후 “차이 보고 게시”하세요.",
+  "Import failed: {error}": "가져오기 실패: {error}",
+  "Unsupported language: {locale}": "지원하지 않는 언어: {locale}",
+  "Template {name} is not loaded on this deployment.": "템플릿 {name}은(는) 이 배포에 로드되어 있지 않습니다.",
+  "Could not load the target template.": "대상 템플릿을 불러올 수 없습니다."
 }

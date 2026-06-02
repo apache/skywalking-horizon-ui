@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "Le palier fourre-tout unique : toute couche qu'aucun palier n'épingle atterrit ici.",
   "Push 3D-map config to OAP": "Publier la configuration de la 3D-map sur OAP",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "À gauche = en ligne sur OAP (Remote). À droite = votre brouillon local. La publication remplace la copie OAP — la carte l'affiche à la prochaine visite.",
-  "Push to OAP": "Publier sur OAP"
+  "Push to OAP": "Publier sur OAP",
+  "Export": "Exporter",
+  "Import": "Importer",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "Télécharge la configuration utilisée (la version active sur OAP, ou la valeur par défaut fournie) sous forme de fichier JSON.",
+  "Load a config JSON file as a local draft — preview, then publish.": "Charge un fichier JSON de configuration comme brouillon local — prévisualisez, puis publiez.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "Importé comme brouillon local — prévisualisez, puis « Voir le diff et publier ».",
+  "Download the in-use {locale} translation as a JSON file.": "Télécharge la traduction {locale} utilisée sous forme de fichier JSON.",
+  "No published {locale} translation to export yet.": "Aucune traduction {locale} publiée à exporter pour l'instant.",
+  "Import a translation JSON file as a local draft — review, then publish.": "Importe un fichier JSON de traduction comme brouillon local — vérifiez, puis publiez.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "Traductions {locale} importées comme brouillon local — vérifiez, puis « Voir le diff et publier ».",
+  "Import failed: {error}": "Échec de l'import : {error}",
+  "Unsupported language: {locale}": "Langue non prise en charge : {locale}",
+  "Template {name} is not loaded on this deployment.": "Le modèle {name} n'est pas chargé sur ce déploiement.",
+  "Could not load the target template.": "Impossible de charger le modèle cible."
 }

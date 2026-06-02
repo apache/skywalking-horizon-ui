@@ -31,9 +31,15 @@
   diff modal (remote vs local) and publishes via templateSync.save.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
+import {
+  buildOverlayExportEnvelope,
+  downloadJson,
+  parseOverlayImport,
+  pickJsonFile,
+} from '@/features/admin/_shared/templatePortability';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import LayerDashboardCanvas from '@/features/admin/_shared/LayerDashboardCanvas.vue';
@@ -662,6 +668,87 @@ const readOnly = computed<boolean>(() =>
   selectedKind.value === 'overview' ? overviewSync.readOnly.value : layerSync.readOnly.value,
 );
 
+// ── Import / Export ────────────────────────────────────────────────
+// Translations are their own OAP rows on their own page, so their
+// import/export is separate from the source-template pages. Both act on
+// the CURRENT (template, target locale) — the same unit Stage / Push use.
+function flashMsg(msg: string): void {
+  saveMsg.value = msg;
+  setTimeout(() => {
+    if (saveMsg.value === msg) saveMsg.value = null;
+  }, 6000);
+}
+/** The in-use overlay for (selected template, target locale): the OAP row
+ *  (what's published) wins, else the disk-shipped seed. A pushed row is
+ *  already the full merged overlay, so this is the complete in-use copy. */
+const inUseOverlayForTarget = computed<Record<string, unknown> | null>(() => {
+  const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
+  const v = snap?.oap ?? snap?.disk ?? null;
+  return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
+});
+const canExport = computed<boolean>(() => inUseOverlayForTarget.value !== null);
+function onExport(): void {
+  const overlay = inUseOverlayForTarget.value;
+  const name = selectedName.value;
+  if (!overlay || !name) return;
+  downloadJson(
+    `${name}.i18n.${target.value}.json`,
+    buildOverlayExportEnvelope(selectedKind.value, name, target.value, overlay),
+  );
+}
+// Import stages a translation file as a LOCAL draft. A Horizon overlay
+// envelope targets its own (template, locale) — switching the picker to
+// it; a bare overlay object goes into the current selection.
+async function onImportFile(): Promise<void> {
+  const text = await pickJsonFile();
+  if (text === null) return;
+  const res = parseOverlayImport(text);
+  if (!res.ok) {
+    flashMsg(t('Import failed: {error}', { error: res.error }));
+    return;
+  }
+  const kind = res.kind ?? selectedKind.value;
+  const name = res.sourceName ?? selectedName.value;
+  const locStr = res.locale ?? target.value;
+  if (locStr === 'en' || !(SUPPORTED_LOCALES as readonly string[]).includes(locStr)) {
+    flashMsg(t('Unsupported language: {locale}', { locale: locStr }));
+    return;
+  }
+  const loc = locStr as Locale;
+  if (res.sourceName) {
+    const entries = kind === 'overview' ? overviewEntries.value : layerEntries.value;
+    if (!entries.some((e) => e.value === name)) {
+      flashMsg(t('Template {name} is not loaded on this deployment.', { name }));
+      return;
+    }
+    selectedKind.value = kind;
+    selectedName.value = name;
+  }
+  target.value = loc;
+  await nextTick();
+  const eff = effective.value;
+  if (!eff) {
+    flashMsg(t('Could not load the target template.'));
+    return;
+  }
+  // Overwrite the (template, locale) draft from the imported overlay, then
+  // stage it locally so Push publishes exactly the imported translation.
+  const tplMap = { ...(draft.value[name] ?? {}) };
+  delete tplMap[loc];
+  draft.value = { ...draft.value, [name]: tplMap };
+  applyOverlayToDraft(name, loc, res.content, eff);
+  const overlay = buildOverlayContent(name, loc, eff);
+  if (overlay) localEdits.set(name, loc, overlay);
+  else localEdits.remove(name, loc);
+  editorSource.value = 'local';
+  closePanel();
+  flashMsg(
+    t('Imported {locale} translations as a local draft — review, then “Check diff & push”.', {
+      locale: LOCALE_NATIVE_LABEL[loc],
+    }),
+  );
+}
+
 /** Human label for a translatable field shown next to the EN source.
  *  The wire path (e.g. `kpis[0].label`) is internal — translators
  *  shouldn't see it; they should see what KIND of string they're
@@ -771,6 +858,23 @@ function leafLabel(segments: Array<string | number>): string {
           class="tv__src is-remote"
           :title="t('Showing the OAP-live version. End users render the same bytes.')"
         >{{ t('from remote') }}</span>
+        <!-- Export the in-use translation to a file; import a translation
+             file as a local draft. Both act on the current target locale. -->
+        <button
+          type="button"
+          class="sw-btn"
+          :disabled="!canExport"
+          :title="canExport
+            ? t('Download the in-use {locale} translation as a JSON file.', { locale: LOCALE_NATIVE_LABEL[target] })
+            : t('No published {locale} translation to export yet.', { locale: LOCALE_NATIVE_LABEL[target] })"
+          @click="onExport"
+        >{{ t('Export') }}</button>
+        <button
+          type="button"
+          class="sw-btn"
+          :title="t('Import a translation JSON file as a local draft — review, then publish.')"
+          @click="onImportFile"
+        >{{ t('Import') }}</button>
         <!-- Reset to ▾ dropdown — matches the layer / overview
              editors. Discards local edits and re-seeds the draft from
              the picked source. -->

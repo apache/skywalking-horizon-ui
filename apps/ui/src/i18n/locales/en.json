@@ -1280,5 +1280,18 @@
   "The single catch-all: any layer no tier pins lands here.": "The single catch-all: any layer no tier pins lands here.",
   "Push 3D-map config to OAP": "Push 3D-map config to OAP",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.",
-  "Push to OAP": "Push to OAP"
+  "Push to OAP": "Push to OAP",
+  "Export": "Export",
+  "Import": "Import",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "Download the in-use config (live on OAP, or the bundled default) as a JSON file.",
+  "Load a config JSON file as a local draft — preview, then publish.": "Load a config JSON file as a local draft — preview, then publish.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "Imported as a local draft — preview, then “Check diff & push”.",
+  "Download the in-use {locale} translation as a JSON file.": "Download the in-use {locale} translation as a JSON file.",
+  "No published {locale} translation to export yet.": "No published {locale} translation to export yet.",
+  "Import a translation JSON file as a local draft — review, then publish.": "Import a translation JSON file as a local draft — review, then publish.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "Imported {locale} translations as a local draft — review, then “Check diff & push”.",
+  "Import failed: {error}": "Import failed: {error}",
+  "Unsupported language: {locale}": "Unsupported language: {locale}",
+  "Template {name} is not loaded on this deployment.": "Template {name} is not loaded on this deployment.",
+  "Could not load the target template.": "Could not load the target template."
 }

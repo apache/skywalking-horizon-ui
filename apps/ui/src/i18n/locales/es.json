@@ -1269,5 +1269,18 @@
   "The single catch-all: any layer no tier pins lands here.": "El único nivel comodín: cualquier capa que ningún nivel fije termina aquí.",
   "Push 3D-map config to OAP": "Publicar la configuración del 3D-map en OAP",
   "Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.": "Izquierda = en vivo en OAP (remote). Derecha = tu borrador local. El push reemplaza la copia en OAP — el mapa la mostrará en la próxima visita.",
-  "Push to OAP": "Publicar en OAP"
+  "Push to OAP": "Publicar en OAP",
+  "Export": "Exportar",
+  "Import": "Importar",
+  "Download the in-use config (live on OAP, or the bundled default) as a JSON file.": "Descarga la configuración en uso (la versión activa en OAP, o el valor por defecto incluido) como un archivo JSON.",
+  "Load a config JSON file as a local draft — preview, then publish.": "Carga un archivo JSON de configuración como borrador local — previsualiza y luego publica.",
+  "Imported as a local draft — preview, then “Check diff & push”.": "Importado como borrador local — previsualiza y luego «Ver diff y publicar».",
+  "Download the in-use {locale} translation as a JSON file.": "Descarga la traducción {locale} en uso como un archivo JSON.",
+  "No published {locale} translation to export yet.": "Aún no hay una traducción {locale} publicada para exportar.",
+  "Import a translation JSON file as a local draft — review, then publish.": "Importa un archivo JSON de traducción como borrador local — revisa y luego publica.",
+  "Imported {locale} translations as a local draft — review, then “Check diff & push”.": "Traducciones {locale} importadas como borrador local — revisa y luego «Ver diff y publicar».",
+  "Import failed: {error}": "Error al importar: {error}",
+  "Unsupported language: {locale}": "Idioma no admitido: {locale}",
+  "Template {name} is not loaded on this deployment.": "La plantilla {name} no está cargada en este despliegue.",
+  "Could not load the target template.": "No se pudo cargar la plantilla de destino."
 }
