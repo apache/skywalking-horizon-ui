@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "워크플로 스케줄러",
+  "slots": {
+    "services": "Airflow 클러스터",
+    "instances": "컴포넌트"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "클러스터",
+        "metrics": [
+          { "label": "실행 가능 작업", "tip": "클러스터 전체에서 실행 대기 중인 작업 수." },
+          { "label": "대기 작업", "tip": "Executor에서 대기 중인 작업 수." },
+          { "label": "사용 가능 슬롯", "tip": "사용 가능한 Executor 슬롯 수." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "실행 가능 작업" },
+      { "title": "실행 중 작업" },
+      { "title": "예약된 슬롯" },
+      { "title": "대기 작업" },
+      { "title": "사용 가능 슬롯" },
+      {
+        "title": "Pool 대기 / 지연 / 예약 슬롯",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Scheduler 하트비트" },
+      {
+        "title": "실행 중 작업 / 예약 슬롯",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "DAG 파일 큐 크기" },
+      { "title": "Asset 업데이트" }
+    ],
+    "instance": [
+      {
+        "title": "Pool 사용 가능 / 지연 / 실행 중 슬롯",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Triggerer 하트비트" },
+      {
+        "title": "Trigger 차단 / 성공",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "실행 중 작업 / 예약 슬롯",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Asset 업데이트" },
+      { "title": "Asset 트리거 DagRun" }
+    ]
+  }
+}

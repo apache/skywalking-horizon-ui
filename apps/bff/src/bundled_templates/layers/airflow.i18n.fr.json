@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "Planificateur de workflow",
+  "slots": {
+    "services": "Clusters Airflow",
+    "instances": "Composants"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          { "label": "Tâches exécutables", "tip": "Tâches prêtes à être exécutées dans le cluster." },
+          { "label": "Tâches en file", "tip": "Tâches en attente sur l'executor." },
+          { "label": "Slots libres", "tip": "Slots d'executor disponibles." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Tâches exécutables" },
+      { "title": "Tâches en cours" },
+      { "title": "Slots planifiés" },
+      { "title": "Tâches en file" },
+      { "title": "Slots libres" },
+      {
+        "title": "Slots en file / différés / planifiés du pool",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Heartbeat du scheduler" },
+      {
+        "title": "Tâches en cours / slots planifiés",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Taille de la file de fichiers DAG" },
+      { "title": "Mises à jour d'assets" }
+    ],
+    "instance": [
+      {
+        "title": "Slots ouverts / différés / en cours du pool",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Heartbeat du triggerer" },
+      {
+        "title": "Triggers bloqués / réussis",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "Tâches en cours / slots planifiés",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Mises à jour d'assets" },
+      { "title": "DagRuns déclenchés par assets" }
+    ]
+  }
+}

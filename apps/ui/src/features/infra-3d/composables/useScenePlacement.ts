@@ -133,6 +133,7 @@ export function tintForLayer(layerKey: string, group: string | null): ZoneTint {
     return 'db';
   }
   if (k === 'redis') return 'cache';
+  if (group === 'Workflow Scheduler' || k === 'airflow') return 'misc';
   if (group === 'MQ' || ['kafka', 'rocketmq', 'rabbitmq', 'activemq', 'pulsar', 'bookkeeper', 'flink'].includes(k)) {
     return 'mq';
   }

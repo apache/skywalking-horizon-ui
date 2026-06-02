@@ -77,6 +77,7 @@ const scope = computed<string>(() => {
 const { selectedId } = useSelectedService();
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+const instanceSlotLabel = computed(() => layer.value?.slots?.instances ?? 'Instance');
 
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -385,6 +386,21 @@ watch(data, (d) => {
 });
 const dataIsFresh = computed(() => lastFreshKey.value === fetchKey.value);
 
+// Terminal upstream state: service resolved but no instance / endpoint
+// to drill into. The widget batch stays disabled (see useLayerDashboard
+// `enabled`), so `dataIsFresh` never flips — without this gate the main
+// zone would spin "Reading data…" forever.
+const dashboardUpstreamBlocked = computed(() => {
+  if (!serviceName.value) return false;
+  if (scope.value === 'instance') {
+    return !instancesLoading.value && instanceList.value.length === 0;
+  }
+  if (scope.value === 'endpoint') {
+    return !endpointsLoading.value && endpointList.value.length === 0;
+  }
+  return false;
+});
+
 const resultsById = computed(() => {
   const out = new Map<string, NonNullable<typeof data.value>['widgets'][number]>();
   // Only surface widget results from a response that matches the
@@ -521,13 +537,14 @@ function isVisible(
 
     <!-- Instance picker — a sticky list on the left when the Instance
          scope is active. Each row shows the instance name, language
-         tag, and an expandable attributes property list. Auto-fires
+         tag when OAP reports a known agent language (JAVA, PYTHON, …),
+         and an expandable attributes property list. Auto-fires
          once a service is selected (no manual trigger). When no
          service is picked, we show a hint and gate the widget grid
          so a stale instance can't sneak into queries. -->
     <section v-if="scope === 'instance'" class="instance-bar sw-card">
       <header class="ib-head">
-        <span class="kicker">Instance</span>
+        <span class="kicker">{{ instanceSlotLabel }}</span>
         <!-- Header strictly tracks the resolved `serviceName` —
              never the raw `?service=` base64 id from the URL.
              While landing is still loading we show a loading hint
@@ -677,7 +694,17 @@ function isVisible(
          sequence (which read as a slow, jumpy entry). The "no widgets"
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
-    <div v-if="reachable && (configLoading || !dataIsFresh)" class="empty reading">
+    <div v-if="reachable && dashboardUpstreamBlocked" class="empty">
+      <template v-if="scope === 'instance'">
+        No {{ instanceSlotLabel.toLowerCase() }} to chart for <b>{{ serviceName }}</b>.
+        Keep the app running with native meter and set
+        <code>APP_VERSION</code> or <code>SW_AGENT_INSTANCE_NAME</code>.
+      </template>
+      <template v-else-if="scope === 'endpoint'">
+        No endpoints to chart for <b>{{ serviceName }}</b> in the active window.
+      </template>
+    </div>
+    <div v-else-if="reachable && (configLoading || !dataIsFresh)" class="empty reading">
       <span class="reading-dot" />
       <span>
         Reading data

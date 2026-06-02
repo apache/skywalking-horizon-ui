@@ -90,6 +90,12 @@ export interface InstanceRow {
   attributes: Array<{ name: string; value: string }>;
 }
 
+/** OAP defaults to Language.UNKNOWN when no agent language is registered (e.g. Airflow OTLP). */
+function normalizeInstanceLanguage(language: string | null | undefined): string | null {
+  if (!language) return null;
+  return language.trim().toUpperCase() === 'UNKNOWN' ? null : language;
+}
+
 export interface InstancesResponse {
   layer: string;
   service: string;
@@ -165,7 +171,7 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
         const rows: InstanceRow[] = (data.instances ?? []).map((i) => ({
           id: i.id,
           name: i.name,
-          language: i.language ?? null,
+          language: normalizeInstanceLanguage(i.language),
           attributes: i.attributes ?? [],
         }));
         return reply.send({

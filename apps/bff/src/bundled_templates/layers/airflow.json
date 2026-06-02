@@ -1,0 +1,273 @@
+{
+  "key": "AIRFLOW",
+  "alias": "Airflow",
+  "group": "Workflow Scheduler",
+  "color": "var(--sw-cyan)",
+  "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-airflow-monitoring/",
+  "aliases": {
+    "services": "Airflow clusters",
+    "instances": "Components"
+  },
+  "components": {
+    "service": true,
+    "instances": true,
+    "endpoints": false,
+    "topology": false,
+    "traces": false,
+    "logs": false
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "size": "auto",
+        "metrics": [
+          {
+            "id": "tasksExecutable",
+            "label": "Tasks Executable",
+            "tip": "Tasks ready for execution across the cluster.",
+            "mqe": "latest(meter_airflow_scheduler_tasks_executable)",
+            "aggregation": "sum"
+          },
+          {
+            "id": "queuedTasks",
+            "label": "Queued Tasks",
+            "tip": "Tasks waiting on the executor.",
+            "mqe": "latest(meter_airflow_executor_queued_tasks)",
+            "aggregation": "sum"
+          },
+          {
+            "id": "openSlots",
+            "label": "Open Slots",
+            "tip": "Free executor slots.",
+            "mqe": "latest(meter_airflow_executor_open_slots)",
+            "aggregation": "sum"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tasks_executable",
+        "title": "Tasks Executable",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_scheduler_tasks_executable)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Running Tasks",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_executor_running_tasks)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "Scheduled Slots",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_pool_scheduled_slots)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "Queued Tasks",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_executor_queued_tasks)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "open_slots",
+        "title": "Open Slots",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_executor_open_slots"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "pool_slots",
+        "title": "Pool Queued / Deferred Slots",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_pool_queued_slots",
+          "meter_airflow_pool_deferred_slots",
+          "meter_airflow_pool_scheduled_slots"
+        ],
+        "expressionLabels": [
+          "queued",
+          "deferred",
+          "scheduled"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "scheduler_heartbeat",
+        "title": "Scheduler Heartbeat",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_scheduler_heartbeat"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "running_tasks_trend",
+        "title": "Running Tasks / Scheduled Slots",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_executor_running_tasks",
+          "meter_airflow_pool_scheduled_slots"
+        ],
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "DAG File Queue Size",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_dag_file_queue_size"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset Updates",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_asset_updates"
+        ],
+        "span": 12,
+        "rowSpan": 2,
+        "format": "int"
+      }
+    ],
+    "instance": [
+      {
+        "id": "pool_slots",
+        "title": "Pool Open / Deferred / Running Slots",
+        "tip": "Celery worker pool capacity. Reported by worker processes only.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_pool_open_slots",
+          "meter_airflow_instance_pool_deferred_slots",
+          "meter_airflow_instance_pool_running_slots"
+        ],
+        "expressionLabels": [
+          "open",
+          "deferred",
+          "running"
+        ],
+        "visibleWhen": "meter_airflow_instance_pool_open_slots has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Triggerer Heartbeat",
+        "tip": "Triggerer process heartbeats per minute.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_triggerer_heartbeat"
+        ],
+        "visibleWhen": "meter_airflow_instance_triggerer_heartbeat has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "triggers",
+        "title": "Triggers Blocked / Succeeded",
+        "tip": "Deferred trigger outcomes on the triggerer host.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_triggers_blocked_main_thread",
+          "meter_airflow_instance_triggers_succeeded"
+        ],
+        "expressionLabels": [
+          "blocked",
+          "succeeded"
+        ],
+        "visibleWhen": "meter_airflow_instance_triggers_succeeded has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Running Tasks / Scheduled Slots",
+        "tip": "Scheduler executor queue depth and pool slots waiting to run.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_executor_running_tasks",
+          "meter_airflow_instance_pool_scheduled_slots"
+        ],
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ],
+        "visibleWhen": "meter_airflow_instance_executor_running_tasks has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset Updates",
+        "tip": "Dataset/asset update events on this host.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_asset_updates"
+        ],
+        "visibleWhen": "meter_airflow_instance_asset_updates has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset Triggered DagRuns",
+        "tip": "DagRuns triggered by dataset events on the scheduler.",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_asset_triggered_dagruns"
+        ],
+        "visibleWhen": "meter_airflow_instance_asset_triggered_dagruns has value",
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      }
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "Workflow-Planer",
+  "slots": {
+    "services": "Airflow-Cluster",
+    "instances": "Komponenten"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          { "label": "Ausführbare Tasks", "tip": "Tasks im Cluster, die zur Ausführung bereit sind." },
+          { "label": "Wartende Tasks", "tip": "Tasks, die auf dem Executor warten." },
+          { "label": "Freie Slots", "tip": "Verfügbare Executor-Slots." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Ausführbare Tasks" },
+      { "title": "Laufende Tasks" },
+      { "title": "Geplante Slots" },
+      { "title": "Wartende Tasks" },
+      { "title": "Freie Slots" },
+      {
+        "title": "Pool wartende / verzögerte / geplante Slots",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Scheduler-Heartbeat" },
+      {
+        "title": "Laufende Tasks / geplante Slots",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "DAG-Datei-Warteschlangengröße" },
+      { "title": "Asset-Updates" }
+    ],
+    "instance": [
+      {
+        "title": "Pool freie / verzögerte / laufende Slots",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Triggerer-Heartbeat" },
+      {
+        "title": "Trigger blockiert / erfolgreich",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "Laufende Tasks / geplante Slots",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Asset-Updates" },
+      { "title": "Durch Assets ausgelöste DagRuns" }
+    ]
+  }
+}
