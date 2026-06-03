@@ -41,6 +41,20 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   the post-vote finalize script now only verifies the published tags (the
   manual local-push fallback and Docker Hub login preflight were removed).
 
+### Layer drill-down fixes
+
+- The per-layer **Instance** and **Endpoint** pages now honor the layer's
+  configured aliases in their section headers and in the service-picker's
+  name column — e.g. ActiveMQ reads **Brokers** / **Destinations** and
+  Virtual MQ reads **Topics** / **MQ clusters**, matching the sidebar —
+  instead of the generic "Instance" / "Endpoint" / "Service" labels. Layers
+  that define no alias still read the generic words.
+- A layer's Instance or Endpoint page no longer hangs on a perpetual
+  "Reading data…" when the selected service reports no instances or
+  endpoints (or a search matches nothing). It now shows the empty picker and
+  renders the metric widgets in their normal "no data" state, so the layout
+  stays visible and ready for services that do report them.
+
 ## 0.6.0
 
 This release is the production-readiness pass for Horizon UI: every page

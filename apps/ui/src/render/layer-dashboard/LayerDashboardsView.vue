@@ -354,6 +354,33 @@ const effectiveEndpoint = computed<string | null>(() => {
   if (pinnedEndpointMatches.value.some((e) => e.name === v)) return v;
   return null;
 });
+// Instance / endpoint scopes gate the widget batch on a resolved entity
+// (see useLayerDashboard `enabled`). When the entity list settles EMPTY —
+// the service genuinely reports no instances / endpoints (or a search
+// matched nothing) — no entity can ever be picked, the dashboard query
+// never fires, and `dataIsFresh` never flips. Used only to suppress the
+// reset-then-load overlay in that terminal state so it doesn't spin
+// "Reading data…" forever; the page then falls through to the widget
+// grid, which renders every widget in its empty "no data" state (the
+// layout still reads — another MQ / service may well have topics).
+// `resolvable` stays true while a list / pin lookup is still in flight so
+// the overlay still covers the genuine wait.
+const endpointResolvable = computed<boolean>(
+  () =>
+    endpointsLoading.value ||
+    pinnedEndpointLoading.value ||
+    endpointList.value.length > 0 ||
+    !!effectiveEndpoint.value,
+);
+const instanceResolvable = computed<boolean>(
+  () => instancesLoading.value || instanceList.value.length > 0 || !!effectiveInstance.value,
+);
+const noEntityToChart = computed<boolean>(() => {
+  if (!serviceName.value) return false; // service still resolving — keep waiting
+  if (scope.value === 'instance') return !instanceResolvable.value;
+  if (scope.value === 'endpoint') return !endpointResolvable.value;
+  return false;
+});
 const widgetsForQuery = computed(() => config.value?.widgets ?? []);
 // Hold the metrics fetch until the config bundle has resolved WITH widgets.
 // A resolved-but-empty config means "no dashboard for this layer/scope",
@@ -554,7 +581,7 @@ function isVisible(
          so a stale instance can't sneak into queries. -->
     <section v-if="scope === 'instance'" class="instance-bar sw-card">
       <header class="ib-head">
-        <span class="kicker">Instance</span>
+        <span class="kicker">{{ safeLayer.slots.instances || 'Instance' }}</span>
         <!-- Header strictly tracks the resolved `serviceName` —
              never the raw `?service=` base64 id from the URL.
              While landing is still loading we show a loading hint
@@ -617,7 +644,7 @@ function isVisible(
          the limit to 20…50. -->
     <section v-if="scope === 'endpoint'" class="instance-bar sw-card">
       <header class="ib-head">
-        <span class="kicker">Endpoint</span>
+        <span class="kicker">{{ safeLayer.slots.endpoints || 'Endpoint' }}</span>
         <!-- Strictly serviceName, no base64-id fallback (same rule
              as the instance picker above). -->
         <span v-if="serviceName" class="for-svc">
@@ -705,7 +732,7 @@ function isVisible(
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
     <div
-      v-if="reachable && (configLoading || (!dataIsFresh && widgets.length > 0))"
+      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0))"
       class="empty reading"
     >
       <span class="reading-dot" />

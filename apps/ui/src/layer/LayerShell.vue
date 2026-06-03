@@ -392,6 +392,7 @@ function initialsFor(name: string): string {
 }
 const displayName = computed(() => cfg.value?.displayName || layer.value?.name || layerKey.value);
 const initials = computed(() => initialsFor(displayName.value));
+const serviceSlotLabel = computed(() => layer.value?.slots.services || 'services');
 
 // ── Tabs ─────────────────────────────────────────────────────────────
 // ── Header KPI strip ─────────────────────────────────────────────────
@@ -491,7 +492,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
             <span v-else-if="!layer.active" class="sw-badge">no data</span>
           </div>
           <div class="sub">
-            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${(cfg?.slots.services || 'services').toLowerCase()}` : 'no service data' }}
+            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${serviceSlotLabel.toLowerCase()}` : 'no service data' }}
             <span v-if="layer.documentLink">·
               <a :href="layer.documentLink" target="_blank" rel="noopener noreferrer">docs ↗</a>
             </span>
@@ -590,6 +591,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       :selected-id="selectedId"
       :accent="layer.color"
       :naming-rule="layer.naming ?? null"
+      :service-label="layer.slots.services"
       @select="pickService"
     />
 

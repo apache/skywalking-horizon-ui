@@ -47,6 +47,10 @@ const props = withDefaults(
      *  selector — it's the global service picker, not the topology
      *  view, so per-topology `showGroup` doesn't apply here. */
     namingRule?: ServiceNamingRule | null;
+    /** Layer's service-slot alias for the name column header (e.g.
+     *  "ActiveMQ clusters", "Databases"). Falls back to the generic
+     *  "Service" when the layer defines no alias. */
+    serviceLabel?: string;
   }>(),
   {
     accent: 'var(--sw-accent)',
@@ -95,7 +99,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
     <table class="sw-table picker-table">
       <thead>
         <tr>
-          <th class="svc-col">{{ t('Service') }}</th>
+          <th class="svc-col">{{ serviceLabel || t('Service') }}</th>
           <th
             v-for="c in columns"
             :key="c.metric"
