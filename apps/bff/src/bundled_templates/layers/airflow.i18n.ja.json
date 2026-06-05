@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "ワークフロースケジューラ",
+  "slots": {
+    "services": "Airflow クラスタ",
+    "instances": "コンポーネント"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          { "label": "実行可能タスク", "tip": "クラスタ全体で実行待ちのタスク数。" },
+          { "label": "キュー待ちタスク", "tip": "Executor で待機中のタスク数。" },
+          { "label": "空きスロット", "tip": "利用可能な Executor スロット数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "実行可能タスク" },
+      { "title": "実行中タスク" },
+      { "title": "スケジュール済みスロット" },
+      { "title": "キュー待ちタスク" },
+      { "title": "空きスロット" },
+      {
+        "title": "Pool キュー / 延期 / スケジュール済みスロット",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Scheduler ハートビート" },
+      {
+        "title": "実行中タスク / スケジュール済みスロット",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "DAG ファイルキューサイズ" },
+      { "title": "Asset 更新" }
+    ],
+    "instance": [
+      {
+        "title": "Pool 空き / 延期 / 実行中スロット",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Triggerer ハートビート" },
+      {
+        "title": "Trigger ブロック / 成功",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "実行中タスク / スケジュール済みスロット",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Asset 更新" },
+      { "title": "Asset トリガー DagRun" }
+    ]
+  }
+}

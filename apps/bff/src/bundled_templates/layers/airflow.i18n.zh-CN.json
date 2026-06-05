@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "工作流调度",
+  "slots": {
+    "services": "Airflow 集群",
+    "instances": "组件"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          { "label": "可执行任务", "tip": "集群内待执行的任务数。" },
+          { "label": "排队任务", "tip": "Executor 上排队等待的任务数。" },
+          { "label": "空闲 Slot", "tip": "Executor 可用 slot 数。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "可执行任务" },
+      { "title": "运行中任务" },
+      { "title": "已调度 Slot" },
+      { "title": "排队任务" },
+      { "title": "空闲 Slot" },
+      {
+        "title": "Pool 排队 / 延迟 / 已调度 Slot",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Scheduler 心跳" },
+      {
+        "title": "运行中任务 / 已调度 Slot",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "DAG 文件队列大小" },
+      { "title": "Asset 更新" }
+    ],
+    "instance": [
+      {
+        "title": "Pool 空闲 / 延迟 / 运行 Slot",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Triggerer 心跳" },
+      {
+        "title": "Trigger 阻塞 / 成功",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "运行中任务 / 已调度 Slot",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Asset 更新" },
+      { "title": "Asset 触发的 DagRun" }
+    ]
+  }
+}

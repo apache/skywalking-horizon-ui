@@ -1,0 +1,57 @@
+{
+  "alias": "Airflow",
+  "group": "Programador de flujos de trabajo",
+  "slots": {
+    "services": "Clústeres de Airflow",
+    "instances": "Componentes"
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Clúster",
+        "metrics": [
+          { "label": "Tasks ejecutables", "tip": "Tasks listas para ejecutarse en el clúster." },
+          { "label": "Tasks en cola", "tip": "Tasks esperando en el executor." },
+          { "label": "Slots libres", "tip": "Slots de executor disponibles." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Tasks ejecutables" },
+      { "title": "Tasks en ejecución" },
+      { "title": "Slots programados" },
+      { "title": "Tasks en cola" },
+      { "title": "Slots libres" },
+      {
+        "title": "Slots en cola / diferidos / programados del pool",
+        "expressionLabels": ["queued", "deferred", "scheduled"]
+      },
+      { "title": "Heartbeat del scheduler" },
+      {
+        "title": "Tasks en ejecución / slots programados",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Tamaño de cola de archivos DAG" },
+      { "title": "Actualizaciones de assets" }
+    ],
+    "instance": [
+      {
+        "title": "Slots abiertos / diferidos / en ejecución del pool",
+        "expressionLabels": ["open", "deferred", "running"]
+      },
+      { "title": "Heartbeat del triggerer" },
+      {
+        "title": "Triggers bloqueados / exitosos",
+        "expressionLabels": ["blocked", "succeeded"]
+      },
+      {
+        "title": "Tasks en ejecución / slots programados",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Actualizaciones de assets" },
+      { "title": "DagRuns disparados por assets" }
+    ]
+  }
+}
