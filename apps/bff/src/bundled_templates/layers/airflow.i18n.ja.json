@@ -39,19 +39,22 @@
     "instance": [
       {
         "title": "Pool 空き / 延期 / 実行中スロット",
+        "tip": "Celery worker pool の容量。worker プロセスのみが報告します。",
         "expressionLabels": ["open", "deferred", "running"]
       },
-      { "title": "Triggerer ハートビート" },
+      { "title": "Triggerer ハートビート", "tip": "Triggerer プロセスの 1 分あたりのハートビート数。" },
       {
         "title": "Trigger ブロック / 成功",
+        "tip": "Triggerer ホスト上の deferred trigger の結果。",
         "expressionLabels": ["blocked", "succeeded"]
       },
       {
         "title": "実行中タスク / スケジュール済みスロット",
+        "tip": "Scheduler executor のキュー深度と実行待ち pool スロット。",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Asset 更新" },
-      { "title": "Asset トリガー DagRun" }
+      { "title": "Asset 更新", "tip": "このホスト上の dataset/asset 更新イベント。" },
+      { "title": "Asset トリガー DagRun", "tip": "Scheduler 上で dataset イベントによりトリガーされた DagRun。" }
     ]
   }
 }

@@ -9,6 +9,14 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Airflow monitoring layer (SWIP-7)
+
+- New **Airflow** layer under **Workflow Scheduler** — service dashboard
+  (scheduler / executor / pool KPIs and trends), Components dashboard
+  (per-host scheduler, executor, and triggerer metrics), and a 3D Infra
+  Map load ring for **Tasks Executable**. Pairs with OAP backend SWIP-7
+  (`meter_airflow_*` / `meter_airflow_instance_*`).
+
 ### Dashboard template portability
 
 - Every template admin page — Overview templates, Layer dashboards, and the

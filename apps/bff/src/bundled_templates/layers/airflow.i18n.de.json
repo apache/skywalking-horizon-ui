@@ -39,19 +39,22 @@
     "instance": [
       {
         "title": "Pool freie / verzögerte / laufende Slots",
+        "tip": "Celery-Worker-Pool-Kapazität. Nur von Worker-Prozessen gemeldet.",
         "expressionLabels": ["open", "deferred", "running"]
       },
-      { "title": "Triggerer-Heartbeat" },
+      { "title": "Triggerer-Heartbeat", "tip": "Triggerer-Prozess-Heartbeats pro Minute." },
       {
         "title": "Trigger blockiert / erfolgreich",
+        "tip": "Ergebnisse verzögerter Trigger auf dem Triggerer-Host.",
         "expressionLabels": ["blocked", "succeeded"]
       },
       {
         "title": "Laufende Tasks / geplante Slots",
+        "tip": "Scheduler-Executor-Warteschlange und Pool-Slots, die auf Ausführung warten.",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Asset-Updates" },
-      { "title": "Durch Assets ausgelöste DagRuns" }
+      { "title": "Asset-Updates", "tip": "Dataset-/Asset-Update-Ereignisse auf diesem Host." },
+      { "title": "Durch Assets ausgelöste DagRuns", "tip": "DagRuns, die auf dem Scheduler durch Dataset-Ereignisse ausgelöst wurden." }
     ]
   }
 }

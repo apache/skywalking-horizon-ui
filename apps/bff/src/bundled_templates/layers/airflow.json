@@ -76,7 +76,7 @@
         "title": "Scheduled Slots",
         "type": "card",
         "expressions": [
-          "latest(meter_airflow_pool_scheduled_slots)"
+          "latest(aggregate_labels(meter_airflow_pool_scheduled_slots, sum))"
         ],
         "span": 3,
         "rowSpan": 1,
@@ -106,7 +106,7 @@
       },
       {
         "id": "pool_slots",
-        "title": "Pool Queued / Deferred Slots",
+        "title": "Pool Queued / Deferred / Scheduled Slots",
         "type": "line",
         "expressions": [
           "meter_airflow_pool_queued_slots",

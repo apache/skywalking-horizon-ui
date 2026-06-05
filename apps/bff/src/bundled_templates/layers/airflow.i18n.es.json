@@ -39,19 +39,22 @@
     "instance": [
       {
         "title": "Slots abiertos / diferidos / en ejecución del pool",
+        "tip": "Capacidad del pool de workers Celery. Solo lo reportan procesos worker.",
         "expressionLabels": ["open", "deferred", "running"]
       },
-      { "title": "Heartbeat del triggerer" },
+      { "title": "Heartbeat del triggerer", "tip": "Heartbeats por minuto del proceso triggerer." },
       {
         "title": "Triggers bloqueados / exitosos",
+        "tip": "Resultados de triggers diferidos en el host triggerer.",
         "expressionLabels": ["blocked", "succeeded"]
       },
       {
         "title": "Tasks en ejecución / slots programados",
+        "tip": "Profundidad de cola del executor del scheduler y slots del pool en espera de ejecución.",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Actualizaciones de assets" },
-      { "title": "DagRuns disparados por assets" }
+      { "title": "Actualizaciones de assets", "tip": "Eventos de actualización de dataset/asset en este host." },
+      { "title": "DagRuns disparados por assets", "tip": "DagRuns disparados por eventos de dataset en el scheduler." }
     ]
   }
 }

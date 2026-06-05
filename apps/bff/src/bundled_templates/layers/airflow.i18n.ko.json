@@ -39,19 +39,22 @@
     "instance": [
       {
         "title": "Pool 사용 가능 / 지연 / 실행 중 슬롯",
+        "tip": "Celery worker pool 용량. worker 프로세스에서만 보고됩니다.",
         "expressionLabels": ["open", "deferred", "running"]
       },
-      { "title": "Triggerer 하트비트" },
+      { "title": "Triggerer 하트비트", "tip": "Triggerer 프로세스의 분당 하트비트 수." },
       {
         "title": "Trigger 차단 / 성공",
+        "tip": "Triggerer 호스트에서 deferred trigger 결과.",
         "expressionLabels": ["blocked", "succeeded"]
       },
       {
         "title": "실행 중 작업 / 예약 슬롯",
+        "tip": "Scheduler executor 대기열 깊이 및 실행 대기 pool 슬롯.",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Asset 업데이트" },
-      { "title": "Asset 트리거 DagRun" }
+      { "title": "Asset 업데이트", "tip": "이 호스트의 dataset/asset 업데이트 이벤트." },
+      { "title": "Asset 트리거 DagRun", "tip": "Scheduler에서 dataset 이벤트로 트리거된 DagRun." }
     ]
   }
 }

@@ -39,19 +39,22 @@
     "instance": [
       {
         "title": "Pool 空闲 / 延迟 / 运行 Slot",
+        "tip": "Celery worker pool 容量。仅由 worker 进程上报。",
         "expressionLabels": ["open", "deferred", "running"]
       },
-      { "title": "Triggerer 心跳" },
+      { "title": "Triggerer 心跳", "tip": "Triggerer 进程每分钟心跳数。" },
       {
         "title": "Trigger 阻塞 / 成功",
+        "tip": "Triggerer 主机上 deferred trigger 的结果。",
         "expressionLabels": ["blocked", "succeeded"]
       },
       {
         "title": "运行中任务 / 已调度 Slot",
+        "tip": "Scheduler executor 队列深度及待运行的 pool slot。",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Asset 更新" },
-      { "title": "Asset 触发的 DagRun" }
+      { "title": "Asset 更新", "tip": "本主机上的 dataset/asset 更新事件。" },
+      { "title": "Asset 触发的 DagRun", "tip": "Scheduler 上由 dataset 事件触发的 DagRun。" }
     ]
   }
 }
