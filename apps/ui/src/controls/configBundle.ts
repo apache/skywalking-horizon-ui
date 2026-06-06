@@ -66,6 +66,16 @@ function previewContentFor<T>(name: string): T | undefined {
   return previewOverride.get<T>(name) ?? localEdits.get<T>(name);
 }
 
+/** Preview overlay content for a template `name` (a layer / overview
+ *  edit name), or `undefined` when not in preview mode or no override
+ *  exists for it. Exposed so pages that fetch a SINGLE template directly
+ *  from the BFF (e.g. the overview-detail page) honour the same preview
+ *  the bundle already applies to its list views — without it, the admin
+ *  Preview button is a no-op on those pages. */
+export function getPreviewContentFor<T>(name: string): T | undefined {
+  return previewContentFor<T>(name);
+}
+
 /** `local` only when the operator opted to preview unpublished edits;
  *  otherwise `remote` (the default runtime source of truth). */
 function preferParam(): 'local' | 'remote' {

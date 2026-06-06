@@ -39,16 +39,28 @@ export interface LayerTemplateContent {
   overview?: LayerDef['overview'];
   naming?: LayerDef['naming'];
   traces?: LayerDef['traces'];
+  /** Only the `instanceTopology` presence is read here, to gate the
+   *  Instance-map drill-down cap — same rule the menu's `deriveLayer` uses. */
+  topology?: { instanceTopology?: unknown };
 }
 
-/** `components.*` → `caps.*` (the tab-visibility flags the sidebar reads). */
-export function componentsToCaps(components: Record<string, boolean | undefined> | undefined): LayerCaps {
+/** `components.*` → `caps.*` (the tab-visibility flags the sidebar reads).
+ *  `instanceTopology` is NOT a component flag: like the menu, it's gated on
+ *  the parent Topology component (`serviceMap`) AND the presence of a
+ *  `topology.instanceTopology` block — so a draft that enables it opens the
+ *  Instance map in preview, and one that drops it hides it. */
+export function componentsToCaps(
+  components: Record<string, boolean | undefined> | undefined,
+  topology?: { instanceTopology?: unknown },
+): LayerCaps {
   const c = components ?? {};
+  const serviceMap = !!c.topology;
   return {
     dashboards: !!c.service,
     instances: !!c.instances,
     endpoints: !!c.endpoints,
-    serviceMap: !!c.topology,
+    serviceMap,
+    instanceTopology: serviceMap && !!topology?.instanceTopology,
     endpointDependency: !!c.endpointDependency,
     traces: !!c.traces,
     logs: !!c.logs,
@@ -74,7 +86,7 @@ export function layerContentToDef(t: LayerTemplateContent): LayerDef {
     normal: null,
     documentLink: t.documentLink,
     slots: t.slots ?? {},
-    caps: componentsToCaps(t.components),
+    caps: componentsToCaps(t.components, t.topology),
     header: t.metrics,
     metrics: t.metrics,
     overview: t.overview,
@@ -90,6 +102,6 @@ export function overlayLayerDef(base: LayerDef, t: LayerTemplateContent): LayerD
   return {
     ...base,
     slots: { ...base.slots, ...(t.slots ?? {}) },
-    caps: componentsToCaps(t.components),
+    caps: componentsToCaps(t.components, t.topology),
   };
 }

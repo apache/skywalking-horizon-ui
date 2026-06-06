@@ -9,9 +9,15 @@
       "title": "Istio-verwaltete Services",
       "tip": "Services, die durch die Istio-Data-Plane geleitet werden.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "P95" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "P95"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -20,7 +26,9 @@
       "kpis": [
         null,
         null,
-        { "label": "Services" },
+        {
+          "label": "Services"
+        },
         null
       ]
     },
@@ -42,16 +50,28 @@
       "title": "Cluster-Kapazität & -Auslastung",
       "tip": "Knoten / Namespaces / Workloads, plus CPU-, Speicher- und Speichernutzung auf Cluster-Ebene.",
       "kpis": [
-        { "label": "Knoten" },
+        {
+          "label": "Knoten"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Services" },
-        { "label": "Container" },
-        { "label": "CPU" },
-        { "label": "Speicher" },
-        { "label": "Speicherplatz" }
+        {
+          "label": "Services"
+        },
+        {
+          "label": "Container"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Speicher"
+        },
+        {
+          "label": "Speicherplatz"
+        }
       ]
     }
   ]

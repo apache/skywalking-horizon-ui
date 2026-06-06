@@ -368,7 +368,22 @@
       {
         "label": "Mittlere Antwortzeit"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "Erfolgsrate" },
+        { "label": "Latenz" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "Mittlere Antwortzeit" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "Mittlere Antwortzeit" }
+      ]
+    }
   },
   "slots": {
     "services": "K8s-Dienste",

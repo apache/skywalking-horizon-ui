@@ -67,16 +67,16 @@ Layer-specific term overrides used in UI labels.
 
 ```json
 "slots": {
-  "service":      "service",
-  "services":     "services",
-  "instance":     "instance",
-  "instances":    "instances",
-  "endpoint":     "endpoint",
-  "endpoints":    "endpoints"
+  "services":         "services",
+  "instances":        "instances",
+  "endpoints":        "endpoints",
+  "endpointDependency": "API dependency",
+  "topology":         "Topology",
+  "instanceTopology": "Instance map"
 }
 ```
 
-A Kubernetes layer might use `pod` / `pods` instead of `instance` / `instances`. The page titles and pickers pick up the override automatically.
+A Kubernetes layer might use `Pods` instead of `Instances`. The page titles, sidebar tabs, and pickers pick up the override automatically. `topology` renames the **Topology** sidebar tab; `instanceTopology` renames the **Instance map** drill-down. Edit these in the admin under **Menu labels** (the alias fields render in sidebar/menu order, showing only the entries the layer's enabled components expose).
 
 ## `components`
 
@@ -267,25 +267,67 @@ A `line` widget with a scalar-collapsed MQE renders a one-point chart and confus
 
 ## `topology`
 
-Per-layer override for the service-map view's MQE.
+Config for the **Topology** map (the service-map view): which MQE metrics decorate each service node and each service-to-service call edge — and, optionally, the **instance map** drill-down. Edited in the admin under the layer's **Topology** scope (node-metric / server-edge / client-edge editors). Without a block, a sensible default metric set is used.
 
 ```json
 "topology": {
-  "metric": "service_resp_time"
+  "nodeMetrics": [
+    { "id": "cpm",      "label": "RPM",     "mqe": "service_cpm",       "unit": "rpm", "role": "center",    "aggregation": "avg" },
+    { "id": "sla",      "label": "SLA",     "mqe": "service_sla/100",   "unit": "%",   "role": "ring",      "aggregation": "avg",
+      "thresholds": { "invertHealth": true, "ok": 0.1, "warn": 1, "danger": 5 } },
+    { "id": "respTime", "label": "Latency", "mqe": "service_resp_time", "unit": "ms",  "role": "secondary", "aggregation": "avg" }
+  ],
+  "linkServerMetrics": [
+    { "id": "cpm", "label": "RPM", "mqe": "service_relation_server_cpm", "unit": "rpm", "role": "lineServer", "aggregation": "avg" }
+  ],
+  "linkClientMetrics": [
+    { "id": "cpm", "label": "RPM", "mqe": "service_relation_client_cpm", "unit": "rpm", "role": "lineClient", "aggregation": "avg" }
+  ],
+  "instanceTopology": { "nodeMetrics": [ ... ], "linkServerMetrics": [ ... ], "linkClientMetrics": [ ... ] }
 }
 ```
 
-Without an override, topology uses a default metric appropriate to the layer.
+| Field | Notes |
+|---|---|
+| `nodeMetrics[]` | Per-service-node metrics. `role`: `center` (the number inside the node), `ring` (the health colour band on the node), `secondary` (surfaced in the node detail). |
+| `linkServerMetrics[]` / `linkClientMetrics[]` | Per-call-edge metrics — server side (`service_relation_server_*`) and client side (`service_relation_client_*`). Ids that match across the two render aligned in the edge detail panel. |
+| `*.id` / `*.label` / `*.mqe` / `*.unit` | Stable id, display name, MQE expression, optional unit. Everything on screen — names, values, legend — comes from these, nothing is hardcoded. |
+| `*.role` | Visual binding (above). Edge metrics use `lineServer` / `lineClient`. |
+| `*.aggregation` | `sum` or `avg` across the window. |
+| `*.thresholds` | Four-band colour for a `ring` metric: `ok` / `warn` / `danger` boundaries, plus `invertHealth: true` for higher-is-better metrics (SLA, apdex, success rate) and an optional `invertBase` (default 100). |
+| `instanceTopology` | **Optional.** Enables the instance map (see below). Same `nodeMetrics` / `linkServerMetrics` / `linkClientMetrics` shape, but the MQE is evaluated at **instance** scope (`service_instance_*` and `service_instance_relation_server/client_*`). Absent ⇒ the layer offers no instance map. |
+
+### Instance map
+
+When `topology.instanceTopology` is set, the Topology map gains an **instance-to-instance** drill-down. On the service map, select a call between two services and click **Instance map →**: it opens the instances of each service as two columns (left = client, right = server) with the instance-level calls between them — the same node health-ring (with a colour legend reading the ring metric's thresholds), per-service grouping boxes, per-call client/server metric panel, and pan/zoom as the service map. A toolbar pair-picker swaps the two services; a back button returns to the service map. Each grouping box is named with its service (the `<group>::` prefix handled by the same naming rule as the service map), and labels follow the layer's instance term (the `instances` / `instanceTopology` slots — e.g. *Pods*, *Sidecars*).
+
+Enable and configure it in the admin: open the layer's **Topology** scope and turn on **Enable instance topology**, which reveals its own node / server-edge / client-edge metric editors (kept separate from the service-topology metrics). Horizon ships it pre-enabled for **GENERAL**, **MESH**, **K8S_SERVICE**, and **CILIUM_SERVICE**; it rides the topology block, so it travels with template export/import.
 
 ## `endpointDependency`
 
-Per-layer override for the API-dependency dashboard.
+Config for the **API dependency** view — the endpoint-to-endpoint dependency map: which MQE metrics decorate each endpoint node and each endpoint-to-endpoint call edge. Same metric-def shape as [`topology`](#topology), but the MQE is evaluated at **endpoint** scope (`endpoint_*`) for nodes and **endpoint-relation** scope (`endpoint_relation_*`) for edges. Without a block, a sensible default metric set is used.
 
 ```json
 "endpointDependency": {
-  "metric": "endpoint_avg"
+  "nodeMetrics": [
+    { "id": "cpm",      "label": "RPM",     "mqe": "endpoint_cpm",       "unit": "rpm", "role": "center",    "aggregation": "avg" },
+    { "id": "sla",      "label": "SLA",     "mqe": "endpoint_sla/100",   "unit": "%",   "role": "ring",      "aggregation": "avg" },
+    { "id": "respTime", "label": "Latency", "mqe": "endpoint_resp_time", "unit": "ms",  "role": "secondary", "aggregation": "avg" }
+  ],
+  "linkMetrics": [
+    { "id": "cpm",      "label": "RPM",               "mqe": "endpoint_relation_cpm",        "unit": "rpm", "role": "lineServer", "aggregation": "avg" },
+    { "id": "respTime", "label": "Avg response time", "mqe": "endpoint_relation_resp_time",  "unit": "ms",  "aggregation": "avg" }
+  ]
 }
 ```
+
+| Field | Notes |
+|---|---|
+| `nodeMetrics[]` | Per-endpoint-node metrics. Same `id` / `label` / `mqe` / `unit` / `role` / `aggregation` / `thresholds` fields as the topology node metrics. |
+| `linkMetrics[]` | Per-call-edge metrics. **Server-side only** — OAP exposes no `endpoint_relation_client_*` family, so (unlike the service map) there's a single edge metric list; use `role: lineServer`. |
+| `showGroup` | Group endpoints by their naming rule in the node panel, same semantics as the topology `showGroup`. |
+
+Edited in the admin under the layer's **API dependency** scope.
 
 ## `traces`
 
@@ -338,6 +380,20 @@ Your work-in-progress lives **in your browser**, never on the server until you p
 4. **Check diff & push.** Shows a side-by-side *remote → local* diff and publishes to OAP (the runtime source of truth). Enabled only when your draft actually differs from remote. After publishing, the draft is cleared and everyone sees the change.
 
 A top banner summarizes page state — *Synced from OAP — N diverged, Y local* — and **Diverged** / **Local** filters narrow the picker. Each row shows a status chip: **synced** (bundled == OAP), **diverged** (OAP differs from bundled — OAP wins at render), **remote-only** (on OAP, no bundled default), **disabled** (deleted — see below), or **bundled** (OAP has no copy right now).
+
+### Bundled defaults vs. your OAP-published templates
+
+Each layer template has two copies: the **bundled** default shipped with Horizon, and the **remote** copy stored on OAP (what end users actually render — OAP wins at render time). On boot, Horizon seeds OAP **only with templates that are absent there** — a brand-new layer with no remote copy yet is pushed automatically so it works out of the box.
+
+It does **not** overwrite a template that already exists on OAP. So when you upgrade Horizon and a bundled default changes — a new metric, a new capability such as the instance map, a tweaked widget — layers you've already published show as **diverged**: OAP keeps winning at render and your published edits are preserved. The new bundled default is *offered*, not forced.
+
+To adopt a new bundled default on an existing layer, publish it from the admin:
+
+- the **Diverged** filter narrows the picker to the affected layers;
+- **Reset to ▾ → Bundled** loads the shipped default into the editor, then **Check diff & push** publishes it to OAP; or
+- review the *remote → bundled* diff first and keep any of your own changes before pushing.
+
+This is why a freshly shipped capability can read **diverged / off** until you push it: the new config is bundled, but your OAP copy stays the source of truth and only changes when you publish. (New layers absent from OAP are the one case that goes live automatically, via the boot-time seed above.)
 
 ### Import / Export
 

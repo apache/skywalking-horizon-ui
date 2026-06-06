@@ -9,6 +9,37 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Instance topology
+
+- The per-layer **Topology** map gains an **instance map** drill-down on
+  layers that enable instance topology. Click a call between two services
+  and then **Instance map →** to open it: the instances of each service
+  as two columns (left = client, right = server) with the instance-level
+  calls between them — pan/zoom, animated client→server flow, the same
+  node health-ring + per-call client/server metric sidebar the service
+  map uses, and a node popover with **Open instance dashboard**. A back
+  button returns to the service map; a toolbar pair-picker swaps the two
+  services. The two service pickers are **relationship-aware**, drawn from
+  the service-topology call graph (including conjectured / cross-layer
+  callees like `rcmd:80`, named the same as on the service map): the server
+  list is the chosen client's callees and the client list is the chosen
+  server's callers, each re-deriving when the other changes without
+  resetting your current pick. A side the graph leaves no real choice for
+  (e.g. a single caller) shows as plain text instead of a one-option
+  dropdown. Each service's instances sit inside a labelled grouping box —
+  named with the service, using the same `<group>::` prefix handling as
+  the service map so a name reads identically on both — and a ring-colour
+  legend explains what the node health bands (green → red) mean for the
+  configured ring metric. Labels follow the layer's own terms (e.g.
+  *Pods* on Kubernetes, *Sidecars* on the data plane).
+- **Configurable like the service map.** The Layer-dashboards admin →
+  **Topology** scope now has an **Enable instance topology** toggle and
+  its own node / server-edge / client-edge metric editors, kept visually
+  separate from the service-topology metrics so the two are never
+  confused. Enabled out of the box on **General**, **Service Mesh**,
+  **Kubernetes Service**, and **Cilium Service**; the config rides each
+  layer's topology template (so it travels with template export/import).
+
 ### Dashboard template portability
 
 - Every template admin page — Overview templates, Layer dashboards, and the
@@ -25,6 +56,36 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   as a JSON file, or import one as a local draft to review and push. (Source
   templates and their translations are edited on separate pages, so their
   import/export are separate too — each on its own page.)
+
+### Template store reliability
+
+- **Runtime config is strictly what's on OAP.** Layer dashboards, overviews,
+  and topology now render only the version published to OAP's UI-template
+  store (or the in-code minimal default for a layer that has none). The
+  disk-bundled templates reach a running UI **only** by being synced to OAP
+  (first boot / admin reset) or through the admin **Preview** button — they
+  are never a silent live fallback. So an operator always sees the live
+  published config, not a stale bundled copy masquerading as current.
+- **Unreachable template store is a visible block, not a quiet fallback.**
+  When OAP's UI-template host can't be reached, a banner (same red treatment
+  as the OAP-query-unreachable strip) reports it, and the dashboard / overview
+  / topology surfaces stay empty rather than back-filling bundled defaults
+  that could be read as real. The sidebar still navigates so the rest of the
+  app is reachable.
+- The admin **Preview** button now drives **every** template-rendered page —
+  the **overview detail** view and the per-layer **topology** (incl. the
+  **instance map**), **API dependency**, **traces**, and **network-profiling**
+  pages — not just the layer dashboards. Previewing renders the draft's
+  metrics/config against live OAP, so an edit to topology or dependency metrics
+  is visible before you publish. Preview and the absent-remote path stay
+  strictly separate: a draft renders only in `?mode=preview`; normal reads
+  never carry one.
+- **Editors no longer silently fall back to the bundled default.** When a
+  layer / overview / translation has no version published to OAP, the editor
+  shows a *"No published version on OAP"* panel instead of quietly loading the
+  shipped bundled copy as if it were live. Bundled now reaches the editor only
+  when you click **Reset to bundled** — matching the runtime, which renders the
+  published version or blocks, never the bundle.
 
 ### Documentation & release tooling
 

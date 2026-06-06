@@ -27,6 +27,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { useAutoRefreshSubscribe } from '@/controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 
 export interface LayerServiceRow {
@@ -35,14 +36,28 @@ export interface LayerServiceRow {
   normal: boolean | null;
 }
 
+/**
+ * Reactive, shared roster for a layer. vue-query keys it by
+ * `['layer-services', layerKey]`, so every caller of this composable (and
+ * anyone using that same key) reads ONE cached copy — the app-wide page
+ * cache for the service list; no repeated reads within or across the
+ * pages that need it. The 60s `staleTime` matches the BFF catalog's TTL.
+ *
+ * It also rides the global auto-refresh ticker: a manual / interval
+ * refresh re-pulls the roster (cheap — the BFF returns its cached
+ * catalog snapshot), so services that came online or went away show up
+ * without a navigation. Pages that own their time range suspend the
+ * ticker, so they don't thrash it either.
+ */
 export function useLayerServices(layerKey: Ref<string>) {
   const q = useQuery({
     queryKey: ['layer-services', layerKey],
     queryFn: () => bffClient.layer.services(layerKey.value),
     enabled: computed(() => layerKey.value.length > 0),
-    // The BFF caches the catalog snapshot for 60s server-side. Match
-    // that here so the UI doesn't re-fire on every layer entry.
     staleTime: 60_000,
+  });
+  useAutoRefreshSubscribe(() => {
+    if (layerKey.value.length > 0) void q.refetch();
   });
   return {
     data: computed(() => q.data.value ?? null),

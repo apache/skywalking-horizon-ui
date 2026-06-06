@@ -255,7 +255,22 @@
       {
         "label": "Temps de réponse moyen"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "Taux de succès" },
+        { "label": "Latence" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "Temps de réponse moyen" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "Temps de réponse moyen" }
+      ]
+    }
   },
   "slots": {
     "services": "Services K8s",

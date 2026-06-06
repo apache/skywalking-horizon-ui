@@ -92,6 +92,8 @@ export class NetworkProfileApi {
       startTime?: number;
       endTime?: number;
       windowMinutes?: number;
+      /** Admin preview: the operator's draft `processTopology` block. */
+      previewConfig?: string;
     },
   ): Promise<ProcessRelationMetricsResponse> {
     return this.bff.request<ProcessRelationMetricsResponse>(

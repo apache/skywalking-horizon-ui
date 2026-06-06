@@ -26,11 +26,18 @@
  * default 30s `useOapInfo` cadence — so recovery shows up in the UI
  * without an operator-triggered refresh.
  *
- * Only the query port (`:12800`) drives this strip. Admin-port
- * (`:17128`) failures render in-page via `AdminFeatureWarning`
- * inside each admin-host route — they don't blanket-warn because a
- * dead admin host is normal in deploys that opted out of those
- * modules.
+ * Two fundamental failures drive this strip, same red theme, only one
+ * at a time (query takes precedence):
+ *   1. Query port (`:12800`) unreachable — no telemetry at all.
+ *   2. OAP UI-template store unreachable — the BFF then serves NO
+ *      per-layer dashboards / overviews / topology (bundled is never a
+ *      render-time fallback), so the entire dashboard surface is blocked,
+ *      not silently empty. Signalled by `syncStatus.unreachable` on the
+ *      config bundle.
+ *
+ * Admin-port write failures still render in-page via `AdminFeatureWarning`
+ * inside each admin-host route — those are edit-surface warnings, distinct
+ * from the read-surface block above.
  */
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -38,6 +45,7 @@ import { useI18n } from 'vue-i18n';
 
 const { t } = useI18n({ useScope: 'global' });
 import { useOapInfo } from '@/shell/useOapInfo';
+import { useConfigBundle, refreshConfigBundle } from '@/controls/configBundle';
 import Icon from '@/components/icons/Icon.vue';
 
 type RetryChoice = 'off' | '5' | '15' | '60';
@@ -138,6 +146,37 @@ const errorText = computed<string>(() => info.value?.error ?? 'no response');
 // already on the cluster page — hide it there.
 const onClusterPage = computed<boolean>(() => route.path.startsWith('/operate/cluster'));
 const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
+
+// --- Template store (OAP UI-template overlay) unreachable -------------
+// Second fundamental failure. `syncStatus.unreachable` rides on the
+// config bundle the shell already preloads. When set, every dashboard /
+// overview / topology route returns nothing (no bundled fallback at
+// render time), so the operator must see the surface is BLOCKED. The
+// query-port strip wins when both are down — they share one OAP, so a
+// full outage shows the more fundamental message only.
+const { bundle } = useConfigBundle();
+const templateStoreDown = computed<boolean>(
+  () => !unreachable.value && bundle.value?.syncStatus?.unreachable === true,
+);
+const lastSyncLabel = computed<string>(() => {
+  const at = bundle.value?.syncStatus?.lastSuccessfulSyncAt;
+  if (!at) return t('never');
+  const sec = Math.max(1, Math.floor((nowMs.value - at) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  return `${Math.floor(min / 60)}h ${min % 60}m ago`;
+});
+const retryingTemplates = ref(false);
+async function retryTemplates(): Promise<void> {
+  if (retryingTemplates.value) return;
+  retryingTemplates.value = true;
+  try {
+    await refreshConfigBundle({ force: true });
+  } finally {
+    retryingTemplates.value = false;
+  }
+}
 </script>
 
 <template>
@@ -166,6 +205,24 @@ const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
     </label>
 
     <button type="button" class="now" @click="() => refetch()">{{ t('retry now') }}</button>
+    <RouterLink v-if="!onClusterPage" to="/operate/cluster" class="link">{{ t('View cluster status →') }}</RouterLink>
+  </div>
+
+  <div v-else-if="templateStoreDown && !isPublicRoute" class="banner" role="alert">
+    <span class="icon">
+      <Icon name="alert" :size="14" />
+    </span>
+    <div class="msg">
+      <strong>{{ t('Dashboard template store unreachable') }}</strong>
+      <span class="detail">
+        {{ t('Layer dashboards, overviews and topology are blocked until OAP’s UI-template store is reachable.') }}
+        · {{ t('Last sync') }} <span class="when">{{ lastSyncLabel }}</span>
+      </span>
+    </div>
+
+    <button type="button" class="now" :disabled="retryingTemplates" @click="retryTemplates">
+      {{ t('retry now') }}
+    </button>
     <RouterLink v-if="!onClusterPage" to="/operate/cluster" class="link">{{ t('View cluster status →') }}</RouterLink>
   </div>
 </template>

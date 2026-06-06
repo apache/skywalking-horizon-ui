@@ -60,7 +60,17 @@
       {
         "label": "Latencia media"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latencia media" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latencia media" }
+      ]
+    }
   },
   "slots": {
     "services": "Servicios",

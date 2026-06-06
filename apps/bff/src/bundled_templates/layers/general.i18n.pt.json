@@ -450,7 +450,26 @@
       {
         "label": "SLA"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "SLA" },
+        { "label": "Latência" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "Tempo médio de resposta" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "Tempo médio de resposta" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ]
+    }
   },
   "endpointDependency": {
     "nodeMetrics": [

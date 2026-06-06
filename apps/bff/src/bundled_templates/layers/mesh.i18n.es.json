@@ -237,7 +237,26 @@
       {
         "label": "SLA"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "SLA" },
+        { "label": "Latencia" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "Tiempo medio de respuesta" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "Tiempo medio de respuesta" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ]
+    }
   },
   "slots": {
     "services": "Servicios",

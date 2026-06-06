@@ -45,6 +45,7 @@ import type {
   TraceQueryState,
   TraceSource,
   TracesConfig,
+  UITemplateClient,
   ZipkinTraceDetailResponse,
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
@@ -52,7 +53,9 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
-import { getLayerTemplate, tracesConfigFor } from '../../logic/layers/loader.js';
+import { tracesConfigFor } from '../../logic/layers/loader.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { parsePreviewTraces } from '../../logic/layers/preview.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes, windowFromRange } from '../../util/window.js';
@@ -62,6 +65,8 @@ export interface TraceRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 const DEFAULT_WINDOW_MIN = 30;
@@ -125,6 +130,10 @@ interface TraceListBody {
   start?: string;
   /** Explicit ISO end (UTC). Pair with `start`. */
   end?: string;
+  /** Admin Preview: the operator's draft `traces` block (JSON string).
+   *  When present + valid, it picks the source instead of the remote
+   *  template — same preview path as topology / endpoint-dependency. */
+  previewConfig?: string;
 }
 
 // ── Native GraphQL queries ────────────────────────────────────────
@@ -405,8 +414,20 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
       const body = (req.body ?? {}) as TraceListBody;
-      const template = getLayerTemplate(layerKey);
-      const tracesCfg: TracesConfig = tracesConfigFor(template);
+      // Admin Preview: draft `traces` block wins (bypasses remote + block).
+      const previewCfg = parsePreviewTraces(body.previewConfig);
+      let tracesCfg: TracesConfig;
+      if (previewCfg) {
+        tracesCfg = previewCfg;
+      } else {
+        const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+        if (eff.blocked) {
+          // Template store unreachable / layer disabled — block: serve no
+          // traces rather than guessing the source from a default config.
+          return reply.send({ generatedAt: Date.now(), source: body.source ?? 'native' });
+        }
+        tracesCfg = tracesConfigFor(eff.template);
+      }
       const requestedSource: TraceSource = body.source ?? tracesCfg.source;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);

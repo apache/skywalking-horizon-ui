@@ -242,7 +242,26 @@
       {
         "label": "SLA"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "SLA" },
+        { "label": "レイテンシ" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "平均応答時間" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "平均応答時間" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ]
+    }
   },
   "slots": {
     "services": "サービス",

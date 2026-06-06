@@ -36,6 +36,10 @@ export interface LayerSlots {
   endpoints?: string;
   /** Label for the endpoint-to-endpoint dependency feature. Defaults to `${endpoints} dependency`. */
   endpointDependency?: string;
+  /** Label for the service-topology tab. Defaults to "Topology". */
+  topology?: string;
+  /** Label for the instance-topology sub-tab. Defaults to "Instance map". */
+  instanceTopology?: string;
 }
 
 export interface LayerCaps {

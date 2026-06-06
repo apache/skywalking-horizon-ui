@@ -482,6 +482,16 @@
         "unit": "ms",
         "aggregation": "avg"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "id": "httpCpm", "label": "HTTP RPM", "mqe": "cilium_service_instance_protocol_http_call_cpm", "unit": "rpm", "role": "center", "aggregation": "avg" },
+        { "id": "httpRespTime", "label": "Avg Latency", "mqe": "cilium_service_instance_protocol_http_call_duration/cilium_service_instance_protocol_http_call_cpm/1000000", "unit": "ms", "role": "secondary", "aggregation": "avg" }
+      ],
+      "linkServerMetrics": [
+        { "id": "cpm", "label": "HTTP RPM", "mqe": "cilium_service_instance_relation_server_protocol_http_call_cpm", "unit": "rpm", "role": "lineServer", "aggregation": "avg" },
+        { "id": "respTime", "label": "Avg Latency", "mqe": "cilium_service_instance_relation_server_protocol_http_call_duration/cilium_service_instance_relation_server_protocol_http_call_cpm/1000000", "unit": "ms", "aggregation": "avg" }
+      ]
+    }
   }
 }

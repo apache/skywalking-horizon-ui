@@ -207,6 +207,16 @@
       {
         "label": "Latência média"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latência média" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latência média" }
+      ]
+    }
   }
 }

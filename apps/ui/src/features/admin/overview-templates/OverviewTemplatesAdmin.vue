@@ -700,18 +700,37 @@ const editorDiffersFromRemote = computed<boolean>(() => {
 });
 
 // Which source to seed the editor from for the current selection.
-// Remote is the canonical baseline — it's what `pickOverviewContent`
-// in the runtime bundle serves to end users — so the editor opens
-// from remote on every re-mount when remote is reachable. Priority:
+// Remote is the canonical baseline — it's what the runtime bundle serves
+// to end users — so the editor opens from remote on every re-mount when
+// remote is reachable. Priority:
 //   1. Local draft — unpublished in-progress edits in this browser.
 //   2. Remote — the default for every re-entry when remote exists.
-//   3. Bundled — fallback for bundled-only overviews (no OAP row).
-function defaultEditorSource(): 'local' | 'bundled' | 'remote' {
-  if (hasLocalDraft.value) return 'local';
-  if (remoteAvailable.value) return 'remote';
-  if (bundledContent()) return 'bundled';
-  return 'bundled';
+//   3. Otherwise NOTHING. We do NOT auto-load bundled (even for a
+//      bundled-only overview): bundled is the seed/reset source, never the
+//      runtime render, so the editor shows a "no published version" panel
+//      and the operator resets to bundled explicitly.
+function seedEditor(): void {
+  if (hasLocalDraft.value) {
+    loadFrom('local');
+    return;
+  }
+  if (remoteAvailable.value) {
+    loadFrom('remote');
+    return;
+  }
+  draft.value = null;
+  loadedSnapshot.value = '';
 }
+/** Selected overview exists but has neither a local draft nor an OAP row,
+ *  so nothing is loaded. Drives the "no published version" panel. */
+const noPublishedVersion = computed<boolean>(
+  () =>
+    sourcesReady.value &&
+    !!selectedId.value &&
+    !hasLocalDraft.value &&
+    !remoteAvailable.value &&
+    !draft.value,
+);
 
 // Seed the editor when the selected overview (or a background refetch)
 // changes — but never clobber unsaved keystrokes OR an operator-driven
@@ -724,7 +743,7 @@ watch(
   () => {
     if (!sourcesReady.value) return;
     if (isDirty.value) return;
-    loadFrom(defaultEditorSource());
+    seedEditor();
   },
   { immediate: true },
 );
@@ -733,7 +752,7 @@ watch(
 // run the seed for the currently-selected overview once.
 watch(sourcesReady, (ready, wasReady) => {
   if (ready && !wasReady && selectedId.value && !isDirty.value) {
-    loadFrom(defaultEditorSource());
+    seedEditor();
   }
 });
 
@@ -1107,6 +1126,14 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
 
       <section class="ot__detail">
         <div v-if="detailQuery.isPending.value && !draft" class="ot__empty">loading…</div>
+        <!-- Overview selected but no working copy: no local draft, no OAP
+             row. We do NOT auto-load the bundled default (seed/reset source
+             only); the operator adopts it explicitly. -->
+        <div v-else-if="noPublishedVersion" class="ot__empty ot__no-remote">
+          <h3>{{ t('No published version on OAP') }}</h3>
+          <p>{{ t('This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.') }}</p>
+          <button class="ot__btn ot__btn--primary" type="button" :disabled="!bundledExists" @click="loadFrom('bundled')">{{ t('Reset to bundled') }}</button>
+        </div>
         <template v-else-if="draft">
           <header class="ot__detail-head">
             <h2><code>{{ draft.id }}</code></h2>
@@ -1745,6 +1772,9 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   color: var(--sw-fg-0); background: var(--sw-bg-2); padding: 1px 5px; border-radius: 3px;
 }
 .ot__empty { padding: 32px; text-align: center; color: var(--sw-fg-3); font-size: 12px; }
+.ot__no-remote { text-align: left; max-width: 600px; padding: 24px; }
+.ot__no-remote h3 { margin: 0 0 8px; font-size: 14px; color: var(--sw-fg-0); }
+.ot__no-remote p { margin: 0 0 16px; font-size: 12px; line-height: 1.6; color: var(--sw-fg-2); }
 .ot__toolbar { display: flex; justify-content: flex-end; margin: 8px 0; }
 
 .ot__main { display: flex; flex-direction: column; gap: 12px; }

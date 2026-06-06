@@ -608,7 +608,26 @@
         "unit": "%",
         "aggregation": "avg"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "id": "cpm", "label": "RPM", "mqe": "service_instance_cpm", "unit": "rpm", "role": "center", "aggregation": "avg" },
+        { "id": "sla", "label": "SLA", "mqe": "service_instance_sla/100", "unit": "%", "role": "ring", "aggregation": "avg", "thresholds": { "invertHealth": true, "invertBase": 100, "ok": 0.1, "warn": 1, "danger": 5 } },
+        { "id": "respTime", "label": "Latency", "mqe": "service_instance_resp_time", "unit": "ms", "role": "secondary", "aggregation": "avg" }
+      ],
+      "linkServerMetrics": [
+        { "id": "cpm", "label": "RPM", "mqe": "service_instance_relation_server_cpm", "unit": "rpm", "role": "lineServer", "aggregation": "avg" },
+        { "id": "respTime", "label": "Avg response time", "mqe": "service_instance_relation_server_resp_time", "unit": "ms", "aggregation": "avg" },
+        { "id": "p95", "label": "p95", "mqe": "service_instance_relation_server_percentile{p='95'}", "unit": "ms", "aggregation": "avg" },
+        { "id": "sla", "label": "SLA", "mqe": "service_instance_relation_server_call_sla/100", "unit": "%", "aggregation": "avg" }
+      ],
+      "linkClientMetrics": [
+        { "id": "cpm", "label": "RPM", "mqe": "service_instance_relation_client_cpm", "unit": "rpm", "role": "lineClient", "aggregation": "avg" },
+        { "id": "respTime", "label": "Avg response time", "mqe": "service_instance_relation_client_resp_time", "unit": "ms", "aggregation": "avg" },
+        { "id": "p95", "label": "p95", "mqe": "service_instance_relation_client_percentile{p='95'}", "unit": "ms", "aggregation": "avg" },
+        { "id": "sla", "label": "SLA", "mqe": "service_instance_relation_client_call_sla/100", "unit": "%", "aggregation": "avg" }
+      ]
+    }
   },
   "traces": {
     "source": "zipkin"

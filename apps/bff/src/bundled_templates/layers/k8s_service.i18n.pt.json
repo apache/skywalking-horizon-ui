@@ -256,6 +256,21 @@
       {
         "label": "Tempo médio de resposta"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "Taxa de sucesso" },
+        { "label": "Latência" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "Tempo médio de resposta" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "Tempo médio de resposta" }
+      ]
+    }
   }
 }

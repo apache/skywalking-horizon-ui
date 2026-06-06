@@ -325,15 +325,17 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
   saveMsg.value = null;
 }
 /** Seed the editor when the selected layer changes. Remote is the
- *  canonical baseline — it's what `pickLayerContent` in the runtime
- *  bundle serves to end users for synced / diverged / remote-only
- *  rows, so the editor opens from remote whenever remote is reachable.
+ *  canonical baseline — it's what the runtime bundle serves to end users
+ *  for synced / diverged / remote-only rows, so the editor opens from
+ *  remote whenever remote is reachable.
  *  Priority:
  *    1. Local draft — unpublished in-progress edits in this browser.
  *    2. Remote — the default for every re-mount when remote exists.
- *    3. Bundled — only when remote is absent (bundled-fallback). The
- *       operator can also hit "Reset to bundled" explicitly to swap;
- *       that path goes through `resetTo`, not this seed function. */
+ *    3. Otherwise: NOTHING. We do NOT auto-load bundled when remote is
+ *       absent — bundled is the seed/reset source, not the working copy,
+ *       and the runtime doesn't render it either. The editor shows a
+ *       "no published version" panel; the operator hits "Reset to bundled"
+ *       to explicitly start from the shipped default (via `resetTo`). */
 function syncDraft(): void {
   if (hasLocalDraft.value) {
     loadFrom('local');
@@ -343,8 +345,22 @@ function syncDraft(): void {
     loadFrom('remote');
     return;
   }
-  loadFrom('bundled');
+  draft.template = null;
+  loadedSnapshot.value = '';
+  saveMsg.value = null;
 }
+
+/** Selected layer exists but has neither a local draft nor an OAP row, so
+ *  nothing is loaded (we don't fall back to bundled). Drives the "no
+ *  published version" panel + its Reset-to-bundled CTA. */
+const noPublishedVersion = computed<boolean>(
+  () =>
+    sourcesReady.value &&
+    !!selectedKey.value &&
+    !hasLocalDraft.value &&
+    !remoteAvailable.value &&
+    !draft.template,
+);
 
 /** Write the editor content to the local draft. If it equals remote, the
  *  draft is cleared instead (no point keeping a draft identical to live) —
@@ -478,6 +494,57 @@ watch(visibleScopes, (scopes) => {
   if (!scopes.includes(activeScope.value)) {
     activeScope.value = scopes[0] ?? 'service';
   }
+  void nextTick(updateScopeScroll);
+});
+
+// ── Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
+// on a narrow editor it overflows, so we let it scroll and surface
+// chevron buttons that appear only on the side(s) with hidden tabs.
+const scopeNav = ref<HTMLElement | null>(null);
+const canScrollScopeLeft = ref(false);
+const canScrollScopeRight = ref(false);
+function updateScopeScroll(): void {
+  const el = scopeNav.value;
+  if (!el) {
+    canScrollScopeLeft.value = false;
+    canScrollScopeRight.value = false;
+    return;
+  }
+  canScrollScopeLeft.value = el.scrollLeft > 2;
+  canScrollScopeRight.value = Math.ceil(el.scrollLeft + el.clientWidth) < el.scrollWidth - 1;
+}
+function scrollScopeTabs(dir: -1 | 1): void {
+  const el = scopeNav.value;
+  if (!el) return;
+  el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.7), behavior: 'smooth' });
+}
+// Attach the ResizeObserver when the <nav> actually mounts — the scope
+// strip only renders once a template is selected (async after loadAll),
+// so it's null at onMounted. Watching the template ref catches it
+// appearing AND re-runs the overflow check then.
+let scopeResizeObs: ResizeObserver | null = null;
+watch(
+  scopeNav,
+  (el) => {
+    scopeResizeObs?.disconnect();
+    scopeResizeObs = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      scopeResizeObs = new ResizeObserver(() => updateScopeScroll());
+      scopeResizeObs.observe(el);
+    }
+    void nextTick(updateScopeScroll);
+  },
+  { immediate: true },
+);
+// Content changes (scopes toggled, labels/counts) change scrollWidth
+// without resizing the nav, so refresh on those too.
+watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
+function onWinResizeScope(): void { updateScopeScroll(); }
+onMounted(() => window.addEventListener('resize', onWinResizeScope));
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWinResizeScope);
+  scopeResizeObs?.disconnect();
+  scopeResizeObs = null;
 });
 
 // Unsaved keystrokes: editor differs from the content last loaded/saved.
@@ -1039,7 +1106,10 @@ function ensureProcessTopology(): ProcessTopologyConfig {
   return tpl.processTopology;
 }
 
-type MetricBucket = 'node' | 'linkServer' | 'linkClient' | 'link' | 'edgeClient' | 'edgeServer';
+type MetricBucket =
+  | 'node' | 'linkServer' | 'linkClient'
+  | 'instNode' | 'instLinkServer' | 'instLinkClient'
+  | 'link' | 'edgeClient' | 'edgeServer';
 
 function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
   if (!draft.template) return [];
@@ -1048,6 +1118,12 @@ function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
     if (bucket === 'node') return t.nodeMetrics;
     if (bucket === 'linkServer') return t.linkServerMetrics ?? [];
     if (bucket === 'linkClient') return t.linkClientMetrics ?? [];
+    // Instance-topology buckets read straight off the nested block; they
+    // never auto-create it (only the explicit enable toggle does), so a
+    // read while disabled returns an empty detached list.
+    if (bucket === 'instNode') return t.instanceTopology?.nodeMetrics ?? [];
+    if (bucket === 'instLinkServer') return t.instanceTopology?.linkServerMetrics ?? [];
+    if (bucket === 'instLinkClient') return t.instanceTopology?.linkClientMetrics ?? [];
   } else if (activeScope.value === 'dependency') {
     const t = ensureEndpointDep();
     if (bucket === 'node') return t.nodeMetrics;
@@ -1093,6 +1169,24 @@ function toggleThresholds(m: TopologyMetricDef): void {
 const topologyNodeMetrics = computed(() => getMetricList('node'));
 const topologyServerMetrics = computed(() => getMetricList('linkServer'));
 const topologyClientMetrics = computed(() => getMetricList('linkClient'));
+// Instance-topology drill-down config (optional, nested under topology).
+const instanceTopologyEnabled = computed(() => !!draft.template?.topology?.instanceTopology);
+const instanceNodeMetrics = computed(() => getMetricList('instNode'));
+const instanceServerMetrics = computed(() => getMetricList('instLinkServer'));
+const instanceClientMetrics = computed(() => getMetricList('instLinkClient'));
+function toggleInstanceTopology(): void {
+  const t = ensureTopology();
+  if (t.instanceTopology) {
+    delete t.instanceTopology;
+  } else {
+    // Start empty — the operator authors the instance-scope metrics
+    // (service_instance_* / service_instance_relation_*) via the editors.
+    // We deliberately do NOT copy the service-topology metrics: those are
+    // service-scope MQE and would be wrong (and misleading) at instance
+    // scope.
+    t.instanceTopology = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
+  }
+}
 const epDepNodeMetrics = computed(() => activeScope.value === 'dependency' ? getMetricList('node') : []);
 const epDepLinkMetrics = computed(() => getMetricList('link'));
 const processEdgeClientMetrics = computed(() =>
@@ -1277,8 +1371,9 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'service', label: 'Service', hint: "The layer's primary landing — widget grid driven by dashboards.service." },
   { key: 'instances', label: 'Instances', hint: 'Per-instance dashboard (dashboards.instance widget set).' },
   { key: 'endpoints', label: 'Endpoints', hint: 'Per-endpoint dashboard (dashboards.endpoint widget set).' },
-  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
+  // Order mirrors the real sidebar: Topology sits before API dependency.
   { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer.' },
+  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
   { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
   { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
   { key: 'podLogs', label: 'Pod Logs', hint: 'On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.' },
@@ -1330,20 +1425,35 @@ const COMPONENT_SLOT: Partial<Record<ComponentKey, keyof NonNullable<AdminLayerT
   instances: 'instances',
   endpoints: 'endpoints',
   endpointDependency: 'endpointDependency',
+  topology: 'topology',
 };
 /** The layer's sidebar menu as the operator would see it — only the
  *  enabled components, in COMPONENT_TOGGLES order, labelled with the
  *  layer's slot aliases where defined. Drives the menu preview. */
-const menuItems = computed(() => {
+const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope; child?: boolean }>>(() => {
   const slots = draft.template?.slots ?? {};
-  return COMPONENT_TOGGLES.filter((t) => !!draft.template?.components?.[t.key]).map((t) => {
+  const items = COMPONENT_TOGGLES.filter((t) => !!draft.template?.components?.[t.key]).map((t) => {
     const slotKey = COMPONENT_SLOT[t.key];
     return {
-      key: t.key,
+      key: t.key as string,
       label: (slotKey && slots[slotKey]) || t.label,
       scope: COMPONENT_SCOPE[t.key],
+      child: false,
     };
   });
+  // Instance topology has no component flag of its own (it's a drill-down
+  // of the topology tab, not a sidebar entry); show it as a NESTED child
+  // under Topology so the preview reads "reached from Topology" — and so
+  // it doesn't double-highlight when the topology scope is active. Only
+  // when the Topology component is itself enabled (`topoIdx >= 0`): a
+  // drill-down of a disabled tab must not appear, even if a stale
+  // `topology.instanceTopology` block lingers in the config.
+  const topoIdx = items.findIndex((i) => i.key === 'topology');
+  if (instanceTopologyEnabled.value && topoIdx >= 0) {
+    const instItem = { key: 'instanceTopology', label: slots.instanceTopology || 'Instance map', scope: 'topology' as AdminScope, child: true };
+    items.splice(topoIdx + 1, 0, instItem);
+  }
+  return items;
 });
 /** Menu-preview click: focus the component's scope (if surfaced) and
  *  scroll the scope editor into view so config + preview follow the
@@ -1370,17 +1480,28 @@ function scopeLabel(s: AdminScope): string {
   const sk = SCOPE_SLOT[s];
   return (sk && draft.template?.slots?.[sk]) || SCOPE_LABELS[s];
 }
+// Alias-aware nouns for the topology editor: a service-topology node IS
+// a service, an instance-topology node IS an instance — so their section
+// headings read in the layer's own vocabulary (e.g. "Pods", "Sidecars").
+const serviceNoun = computed(() => scopeLabel('service'));
+const instanceNoun = computed(() => scopeLabel('instance'));
 
 /** The four configurable slot aliases. Shown for the components the
  *  layer actually exposes so the editor mirrors the menu. */
-const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string }> = [
+const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string; requireInstanceTopology?: boolean }> = [
+  // Order mirrors the real sidebar / menu: Topology (+ its Instance map
+  // drill-down) sits before API dependency.
   { slot: 'services', label: 'Services', comp: 'service', def: 'Service' },
   { slot: 'instances', label: 'Instances', comp: 'instances', def: 'Instance' },
   { slot: 'endpoints', label: 'Endpoints', comp: 'endpoints', def: 'Endpoint' },
+  { slot: 'topology', label: 'Topology', comp: 'topology', def: 'Topology' },
+  { slot: 'instanceTopology', label: 'Instance topology', comp: 'topology', def: 'Instance map', requireInstanceTopology: true },
   { slot: 'endpointDependency', label: 'API dependency', comp: 'endpointDependency', def: 'Dependency' },
 ];
 const visibleAliasFields = computed(() =>
-  ALIAS_FIELDS.filter((f) => !!draft.template?.components?.[f.comp]),
+  ALIAS_FIELDS.filter(
+    (f) => !!draft.template?.components?.[f.comp] && (!f.requireInstanceTopology || instanceTopologyEnabled.value),
+  ),
 );
 function ensureSlots(): NonNullable<AdminLayerTemplate['slots']> {
   if (!draft.template) throw new Error('no template selected');
@@ -1882,11 +2003,11 @@ const namingTest = computed<NamingTestResult>(() => {
                 :key="m.key"
                 type="button"
                 class="menu-item"
-                :class="{ on: activeScope === m.scope }"
+                :class="{ on: activeScope === m.scope && !m.child, 'is-child': m.child }"
                 :title="`Jump to ${m.label} config`"
                 @click="jumpToComponent(m.scope)"
               >
-                <span class="menu-item-label">{{ m.label }}</span>
+                <span class="menu-item-label">{{ m.child ? '↳ ' : '' }}{{ m.label }}</span>
                 <span class="menu-item-arrow">›</span>
               </button>
             </div>
@@ -2077,19 +2198,35 @@ const namingTest = computed<NamingTestResult>(() => {
         </section>
 
         <!-- Scope tabs -->
-        <nav id="scope-editor" class="scope-tabs sw-card">
+        <div id="scope-editor" class="scope-tabs-wrap sw-card">
           <button
-            v-for="s in visibleScopes"
-            :key="s"
-            class="scope-tab"
-            :class="{ on: activeScope === s }"
+            v-show="canScrollScopeLeft"
+            class="scope-scroll left"
             type="button"
-            @click="activeScope = s"
-          >
-            {{ scopeLabel(s) }}
-            <span class="count">{{ widgetsFor(s).length }}</span>
-          </button>
-        </nav>
+            aria-label="Scroll tabs left"
+            @click="scrollScopeTabs(-1)"
+          >‹</button>
+          <nav ref="scopeNav" class="scope-tabs" @scroll="updateScopeScroll">
+            <button
+              v-for="s in visibleScopes"
+              :key="s"
+              class="scope-tab"
+              :class="{ on: activeScope === s }"
+              type="button"
+              @click="activeScope = s"
+            >
+              {{ scopeLabel(s) }}
+              <span class="count">{{ widgetsFor(s).length }}</span>
+            </button>
+          </nav>
+          <button
+            v-show="canScrollScopeRight"
+            class="scope-scroll right"
+            type="button"
+            aria-label="Scroll tabs right"
+            @click="scrollScopeTabs(1)"
+          >›</button>
+        </div>
 
         <!-- Widget editor: canvas + drawer.
              Canvas (left): 12-col grid background, widgets placed at
@@ -2257,10 +2394,14 @@ const namingTest = computed<NamingTestResult>(() => {
             </span>
           </div>
           <div class="topo-cfg-body">
+            <div class="topo-cfg-group">
+              <span class="tg-title">Service topology</span>
+              <span class="tg-sub">node = {{ serviceNoun }} · edges = service-to-service relations</span>
+            </div>
             <div class="topo-cfg-section">
               <header class="topo-cfg-head">
-                <h5>Node metrics</h5>
-                <span class="sub">drives node center number + ring colour band</span>
+                <h5>{{ serviceNoun }} node metrics</h5>
+                <span class="sub">drives each node's center number + ring colour band</span>
                 <button class="sw-btn add" type="button" @click="addMetric('node')">＋ Add</button>
               </header>
               <div v-if="topologyNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
@@ -2382,6 +2523,123 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </article>
               </div>
+            </div>
+
+            <!-- ── Instance topology (optional drill-down) — kept in its
+                 own bordered block so it never blurs into the service
+                 topology metrics above. ── -->
+            <div class="topo-cfg-instance-block" :class="{ enabled: instanceTopologyEnabled }">
+            <div class="topo-cfg-group with-toggle">
+              <div class="tg-text">
+                <span class="tg-title">Instance topology</span>
+                <span class="tg-sub">node = {{ instanceNoun }} · drill-down between two services' instances</span>
+              </div>
+              <label class="comp-toggle" :class="{ on: instanceTopologyEnabled }">
+                <input type="checkbox" :checked="instanceTopologyEnabled" @change="toggleInstanceTopology" />
+                <span class="comp-label">Enable instance topology</span>
+              </label>
+            </div>
+
+            <template v-if="instanceTopologyEnabled">
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>{{ instanceNoun }} node metrics</h5>
+                  <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instNode')">＋ Add</button>
+                </header>
+                <div v-if="instanceNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceNodeMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_instance_cpm" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
+                      <label class="mf"><span>role</span>
+                        <select v-model="m.role" class="mf-input">
+                          <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
+                        </select>
+                      </label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input">
+                          <option value="avg">avg</option>
+                          <option value="sum">sum</option>
+                        </select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('instNode', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceNodeMetrics.length - 1" title="Move down" @click="moveMetric('instNode', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('instNode', i)">×</button>
+                      </div>
+                    </div>
+                    <div class="metric-thresholds">
+                      <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
+                      <template v-if="m.thresholds">
+                        <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
+                        <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
+                      </template>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>Link · server-side metrics</h5>
+                  <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instLinkServer')">＋ Add</button>
+                </header>
+                <div v-if="instanceServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceServerMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkServer', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceServerMetrics.length - 1" @click="moveMetric('instLinkServer', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkServer', i)">×</button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>Link · client-side metrics</h5>
+                  <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instLinkClient')">＋ Add</button>
+                </header>
+                <div v-if="instanceClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceClientMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkClient', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceClientMetrics.length - 1" @click="moveMetric('instLinkClient', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkClient', i)">×</button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </template>
             </div>
           </div>
         </section>
@@ -2863,6 +3121,22 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
       </main>
+
+      <!-- Layer selected but no working copy: no local draft and no OAP
+           row. We deliberately do NOT auto-load the bundled default here
+           (bundled is the seed/reset source, never the runtime render);
+           the operator adopts it explicitly. -->
+      <main v-else-if="noPublishedVersion" class="detail">
+        <section class="sw-card no-remote-card">
+          <h3>{{ t('No published version on OAP') }}</h3>
+          <p>
+            {{ t('This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.') }}
+          </p>
+          <button class="sw-btn primary" type="button" :disabled="!bundledExists" @click="loadFrom('bundled')">
+            {{ t('Reset to bundled') }}
+          </button>
+        </section>
+      </main>
     </div>
 
     <!-- Push confirm: shows the remote → local diff before publishing. -->
@@ -2937,6 +3211,21 @@ const namingTest = computed<NamingTestResult>(() => {
   text-align: center;
   color: var(--sw-fg-3);
   font-size: 12px;
+}
+.no-remote-card {
+  padding: 24px;
+  max-width: 600px;
+}
+.no-remote-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--sw-fg-0);
+}
+.no-remote-card p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sw-fg-2);
 }
 .empty.inset {
   padding: 18px;
@@ -3353,13 +3642,43 @@ const namingTest = computed<NamingTestResult>(() => {
 .identity-delete { display: flex; align-items: center; gap: 8px; }
 .del-note { font-size: 10.5px; color: var(--sw-fg-3); font-style: italic; }
 
+.scope-tabs-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
 .scope-tabs {
   display: flex;
   gap: 2px;
-  padding: 6px;
-}
-.scope-tab {
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.scope-tabs::-webkit-scrollbar { display: none; }
+.scope-scroll {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 34px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  background: var(--sw-bg-1);
+  color: var(--sw-fg-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.scope-scroll:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.scope-tab {
+  /* Fill the strip when there's room, but never shrink/wrap — overflow
+     scrolls instead (see the chevron buttons + .scope-tabs overflow). */
+  flex: 1 0 auto;
+  white-space: nowrap;
   padding: 8px 12px;
   font-size: 11.5px;
   font-weight: 500;
@@ -3475,6 +3794,9 @@ const namingTest = computed<NamingTestResult>(() => {
 .menu-item-label { flex: 1; }
 .menu-item-arrow { color: var(--sw-fg-3); font-size: 13px; }
 .menu-item.on .menu-item-arrow { color: var(--sw-accent-2); }
+/* Instance map — a nested drill-down of Topology, not a sidebar entry. */
+.menu-item.is-child { margin-left: 16px; font-size: 11.5px; color: var(--sw-fg-3); }
+.menu-item.is-child:hover { color: var(--sw-fg-1); }
 .setup-right {
   display: flex;
   flex-direction: column;
@@ -4004,6 +4326,42 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 /* Topology / endpoint-dep form editor */
 .topo-cfg-card .topo-cfg-body { padding: 4px 0 0; }
+/* Group labels that separate Service topology from Instance topology. */
+.topo-cfg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 16px 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.topo-cfg-group.with-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+.topo-cfg-group .tg-text { display: flex; flex-direction: column; gap: 2px; }
+.topo-cfg-group .tg-title { font-size: 12px; font-weight: 700; color: var(--sw-fg-0); }
+.topo-cfg-group .tg-sub { font-size: 10.5px; color: var(--sw-fg-3); }
+/* Instance-topology config lives in its own bordered card so it reads as
+   a distinct block from the service-topology metrics above it. */
+.topo-cfg-instance-block {
+  margin: 22px 16px 8px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  background: var(--sw-bg-1);
+  overflow: hidden;
+}
+.topo-cfg-instance-block .topo-cfg-group.with-toggle {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--sw-bg-2);
+}
+.topo-cfg-instance-block.enabled .topo-cfg-group.with-toggle { border-bottom: 1px solid var(--sw-line); }
+.topo-cfg-instance-block .topo-cfg-section { padding: 12px 14px; }
+.topo-cfg-instance-block .topo-cfg-section:last-child { border-bottom: none; }
 .topo-cfg-section {
   padding: 12px 16px;
   border-bottom: 1px solid var(--sw-line);

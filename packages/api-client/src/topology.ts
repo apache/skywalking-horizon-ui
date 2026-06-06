@@ -103,6 +103,29 @@ export interface TopologyConfig {
    *  When falsy (default), the prefix is dropped from the UI
    *  entirely — base name everywhere. */
   showGroup?: boolean;
+  /** Optional instance-to-instance topology drill-down config. Present
+   *  only on layers that support it (the BFF seeds general / mesh /
+   *  k8s_service / cilium_service). Same metric shape as the service
+   *  map but evaluated under the ServiceInstance / ServiceInstanceRelation
+   *  scope. Echoed in the topology response's `config`, so the service
+   *  map can decide whether to offer the edge drill-down without a
+   *  second round-trip. Absent ⇒ the map offers no instance drill-down. */
+  instanceTopology?: InstanceTopologyConfig;
+}
+
+/** Operator-editable instance-topology config. Same node + per-side edge
+ *  metric shape as {@link TopologyConfig}, but the node MQE evaluates
+ *  under `{ scope: ServiceInstance }` and the edge MQE under
+ *  ServiceInstanceRelation (server / client families). */
+export interface InstanceTopologyConfig {
+  /** Per-instance MQE under `{ scope: ServiceInstance }`. */
+  nodeMetrics: TopologyMetricDef[];
+  /** Per-edge MQE under ServiceInstanceRelation, server side. */
+  linkServerMetrics?: TopologyMetricDef[];
+  /** Per-edge MQE under ServiceInstanceRelation, client side. Some
+   *  layers (e.g. cilium_service) only expose a server family — then
+   *  this is absent and edges render server-only. */
+  linkClientMetrics?: TopologyMetricDef[];
 }
 
 /** Operator-editable process-topology (network-profiling) dashboard
@@ -212,6 +235,50 @@ export interface TopologyResponse {
   config: TopologyConfig;
   nodes: TopologyNode[];
   calls: TopologyCall[];
+  reachable: boolean;
+  error?: string;
+}
+
+/** One instance node in the instance-topology drill-down. `id` is OAP's
+ *  `<serviceId>_<base64-instance>` composite; `serviceId` splits it back
+ *  to the owning service so the UI can group nodes into the two
+ *  client / server columns. */
+export interface InstanceTopologyNode {
+  id: string;
+  /** Instance name (e.g. `frontend-deployment-6ff5cbbdd5-8rxlg`). */
+  name: string;
+  serviceId: string;
+  serviceName: string;
+  isReal: boolean;
+  /** Keyed by `InstanceTopologyConfig.nodeMetrics[].id`. */
+  metrics: Record<string, number | null>;
+}
+
+/** One instance-to-instance call. Same per-side metric shape as
+ *  {@link TopologyCall}. */
+export interface InstanceTopologyCall {
+  id: string;
+  source: string;
+  target: string;
+  detectPoints: string[];
+  serverMetrics: Record<string, number | null>;
+  clientMetrics: Record<string, number | null>;
+  serverMetricSeries: Record<string, Array<number | null> | null>;
+  clientMetricSeries: Record<string, Array<number | null> | null>;
+}
+
+/** Response of `GET /api/layer/:key/instance-topology`. The graph is the
+ *  instance topology between exactly two services (client + server). */
+export interface InstanceTopologyResponse {
+  layer: string;
+  clientServiceId: string;
+  serverServiceId: string;
+  clientServiceName: string | null;
+  serverServiceName: string | null;
+  generatedAt: number;
+  config: InstanceTopologyConfig;
+  nodes: InstanceTopologyNode[];
+  calls: InstanceTopologyCall[];
   reachable: boolean;
   error?: string;
 }

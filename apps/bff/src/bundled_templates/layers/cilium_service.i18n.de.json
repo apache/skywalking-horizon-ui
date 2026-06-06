@@ -301,7 +301,17 @@
       {
         "label": "Mittlere Latenz"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "Mittlere Latenz" }
+      ],
+      "linkServerMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "Mittlere Latenz" }
+      ]
+    }
   },
   "slots": {
     "services": "Dienste",

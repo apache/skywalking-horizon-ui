@@ -255,7 +255,22 @@
       {
         "label": "平均応答時間"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "成功率" },
+        { "label": "レイテンシ" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "平均応答時間" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "平均応答時間" }
+      ]
+    }
   },
   "slots": {
     "services": "K8s サービス",

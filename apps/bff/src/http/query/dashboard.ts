@@ -38,6 +38,7 @@ import type {
   DashboardWidget,
   DashboardWidgetResult,
   FetchLike,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -52,16 +53,17 @@ import {
   type TimeStep,
   type Window,
 } from '../../util/window.js';
-import {
-  getLayerTemplate,
-  widgetsForScope,
-} from '../../logic/layers/loader.js';
+import { widgetsForScope } from '../../logic/layers/loader.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 
 export interface DashboardRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled)
+   *  widget set when the caller doesn't pass explicit widgets. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 /** Shared with config/layer-template.ts — kept here because the
@@ -424,10 +426,17 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       const mockTopRaw = (req.query as { mockTop?: string }).mockTop;
       const mockTopN = mockTopRaw ? Math.max(0, Math.min(40, Number(mockTopRaw))) : 0;
       const scope = parsed.data.scope ?? 'service';
-      const tpl = getLayerTemplate(layerKey);
+      const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+      // Blocked (template store unreachable / layer disabled) → no
+      // BFF-derived widgets and no in-code defaults; the grid stays empty.
+      // An explicit `widgets[]` in the body still runs — the caller owns it.
       const widgets: DashboardWidget[] =
         parsed.data.widgets ??
-        (tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(layerKey));
+        (eff.blocked
+          ? []
+          : eff.template
+            ? widgetsForScope(eff.template, scope)
+            : defaultWidgetsFor(eff.template, layerKey));
       let serviceName = parsed.data.service ?? '';
       let serviceId = '';
       let normal = true;

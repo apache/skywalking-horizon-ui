@@ -54,6 +54,7 @@ export type {
 export type {
   TopologyMetricDef,
   TopologyConfig,
+  InstanceTopologyConfig,
   EndpointDependencyConfig,
   ProcessTopologyConfig,
   ProcessRelationMetric,
@@ -62,6 +63,9 @@ export type {
   TopologyNode,
   TopologyCall,
   TopologyResponse,
+  InstanceTopologyNode,
+  InstanceTopologyCall,
+  InstanceTopologyResponse,
   EndpointDependencyNode,
   EndpointDependencyCall,
   EndpointDependencyResponse,

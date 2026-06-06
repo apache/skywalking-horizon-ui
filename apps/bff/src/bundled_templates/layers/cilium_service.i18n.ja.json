@@ -205,7 +205,17 @@
       {
         "label": "平均レイテンシ"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "平均レイテンシ" }
+      ],
+      "linkServerMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "平均レイテンシ" }
+      ]
+    }
   },
   "slots": {
     "services": "サービス",

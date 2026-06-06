@@ -39,6 +39,7 @@ import type {
   DashboardScope,
   DashboardWidget,
   EndpointDependencyConfig,
+  InstanceTopologyConfig,
   ProcessTopologyConfig,
   ServiceNamingRule,
   TopologyConfig,
@@ -47,7 +48,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { isOverlayFilename, reloadI18nStore } from '../../i18n/store.js';
 
-export type { TopologyConfig, EndpointDependencyConfig, ProcessTopologyConfig, TopologyMetricDef, TracesConfig, ServiceNamingRule };
+export type { TopologyConfig, InstanceTopologyConfig, EndpointDependencyConfig, ProcessTopologyConfig, TopologyMetricDef, TracesConfig, ServiceNamingRule };
 
 export interface LayerComponentFlags {
   service?: boolean;
@@ -78,6 +79,10 @@ export interface LayerSlotsConfig {
   instances?: string;
   endpoints?: string;
   endpointDependency?: string;
+  /** Service-topology tab label (default "Topology"). */
+  topology?: string;
+  /** Instance-topology sub-tab label (default "Instance map"). */
+  instanceTopology?: string;
 }
 
 export interface LayerMetricColumn {
@@ -583,6 +588,17 @@ export function widgetsForScope(
 export function topologyConfigFor(template: LayerTemplate | null): TopologyConfig {
   if (template?.topology) return template.topology;
   return BOOSTER_TOPOLOGY_DEFAULTS;
+}
+
+/** Resolve the instance-topology drill-down config, or `null` when the
+ *  layer doesn't opt in. Nested under the layer's `topology` block (so it
+ *  rides the same import/export tooling); only the layers that ship it
+ *  (general / mesh / k8s_service / cilium_service) return non-null. The
+ *  service map keys the edge drill-down affordance off this presence. */
+export function instanceTopologyConfigFor(
+  template: LayerTemplate | null,
+): InstanceTopologyConfig | null {
+  return template?.topology?.instanceTopology ?? null;
 }
 
 /** Resolve the endpoint-dependency config — same fallback rule. */

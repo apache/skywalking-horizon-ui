@@ -16,13 +16,13 @@
  */
 
 /**
- * vue-query wrapper around `GET /api/layer/:key/topology`. The query
- * fires whenever the selected service, BFS depth, OR the global
- * topbar time picker changes — the picker is part of the queryKey so
- * the operator sees topology metrics that line up with whatever
- * window they're looking at (including cold-stage windows when the
- * Cold pill is on; the X-Horizon-Cold-Stage header is appended by
- * the api-client interceptor).
+ * vue-query wrapper around `GET /api/layer/:key/instance-topology`.
+ *
+ * Drives the per-layer Instance map view. The query is gated by `enabled`
+ * (a client + server service are both picked, and the view is active) so
+ * it only fires while the operator is actually looking at the drill-down.
+ * Same time-picker queryKey wiring as the service map so the instance
+ * metrics line up with the window the operator is on.
  */
 
 import { computed, type Ref } from 'vue';
@@ -32,39 +32,46 @@ import { useTimeRangeStore } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
-export function useLayerTopology(
+export function useInstanceTopology(
   layerKey: Ref<string>,
-  service: Ref<string | null>,
-  depth: Ref<number>,
+  clientServiceId: Ref<string | null>,
+  serverServiceId: Ref<string | null>,
+  enabled: Ref<boolean>,
 ) {
   const timeRange = useTimeRangeStore();
-  // In `?mode=preview` only: forward the operator's draft `topology` block
-  // so the map renders the unpublished edit. Empty otherwise — a normal
-  // (absent-remote) read never carries a draft, keeping the two paths
-  // cleanly separate.
+  // Preview-only: the draft `topology` block (the BFF reads its nested
+  // `instanceTopology`), so the instance map previews the draft too.
   const previewCfg = usePreviewLayerBlock(layerKey, 'topology');
-  // Re-resolve range / step on every read so the queryKey changes on
-  // picker flips. A stable triplet (step + ms-rounded bounds) prevents
-  // identity-thrash on every store tick.
   const rangeKey = computed(() => ({
     step: timeRange.step,
     startMs: timeRange.range.startMs,
     endMs: timeRange.range.endMs,
   }));
+  const isEnabled = computed(
+    () =>
+      enabled.value &&
+      layerKey.value.length > 0 &&
+      !!clientServiceId.value &&
+      !!serverServiceId.value,
+  );
   const q = useQuery({
-    queryKey: ['layer-topology', layerKey, service, depth, rangeKey, previewCfg],
+    queryKey: ['layer-instance-topology', layerKey, clientServiceId, serverServiceId, rangeKey, previewCfg],
     queryFn: () =>
-      bffClient.layer.topology(
+      bffClient.layer.instanceTopology(
         layerKey.value,
-        service.value ?? undefined,
-        depth.value,
+        clientServiceId.value as string,
+        serverServiceId.value as string,
         rangeKey.value,
         previewCfg.value,
       ),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: isEnabled,
     staleTime: 30_000,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
+  // Only ride the global ticker while the view is active — a forced
+  // refetch on a closed/disabled query would fetch needlessly.
+  useAutoRefreshSubscribe(() => {
+    if (isEnabled.value) void q.refetch();
+  });
 
   return {
     data: computed(() => q.data.value ?? null),

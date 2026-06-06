@@ -205,7 +205,17 @@
       {
         "label": "Latence moyenne"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latence moyenne" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM HTTP" },
+        { "label": "Latence moyenne" }
+      ]
+    }
   },
   "slots": {
     "services": "Services",

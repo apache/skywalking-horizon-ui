@@ -9,45 +9,75 @@
       "title": "Services généraux",
       "tip": "Services applicatifs tracés sur la couche General.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latence" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latence"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Bases de données virtuelles",
       "tip": "Bases de données backend observées via des spans côté client.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latence" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latence"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Caches virtuels",
       "tip": "Caches (Redis / Memcached / …) observés via des spans côté client.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latence" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latence"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Files de messages virtuelles",
       "tip": "Files de messages observées via les spans de consommation et de production.",
       "kpis": [
-        { "label": "Consommation" },
-        { "label": "Production" },
-        { "label": "Latence de consommation" }
+        {
+          "label": "Consommation"
+        },
+        {
+          "label": "Production"
+        },
+        {
+          "label": "Latence de consommation"
+        }
       ]
     },
     {
       "title": "GenAI virtuel",
       "tip": "Backends GenAI observés via des spans clients instrumentés.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latence" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latence"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -68,16 +98,28 @@
       "title": "Capacité et utilisation du cluster",
       "tip": "Nœuds / namespaces / workloads, plus l'utilisation CPU, mémoire et stockage au niveau du cluster.",
       "kpis": [
-        { "label": "Nœuds" },
+        {
+          "label": "Nœuds"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Services" },
-        { "label": "Conteneurs" },
-        { "label": "CPU" },
-        { "label": "Mémoire" },
-        { "label": "Stockage" }
+        {
+          "label": "Services"
+        },
+        {
+          "label": "Conteneurs"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Mémoire"
+        },
+        {
+          "label": "Stockage"
+        }
       ]
     }
   ]
