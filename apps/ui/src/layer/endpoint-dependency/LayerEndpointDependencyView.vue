@@ -162,6 +162,18 @@ function isExhausted(node: EndpointDependencyNode): boolean {
 function isLoadingExpansion(node: EndpointDependencyNode): boolean {
   return expansionsLoading.value.has(node.id);
 }
+// Transient banner when an expand returns no NEW neighbour, so a leaf-node
+// expand gives explicit feedback ("loaded, but nothing more") instead of
+// the easily-missed handle fade. Auto-clears after a few seconds.
+const noDepFlash = ref<string | null>(null);
+let noDepFlashToken = 0;
+function flashNoDep(name: string): void {
+  noDepFlash.value = name;
+  const tok = ++noDepFlashToken;
+  setTimeout(() => {
+    if (noDepFlashToken === tok) noDepFlash.value = null;
+  }, 3200);
+}
 async function expandNode(node: EndpointDependencyNode): Promise<void> {
   const key = node.id;
   if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
@@ -178,11 +190,13 @@ async function expandNode(node: EndpointDependencyNode): Promise<void> {
     const next = new Map(expansions.value);
     next.set(key, resp);
     expansions.value = next;
-    // No new neighbour surfaced (chain leaf / all already shown) — fade.
+    // No new neighbour surfaced (chain leaf / all already shown) — fade
+    // the handle AND flash an explicit "nothing more" banner.
     if (!resp.nodes.some((n) => !before.has(n.id))) {
       const e = new Set(exhausted.value);
       e.add(key);
       exhausted.value = e;
+      flashNoDep(node.name);
     }
   } catch {
     // Soft-fail — the operator can click again to retry.
@@ -809,6 +823,12 @@ function edgeRowCrosshair(rowId: string): number | null {
         </header>
 
         <div class="ep-scroll">
+        <!-- Transient feedback when an expand returns no new dependency. -->
+        <transition name="ep-flash">
+          <div v-if="noDepFlash" class="ep-nodep-flash">
+            {{ t('No further callers or callees for {name}', { name: noDepFlash }) }}
+          </div>
+        </transition>
         <!-- Zoom toolbar — over the canvas (not the header); wheel + drag
              also work directly on the graph. -->
         <div v-if="layoutNodes.length > 0" class="ep-zoom">
@@ -1691,6 +1711,34 @@ function edgeRowCrosshair(rowId: string): number | null {
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+/* Transient "no further dependency" banner over the canvas. */
+.ep-nodep-flash {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 90%;
+  padding: 5px 12px;
+  background: var(--sw-bg-0);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: var(--sw-fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.ep-flash-enter-active,
+.ep-flash-leave-active {
+  transition: opacity 0.25s ease;
+}
+.ep-flash-enter-from,
+.ep-flash-leave-to {
+  opacity: 0;
 }
 .ep-svg {
   width: 100%;
