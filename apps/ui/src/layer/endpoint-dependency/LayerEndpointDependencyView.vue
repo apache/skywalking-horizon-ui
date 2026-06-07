@@ -1082,11 +1082,25 @@ function edgeRowCrosshair(rowId: string): number | null {
               >★</text>
               <title>{{ t('Focus endpoint') }}</title>
             </g>
-            <!-- Kind stripe removed — endpoint nodes don't carry a
-                 meaningful component classification (booster derives
-                 kind from service type which doesn't apply to plain
-                 HTTP endpoints). Border + focus star carry all the
-                 visual signal. -->
+            <!-- Agent badge — straddles the top-left corner the way the
+                 service-map hexagon's does (top-right is the expand
+                 handle, bottom-right the focus star). Marks an endpoint
+                 on an instrumented (real) service; the synthetic User and
+                 external callees carry none. Shares the Topology node
+                 vocabulary. No kind icon — endpoint nodes don't carry a
+                 component classification on the OAP wire. -->
+            <g v-if="n.isReal" transform="translate(0, 0)">
+              <circle r="8" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
+              <circle r="6.8" fill="var(--sw-accent)" opacity="0.18" />
+              <g transform="translate(-5.4, -5.4) scale(0.48)" fill="var(--sw-accent-2)">
+                <path d="M3 14c4-3 8-3 12-1 3 1.4 5 .5 6-1-1 5-4 8-9 8-4 0-7-2-9-6z" />
+                <path
+                  d="M5 10c3-2 7-2 11 0 3 1.3 5 .6 6-1-1 3.6-4 6-8 6-4 0-7-1.6-9-5z"
+                  fill="#fff"
+                  opacity="0.25"
+                />
+              </g>
+            </g>
             <!-- Row 1: full service name (small, fg-3 mono). -->
             <text
               x="11"
