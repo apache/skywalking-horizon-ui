@@ -33,6 +33,7 @@
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
   EndpointDependencyNode,
@@ -56,6 +57,7 @@ import Sparkline from '@/components/charts/Sparkline.vue';
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
@@ -394,9 +396,9 @@ const layerColumns = computed<LayerColumn[]>(() => {
     // / `Callees` to match the node popout (Callers/Callees) and the
     // expand handles — the old `Upstream`/`Downstream` pair was both
     // ambiguous and inverted (nginx vs data-flow conventions clashed).
-    if (i < 0) label = `L${i} · Callers`;
-    else if (i === 0) label = 'L0 · Focus';
-    else label = `L+${i} · Callees`;
+    if (i < 0) label = t('L{i} · Callers', { i });
+    else if (i === 0) label = t('L0 · Focus');
+    else label = t('L+{i} · Callees', { i });
     return { index: i, label, visible, hidden };
   });
 });
@@ -729,7 +731,7 @@ function edgeRowCrosshair(rowId: string): number | null {
     <!-- Endpoint picker — search-on-Enter (mirrors the Endpoint tab). -->
     <section class="ep-picker sw-card">
       <header class="picker-head">
-        <span class="kicker">API dependency</span>
+        <span class="kicker">{{ t('API dependency') }}</span>
         <span v-if="serviceName" class="for-svc">
           on
           <span v-if="identity(serviceName).cluster" class="sw-tag accent tiny inline-tag">
@@ -742,27 +744,27 @@ function edgeRowCrosshair(rowId: string): number | null {
           </span>
           <b>{{ identity(serviceName).display }}</b>
         </span>
-        <span v-if="isFetching" class="hint">refreshing…</span>
+        <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
       </header>
       <div v-if="!serviceName" class="empty inline">
-        Pick a service in the header above to search its endpoints.
+        {{ t('Pick a service in the header above to search its endpoints.') }}
       </div>
       <template v-else>
         <div class="ep-controls">
           <input
             class="ep-search"
             type="search"
-            placeholder="Search endpoints, press Enter…"
+            :placeholder="t('Search endpoints, press Enter…')"
             v-model="endpointSearchInput"
             @keydown.enter.prevent="submitEndpointSearch"
             @search="submitEndpointSearch"
           />
-          <button class="sw-btn small" type="button" @click="submitEndpointSearch">Search</button>
+          <button class="sw-btn small" type="button" @click="submitEndpointSearch">{{ t('Search') }}</button>
           <button v-if="endpointQuery" class="sw-btn ghost small" type="button" @click="clearEndpointSearch">
-            Clear
+            {{ t('Clear') }}
           </button>
           <label class="ep-limit">
-            <span>Top</span>
+            <span>{{ t('Top') }}</span>
             <select v-model.number="endpointLimit">
               <option :value="20">20</option>
               <option :value="30">30</option>
@@ -783,14 +785,14 @@ function edgeRowCrosshair(rowId: string): number | null {
           </li>
         </ul>
         <div v-else-if="!endpointsLoading" class="empty inline">
-          No endpoints found.
+          {{ t('No endpoints found.') }}
         </div>
       </template>
     </section>
 
     <div v-if="!reachable" class="banner err">
-      <strong>OAP unreachable.</strong>
-      {{ errorText ?? 'API dependency feed failed — check the BFF and OAP.' }}
+      <strong>{{ t('OAP unreachable.') }}</strong>
+      {{ errorText ?? t('API dependency feed failed — check the BFF and OAP.') }}
     </div>
 
     <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
@@ -800,10 +802,9 @@ function edgeRowCrosshair(rowId: string): number | null {
            dependency tabs. -->
       <div class="ep-graph">
         <header class="graph-head">
-          <h4>API dependency chain</h4>
+          <h4>{{ t('API dependency chain') }}</h4>
           <span class="hint">
-            {{ layerColumns.length }} columns · {{ nodes.length }} endpoints
-            · click a node or edge for details
+            {{ t('{cols} columns · {eps} endpoints · click a node or edge for details', { cols: layerColumns.length, eps: nodes.length }) }}
           </span>
         </header>
 
@@ -811,9 +812,9 @@ function edgeRowCrosshair(rowId: string): number | null {
         <!-- Zoom toolbar — over the canvas (not the header); wheel + drag
              also work directly on the graph. -->
         <div v-if="layoutNodes.length > 0" class="ep-zoom">
-          <button type="button" title="Zoom in" @click="zoomBtn(0.8)">＋</button>
-          <button type="button" title="Zoom out" @click="zoomBtn(1.25)">−</button>
-          <button type="button" title="Fit to view" @click="fitView">⤢</button>
+          <button type="button" :title="t('Zoom in')" @click="zoomBtn(0.8)">＋</button>
+          <button type="button" :title="t('Zoom out')" @click="zoomBtn(1.25)">−</button>
+          <button type="button" :title="t('Fit to view')" @click="fitView">⤢</button>
         </div>
         <svg
           v-if="layoutNodes.length > 0"
@@ -952,7 +953,12 @@ function edgeRowCrosshair(rowId: string): number | null {
             :key="n.id"
             :transform="`translate(${nodePos.get(n.id)!.x}, ${nodePos.get(n.id)!.y})`"
             class="ep-node"
+            role="button"
+            tabindex="0"
+            :aria-label="`${n.name} — ${identity(n.serviceName).display}`"
             @click="selectedNodeId = selectedNodeId === n.id ? null : n.id"
+            @keydown.enter.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
+            @keydown.space.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
           >
             <!-- Selection halo only — the FOCUS node is identifiable
                  by its column header (`L0 · Focus`) and an inset
@@ -993,7 +999,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                 font-weight="700"
                 fill="var(--sw-accent-2)"
               >★</text>
-              <title>Focus endpoint</title>
+              <title>{{ t('Focus endpoint') }}</title>
             </g>
             <!-- Kind stripe removed — endpoint nodes don't carry a
                  meaningful component classification (booster derives
@@ -1056,7 +1062,12 @@ function edgeRowCrosshair(rowId: string): number | null {
               class="ep-expand"
               :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n) }"
               :transform="`translate(${NW - 9}, -9)`"
+              role="button"
+              tabindex="0"
+              :aria-label="t('Expand {name} — show its callers and callees', { name: n.name })"
               @click.stop="expandNode(n)"
+              @keydown.enter.prevent="expandNode(n)"
+              @keydown.space.prevent="expandNode(n)"
             >
               <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) || isLoadingExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
               <!-- loading spinner: a spinning arc while the dependency query is in flight -->
@@ -1082,14 +1093,14 @@ function edgeRowCrosshair(rowId: string): number | null {
                 font-weight="600"
                 :fill="isExhausted(n) ? 'var(--sw-fg-3)' : hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'"
               >{{ isExhausted(n) ? '·' : '+' }}</text>
-              <title>{{ isLoadingExpansion(n) ? `Loading callers and callees of ${n.name}…` : isExhausted(n) ? `No further callers or callees for ${n.name}` : `Expand ${n.name} — show its callers and callees` }}</title>
+              <title>{{ isLoadingExpansion(n) ? t('Loading callers and callees of {name}…', { name: n.name }) : isExhausted(n) ? t('No further callers or callees for {name}', { name: n.name }) : t('Expand {name} — show its callers and callees', { name: n.name }) }}</title>
             </g>
           </g>
         </svg>
 
-          <div v-else-if="isLoading" class="loader">loading…</div>
+          <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
           <div v-else class="loader">
-            No dependency graph available for this endpoint in the last 15 minutes.
+            {{ t('No dependency graph available for this endpoint in the last 15 minutes.') }}
           </div>
         </div>
 
@@ -1107,14 +1118,14 @@ function edgeRowCrosshair(rowId: string): number | null {
             </span>
           </div>
           <div class="lg-block">
-            <span class="lg-lbl">Calls</span>
+            <span class="lg-lbl">{{ t('Calls') }}</span>
             <span class="lg-aside">
-              thicker = heaviest (by {{ lineDef?.label ?? 'RPM' }})
+              {{ t('thicker = heaviest (by {metric})', { metric: lineDef?.label ?? 'RPM' }) }}
             </span>
           </div>
           <div class="lg-block">
             <span class="lg-lbl">★</span>
-            <span class="lg-aside">Focus endpoint</span>
+            <span class="lg-aside">{{ t('Focus endpoint') }}</span>
           </div>
         </div>
       </div>
@@ -1137,7 +1148,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                 <span class="tag-val">{{ identity(selectedNode.serviceName).legacyGroup }}</span>
               </span>
               <span class="ed-svc">{{ identity(selectedNode.serviceName).display }}</span>
-              <span v-if="selectedNode.id === focusedId" class="sw-tag accent">focus</span>
+              <span v-if="selectedNode.id === focusedId" class="sw-tag accent">{{ t('focus') }}</span>
             </div>
             <div class="ed-name">{{ selectedNode.name }}</div>
           </div>
@@ -1155,32 +1166,32 @@ function edgeRowCrosshair(rowId: string): number | null {
           </div>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Callers ({{ popoutUpstream.length }})</div>
+          <div class="ed-section-title">{{ t('Callers ({n})', { n: popoutUpstream.length }) }}</div>
           <ul class="ed-list">
             <li v-for="u in popoutUpstream" :key="u.id">
               <span class="ed-mono small">{{ u.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
             </li>
-            <li v-if="popoutUpstream.length === 0" class="ed-empty">no callers in this window</li>
+            <li v-if="popoutUpstream.length === 0" class="ed-empty">{{ t('no callers in this window') }}</li>
           </ul>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Callees ({{ popoutDownstream.length }})</div>
+          <div class="ed-section-title">{{ t('Callees ({n})', { n: popoutDownstream.length }) }}</div>
           <ul class="ed-list">
             <li v-for="d in popoutDownstream" :key="d.id">
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small">{{ d.name }}</span>
             </li>
-            <li v-if="popoutDownstream.length === 0" class="ed-empty">no callees in this window</li>
+            <li v-if="popoutDownstream.length === 0" class="ed-empty">{{ t('no callees in this window') }}</li>
           </ul>
         </div>
         <div class="ed-actions">
           <button class="sw-btn small primary" type="button" @click="jumpToEndpointDashboard">
-            Open endpoint
+            {{ t('Open endpoint') }}
           </button>
-          <button class="sw-btn small" type="button" @click="jumpToService">Service →</button>
+          <button class="sw-btn small" type="button" @click="jumpToService">{{ t('Service →') }}</button>
         </div>
       </section>
 
@@ -1202,7 +1213,7 @@ function edgeRowCrosshair(rowId: string): number | null {
           <button class="sw-btn small" type="button" @click="selectedCallId = null">×</button>
         </header>
         <div class="ed-section">
-          <div class="ed-section-title">Line metrics (server-side)</div>
+          <div class="ed-section-title">{{ t('Line metrics (server-side)') }}</div>
           <div v-if="(cfg.linkMetrics ?? []).length > 0" class="ed-edge-rows">
             <div
               v-for="m in (cfg.linkMetrics ?? [])"
@@ -1231,16 +1242,16 @@ function edgeRowCrosshair(rowId: string): number | null {
               />
             </div>
           </div>
-          <div v-else class="ed-empty">no line metrics configured</div>
+          <div v-else class="ed-empty">{{ t('no line metrics configured') }}</div>
         </div>
       </section>
 
       <!-- Empty prompts. -->
       <section v-if="!selectedNode" class="ep-detail-empty">
-        <span>Click an endpoint node to inspect it</span>
+        <span>{{ t('Click an endpoint node to inspect it') }}</span>
       </section>
       <section v-if="!(selectedCall && selectedCallSource && selectedCallTarget)" class="ep-detail-empty">
-        <span>Click an edge to inspect the call</span>
+        <span>{{ t('Click an edge to inspect the call') }}</span>
       </section>
       </aside>
     </section>
@@ -1722,6 +1733,19 @@ function edgeRowCrosshair(rowId: string): number | null {
 }
 .ep-node { cursor: pointer; }
 .ep-node:hover rect { stroke: var(--sw-accent-2); }
+/* The node + expand handle are focusable for keyboard a11y (tabindex).
+   Suppress the browser's default (blue) focus ring on pointer focus —
+   the orange selection border already shows state — but keep a
+   design-consistent accent ring for keyboard focus. */
+.ep-node:focus,
+.ep-expand:focus {
+  outline: none;
+}
+.ep-node:focus-visible,
+.ep-expand:focus-visible {
+  outline: 2px solid var(--sw-accent-2);
+  outline-offset: 2px;
+}
 .loader {
   padding: 60px;
   text-align: center;
