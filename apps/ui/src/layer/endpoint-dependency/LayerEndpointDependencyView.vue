@@ -319,34 +319,37 @@ const layoutNodes = computed<LayoutNode[]>(() => {
   }
   const layerOf = new Map<string, number>();
   if (focusId && byId.has(focusId)) {
+    // ONE direction-aware BFS over the whole connected component: from
+    // each reached node a downstream neighbour sits one layer right (+1),
+    // an upstream neighbour one layer left (-1). A single combined pass —
+    // not forward-only then backward-only — so cross-links land relative
+    // to their own neighbour. The old two-pass version couldn't reach a
+    // CALLER of a callee-of-focus (e.g. a node revealed by expanding a
+    // downstream endpoint) and dumped it into a far straggler column.
     layerOf.set(focusId, 0);
-    // Forward BFS (downstream).
-    const fwd = [focusId];
-    while (fwd.length > 0) {
-      const id = fwd.shift()!;
+    const queue = [focusId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
       const cur = layerOf.get(id)!;
       for (const t of downstream.get(id) ?? []) {
         if (!layerOf.has(t)) {
           layerOf.set(t, cur + 1);
-          fwd.push(t);
+          queue.push(t);
         }
       }
-    }
-    // Backward BFS (upstream).
-    const back = [focusId];
-    while (back.length > 0) {
-      const id = back.shift()!;
-      const cur = layerOf.get(id)!;
       for (const s of upstream.get(id) ?? []) {
         if (!layerOf.has(s)) {
           layerOf.set(s, cur - 1);
-          back.push(s);
+          queue.push(s);
         }
       }
     }
   }
-  // Stragglers — anything still un-bucketed gets a "far" layer.
-  let extra = 4;
+  // Stragglers — genuinely disconnected nodes get a column just past the
+  // rightmost real layer (not a hard-coded index that could collide).
+  let maxLayer = 0;
+  for (const v of layerOf.values()) if (v > maxLayer) maxLayer = v;
+  let extra = maxLayer + 1;
   for (const n of all) {
     if (!layerOf.has(n.id)) {
       layerOf.set(n.id, extra++);
