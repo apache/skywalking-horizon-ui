@@ -1082,9 +1082,9 @@ function edgeRowCrosshair(rowId: string): number | null {
             <!-- Row 1: full service name (small, fg-3 mono). -->
             <text
               x="11"
-              y="15"
+              y="16"
               fill="var(--sw-fg-3)"
-              font-size="9.5"
+              font-size="9"
               font-family="var(--sw-mono)"
               clip-path="url(#ep-node-text-clip)"
             >
@@ -1094,9 +1094,9 @@ function edgeRowCrosshair(rowId: string): number | null {
             <!-- Row 2: API (endpoint) name — the headline. -->
             <text
               x="11"
-              y="32"
+              y="31"
               fill="var(--sw-fg-0)"
-              font-size="11.5"
+              font-size="10.5"
               font-family="var(--sw-mono)"
               :font-weight="n.id === focusedId ? 700 : 600"
               clip-path="url(#ep-node-text-clip)"
@@ -1109,9 +1109,9 @@ function edgeRowCrosshair(rowId: string): number | null {
                  reinforces the border. -->
             <text
               x="11"
-              y="48"
+              y="45"
               :fill="centerDef && nodeVal(n, centerDef) !== null ? ringColor(n) : 'var(--sw-fg-3)'"
-              font-size="11"
+              font-size="10"
               font-family="var(--sw-mono)"
               font-weight="700"
             >
