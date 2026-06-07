@@ -1104,7 +1104,7 @@ function edgeRowCrosshair(rowId: string): number | null {
               x="11"
               y="31"
               fill="var(--sw-fg-0)"
-              font-size="10.5"
+              font-size="11.5"
               font-family="var(--sw-mono)"
               :font-weight="n.id === focusedId ? 700 : 600"
               clip-path="url(#ep-node-text-clip)"
