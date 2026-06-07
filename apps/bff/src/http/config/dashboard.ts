@@ -36,7 +36,7 @@ import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { scopeSchema } from '../query/dashboard.js';
-import { localizeContent, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface DashboardConfigDeps {
   config: ConfigSource;
@@ -75,7 +75,6 @@ export function registerDashboardConfigRoute(app: FastifyInstance, deps: Dashboa
             // (`GENERAL`), not the lowercase URL param — pass the template's
             // own key so the OAP translation overlay row actually matches.
             await oapOverlayContentFor(deps.uiTemplateClient, 'layer', rawTpl.key, locale),
-            getLayerOverlay(rawTpl.key, locale),
             locale,
           )
         : null;

@@ -45,7 +45,7 @@ import {
   resolveEffectiveOverview,
 } from '../../logic/overview/effective.js';
 import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
-import { localizeContent, getOverviewOverlay, localeFromRequest } from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface OverviewRouteDeps {
   config: ConfigSource;
@@ -68,7 +68,6 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
           const ld = localizeContent<OverviewDashboard>(
             d,
             await oapOverlayContentFor(deps.uiTemplateClient, 'overview', d.id, locale),
-            getOverviewOverlay(d.id, locale),
             locale,
           );
           return {
@@ -110,7 +109,6 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
         dashboard: localizeContent<OverviewDashboard>(
           dash,
           await oapOverlayContentFor(deps.uiTemplateClient, 'overview', dash.id, locale),
-          getOverviewOverlay(dash.id, locale),
           locale,
         ),
         reachable: true,

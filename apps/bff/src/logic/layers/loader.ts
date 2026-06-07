@@ -145,17 +145,12 @@ export interface OverviewGroup {
 
 /**
  * Overview-tile config. `groups` is the canonical shape; legacy
- * `metrics`/`throughput`/`spark` are migrated to a single auto-size
- * group at load time.
+ * `metrics` is migrated to a single auto-size group at load time.
  */
 export interface LayerOverviewConfig {
   groups?: OverviewGroup[];
   /** @deprecated — wrapped into a single auto-size group on load. */
   metrics?: OverviewMetric[];
-  /** @deprecated — migrated to the first group's first metric. */
-  throughput?: string;
-  /** @deprecated — sparkline follows the headline metric. */
-  spark?: string;
 }
 
 /**
@@ -468,32 +463,13 @@ function load(): Map<string, LayerTemplate> {
     if (!parsed.header) parsed.header = { columns: [] };
     parsed.metrics = parsed.header;
 
-    // Legacy: `metrics.throughput` + `metrics.spark` used to sit
-    // inside the header block. Promote to top-level `overview` so the
-    // tile rendering doesn't have to know about either spelling.
-    const legacyMetrics = parsed.metrics as
-      | (LayerHeaderConfig & { throughput?: string; spark?: string })
-      | undefined;
-    if (legacyMetrics && (legacyMetrics.throughput || legacyMetrics.spark)) {
-      const ov: LayerOverviewConfig = { ...(parsed.overview ?? {}) };
-      if (!ov.throughput && legacyMetrics.throughput) ov.throughput = legacyMetrics.throughput;
-      if (!ov.spark && legacyMetrics.spark) ov.spark = legacyMetrics.spark;
-      parsed.overview = ov;
-      delete legacyMetrics.throughput;
-      delete legacyMetrics.spark;
-    }
-
     // Overview tile schema: self-contained `OverviewMetric[]`. Support
-    // three input shapes and normalize to the new one:
+    // two input shapes and normalize to the new one:
     //   1. `metrics: OverviewMetric[]`   ← new shape, pass through.
     //   2. `metrics: string[]`           ← previous shape (key refs
     //      into the header columns); resolve each ref to a full entry.
-    //   3. `throughput` / `spark` strings ← oldest shape; resolve same
-    //      way the column-ref path does.
     if (parsed.overview) {
       const ov = parsed.overview as LayerOverviewConfig & {
-        throughput?: string;
-        spark?: string;
         metrics?: unknown;
       };
       const columns = parsed.header?.columns ?? [];
@@ -530,10 +506,6 @@ function load(): Map<string, LayerTemplate> {
           }
         }
       }
-      if (resolved.length === 0) {
-        if (ov.throughput) resolved.push(fromRef(ov.throughput));
-        if (ov.spark && ov.spark !== ov.throughput) resolved.push(fromRef(ov.spark));
-      }
       // Assign auto-ids to any unkeyed entry. The id is what the SPA
       // threads through the landing query as the synthetic column key.
       resolved = resolved.map((m, i) => ({ id: m.id ?? `ov_${i}`, ...m }));
@@ -564,8 +536,6 @@ function load(): Map<string, LayerTemplate> {
       // Keep the legacy `metrics` array in sync with the flattened
       // groups so any caller still reading the old field keeps working.
       ov.metrics = (ov.groups ?? []).flatMap((g) => g.metrics);
-      delete ov.throughput;
-      delete ov.spark;
     }
     out.set(parsed.key.toUpperCase(), parsed);
   }

@@ -167,7 +167,6 @@ export function defaultLandingFor(
   }
   for (const c of ovCols) combined.push(c);
 
-  const headline = ovIds[0] ?? orderBy;
   return {
     priority: defaultPriority(layerKey),
     topN: 5,
@@ -180,11 +179,6 @@ export function defaultLandingFor(
     // metrics are SERVICE_INSTANCE-only and show as `—` on the
     // Service page header).
     headerColumns: headerCols,
-    spark: { metric: headline, height: 28 },
-    throughput: {
-      metric: headline,
-      aggregation: defaultAggregationFor(headline),
-    },
     // Flat list of overview metric ids (legacy back-compat for any
     // code path still reading it). Same set, flattened from groups.
     overviewMetrics: ovIds.length > 0 ? ovIds : [orderBy],

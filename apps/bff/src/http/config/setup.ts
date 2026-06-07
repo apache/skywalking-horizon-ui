@@ -46,35 +46,18 @@ const landingColumnSchema = z
   })
   .strict();
 
-const throughputSchema = z
-  .object({
-    metric: z.string().min(1),
-    label: z.string().optional(),
-    unit: z.string().optional(),
-    mqe: z.string().optional(),
-    aggregation: aggregationSchema.optional(),
-    scale: z.number().finite().optional(),
-    precision: z.number().int().min(0).max(6).optional(),
-  })
-  .strict();
-
 const landingSchema = z
   .object({
     priority: z.number().int().min(0).max(99),
     topN: z.number().int().min(5).max(8),
     orderBy: z.string().min(1),
     columns: z.array(landingColumnSchema).max(5),
-    spark: z
-      .object({
-        metric: z.string().min(1),
-        height: z.number().int().positive(),
-      })
-      .strict()
-      .optional(),
-    throughput: throughputSchema.optional(),
     style: z.enum(['table', 'bar', 'mini-topology']),
   })
-  .strict();
+  // `.strip()` (not `.strict()`): setups persisted by older builds carry the
+  // retired `spark` / `throughput` keys — drop them silently on re-save
+  // instead of failing the whole payload.
+  .strip();
 
 const layerConfigSchema = z
   .object({

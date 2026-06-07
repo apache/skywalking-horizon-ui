@@ -36,7 +36,6 @@ export type {
   LayerConfig,
   SetupResponse,
   SetupSavePayload,
-  ThroughputConfig,
 } from './setup.js';
 export type { LandingAggregates, LandingResponse, LandingServiceRow } from './landing.js';
 export type {

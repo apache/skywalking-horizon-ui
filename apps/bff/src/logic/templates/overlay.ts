@@ -19,15 +19,14 @@
  * Resolve the live **OAP translation overlay** content for one
  * (kind, key, locale) — the operator-pushed per-locale row.
  *
- * The disk `*.i18n.<lang>.json` files are only seeds; the live
- * translation is an OAP overlay row. The config bundle already merges
- * this row on top of the disk overlay (`localizeContent(content,
- * oapOverlay, diskOverlay, locale)`), so render routes that localize
- * with the disk overlay ALONE show stale text once an operator pushes a
- * translation. This helper gives those direct routes the same remote-
- * first overlay the bundle uses. Reads the shared 30s sync cache, so
- * it's cheap on the hot path; soft-fails to `null` (disk-only) on
- * English / no-client / OAP-unreachable / parse error.
+ * Runtime translation is REMOTE-only: `localizeContent(content,
+ * oapOverlay, locale)` applies this OAP overlay over the English source,
+ * and nothing else — the disk `*.i18n.<lang>.json` files are seed / reset
+ * / diff sources, never a render-time fill (same remote-first rule as
+ * bundled templates). This helper gives the direct render routes the same
+ * OAP overlay the config bundle uses. Reads the shared 30s sync cache, so
+ * it's cheap on the hot path; soft-fails to `null` (→ English) on English
+ * / no-client / OAP-unreachable / parse error.
  */
 
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';

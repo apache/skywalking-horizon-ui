@@ -155,7 +155,28 @@ export function ensureConfigBundle(): Promise<void> {
         'err',
         `Config preload failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      // Don't rethrow — the SPA falls back to per-page network reads.
+      // Don't rethrow — but DO unblock the shell. A network / non-2xx
+      // failure with no cached copy leaves `state` null, and the AppShell
+      // waits on `loaded` before rendering ANY route — so the app would
+      // hang on "Initializing…" forever. Seed an empty, unreachable bundle
+      // so `loaded` flips true: routes render, per-page reads + the
+      // connectivity banner take over, and the banner's retry can recover.
+      if (state.value === null) {
+        const now = Date.now();
+        state.value = {
+          etag: '',
+          generatedAt: now,
+          layers: {},
+          overviews: [],
+          syncStatus: {
+            unreachable: true,
+            lastSuccessfulSyncAt: null,
+            generatedAt: now,
+            badges: [],
+            conflicts: [],
+          },
+        };
+      }
     }
   })();
   return loadPromise;

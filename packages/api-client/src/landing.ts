@@ -34,12 +34,6 @@ export interface LandingServiceRow {
    * renders `null` as a muted em-dash.
    */
   metrics: Record<string, number | null>;
-  /**
-   * Sparkline series for `cfg.spark.metric`, when configured. Same order
-   * as the `step` buckets returned by OAP — left-to-right oldest-to-newest.
-   * `null` entries mark missing samples.
-   */
-  spark?: Array<number | null>;
 }
 
 /**
@@ -59,15 +53,6 @@ export interface LandingAggregates {
    *  metrics, avg for ratio/latency metrics. Used by the per-layer
    *  header to render a trend line under each KPI. */
   seriesByMetric: Record<string, Array<number | null>>;
-  /** Aggregated sparkline series for the `throughput.metric` (or `spark`)
-   *  using the throughput aggregation. `null` when not configured. */
-  spark?: Array<number | null> | null;
-  /** Echo of the throughput metric key the spark series was computed
-   *  against (so the UI can label the tile). */
-  throughputMetric?: string;
-  /** Value of the throughput metric across the layer (null when
-   *  unconfigured or unmapped). */
-  throughputValue?: number | null;
 }
 
 export interface LandingResponse {
@@ -83,10 +68,10 @@ export interface LandingResponse {
   durationEnd: string;
   rows: LandingServiceRow[];
   /**
-   * All services the BFF probed for this layer (up to its internal cap,
-   * currently 25). `rows` is a sorted+sliced subset of this — the Overview
-   * card uses `rows`, the per-layer constellation / table uses the full
-   * `sampledRows` so deep-dive views don't lose context.
+   * Every service the BFF probed for this layer (up to `query.landingServiceCap`,
+   * default 100; the true top-N by `orderBy` when the layer exceeds it).
+   * `rows` is a sorted+sliced subset (the top-`topN`); the per-layer service
+   * picker uses the full `sampledRows` so it can list the whole layer.
    */
   sampledRows?: LandingServiceRow[];
   /** Whole-layer rollup KPIs for the Overview strip tile. */

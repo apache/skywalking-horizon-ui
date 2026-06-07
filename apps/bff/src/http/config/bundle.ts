@@ -71,12 +71,7 @@ import { formatName, parseEnvelope } from '../../logic/templates/names.js';
 import { resync as resyncTemplates } from '../../logic/templates/sync.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
-import {
-  localizeContent,
-  getLayerOverlay,
-  getOverviewOverlay,
-  localeFromRequest,
-} from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface ConfigBundleDeps {
   config: ConfigSource;
@@ -175,15 +170,10 @@ async function buildBundle(
   const layers: Record<string, ScopeMap> = {};
   // Localize + slice a resolved layer template into per-scope widget sets.
   const addLayer = (picked: LayerTemplate): void => {
-    // Localize: OAP overlay wins where present, disk overlay fills the
-    // rest, English source falls through for the remainder. Both overlays
-    // key on the layer's `key` (upper-snake, matching OAP's enum).
-    const effective = localizeContent(
-      picked,
-      oapOverlayFor('layer', picked.key),
-      getLayerOverlay(picked.key, locale),
-      locale,
-    );
+    // Localize against the OAP overlay row (keyed on the layer's
+    // upper-snake `key`); English fills the rest. Disk i18n is seed/reset
+    // only, never a runtime fill — same remote-first rule as the template.
+    const effective = localizeContent(picked, oapOverlayFor('layer', picked.key), locale);
     const scopes: ScopeMap = {};
     for (const scope of ['service', 'instance', 'endpoint'] as const) {
       const ws = widgetsForScope(effective, scope);
@@ -216,14 +206,7 @@ async function buildBundle(
     diskOverviewIds.add(dash.id);
     const picked = pickOverviewContent(dash, remoteByName, preferLocal);
     if (picked === null) continue; // disabled
-    overviews.push(
-      localizeContent(
-        picked,
-        oapOverlayFor('overview', picked.id),
-        getOverviewOverlay(picked.id, locale),
-        locale,
-      ),
-    );
+    overviews.push(localizeContent(picked, oapOverlayFor('overview', picked.id), locale));
   }
   // Remote-only overviews: dashboards that live on OAP with no on-disk
   // base — created in the admin UI and pushed. The disk loop can't see
@@ -236,11 +219,9 @@ async function buildBundle(
     if (!env || !isOverviewLike(env.content)) continue;
     const dash = env.content as OverviewDashboard;
     if (diskOverviewIds.has(dash.id)) continue; // already handled above
-    // Remote-only dashboards: no disk overlay, but a per-locale OAP
-    // overlay row may still apply.
-    overviews.push(
-      localizeContent(dash, oapOverlayFor('overview', dash.id), null, locale),
-    );
+    // Remote-only dashboards: localize against the per-locale OAP overlay
+    // row when one exists, else English.
+    overviews.push(localizeContent(dash, oapOverlayFor('overview', dash.id), locale));
   }
 
   const syncStatus: BundleSyncStatus = {

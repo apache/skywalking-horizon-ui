@@ -143,7 +143,10 @@ export function useOverviewDashboard(idRef: Ref<string>) {
       const entries = Array.from(layerRequests.value.entries());
       const range = rangeKey.value;
       return entries.map(([layer, reqs]) => ({
-        queryKey: ['overview-dashboard-data', idRef.value, layer, range],
+        // Include the MQE column set (`reqs`), not just the overview id:
+        // a remote sync or preview edit that keeps the id but changes a
+        // widget's MQE must refire, or the cache serves stale data.
+        queryKey: ['overview-dashboard-data', idRef.value, layer, range, JSON.stringify(reqs)],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending

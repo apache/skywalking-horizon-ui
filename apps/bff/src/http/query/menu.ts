@@ -36,7 +36,7 @@ import type { TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
-import { localizeContent, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
 /**
@@ -267,9 +267,7 @@ function deriveLayer(
   // seed/reset source, never a render-time fallback; the per-page
   // features block in that state while the sidebar still navigates.
   const rawTpl = resolveLayerTemplate(rawKey, layerRowsByName);
-  const tpl = rawTpl
-    ? localizeContent<LayerTemplate>(rawTpl, oapOverlay, getLayerOverlay(rawKey, locale), locale)
-    : null;
+  const tpl = rawTpl ? localizeContent<LayerTemplate>(rawTpl, oapOverlay, locale) : null;
   if (tpl) {
     return {
       key: rawKey.toLowerCase(),

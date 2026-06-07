@@ -52,8 +52,6 @@ export class LayerApi {
       topN: cfg.topN,
       orderBy: cfg.orderBy,
       columns: cfg.columns,
-      ...(cfg.spark ? { spark: cfg.spark } : {}),
-      ...(cfg.throughput ? { throughput: cfg.throughput } : {}),
     };
     if (range) {
       body.step = range.step;

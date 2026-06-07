@@ -74,25 +74,6 @@ export interface LandingColumn {
   precision?: number;
 }
 
-/**
- * Headline throughput metric for the per-layer KPI strip tile. Optional —
- * when omitted, the strip falls back to the `orderBy` column's value
- * (also aggregated per the column's `aggregation` field).
- */
-export interface ThroughputConfig {
-  /** Short metric key (must match a column or stand alone). */
-  metric: string;
-  /** Display label override (default falls through to the metric catalog). */
-  label?: string;
-  unit?: string;
-  /** MQE override — same semantics as `LandingColumn.mqe`. */
-  mqe?: string;
-  /** Aggregation across services (defaults to `sum`). */
-  aggregation?: AggregationKind;
-  scale?: number;
-  precision?: number;
-}
-
 export interface LandingConfig {
   /** Lower number → higher on the Overview. */
   priority: number;
@@ -101,10 +82,6 @@ export interface LandingConfig {
   /** Metric key used to rank the top-N. */
   orderBy: string;
   columns: LandingColumn[];
-  /** Optional sparkline column. */
-  spark?: { metric: string; height: number };
-  /** Optional headline metric for the per-layer KPI strip tile. */
-  throughput?: ThroughputConfig;
   /** @deprecated kept for back-compat; new code reads `overviewGroups`. */
   overviewMetrics?: string[];
   /** Explicit per-layer page header columns — distinct from `columns`

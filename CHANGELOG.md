@@ -87,6 +87,33 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   when you click **Reset to bundled** — matching the runtime, which renders the
   published version or blocks, never the bundle.
 
+### Layer landing & service list
+
+- **The layer landing now shows your services, not just an arbitrary 25.** It
+  used to cap the metric fan-out at the first 25 services *by list order* —
+  so larger layers hid the rest, and the "top" services weren't even the true
+  top (the cap happened before the ranking). Now it probes **all** services up
+  to a configurable cap and, when a layer exceeds it, runs a cheap single-
+  metric ranking pass to pick the **true top-N** by the landing's order-by
+  column. The service picker surfaces **"top N of M"** so the trim is never
+  silent. Queries drain through a bounded-concurrency pool, so a big layer
+  fans out in controlled waves rather than a thundering herd.
+- New `query.landingServiceCap` in `horizon.yaml` (default **100**) tunes how
+  many services a landing probes per request — raise it if your OAP + storage
+  can take the larger fan-out, lower it to protect a modest deployment.
+- **The service picker now lists the *whole* layer, not only the metric-probed
+  top-N.** Services that ranked below the metric cap on the order-by column now
+  appear as their own rows with **`low`** in that column (and `—` for the
+  others, which were never probed) instead of being hidden — every service
+  stays browsable, searchable, and selectable regardless of the cap. The
+  header chip reads **"metrics: top N"** to make the metric trim explicit.
+- **Removed the stale "Landing KPI tile" controls** (Headline / Trend line)
+  from the Layer-dashboards admin. They no longer matched the rendered layer
+  header — which shows every configured metric column as its own KPI with its
+  own trend line — so editing them changed nothing on screen. The header is
+  driven entirely by the service-list columns + default sort; the preview now
+  reflects that.
+
 ### Documentation & release tooling
 
 - The website docs were brought current with the 0.6.0 build and the

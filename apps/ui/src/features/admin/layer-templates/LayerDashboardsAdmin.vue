@@ -53,7 +53,6 @@ import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from 
 import { usePreviewOverride } from '@/controls/previewOverride';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
-import Sparkline from '@/components/charts/Sparkline.vue';
 import { fmtMetric } from '@/utils/formatters';
 import { stableStringify } from '@/utils/stableJson';
 import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './widget-mock';
@@ -1222,9 +1221,7 @@ const TRACE_SOURCE_OPTIONS: Array<{ value: TraceSource; label: string; hint: str
  * honors at runtime to pick the trace backend. */
 
 /**
- * Metrics block editor — drives the service-list columns + default
- * sort. Overview-only fields (throughput, spark) live in a separate
- * block, so they're edited in their own card.
+ * Metrics block editor — drives the service-list columns + default sort.
  */
 function ensureMetrics(): NonNullable<AdminLayerTemplate['metrics']> {
   if (!draft.template) throw new Error('no template selected');
@@ -1233,22 +1230,10 @@ function ensureMetrics(): NonNullable<AdminLayerTemplate['metrics']> {
   }
   return draft.template.metrics as NonNullable<AdminLayerTemplate['metrics']>;
 }
-function ensureOverview(): NonNullable<AdminLayerTemplate['overview']> {
-  if (!draft.template) throw new Error('no template selected');
-  if (!draft.template.overview) {
-    (draft.template as AdminLayerTemplate).overview = {};
-  }
-  return draft.template.overview as NonNullable<AdminLayerTemplate['overview']>;
-}
 const metricsModel = computed(() => {
   if (!draft.template) return null;
   ensureMetrics();
   return draft.template.metrics as NonNullable<AdminLayerTemplate['metrics']>;
-});
-const overviewModel = computed(() => {
-  if (!draft.template) return null;
-  ensureOverview();
-  return draft.template.overview as NonNullable<AdminLayerTemplate['overview']>;
 });
 const metricsColumns = computed(() => {
   if (!draft.template) return [];
@@ -1289,36 +1274,6 @@ function previewCell(col: { scale?: number; precision?: number; unit?: string },
 const effectiveOrderBy = computed(
   () => metricsModel.value?.orderBy ?? metricsColumns.value[0]?.metric,
 );
-
-type MetricColumn = NonNullable<NonNullable<AdminLayerTemplate['metrics']>['columns']>[number];
-/** Headline column for the landing KPI tile: explicit `overview.throughput`,
- *  else the default-sort column. */
-const kpiHeadlineCol = computed<MetricColumn | undefined>(() => {
-  const key = overviewModel.value?.throughput ?? effectiveOrderBy.value;
-  return metricsColumns.value.find((c) => c.metric === key) ?? metricsColumns.value[0];
-});
-/** Trend column for the sparkline: explicit `overview.spark`, else the
- *  headline column. */
-const kpiSparkCol = computed<MetricColumn | undefined>(() => {
-  const key = overviewModel.value?.spark ?? overviewModel.value?.throughput ?? effectiveOrderBy.value;
-  return metricsColumns.value.find((c) => c.metric === key) ?? kpiHeadlineCol.value;
-});
-/** Headline number — fmtMetric of a mock aggregate for the headline
- *  column (the real tile shows the value bare; unit lives in the label). */
-const kpiHeadlineValue = computed(() =>
-  kpiHeadlineCol.value ? fmtMetric(previewBase(1) * (kpiHeadlineCol.value.scale ?? 1)) : '—',
-);
-/** Mock sparkline series for the real Sparkline component — deterministic
- *  per spark-column so the trend reads as real movement without MQE. */
-const kpiSparkValues = computed<number[]>(() => {
-  const seed = (kpiSparkCol.value?.metric ?? 'x').length;
-  const n = 24;
-  const a: number[] = [];
-  for (let i = 0; i < n; i++) a.push(14 + Math.sin(i * 0.7 + seed) * 7 + Math.sin(i * 0.23 + seed) * 4);
-  return a;
-});
-/** Two-letter mark for the header icon tile (mirrors the live header). */
-const previewInitials = computed(() => (selectedTpl.value?.key ?? '??').slice(0, 2).toUpperCase());
 
 /**
  * Scope-aware `visibleWhen` placeholder + hover hint. Two supported
@@ -2126,54 +2081,12 @@ const namingTest = computed<NamingTestResult>(() => {
               </tr>
             </tbody>
           </table>
-          <!-- Preview: the per-layer landing KPI tile (headline + trend)
-               at the head — its config picks WHICH service-list column
-               feeds the tile, no new metrics — then the service-list
-               sample table. Mock values, no MQE fired. -->
+          <!-- Preview: the service-list sample table — shows how the
+               configured columns render (label, scale, precision, unit,
+               default-sort marker). Mock values, no MQE fired. -->
           <div v-if="metricsColumns.length > 0" class="metrics-preview">
             <div class="metrics-preview-head">
-              Preview <span class="sub">how this layer’s landing KPI tile + service list render (sample data)</span>
-            </div>
-            <div v-if="overviewModel" class="kpi-block">
-              <div class="kpi-config">
-                <div class="kpi-config-title">Landing KPI tile <span class="sub">which column is the headline + trend</span></div>
-                <label>
-                  <span>Headline (throughput)</span>
-                  <select v-model="overviewModel.throughput">
-                    <option :value="undefined">(default sort)</option>
-                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Trend line (spark)</span>
-                  <select v-model="overviewModel.spark">
-                    <option :value="undefined">(headline)</option>
-                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
-                  </select>
-                </label>
-              </div>
-              <!-- Faithful copy of the real layer header (LayerShell):
-                   icon tile + identity + the kpi-strip. Reuses the same
-                   class names + the Sparkline component so the preview
-                   matches the live page. -->
-              <header class="sw-card preview-layer-head">
-                <div class="layer-id-row">
-                  <div class="icon-tile" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }">{{ previewInitials }}</div>
-                  <div class="identity-text">
-                    <div class="title-row"><h1>{{ selectedTpl.alias || selectedTpl.key }}</h1></div>
-                    <div class="sub">{{ SAMPLE_SERVICES.length }} {{ (selectedTpl.slots?.services || 'services').toLowerCase() }}</div>
-                  </div>
-                  <div class="kpi-strip">
-                    <div class="kpi">
-                      <div class="kpi-label">
-                        {{ kpiHeadlineCol?.label || kpiHeadlineCol?.metric || '—' }}<span v-if="kpiHeadlineCol?.unit" class="unit">({{ kpiHeadlineCol.unit }})</span>
-                      </div>
-                      <div class="kpi-value">{{ kpiHeadlineValue }}</div>
-                      <Sparkline class="kpi-spark" :values="kpiSparkValues" :width="84" :height="18" color="var(--sw-accent)" :stroke="1.25" />
-                    </div>
-                  </div>
-                </div>
-              </header>
+              Preview <span class="sub">how this layer’s service list renders (sample data)</span>
             </div>
             <div class="metrics-preview-scroll">
               <table class="sw-table preview-table">
@@ -4140,118 +4053,6 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-accent-2);
   font-size: 10px;
 }
-
-/* Landing KPI tile preview: config head + a faithful copy of the real
- * layer header. The header classes below mirror LayerShell so the
- * preview matches the live page (kept in sync intentionally). */
-.kpi-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 4px 14px;
-}
-.kpi-config {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-}
-.kpi-config-title {
-  flex: 1 0 100%;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sw-fg-1);
-}
-.kpi-config-title .sub {
-  margin-left: 6px;
-  font-weight: 400;
-  font-size: 10px;
-  color: var(--sw-fg-3);
-}
-.kpi-config label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sw-fg-3);
-}
-.kpi-config select {
-  height: 28px;
-  padding: 0 8px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 11.5px;
-}
-.kpi-config select:focus { outline: none; border-color: var(--sw-accent); }
-/* ↓ mirrors LayerShell.vue .layer-head / .layer-id-row / .kpi-strip. */
-.preview-layer-head { padding: 14px; }
-.preview-layer-head .layer-id-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.preview-layer-head .icon-tile {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: -0.02em;
-  flex: 0 0 40px;
-  background-blend-mode: multiply;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-.preview-layer-head .identity-text { min-width: 0; }
-.preview-layer-head .title-row h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--sw-fg-0);
-  letter-spacing: -0.02em;
-}
-.preview-layer-head .sub {
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: var(--sw-fg-3);
-}
-.preview-layer-head .kpi-strip {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  margin-left: auto;
-}
-.preview-layer-head .kpi { text-align: right; min-width: 80px; }
-.preview-layer-head .kpi-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  margin-bottom: 2px;
-}
-.preview-layer-head .kpi-label .unit {
-  text-transform: none;
-  letter-spacing: 0;
-  margin-left: 2px;
-  font-size: 9.5px;
-}
-.preview-layer-head .kpi-value {
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  color: var(--sw-fg-1);
-}
-.preview-layer-head .kpi-spark { display: block; margin-top: 4px; margin-left: auto; }
 
 /* Menu-label (slot alias) editor grid. */
 .alias-grid {

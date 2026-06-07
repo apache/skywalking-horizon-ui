@@ -81,33 +81,22 @@ export function localize<T>(source: T, overlay: unknown, locale: string): T {
 }
 
 /**
- * Variant for layer / overview templates whose translations live as
- * sibling rows on OAP (`horizon.<kind>.<key>.i18n.<locale>`) plus
- * sibling files on disk (`*.i18n.<lang>.json`).
+ * Localize a layer / overview template against its **OAP** translation
+ * overlay row (`horizon.<kind>.<key>.i18n.<locale>`), most-specific-wins
+ * per leaf: the OAP overlay value, else the English source.
  *
- * Lookup precedence (most-specific wins per leaf):
- *   1. `oapOverlay` — operator's pushed translations from the sibling
- *      OAP row.
- *   2. `diskOverlay` — sibling `*.i18n.<lang>.json` file from disk.
- *   3. Source (English).
+ * Runtime is REMOTE-only. The disk `*.i18n.<lang>.json` files are
+ * seed/reset defaults — boot-seed pushes each as a sibling OAP overlay
+ * row — NOT a render-time fill. So a key the OAP overlay doesn't carry
+ * falls through to **English**, never to the disk-shipped translation;
+ * the bundled overlay reaches the UI only by being synced to OAP, exactly
+ * like bundled templates. (Operators who want the full shipped
+ * translation reset-to-bundled, which re-seeds the OAP row.)
  *
- * The merge is per-leaf: where the OAP overlay has a value the OAP
- * value wins; where it's blank or absent the disk overlay fills in;
- * where neither has it the English source falls through. So operators
- * never lose disk-shipped translations by pushing one row — they
- * compose.
- *
- * Defensive: any embedded `i18n` block on the source content is
- * stripped before the merge. The split layout never writes embedded
- * i18n; this guard exists only to keep us safe against hand-edited
- * rows or future regressions.
+ * Defensive: any embedded `i18n` block on the source content is stripped
+ * before the merge — the split layout never writes embedded i18n.
  */
-export function localizeContent<T>(
-  content: T,
-  oapOverlay: unknown,
-  diskOverlay: unknown,
-  locale: string,
-): T {
+export function localizeContent<T>(content: T, oapOverlay: unknown, locale: string): T {
   let source: T = content;
   if (content !== null && typeof content === 'object' && !Array.isArray(content)) {
     const record = content as unknown as Record<string, unknown>;
@@ -117,16 +106,6 @@ export function localizeContent<T>(
       source = rest as unknown as T;
     }
   }
-  if (locale === 'en') return source;
-  // Apply disk first, then OAP — OAP wins where it has a value, disk
-  // fills the gaps. mergeLocalizedNode preserves source-shape and
-  // falls through to the previous-layer value on empty/missing.
-  let merged: T = source;
-  if (diskOverlay !== null && diskOverlay !== undefined) {
-    merged = mergeLocalizedNode(merged, diskOverlay) as T;
-  }
-  if (oapOverlay !== null && oapOverlay !== undefined) {
-    merged = mergeLocalizedNode(merged, oapOverlay) as T;
-  }
-  return merged;
+  if (locale === 'en' || oapOverlay === null || oapOverlay === undefined) return source;
+  return mergeLocalizedNode(source, oapOverlay) as T;
 }

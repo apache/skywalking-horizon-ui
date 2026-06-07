@@ -37,6 +37,7 @@ import type {
   DashboardWidget,
   DslDebuggingStatus,
   EndpointDependencyConfig,
+  LayerOverviewConfig,
   LocalState,
   MetricRow,
   ProcessTopologyConfig,
@@ -288,10 +289,10 @@ export interface AdminLayerTemplate {
       precision?: number;
     }>;
   };
-  overview?: {
-    throughput?: string;
-    spark?: string;
-  };
+  /** Overview-tile config (group list). Edited on the Overview-templates
+   *  admin, not here — surfaced for the translation preview + so a
+   *  round-trip save preserves it. */
+  overview?: LayerOverviewConfig;
   widgets: DashboardWidget[];
   topology?: TopologyConfig;
   endpointDependency?: EndpointDependencyConfig;
