@@ -388,7 +388,7 @@ const layerColumns = computed<LayerColumn[]>(() => {
     let label: string;
     // Focus = L0; layers to the LEFT (negative index) are the focus's
     // callers, to the RIGHT (positive) its callees. Labelled `Callers`
-    // / `Callees` to match the node popout (Inbound/Outbound) and the
+    // / `Callees` to match the node popout (Callers/Callees) and the
     // expand handles — the old `Upstream`/`Downstream` pair was both
     // ambiguous and inverted (nginx vs data-flow conventions clashed).
     if (i < 0) label = `L${i} · Callers`;
@@ -1128,25 +1128,25 @@ function edgeRowCrosshair(rowId: string): number | null {
           </div>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Inbound ({{ popoutUpstream.length }})</div>
+          <div class="ed-section-title">Callers ({{ popoutUpstream.length }})</div>
           <ul class="ed-list">
             <li v-for="u in popoutUpstream" :key="u.id">
               <span class="ed-mono small">{{ u.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
             </li>
-            <li v-if="popoutUpstream.length === 0" class="ed-empty">no inbound calls in window</li>
+            <li v-if="popoutUpstream.length === 0" class="ed-empty">no callers in this window</li>
           </ul>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Outbound ({{ popoutDownstream.length }})</div>
+          <div class="ed-section-title">Callees ({{ popoutDownstream.length }})</div>
           <ul class="ed-list">
             <li v-for="d in popoutDownstream" :key="d.id">
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small">{{ d.name }}</span>
             </li>
-            <li v-if="popoutDownstream.length === 0" class="ed-empty">no outbound calls in window</li>
+            <li v-if="popoutDownstream.length === 0" class="ed-empty">no callees in this window</li>
           </ul>
         </div>
         <div class="ed-actions">
@@ -1169,7 +1169,7 @@ function edgeRowCrosshair(rowId: string): number | null {
               <span class="ed-mono small">{{ selectedCallTarget.name }}</span>
             </div>
             <div class="ed-edge-svc">
-              {{ selectedCallSource.serviceName }} → {{ selectedCallTarget.serviceName }}
+              {{ identity(selectedCallSource.serviceName).display }} → {{ identity(selectedCallTarget.serviceName).display }}
             </div>
           </div>
           <button class="sw-btn small" type="button" @click="selectedCallId = null">×</button>
