@@ -141,43 +141,58 @@ const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
 
 // ── Interactive expansion ─────────────────────────────────────────
-// Each click on a node's left / right expand button fires another
-// `endpoint-dependency` query for THAT endpoint and merges the
-// returned graph into the rendered set. Keyed by `${nodeId}:dir` so
-// repeat clicks are idempotent (same direction = no-op; future
-// "collapse" affordance can lift the entry instead).
+// `getEndpointDependencies` returns a node's WHOLE neighbourhood (both
+// directions in ONE response — OAP has no directional endpoint query),
+// so there is ONE expand per node, not a left/right pair. New callers
+// land left, callees right via the BFS layout. The handle lives on the
+// node's OUTWARD edge (the way the chain extends); keyed by node id so a
+// repeat click is a no-op. A click that surfaces nothing new marks the
+// node exhausted, fading the handle so it isn't a dead control.
 const expansions = ref<Map<string, EndpointDependencyResponse>>(new Map());
 const expansionsLoading = ref<Set<string>>(new Set());
-function hasExpansion(node: EndpointDependencyNode, dir: 'upstream' | 'downstream'): boolean {
-  return expansions.value.has(`${node.id}:${dir}`);
+const exhausted = ref<Set<string>>(new Set());
+function hasExpansion(node: EndpointDependencyNode): boolean {
+  return expansions.value.has(node.id);
 }
-async function expandNode(node: EndpointDependencyNode, dir: 'upstream' | 'downstream'): Promise<void> {
-  const key = `${node.id}:${dir}`;
+function isExhausted(node: EndpointDependencyNode): boolean {
+  return exhausted.value.has(node.id);
+}
+async function expandNode(node: EndpointDependencyNode): Promise<void> {
+  const key = node.id;
   if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
-  expansionsLoading.value.add(key);
+  const loading = new Set(expansionsLoading.value);
+  loading.add(key);
+  expansionsLoading.value = loading;
   try {
+    const before = new Set(nodes.value.map((n) => n.id));
     const resp = await bffClient.layer.endpointDependency(
       layerKey.value,
       node.serviceName,
       node.name,
     );
-    // Mutate the Map and re-assign to force reactivity.
     const next = new Map(expansions.value);
     next.set(key, resp);
     expansions.value = next;
+    // No new neighbour surfaced (chain leaf / all already shown) — fade.
+    if (!resp.nodes.some((n) => !before.has(n.id))) {
+      const e = new Set(exhausted.value);
+      e.add(key);
+      exhausted.value = e;
+    }
   } catch {
     // Soft-fail — the operator can click again to retry.
   } finally {
-    const loading = new Set(expansionsLoading.value);
-    loading.delete(key);
-    expansionsLoading.value = loading;
+    const done = new Set(expansionsLoading.value);
+    done.delete(key);
+    expansionsLoading.value = done;
   }
 }
-// Reset expansions whenever the focus endpoint changes — the
-// previous expansion graph is irrelevant against a new focus.
+// Reset expansions whenever the focus endpoint changes — the previous
+// expansion graph is irrelevant against a new focus.
 watch(selectedEndpoint, () => {
   expansions.value = new Map();
   expansionsLoading.value = new Set();
+  exhausted.value = new Set();
 });
 
 // ── Merged graph = focus response ∪ all expansion responses.
@@ -368,14 +383,14 @@ const layerColumns = computed<LayerColumn[]>(() => {
     const visible = list.slice(0, NODES_PER_LAYER);
     const hidden = list.length - visible.length;
     let label: string;
-    // Layer convention: focus = L0; layers to the LEFT (negative
-     // index, callers / "before") = Downstream in the operator's
-     // wording; layers to the RIGHT (positive, callees / "after")
-     // = Upstream. Matches the nginx/proxy mental model the team
-     // already uses.
-    if (i < 0) label = `L${i} · Downstream`;
+    // Focus = L0; layers to the LEFT (negative index) are the focus's
+    // callers, to the RIGHT (positive) its callees. Labelled `Callers`
+    // / `Callees` to match the node popout (Inbound/Outbound) and the
+    // expand handles — the old `Upstream`/`Downstream` pair was both
+    // ambiguous and inverted (nginx vs data-flow conventions clashed).
+    if (i < 0) label = `L${i} · Callers`;
     else if (i === 0) label = 'L0 · Focus';
-    else label = `L+${i} · Upstream`;
+    else label = `L+${i} · Callees`;
     return { index: i, label, visible, hidden };
   });
 });
@@ -1022,29 +1037,22 @@ function edgeRowCrosshair(rowId: string): number | null {
                   : ''
               }}<template v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
             </text>
-            <!-- Expand left (upstream) / right (downstream) buttons,
-                 visible on the SELECTED node so the operator can
-                 walk the chain without leaving the canvas. Already-
-                 expanded directions show a filled mark instead. -->
+            <!-- One outward expand handle on the SELECTED node, on the
+                 edge facing away from the focus: caller-side nodes
+                 (layerIdx < 0) get a left ‹, callee-side a right ›. One
+                 OAP query returns the node's whole neighbourhood; the
+                 chevron just marks where the chain extends. A click that
+                 reveals nothing new fades the handle (leaf reached). -->
             <g
               v-if="selectedNodeId === n.id && n.id !== focusedId"
               class="ep-expand"
-              :transform="`translate(-14, ${NH / 2 - 10})`"
-              @click.stop="expandNode(n, 'upstream')"
+              :class="{ exhausted: isExhausted(n) }"
+              :transform="n.layerIdx < 0 ? `translate(-14, ${NH / 2 - 10})` : `translate(${NW - 6}, ${NH / 2 - 10})`"
+              @click.stop="expandNode(n)"
             >
-              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n, 'upstream') ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n, 'upstream') ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">‹</text>
-              <title>Expand upstream callers</title>
-            </g>
-            <g
-              v-if="selectedNodeId === n.id && n.id !== focusedId"
-              class="ep-expand"
-              :transform="`translate(${NW - 6}, ${NH / 2 - 10})`"
-              @click.stop="expandNode(n, 'downstream')"
-            >
-              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n, 'downstream') ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n, 'downstream') ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">›</text>
-              <title>Expand downstream callees</title>
+              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
+              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">{{ n.layerIdx < 0 ? '‹' : '›' }}</text>
+              <title>{{ n.layerIdx < 0 ? `Show callers of ${n.name}` : `Show callees of ${n.name}` }}</title>
             </g>
           </g>
         </svg>
@@ -1219,6 +1227,21 @@ function edgeRowCrosshair(rowId: string): number | null {
   flex-direction: column;
   gap: 12px;
   padding: 4px 0 0;
+}
+/* Per-node outward expand handle. */
+.ep-expand {
+  cursor: pointer;
+}
+.ep-expand:hover circle {
+  stroke: var(--sw-accent);
+}
+.ep-expand:hover text {
+  fill: var(--sw-accent);
+}
+/* Exhausted = a click revealed nothing new (chain leaf); fade + disable. */
+.ep-expand.exhausted {
+  opacity: 0.3;
+  pointer-events: none;
 }
 .ep-picker { padding: 0; }
 .picker-head {
