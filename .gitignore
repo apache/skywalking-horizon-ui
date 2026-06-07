@@ -6,6 +6,7 @@ dist-ssr
 
 # Claude Code per-user settings — user-specific allow-list, not for git.
 .claude/settings.local.json
+.claude/settings.json
 
 # Editor
 .idea
