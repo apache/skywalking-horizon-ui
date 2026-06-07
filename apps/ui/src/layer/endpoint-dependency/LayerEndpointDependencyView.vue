@@ -157,6 +157,9 @@ function hasExpansion(node: EndpointDependencyNode): boolean {
 function isExhausted(node: EndpointDependencyNode): boolean {
   return exhausted.value.has(node.id);
 }
+function isLoadingExpansion(node: EndpointDependencyNode): boolean {
+  return expansionsLoading.value.has(node.id);
+}
 async function expandNode(node: EndpointDependencyNode): Promise<void> {
   const key = node.id;
   if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
@@ -1045,19 +1048,41 @@ function edgeRowCrosshair(rowId: string): number | null {
                  SELECTED non-focus node. A single `getEndpointDependencies`
                  call returns the node's WHOLE neighbourhood, so one click
                  expands BOTH directions — new callers land left, callees
-                 right via the layout. No left/right pair (that implied a
-                 directional query OAP doesn't have). Fades once a click
-                 reveals nothing new (leaf reached). -->
+                 right via the layout. States: `+` (expandable) → spinner
+                 (loading callers & callees) → `+` accent (expanded) or a
+                 faded `·` (no further dependency). -->
             <g
               v-if="selectedNodeId === n.id && n.id !== focusedId"
               class="ep-expand"
-              :class="{ exhausted: isExhausted(n) }"
+              :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n) }"
               :transform="`translate(${NW - 9}, -9)`"
               @click.stop="expandNode(n)"
             >
-              <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="9" y="13" text-anchor="middle" font-size="14" font-weight="600" :fill="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">+</text>
-              <title>Expand {{ n.name }} — show its callers and callees</title>
+              <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) || isLoadingExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
+              <!-- loading spinner: a spinning arc while the dependency query is in flight -->
+              <circle
+                v-if="isLoadingExpansion(n)"
+                cx="9"
+                cy="9"
+                r="6"
+                fill="none"
+                stroke="var(--sw-accent-2)"
+                stroke-width="2"
+                stroke-dasharray="11 30"
+                stroke-linecap="round"
+              >
+                <animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.7s" repeatCount="indefinite" />
+              </circle>
+              <text
+                v-else
+                x="9"
+                y="13"
+                text-anchor="middle"
+                font-size="14"
+                font-weight="600"
+                :fill="isExhausted(n) ? 'var(--sw-fg-3)' : hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'"
+              >{{ isExhausted(n) ? '·' : '+' }}</text>
+              <title>{{ isLoadingExpansion(n) ? `Loading callers and callees of ${n.name}…` : isExhausted(n) ? `No further callers or callees for ${n.name}` : `Expand ${n.name} — show its callers and callees` }}</title>
             </g>
           </g>
         </svg>
@@ -1237,16 +1262,22 @@ function edgeRowCrosshair(rowId: string): number | null {
 .ep-expand {
   cursor: pointer;
 }
-.ep-expand:hover circle {
+/* Only the actionable (expandable) handle brightens on hover. */
+.ep-expand:not(.exhausted):not(.loading):hover circle {
   stroke: var(--sw-accent);
 }
-.ep-expand:hover text {
+.ep-expand:not(.exhausted):not(.loading):hover text {
   fill: var(--sw-accent);
 }
-/* Exhausted = a click revealed nothing new (chain leaf); fade + disable. */
+/* No-dependency = a click revealed nothing new (chain leaf): faded `·`,
+   not clickable-feeling, but still hoverable so the tooltip explains it
+   (the click handler is already a no-op once expanded). */
 .ep-expand.exhausted {
-  opacity: 0.3;
-  pointer-events: none;
+  opacity: 0.5;
+  cursor: default;
+}
+.ep-expand.loading {
+  cursor: progress;
 }
 .ep-picker { padding: 0; }
 .picker-head {
