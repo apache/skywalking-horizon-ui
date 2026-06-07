@@ -790,7 +790,7 @@ function edgeRowCrosshair(rowId: string): number | null {
       {{ errorText ?? 'API dependency feed failed — check the BFF and OAP.' }}
     </div>
 
-    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :style="{ height: cardHeightPx + 'px' }">
+    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
       <!-- Two-column layout: graph on the left, selection detail
            panel on the right. Mirrors the topology view's sidebar so
            operators get the same interaction pattern across the two
@@ -800,7 +800,7 @@ function edgeRowCrosshair(rowId: string): number | null {
           <h4>API dependency chain</h4>
           <span class="hint">
             {{ layerColumns.length }} columns · {{ nodes.length }} endpoints
-            · click a node for details
+            · click a node or edge for details
           </span>
         </header>
 
@@ -893,24 +893,25 @@ function edgeRowCrosshair(rowId: string): number | null {
             >
               <title v-if="lineDef">{{ lineDef.label }}: {{ fmtMetric(edgeVal(c, lineDef)) }} {{ lineDef.unit ?? '' }}</title>
             </path>
-            <!-- Animated traffic dots on focus/heaviest/selected edges. -->
-            <template v-if="c.source === focusedId || c.target === focusedId || selectedCallId === c.id">
-              <circle
-                v-for="off in [0, 0.5, 1.0]"
-                :key="off"
-                r="2.2"
-                :fill="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-accent)'"
-                opacity="0.85"
-                style="pointer-events: none"
-              >
-                <animateMotion
-                  :dur="`${2.4 + (off * 0.4)}s`"
-                  :begin="`${off}s`"
-                  repeatCount="indefinite"
-                  :path="callPathD(c)"
-                />
-              </circle>
-            </template>
+            <!-- Animated traffic dots on EVERY edge — they advertise call
+                 direction (source→target) in place of arrowheads, so an
+                 expanded edge that doesn't touch the focus still shows
+                 which way the call flows. Selected edge dots brighten. -->
+            <circle
+              v-for="off in [0, 0.5, 1.0]"
+              :key="off"
+              r="2.2"
+              :fill="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-accent)'"
+              :opacity="selectedCallId === c.id || c.source === focusedId || c.target === focusedId ? 0.9 : 0.6"
+              style="pointer-events: none"
+            >
+              <animateMotion
+                :dur="`${2.4 + (off * 0.4)}s`"
+                :begin="`${off}s`"
+                repeatCount="indefinite"
+                :path="callPathD(c)"
+              />
+            </circle>
             <!-- Compact metric chip at the curve midpoint. -->
             <template v-if="lineDef && edgeVal(c, lineDef) !== null && callMidpoint(c)">
               <g
@@ -1040,22 +1041,23 @@ function edgeRowCrosshair(rowId: string): number | null {
                   : ''
               }}<template v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
             </text>
-            <!-- One outward expand handle on the SELECTED node, on the
-                 edge facing away from the focus: caller-side nodes
-                 (layerIdx < 0) get a left ‹, callee-side a right ›. One
-                 OAP query returns the node's whole neighbourhood; the
-                 chevron just marks where the chain extends. A click that
-                 reveals nothing new fades the handle (leaf reached). -->
+            <!-- One neutral expand handle (top-right corner) on the
+                 SELECTED non-focus node. A single `getEndpointDependencies`
+                 call returns the node's WHOLE neighbourhood, so one click
+                 expands BOTH directions — new callers land left, callees
+                 right via the layout. No left/right pair (that implied a
+                 directional query OAP doesn't have). Fades once a click
+                 reveals nothing new (leaf reached). -->
             <g
               v-if="selectedNodeId === n.id && n.id !== focusedId"
               class="ep-expand"
               :class="{ exhausted: isExhausted(n) }"
-              :transform="n.layerIdx < 0 ? `translate(-14, ${NH / 2 - 10})` : `translate(${NW - 6}, ${NH / 2 - 10})`"
+              :transform="`translate(${NW - 9}, -9)`"
               @click.stop="expandNode(n)"
             >
-              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">{{ n.layerIdx < 0 ? '‹' : '›' }}</text>
-              <title>{{ n.layerIdx < 0 ? `Show callers of ${n.name}` : `Show callees of ${n.name}` }}</title>
+              <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
+              <text x="9" y="13" text-anchor="middle" font-size="14" font-weight="600" :fill="hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">+</text>
+              <title>Expand {{ n.name }} — show its callers and callees</title>
             </g>
           </g>
         </svg>
@@ -1359,8 +1361,14 @@ function edgeRowCrosshair(rowId: string): number | null {
      the section wins over this declaration. */
   padding: 0;
   display: grid;
-  grid-template-columns: 1fr 320px;
+  /* Single column by default; the 320px detail sidebar only takes space
+     once a node/edge is selected, so the graph fills the full width on
+     the default page instead of reserving an empty panel. */
+  grid-template-columns: 1fr;
   overflow: hidden;
+}
+.ep-graph-card.has-detail {
+  grid-template-columns: 1fr 320px;
 }
 /* Legend strip at the bottom of the graph column. Sits inside
    `.ep-graph` so it shares the card height with the SVG scroll. */
