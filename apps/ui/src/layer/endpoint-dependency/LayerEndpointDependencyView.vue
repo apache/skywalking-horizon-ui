@@ -32,7 +32,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
@@ -656,16 +656,24 @@ function formatEdgeRowLabel(row: { label: string; unit?: string | null }): strin
   return `${lab} (${u.toUpperCase()})`;
 }
 
+/** Open a route in a fresh browser tab — the graph stays put so the
+ *  operator can fan out to several services/endpoints without losing
+ *  their place. History mode means `resolve(...).href` is a real URL. */
+function openRouteInNewTab(to: RouteLocationRaw): void {
+  const href = router.resolve(to).href;
+  window.open(href, '_blank', 'noopener');
+}
+
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${layerKey.value}/service`,
     query: { service: sel.serviceId },
   });
 }
 /**
- * Navigate to the Endpoint dashboard for the clicked node — same
+ * Open the Endpoint dashboard for the clicked node in a new tab — same
  * pattern as topology's "Open service" jump. No client-side keyword
  * search: we hand the endpoint name + service id to the page via the
  * URL, and the Endpoint view's own auto-pick effect resolves it.
@@ -673,7 +681,7 @@ function jumpToService(): void {
 function jumpToEndpointDashboard(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${layerKey.value}/endpoint`,
     query: {
       service: sel.serviceId,
