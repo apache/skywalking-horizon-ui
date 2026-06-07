@@ -268,12 +268,6 @@ const aggregates = computed(() =>
 // null or no longer in the roster.
 const { selectedId, setSelected } = useSelectedService();
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
-// Total services in the layer — when it exceeds the probed sample, the
-// landing capped the metric fan-out (query.landingServiceCap) and the
-// selector surfaces "top N of M".
-const layerServiceTotal = computed<number | undefined>(
-  () => landing.data.value?.aggregates?.serviceCount ?? undefined,
-);
 const selectorColumns = computed(() => safeCfg.value.columns);
 // Full service roster (the layer's REAL catalog, independent of landing's
 // top-N sample which misses low-traffic services / anything beyond the
@@ -612,7 +606,6 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       :accent="layer.color"
       :naming-rule="layer.naming ?? null"
       :service-label="layer.slots.services"
-      :total-count="layerServiceTotal"
       @select="pickService"
     />
 

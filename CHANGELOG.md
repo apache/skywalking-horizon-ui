@@ -39,6 +39,14 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   confused. Enabled out of the box on **General**, **Service Mesh**,
   **Kubernetes Service**, and **Cilium Service**; the config rides each
   layer's topology template (so it travels with template export/import).
+- When OAP's template store is unreachable, the instance map now shows the
+  same empty + connectivity-banner state as the service map, rather than a
+  misleading "not supported" — block and unsupported are no longer conflated.
+- **Localized across all eight UI languages.** The instance-map UI, the
+  template-store-unreachable banner, and the remaining alarm / live-debugger
+  strings are now translated in zh-CN, ja, ko, es, pt, de and fr (English
+  stays the source) — no feature renders English-only for non-English
+  operators.
 
 ### Dashboard template portability
 
@@ -113,6 +121,16 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   own trend line — so editing them changed nothing on screen. The header is
   driven entirely by the service-list columns + default sort; the preview now
   reflects that.
+- **Selecting a low-traffic (below-cap) service now works on *every* tab**, not
+  just the dashboard. Logs, traces, and endpoint-dependency resolved the picked
+  service's name from the landing sample only — so a tail service queried as
+  blank (and Logs even snapped the pick back to the top service). All per-layer
+  tabs now resolve the name from the full roster, so a `low` service drills in
+  everywhere.
+- **Profiling scopes no longer show an editor grid that goes nowhere.** Trace /
+  eBPF / async profiling are built-in runtime views with nothing to author, so
+  the admin now shows a "configured at runtime" note for them instead of a
+  widget grid whose widgets never rendered.
 
 ### Documentation & release tooling
 

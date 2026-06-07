@@ -45,7 +45,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { useLayerServices } from '@/layer/useLayerServices';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetricAs } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
@@ -119,23 +119,11 @@ function xLabelsForLen(len: number): string[] {
   );
 }
 const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
-// The layer's REAL service roster (id + name), independent of the
-// landing top-N. The cascade prefers landing rows when they include
-// the selectedId (so the display name has the same casing / cluster
-// suffix the landing rollup uses), but falls back to the full roster
-// for low-traffic services that never make landing's sample. Without
-// the roster fallback the dashboard would sit on "Resolving service…"
-// forever for any deep-link / hierarchy-peer entry whose service
-// isn't in landing's top-N.
-const { services: layerServices } = useLayerServices(layerKey);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  if (match) return match.serviceName;
-  const fromRoster = layerServices.value.find((s) => s.id === selectedId.value);
-  if (fromRoster) return fromRoster.name;
-  return null;
-});
+// Prefer landing rows for the selected service's name, falling back to
+// the full roster for low-traffic / deep-linked services that miss
+// landing's top-N — without it the dashboard would sit on "Resolving
+// service…" forever. Shared with every other layer tab.
+const serviceName = useLayerServiceName(layerKey, landing);
 // Dev-only escape hatch: appending `?mockTop=10` to the page URL pads
 // every TopList result to N synthetic rows. Helps operators verify
 // widget heights without waiting for OAP to populate the layer.

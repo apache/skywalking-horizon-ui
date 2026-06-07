@@ -61,12 +61,6 @@ const props = withDefaults(
     roster?: ReadonlyArray<{ id: string; name: string }>;
     /** Order-by metric key — labels the tail rows ("low RPM"). */
     orderBy?: string;
-    /** Total services in the layer (landing aggregates). When it exceeds
-     *  the probed `services` count, the landing capped the metric fan-out
-     *  at `query.landingServiceCap`: the top rows carry metrics, the rest
-     *  list as "low <orderBy>". Surfaced as a "metrics: top N" chip so
-     *  the trim is never silent. */
-    totalCount?: number;
   }>(),
   {
     accent: 'var(--sw-accent)',
@@ -149,7 +143,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
       />
       <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: allRows.length }) }}</span>
       <span
-        v-if="allRows.length > probedCount"
+        v-if="probedCount > 0 && allRows.length > probedCount"
         class="count capped"
         :title="t('Metrics are probed for the top {n} services by {metric}; the rest are listed as low-traffic. Raise query.landingServiceCap to probe more.', { n: probedCount, metric: orderByLabel })"
       >{{ t('metrics: top {n}', { n: probedCount }) }}</span>

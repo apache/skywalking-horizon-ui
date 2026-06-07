@@ -60,7 +60,7 @@ import {
   type Window,
 } from '../../util/window.js';
 import { instanceTopologyConfigFor } from '../../logic/layers/loader.js';
-import { resolveEffectiveLayerTemplate } from '../../logic/layers/effective.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { aggregateMqe, seriesFromMqe, type MqeShape } from './topology.js';
 
@@ -227,11 +227,29 @@ export function registerInstanceTopologyRoute(
       // that draft decides support (404 if the draft has no instance map),
       // bypassing the remote template entirely.
       const previewTopo = parsePreviewTopology(q.previewConfig);
-      const instCfg: InstanceTopologyConfig | null = previewTopo
-        ? (previewTopo.instanceTopology ?? null)
-        : instanceTopologyConfigFor(
-            await resolveEffectiveLayerTemplate(deps.uiTemplateClient, layerKey),
+      let instCfg: InstanceTopologyConfig | null;
+      if (previewTopo) {
+        instCfg = previewTopo.instanceTopology ?? null;
+      } else {
+        const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+        if (eff.blocked) {
+          // Template store unreachable (or this layer's template disabled)
+          // — block, the same way the service-topology route does, instead
+          // of collapsing to a misleading "not supported" 404. Serve an
+          // empty unreachable response so the SPA's connectivity banner
+          // explains the empty state.
+          return reply.send(
+            emptyResponse(
+              layerKey,
+              clientServiceId,
+              serverServiceId,
+              { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+              false,
+            ),
           );
+        }
+        instCfg = instanceTopologyConfigFor(eff.template);
+      }
       if (!instCfg) {
         return reply.code(404).send({ error: 'instance_topology_not_supported' });
       }

@@ -105,6 +105,20 @@ const error = ref<string | null>(null);
 const selectedKey = ref<string>('');
 const activeScope = ref<AdminScope>('service');
 const isSaving = ref(false);
+
+// Scopes whose page is a built-in, runtime-configured explore view with
+// no per-layer widget grid to author. The trace / eBPF / async profiling
+// tabs render dedicated views (not the generic dashboard grid), so they
+// have nothing to wire up here — same as trace / logs. (networkProfiling
+// is excluded: it has its own edge-metric editor.)
+const RUNTIME_ONLY_SCOPES = new Set<AdminScope>([
+  'trace',
+  'logs',
+  'traceProfiling',
+  'ebpfProfiling',
+  'asyncProfiling',
+]);
+const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
 const saveMsg = ref<string | null>(null);
 
 // Picker-bar "refresh from remote" button + post-push 10s countdown
@@ -2738,7 +2752,7 @@ const namingTest = computed<NamingTestResult>(() => {
              other than enable/disable, which is already handled via
              the Components toggle in the right sidebar. -->
         <section
-          v-else-if="activeScope === 'trace' || activeScope === 'logs'"
+          v-else-if="activeScopeRuntimeOnly"
           class="sw-card editor-card topo-cfg-card"
         >
           <div class="card-head">

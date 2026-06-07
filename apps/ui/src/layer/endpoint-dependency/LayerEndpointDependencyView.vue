@@ -47,6 +47,7 @@ import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
@@ -81,11 +82,7 @@ function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, namingRule.value);
 }
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  return match?.serviceName ?? null;
-});
+const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 // Loading-sequence orchestration. The per-step waits keep this
 // deterministic: service first, then the endpoint query (empty

@@ -53,6 +53,7 @@ import { useLayerTraces, useTraceDetail } from '@/layer/traces/useLayerTraces';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
@@ -78,11 +79,7 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  return match?.serviceName ?? null;
-});
+const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,

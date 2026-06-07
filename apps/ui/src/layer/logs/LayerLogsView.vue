@@ -37,6 +37,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { parseServiceName } from '@/utils/serviceName';
@@ -60,18 +61,18 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  return match?.serviceName ?? null;
-});
+const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
   (rows) => {
     const first = rows[0];
     if (!first) return;
-    if (!selectedId.value || !rows.some((r) => r.serviceId === selectedId.value)) {
+    // Auto-pick only when nothing is selected. A valid tail selection
+    // (not in landing's sampled top-N) must NOT be clobbered back to the
+    // first sampled row — the shell recovers genuinely-stale ids against
+    // the full roster.
+    if (!selectedId.value) {
       setSelectedService(first.serviceId);
     }
   },

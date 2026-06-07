@@ -477,7 +477,6 @@ export function defaultOrderByForLayer(layerKey: string): string {
   return LAYER_TYPE_DEFAULTS[layerCategory(layerKey)].orderBy;
 }
 
-
 /**
  * Generic RPC-shaped metrics every layer can render — surfaced as a
  * fallback group in the setup UI's chip picker after the layer-specific
