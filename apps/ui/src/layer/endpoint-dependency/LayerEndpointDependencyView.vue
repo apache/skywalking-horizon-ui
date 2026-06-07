@@ -31,7 +31,7 @@
       callout). Only one popout open at a time.
 -->
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type {
@@ -485,16 +485,37 @@ const visibleCalls = computed<EndpointDependencyCall[]>(() => {
 // off a clipped column. Wheel + ＋/−/fit buttons zoom; drag pans.
 const svgRef = ref<SVGSVGElement | null>(null);
 const viewBox = ref<{ x: number; y: number; w: number; h: number } | null>(null);
+// Set once the operator wheels / pans / zooms — an automatic refit
+// (canvas resize, sidebar open/close) must not stomp a deliberate viewport.
+const userAdjusted = ref(false);
 const viewBoxStr = computed(() => {
   const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
   return `${v.x} ${v.y} ${v.w} ${v.h}`;
 });
+// On-screen px per graph unit cap. A sparse graph (2-3 nodes) in a wide
+// canvas would otherwise scale up under `meet` until the text balloons —
+// most visible when nothing is selected and the graph spans full width
+// (no detail sidebar). Capping holds node text at the same size whether
+// or not the sidebar is open; the surplus room becomes centered padding.
+const MAX_FIT_SCALE = 1.15;
 function fitView(): void {
-  viewBox.value = { x: 0, y: 0, w: W.value, h: H.value };
+  userAdjusted.value = false;
+  const r = svgRef.value?.getBoundingClientRect();
+  if (!r || !r.width || !r.height) {
+    viewBox.value = { x: 0, y: 0, w: W.value, h: H.value };
+    return;
+  }
+  const scale = Math.min(r.width / W.value, r.height / H.value, MAX_FIT_SCALE);
+  const vw = r.width / scale;
+  const vh = r.height / scale;
+  viewBox.value = { x: (W.value - vw) / 2, y: (H.value - vh) / 2, w: vw, h: vh };
 }
 // Refit when the graph itself changes (focus pick / first load / refresh
-// that adds or drops a column). Operator zoom/pan persists otherwise.
-watch([focusedId, () => layerColumns.value.length], () => fitView(), { immediate: true });
+// that adds or drops a column). nextTick so the canvas has its post-change
+// size. Operator zoom/pan persists otherwise.
+watch([focusedId, () => layerColumns.value.length], () => void nextTick(fitView), {
+  immediate: true,
+});
 
 /** Rendered scale + letterbox offset for the current viewBox under
  *  preserveAspectRatio="xMidYMid meet" — so cursor zoom + drag pan map
@@ -512,6 +533,7 @@ function clientToView(clientX: number, clientY: number): { x: number; y: number 
   return { x: v.x + (clientX - left - offX) / scale, y: v.y + (clientY - top - offY) / scale };
 }
 function zoomAround(factor: number, cx: number, cy: number): void {
+  userAdjusted.value = true;
   const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
   // viewBox width bounded to [30%, 160%] of the full graph (zoom-in / out caps).
   const newW = Math.min(W.value * 1.6, Math.max(W.value * 0.3, v.w * factor));
@@ -538,6 +560,7 @@ function onPanStart(e: PointerEvent): void {
 }
 function onPanMove(e: PointerEvent): void {
   if (!panning) return;
+  userAdjusted.value = true;
   const { v, scale } = viewMetrics();
   viewBox.value = { ...v, x: panStart.vx - (e.clientX - panStart.cx) / scale, y: panStart.vy - (e.clientY - panStart.cy) / scale };
 }
@@ -771,6 +794,26 @@ const selectedCallTarget = computed<EndpointDependencyNode | null>(() => {
   if (!c) return null;
   return nodes.value.find((n) => n.id === c.target) ?? null;
 });
+
+// The detail sidebar appears only when a node or edge is selected, and its
+// presence changes the canvas width — which would otherwise rescale the
+// viewBox and resize node text. Refit on that toggle (and on window
+// resize) so the capped scale recomputes for the new width, unless the
+// operator has taken manual control of the viewport.
+watch(
+  () => Boolean(selectedNode.value || selectedCall.value),
+  () => {
+    if (!userAdjusted.value) void nextTick(fitView);
+  },
+);
+function onWindowResize(): void {
+  if (!userAdjusted.value) fitView();
+}
+onMounted(() => {
+  fitView();
+  window.addEventListener('resize', onWindowResize);
+});
+onBeforeUnmount(() => window.removeEventListener('resize', onWindowResize));
 function edgeSeries(c: EndpointDependencyCall, def: TopologyMetricDef): Array<number | null> {
   return c.metricSeries?.[def.id] ?? [];
 }
