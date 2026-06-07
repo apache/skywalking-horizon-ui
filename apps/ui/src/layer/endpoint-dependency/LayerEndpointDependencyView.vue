@@ -212,6 +212,7 @@ watch(selectedEndpoint, () => {
   expansions.value = new Map();
   expansionsLoading.value = new Set();
   exhausted.value = new Set();
+  dragOffsets.value = new Map();
 });
 
 // ── Merged graph = focus response ∪ all expansion responses.
@@ -460,6 +461,20 @@ const nodePos = computed<Map<string, Pos>>(() => {
   return map;
 });
 
+// ── Manual node drag. The operator can drag a box to declutter a dense
+// graph; the offset layers on the BFS layout so edges (which read
+// displayPos) follow. Cleared when a new focus endpoint rebuilds the graph.
+const dragOffsets = ref<Map<string, { dx: number; dy: number }>>(new Map());
+const displayPos = computed<Map<string, Pos>>(() => {
+  if (dragOffsets.value.size === 0) return nodePos.value;
+  const out = new Map<string, Pos>();
+  for (const [id, p] of nodePos.value) {
+    const off = dragOffsets.value.get(id);
+    out.set(id, off ? { ...p, x: p.x + off.dx, y: p.y + off.dy } : p);
+  }
+  return out;
+});
+
 // Filter calls whose endpoints survived the per-layer cap.
 const visibleCalls = computed<EndpointDependencyCall[]>(() => {
   const ids = new Set(nodePos.value.keys());
@@ -571,6 +586,42 @@ function ringColor(n: EndpointDependencyNode): string {
 // ── Selected node popout state. Anchors the design's tail callout
 // just right of the clicked node.
 const selectedNodeId = ref<string | null>(null);
+
+// Per-node drag (distinct from the background pan). Pointer-captured on
+// the box so move/up land here even off-box; screen pixels → graph units
+// via the view scale. Under the 3px threshold it's a click → toggle
+// selection (the box has no @click any more).
+const nodeDragId = ref<string | null>(null);
+let nodeDragStart = { x: 0, y: 0, baseDx: 0, baseDy: 0, moved: false };
+function onNodePointerDown(e: PointerEvent, id: string): void {
+  if (e.button !== 0) return;
+  e.stopPropagation(); // don't also start a background pan
+  const off = dragOffsets.value.get(id) ?? { dx: 0, dy: 0 };
+  nodeDragId.value = id;
+  nodeDragStart = { x: e.clientX, y: e.clientY, baseDx: off.dx, baseDy: off.dy, moved: false };
+  (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+}
+function onNodePointerMove(e: PointerEvent): void {
+  if (nodeDragId.value === null) return;
+  const dxs = e.clientX - nodeDragStart.x;
+  const dys = e.clientY - nodeDragStart.y;
+  if (!nodeDragStart.moved && Math.hypot(dxs, dys) > 3) nodeDragStart.moved = true;
+  if (!nodeDragStart.moved) return;
+  const { scale } = viewMetrics();
+  const next = new Map(dragOffsets.value);
+  next.set(nodeDragId.value, { dx: nodeDragStart.baseDx + dxs / scale, dy: nodeDragStart.baseDy + dys / scale });
+  dragOffsets.value = next;
+}
+function onNodePointerUp(e: PointerEvent, id: string): void {
+  const el = e.currentTarget as Element;
+  if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  const downOnThis = nodeDragId.value === id;
+  const moved = nodeDragStart.moved;
+  nodeDragId.value = null;
+  if (downOnThis && !moved) {
+    selectedNodeId.value = selectedNodeId.value === id ? null : id;
+  }
+}
 const selectedNode = computed<EndpointDependencyNode | null>(() => {
   const id = selectedNodeId.value;
   if (!id) return null;
@@ -644,8 +695,8 @@ function bowSign(c: EndpointDependencyCall): number {
   return c.source < c.target ? 1 : -1;
 }
 function callPathD(c: EndpointDependencyCall): string {
-  const a = nodePos.value.get(c.source);
-  const b = nodePos.value.get(c.target);
+  const a = displayPos.value.get(c.source);
+  const b = displayPos.value.get(c.target);
   if (!a || !b) return '';
   const x1 = a.x + NW;
   const y1 = a.y + NH / 2;
@@ -667,8 +718,8 @@ function callPathD(c: EndpointDependencyCall): string {
   return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`;
 }
 function callMidpoint(c: EndpointDependencyCall): { x: number; y: number } | null {
-  const a = nodePos.value.get(c.source);
-  const b = nodePos.value.get(c.target);
+  const a = displayPos.value.get(c.source);
+  const b = displayPos.value.get(c.target);
   if (!a || !b) return null;
   const x1 = a.x + NW;
   const y1 = a.y + NH / 2;
@@ -971,12 +1022,15 @@ function edgeRowCrosshair(rowId: string): number | null {
           <g
             v-for="n in layoutNodes.filter((nn) => nodePos.get(nn.id))"
             :key="n.id"
-            :transform="`translate(${nodePos.get(n.id)!.x}, ${nodePos.get(n.id)!.y})`"
+            :transform="`translate(${displayPos.get(n.id)!.x}, ${displayPos.get(n.id)!.y})`"
             class="ep-node"
+            :class="{ dragging: nodeDragId === n.id }"
             role="button"
             tabindex="0"
             :aria-label="`${n.name} — ${identity(n.serviceName).display}`"
-            @click="selectedNodeId = selectedNodeId === n.id ? null : n.id"
+            @pointerdown="onNodePointerDown($event, n.id)"
+            @pointermove="onNodePointerMove($event)"
+            @pointerup="onNodePointerUp($event, n.id)"
             @keydown.enter.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
             @keydown.space.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
           >
@@ -1085,6 +1139,7 @@ function edgeRowCrosshair(rowId: string): number | null {
               role="button"
               tabindex="0"
               :aria-label="t('Expand {name} — show its callers and callees', { name: n.name })"
+              @pointerdown.stop
               @click.stop="expandNode(n)"
               @keydown.enter.prevent="expandNode(n)"
               @keydown.space.prevent="expandNode(n)"
@@ -1779,7 +1834,9 @@ function edgeRowCrosshair(rowId: string): number | null {
   border-color: var(--sw-accent);
   color: var(--sw-fg-0);
 }
-.ep-node { cursor: pointer; }
+.ep-node { cursor: grab; }
+.ep-node.dragging { cursor: grabbing; }
+.ep-node.dragging rect { stroke: var(--sw-accent-2); }
 .ep-node:hover rect { stroke: var(--sw-accent-2); }
 /* The node + expand handle are focusable for keyboard a11y (tabindex).
    Suppress the browser's default (blue) focus ring on pointer focus —
