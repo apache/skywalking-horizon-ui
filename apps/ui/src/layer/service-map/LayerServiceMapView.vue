@@ -54,7 +54,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as d3 from 'd3';
 import { useI18n } from 'vue-i18n';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import type {
   LayerDef,
   TopologyCall,
@@ -999,12 +999,20 @@ const canDrillInstance = computed<boolean>(
     hasInstanceTopology.value &&
     Boolean(selectedCallSource.value?.isReal && selectedCallTarget.value?.isReal),
 );
+/** Open a route in a fresh browser tab — the operator keeps the service
+ *  map they're exploring while the drill-down opens alongside it. History
+ *  mode means `resolve(...).href` is a real URL. */
+function openRouteInNewTab(to: RouteLocationRaw): void {
+  const href = router.resolve(to).href;
+  window.open(href, '_blank', 'noopener');
+}
+
 function openInstanceTopology(): void {
   const c = selectedCall.value;
   const src = selectedCallSource.value;
   const dst = selectedCallTarget.value;
   if (!c || !src || !dst || !src.isReal || !dst.isReal) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${layerKey.value}/topology`,
     query: { ...route.query, view: 'instance', client: c.source, server: c.target },
   });
@@ -1200,7 +1208,7 @@ function targetLayerFor(n: TopologyNode): string {
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${targetLayerFor(sel)}/service`,
     query: { service: sel.id },
   });
@@ -1208,7 +1216,7 @@ function jumpToService(): void {
 function jumpToEndpointDependency(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${targetLayerFor(sel)}/dependency`,
     query: { service: sel.id },
   });
