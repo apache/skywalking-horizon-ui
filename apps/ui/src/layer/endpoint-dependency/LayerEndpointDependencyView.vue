@@ -166,12 +166,13 @@ function isLoadingExpansion(node: EndpointDependencyNode): boolean {
 // expand gives explicit feedback ("loaded, but nothing more") instead of
 // the easily-missed handle fade. Auto-clears after a few seconds.
 const noDepFlash = ref<string | null>(null);
-let noDepFlashToken = 0;
+let noDepFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashNoDep(name: string): void {
   noDepFlash.value = name;
-  const tok = ++noDepFlashToken;
-  setTimeout(() => {
-    if (noDepFlashToken === tok) noDepFlash.value = null;
+  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
+  noDepFlashTimer = setTimeout(() => {
+    noDepFlash.value = null;
+    noDepFlashTimer = null;
   }, 3200);
 }
 async function expandNode(node: EndpointDependencyNode): Promise<void> {
@@ -213,6 +214,12 @@ watch(selectedEndpoint, () => {
   expansionsLoading.value = new Set();
   exhausted.value = new Set();
   dragOffsets.value = new Map();
+  // Cascade-clear the per-graph view state too. Endpoint ids are stable
+  // across focuses, so without this a node/edge selected under the old
+  // focus keeps the detail sidebar open against the new graph.
+  selectedNodeId.value = null;
+  selectedCallId.value = null;
+  noDepFlash.value = null;
 });
 
 // ── Merged graph = focus response ∪ all expansion responses.
@@ -510,12 +517,19 @@ function fitView(): void {
   const vh = r.height / scale;
   viewBox.value = { x: (W.value - vw) / 2, y: (H.value - vh) / 2, w: vw, h: vh };
 }
-// Refit when the graph itself changes (focus pick / first load / refresh
-// that adds or drops a column). nextTick so the canvas has its post-change
-// size. Operator zoom/pan persists otherwise.
-watch([focusedId, () => layerColumns.value.length], () => void nextTick(fitView), {
-  immediate: true,
-});
+// A new focus endpoint rebuilds the graph from scratch — always refit
+// (this also clears userAdjusted). nextTick so the canvas has its
+// post-change size.
+watch(focusedId, () => void nextTick(fitView), { immediate: true });
+// Column count changes mid-exploration (expanding a node adds a caller /
+// callee layer). Refit so the new column is in view — unless the operator
+// has zoomed/panned, in which case keep their viewport.
+watch(
+  () => layerColumns.value.length,
+  () => {
+    if (!userAdjusted.value) void nextTick(fitView);
+  },
+);
 
 /** Rendered scale + letterbox offset for the current viewBox under
  *  preserveAspectRatio="xMidYMid meet" — so cursor zoom + drag pan map
@@ -813,7 +827,10 @@ onMounted(() => {
   fitView();
   window.addEventListener('resize', onWindowResize);
 });
-onBeforeUnmount(() => window.removeEventListener('resize', onWindowResize));
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize);
+  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
+});
 function edgeSeries(c: EndpointDependencyCall, def: TopologyMetricDef): Array<number | null> {
   return c.metricSeries?.[def.id] ?? [];
 }

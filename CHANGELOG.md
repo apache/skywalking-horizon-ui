@@ -48,6 +48,30 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   stays the source) — no feature renders English-only for non-English
   operators.
 
+### API dependency
+
+- The per-layer **API dependency** tab renders an endpoint's caller → callee
+  chain as a graph. Pick an endpoint and it lays out in columns by direction —
+  callers on the left, the focus endpoint in the centre, callees on the right —
+  with the same node health-ring border, SLA-coloured RPM, and latency you read
+  on the service map; edges animate the call direction and label the heaviest by
+  RPM.
+- **Expand to walk the chain.** A selected endpoint shows a single **+** handle
+  that pulls in *its* own callers and callees in one click (new callers land
+  left, callees right). The handle spins while the dependency query is in
+  flight; when an endpoint is a leaf with nothing further to load it fades and a
+  brief banner says so — a silent "nothing happened" never reads as a bug.
+- **Rearrange freely.** Drag any node box to pull a dense graph apart — edges
+  follow live. Pan, wheel-zoom, and a fit button act on the whole canvas, and a
+  node holds a steady on-screen size whether or not the detail sidebar is open.
+- **Drill straight out, in a new tab.** The node detail's **Open endpoint** and
+  **Service →**, and the service-map node/edge jumps (**Open service**,
+  **API map →**, **Instance map →**), now open in a new browser tab — so you
+  keep the graph you're exploring while the drill-down opens alongside it.
+- Nodes share the service-map's visual vocabulary (SLA-band border, an agent
+  badge on instrumented endpoints, the focus star), and the tab is localized
+  across all eight UI languages.
+
 ### Dashboard template portability
 
 - Every template admin page — Overview templates, Layer dashboards, and the
