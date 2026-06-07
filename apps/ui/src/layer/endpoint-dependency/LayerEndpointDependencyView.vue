@@ -421,14 +421,13 @@ const layerColumns = computed<LayerColumn[]>(() => {
 // ── SVG layout math. The template binds NW / COL_GAP via the same
 // names; exposing them on a const-bag keeps Vue's setup-script
 // auto-binding happy without resorting to `defineExpose`.
-const NW = 180;
-// Taller box: 3 stacked rows (service name / API name / RPM).
-const NH = 76;
-// Wider gap between columns so the curved edge has room to carry
-// the line-metric chip (60-80px) without colliding with adjacent
-// node boxes.
-const COL_GAP = 320;
-const ROW_GAP = 96;
+const NW = 152;
+// Compact box: 3 tight stacked rows (service name / API name / RPM).
+const NH = 56;
+// Gap between columns leaves room for the curved edge's line-metric
+// chip (60-80px) without colliding with adjacent node boxes.
+const COL_GAP = 300;
+const ROW_GAP = 80;
 const W = computed(() => Math.max(800, layerColumns.value.length * COL_GAP + 80));
 const H = computed(() => {
   const maxNodes = Math.max(1, ...layerColumns.value.map((c) => c.visible.length));
@@ -877,7 +876,7 @@ function edgeRowCrosshair(rowId: string): number | null {
         <!-- Transient feedback when an expand returns no new dependency. -->
         <transition name="ep-flash">
           <div v-if="noDepFlash" class="ep-nodep-flash">
-            {{ t('No further callers or callees for {name}', { name: noDepFlash }) }}
+            <span>{{ t('No further callers or callees for {name}', { name: noDepFlash }) }}</span>
           </div>
         </transition>
         <!-- Zoom toolbar — over the canvas (not the header); wheel + drag
@@ -1064,12 +1063,12 @@ function edgeRowCrosshair(rowId: string): number | null {
             <!-- Focus marker — small star bottom-right. Operator's
                  mental cue: "this is the endpoint I clicked into",
                  without sharing the orange halo with selection. -->
-            <g v-if="n.id === focusedId" :transform="`translate(${NW - 14}, ${NH - 14})`">
-              <circle r="8" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
+            <g v-if="n.id === focusedId" :transform="`translate(${NW - 12}, ${NH - 12})`">
+              <circle r="7" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
               <text
                 text-anchor="middle"
                 y="3"
-                font-size="10"
+                font-size="9"
                 font-weight="700"
                 fill="var(--sw-accent-2)"
               >★</text>
@@ -1082,37 +1081,37 @@ function edgeRowCrosshair(rowId: string): number | null {
                  visual signal. -->
             <!-- Row 1: full service name (small, fg-3 mono). -->
             <text
-              x="12"
-              y="18"
+              x="11"
+              y="15"
               fill="var(--sw-fg-3)"
-              font-size="10"
+              font-size="9.5"
               font-family="var(--sw-mono)"
               clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.serviceName }}</title>
-              {{ identity(n.serviceName).display.length > 24 ? identity(n.serviceName).display.slice(0, 22) + '…' : identity(n.serviceName).display }}
+              {{ identity(n.serviceName).display.length > 21 ? identity(n.serviceName).display.slice(0, 19) + '…' : identity(n.serviceName).display }}
             </text>
             <!-- Row 2: API (endpoint) name — the headline. -->
             <text
-              x="12"
-              y="38"
+              x="11"
+              y="32"
               fill="var(--sw-fg-0)"
-              font-size="12"
+              font-size="11.5"
               font-family="var(--sw-mono)"
               :font-weight="n.id === focusedId ? 700 : 600"
               clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.name }}</title>
-              {{ n.name.length > 21 ? n.name.slice(0, 19) + '…' : n.name }}
+              {{ n.name.length > 18 ? n.name.slice(0, 16) + '…' : n.name }}
             </text>
             <!-- Row 3: configured `center` metric (typically RPM).
                  Coloured in the ring band so the visual signal
                  reinforces the border. -->
             <text
-              x="12"
-              y="60"
+              x="11"
+              y="48"
               :fill="centerDef && nodeVal(n, centerDef) !== null ? ringColor(n) : 'var(--sw-fg-3)'"
-              font-size="11.5"
+              font-size="11"
               font-family="var(--sw-mono)"
               font-weight="700"
             >
@@ -1775,17 +1774,30 @@ function edgeRowCrosshair(rowId: string): number | null {
   transform: translateX(-50%);
   z-index: 5;
   max-width: 90%;
-  padding: 5px 12px;
-  background: var(--sw-bg-0);
-  border: 1px solid var(--sw-line-2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  background: var(--sw-info-soft);
+  border: 1px solid var(--sw-info);
   border-radius: 999px;
   font-size: 11.5px;
-  color: var(--sw-fg-2);
-  white-space: nowrap;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+.ep-nodep-flash::before {
+  content: 'ⓘ';
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--sw-info);
+}
+.ep-nodep-flash span {
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
 }
 .ep-flash-enter-active,
 .ep-flash-leave-active {
