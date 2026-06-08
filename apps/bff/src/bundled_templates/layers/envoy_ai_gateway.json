@@ -268,7 +268,7 @@
         "expressions": [
           "meter_envoy_ai_gw_mcp_request_cpm"
         ],
-        "visibleWhen": "meter_envoy_ai_gw_mcp_request_cpm has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_envoy_ai_gw_mcp_request_cpm", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -280,7 +280,7 @@
         "expressions": [
           "meter_envoy_ai_gw_mcp_request_latency_avg"
         ],
-        "visibleWhen": "meter_envoy_ai_gw_mcp_request_latency_avg has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_envoy_ai_gw_mcp_request_latency_avg", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -291,7 +291,7 @@
         "expressions": [
           "meter_envoy_ai_gw_mcp_error_cpm"
         ],
-        "visibleWhen": "meter_envoy_ai_gw_mcp_error_cpm has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_envoy_ai_gw_mcp_error_cpm", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -302,7 +302,7 @@
         "expressions": [
           "aggregate_labels(meter_envoy_ai_gw_mcp_method_cpm,sum(mcp_method_name))"
         ],
-        "visibleWhen": "meter_envoy_ai_gw_mcp_method_cpm has value",
+        "visibleWhen": { "kind": "mqe", "expression": "aggregate_labels(meter_envoy_ai_gw_mcp_method_cpm,sum(mcp_method_name))", "op": "exists" },
         "span": 6,
         "rowSpan": 2
       },
@@ -313,7 +313,7 @@
         "expressions": [
           "aggregate_labels(meter_envoy_ai_gw_mcp_backend_request_cpm,sum(mcp_backend))"
         ],
-        "visibleWhen": "meter_envoy_ai_gw_mcp_backend_request_cpm has value",
+        "visibleWhen": { "kind": "mqe", "expression": "aggregate_labels(meter_envoy_ai_gw_mcp_backend_request_cpm,sum(mcp_backend))", "op": "exists" },
         "span": 6,
         "rowSpan": 2
       }

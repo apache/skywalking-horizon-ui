@@ -49,6 +49,7 @@ export type {
   DashboardWidget,
   DashboardWidgetResult,
   DashboardWidgetType,
+  VisibleWhen,
 } from './dashboard.js';
 export type {
   TopologyMetricDef,

@@ -39,6 +39,7 @@ import type {
   DashboardWidgetResult,
   FetchLike,
   UITemplateClient,
+  VisibleWhen,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -88,7 +89,30 @@ export const widgetSchema = z.object({
   showTableValues: z.boolean().optional(),
   span: z.number().int().min(1).max(12).optional(),
   rowSpan: z.number().int().min(1).max(64).optional(),
-  visibleWhen: z.string().optional(),
+  // Structured visibility gate. `.catch(undefined)` makes the parse
+  // TOLERANT: a legacy free-text predicate (`"<metric> has value"` /
+  // `#entity.x`) left over in an OAP-stored dashboard resolves to
+  // `undefined` (ungated) instead of failing the whole widget/template
+  // parse. New gates are authored as the structured object.
+  visibleWhen: z
+    .union([
+      z.object({ kind: z.literal('mqe'), expression: z.string().min(1), op: z.literal('exists') }),
+      z.object({
+        kind: z.literal('mqe'),
+        expression: z.string().min(1),
+        op: z.enum(['gt', 'lt']),
+        value: z.number(),
+      }),
+      z.object({ kind: z.literal('entity'), attribute: z.string().min(1), op: z.literal('exists') }),
+      z.object({
+        kind: z.literal('entity'),
+        attribute: z.string().min(1),
+        op: z.literal('eq'),
+        value: z.string(),
+      }),
+    ])
+    .optional()
+    .catch(undefined),
   layerScope: z.boolean().optional(),
   // Legacy x/y/w/h kept optional for back-compat.
   x: z.number().int().min(0).optional(),
@@ -189,6 +213,18 @@ const FIND_FIRST_ENDPOINT = /* GraphQL */ `
   query FirstEndpoint($serviceId: ID!, $duration: Duration!) {
     endpoints: findEndpoint(serviceId: $serviceId, keyword: "", limit: 1, duration: $duration) {
       id name
+    }
+  }
+`;
+/** Selected-instance attribute feed for `entity` visibility gates. Mirrors
+ *  the field set in http/query/instance.ts — `ServiceInstance` is the only
+ *  entity scope OAP exposes an attribute bag on. */
+const LIST_INSTANCE_ATTRS = /* GraphQL */ `
+  query InstanceAttrs($serviceId: ID!, $duration: Duration!) {
+    instances: listInstances(serviceId: $serviceId, duration: $duration) {
+      name
+      language
+      attributes { name value }
     }
   }
 `;
@@ -405,6 +441,78 @@ export function parseTable(
   return rows;
 }
 
+/* ------------------------------------------------------------------- *
+ * Visibility gates (`visibleWhen`).
+ *
+ * `mqe` gates are existential over the WHOLE result — every labeled
+ * series (relabels / histogram), every bucket — so `flattenValues`
+ * collapses an MqeResultShape to its non-null numeric value set and the
+ * op tests "at least one value …". `entity` gates read the selected
+ * instance's attribute bag.
+ * ------------------------------------------------------------------- */
+
+/** Every non-null numeric value across all labeled series + buckets. */
+function flattenValues(r: MqeResultShape | undefined): number[] {
+  if (!r || r.error) return [];
+  const out: number[] = [];
+  for (const rs of r.results ?? []) {
+    for (const v of rs.values ?? []) {
+      if (v.value === null || v.value === undefined) continue;
+      const n = Number(v.value);
+      if (Number.isFinite(n)) out.push(n);
+    }
+  }
+  return out;
+}
+
+function mqeGatePass(op: 'exists' | 'gt' | 'lt', value: number | undefined, vals: number[]): boolean {
+  if (op === 'gt') return value !== undefined && vals.some((v) => v > value);
+  if (op === 'lt') return value !== undefined && vals.some((v) => v < value);
+  return vals.length > 0; // exists
+}
+
+/** Attribute lookup for the selected instance: `language` + named
+ *  attributes, keyed lower-case. Empty values are dropped so `exists`
+ *  means present-AND-non-empty (OAP reports `namespace`/`cluster` as
+ *  empty-string keys). */
+function buildAttrMap(
+  language: string | null | undefined,
+  attrs: Array<{ name: string; value: string }>,
+): Map<string, string> {
+  const m = new Map<string, string>();
+  if (language && language.trim()) m.set('language', language.trim());
+  for (const a of attrs) {
+    const v = a.value == null ? '' : String(a.value);
+    if (v.trim() !== '') m.set(a.name.toLowerCase(), v);
+  }
+  return m;
+}
+
+/** Evaluate an entity gate. `attrs === null` means "no entity context"
+ *  (non-Instance scope / probe failed) → no-op (visible). */
+function entityGatePass(
+  vw: Extract<VisibleWhen, { kind: 'entity' }>,
+  attrs: Map<string, string> | null,
+): boolean {
+  if (!attrs) return true;
+  const val = attrs.get(vw.attribute.toLowerCase());
+  if (vw.op === 'eq') return val !== undefined && val.toLowerCase() === vw.value.toLowerCase();
+  return val !== undefined; // exists (map already excludes empties)
+}
+
+/** Normalize a widget's gate — overlay-sourced widgets may still carry a
+ *  legacy string; anything that isn't the structured object is no gate. */
+function vwOf(w: DashboardWidget): VisibleWhen | undefined {
+  const vw = w.visibleWhen as unknown;
+  return vw && typeof vw === 'object' && 'kind' in (vw as object) ? (vw as VisibleWhen) : undefined;
+}
+
+/** A `mqe` gate whose expression the widget already queries — evaluated
+ *  from the widget's own batch result (no extra probe, no skip). */
+function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
+  return vw.kind === 'mqe' && w.expressions.includes(vw.expression);
+}
+
 export function registerDashboardQueryRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
   const auth = requireAuth(deps);
   app.post(
@@ -550,6 +658,96 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         }
       }
 
+      const scopeHonorsInstance = scope === 'instance';
+      const scopeHonorsEndpoint = scope === 'endpoint';
+
+      // Step 1c — resolve visibility gates BEFORE the widget batch so a
+      // failing GROUP or ENTITY gate skips its widgets' MQE entirely (a
+      // non-JVM instance never runs the JVM widget group). SELF gates
+      // (the predicate names one of the widget's own expressions) add
+      // zero queries — they're read from the widget's own batch result
+      // in Step 3. Probes here only run when such gates are present, so
+      // the common all-self-gate templates keep today's query cost.
+      const entityGated = widgets.some((w) => vwOf(w)?.kind === 'entity');
+      // Group-gate probes keyed by (expression + layerScope): a
+      // layer-scoped widget's gate must be probed at `{ scope: All }` and
+      // a normally-scoped one at the active entity scope, so the two can
+      // never share a verdict.
+      const gateKey = (expr: string, layerScope: boolean): string => `${layerScope ? 'L' : 'S'}|${expr}`;
+      const groupGates = new Map<string, { expression: string; layerScope: boolean }>();
+      for (const w of widgets) {
+        const vw = vwOf(w);
+        if (vw?.kind === 'mqe' && !isSelfGate(w, vw)) {
+          const ls = w.layerScope === true;
+          groupGates.set(gateKey(vw.expression, ls), { expression: vw.expression, layerScope: ls });
+        }
+      }
+      // `null` = no entity context / probe failed → entity gates no-op.
+      let entityAttrs: Map<string, string> | null = null;
+      // expression → flattened values, or `null` when the probe failed
+      // (fail OPEN: run the widgets rather than hide on an OAP hiccup).
+      const groupGateVals = new Map<string, number[] | null>();
+      await Promise.all([
+        (async () => {
+          if (!entityGated || !scopeHonorsInstance || !selectedInstance || !serviceId) return;
+          try {
+            const d = await graphqlPost<{
+              instances: Array<{
+                name: string;
+                language?: string | null;
+                attributes?: Array<{ name: string; value: string }> | null;
+              }>;
+            }>(opts, LIST_INSTANCE_ATTRS, {
+              serviceId,
+              duration: withColdStage(req, { start: window.start, end: window.end, step: window.step }),
+            });
+            const inst = (d.instances ?? []).find((i) => i.name === selectedInstance);
+            if (inst) entityAttrs = buildAttrMap(inst.language, inst.attributes ?? []);
+          } catch {
+            /* leave entityAttrs null → entity gates stay visible */
+          }
+        })(),
+        (async () => {
+          if (groupGates.size === 0) return;
+          const entries = [...groupGates.entries()];
+          try {
+            const fragments = entries.map(([, g], i) =>
+              buildFragment(`g${i}`, g.expression, serviceName, normal, window, {
+                layerScope: g.layerScope,
+                serviceInstanceName: g.layerScope || !scopeHonorsInstance ? null : selectedInstance,
+                endpointName: g.layerScope || !scopeHonorsEndpoint ? null : selectedEndpoint,
+                coldStage: !!req.coldStage,
+              }),
+            );
+            const probe = await graphqlPost<Record<string, MqeResultShape>>(
+              opts,
+              `query GateProbe { ${fragments.join('\n    ')} }`,
+            );
+            entries.forEach(([key], i) => groupGateVals.set(key, flattenValues(probe[`g${i}`])));
+          } catch {
+            for (const [key] of entries) groupGateVals.set(key, null);
+          }
+        })(),
+      ]);
+
+      /** Widgets whose GROUP/ENTITY gate failed — excluded from the
+       *  batch and returned `hidden: true`. Self gates are applied after
+       *  the batch (they need the widget's own data). */
+      const skipped = new Set<number>();
+      widgets.forEach((w, i) => {
+        const vw = vwOf(w);
+        if (!vw) return;
+        if (vw.kind === 'entity') {
+          if (!entityGatePass(vw, entityAttrs)) skipped.add(i);
+          return;
+        }
+        if (!isSelfGate(w, vw)) {
+          const vals = groupGateVals.get(gateKey(vw.expression, w.layerScope === true));
+          if (vals == null) return; // probe failed / missing → fail open
+          if (!mqeGatePass(vw.op, 'value' in vw ? vw.value : undefined, vals)) skipped.add(i);
+        }
+      });
+
       // Step 2 — batch widget × expression queries via aliased
       // `execExpression(...)` fragments. Mirrors booster-ui's
       // `useExpressionsProcessor.fetchMetrics`: chunk widgets into
@@ -561,18 +759,15 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // batch — losing every cell instead of degrading per chunk.
       // Chunked + Promise.all keeps the wall-clock close to a single
       // round-trip while staying inside OAP's per-query budget.
+      // Gate-skipped widgets are excluded here (their wIdx keeps its
+      // original index so Step 3's result map still lines up).
       const MAX_WIDGETS_PER_BATCH = 6;
-      const aliasMap = new Map<string, { wIdx: number; eIdx: number }>();
-      const scopeHonorsInstance = scope === 'instance';
-      const scopeHonorsEndpoint = scope === 'endpoint';
+      const batchWidgets = widgets
+        .map((widget, wIdx) => ({ widget, wIdx }))
+        .filter(({ wIdx }) => !skipped.has(wIdx));
       const widgetChunks: { widget: DashboardWidget; wIdx: number }[][] = [];
-      for (let i = 0; i < widgets.length; i += MAX_WIDGETS_PER_BATCH) {
-        widgetChunks.push(
-          widgets.slice(i, i + MAX_WIDGETS_PER_BATCH).map((widget, idxInChunk) => ({
-            widget,
-            wIdx: i + idxInChunk,
-          })),
-        );
+      for (let i = 0; i < batchWidgets.length; i += MAX_WIDGETS_PER_BATCH) {
+        widgetChunks.push(batchWidgets.slice(i, i + MAX_WIDGETS_PER_BATCH));
       }
       const data: Record<string, MqeResultShape> = {};
       try {
@@ -582,7 +777,6 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             for (const { widget, wIdx } of chunk) {
               widget.expressions.forEach((expr, eIdx) => {
                 const alias = `w${wIdx}_e${eIdx}`;
-                aliasMap.set(alias, { wIdx, eIdx });
                 fragments.push(
                   buildFragment(alias, expr, serviceName, normal, window, {
                     layerScope: widget.layerScope === true,
@@ -618,7 +812,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       //    both the simple case (1 expression → 1 series) and the
       //    relabels() case (1 expression → N labeled series)
       //  - 'top':  extract sorted list from the first expression
-      const results: DashboardWidgetResult[] = widgets.map((widget, wIdx) => {
+      const collapse = (widget: DashboardWidget, wIdx: number): DashboardWidgetResult => {
         if (widget.type === 'top') {
           const groups: Array<{
             label: string;
@@ -733,6 +927,24 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         });
         if (flat.length === 0) return { id: widget.id, error: 'no data' };
         return { id: widget.id, series: flat };
+      };
+
+      const results: DashboardWidgetResult[] = widgets.map((widget, wIdx) => {
+        // Group/entity gate already decided this one out (no MQE ran).
+        if (skipped.has(wIdx)) return { id: widget.id, hidden: true };
+        const result = collapse(widget, wIdx);
+        // SELF gate — evaluate the predicate against the widget's own
+        // gate expression result (exact: only that expression's values,
+        // not the whole flattened widget result).
+        const vw = vwOf(widget);
+        if (vw?.kind === 'mqe' && isSelfGate(widget, vw)) {
+          const eIdx = widget.expressions.indexOf(vw.expression);
+          const vals = flattenValues(data[`w${wIdx}_e${eIdx}`]);
+          if (!mqeGatePass(vw.op, 'value' in vw ? vw.value : undefined, vals)) {
+            return { id: widget.id, hidden: true };
+          }
+        }
+        return result;
       });
 
       return reply.send({ ...baseResp, widgets: results });

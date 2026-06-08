@@ -56,6 +56,7 @@ import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { stableStringify } from '@/utils/stableJson';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 // Real overview widget primitives — the preview renders these with mock
 // data so it matches the live page pixel-for-pixel (no bespoke copy).
@@ -1375,7 +1376,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
               <div v-if="w.type === 'metric'" class="ot__row">
                 <label class="ot__field ot__field--wide">
                   <span>MQE</span>
-                  <input v-model="w.mqe" type="text" class="ot__in ot__in--mono" placeholder="service_cpm" />
+                  <MqeExpressionInput v-model="w.mqe" placeholder="service_cpm" title="Widget MQE" />
                 </label>
                 <label class="ot__field">
                   <span>Unit</span>
@@ -1454,7 +1455,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
                       </label>
                       <label v-if="(k.source ?? 'mqe') === 'mqe'" class="ot__field ot__field--full">
                         <span>MQE</span>
-                        <input v-model="k.mqe" type="text" class="ot__in ot__in--mono" />
+                        <MqeExpressionInput v-model="k.mqe" title="KPI MQE" />
                       </label>
                       <p v-else class="ot__none">Value comes from the service count (listServices) — no MQE.</p>
                       <div class="ot__kpi-card-grid">

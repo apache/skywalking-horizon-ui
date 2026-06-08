@@ -59,6 +59,7 @@ import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
@@ -824,14 +825,67 @@ async function addAndSelectWidget(): Promise<void> {
   selectedIdx.value = currentWidgets.value.length - 1;
 }
 
-function expressionsToText(arr: string[]): string {
-  return arr.join('\n');
+/* ------------------------------------------------------------------- *
+ * Per-expression rows. Each MQE expression carries its own label / unit
+ * / y-axis on one row, so the three used to be index-aligned by line
+ * number across separate textareas — now they're edited together and
+ * can't drift. Label / unit / axis arrays are kept padded to the
+ * expression count so index i always lines up.
+ * ------------------------------------------------------------------- */
+/** Label + unit only matter for tab-switching `top` widgets and
+ *  multi-series `line` widgets; a single-expression card/line hides
+ *  them to keep the row compact. */
+const showExprMeta = computed(() => {
+  const w = selectedWidget.value;
+  return !!w && (w.type === 'top' || (w.expressions?.length ?? 0) > 1);
+});
+function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
+  const a = [...(arr ?? [])];
+  while (a.length < len) a.push(fill);
+  return a;
 }
-function textToExpressions(s: string): string[] {
-  return s
-    .split('\n')
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
+function updateExpr(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = [...w.expressions];
+  a[i] = v;
+  w.expressions = a;
+}
+function updateExprLabel(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionLabels, w.expressions.length, '');
+  a[i] = v;
+  w.expressionLabels = a;
+}
+function updateExprUnit(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionUnits, w.expressions.length, '');
+  a[i] = v;
+  w.expressionUnits = a;
+}
+function updateExprAxis(i: number, v: number): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionAxes, w.expressions.length, 0);
+  a[i] = v === 1 ? 1 : 0;
+  w.expressionAxes = a;
+}
+function addExpr(): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  w.expressions = [...w.expressions, ''];
+}
+function removeExpr(i: number): void {
+  const w = selectedWidget.value;
+  if (!w || w.expressions.length <= 1) return;
+  const drop = <T>(arr: T[] | undefined): T[] | undefined =>
+    arr ? arr.filter((_, j) => j !== i) : arr;
+  w.expressions = w.expressions.filter((_, j) => j !== i);
+  w.expressionLabels = drop(w.expressionLabels);
+  w.expressionUnits = drop(w.expressionUnits);
+  w.expressionAxes = drop(w.expressionAxes);
 }
 
 
@@ -1290,45 +1344,92 @@ const effectiveOrderBy = computed(
 );
 
 /**
- * Scope-aware `visibleWhen` placeholder + hover hint. Two supported
- * predicate forms:
- *
- *   <metric> has value     The SPA evaluates this against the widget's
- *                          own MQE result. If at least one bucket is
- *                          non-null, the widget renders. Useful when
- *                          the metric only exists for some services
- *                          (e.g. service_mq_consume_count only on MQ
- *                          producers).
- *
- *   #entity.<attr>         The SPA evaluates this against the *entity's*
- *                          attributes. Only meaningful on scopes where
- *                          entities carry attributes — i.e. INSTANCE
- *                          (jvm / language / host etc.) and to a lesser
- *                          extent ENDPOINT. Service-scope entities
- *                          don't expose attributes, so the predicate is
- *                          a no-op there.
- *
- * The placeholder / tooltip swap so operators editing an instance
- * widget see entity-attribute syntax, and service-widget operators see
- * the metric-has-value form.
+ * Structured `visibleWhen` editor. The gate is one of:
+ *   - none   — always visible
+ *   - mqe    — exists / > / < over an MQE expression's result
+ *   - entity — exists / equals against the selected instance's attributes
+ * The five computeds below bridge the discriminated-union shape to flat
+ * v-model bindings; switching kind / op rebuilds the object so its fields
+ * always match (e.g. `exists` carries no `value`).
  */
-function visibleWhenPlaceholder(scope: DashboardScope): string {
-  if (scope === 'instance') return "#entity.jvm   or   instance_jvm_cpu has value";
-  if (scope === 'endpoint') return 'endpoint_cpm has value';
-  return 'service_mq_consume_count has value';
-}
+type VwKind = 'none' | 'mqe' | 'entity';
+
 function visibleWhenHint(scope: DashboardScope): string {
-  const common =
-    'Hide the widget unless this predicate is truthy.\n' +
-    '\n' +
-    "  <metric> has value   — the widget's own MQE returned non-null data.";
-  const entityHint =
-    '\n  #entity.<attr>       — the active entity has the named attribute (e.g. #entity.jvm,\n' +
-    '                         #entity.language). Only meaningful for instance / endpoint scopes;\n' +
-    "                         service-scope entities don't carry attributes.";
-  if (scope === 'instance' || scope === 'endpoint') return common + entityHint;
-  return common + '\n  (#entity.* predicates are entity-attribute-based and apply best on Instance scope.)';
+  const base =
+    'Hide this widget unless the gate passes.\n' +
+    'MQE — has value: the expression returns any value; > / <: any value above / below the threshold.\n' +
+    "A gate naming one of the widget's own expressions self-gates (free); a different metric gates the whole group (probed once, skips the group when empty).";
+  const entity =
+    scope === 'instance'
+      ? '\nEntity — matches the selected instance’s attributes (e.g. language equals JAVA). exists = present & non-empty; equals is case-insensitive.'
+      : '\nEntity gates apply only on the Instance scope (Service / Endpoint entities carry no attributes) and are ignored elsewhere.';
+  return base + entity;
 }
+
+const vwKindModel = computed<VwKind>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return 'none';
+    return vw.kind === 'entity' ? 'entity' : 'mqe';
+  },
+  set(k) {
+    const w = selectedWidget.value;
+    if (!w) return;
+    if (k === 'none') w.visibleWhen = undefined;
+    else if (k === 'mqe') w.visibleWhen = { kind: 'mqe', expression: w.expressions?.[0] ?? '', op: 'exists' };
+    else w.visibleWhen = { kind: 'entity', attribute: 'language', op: 'eq', value: 'JAVA' };
+  },
+});
+const vwTarget = computed<string>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return '';
+    return vw.kind === 'mqe' ? vw.expression : vw.attribute;
+  },
+  set(v) {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return;
+    if (vw.kind === 'mqe') vw.expression = v;
+    else vw.attribute = v;
+  },
+});
+const vwOp = computed<string>({
+  get() {
+    return selectedWidget.value?.visibleWhen?.op ?? 'exists';
+  },
+  set(op) {
+    const w = selectedWidget.value;
+    const vw = w?.visibleWhen;
+    if (!w || !vw) return;
+    if (vw.kind === 'mqe') {
+      w.visibleWhen =
+        op === 'exists'
+          ? { kind: 'mqe', expression: vw.expression, op: 'exists' }
+          : { kind: 'mqe', expression: vw.expression, op: op === 'lt' ? 'lt' : 'gt', value: 'value' in vw ? vw.value : 0 };
+    } else {
+      w.visibleWhen =
+        op === 'eq'
+          ? { kind: 'entity', attribute: vw.attribute, op: 'eq', value: 'value' in vw ? String(vw.value) : '' }
+          : { kind: 'entity', attribute: vw.attribute, op: 'exists' };
+    }
+  },
+});
+const vwNeedsValue = computed(() => {
+  const op = selectedWidget.value?.visibleWhen?.op;
+  return op === 'gt' || op === 'lt' || op === 'eq';
+});
+const vwValue = computed<string>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    return vw && 'value' in vw ? String(vw.value) : '';
+  },
+  set(v) {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw || !('value' in vw)) return;
+    if (vw.kind === 'mqe') vw.value = Number(v) || 0;
+    else vw.value = v;
+  },
+});
 
 /**
  * Component toggles surfaced in the admin editor. Each entry binds to
@@ -2958,62 +3059,103 @@ const namingTest = computed<NamingTestResult>(() => {
                 </div>
                 <div class="d-section">
                   <span class="d-label">MQE expressions</span>
-                  <textarea
-                    class="mono"
-                    rows="4"
-                    :value="expressionsToText(selectedWidget.expressions)"
-                    @input="selectedWidget.expressions = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    placeholder="one expression per line"
-                  ></textarea>
+                  <div v-if="showExprMeta" class="expr-cols">
+                    <span class="expr-col-mqe">expression</span>
+                    <span class="expr-col-label">{{ selectedWidget.type === 'top' ? 'tab label' : 'series label' }}</span>
+                    <span class="expr-col-unit">unit</span>
+                    <span v-if="selectedWidget.type === 'line'" class="expr-col-axis">axis</span>
+                    <span class="expr-col-del"></span>
+                  </div>
+                  <div class="expr-rows">
+                    <div v-for="(expr, i) in selectedWidget.expressions" :key="i" class="expr-row">
+                      <MqeExpressionInput
+                        class="expr-mqe"
+                        :model-value="expr"
+                        placeholder="instance_jvm_cpu"
+                        :title="`Expression ${i + 1}`"
+                        @update:model-value="updateExpr(i, $event)"
+                      />
+                      <input
+                        v-if="showExprMeta"
+                        class="expr-label"
+                        :value="selectedWidget.expressionLabels?.[i] ?? ''"
+                        @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
+                        :placeholder="selectedWidget.type === 'top' ? 'Traffic' : 'p99'"
+                      />
+                      <input
+                        v-if="showExprMeta"
+                        class="mono expr-unit"
+                        :value="selectedWidget.expressionUnits?.[i] ?? ''"
+                        @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
+                        placeholder="ms"
+                      />
+                      <select
+                        v-if="showExprMeta && selectedWidget.type === 'line'"
+                        class="mono expr-axis"
+                        :value="String(selectedWidget.expressionAxes?.[i] ?? 0)"
+                        @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
+                        title="Y-axis (Left / Right) — for dual-axis line widgets"
+                      >
+                        <option value="0">L</option>
+                        <option value="1">R</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="expr-del"
+                        title="Remove expression"
+                        :disabled="selectedWidget.expressions.length <= 1"
+                        @click="removeExpr(i)"
+                      >×</button>
+                    </div>
+                  </div>
+                  <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">+ expression</button>
                   <p class="d-hint">
-                    For <code>top</code> widgets, each expression becomes a tab.
-                    For <code>line</code>, each becomes a series.
+                    For <code>top</code> widgets each expression is a switchable tab; for
+                    <code>line</code> each is a series. Label / unit / axis apply per expression.
                   </p>
-                </div>
-                <div
-                  v-if="selectedWidget.type === 'top' || (selectedWidget.expressions?.length ?? 0) > 1"
-                  class="d-section"
-                >
-                  <span class="d-label">Expression labels (one per line)</span>
-                  <textarea
-                    rows="3"
-                    :value="expressionsToText(selectedWidget.expressionLabels ?? [])"
-                    @input="selectedWidget.expressionLabels = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    :placeholder="selectedWidget.type === 'top' ? 'Traffic\nSlow\nSuccessful Rate' : 'count\nlatency'"
-                  ></textarea>
-                </div>
-                <div
-                  v-if="selectedWidget.type === 'top' || (selectedWidget.expressions?.length ?? 0) > 1"
-                  class="d-section"
-                >
-                  <span class="d-label">Expression units (one per line)</span>
-                  <textarea
-                    class="mono"
-                    rows="2"
-                    :value="expressionsToText(selectedWidget.expressionUnits ?? [])"
-                    @input="selectedWidget.expressionUnits = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    placeholder="rpm&#10;ms&#10;%"
-                  ></textarea>
-                </div>
-                <div v-if="selectedWidget.type === 'line'" class="d-section">
-                  <span class="d-label">Y-axis index per expression (0 = left, 1 = right)</span>
-                  <input
-                    class="mono"
-                    :value="(selectedWidget.expressionAxes ?? []).join(',')"
-                    @input="selectedWidget.expressionAxes = (($event.target as HTMLInputElement).value || '').split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))"
-                    placeholder="0,1"
-                  />
-                  <p class="d-hint">Comma-separated. Use for dual-axis line widgets.</p>
                 </div>
                 <div class="d-section">
                   <span class="d-label" :title="visibleWhenHint(activeScope)">
                     Visible when (optional)
                   </span>
-                  <input
-                    class="mono"
-                    v-model="selectedWidget.visibleWhen"
-                    :placeholder="visibleWhenPlaceholder(activeScope)"
-                  />
+                  <div class="vw-row">
+                    <select class="mono" v-model="vwKindModel">
+                      <option value="none">Always visible</option>
+                      <option value="mqe">MQE metric…</option>
+                      <option value="entity">Entity attribute…</option>
+                    </select>
+                    <template v-if="vwKindModel === 'mqe'">
+                      <MqeExpressionInput
+                        class="vw-target"
+                        v-model="vwTarget"
+                        placeholder="instance_jvm_cpu"
+                        title="Gate expression"
+                      />
+                      <select class="mono" v-model="vwOp">
+                        <option value="exists">has value</option>
+                        <option value="gt">&gt;</option>
+                        <option value="lt">&lt;</option>
+                      </select>
+                    </template>
+                    <template v-else-if="vwKindModel === 'entity'">
+                      <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
+                      <select class="mono" v-model="vwOp">
+                        <option value="exists">exists</option>
+                        <option value="eq">equals</option>
+                      </select>
+                    </template>
+                    <input
+                      v-if="vwNeedsValue"
+                      class="mono vw-val"
+                      v-model="vwValue"
+                      :type="vwKindModel === 'mqe' ? 'number' : 'text'"
+                      :placeholder="vwKindModel === 'entity' ? 'JAVA' : '0'"
+                    />
+                  </div>
+                  <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
+                    Set a metric expression — an empty gate is ignored and the widget always shows.
+                  </p>
+                  <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
                 </div>
                 <div class="d-section">
                   <label class="d-check">
@@ -4559,7 +4701,16 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   background: var(--sw-bg-1);
   border-left: 1px solid var(--sw-line);
-  max-height: calc(100vh - 120px);
+  /* Sticky within the scrolling main pane (topbar is fixed above it, so
+   * top: 0 pins just below it) and full-height, so the editor uses the
+   * whole viewport and follows the canvas scroll instead of being a short
+   * box stranded at the top of a tall grid cell. `align-self: start`
+   * stops the grid from stretching it (which would defeat sticky). */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: calc(100vh - 52px);
+  max-height: calc(100vh - 52px);
 }
 .drawer-head {
   display: flex;
@@ -4594,6 +4745,8 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .d-row {
   display: flex;
@@ -4661,6 +4814,62 @@ const namingTest = computed<NamingTestResult>(() => {
   outline: none;
   border-color: var(--sw-accent-line);
 }
+.d-section select {
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11px;
+  height: 26px;
+  padding: 0 6px;
+}
+.d-section select.mono { font-family: var(--sw-mono); }
+.d-section select:focus { outline: none; border-color: var(--sw-accent-line); }
+.vw-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.vw-row .vw-target { flex: 1 1 140px; min-width: 90px; }
+.vw-row .vw-val { width: 72px; flex: 0 0 auto; }
+.vw-row select { flex: 0 0 auto; }
+.expr-rows { display: flex; flex-direction: column; gap: 4px; }
+.expr-row { display: flex; gap: 6px; align-items: center; }
+.expr-row .expr-mqe { flex: 1 1 auto; min-width: 0; }
+.expr-row .expr-label { flex: 0 0 84px; width: 84px; }
+.expr-row .expr-unit { flex: 0 0 52px; width: 52px; }
+.expr-row .expr-axis { flex: 0 0 46px; width: 46px; padding: 0 4px; }
+.expr-del {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 26px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.expr-del:hover:not([disabled]) { color: var(--sw-err); border-color: var(--sw-err); }
+.expr-del[disabled] { opacity: 0.35; cursor: default; }
+.expr-cols {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1px;
+  font-size: 9.5px;
+  color: var(--sw-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.expr-cols .expr-col-mqe { flex: 1 1 auto; }
+.expr-cols .expr-col-label { flex: 0 0 84px; }
+.expr-cols .expr-col-unit { flex: 0 0 52px; }
+.expr-cols .expr-col-axis { flex: 0 0 46px; }
+.expr-cols .expr-col-del { flex: 0 0 24px; }
+.expr-add { margin-top: 4px; align-self: flex-start; }
 .d-hint {
   font-size: 10px;
   color: var(--sw-fg-3);

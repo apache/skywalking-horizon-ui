@@ -314,7 +314,7 @@
         "expressions": [
           "envoy_cluster_up_rq_active"
         ],
-        "visibleWhen": "envoy_cluster_up_rq_active has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_active", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -326,7 +326,7 @@
         "expressions": [
           "envoy_cluster_up_rq_incr"
         ],
-        "visibleWhen": "envoy_cluster_up_rq_incr has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_incr", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -338,7 +338,7 @@
         "expressions": [
           "envoy_cluster_up_rq_pending_active"
         ],
-        "visibleWhen": "envoy_cluster_up_rq_pending_active has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_rq_pending_active", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -349,7 +349,7 @@
         "expressions": [
           "envoy_cluster_up_cx_active"
         ],
-        "visibleWhen": "envoy_cluster_up_cx_active has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_cx_active", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -360,7 +360,7 @@
         "expressions": [
           "envoy_cluster_up_cx_incr"
         ],
-        "visibleWhen": "envoy_cluster_up_cx_incr has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_up_cx_incr", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -372,7 +372,7 @@
         "expressions": [
           "envoy_cluster_membership_healthy"
         ],
-        "visibleWhen": "envoy_cluster_membership_healthy has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_cluster_membership_healthy", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -388,7 +388,7 @@
           "total",
           "parent"
         ],
-        "visibleWhen": "envoy_total_connections_used has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_total_connections_used", "op": "exists" },
         "span": 4,
         "rowSpan": 2
       },
@@ -414,7 +414,7 @@
           "physical",
           "physical max"
         ],
-        "visibleWhen": "envoy_heap_memory_used has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_heap_memory_used/1024/1024", "op": "exists" },
         "span": 6,
         "rowSpan": 2
       },
@@ -430,7 +430,7 @@
           "live",
           "max"
         ],
-        "visibleWhen": "envoy_worker_threads has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_worker_threads", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -442,7 +442,7 @@
         "expressions": [
           "envoy_bug_failures"
         ],
-        "visibleWhen": "envoy_bug_failures has value",
+        "visibleWhen": { "kind": "mqe", "expression": "envoy_bug_failures", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       }

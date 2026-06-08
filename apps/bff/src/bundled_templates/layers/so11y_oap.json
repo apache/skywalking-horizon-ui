@@ -351,7 +351,7 @@
           "stream single",
           "property"
         ],
-        "visibleWhen": "meter_oap_banyandb_write_latency_percentile has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_banyandb_write_latency_percentile{catalog='measure',operation='bulk_write'}", "op": "exists" },
         "span": 6,
         "rowSpan": 2
       },
@@ -368,7 +368,7 @@
           "single",
           "bulk"
         ],
-        "visibleWhen": "meter_oap_elasticsearch_write_latency_percentile has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_oap_elasticsearch_write_latency_percentile{operation='single_write,single_update,single_delete'}", "op": "exists" },
         "span": 6,
         "rowSpan": 2
       },

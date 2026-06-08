@@ -9,6 +9,27 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Dashboard widget visibility
+
+- Layer-dashboard widgets gain a structured **Visible when** gate (Layer
+  dashboards admin → widget drawer) so a widget only renders when it's
+  relevant to the selected entity. Two kinds:
+  - **MQE metric** — show the widget only when an expression *has value*, or
+    when any value is **>** / **<** a threshold. Naming the widget's *own*
+    metric self-gates it (the JVM widgets appear only on JVM instances, the
+    MQ widgets only on MQ producers, …); naming a *different* metric gates a
+    whole group on one shared signal — that metric is checked once and the
+    entire group's queries are **skipped** when it's empty, so e.g. a non-JVM
+    instance no longer runs the JVM widget queries at all.
+  - **Entity attribute** — on the Instance scope, gate on the selected
+    instance's attributes, e.g. *language equals JAVA* (case-insensitive) or
+    an attribute simply being present. Service / Endpoint entities carry no
+    attributes, so entity gates are ignored on those scopes.
+- Gates are evaluated server-side; gated-out widgets just don't appear in the
+  grid. **Note:** a layer dashboard saved before this release that used the
+  old free-text predicate loses its gate (the widget renders ungated) until
+  you re-set the gate in the new editor and save the dashboard.
+
 ### Instance topology
 
 - The per-layer **Topology** map gains an **instance map** drill-down on

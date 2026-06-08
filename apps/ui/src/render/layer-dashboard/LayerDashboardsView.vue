@@ -501,51 +501,13 @@ function hasTopData(w: { id: string; type: string }): boolean {
 }
 
 /**
- * Evaluate a widget's `visibleWhen` predicate.
- *   - `<metric_name> has value`  → the widget's result has a non-null
- *     scalar / a non-empty series.
- *   - `#entity.<key>`             → entity attribute exists (deferred —
- *     we don't surface entity attributes yet; defaults true).
- *   - anything else               → treated as "always visible".
- *
- * Empty / unset → always visible. Predicates that mention a metric not
- * in the widget's own results never hide the widget either; they're
- * advisory hints for the operator's mental model.
+ * `visibleWhen` is now evaluated BFF-side: a gated-out widget comes back
+ * flagged `hidden: true` (group/entity misses also skip their MQE there).
+ * The grid drops those; a widget with no result yet (loading) stays
+ * visible until its result lands.
  */
-function isVisible(
-  w: { id: string; visibleWhen?: string },
-  result:
-    | {
-        value?: number | null;
-        series?: Array<{ data: Array<number | null> }>;
-        topList?: Array<unknown>;
-        topGroups?: Array<{ items: Array<unknown> }>;
-        records?: Array<unknown>;
-        table?: Array<unknown>;
-      }
-    | undefined,
-): boolean {
-  const cond = w.visibleWhen?.trim();
-  if (!cond) return true;
-  const hasValueMatch = /^(\S+)\s+has\s+value$/i.exec(cond);
-  if (hasValueMatch && result) {
-    if (result.value !== undefined && result.value !== null) return true;
-    if (result.series && result.series.some((s) => s.data.some((v) => v !== null))) return true;
-    // Top + record widgets: a non-empty list counts as "has value".
-    // Without these checks, every gated `top` / `record` widget would
-    // hide itself the moment the BFF returns its rows, since neither
-    // .value nor .series is populated.
-    if (result.topList && result.topList.length > 0) return true;
-    if (result.topGroups && result.topGroups.some((g) => g.items.length > 0)) return true;
-    if (result.records && result.records.length > 0) return true;
-    return false;
-  }
-  if (cond.startsWith('#entity.')) {
-    // Entity-attribute predicates need an attributes feed we don't
-    // surface yet. Render the widget unconditionally for now.
-    return true;
-  }
-  return true;
+function isHidden(id: string): boolean {
+  return resultsById.value.get(id)?.hidden === true;
 }
 </script>
 
@@ -745,7 +707,7 @@ function isVisible(
     </div>
     <div v-else class="grid">
       <div
-        v-for="w in widgets.filter((wi) => isVisible(wi, resultsById.get(wi.id)))"
+        v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
         class="widget sw-card"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"

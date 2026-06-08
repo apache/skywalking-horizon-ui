@@ -226,7 +226,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["instance_jvm_cpu"],
-        "visibleWhen": "instance_jvm_cpu has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_cpu", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -243,7 +243,7 @@
           "instance_jvm_memory_noheap_max/1048576"
         ],
         "expressionLabels": ["heap", "heap max", "non-heap", "non-heap max"],
-        "visibleWhen": "instance_jvm_memory_heap has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_memory_heap/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -279,7 +279,7 @@
           "codeheap (profiled nmethods)",
           "codeheap (non-profiled nmethods)"
         ],
-        "visibleWhen": "instance_jvm_memory_pool_code_cache has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_memory_pool_code_cache/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -293,7 +293,7 @@
           "instance_jvm_thread_peak_count"
         ],
         "expressionLabels": ["live", "daemon", "peak"],
-        "visibleWhen": "instance_jvm_thread_live_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_thread_live_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -309,7 +309,7 @@
           "instance_jvm_thread_timed_waiting_state_thread_count"
         ],
         "expressionLabels": ["runnable", "blocked", "waiting", "timed-waiting"],
-        "visibleWhen": "instance_jvm_thread_runnable_state_thread_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_thread_runnable_state_thread_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -324,7 +324,7 @@
           "instance_jvm_normal_gc_time"
         ],
         "expressionLabels": ["young", "old", "normal"],
-        "visibleWhen": "instance_jvm_young_gc_time has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_young_gc_time", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -338,7 +338,7 @@
           "instance_jvm_normal_gc_count"
         ],
         "expressionLabels": ["young", "old", "normal"],
-        "visibleWhen": "instance_jvm_young_gc_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_young_gc_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -352,7 +352,7 @@
           "instance_jvm_class_total_unloaded_class_count"
         ],
         "expressionLabels": ["loaded", "total loaded", "total unloaded"],
-        "visibleWhen": "instance_jvm_class_loaded_class_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_jvm_class_loaded_class_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -363,7 +363,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["instance_clr_cpu"],
-        "visibleWhen": "instance_clr_cpu has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_clr_cpu", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -377,7 +377,7 @@
           "instance_clr_max_completion_port_threads"
         ],
         "expressionLabels": ["worker available", "completion-port available", "completion-port max"],
-        "visibleWhen": "instance_clr_available_worker_threads has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_clr_available_worker_threads", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -387,7 +387,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["instance_clr_heap_memory/1048576"],
-        "visibleWhen": "instance_clr_heap_memory has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_clr_heap_memory/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -401,7 +401,7 @@
           "instance_clr_gen2_collect_count"
         ],
         "expressionLabels": ["gen 0", "gen 1", "gen 2"],
-        "visibleWhen": "instance_clr_gen0_collect_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "instance_clr_gen0_collect_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -411,7 +411,7 @@
         "tip": "Spring Sleuth / Spring Boot Actuator — http.server.requests counter.",
         "type": "line",
         "expressions": ["meter_http_server_requests_count"],
-        "visibleWhen": "meter_http_server_requests_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_http_server_requests_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -421,7 +421,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_http_server_requests_duration"],
-        "visibleWhen": "meter_http_server_requests_duration has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_http_server_requests_duration", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -431,7 +431,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["meter_process_cpu_usage"],
-        "visibleWhen": "meter_process_cpu_usage has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_process_cpu_usage", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -441,7 +441,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["meter_system_cpu_usage"],
-        "visibleWhen": "meter_system_cpu_usage has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_system_cpu_usage", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -450,7 +450,7 @@
         "title": "Spring OS System Load",
         "type": "line",
         "expressions": ["meter_system_load_average_1m"],
-        "visibleWhen": "meter_system_load_average_1m has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_system_load_average_1m", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -463,7 +463,7 @@
           "meter_process_files_max"
         ],
         "expressionLabels": ["open", "max"],
-        "visibleWhen": "meter_process_files_open has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_process_files_open", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -473,7 +473,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_jvm_gc_pause_duration"],
-        "visibleWhen": "meter_jvm_gc_pause_duration has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_jvm_gc_pause_duration", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -487,7 +487,7 @@
           "meter_jvm_memory_max/1048576"
         ],
         "expressionLabels": ["used", "max"],
-        "visibleWhen": "meter_jvm_memory_used has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_jvm_memory_used/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -501,7 +501,7 @@
           "meter_jvm_threads_peak"
         ],
         "expressionLabels": ["live", "daemon", "peak"],
-        "visibleWhen": "meter_jvm_threads_live has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_jvm_threads_live", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -514,7 +514,7 @@
           "meter_jvm_classes_unloaded"
         ],
         "expressionLabels": ["loaded", "unloaded"],
-        "visibleWhen": "meter_jvm_classes_loaded has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_jvm_classes_loaded", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -524,7 +524,7 @@
         "tip": "HikariCP / Spring Boot datasource metrics — connection counts per pool.",
         "type": "line",
         "expressions": ["meter_datasource"],
-        "visibleWhen": "meter_datasource has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_datasource", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -534,7 +534,7 @@
         "tip": "Spring Boot thread pool meters — active, queued, max threads per executor.",
         "type": "line",
         "expressions": ["meter_thread_pool"],
-        "visibleWhen": "meter_thread_pool has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_thread_pool", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -548,7 +548,7 @@
           "meter_jdbc_connections_max"
         ],
         "expressionLabels": ["active", "idle", "max"],
-        "visibleWhen": "meter_jdbc_connections_active has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_jdbc_connections_active", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -562,7 +562,7 @@
           "meter_tomcat_sessions_rejected"
         ],
         "expressionLabels": ["active", "max", "rejected"],
-        "visibleWhen": "meter_tomcat_sessions_active_current has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_tomcat_sessions_active_current", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -576,7 +576,7 @@
           "meter_instance_golang_os_threads_num"
         ],
         "expressionLabels": ["goroutines", "OS threads"],
-        "visibleWhen": "meter_instance_golang_live_goroutines_num has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_live_goroutines_num", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -586,7 +586,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_instance_golang_gc_pauses/1000000"],
-        "visibleWhen": "meter_instance_golang_gc_pauses has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_pauses/1000000", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -595,7 +595,7 @@
         "title": "Golang GC Count (per minute)",
         "type": "line",
         "expressions": ["meter_instance_golang_gc_count_labeled"],
-        "visibleWhen": "meter_instance_golang_gc_count_labeled has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_count_labeled", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -605,7 +605,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_heap_alloc_rate/1048576"],
-        "visibleWhen": "meter_instance_golang_heap_alloc_rate has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_heap_alloc_rate/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -615,7 +615,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_instance_golang_sched_latencies/1000000"],
-        "visibleWhen": "meter_instance_golang_sched_latencies has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_sched_latencies/1000000", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -625,7 +625,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_heap_frees/1048576"],
-        "visibleWhen": "meter_instance_golang_heap_frees has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_heap_frees/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -635,7 +635,7 @@
         "type": "line",
         "unit": "KB",
         "expressions": ["meter_instance_golang_gc_heap_allocs_by_size/1024"],
-        "visibleWhen": "meter_instance_golang_gc_heap_allocs_by_size has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_heap_allocs_by_size/1024", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -645,7 +645,7 @@
         "type": "line",
         "unit": "KB",
         "expressions": ["meter_instance_golang_gc_heap_frees_by_size/1024"],
-        "visibleWhen": "meter_instance_golang_gc_heap_frees_by_size has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_heap_frees_by_size/1024", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -654,7 +654,7 @@
         "title": "Golang Heap Objects",
         "type": "line",
         "expressions": ["meter_instance_golang_gc_heap_objects"],
-        "visibleWhen": "meter_instance_golang_gc_heap_objects has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_heap_objects", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -664,7 +664,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_memory_heap_labeled/1048576"],
-        "visibleWhen": "meter_instance_golang_memory_heap_labeled has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_memory_heap_labeled/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -674,7 +674,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_metadata_mspan_labeled"],
-        "visibleWhen": "meter_instance_golang_metadata_mspan_labeled has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_metadata_mspan_labeled", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -684,7 +684,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_metadata_mcache_labeled"],
-        "visibleWhen": "meter_instance_golang_metadata_mcache_labeled has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_metadata_mcache_labeled", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -694,7 +694,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_golang_gc_heap_goal/1048576"],
-        "visibleWhen": "meter_instance_golang_gc_heap_goal has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_gc_heap_goal/1048576", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -703,7 +703,7 @@
         "title": "Golang CGO Calls (per minute)",
         "type": "line",
         "expressions": ["meter_instance_golang_cgo_calls"],
-        "visibleWhen": "meter_instance_golang_cgo_calls has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_golang_cgo_calls", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -718,7 +718,7 @@
           "meter_instance_pvm_process_cpu_utilization"
         ],
         "expressionLabels": ["host", "process"],
-        "visibleWhen": "meter_instance_pvm_process_cpu_utilization has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_pvm_process_cpu_utilization", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -732,7 +732,7 @@
           "meter_instance_pvm_process_mem_utilization"
         ],
         "expressionLabels": ["host", "process"],
-        "visibleWhen": "meter_instance_pvm_process_mem_utilization has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_pvm_process_mem_utilization", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -741,7 +741,7 @@
         "title": "Python Thread Count",
         "type": "line",
         "expressions": ["meter_instance_pvm_thread_active_count"],
-        "visibleWhen": "meter_instance_pvm_thread_active_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_pvm_thread_active_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -755,7 +755,7 @@
           "meter_instance_pvm_gc_g2"
         ],
         "expressionLabels": ["gen 0", "gen 1", "gen 2"],
-        "visibleWhen": "meter_instance_pvm_gc_g0 has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_pvm_gc_g0", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -765,7 +765,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_instance_pvm_gc_time"],
-        "visibleWhen": "meter_instance_pvm_gc_time has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_pvm_gc_time", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -776,7 +776,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["meter_instance_ruby_cpu_usage_percent"],
-        "visibleWhen": "meter_instance_ruby_cpu_usage_percent has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_cpu_usage_percent", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -786,7 +786,7 @@
         "type": "line",
         "unit": "MB",
         "expressions": ["meter_instance_ruby_memory_rss_mb"],
-        "visibleWhen": "meter_instance_ruby_memory_rss_mb has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_memory_rss_mb", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -796,7 +796,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["meter_instance_ruby_memory_usage_percent"],
-        "visibleWhen": "meter_instance_ruby_memory_usage_percent has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_memory_usage_percent", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -809,7 +809,7 @@
           "meter_instance_ruby_thread_count_running"
         ],
         "expressionLabels": ["active", "running"],
-        "visibleWhen": "meter_instance_ruby_thread_count_active has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_thread_count_active", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -823,7 +823,7 @@
           "meter_instance_ruby_gc_major_count_total"
         ],
         "expressionLabels": ["total", "minor", "major"],
-        "visibleWhen": "meter_instance_ruby_gc_count_total has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_gc_count_total", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -833,7 +833,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["meter_instance_ruby_gc_time_total"],
-        "visibleWhen": "meter_instance_ruby_gc_time_total has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_gc_time_total", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -843,7 +843,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["meter_instance_ruby_heap_usage_percent"],
-        "visibleWhen": "meter_instance_ruby_heap_usage_percent has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_heap_usage_percent", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       },
@@ -856,7 +856,7 @@
           "meter_instance_ruby_heap_available_slots_count"
         ],
         "expressionLabels": ["live", "available"],
-        "visibleWhen": "meter_instance_ruby_heap_live_slots_count has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_heap_live_slots_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
       }
@@ -907,7 +907,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["endpoint_mq_consume_latency"],
-        "visibleWhen": "endpoint_mq_consume_latency has value",
+        "visibleWhen": { "kind": "mqe", "expression": "endpoint_mq_consume_latency", "op": "exists" },
         "span": 12,
         "rowSpan": 2
       }
