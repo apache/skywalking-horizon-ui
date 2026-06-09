@@ -1,18 +1,26 @@
 {
   "alias": "Airflow",
-  "group": "Workflow-Planer",
+  "group": "Workflow-Scheduler",
   "slots": {
     "services": "Airflow-Cluster",
     "instances": "Komponenten"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "DAG-Bag-Größe" },
+      { "label": "DAG-Gesamt-Parsezeit" },
+      { "label": "Freie Executor-Slots" },
+      { "label": "Geplante Slots" }
+    ]
   },
   "overview": {
     "groups": [
       {
         "title": "Cluster",
         "metrics": [
-          { "label": "Ausführbare Tasks", "tip": "Tasks im Cluster, die zur Ausführung bereit sind." },
-          { "label": "Wartende Tasks", "tip": "Tasks, die auf dem Executor warten." },
-          { "label": "Freie Slots", "tip": "Verfügbare Executor-Slots." }
+          { "label": "Ausführbare Tasks", "tip": "Auf dem Cluster ausführbare Tasks." },
+          { "label": "Wartende Tasks", "tip": "Tasks in der Executor-Warteschlange." },
+          { "label": "Freie Executor-Slots", "tip": "Freie Executor-Slots, keine Pool-Kapazität." }
         ]
       }
     ]
@@ -23,38 +31,39 @@
       { "title": "Laufende Tasks" },
       { "title": "Geplante Slots" },
       { "title": "Wartende Tasks" },
-      { "title": "Freie Slots" },
-      {
-        "title": "Pool wartende / verzögerte / geplante Slots",
-        "expressionLabels": ["queued", "deferred", "scheduled"]
-      },
-      { "title": "Scheduler-Heartbeat" },
-      {
-        "title": "Laufende Tasks / geplante Slots",
-        "expressionLabels": ["running tasks", "scheduled slots"]
-      },
-      { "title": "DAG-Datei-Warteschlangengröße" },
+      { "title": "Freie Executor-Slots" },
+      { "title": "DAG-Datei-Warteschlange" },
+      { "title": "DAG-Importfehler" },
+      { "title": "DAG-Bag-Größe" },
+      { "title": "DAG-Gesamt-Parsezeit" },
+      { "title": "DAG-Datei-Refresh-Fehler" },
       { "title": "Asset-Updates" }
     ],
     "instance": [
       {
-        "title": "Pool freie / verzögerte / laufende Slots",
-        "tip": "Celery-Worker-Pool-Kapazität. Nur von Worker-Prozessen gemeldet.",
-        "expressionLabels": ["open", "deferred", "running"]
-      },
-      { "title": "Triggerer-Heartbeat", "tip": "Triggerer-Prozess-Heartbeats pro Minute." },
-      {
-        "title": "Trigger blockiert / erfolgreich",
-        "tip": "Ergebnisse verzögerter Trigger auf dem Triggerer-Host.",
-        "expressionLabels": ["blocked", "succeeded"]
+        "title": "Pool offen / zurückgestellt / laufend",
+        "expressionLabels": ["pool open", "pool deferred", "pool running"]
       },
       {
         "title": "Laufende Tasks / geplante Slots",
-        "tip": "Scheduler-Executor-Warteschlange und Pool-Slots, die auf Ausführung warten.",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
-      { "title": "Asset-Updates", "tip": "Dataset-/Asset-Update-Ereignisse auf diesem Host." },
-      { "title": "Durch Assets ausgelöste DagRuns", "tip": "DagRuns, die auf dem Scheduler durch Dataset-Ereignisse ausgelöst wurden." }
+      { "title": "Scheduler-Heartbeat" },
+      {
+        "title": "Executor offen / wartend",
+        "expressionLabels": ["open slots", "queued tasks"]
+      },
+      { "title": "Asset-Updates" },
+      { "title": "Asset-ausgelöste DagRuns" },
+      { "title": "Triggerer-Heartbeat" },
+      {
+        "title": "Laufende Trigger / freie Kapazität",
+        "expressionLabels": ["triggers running", "capacity left"]
+      },
+      {
+        "title": "Trigger blockiert / fehlgeschlagen / erfolgreich",
+        "expressionLabels": ["blocked", "failed", "succeeded"]
+      }
     ]
   }
 }
