@@ -227,7 +227,7 @@
           "pool deferred",
           "pool running"
         ],
-        "visibleWhen": "meter_airflow_instance_pool_open_slots has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_pool_open_slots", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -245,7 +245,7 @@
           "running tasks",
           "scheduled slots"
         ],
-        "visibleWhen": "meter_airflow_instance_executor_running_tasks has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_executor_running_tasks", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -258,7 +258,7 @@
         "expressions": [
           "meter_airflow_instance_scheduler_heartbeat"
         ],
-        "visibleWhen": "meter_airflow_instance_scheduler_heartbeat has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_scheduler_heartbeat", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -276,7 +276,7 @@
           "open slots",
           "queued tasks"
         ],
-        "visibleWhen": "meter_airflow_instance_executor_open_slots has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_executor_open_slots", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -289,7 +289,7 @@
         "expressions": [
           "meter_airflow_instance_asset_updates"
         ],
-        "visibleWhen": "meter_airflow_instance_asset_updates has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_asset_updates", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -302,7 +302,7 @@
         "expressions": [
           "meter_airflow_instance_asset_triggered_dagruns"
         ],
-        "visibleWhen": "meter_airflow_instance_asset_triggered_dagruns has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_asset_triggered_dagruns", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -315,7 +315,7 @@
         "expressions": [
           "meter_airflow_instance_triggerer_heartbeat"
         ],
-        "visibleWhen": "meter_airflow_instance_triggerer_heartbeat has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -333,7 +333,7 @@
           "triggers running",
           "capacity left"
         ],
-        "visibleWhen": "meter_airflow_instance_triggerer_heartbeat has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
@@ -353,7 +353,7 @@
           "failed",
           "succeeded"
         ],
-        "visibleWhen": "meter_airflow_instance_triggerer_heartbeat has value",
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
         "span": 6,
         "rowSpan": 2,
         "format": "int"
