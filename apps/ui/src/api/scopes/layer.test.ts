@@ -47,8 +47,6 @@ describe('LayerApi.landing', () => {
         topN: 5,
         orderBy: 'cpm',
         columns: [{ metric: 'cpm', label: 'CPM', mqe: 'service_cpm', aggregation: 'sum' }],
-        spark: { metric: 'service_cpm', height: 18 },
-        throughput: { metric: 'cpm', mqe: 'service_cpm', label: 'CPM', unit: 'rpm' },
         style: 'table',
       },
       { step: 'MINUTE', startMs: 1, endMs: 2 },
@@ -59,10 +57,10 @@ describe('LayerApi.landing', () => {
     expect(calls[0][2]).toMatchObject({
       topN: 5,
       orderBy: 'cpm',
+      columns: [{ metric: 'cpm', label: 'CPM', mqe: 'service_cpm', aggregation: 'sum' }],
       step: 'MINUTE',
       startMs: 1,
       endMs: 2,
-      spark: { metric: 'service_cpm', height: 18 },
     });
   });
 

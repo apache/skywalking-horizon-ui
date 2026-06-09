@@ -53,13 +53,13 @@ import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from 
 import { usePreviewOverride } from '@/controls/previewOverride';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
-import Sparkline from '@/components/charts/Sparkline.vue';
 import { fmtMetric } from '@/utils/formatters';
 import { stableStringify } from '@/utils/stableJson';
 import { mockCardValue, mockLineSeries, mockRecordRows, mockTopGroups } from './widget-mock';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
@@ -106,6 +106,20 @@ const error = ref<string | null>(null);
 const selectedKey = ref<string>('');
 const activeScope = ref<AdminScope>('service');
 const isSaving = ref(false);
+
+// Scopes whose page is a built-in, runtime-configured explore view with
+// no per-layer widget grid to author. The trace / eBPF / async profiling
+// tabs render dedicated views (not the generic dashboard grid), so they
+// have nothing to wire up here — same as trace / logs. (networkProfiling
+// is excluded: it has its own edge-metric editor.)
+const RUNTIME_ONLY_SCOPES = new Set<AdminScope>([
+  'trace',
+  'logs',
+  'traceProfiling',
+  'ebpfProfiling',
+  'asyncProfiling',
+]);
+const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
 const saveMsg = ref<string | null>(null);
 
 // Picker-bar "refresh from remote" button + post-push 10s countdown
@@ -325,15 +339,17 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
   saveMsg.value = null;
 }
 /** Seed the editor when the selected layer changes. Remote is the
- *  canonical baseline — it's what `pickLayerContent` in the runtime
- *  bundle serves to end users for synced / diverged / remote-only
- *  rows, so the editor opens from remote whenever remote is reachable.
+ *  canonical baseline — it's what the runtime bundle serves to end users
+ *  for synced / diverged / remote-only rows, so the editor opens from
+ *  remote whenever remote is reachable.
  *  Priority:
  *    1. Local draft — unpublished in-progress edits in this browser.
  *    2. Remote — the default for every re-mount when remote exists.
- *    3. Bundled — only when remote is absent (bundled-fallback). The
- *       operator can also hit "Reset to bundled" explicitly to swap;
- *       that path goes through `resetTo`, not this seed function. */
+ *    3. Otherwise: NOTHING. We do NOT auto-load bundled when remote is
+ *       absent — bundled is the seed/reset source, not the working copy,
+ *       and the runtime doesn't render it either. The editor shows a
+ *       "no published version" panel; the operator hits "Reset to bundled"
+ *       to explicitly start from the shipped default (via `resetTo`). */
 function syncDraft(): void {
   if (hasLocalDraft.value) {
     loadFrom('local');
@@ -343,8 +359,22 @@ function syncDraft(): void {
     loadFrom('remote');
     return;
   }
-  loadFrom('bundled');
+  draft.template = null;
+  loadedSnapshot.value = '';
+  saveMsg.value = null;
 }
+
+/** Selected layer exists but has neither a local draft nor an OAP row, so
+ *  nothing is loaded (we don't fall back to bundled). Drives the "no
+ *  published version" panel + its Reset-to-bundled CTA. */
+const noPublishedVersion = computed<boolean>(
+  () =>
+    sourcesReady.value &&
+    !!selectedKey.value &&
+    !hasLocalDraft.value &&
+    !remoteAvailable.value &&
+    !draft.template,
+);
 
 /** Write the editor content to the local draft. If it equals remote, the
  *  draft is cleared instead (no point keeping a draft identical to live) —
@@ -478,6 +508,57 @@ watch(visibleScopes, (scopes) => {
   if (!scopes.includes(activeScope.value)) {
     activeScope.value = scopes[0] ?? 'service';
   }
+  void nextTick(updateScopeScroll);
+});
+
+// ── Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
+// on a narrow editor it overflows, so we let it scroll and surface
+// chevron buttons that appear only on the side(s) with hidden tabs.
+const scopeNav = ref<HTMLElement | null>(null);
+const canScrollScopeLeft = ref(false);
+const canScrollScopeRight = ref(false);
+function updateScopeScroll(): void {
+  const el = scopeNav.value;
+  if (!el) {
+    canScrollScopeLeft.value = false;
+    canScrollScopeRight.value = false;
+    return;
+  }
+  canScrollScopeLeft.value = el.scrollLeft > 2;
+  canScrollScopeRight.value = Math.ceil(el.scrollLeft + el.clientWidth) < el.scrollWidth - 1;
+}
+function scrollScopeTabs(dir: -1 | 1): void {
+  const el = scopeNav.value;
+  if (!el) return;
+  el.scrollBy({ left: dir * Math.max(180, el.clientWidth * 0.7), behavior: 'smooth' });
+}
+// Attach the ResizeObserver when the <nav> actually mounts — the scope
+// strip only renders once a template is selected (async after loadAll),
+// so it's null at onMounted. Watching the template ref catches it
+// appearing AND re-runs the overflow check then.
+let scopeResizeObs: ResizeObserver | null = null;
+watch(
+  scopeNav,
+  (el) => {
+    scopeResizeObs?.disconnect();
+    scopeResizeObs = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      scopeResizeObs = new ResizeObserver(() => updateScopeScroll());
+      scopeResizeObs.observe(el);
+    }
+    void nextTick(updateScopeScroll);
+  },
+  { immediate: true },
+);
+// Content changes (scopes toggled, labels/counts) change scrollWidth
+// without resizing the nav, so refresh on those too.
+watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
+function onWinResizeScope(): void { updateScopeScroll(); }
+onMounted(() => window.addEventListener('resize', onWinResizeScope));
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWinResizeScope);
+  scopeResizeObs?.disconnect();
+  scopeResizeObs = null;
 });
 
 // Unsaved keystrokes: editor differs from the content last loaded/saved.
@@ -744,14 +825,67 @@ async function addAndSelectWidget(): Promise<void> {
   selectedIdx.value = currentWidgets.value.length - 1;
 }
 
-function expressionsToText(arr: string[]): string {
-  return arr.join('\n');
+/* ------------------------------------------------------------------- *
+ * Per-expression rows. Each MQE expression carries its own label / unit
+ * / y-axis on one row, so the three used to be index-aligned by line
+ * number across separate textareas — now they're edited together and
+ * can't drift. Label / unit / axis arrays are kept padded to the
+ * expression count so index i always lines up.
+ * ------------------------------------------------------------------- */
+/** Label + unit only matter for tab-switching `top` widgets and
+ *  multi-series `line` widgets; a single-expression card/line hides
+ *  them to keep the row compact. */
+const showExprMeta = computed(() => {
+  const w = selectedWidget.value;
+  return !!w && (w.type === 'top' || (w.expressions?.length ?? 0) > 1);
+});
+function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
+  const a = [...(arr ?? [])];
+  while (a.length < len) a.push(fill);
+  return a;
 }
-function textToExpressions(s: string): string[] {
-  return s
-    .split('\n')
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
+function updateExpr(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = [...w.expressions];
+  a[i] = v;
+  w.expressions = a;
+}
+function updateExprLabel(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionLabels, w.expressions.length, '');
+  a[i] = v;
+  w.expressionLabels = a;
+}
+function updateExprUnit(i: number, v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionUnits, w.expressions.length, '');
+  a[i] = v;
+  w.expressionUnits = a;
+}
+function updateExprAxis(i: number, v: number): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  const a = padTo(w.expressionAxes, w.expressions.length, 0);
+  a[i] = v === 1 ? 1 : 0;
+  w.expressionAxes = a;
+}
+function addExpr(): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  w.expressions = [...w.expressions, ''];
+}
+function removeExpr(i: number): void {
+  const w = selectedWidget.value;
+  if (!w || w.expressions.length <= 1) return;
+  const drop = <T>(arr: T[] | undefined): T[] | undefined =>
+    arr ? arr.filter((_, j) => j !== i) : arr;
+  w.expressions = w.expressions.filter((_, j) => j !== i);
+  w.expressionLabels = drop(w.expressionLabels);
+  w.expressionUnits = drop(w.expressionUnits);
+  w.expressionAxes = drop(w.expressionAxes);
 }
 
 
@@ -1039,7 +1173,10 @@ function ensureProcessTopology(): ProcessTopologyConfig {
   return tpl.processTopology;
 }
 
-type MetricBucket = 'node' | 'linkServer' | 'linkClient' | 'link' | 'edgeClient' | 'edgeServer';
+type MetricBucket =
+  | 'node' | 'linkServer' | 'linkClient'
+  | 'instNode' | 'instLinkServer' | 'instLinkClient'
+  | 'link' | 'edgeClient' | 'edgeServer';
 
 function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
   if (!draft.template) return [];
@@ -1048,6 +1185,12 @@ function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
     if (bucket === 'node') return t.nodeMetrics;
     if (bucket === 'linkServer') return t.linkServerMetrics ?? [];
     if (bucket === 'linkClient') return t.linkClientMetrics ?? [];
+    // Instance-topology buckets read straight off the nested block; they
+    // never auto-create it (only the explicit enable toggle does), so a
+    // read while disabled returns an empty detached list.
+    if (bucket === 'instNode') return t.instanceTopology?.nodeMetrics ?? [];
+    if (bucket === 'instLinkServer') return t.instanceTopology?.linkServerMetrics ?? [];
+    if (bucket === 'instLinkClient') return t.instanceTopology?.linkClientMetrics ?? [];
   } else if (activeScope.value === 'dependency') {
     const t = ensureEndpointDep();
     if (bucket === 'node') return t.nodeMetrics;
@@ -1093,6 +1236,24 @@ function toggleThresholds(m: TopologyMetricDef): void {
 const topologyNodeMetrics = computed(() => getMetricList('node'));
 const topologyServerMetrics = computed(() => getMetricList('linkServer'));
 const topologyClientMetrics = computed(() => getMetricList('linkClient'));
+// Instance-topology drill-down config (optional, nested under topology).
+const instanceTopologyEnabled = computed(() => !!draft.template?.topology?.instanceTopology);
+const instanceNodeMetrics = computed(() => getMetricList('instNode'));
+const instanceServerMetrics = computed(() => getMetricList('instLinkServer'));
+const instanceClientMetrics = computed(() => getMetricList('instLinkClient'));
+function toggleInstanceTopology(): void {
+  const t = ensureTopology();
+  if (t.instanceTopology) {
+    delete t.instanceTopology;
+  } else {
+    // Start empty — the operator authors the instance-scope metrics
+    // (service_instance_* / service_instance_relation_*) via the editors.
+    // We deliberately do NOT copy the service-topology metrics: those are
+    // service-scope MQE and would be wrong (and misleading) at instance
+    // scope.
+    t.instanceTopology = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
+  }
+}
 const epDepNodeMetrics = computed(() => activeScope.value === 'dependency' ? getMetricList('node') : []);
 const epDepLinkMetrics = computed(() => getMetricList('link'));
 const processEdgeClientMetrics = computed(() =>
@@ -1128,9 +1289,7 @@ const TRACE_SOURCE_OPTIONS: Array<{ value: TraceSource; label: string; hint: str
  * honors at runtime to pick the trace backend. */
 
 /**
- * Metrics block editor — drives the service-list columns + default
- * sort. Overview-only fields (throughput, spark) live in a separate
- * block, so they're edited in their own card.
+ * Metrics block editor — drives the service-list columns + default sort.
  */
 function ensureMetrics(): NonNullable<AdminLayerTemplate['metrics']> {
   if (!draft.template) throw new Error('no template selected');
@@ -1139,22 +1298,10 @@ function ensureMetrics(): NonNullable<AdminLayerTemplate['metrics']> {
   }
   return draft.template.metrics as NonNullable<AdminLayerTemplate['metrics']>;
 }
-function ensureOverview(): NonNullable<AdminLayerTemplate['overview']> {
-  if (!draft.template) throw new Error('no template selected');
-  if (!draft.template.overview) {
-    (draft.template as AdminLayerTemplate).overview = {};
-  }
-  return draft.template.overview as NonNullable<AdminLayerTemplate['overview']>;
-}
 const metricsModel = computed(() => {
   if (!draft.template) return null;
   ensureMetrics();
   return draft.template.metrics as NonNullable<AdminLayerTemplate['metrics']>;
-});
-const overviewModel = computed(() => {
-  if (!draft.template) return null;
-  ensureOverview();
-  return draft.template.overview as NonNullable<AdminLayerTemplate['overview']>;
 });
 const metricsColumns = computed(() => {
   if (!draft.template) return [];
@@ -1196,76 +1343,93 @@ const effectiveOrderBy = computed(
   () => metricsModel.value?.orderBy ?? metricsColumns.value[0]?.metric,
 );
 
-type MetricColumn = NonNullable<NonNullable<AdminLayerTemplate['metrics']>['columns']>[number];
-/** Headline column for the landing KPI tile: explicit `overview.throughput`,
- *  else the default-sort column. */
-const kpiHeadlineCol = computed<MetricColumn | undefined>(() => {
-  const key = overviewModel.value?.throughput ?? effectiveOrderBy.value;
-  return metricsColumns.value.find((c) => c.metric === key) ?? metricsColumns.value[0];
-});
-/** Trend column for the sparkline: explicit `overview.spark`, else the
- *  headline column. */
-const kpiSparkCol = computed<MetricColumn | undefined>(() => {
-  const key = overviewModel.value?.spark ?? overviewModel.value?.throughput ?? effectiveOrderBy.value;
-  return metricsColumns.value.find((c) => c.metric === key) ?? kpiHeadlineCol.value;
-});
-/** Headline number — fmtMetric of a mock aggregate for the headline
- *  column (the real tile shows the value bare; unit lives in the label). */
-const kpiHeadlineValue = computed(() =>
-  kpiHeadlineCol.value ? fmtMetric(previewBase(1) * (kpiHeadlineCol.value.scale ?? 1)) : '—',
-);
-/** Mock sparkline series for the real Sparkline component — deterministic
- *  per spark-column so the trend reads as real movement without MQE. */
-const kpiSparkValues = computed<number[]>(() => {
-  const seed = (kpiSparkCol.value?.metric ?? 'x').length;
-  const n = 24;
-  const a: number[] = [];
-  for (let i = 0; i < n; i++) a.push(14 + Math.sin(i * 0.7 + seed) * 7 + Math.sin(i * 0.23 + seed) * 4);
-  return a;
-});
-/** Two-letter mark for the header icon tile (mirrors the live header). */
-const previewInitials = computed(() => (selectedTpl.value?.key ?? '??').slice(0, 2).toUpperCase());
-
 /**
- * Scope-aware `visibleWhen` placeholder + hover hint. Two supported
- * predicate forms:
- *
- *   <metric> has value     The SPA evaluates this against the widget's
- *                          own MQE result. If at least one bucket is
- *                          non-null, the widget renders. Useful when
- *                          the metric only exists for some services
- *                          (e.g. service_mq_consume_count only on MQ
- *                          producers).
- *
- *   #entity.<attr>         The SPA evaluates this against the *entity's*
- *                          attributes. Only meaningful on scopes where
- *                          entities carry attributes — i.e. INSTANCE
- *                          (jvm / language / host etc.) and to a lesser
- *                          extent ENDPOINT. Service-scope entities
- *                          don't expose attributes, so the predicate is
- *                          a no-op there.
- *
- * The placeholder / tooltip swap so operators editing an instance
- * widget see entity-attribute syntax, and service-widget operators see
- * the metric-has-value form.
+ * Structured `visibleWhen` editor. The gate is one of:
+ *   - none   — always visible
+ *   - mqe    — exists / > / < over an MQE expression's result
+ *   - entity — exists / equals against the selected instance's attributes
+ * The five computeds below bridge the discriminated-union shape to flat
+ * v-model bindings; switching kind / op rebuilds the object so its fields
+ * always match (e.g. `exists` carries no `value`).
  */
-function visibleWhenPlaceholder(scope: DashboardScope): string {
-  if (scope === 'instance') return "#entity.jvm   or   instance_jvm_cpu has value";
-  if (scope === 'endpoint') return 'endpoint_cpm has value';
-  return 'service_mq_consume_count has value';
-}
+type VwKind = 'none' | 'mqe' | 'entity';
+
 function visibleWhenHint(scope: DashboardScope): string {
-  const common =
-    'Hide the widget unless this predicate is truthy.\n' +
-    '\n' +
-    "  <metric> has value   — the widget's own MQE returned non-null data.";
-  const entityHint =
-    '\n  #entity.<attr>       — the active entity has the named attribute (e.g. #entity.jvm,\n' +
-    '                         #entity.language). Only meaningful for instance / endpoint scopes;\n' +
-    "                         service-scope entities don't carry attributes.";
-  if (scope === 'instance' || scope === 'endpoint') return common + entityHint;
-  return common + '\n  (#entity.* predicates are entity-attribute-based and apply best on Instance scope.)';
+  const base =
+    'Hide this widget unless the gate passes.\n' +
+    'MQE — has value: the expression returns any value; > / <: any value above / below the threshold.\n' +
+    "A gate naming one of the widget's own expressions self-gates (free); a different metric gates the whole group (probed once, skips the group when empty).";
+  const entity =
+    scope === 'instance'
+      ? '\nEntity — matches the selected instance’s attributes (e.g. language equals JAVA). exists = present & non-empty; equals is case-insensitive.'
+      : '\nEntity gates apply only on the Instance scope (Service / Endpoint entities carry no attributes) and are ignored elsewhere.';
+  return base + entity;
 }
+
+const vwKindModel = computed<VwKind>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return 'none';
+    return vw.kind === 'entity' ? 'entity' : 'mqe';
+  },
+  set(k) {
+    const w = selectedWidget.value;
+    if (!w) return;
+    if (k === 'none') w.visibleWhen = undefined;
+    else if (k === 'mqe') w.visibleWhen = { kind: 'mqe', expression: w.expressions?.[0] ?? '', op: 'exists' };
+    else w.visibleWhen = { kind: 'entity', attribute: 'language', op: 'eq', value: 'JAVA' };
+  },
+});
+const vwTarget = computed<string>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return '';
+    return vw.kind === 'mqe' ? vw.expression : vw.attribute;
+  },
+  set(v) {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw) return;
+    if (vw.kind === 'mqe') vw.expression = v;
+    else vw.attribute = v;
+  },
+});
+const vwOp = computed<string>({
+  get() {
+    return selectedWidget.value?.visibleWhen?.op ?? 'exists';
+  },
+  set(op) {
+    const w = selectedWidget.value;
+    const vw = w?.visibleWhen;
+    if (!w || !vw) return;
+    if (vw.kind === 'mqe') {
+      w.visibleWhen =
+        op === 'exists'
+          ? { kind: 'mqe', expression: vw.expression, op: 'exists' }
+          : { kind: 'mqe', expression: vw.expression, op: op === 'lt' ? 'lt' : 'gt', value: 'value' in vw ? vw.value : 0 };
+    } else {
+      w.visibleWhen =
+        op === 'eq'
+          ? { kind: 'entity', attribute: vw.attribute, op: 'eq', value: 'value' in vw ? String(vw.value) : '' }
+          : { kind: 'entity', attribute: vw.attribute, op: 'exists' };
+    }
+  },
+});
+const vwNeedsValue = computed(() => {
+  const op = selectedWidget.value?.visibleWhen?.op;
+  return op === 'gt' || op === 'lt' || op === 'eq';
+});
+const vwValue = computed<string>({
+  get() {
+    const vw = selectedWidget.value?.visibleWhen;
+    return vw && 'value' in vw ? String(vw.value) : '';
+  },
+  set(v) {
+    const vw = selectedWidget.value?.visibleWhen;
+    if (!vw || !('value' in vw)) return;
+    if (vw.kind === 'mqe') vw.value = Number(v) || 0;
+    else vw.value = v;
+  },
+});
 
 /**
  * Component toggles surfaced in the admin editor. Each entry binds to
@@ -1277,8 +1441,9 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'service', label: 'Service', hint: "The layer's primary landing — widget grid driven by dashboards.service." },
   { key: 'instances', label: 'Instances', hint: 'Per-instance dashboard (dashboards.instance widget set).' },
   { key: 'endpoints', label: 'Endpoints', hint: 'Per-endpoint dashboard (dashboards.endpoint widget set).' },
-  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
+  // Order mirrors the real sidebar: Topology sits before API dependency.
   { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer.' },
+  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
   { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
   { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
   { key: 'podLogs', label: 'Pod Logs', hint: 'On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.' },
@@ -1330,20 +1495,35 @@ const COMPONENT_SLOT: Partial<Record<ComponentKey, keyof NonNullable<AdminLayerT
   instances: 'instances',
   endpoints: 'endpoints',
   endpointDependency: 'endpointDependency',
+  topology: 'topology',
 };
 /** The layer's sidebar menu as the operator would see it — only the
  *  enabled components, in COMPONENT_TOGGLES order, labelled with the
  *  layer's slot aliases where defined. Drives the menu preview. */
-const menuItems = computed(() => {
+const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope; child?: boolean }>>(() => {
   const slots = draft.template?.slots ?? {};
-  return COMPONENT_TOGGLES.filter((t) => !!draft.template?.components?.[t.key]).map((t) => {
+  const items = COMPONENT_TOGGLES.filter((t) => !!draft.template?.components?.[t.key]).map((t) => {
     const slotKey = COMPONENT_SLOT[t.key];
     return {
-      key: t.key,
+      key: t.key as string,
       label: (slotKey && slots[slotKey]) || t.label,
       scope: COMPONENT_SCOPE[t.key],
+      child: false,
     };
   });
+  // Instance topology has no component flag of its own (it's a drill-down
+  // of the topology tab, not a sidebar entry); show it as a NESTED child
+  // under Topology so the preview reads "reached from Topology" — and so
+  // it doesn't double-highlight when the topology scope is active. Only
+  // when the Topology component is itself enabled (`topoIdx >= 0`): a
+  // drill-down of a disabled tab must not appear, even if a stale
+  // `topology.instanceTopology` block lingers in the config.
+  const topoIdx = items.findIndex((i) => i.key === 'topology');
+  if (instanceTopologyEnabled.value && topoIdx >= 0) {
+    const instItem = { key: 'instanceTopology', label: slots.instanceTopology || 'Instance map', scope: 'topology' as AdminScope, child: true };
+    items.splice(topoIdx + 1, 0, instItem);
+  }
+  return items;
 });
 /** Menu-preview click: focus the component's scope (if surfaced) and
  *  scroll the scope editor into view so config + preview follow the
@@ -1370,17 +1550,28 @@ function scopeLabel(s: AdminScope): string {
   const sk = SCOPE_SLOT[s];
   return (sk && draft.template?.slots?.[sk]) || SCOPE_LABELS[s];
 }
+// Alias-aware nouns for the topology editor: a service-topology node IS
+// a service, an instance-topology node IS an instance — so their section
+// headings read in the layer's own vocabulary (e.g. "Pods", "Sidecars").
+const serviceNoun = computed(() => scopeLabel('service'));
+const instanceNoun = computed(() => scopeLabel('instance'));
 
 /** The four configurable slot aliases. Shown for the components the
  *  layer actually exposes so the editor mirrors the menu. */
-const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string }> = [
+const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string; requireInstanceTopology?: boolean }> = [
+  // Order mirrors the real sidebar / menu: Topology (+ its Instance map
+  // drill-down) sits before API dependency.
   { slot: 'services', label: 'Services', comp: 'service', def: 'Service' },
   { slot: 'instances', label: 'Instances', comp: 'instances', def: 'Instance' },
   { slot: 'endpoints', label: 'Endpoints', comp: 'endpoints', def: 'Endpoint' },
+  { slot: 'topology', label: 'Topology', comp: 'topology', def: 'Topology' },
+  { slot: 'instanceTopology', label: 'Instance topology', comp: 'topology', def: 'Instance map', requireInstanceTopology: true },
   { slot: 'endpointDependency', label: 'API dependency', comp: 'endpointDependency', def: 'Dependency' },
 ];
 const visibleAliasFields = computed(() =>
-  ALIAS_FIELDS.filter((f) => !!draft.template?.components?.[f.comp]),
+  ALIAS_FIELDS.filter(
+    (f) => !!draft.template?.components?.[f.comp] && (!f.requireInstanceTopology || instanceTopologyEnabled.value),
+  ),
 );
 function ensureSlots(): NonNullable<AdminLayerTemplate['slots']> {
   if (!draft.template) throw new Error('no template selected');
@@ -1882,11 +2073,11 @@ const namingTest = computed<NamingTestResult>(() => {
                 :key="m.key"
                 type="button"
                 class="menu-item"
-                :class="{ on: activeScope === m.scope }"
+                :class="{ on: activeScope === m.scope && !m.child, 'is-child': m.child }"
                 :title="`Jump to ${m.label} config`"
                 @click="jumpToComponent(m.scope)"
               >
-                <span class="menu-item-label">{{ m.label }}</span>
+                <span class="menu-item-label">{{ m.child ? '↳ ' : '' }}{{ m.label }}</span>
                 <span class="menu-item-arrow">›</span>
               </button>
             </div>
@@ -2005,54 +2196,12 @@ const namingTest = computed<NamingTestResult>(() => {
               </tr>
             </tbody>
           </table>
-          <!-- Preview: the per-layer landing KPI tile (headline + trend)
-               at the head — its config picks WHICH service-list column
-               feeds the tile, no new metrics — then the service-list
-               sample table. Mock values, no MQE fired. -->
+          <!-- Preview: the service-list sample table — shows how the
+               configured columns render (label, scale, precision, unit,
+               default-sort marker). Mock values, no MQE fired. -->
           <div v-if="metricsColumns.length > 0" class="metrics-preview">
             <div class="metrics-preview-head">
-              Preview <span class="sub">how this layer’s landing KPI tile + service list render (sample data)</span>
-            </div>
-            <div v-if="overviewModel" class="kpi-block">
-              <div class="kpi-config">
-                <div class="kpi-config-title">Landing KPI tile <span class="sub">which column is the headline + trend</span></div>
-                <label>
-                  <span>Headline (throughput)</span>
-                  <select v-model="overviewModel.throughput">
-                    <option :value="undefined">(default sort)</option>
-                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Trend line (spark)</span>
-                  <select v-model="overviewModel.spark">
-                    <option :value="undefined">(headline)</option>
-                    <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.label || c.metric }}</option>
-                  </select>
-                </label>
-              </div>
-              <!-- Faithful copy of the real layer header (LayerShell):
-                   icon tile + identity + the kpi-strip. Reuses the same
-                   class names + the Sparkline component so the preview
-                   matches the live page. -->
-              <header class="sw-card preview-layer-head">
-                <div class="layer-id-row">
-                  <div class="icon-tile" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }">{{ previewInitials }}</div>
-                  <div class="identity-text">
-                    <div class="title-row"><h1>{{ selectedTpl.alias || selectedTpl.key }}</h1></div>
-                    <div class="sub">{{ SAMPLE_SERVICES.length }} {{ (selectedTpl.slots?.services || 'services').toLowerCase() }}</div>
-                  </div>
-                  <div class="kpi-strip">
-                    <div class="kpi">
-                      <div class="kpi-label">
-                        {{ kpiHeadlineCol?.label || kpiHeadlineCol?.metric || '—' }}<span v-if="kpiHeadlineCol?.unit" class="unit">({{ kpiHeadlineCol.unit }})</span>
-                      </div>
-                      <div class="kpi-value">{{ kpiHeadlineValue }}</div>
-                      <Sparkline class="kpi-spark" :values="kpiSparkValues" :width="84" :height="18" color="var(--sw-accent)" :stroke="1.25" />
-                    </div>
-                  </div>
-                </div>
-              </header>
+              Preview <span class="sub">how this layer’s service list renders (sample data)</span>
             </div>
             <div class="metrics-preview-scroll">
               <table class="sw-table preview-table">
@@ -2077,19 +2226,35 @@ const namingTest = computed<NamingTestResult>(() => {
         </section>
 
         <!-- Scope tabs -->
-        <nav id="scope-editor" class="scope-tabs sw-card">
+        <div id="scope-editor" class="scope-tabs-wrap sw-card">
           <button
-            v-for="s in visibleScopes"
-            :key="s"
-            class="scope-tab"
-            :class="{ on: activeScope === s }"
+            v-show="canScrollScopeLeft"
+            class="scope-scroll left"
             type="button"
-            @click="activeScope = s"
-          >
-            {{ scopeLabel(s) }}
-            <span class="count">{{ widgetsFor(s).length }}</span>
-          </button>
-        </nav>
+            aria-label="Scroll tabs left"
+            @click="scrollScopeTabs(-1)"
+          >‹</button>
+          <nav ref="scopeNav" class="scope-tabs" @scroll="updateScopeScroll">
+            <button
+              v-for="s in visibleScopes"
+              :key="s"
+              class="scope-tab"
+              :class="{ on: activeScope === s }"
+              type="button"
+              @click="activeScope = s"
+            >
+              {{ scopeLabel(s) }}
+              <span class="count">{{ widgetsFor(s).length }}</span>
+            </button>
+          </nav>
+          <button
+            v-show="canScrollScopeRight"
+            class="scope-scroll right"
+            type="button"
+            aria-label="Scroll tabs right"
+            @click="scrollScopeTabs(1)"
+          >›</button>
+        </div>
 
         <!-- Widget editor: canvas + drawer.
              Canvas (left): 12-col grid background, widgets placed at
@@ -2257,10 +2422,14 @@ const namingTest = computed<NamingTestResult>(() => {
             </span>
           </div>
           <div class="topo-cfg-body">
+            <div class="topo-cfg-group">
+              <span class="tg-title">Service topology</span>
+              <span class="tg-sub">node = {{ serviceNoun }} · edges = service-to-service relations</span>
+            </div>
             <div class="topo-cfg-section">
               <header class="topo-cfg-head">
-                <h5>Node metrics</h5>
-                <span class="sub">drives node center number + ring colour band</span>
+                <h5>{{ serviceNoun }} node metrics</h5>
+                <span class="sub">drives each node's center number + ring colour band</span>
                 <button class="sw-btn add" type="button" @click="addMetric('node')">＋ Add</button>
               </header>
               <div v-if="topologyNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
@@ -2382,6 +2551,123 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </article>
               </div>
+            </div>
+
+            <!-- ── Instance topology (optional drill-down) — kept in its
+                 own bordered block so it never blurs into the service
+                 topology metrics above. ── -->
+            <div class="topo-cfg-instance-block" :class="{ enabled: instanceTopologyEnabled }">
+            <div class="topo-cfg-group with-toggle">
+              <div class="tg-text">
+                <span class="tg-title">Instance topology</span>
+                <span class="tg-sub">node = {{ instanceNoun }} · drill-down between two services' instances</span>
+              </div>
+              <label class="comp-toggle" :class="{ on: instanceTopologyEnabled }">
+                <input type="checkbox" :checked="instanceTopologyEnabled" @change="toggleInstanceTopology" />
+                <span class="comp-label">Enable instance topology</span>
+              </label>
+            </div>
+
+            <template v-if="instanceTopologyEnabled">
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>{{ instanceNoun }} node metrics</h5>
+                  <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instNode')">＋ Add</button>
+                </header>
+                <div v-if="instanceNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceNodeMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_instance_cpm" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
+                      <label class="mf"><span>role</span>
+                        <select v-model="m.role" class="mf-input">
+                          <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
+                        </select>
+                      </label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input">
+                          <option value="avg">avg</option>
+                          <option value="sum">sum</option>
+                        </select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('instNode', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceNodeMetrics.length - 1" title="Move down" @click="moveMetric('instNode', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('instNode', i)">×</button>
+                      </div>
+                    </div>
+                    <div class="metric-thresholds">
+                      <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
+                      <template v-if="m.thresholds">
+                        <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
+                        <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
+                        <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
+                      </template>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>Link · server-side metrics</h5>
+                  <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instLinkServer')">＋ Add</button>
+                </header>
+                <div v-if="instanceServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceServerMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkServer', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceServerMetrics.length - 1" @click="moveMetric('instLinkServer', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkServer', i)">×</button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div class="topo-cfg-section">
+                <header class="topo-cfg-head">
+                  <h5>Link · client-side metrics</h5>
+                  <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
+                  <button class="sw-btn add" type="button" @click="addMetric('instLinkClient')">＋ Add</button>
+                </header>
+                <div v-if="instanceClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+                <div v-else class="metric-list">
+                  <article v-for="(m, i) in instanceClientMetrics" :key="i" class="metric-row">
+                    <div class="metric-row-head">
+                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>agg</span>
+                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                      </label>
+                      <div class="metric-row-actions">
+                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkClient', i, -1)">↑</button>
+                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceClientMetrics.length - 1" @click="moveMetric('instLinkClient', i, 1)">↓</button>
+                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkClient', i)">×</button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+            </template>
             </div>
           </div>
         </section>
@@ -2567,7 +2853,7 @@ const namingTest = computed<NamingTestResult>(() => {
              other than enable/disable, which is already handled via
              the Components toggle in the right sidebar. -->
         <section
-          v-else-if="activeScope === 'trace' || activeScope === 'logs'"
+          v-else-if="activeScopeRuntimeOnly"
           class="sw-card editor-card topo-cfg-card"
         >
           <div class="card-head">
@@ -2773,62 +3059,103 @@ const namingTest = computed<NamingTestResult>(() => {
                 </div>
                 <div class="d-section">
                   <span class="d-label">MQE expressions</span>
-                  <textarea
-                    class="mono"
-                    rows="4"
-                    :value="expressionsToText(selectedWidget.expressions)"
-                    @input="selectedWidget.expressions = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    placeholder="one expression per line"
-                  ></textarea>
+                  <div v-if="showExprMeta" class="expr-cols">
+                    <span class="expr-col-mqe">expression</span>
+                    <span class="expr-col-label">{{ selectedWidget.type === 'top' ? 'tab label' : 'series label' }}</span>
+                    <span class="expr-col-unit">unit</span>
+                    <span v-if="selectedWidget.type === 'line'" class="expr-col-axis">axis</span>
+                    <span class="expr-col-del"></span>
+                  </div>
+                  <div class="expr-rows">
+                    <div v-for="(expr, i) in selectedWidget.expressions" :key="i" class="expr-row">
+                      <MqeExpressionInput
+                        class="expr-mqe"
+                        :model-value="expr"
+                        placeholder="instance_jvm_cpu"
+                        :title="`Expression ${i + 1}`"
+                        @update:model-value="updateExpr(i, $event)"
+                      />
+                      <input
+                        v-if="showExprMeta"
+                        class="expr-label"
+                        :value="selectedWidget.expressionLabels?.[i] ?? ''"
+                        @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
+                        :placeholder="selectedWidget.type === 'top' ? 'Traffic' : 'p99'"
+                      />
+                      <input
+                        v-if="showExprMeta"
+                        class="mono expr-unit"
+                        :value="selectedWidget.expressionUnits?.[i] ?? ''"
+                        @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
+                        placeholder="ms"
+                      />
+                      <select
+                        v-if="showExprMeta && selectedWidget.type === 'line'"
+                        class="mono expr-axis"
+                        :value="String(selectedWidget.expressionAxes?.[i] ?? 0)"
+                        @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
+                        title="Y-axis (Left / Right) — for dual-axis line widgets"
+                      >
+                        <option value="0">L</option>
+                        <option value="1">R</option>
+                      </select>
+                      <button
+                        type="button"
+                        class="expr-del"
+                        title="Remove expression"
+                        :disabled="selectedWidget.expressions.length <= 1"
+                        @click="removeExpr(i)"
+                      >×</button>
+                    </div>
+                  </div>
+                  <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">+ expression</button>
                   <p class="d-hint">
-                    For <code>top</code> widgets, each expression becomes a tab.
-                    For <code>line</code>, each becomes a series.
+                    For <code>top</code> widgets each expression is a switchable tab; for
+                    <code>line</code> each is a series. Label / unit / axis apply per expression.
                   </p>
-                </div>
-                <div
-                  v-if="selectedWidget.type === 'top' || (selectedWidget.expressions?.length ?? 0) > 1"
-                  class="d-section"
-                >
-                  <span class="d-label">Expression labels (one per line)</span>
-                  <textarea
-                    rows="3"
-                    :value="expressionsToText(selectedWidget.expressionLabels ?? [])"
-                    @input="selectedWidget.expressionLabels = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    :placeholder="selectedWidget.type === 'top' ? 'Traffic\nSlow\nSuccessful Rate' : 'count\nlatency'"
-                  ></textarea>
-                </div>
-                <div
-                  v-if="selectedWidget.type === 'top' || (selectedWidget.expressions?.length ?? 0) > 1"
-                  class="d-section"
-                >
-                  <span class="d-label">Expression units (one per line)</span>
-                  <textarea
-                    class="mono"
-                    rows="2"
-                    :value="expressionsToText(selectedWidget.expressionUnits ?? [])"
-                    @input="selectedWidget.expressionUnits = textToExpressions(($event.target as HTMLTextAreaElement).value)"
-                    placeholder="rpm&#10;ms&#10;%"
-                  ></textarea>
-                </div>
-                <div v-if="selectedWidget.type === 'line'" class="d-section">
-                  <span class="d-label">Y-axis index per expression (0 = left, 1 = right)</span>
-                  <input
-                    class="mono"
-                    :value="(selectedWidget.expressionAxes ?? []).join(',')"
-                    @input="selectedWidget.expressionAxes = (($event.target as HTMLInputElement).value || '').split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n))"
-                    placeholder="0,1"
-                  />
-                  <p class="d-hint">Comma-separated. Use for dual-axis line widgets.</p>
                 </div>
                 <div class="d-section">
                   <span class="d-label" :title="visibleWhenHint(activeScope)">
                     Visible when (optional)
                   </span>
-                  <input
-                    class="mono"
-                    v-model="selectedWidget.visibleWhen"
-                    :placeholder="visibleWhenPlaceholder(activeScope)"
-                  />
+                  <div class="vw-row">
+                    <select class="mono" v-model="vwKindModel">
+                      <option value="none">Always visible</option>
+                      <option value="mqe">MQE metric…</option>
+                      <option value="entity">Entity attribute…</option>
+                    </select>
+                    <template v-if="vwKindModel === 'mqe'">
+                      <MqeExpressionInput
+                        class="vw-target"
+                        v-model="vwTarget"
+                        placeholder="instance_jvm_cpu"
+                        title="Gate expression"
+                      />
+                      <select class="mono" v-model="vwOp">
+                        <option value="exists">has value</option>
+                        <option value="gt">&gt;</option>
+                        <option value="lt">&lt;</option>
+                      </select>
+                    </template>
+                    <template v-else-if="vwKindModel === 'entity'">
+                      <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
+                      <select class="mono" v-model="vwOp">
+                        <option value="exists">exists</option>
+                        <option value="eq">equals</option>
+                      </select>
+                    </template>
+                    <input
+                      v-if="vwNeedsValue"
+                      class="mono vw-val"
+                      v-model="vwValue"
+                      :type="vwKindModel === 'mqe' ? 'number' : 'text'"
+                      :placeholder="vwKindModel === 'entity' ? 'JAVA' : '0'"
+                    />
+                  </div>
+                  <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
+                    Set a metric expression — an empty gate is ignored and the widget always shows.
+                  </p>
+                  <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
                 </div>
                 <div class="d-section">
                   <label class="d-check">
@@ -2861,6 +3188,22 @@ const namingTest = computed<NamingTestResult>(() => {
               </div>
             </aside>
           </div>
+        </section>
+      </main>
+
+      <!-- Layer selected but no working copy: no local draft and no OAP
+           row. We deliberately do NOT auto-load the bundled default here
+           (bundled is the seed/reset source, never the runtime render);
+           the operator adopts it explicitly. -->
+      <main v-else-if="noPublishedVersion" class="detail">
+        <section class="sw-card no-remote-card">
+          <h3>{{ t('No published version on OAP') }}</h3>
+          <p>
+            {{ t('This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.') }}
+          </p>
+          <button class="sw-btn primary" type="button" :disabled="!bundledExists" @click="loadFrom('bundled')">
+            {{ t('Reset to bundled') }}
+          </button>
         </section>
       </main>
     </div>
@@ -2937,6 +3280,21 @@ const namingTest = computed<NamingTestResult>(() => {
   text-align: center;
   color: var(--sw-fg-3);
   font-size: 12px;
+}
+.no-remote-card {
+  padding: 24px;
+  max-width: 600px;
+}
+.no-remote-card h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--sw-fg-0);
+}
+.no-remote-card p {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--sw-fg-2);
 }
 .empty.inset {
   padding: 18px;
@@ -3353,13 +3711,43 @@ const namingTest = computed<NamingTestResult>(() => {
 .identity-delete { display: flex; align-items: center; gap: 8px; }
 .del-note { font-size: 10.5px; color: var(--sw-fg-3); font-style: italic; }
 
+.scope-tabs-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+}
 .scope-tabs {
   display: flex;
   gap: 2px;
-  padding: 6px;
-}
-.scope-tab {
   flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.scope-tabs::-webkit-scrollbar { display: none; }
+.scope-scroll {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 34px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  background: var(--sw-bg-1);
+  color: var(--sw-fg-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.scope-scroll:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
+.scope-tab {
+  /* Fill the strip when there's room, but never shrink/wrap — overflow
+     scrolls instead (see the chevron buttons + .scope-tabs overflow). */
+  flex: 1 0 auto;
+  white-space: nowrap;
   padding: 8px 12px;
   font-size: 11.5px;
   font-weight: 500;
@@ -3475,6 +3863,9 @@ const namingTest = computed<NamingTestResult>(() => {
 .menu-item-label { flex: 1; }
 .menu-item-arrow { color: var(--sw-fg-3); font-size: 13px; }
 .menu-item.on .menu-item-arrow { color: var(--sw-accent-2); }
+/* Instance map — a nested drill-down of Topology, not a sidebar entry. */
+.menu-item.is-child { margin-left: 16px; font-size: 11.5px; color: var(--sw-fg-3); }
+.menu-item.is-child:hover { color: var(--sw-fg-1); }
 .setup-right {
   display: flex;
   flex-direction: column;
@@ -3819,118 +4210,6 @@ const namingTest = computed<NamingTestResult>(() => {
   font-size: 10px;
 }
 
-/* Landing KPI tile preview: config head + a faithful copy of the real
- * layer header. The header classes below mirror LayerShell so the
- * preview matches the live page (kept in sync intentionally). */
-.kpi-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 4px 14px;
-}
-.kpi-config {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-}
-.kpi-config-title {
-  flex: 1 0 100%;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--sw-fg-1);
-}
-.kpi-config-title .sub {
-  margin-left: 6px;
-  font-weight: 400;
-  font-size: 10px;
-  color: var(--sw-fg-3);
-}
-.kpi-config label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--sw-fg-3);
-}
-.kpi-config select {
-  height: 28px;
-  padding: 0 8px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 11.5px;
-}
-.kpi-config select:focus { outline: none; border-color: var(--sw-accent); }
-/* ↓ mirrors LayerShell.vue .layer-head / .layer-id-row / .kpi-strip. */
-.preview-layer-head { padding: 14px; }
-.preview-layer-head .layer-id-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.preview-layer-head .icon-tile {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: -0.02em;
-  flex: 0 0 40px;
-  background-blend-mode: multiply;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-.preview-layer-head .identity-text { min-width: 0; }
-.preview-layer-head .title-row h1 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--sw-fg-0);
-  letter-spacing: -0.02em;
-}
-.preview-layer-head .sub {
-  margin-top: 4px;
-  font-size: 11.5px;
-  color: var(--sw-fg-3);
-}
-.preview-layer-head .kpi-strip {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  margin-left: auto;
-}
-.preview-layer-head .kpi { text-align: right; min-width: 80px; }
-.preview-layer-head .kpi-label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  margin-bottom: 2px;
-}
-.preview-layer-head .kpi-label .unit {
-  text-transform: none;
-  letter-spacing: 0;
-  margin-left: 2px;
-  font-size: 9.5px;
-}
-.preview-layer-head .kpi-value {
-  font-size: 18px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  color: var(--sw-fg-1);
-}
-.preview-layer-head .kpi-spark { display: block; margin-top: 4px; margin-left: auto; }
-
 /* Menu-label (slot alias) editor grid. */
 .alias-grid {
   display: grid;
@@ -4004,6 +4283,42 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 /* Topology / endpoint-dep form editor */
 .topo-cfg-card .topo-cfg-body { padding: 4px 0 0; }
+/* Group labels that separate Service topology from Instance topology. */
+.topo-cfg-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 16px 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.topo-cfg-group.with-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 22px;
+}
+.topo-cfg-group .tg-text { display: flex; flex-direction: column; gap: 2px; }
+.topo-cfg-group .tg-title { font-size: 12px; font-weight: 700; color: var(--sw-fg-0); }
+.topo-cfg-group .tg-sub { font-size: 10.5px; color: var(--sw-fg-3); }
+/* Instance-topology config lives in its own bordered card so it reads as
+   a distinct block from the service-topology metrics above it. */
+.topo-cfg-instance-block {
+  margin: 22px 16px 8px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
+  background: var(--sw-bg-1);
+  overflow: hidden;
+}
+.topo-cfg-instance-block .topo-cfg-group.with-toggle {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--sw-bg-2);
+}
+.topo-cfg-instance-block.enabled .topo-cfg-group.with-toggle { border-bottom: 1px solid var(--sw-line); }
+.topo-cfg-instance-block .topo-cfg-section { padding: 12px 14px; }
+.topo-cfg-instance-block .topo-cfg-section:last-child { border-bottom: none; }
 .topo-cfg-section {
   padding: 12px 16px;
   border-bottom: 1px solid var(--sw-line);
@@ -4386,7 +4701,16 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   background: var(--sw-bg-1);
   border-left: 1px solid var(--sw-line);
-  max-height: calc(100vh - 120px);
+  /* Sticky within the scrolling main pane (topbar is fixed above it, so
+   * top: 0 pins just below it) and full-height, so the editor uses the
+   * whole viewport and follows the canvas scroll instead of being a short
+   * box stranded at the top of a tall grid cell. `align-self: start`
+   * stops the grid from stretching it (which would defeat sticky). */
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: calc(100vh - 52px);
+  max-height: calc(100vh - 52px);
 }
 .drawer-head {
   display: flex;
@@ -4421,6 +4745,8 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .d-row {
   display: flex;
@@ -4488,6 +4814,62 @@ const namingTest = computed<NamingTestResult>(() => {
   outline: none;
   border-color: var(--sw-accent-line);
 }
+.d-section select {
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-0);
+  font: inherit;
+  font-size: 11px;
+  height: 26px;
+  padding: 0 6px;
+}
+.d-section select.mono { font-family: var(--sw-mono); }
+.d-section select:focus { outline: none; border-color: var(--sw-accent-line); }
+.vw-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.vw-row .vw-target { flex: 1 1 140px; min-width: 90px; }
+.vw-row .vw-val { width: 72px; flex: 0 0 auto; }
+.vw-row select { flex: 0 0 auto; }
+.expr-rows { display: flex; flex-direction: column; gap: 4px; }
+.expr-row { display: flex; gap: 6px; align-items: center; }
+.expr-row .expr-mqe { flex: 1 1 auto; min-width: 0; }
+.expr-row .expr-label { flex: 0 0 84px; width: 84px; }
+.expr-row .expr-unit { flex: 0 0 52px; width: 52px; }
+.expr-row .expr-axis { flex: 0 0 46px; width: 46px; padding: 0 4px; }
+.expr-del {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 26px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.expr-del:hover:not([disabled]) { color: var(--sw-err); border-color: var(--sw-err); }
+.expr-del[disabled] { opacity: 0.35; cursor: default; }
+.expr-cols {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 1px;
+  font-size: 9.5px;
+  color: var(--sw-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.expr-cols .expr-col-mqe { flex: 1 1 auto; }
+.expr-cols .expr-col-label { flex: 0 0 84px; }
+.expr-cols .expr-col-unit { flex: 0 0 52px; }
+.expr-cols .expr-col-axis { flex: 0 0 46px; }
+.expr-cols .expr-col-del { flex: 0 0 24px; }
+.expr-add { margin-top: 4px; align-self: flex-start; }
 .d-hint {
   font-size: 10px;
   color: var(--sw-fg-3);

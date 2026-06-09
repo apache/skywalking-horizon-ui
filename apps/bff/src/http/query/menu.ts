@@ -28,7 +28,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
-import { allLayerTemplates, getLayerTemplate, type LayerComponentFlags, type LayerTemplate } from '../../logic/layers/loader.js';
+import type { LayerComponentFlags, LayerTemplate } from '../../logic/layers/loader.js';
 import { getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import { formatName, parseEnvelope } from '../../logic/templates/names.js';
@@ -36,7 +36,8 @@ import type { TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
-import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
+import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
 /**
  * Map the JSON config's `components.*` flags onto the wire `caps`
@@ -44,20 +45,6 @@ import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.j
  * consults. We expand a few aliases (service ⇒ no separate cap; the
  * components flag is the source of truth for whether the page exists).
  */
-/** Fill component flags the live template omits from the bundled one, so
- *  a newly-shipped capability surfaces on an OAP whose stored template
- *  predates it (no re-push needed). Flags the live template defines
- *  (true OR false) are kept; bundled only fills `undefined` keys. */
-function mergeComponentFallback(rawKey: string, live: LayerComponentFlags): LayerComponentFlags {
-  const bundled = getLayerTemplate(rawKey)?.components;
-  if (!bundled) return live;
-  const merged: LayerComponentFlags = { ...live };
-  for (const [k, v] of Object.entries(bundled) as [keyof LayerComponentFlags, boolean][]) {
-    if (merged[k] === undefined) merged[k] = v;
-  }
-  return merged;
-}
-
 function componentsToCaps(components: LayerComponentFlags): LayerCaps {
   return {
     dashboards: components.service !== false,
@@ -65,7 +52,10 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     endpoints: !!components.endpoints,
     endpointDependency: !!components.endpointDependency,
     serviceMap: !!components.topology,
-    instanceTopology: !!components.topology,
+    // instanceTopology is gated by the presence of the
+    // topology.instanceTopology config block, not the component flag —
+    // overridden per-layer at the call site (see resolveLayerDef).
+    instanceTopology: false,
     processTopology: !!components.topology,
     traces: !!components.traces,
     logs: !!components.logs,
@@ -108,16 +98,20 @@ interface LayerSyncSnapshot {
    *  `pickLayerContent`. Empty when OAP is unreachable; the menu
    *  then falls back to bundled cleanly. */
   layerRowsByName: Map<string, TemplateRow>;
+  /** All sync rows (incl. per-locale overlay rows) so the menu can apply
+   *  the live OAP translation overlay on top of the disk overlay — same
+   *  remote-first localization the config-bundle endpoint does. */
+  rows: TemplateRow[];
 }
 
-/** Read the shared 30s sync cache once and project the two things the
- *  menu needs out of it: which layer rows are admin-disabled, and the
- *  full per-name remote envelope content so the menu can prefer
- *  operator edits over disk-bundled defaults. Soft-fails to an empty
- *  snapshot so the sidebar never breaks because the template status
- *  couldn't be read. */
+/** Read the shared 30s sync cache once and project the things the menu
+ *  needs out of it: which layer rows are admin-disabled, the full
+ *  per-name remote envelope content so the menu can prefer operator edits
+ *  over disk-bundled defaults, and all rows for OAP translation overlays.
+ *  Soft-fails to an empty snapshot so the sidebar never breaks because the
+ *  template status couldn't be read. */
 async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot> {
-  const empty: LayerSyncSnapshot = { disabled: new Set(), layerRowsByName: new Map() };
+  const empty: LayerSyncSnapshot = { disabled: new Set(), layerRowsByName: new Map(), rows: [] };
   if (!deps.uiTemplateClient) return empty;
   try {
     const sync = await getSyncStatus({
@@ -136,7 +130,7 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
         disabled.add(canonical(row.key.toUpperCase()));
       }
     }
-    return { disabled, layerRowsByName };
+    return { disabled, layerRowsByName, rows: sync.rows };
   } catch {
     // Status unavailable — show every layer rather than hide wrongly.
   }
@@ -188,7 +182,7 @@ const LAYER_DEFAULTS: Record<string, { color: string; slots: LayerSlots; caps: L
     color: 'var(--sw-accent)',
     slots: { services: 'Services', instances: 'Instances', endpoints: 'API', endpointDependency: 'API dependency' },
     caps: {
-      serviceMap: true, endpointDependency: true, instanceTopology: true, processTopology: true,
+      serviceMap: true, endpointDependency: true, processTopology: true,
       dashboards: true, traces: true, logs: true,
       traceProfiling: true, ebpfProfiling: true, asyncProfiling: true, events: true,
     },
@@ -197,14 +191,14 @@ const LAYER_DEFAULTS: Record<string, { color: string; slots: LayerSlots; caps: L
     color: 'var(--sw-info)',
     slots: { services: 'Services', instances: 'Sidecars', endpoints: 'Endpoints' },
     caps: {
-      serviceMap: true, endpointDependency: true, instanceTopology: true,
+      serviceMap: true, endpointDependency: true,
       dashboards: true, traces: true, logs: true, events: true,
     },
   },
   MESH_CP: { color: 'var(--sw-info)', slots: { services: 'Control-plane services' }, caps: { dashboards: true } },
-  MESH_DP: { color: 'var(--sw-info)', slots: { services: 'Data-plane services', instances: 'Sidecars' }, caps: { dashboards: true, instanceTopology: true } },
-  K8S: { color: 'var(--sw-purple)', slots: { services: 'Workloads', instances: 'Pods' }, caps: { serviceMap: true, instanceTopology: true, dashboards: true, events: true } },
-  K8S_SERVICE: { color: 'var(--sw-purple)', slots: { services: 'K8s services', instances: 'Pods' }, caps: { serviceMap: true, instanceTopology: true, dashboards: true } },
+  MESH_DP: { color: 'var(--sw-info)', slots: { services: 'Data-plane services', instances: 'Sidecars' }, caps: { dashboards: true } },
+  K8S: { color: 'var(--sw-purple)', slots: { services: 'Workloads', instances: 'Pods' }, caps: { serviceMap: true, dashboards: true, events: true } },
+  K8S_SERVICE: { color: 'var(--sw-purple)', slots: { services: 'K8s services', instances: 'Pods' }, caps: { serviceMap: true, dashboards: true } },
   BROWSER: { color: 'var(--sw-cyan)', slots: { services: 'Applications', instances: 'Versions', endpoints: 'Pages' }, caps: { dashboards: true, traces: true, logs: true } },
   MYSQL: { color: 'var(--sw-warn)', slots: { services: 'Instances' }, caps: { dashboards: true } },
   POSTGRESQL: { color: 'var(--sw-warn)', slots: { services: 'Instances' }, caps: { dashboards: true } },
@@ -230,21 +224,19 @@ const DEFAULT_FOR_UNKNOWN_LAYER = {
 };
 
 /** Resolve the layer template the menu should serve for `rawKey`,
- *  matching the bundle endpoint's `pickLayerContent` precedence:
+ *  matching the bundle endpoint + the per-page routes: REMOTE-only.
  *    1. remote OAP UI-template row, when present + not disabled
  *       (operator edits go live the moment they push) ;
- *    2. disk-bundled template, when remote is absent ;
- *    3. null when neither exists (caller falls back to LAYER_DEFAULTS).
- *  Mirrors the bundle endpoint so the sidebar metadata and the
- *  rendered per-layer pages agree on which version of a template is
- *  live — previously the menu always read disk, so an operator who
- *  pushed an edited `components` set saw the dashboard reflect it
- *  while the sidebar caps / slots / alias stayed on the disk copy. */
+ *    2. null otherwise — the caller (`deriveLayer`) then renders the
+ *       in-code `LAYER_DEFAULTS`, NOT the disk-bundled template.
+ *  Bundled disk content is the seed/reset source (it syncs INTO remote
+ *  on boot), never a render-time fallback: when the template store is
+ *  unreachable, the snapshot is empty → every layer resolves to its
+ *  hard-coded default here, and the per-page features block. */
 function resolveLayerTemplate(
   rawKey: string,
   layerRowsByName: Map<string, TemplateRow>,
 ): LayerTemplate | null {
-  const bundled = getLayerTemplate(rawKey);
   const row = layerRowsByName.get(formatName('layer', rawKey.toUpperCase()));
   if (row && row.status !== 'disabled' && row.effective === 'remote' && row.remote) {
     const env = parseEnvelope(row.remote.configuration);
@@ -252,7 +244,7 @@ function resolveLayerTemplate(
       return env.content as LayerTemplate;
     }
   }
-  return bundled;
+  return null;
 }
 
 function deriveLayer(
@@ -263,18 +255,19 @@ function deriveLayer(
   normal: boolean | null,
   locale: Locale,
   layerRowsByName: Map<string, TemplateRow>,
+  /** Live OAP translation overlay content for this (layer, locale), or
+   *  null — applied on top of the disk overlay (remote wins per leaf). */
+  oapOverlay: unknown,
 ): LayerDef {
   // Remote (OAP) wins when present — alias / color / slots / caps /
   // components / documentLink follow the operator's published edits.
-  // Disk-bundled template is the fallback for remote-absent layers
-  // (bundled-only / OAP unreachable). Hardcoded LAYER_DEFAULTS only
-  // applies for layers without ANY template (older OAP layers, custom
-  // layers added on-the-fly by an OAP plugin we don't ship a template
-  // for).
+  // When no remote row is live (not yet synced, OR the template store is
+  // unreachable so the snapshot is empty), we fall to the hard-coded
+  // LAYER_DEFAULTS — NOT the disk-bundled template. Bundled is the
+  // seed/reset source, never a render-time fallback; the per-page
+  // features block in that state while the sidebar still navigates.
   const rawTpl = resolveLayerTemplate(rawKey, layerRowsByName);
-  const tpl = rawTpl
-    ? localize<LayerTemplate>(rawTpl, getLayerOverlay(rawKey, locale), locale)
-    : null;
+  const tpl = rawTpl ? localizeContent<LayerTemplate>(rawTpl, oapOverlay, locale) : null;
   if (tpl) {
     return {
       key: rawKey.toLowerCase(),
@@ -288,9 +281,26 @@ function deriveLayer(
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
       slots: tpl.slots,
-      // Bundled fills component flags the live template omits (see
-      // mergeComponentFallback) — scoped to caps, not widgets/metrics.
-      caps: componentsToCaps(mergeComponentFallback(rawKey, tpl.components)),
+      // Caps come straight from the in-use (remote-or-bundled) template's
+      // component flags — remote-first. Missing flags fall to the
+      // componentsToCaps defaults, never to the bundled copy of an
+      // already-published layer: bundled is the seed/reset source (it
+      // syncs INTO remote on boot), not a render-time merge partner.
+      // instanceTopology cap follows the served topology config's
+      // `instanceTopology` block (same source the topology routes read),
+      // so the Instance-map drill-down only appears where it's configured.
+      caps: ((): LayerCaps => {
+        const c = componentsToCaps(tpl.components);
+        // Read the EFFECTIVE (remote-or-bundled) template — the same one
+        // the topology routes serve — so the Instance-map drill-down is
+        // available iff it's enabled on the in-use template, matching the
+        // admin. Gate on the parent Topology component (`serviceMap` =
+        // `components.topology`): instance topology is a drill-down OF the
+        // topology map, so disabling the Topology component must hide it
+        // too — even if a stale `topology.instanceTopology` block lingers.
+        c.instanceTopology = c.serviceMap && !!rawTpl?.topology?.instanceTopology;
+        return c;
+      })(),
       header: tpl.header,
       metrics: tpl.metrics,
       overview: tpl.overview,
@@ -348,14 +358,19 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         }
       }
 
-      // Catalog order = the order the JSON layer templates are loaded
-      // (filesystem order under bundled_templates/layers/, alphabetical
-      // by basename). Active OAP-reported layers that have no template
-      // get appended at the end so nothing disappears from the sidebar.
+      // Runtime registry = the layer templates synced to OAP, NOT the disk
+      // bundle. The same snapshot also gives the disabled set + per-layer
+      // remote content for deriveLayer. (Disk files reach OAP only via
+      // boot-seed / admin reset; they're never read at render time.)
+      const { disabled, layerRowsByName, rows } = await layerSyncSnapshot(deps);
+
+      // Order = the synced layer rows (sorted by key), then any OAP-active
+      // layer with no synced template, appended so nothing disappears.
       const ordered: string[] = [];
       const seen = new Set<string>();
-      for (const tpl of allLayerTemplates()) {
-        const k = canonical(tpl.key.toUpperCase());
+      for (const row of rows) {
+        if (row.kind !== 'layer' || row.locale !== undefined) continue;
+        const k = canonical(row.key.toUpperCase());
         if (seen.has(k)) continue;
         seen.add(k);
         ordered.push(k);
@@ -376,12 +391,8 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // feedback. Add more keys here if other internal-only layers
       // need the same treatment.
       const HIDDEN_LAYERS = new Set(['BANYANDB']);
-      // Layers whose template was disabled in the admin — soft-deleted, so
-      // drop them from the sidebar (matches how disabled overviews vanish).
-      // Same sync read also gives us the per-layer remote envelope content
-      // so deriveLayer can prefer operator-pushed edits over disk-bundled
-      // defaults (alias / components / slots / caps / colour).
-      const { disabled, layerRowsByName } = await layerSyncSnapshot(deps);
+      // Disabled-in-admin layers are soft-deleted — drop from the sidebar
+      // (matches how disabled overviews vanish).
       const layers = ordered
         .filter((key) => !HIDDEN_LAYERS.has(key) && !disabled.has(key))
         .map((key) =>
@@ -393,6 +404,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             normalByCanonical.get(key) ?? null,
             locale,
             layerRowsByName,
+            oapOverlayContentFromRows(rows, 'layer', key, locale),
           ),
         );
 
@@ -403,22 +415,22 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       };
       return reply.send(body);
     } catch (err) {
-      // OAP unreachable — fall back to the bundled layer templates so the
-      // sidebar still renders navigation (each page surfaces its own
-      // OAP-down state). Service counts are unknown (-1) and layers are
-      // marked inactive; everything else (alias / color / slots / caps)
-      // comes from the bundled template — no remote rows available, so
-      // we pass an empty row map and deriveLayer falls through to
-      // bundled cleanly.
+      // OAP query unreachable — no layer list from OAP. Render a hard-coded
+      // skeleton from the well-known LAYER_DEFAULTS keys so the shell still
+      // navigates (each page surfaces its own OAP-down state, and the
+      // banner explains). NOT the disk bundle: the runtime never reads
+      // bundled files; defaults here are the in-code LAYER_DEFAULTS that
+      // deriveLayer falls to on an empty row map. Counts unknown (-1),
+      // layers inactive.
       const HIDDEN_LAYERS = new Set(['BANYANDB']);
       const seen = new Set<string>();
       const layers: LayerDef[] = [];
       const emptyRows = new Map<string, TemplateRow>();
-      for (const tpl of allLayerTemplates()) {
-        const key = canonical(tpl.key.toUpperCase());
+      for (const rawKey of Object.keys(LAYER_DEFAULTS)) {
+        const key = canonical(rawKey);
         if (seen.has(key) || HIDDEN_LAYERS.has(key)) continue;
         seen.add(key);
-        layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows));
+        layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows, null));
       }
       const body: MenuResponse = {
         layers,

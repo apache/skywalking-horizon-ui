@@ -38,17 +38,22 @@ import type {
   EndpointDependencyResponse,
   FetchLike,
   TopologyMetricDef,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
-import { endpointDependencyConfigFor, getLayerTemplate } from '../../logic/layers/loader.js';
+import { endpointDependencyConfigFor } from '../../logic/layers/loader.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { parsePreviewEndpointDep } from '../../logic/layers/preview.js';
 
 export interface EndpointDependencyRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 interface OapEpNode {
@@ -248,14 +253,26 @@ export function registerEndpointDependencyRoute(
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string; endpoint?: string };
+      const q = req.query as { service?: string; endpoint?: string; previewConfig?: string };
       const serviceArg = (q.service ?? '').trim();
       const endpointArg = (q.endpoint ?? '').trim();
       if (!serviceArg) return reply.code(400).send({ error: 'missing_service' });
       if (!endpointArg) return reply.code(400).send({ error: 'missing_endpoint' });
 
-      const template = getLayerTemplate(layerKey);
-      const epCfg: EndpointDependencyConfig = endpointDependencyConfigFor(template);
+      // Admin Preview: render the operator's draft `endpointDependency`
+      // block when forwarded + valid (bypasses the remote resolve + block).
+      const previewCfg = parsePreviewEndpointDep(q.previewConfig);
+      let epCfg: EndpointDependencyConfig;
+      if (previewCfg) {
+        epCfg = previewCfg;
+      } else {
+        const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+        if (eff.blocked) {
+          // Template store unreachable / layer disabled — block, no defaults.
+          return reply.send(emptyResponse(layerKey, serviceArg, endpointArg, null, { nodeMetrics: [] }, true));
+        }
+        epCfg = endpointDependencyConfigFor(eff.template);
+      }
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);

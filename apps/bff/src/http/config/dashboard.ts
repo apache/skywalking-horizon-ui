@@ -24,21 +24,26 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
-  getLayerTemplate,
   widgetsForScope,
   type LayerTemplate,
 } from '../../logic/layers/loader.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 import { scopeSchema } from '../query/dashboard.js';
-import { localize, getLayerOverlay, localeFromRequest } from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface DashboardConfigDeps {
   config: ConfigSource;
   sessions: SessionStore;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled)
+   *  widget config, matching the admin + the config-bundle endpoint. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 export function registerDashboardConfigRoute(app: FastifyInstance, deps: DashboardConfigDeps): void {
@@ -55,12 +60,25 @@ export function registerDashboardConfigRoute(app: FastifyInstance, deps: Dashboa
       const q = req.query as { scope?: string };
       const scopeParsed = q.scope ? scopeSchema.safeParse(q.scope) : null;
       const scope = scopeParsed?.success ? scopeParsed.data : 'service';
-      const rawTpl = getLayerTemplate(layerKey);
+      const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+      if (eff.blocked) {
+        // Template store unreachable / layer disabled — block: empty grid,
+        // no in-code defaults. The SPA's banner explains the empty state.
+        return reply.send({ layer: layerKey, scope, widgets: [] });
+      }
+      const rawTpl = eff.template;
       const locale = localeFromRequest(req);
       const tpl = rawTpl
-        ? localize<LayerTemplate>(rawTpl, getLayerOverlay(layerKey, locale), locale)
+        ? localizeContent<LayerTemplate>(
+            rawTpl,
+            // Overlay rows key on the canonical UPPER_SNAKE layer key
+            // (`GENERAL`), not the lowercase URL param — pass the template's
+            // own key so the OAP translation overlay row actually matches.
+            await oapOverlayContentFor(deps.uiTemplateClient, 'layer', rawTpl.key, locale),
+            locale,
+          )
         : null;
-      const widgets = tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(layerKey);
+      const widgets = tpl ? widgetsForScope(tpl, scope) : defaultWidgetsFor(rawTpl, layerKey);
       return reply.send({ layer: layerKey, scope, widgets });
     },
   );

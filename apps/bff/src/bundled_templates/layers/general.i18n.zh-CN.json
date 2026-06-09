@@ -248,7 +248,26 @@
       { "label": "平均响应时间" },
       { "label": "p95" },
       { "label": "SLA" }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "SLA" },
+        { "label": "延迟" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "平均响应时间" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "平均响应时间" },
+        { "label": "p95" },
+        { "label": "SLA" }
+      ]
+    }
   },
   "endpointDependency": {
     "nodeMetrics": [

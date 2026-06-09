@@ -47,6 +47,8 @@ export class TraceApi {
       windowMinutes?: number;
       start?: string;
       end?: string;
+      /** Admin preview: the operator's draft `traces` block (JSON string). */
+      previewConfig?: string;
     } = {},
   ): Promise<TraceListResponse> {
     return this.bff.request<TraceListResponse>(

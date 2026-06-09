@@ -45,7 +45,9 @@ function layerRoute(): RouteRecordRaw {
       { path: 'endpoint', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
       {
         path: 'topology',
-        component: () => import('@/layer/service-map/LayerServiceMapView.vue'),
+        // Topology tab shell: Service map, plus an Instance map sub-tab
+        // when the layer enables instance topology (?view=service|instance).
+        component: () => import('@/layer/service-map/LayerTopologyTab.vue'),
         // The topology page ships its own in-box service-focus selector
         // (the map is layer-wide by default). Declaring it here keeps
         // the LayerShell's header picker hidden for this route — no

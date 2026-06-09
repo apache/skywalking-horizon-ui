@@ -24,16 +24,13 @@
  * ```
  *  {
  *    topN, orderBy, columns: LandingColumn[],
- *    spark?: { metric, height },
- *    throughput?: ThroughputConfig,
  *  }
  * ```
  *
  * One GraphQL trip lists services, a second batches per-service column
- * MQE values (one alias per service × column), a third optional trip
- * fetches the sparkline + throughput series for the surviving topN
- * rows. Errors anywhere in the MQE batch are local — failing cells
- * become `null`, the rest of the response stands.
+ * MQE values (one alias per service × column). Errors anywhere in the
+ * MQE batch are local — failing cells become `null`, the rest of the
+ * response stands.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -94,22 +91,33 @@ const LIST_SERVICES_QUERY = /* GraphQL */ `
 `;
 
 const DEFAULT_WINDOW_MIN = 60;
-const SERVICE_QUERY_CAP = 25;
+// Services × columns are chunked into batches of N services per OAP
+// round-trip — OAP enforces a per-request GraphQL complexity ceiling, so a
+// 25×10 single batch reliably 5xx'd busy backends and blanked every cell.
+// The batches then drain through a bounded-concurrency pool so a large
+// layer fans out in controlled waves, not a thundering herd. The number of
+// services probed per request is itself bounded by `query.landingServiceCap`.
+const MAX_SERVICES_PER_BATCH = 6;
+const LANDING_BATCH_CONCURRENCY = 8;
+
+/** Run `fn` over `items` with at most `limit` promises in flight at once. */
+async function mapPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        await fn(items[i]);
+      }
+    }),
+  );
+}
 
 const aggSchema = z.enum(['sum', 'avg']);
 const columnSchema = z.object({
   metric: z.string().min(1),
   label: z.string().min(1),
   tip: z.string().optional(),
-  unit: z.string().optional(),
-  mqe: z.string().optional(),
-  aggregation: aggSchema.optional(),
-  scale: z.number().finite().optional(),
-  precision: z.number().int().min(0).max(6).optional(),
-});
-const throughputSchema = z.object({
-  metric: z.string().min(1),
-  label: z.string().optional(),
   unit: z.string().optional(),
   mqe: z.string().optional(),
   aggregation: aggSchema.optional(),
@@ -124,10 +132,6 @@ const bodySchema = z.object({
   // per-layer header columns. Up to 3 + 5 = 8 in the worst case; 10
   // gives headroom without making the BFF wide-open.
   columns: z.array(columnSchema).max(10),
-  spark: z
-    .object({ metric: z.string().min(1), height: z.number().int().positive() })
-    .optional(),
-  throughput: throughputSchema.optional(),
   // Topbar time picker — same triplet shape the dashboard route accepts.
   // When all three are present the BFF queries OAP at the requested
   // window/precision; otherwise it falls back to the last-hour MINUTE
@@ -224,10 +228,6 @@ function aggregateSeries(
     }
   }
   return out;
-}
-
-function alias(serviceIdx: number, columnIdx: number): string {
-  return `r${serviceIdx}_c${columnIdx}`;
 }
 
 interface MqeRequest {
@@ -329,69 +329,97 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       }
 
       // Step 2 — resolve MQE expressions per column.
-      const sampled = services.slice(0, SERVICE_QUERY_CAP);
       const resolved = cfg.columns.map((c) => ({
         column: c,
         expression: resolveMqe(c.metric, c.mqe, layerKey),
       }));
-
       const coldStage = !!req.coldStage;
-      // Chunk services × columns into batches of N services per
-      // round-trip, fired in parallel. OAP's GraphQL server enforces a
-      // per-request complexity ceiling — same reason the dashboard route
-      // pins at 6 widgets per trip (see dashboard.ts:555). A 25-service
-      // × 10-column landing in one batch is 250 fragments and reliably
-      // 5xx'd on busy backends, blanking every cell. Chunked +
-      // Promise.all keeps wall-clock close to a single round-trip.
-      const MAX_SERVICES_PER_BATCH = 6;
-      const serviceChunks: { svc: (typeof sampled)[number]; sIdx: number }[][] = [];
-      for (let i = 0; i < sampled.length; i += MAX_SERVICES_PER_BATCH) {
-        serviceChunks.push(
-          sampled.slice(i, i + MAX_SERVICES_PER_BATCH).map((svc, idxInChunk) => ({
-            svc,
-            sIdx: i + idxInChunk,
-          })),
-        );
-      }
-      let mqeData: Record<string, MqeResultShape> = {};
-      if (sampled.length > 0 && resolved.some((r) => !!r.expression)) {
-        try {
-          const chunkResults = await Promise.all(
-            serviceChunks.map(async (chunk) => {
-              const fragments: string[] = [];
-              for (const { svc, sIdx } of chunk) {
-                resolved.forEach(({ expression }, cIdx) => {
-                  if (!expression) return;
-                  fragments.push(
-                    buildMqeFragment(
-                      alias(sIdx, cIdx),
-                      { expression, serviceName: svc.value, normal: svc.normal !== false },
-                      window,
-                      coldStage,
-                    ),
-                  );
-                });
-              }
-              if (fragments.length === 0) return {} as Record<string, MqeResultShape>;
-              const query = `query LandingMqe { ${fragments.join('\n    ')} }`;
-              return graphqlPost<Record<string, MqeResultShape>>(opts, query);
-            }),
-          );
-          for (const chunk of chunkResults) Object.assign(mqeData, chunk);
-        } catch {
-          mqeData = {};
+
+      // Probe `cols` for every service in `svcList`, chunked into
+      // per-request batches and drained through the bounded pool. Keyed by
+      // `${serviceId}#${colIdx}` so the row assembly reads back by id, not
+      // by a fragile global index. Per-batch failures are local — those
+      // cells just stay empty.
+      const probeColumns = async (
+        svcList: typeof services,
+        cols: typeof resolved,
+      ): Promise<Map<string, MqeResultShape>> => {
+        const out = new Map<string, MqeResultShape>();
+        if (svcList.length === 0 || !cols.some((c) => !!c.expression)) return out;
+        const chunks: (typeof svcList)[] = [];
+        for (let i = 0; i < svcList.length; i += MAX_SERVICES_PER_BATCH) {
+          chunks.push(svcList.slice(i, i + MAX_SERVICES_PER_BATCH));
+        }
+        await mapPool(chunks, LANDING_BATCH_CONCURRENCY, async (batch) => {
+          const fragments: string[] = [];
+          const back: { a: string; key: string }[] = [];
+          batch.forEach((svc, li) => {
+            cols.forEach(({ expression }, ci) => {
+              if (!expression) return;
+              const a = `s${li}c${ci}`;
+              back.push({ a, key: `${svc.id}#${ci}` });
+              fragments.push(
+                buildMqeFragment(
+                  a,
+                  { expression, serviceName: svc.value, normal: svc.normal !== false },
+                  window,
+                  coldStage,
+                ),
+              );
+            });
+          });
+          if (fragments.length === 0) return;
+          try {
+            const data = await graphqlPost<Record<string, MqeResultShape>>(
+              opts,
+              `query LandingMqe { ${fragments.join('\n    ')} }`,
+            );
+            for (const { a, key } of back) {
+              if (data[a] !== undefined) out.set(key, data[a]);
+            }
+          } catch {
+            /* batch-local failure → leave those cells empty */
+          }
+        });
+        return out;
+      };
+
+      // Bound the column fan-out to `landingServiceCap` services. The
+      // landing lists ALL services; when a layer exceeds the cap we run a
+      // cheap single-metric ranking pass (the `orderBy` column over every
+      // service) to pick the TRUE top-`cap`, then fetch the full columns for
+      // just those. At or under the cap we probe everyone directly. The UI
+      // surfaces "top N of M" so the trim is never silent.
+      const cap = deps.config.current.query.landingServiceCap;
+      let sampled = services;
+      if (totalServiceCount > cap) {
+        const orderByCol = resolved.find((r) => r.column.metric === cfg.orderBy && r.expression);
+        if (orderByCol) {
+          const ranked = await probeColumns(services, [orderByCol]);
+          const scored = services.map((svc) => ({ svc, v: collapseToScalar(ranked.get(`${svc.id}#0`)) }));
+          scored.sort((a, b) => {
+            if (a.v == null && b.v == null) return 0;
+            if (a.v == null) return 1;
+            if (b.v == null) return -1;
+            return b.v - a.v;
+          });
+          sampled = scored.slice(0, cap).map((x) => x.svc);
+        } else {
+          // No orderBy column to rank by — fall back to the first `cap`.
+          sampled = services.slice(0, cap);
         }
       }
+      const probed = await probeColumns(sampled, resolved);
 
       // Step 3 — assemble per-row metrics + retain the per-bucket
       // series so the layer header can render a sparkline under each
       // KPI (aggregated point-wise across topN below).
       const seriesByServiceMetric = new Map<string, Map<string, Array<number | null>>>();
-      const rows: LandingServiceRow[] = sampled.map((svc, sIdx) => {
+      const rows: LandingServiceRow[] = sampled.map((svc) => {
         const metrics: Record<string, number | null> = {};
         const seriesMap = new Map<string, Array<number | null>>();
         resolved.forEach(({ column }, cIdx) => {
-          const raw = mqeData[alias(sIdx, cIdx)];
+          const raw = probed.get(`${svc.id}#${cIdx}`);
           const series = collapseToSeries(raw);
           if (series) {
             seriesMap.set(
@@ -426,69 +454,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       });
       const topRows = rows.slice(0, cfg.topN);
 
-      // Step 5 — sparkline + throughput series for the surviving topN.
-      const sparkExpr = cfg.spark ? resolveMqe(cfg.spark.metric, undefined, layerKey) : null;
-      const throughputCol = cfg.throughput;
-      const throughputExpr = throughputCol
-        ? resolveMqe(throughputCol.metric, throughputCol.mqe, layerKey)
-        : null;
-
-      // The throughput tile reuses one MQE call per surviving row — but
-      // only when it's a different expression than the column already
-      // fetched. Most setups will pick throughput = orderBy, so we just
-      // reuse `rows` values in that case.
-      const sparkSeriesByRow = new Map<number, Array<number | null>>();
-      const throughputSeriesByRow = new Map<number, Array<number | null>>();
-
-      if ((sparkExpr || throughputExpr) && topRows.length > 0) {
-        const sparkFragments: string[] = [];
-        topRows.forEach((row, i) => {
-          const svc = sampled.find((s) => s.id === row.serviceId);
-          if (!svc) return;
-          const r: MqeRequest = { expression: '', serviceName: svc.value, normal: svc.normal !== false };
-          if (sparkExpr) {
-            sparkFragments.push(buildMqeFragment(`s${i}`, { ...r, expression: sparkExpr }, window, coldStage));
-          }
-          if (throughputExpr && throughputExpr !== sparkExpr) {
-            sparkFragments.push(buildMqeFragment(`t${i}`, { ...r, expression: throughputExpr }, window, coldStage));
-          }
-        });
-        if (sparkFragments.length > 0) {
-          const sparkQuery = `query LandingSpark { ${sparkFragments.join('\n    ')} }`;
-          try {
-            const sparkData = await graphqlPost<Record<string, MqeResultShape>>(opts, sparkQuery);
-            topRows.forEach((row, i) => {
-              const sk = sparkExpr ? collapseToSeries(sparkData[`s${i}`]) : null;
-              if (sk && cfg.spark) {
-                // Spark inherits the orderBy column's scale/precision if
-                // we have a matching column; otherwise raw.
-                const matchedCol = cfg.columns.find((c) => c.metric === cfg.spark!.metric);
-                const scaled = sk.map((v) =>
-                  postProcess(v, matchedCol?.scale, matchedCol?.precision),
-                );
-                row.spark = scaled;
-                sparkSeriesByRow.set(i, scaled);
-              }
-              if (throughputExpr) {
-                const series =
-                  throughputExpr === sparkExpr
-                    ? sk
-                    : collapseToSeries(sparkData[`t${i}`]);
-                if (series) {
-                  const scaled = series.map((v) =>
-                    postProcess(v, throughputCol?.scale, throughputCol?.precision),
-                  );
-                  throughputSeriesByRow.set(i, scaled);
-                }
-              }
-            });
-          } catch {
-            // Soft-fail: leave spark / throughput-spark empty.
-          }
-        }
-      }
-
-      // Step 6 — aggregates for the KPI tile.
+      // Step 5 — aggregates for the KPI tile. Each header column becomes a
+      // KPI: a point value (sum/avg across the topN per the column's
+      // `aggregation`) plus the point-wise aggregated series the header
+      // renders as a trend line beneath it.
       const aggregates: LandingAggregates = {
         serviceCount: totalServiceCount,
         metrics: {},
@@ -507,31 +476,6 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         );
         const agg = aggregateSeries(colSeries, kind);
         if (agg) aggregates.seriesByMetric[col.metric] = agg;
-      }
-      if (throughputCol) {
-        const kind: AggregationKind = throughputCol.aggregation ?? 'sum';
-        // Value: either reuse the per-row column value (when throughput
-        // matches a column) or compute it now from the throughput series.
-        const matchingCol = cfg.columns.find((c) => c.metric === throughputCol.metric);
-        const values = matchingCol
-          ? topRows.map((r) => r.metrics[throughputCol.metric] ?? null)
-          : topRows.map((_, i) => {
-              const series = throughputSeriesByRow.get(i);
-              if (!series) return null;
-              const finite = series.filter((v): v is number => v !== null);
-              if (finite.length === 0) return null;
-              return finite.reduce((a, b) => a + b, 0) / finite.length;
-            });
-        aggregates.throughputMetric = throughputCol.metric;
-        aggregates.throughputValue = aggregate(values, kind);
-        const seriesList = topRows.map((_, i) => throughputSeriesByRow.get(i));
-        aggregates.spark = aggregateSeries(seriesList, kind);
-      } else if (cfg.spark) {
-        // No throughput configured — surface the spark metric's aggregated
-        // series as a fallback so the KPI tile still has a trend line.
-        const kind: AggregationKind = 'avg';
-        const seriesList = topRows.map((_, i) => sparkSeriesByRow.get(i));
-        aggregates.spark = aggregateSeries(seriesList, kind);
       }
 
       const body: LandingResponse = {

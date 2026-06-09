@@ -205,7 +205,17 @@
       {
         "label": "평균 지연 시간"
       }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "평균 지연 시간" }
+      ],
+      "linkServerMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "평균 지연 시간" }
+      ]
+    }
   },
   "slots": {
     "services": "서비스",

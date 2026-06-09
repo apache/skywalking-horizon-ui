@@ -304,6 +304,21 @@ const debugLogSchema = z
     redactAuthHeaders: true,
   });
 
+const querySchema = z
+  .object({
+    /** Max services a layer landing runs metric MQE for, per request. The
+     *  landing always lists ALL services, but only fetches column metrics
+     *  for up to this many — the TRUE top-N by the landing's `orderBy`
+     *  column (a cheap single-metric ranking pass picks them when a layer
+     *  exceeds the cap). The UI surfaces "top N of M" whenever the cap
+     *  bites, so nothing is silently dropped. Raise it if your OAP +
+     *  storage backend can take the larger fan-out; lower it to protect a
+     *  modest deployment. Default 100. */
+    landingServiceCap: z.number().int().positive().default(100),
+  })
+  .strict()
+  .default({ landingServiceCap: 100 });
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
@@ -315,6 +330,7 @@ export const configSchema = z
     setup: setupSchema,
     alarms: alarmsSchema,
     debugLog: debugLogSchema,
+    query: querySchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
     // than rejected by `.strict()`) so an existing config carrying the block

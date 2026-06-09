@@ -159,7 +159,11 @@ export function useLayerDashboard(
       entityRefs.instance ?? computed(() => null),
       entityRefs.endpoint ?? computed(() => null),
       rangeKey,
-      computed(() => widgetsList?.value.map((w) => w.id).join('|') ?? null),
+      // Key on the FULL widget config, not just ids: a remote sync or
+      // preview edit that keeps a widget's id but changes its MQE
+      // expressions / type must refire — an id-only key would serve the
+      // stale (wrong-expression) data from cache.
+      computed(() => (widgetsList?.value ? JSON.stringify(widgetsList.value) : null)),
     ],
     queryFn: async () => {
       const total = widgetsList?.value.length ?? 0;

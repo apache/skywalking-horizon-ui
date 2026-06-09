@@ -36,6 +36,7 @@ import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { bffClient } from '@/api/client';
+import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import type {
   EBPFTask,
   NetworkProfilingSampling,
@@ -51,6 +52,9 @@ import Icon from '@/components/icons/Icon.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
+// Preview-only: forward the draft `processTopology` block so a clicked
+// edge's metrics reflect the unpublished config.
+const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology');
 const { selectedId: serviceId } = useSelectedService();
 
 // Instance picker (binds to ?serviceInstance= via plain ref state — the
@@ -212,6 +216,7 @@ watch(selectedCall, async (call) => {
       source: endpointRef(src),
       dest: endpointRef(dst),
       ...taskWindow,
+      ...(previewProcessTopology.value ? { previewConfig: previewProcessTopology.value } : {}),
     });
     if (!relationMetrics.value.reachable && relationMetrics.value.error) {
       relationError.value = relationMetrics.value.error;

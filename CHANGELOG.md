@@ -13,9 +13,93 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 - New **Airflow** layer under **Workflow Scheduler** — service dashboard
   (scheduler / executor / pool KPIs and trends), Components dashboard
-  (per-host scheduler, executor, and triggerer metrics), and a 3D Infra
-  Map load ring for **Tasks Executable**. Pairs with OAP backend SWIP-7
-  (`meter_airflow_*` / `meter_airflow_instance_*`).
+  (per-host scheduler and triggerer metrics for **Airflow 3.x** native OTel),
+  and a 3D Infra Map load ring for **Tasks Executable**. Pairs with OAP backend
+  SWIP-7 (`meter_airflow_*` / `meter_airflow_instance_*`).
+
+### Dashboard widget visibility
+
+- Layer-dashboard widgets gain a structured **Visible when** gate (Layer
+  dashboards admin → widget drawer) so a widget only renders when it's
+  relevant to the selected entity. Two kinds:
+  - **MQE metric** — show the widget only when an expression *has value*, or
+    when any value is **>** / **<** a threshold. Naming the widget's *own*
+    metric self-gates it (the JVM widgets appear only on JVM instances, the
+    MQ widgets only on MQ producers, …); naming a *different* metric gates a
+    whole group on one shared signal — that metric is checked once and the
+    entire group's queries are **skipped** when it's empty, so e.g. a non-JVM
+    instance no longer runs the JVM widget queries at all.
+  - **Entity attribute** — on the Instance scope, gate on the selected
+    instance's attributes, e.g. *language equals JAVA* (case-insensitive) or
+    an attribute simply being present. Service / Endpoint entities carry no
+    attributes, so entity gates are ignored on those scopes.
+- Gates are evaluated server-side; gated-out widgets just don't appear in the
+  grid. **Note:** a layer dashboard saved before this release that used the
+  old free-text predicate loses its gate (the widget renders ungated) until
+  you re-set the gate in the new editor and save the dashboard.
+
+### Instance topology
+
+- The per-layer **Topology** map gains an **instance map** drill-down on
+  layers that enable instance topology. Click a call between two services
+  and then **Instance map →** to open it: the instances of each service
+  as two columns (left = client, right = server) with the instance-level
+  calls between them — pan/zoom, animated client→server flow, the same
+  node health-ring + per-call client/server metric sidebar the service
+  map uses, and a node popover with **Open instance dashboard**. A back
+  button returns to the service map; a toolbar pair-picker swaps the two
+  services. The two service pickers are **relationship-aware**, drawn from
+  the service-topology call graph (including conjectured / cross-layer
+  callees like `rcmd:80`, named the same as on the service map): the server
+  list is the chosen client's callees and the client list is the chosen
+  server's callers, each re-deriving when the other changes without
+  resetting your current pick. A side the graph leaves no real choice for
+  (e.g. a single caller) shows as plain text instead of a one-option
+  dropdown. Each service's instances sit inside a labelled grouping box —
+  named with the service, using the same `<group>::` prefix handling as
+  the service map so a name reads identically on both — and a ring-colour
+  legend explains what the node health bands (green → red) mean for the
+  configured ring metric. Labels follow the layer's own terms (e.g.
+  *Pods* on Kubernetes, *Sidecars* on the data plane).
+- **Configurable like the service map.** The Layer-dashboards admin →
+  **Topology** scope now has an **Enable instance topology** toggle and
+  its own node / server-edge / client-edge metric editors, kept visually
+  separate from the service-topology metrics so the two are never
+  confused. Enabled out of the box on **General**, **Service Mesh**,
+  **Kubernetes Service**, and **Cilium Service**; the config rides each
+  layer's topology template (so it travels with template export/import).
+- When OAP's template store is unreachable, the instance map now shows the
+  same empty + connectivity-banner state as the service map, rather than a
+  misleading "not supported" — block and unsupported are no longer conflated.
+- **Localized across all eight UI languages.** The instance-map UI, the
+  template-store-unreachable banner, and the remaining alarm / live-debugger
+  strings are now translated in zh-CN, ja, ko, es, pt, de and fr (English
+  stays the source) — no feature renders English-only for non-English
+  operators.
+
+### API dependency
+
+- The per-layer **API dependency** tab renders an endpoint's caller → callee
+  chain as a graph. Pick an endpoint and it lays out in columns by direction —
+  callers on the left, the focus endpoint in the centre, callees on the right —
+  with the same node health-ring border, SLA-coloured RPM, and latency you read
+  on the service map; edges animate the call direction and label the heaviest by
+  RPM.
+- **Expand to walk the chain.** A selected endpoint shows a single **+** handle
+  that pulls in *its* own callers and callees in one click (new callers land
+  left, callees right). The handle spins while the dependency query is in
+  flight; when an endpoint is a leaf with nothing further to load it fades and a
+  brief banner says so — a silent "nothing happened" never reads as a bug.
+- **Rearrange freely.** Drag any node box to pull a dense graph apart — edges
+  follow live. Pan, wheel-zoom, and a fit button act on the whole canvas, and a
+  node holds a steady on-screen size whether or not the detail sidebar is open.
+- **Drill straight out, in a new tab.** The node detail's **Open endpoint** and
+  **Service →**, and the service-map node/edge jumps (**Open service**,
+  **API map →**, **Instance map →**), now open in a new browser tab — so you
+  keep the graph you're exploring while the drill-down opens alongside it.
+- Nodes share the service-map's visual vocabulary (SLA-band border, an agent
+  badge on instrumented endpoints, the focus star), and the tab is localized
+  across all eight UI languages.
 
 ### Dashboard template portability
 
@@ -33,6 +117,73 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   as a JSON file, or import one as a local draft to review and push. (Source
   templates and their translations are edited on separate pages, so their
   import/export are separate too — each on its own page.)
+
+### Template store reliability
+
+- **Runtime config is strictly what's on OAP.** Layer dashboards, overviews,
+  and topology now render only the version published to OAP's UI-template
+  store (or the in-code minimal default for a layer that has none). The
+  disk-bundled templates reach a running UI **only** by being synced to OAP
+  (first boot / admin reset) or through the admin **Preview** button — they
+  are never a silent live fallback. So an operator always sees the live
+  published config, not a stale bundled copy masquerading as current.
+- **Unreachable template store is a visible block, not a quiet fallback.**
+  When OAP's UI-template host can't be reached, a banner (same red treatment
+  as the OAP-query-unreachable strip) reports it, and the dashboard / overview
+  / topology surfaces stay empty rather than back-filling bundled defaults
+  that could be read as real. The sidebar still navigates so the rest of the
+  app is reachable.
+- The admin **Preview** button now drives **every** template-rendered page —
+  the **overview detail** view and the per-layer **topology** (incl. the
+  **instance map**), **API dependency**, **traces**, and **network-profiling**
+  pages — not just the layer dashboards. Previewing renders the draft's
+  metrics/config against live OAP, so an edit to topology or dependency metrics
+  is visible before you publish. Preview and the absent-remote path stay
+  strictly separate: a draft renders only in `?mode=preview`; normal reads
+  never carry one.
+- **Editors no longer silently fall back to the bundled default.** When a
+  layer / overview / translation has no version published to OAP, the editor
+  shows a *"No published version on OAP"* panel instead of quietly loading the
+  shipped bundled copy as if it were live. Bundled now reaches the editor only
+  when you click **Reset to bundled** — matching the runtime, which renders the
+  published version or blocks, never the bundle.
+
+### Layer landing & service list
+
+- **The layer landing now shows your services, not just an arbitrary 25.** It
+  used to cap the metric fan-out at the first 25 services *by list order* —
+  so larger layers hid the rest, and the "top" services weren't even the true
+  top (the cap happened before the ranking). Now it probes **all** services up
+  to a configurable cap and, when a layer exceeds it, runs a cheap single-
+  metric ranking pass to pick the **true top-N** by the landing's order-by
+  column. The service picker surfaces **"top N of M"** so the trim is never
+  silent. Queries drain through a bounded-concurrency pool, so a big layer
+  fans out in controlled waves rather than a thundering herd.
+- New `query.landingServiceCap` in `horizon.yaml` (default **100**) tunes how
+  many services a landing probes per request — raise it if your OAP + storage
+  can take the larger fan-out, lower it to protect a modest deployment.
+- **The service picker now lists the *whole* layer, not only the metric-probed
+  top-N.** Services that ranked below the metric cap on the order-by column now
+  appear as their own rows with **`low`** in that column (and `—` for the
+  others, which were never probed) instead of being hidden — every service
+  stays browsable, searchable, and selectable regardless of the cap. The
+  header chip reads **"metrics: top N"** to make the metric trim explicit.
+- **Removed the stale "Landing KPI tile" controls** (Headline / Trend line)
+  from the Layer-dashboards admin. They no longer matched the rendered layer
+  header — which shows every configured metric column as its own KPI with its
+  own trend line — so editing them changed nothing on screen. The header is
+  driven entirely by the service-list columns + default sort; the preview now
+  reflects that.
+- **Selecting a low-traffic (below-cap) service now works on *every* tab**, not
+  just the dashboard. Logs, traces, and endpoint-dependency resolved the picked
+  service's name from the landing sample only — so a tail service queried as
+  blank (and Logs even snapped the pick back to the top service). All per-layer
+  tabs now resolve the name from the full roster, so a `low` service drills in
+  everywhere.
+- **Profiling scopes no longer show an editor grid that goes nowhere.** Trace /
+  eBPF / async profiling are built-in runtime views with nothing to author, so
+  the admin now shows a "configured at runtime" note for them instead of a
+  widget grid whose widgets never rendered.
 
 ### Documentation & release tooling
 

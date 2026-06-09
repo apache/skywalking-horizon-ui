@@ -47,6 +47,7 @@ import type {
   ProcessRelationMetricsResponse,
   ProcessTopologyResponse,
   TopologyMetricDef,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -54,12 +55,16 @@ import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
-import { getLayerTemplate, processTopologyConfigFor } from '../../logic/layers/loader.js';
+import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
+import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 
 export interface EBPFRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
@@ -670,6 +675,8 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
             endTime?: number;
             /** Fallback when no task window is supplied. */
             windowMinutes?: number;
+            /** Admin preview: the operator's draft `processTopology` block. */
+            previewConfig?: string;
           }
         | undefined;
       const payload: ProcessRelationMetricsResponse = { client: [], server: [], reachable: true };
@@ -680,7 +687,20 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         return reply.send(payload);
       }
 
-      const cfg = processTopologyConfigFor(getLayerTemplate(params.key));
+      // Admin Preview: render the draft `processTopology` block (bypasses
+      // remote resolve + block); else the remote-or-default config.
+      const previewPt = parsePreviewProcessTopology(body?.previewConfig);
+      let cfg: ProcessTopologyConfig;
+      if (previewPt) {
+        cfg = previewPt;
+      } else {
+        const eff = await resolveEffectiveLayer(deps.uiTemplateClient, params.key);
+        if (eff.blocked) {
+          // Template store unreachable / layer disabled — block, no defaults.
+          return reply.send(payload);
+        }
+        cfg = processTopologyConfigFor(eff.template);
+      }
       // Prefer the profiling-task time range (the data only exists for
       // that span). Fall back to a rolling window when none is given.
       let startMs: number;

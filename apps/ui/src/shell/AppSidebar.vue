@@ -537,7 +537,7 @@ watch(
                   class="sw-nav-item"
                   :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
                 >
-                  <Icon name="topo" /><span>Topology</span>
+                  <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
                 </RouterLink>
                 <RouterLink
                   v-if="L.caps.endpointDependency"
@@ -684,7 +684,7 @@ watch(
             class="sw-nav-item"
             :class="{ 'is-active': isActive(`/layer/${E.layer.key}/topology`) }"
           >
-            <Icon name="topo" /><span>Topology</span>
+            <Icon name="topo" /><span>{{ E.layer.slots.topology ?? 'Topology' }}</span>
           </RouterLink>
           <RouterLink
             v-if="E.layer.caps.endpointDependency"

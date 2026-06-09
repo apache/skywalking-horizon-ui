@@ -33,6 +33,7 @@ import { useRoute } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerLanding } from '@/layer/useLayerLanding';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { bffClient } from '@/api/client';
 import type {
@@ -83,10 +84,7 @@ const safeCfg = computed(() => {
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
 const { selectedId } = useSelectedService();
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  return rows.find((r) => r.serviceId === selectedId.value)?.serviceName ?? null;
-});
+const serviceName = useLayerServiceName(layerKey, landing);
 
 // ── State ─────────────────────────────────────────────────────────
 const tasks = ref<EBPFTask[]>([]);

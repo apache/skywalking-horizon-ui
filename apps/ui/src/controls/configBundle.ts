@@ -66,6 +66,16 @@ function previewContentFor<T>(name: string): T | undefined {
   return previewOverride.get<T>(name) ?? localEdits.get<T>(name);
 }
 
+/** Preview overlay content for a template `name` (a layer / overview
+ *  edit name), or `undefined` when not in preview mode or no override
+ *  exists for it. Exposed so pages that fetch a SINGLE template directly
+ *  from the BFF (e.g. the overview-detail page) honour the same preview
+ *  the bundle already applies to its list views — without it, the admin
+ *  Preview button is a no-op on those pages. */
+export function getPreviewContentFor<T>(name: string): T | undefined {
+  return previewContentFor<T>(name);
+}
+
 /** `local` only when the operator opted to preview unpublished edits;
  *  otherwise `remote` (the default runtime source of truth). */
 function preferParam(): 'local' | 'remote' {
@@ -145,7 +155,28 @@ export function ensureConfigBundle(): Promise<void> {
         'err',
         `Config preload failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      // Don't rethrow — the SPA falls back to per-page network reads.
+      // Don't rethrow — but DO unblock the shell. A network / non-2xx
+      // failure with no cached copy leaves `state` null, and the AppShell
+      // waits on `loaded` before rendering ANY route — so the app would
+      // hang on "Initializing…" forever. Seed an empty, unreachable bundle
+      // so `loaded` flips true: routes render, per-page reads + the
+      // connectivity banner take over, and the banner's retry can recover.
+      if (state.value === null) {
+        const now = Date.now();
+        state.value = {
+          etag: '',
+          generatedAt: now,
+          layers: {},
+          overviews: [],
+          syncStatus: {
+            unreachable: true,
+            lastSuccessfulSyncAt: null,
+            generatedAt: now,
+            badges: [],
+            conflicts: [],
+          },
+        };
+      }
     }
   })();
   return loadPromise;

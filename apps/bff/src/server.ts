@@ -35,6 +35,7 @@ import { registerLandingRoute } from './http/query/landing.js';
 import { registerInstanceRoute } from './http/query/instance.js';
 import { registerEndpointRoute } from './http/query/endpoint.js';
 import { registerTopologyRoute } from './http/query/topology.js';
+import { registerInstanceTopologyRoute } from './http/query/instance-topology.js';
 import { registerLayerServicesRoute } from './http/query/services.js';
 import { registerEndpointDependencyRoute } from './http/query/endpoint-dependency.js';
 import { registerTraceRoutes } from './http/query/trace.js';
@@ -168,24 +169,53 @@ registerMenuRoute(app, {
 registerLandingRoute(app, { config: source, sessions });
 registerInstanceRoute(app, { config: source, sessions });
 registerEndpointRoute(app, { config: source, sessions });
-registerTopologyRoute(app, { config: source, sessions });
+registerTopologyRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
+registerInstanceTopologyRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerLayerServicesRoute(app, { config: source, sessions });
-registerEndpointDependencyRoute(app, { config: source, sessions });
-registerTraceRoutes(app, { config: source, sessions });
+registerEndpointDependencyRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
+registerTraceRoutes(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerTraceTagRoutes(app, { config: source, sessions });
 registerZipkinRoutes(app, { config: source, sessions });
 registerLogRoute(app, { config: source, sessions });
 registerPodLogRoutes(app, { config: source, sessions });
-registerDashboardQueryRoute(app, { config: source, sessions });
+registerDashboardQueryRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerAlarmsQueryRoutes(app, { config: source, sessions, serviceLayer });
 registerPreflightRoutes(app, { config: source, sessions });
 registerTtlRoute(app, { config: source, sessions });
 registerProfileRoutes(app, { config: source, sessions });
-registerEBPFRoutes(app, { config: source, sessions });
+registerEBPFRoutes(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerAsyncProfileRoutes(app, { config: source, sessions });
 
 // ── Config ─────────────────────────────────────────────────────────
-registerDashboardConfigRoute(app, { config: source, sessions });
+registerDashboardConfigRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerLayerTemplateRoutes(app, { config: source, sessions });
 // Spawn the bundled-template fs.watch ONLY in development. Bundled
 // templates ship inside the BFF image — they're immutable in prod
@@ -205,7 +235,11 @@ registerInfra3dConfigRoutes(app, {
 });
 registerInfra3dMetricsRoute(app, { config: source, sessions });
 registerSetupRoutes(app, { config: source, sessions, audit, store: setupStore });
-registerOverviewRoutes(app, { config: source, sessions });
+registerOverviewRoutes(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerConfigBundleRoute(app, {
   config: source,
   sessions,

@@ -37,6 +37,7 @@ import type {
   DashboardWidget,
   DslDebuggingStatus,
   EndpointDependencyConfig,
+  LayerOverviewConfig,
   LocalState,
   MetricRow,
   ProcessTopologyConfig,
@@ -120,10 +121,14 @@ export type {
   DashboardWidgetResult,
   TopologyMetricDef,
   TopologyConfig,
+  InstanceTopologyConfig,
   EndpointDependencyConfig,
   TopologyNode,
   TopologyCall,
   TopologyResponse,
+  InstanceTopologyNode,
+  InstanceTopologyCall,
+  InstanceTopologyResponse,
   EndpointDependencyNode,
   EndpointDependencyCall,
   EndpointDependencyResponse,
@@ -257,7 +262,7 @@ export interface AdminLayerTemplate {
   /** `public` (default) surfaces in the Layers section; `operate`
    *  surfaces in the Self-Observability block under Manage. */
   visibility?: 'public' | 'operate';
-  slots: { services?: string; instances?: string; endpoints?: string; endpointDependency?: string };
+  slots: { services?: string; instances?: string; endpoints?: string; endpointDependency?: string; topology?: string; instanceTopology?: string };
   components: {
     service?: boolean;
     instances?: boolean;
@@ -284,10 +289,10 @@ export interface AdminLayerTemplate {
       precision?: number;
     }>;
   };
-  overview?: {
-    throughput?: string;
-    spark?: string;
-  };
+  /** Overview-tile config (group list). Edited on the Overview-templates
+   *  admin, not here — surfaced for the translation preview + so a
+   *  round-trip save preserves it. */
+  overview?: LayerOverviewConfig;
   widgets: DashboardWidget[];
   topology?: TopologyConfig;
   endpointDependency?: EndpointDependencyConfig;

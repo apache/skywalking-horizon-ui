@@ -28,7 +28,7 @@
  */
 
 import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
-import { getLayerTemplate } from '../layers/loader.js';
+import type { LayerTemplate } from '../layers/loader.js';
 
 /** Service-scope service-shaped layers (general / mesh / k8s_service). */
 const SERVICE_WIDGETS: DashboardWidget[] = [
@@ -180,14 +180,18 @@ const GENERIC_WIDGETS: DashboardWidget[] = [
 ];
 
 /**
- * Resolve the default widget set for `(layerKey)`. First tries the
- * JSON layer template (`src/bundled_templates/layers/<key>.json`); falls back to
- * the hardcoded TS sets above when no JSON exists for the layer. JSON
- * wins because that's where operators will eventually edit widgets
- * via the admin page.
+ * Last-resort widget set when no remote template resolved (`tpl` is
+ * `null` — layer not yet synced to OAP, admin-disabled, or the template
+ * store is unreachable). These hardcoded sets are NOT the disk-bundled
+ * templates: bundled config only ever reaches the UI via OAP (sync /
+ * reset / preview). This is a minimal generic KPI seed so a bare grid
+ * isn't completely empty; the connectivity banner separately signals an
+ * unreachable store. When `tpl` carries widgets, those win.
  */
-export function defaultWidgetsFor(layerKey: string): DashboardWidget[] {
-  const tpl = getLayerTemplate(layerKey);
+export function defaultWidgetsFor(
+  tpl: LayerTemplate | null,
+  layerKey: string,
+): DashboardWidget[] {
   if (tpl && tpl.widgets && tpl.widgets.length > 0) return tpl.widgets;
   const k = layerKey.toUpperCase();
   if (k === 'MESH_CP' || k === 'MESH_DP') return SERVICE_WIDGETS;

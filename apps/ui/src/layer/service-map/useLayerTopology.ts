@@ -29,6 +29,7 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { useTimeRangeStore } from '../../controls/timeRange';
+import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
 export function useLayerTopology(
@@ -37,6 +38,11 @@ export function useLayerTopology(
   depth: Ref<number>,
 ) {
   const timeRange = useTimeRangeStore();
+  // In `?mode=preview` only: forward the operator's draft `topology` block
+  // so the map renders the unpublished edit. Empty otherwise — a normal
+  // (absent-remote) read never carries a draft, keeping the two paths
+  // cleanly separate.
+  const previewCfg = usePreviewLayerBlock(layerKey, 'topology');
   // Re-resolve range / step on every read so the queryKey changes on
   // picker flips. A stable triplet (step + ms-rounded bounds) prevents
   // identity-thrash on every store tick.
@@ -46,13 +52,14 @@ export function useLayerTopology(
     endMs: timeRange.range.endMs,
   }));
   const q = useQuery({
-    queryKey: ['layer-topology', layerKey, service, depth, rangeKey],
+    queryKey: ['layer-topology', layerKey, service, depth, rangeKey, previewCfg],
     queryFn: () =>
       bffClient.layer.topology(
         layerKey.value,
         service.value ?? undefined,
         depth.value,
         rangeKey.value,
+        previewCfg.value,
       ),
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 30_000,

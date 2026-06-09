@@ -9,45 +9,75 @@
       "title": "Allgemeine Services",
       "tip": "Auf der General-Ebene erfasste Anwendungs-Services.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latenz" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latenz"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Virtuelle Datenbanken",
       "tip": "Backend-Datenbanken, beobachtet über clientseitige Spans.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latenz" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latenz"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Virtuelle Caches",
       "tip": "Caches (Redis / Memcached / …), beobachtet über clientseitige Spans.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latenz" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latenz"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
       "title": "Virtuelle Message Queues",
       "tip": "Message Queues, beobachtet über Consume- und Produce-Spans.",
       "kpis": [
-        { "label": "Consume" },
-        { "label": "Produce" },
-        { "label": "Consume-Latenz" }
+        {
+          "label": "Consume"
+        },
+        {
+          "label": "Produce"
+        },
+        {
+          "label": "Consume-Latenz"
+        }
       ]
     },
     {
       "title": "Virtuelles GenAI",
       "tip": "GenAI-Backends, beobachtet über instrumentierte Client-Spans.",
       "kpis": [
-        { "label": "RPM" },
-        { "label": "Latenz" },
-        { "label": "SLA" }
+        {
+          "label": "RPM"
+        },
+        {
+          "label": "Latenz"
+        },
+        {
+          "label": "SLA"
+        }
       ]
     },
     {
@@ -68,16 +98,28 @@
       "title": "Cluster-Kapazität & -Auslastung",
       "tip": "Knoten / Namespaces / Workloads, plus CPU-, Speicher- und Speichernutzung auf Cluster-Ebene.",
       "kpis": [
-        { "label": "Knoten" },
+        {
+          "label": "Knoten"
+        },
         null,
         null,
         null,
         null,
-        { "label": "Services" },
-        { "label": "Container" },
-        { "label": "CPU" },
-        { "label": "Speicher" },
-        { "label": "Speicherplatz" }
+        {
+          "label": "Services"
+        },
+        {
+          "label": "Container"
+        },
+        {
+          "label": "CPU"
+        },
+        {
+          "label": "Speicher"
+        },
+        {
+          "label": "Speicherplatz"
+        }
       ]
     }
   ]

@@ -31,8 +31,9 @@
       callout). Only one popout open at a time.
 -->
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
   EndpointDependencyNode,
@@ -47,6 +48,7 @@ import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
@@ -55,6 +57,7 @@ import Sparkline from '@/components/charts/Sparkline.vue';
 
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
@@ -81,11 +84,7 @@ function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, namingRule.value);
 }
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  return match?.serviceName ?? null;
-});
+const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 // Loading-sequence orchestration. The per-step waits keep this
 // deterministic: service first, then the endpoint query (empty
@@ -144,43 +143,83 @@ const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
 
 // ── Interactive expansion ─────────────────────────────────────────
-// Each click on a node's left / right expand button fires another
-// `endpoint-dependency` query for THAT endpoint and merges the
-// returned graph into the rendered set. Keyed by `${nodeId}:dir` so
-// repeat clicks are idempotent (same direction = no-op; future
-// "collapse" affordance can lift the entry instead).
+// `getEndpointDependencies` returns a node's WHOLE neighbourhood (both
+// directions in ONE response — OAP has no directional endpoint query),
+// so there is ONE expand per node, not a left/right pair. New callers
+// land left, callees right via the BFS layout. The handle lives on the
+// node's OUTWARD edge (the way the chain extends); keyed by node id so a
+// repeat click is a no-op. A click that surfaces nothing new marks the
+// node exhausted, fading the handle so it isn't a dead control.
 const expansions = ref<Map<string, EndpointDependencyResponse>>(new Map());
 const expansionsLoading = ref<Set<string>>(new Set());
-function hasExpansion(node: EndpointDependencyNode, dir: 'upstream' | 'downstream'): boolean {
-  return expansions.value.has(`${node.id}:${dir}`);
+const exhausted = ref<Set<string>>(new Set());
+function hasExpansion(node: EndpointDependencyNode): boolean {
+  return expansions.value.has(node.id);
 }
-async function expandNode(node: EndpointDependencyNode, dir: 'upstream' | 'downstream'): Promise<void> {
-  const key = `${node.id}:${dir}`;
+function isExhausted(node: EndpointDependencyNode): boolean {
+  return exhausted.value.has(node.id);
+}
+function isLoadingExpansion(node: EndpointDependencyNode): boolean {
+  return expansionsLoading.value.has(node.id);
+}
+// Transient banner when an expand returns no NEW neighbour, so a leaf-node
+// expand gives explicit feedback ("loaded, but nothing more") instead of
+// the easily-missed handle fade. Auto-clears after a few seconds.
+const noDepFlash = ref<string | null>(null);
+let noDepFlashTimer: ReturnType<typeof setTimeout> | null = null;
+function flashNoDep(name: string): void {
+  noDepFlash.value = name;
+  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
+  noDepFlashTimer = setTimeout(() => {
+    noDepFlash.value = null;
+    noDepFlashTimer = null;
+  }, 3200);
+}
+async function expandNode(node: EndpointDependencyNode): Promise<void> {
+  const key = node.id;
   if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
-  expansionsLoading.value.add(key);
+  const loading = new Set(expansionsLoading.value);
+  loading.add(key);
+  expansionsLoading.value = loading;
   try {
+    const before = new Set(nodes.value.map((n) => n.id));
     const resp = await bffClient.layer.endpointDependency(
       layerKey.value,
       node.serviceName,
       node.name,
     );
-    // Mutate the Map and re-assign to force reactivity.
     const next = new Map(expansions.value);
     next.set(key, resp);
     expansions.value = next;
+    // No new neighbour surfaced (chain leaf / all already shown) — fade
+    // the handle AND flash an explicit "nothing more" banner.
+    if (!resp.nodes.some((n) => !before.has(n.id))) {
+      const e = new Set(exhausted.value);
+      e.add(key);
+      exhausted.value = e;
+      flashNoDep(node.name);
+    }
   } catch {
     // Soft-fail — the operator can click again to retry.
   } finally {
-    const loading = new Set(expansionsLoading.value);
-    loading.delete(key);
-    expansionsLoading.value = loading;
+    const done = new Set(expansionsLoading.value);
+    done.delete(key);
+    expansionsLoading.value = done;
   }
 }
-// Reset expansions whenever the focus endpoint changes — the
-// previous expansion graph is irrelevant against a new focus.
+// Reset expansions whenever the focus endpoint changes — the previous
+// expansion graph is irrelevant against a new focus.
 watch(selectedEndpoint, () => {
   expansions.value = new Map();
   expansionsLoading.value = new Set();
+  exhausted.value = new Set();
+  dragOffsets.value = new Map();
+  // Cascade-clear the per-graph view state too. Endpoint ids are stable
+  // across focuses, so without this a node/edge selected under the old
+  // focus keeps the detail sidebar open against the new graph.
+  selectedNodeId.value = null;
+  selectedCallId.value = null;
+  noDepFlash.value = null;
 });
 
 // ── Merged graph = focus response ∪ all expansion responses.
@@ -307,34 +346,37 @@ const layoutNodes = computed<LayoutNode[]>(() => {
   }
   const layerOf = new Map<string, number>();
   if (focusId && byId.has(focusId)) {
+    // ONE direction-aware BFS over the whole connected component: from
+    // each reached node a downstream neighbour sits one layer right (+1),
+    // an upstream neighbour one layer left (-1). A single combined pass —
+    // not forward-only then backward-only — so cross-links land relative
+    // to their own neighbour. The old two-pass version couldn't reach a
+    // CALLER of a callee-of-focus (e.g. a node revealed by expanding a
+    // downstream endpoint) and dumped it into a far straggler column.
     layerOf.set(focusId, 0);
-    // Forward BFS (downstream).
-    const fwd = [focusId];
-    while (fwd.length > 0) {
-      const id = fwd.shift()!;
+    const queue = [focusId];
+    while (queue.length > 0) {
+      const id = queue.shift()!;
       const cur = layerOf.get(id)!;
       for (const t of downstream.get(id) ?? []) {
         if (!layerOf.has(t)) {
           layerOf.set(t, cur + 1);
-          fwd.push(t);
+          queue.push(t);
         }
       }
-    }
-    // Backward BFS (upstream).
-    const back = [focusId];
-    while (back.length > 0) {
-      const id = back.shift()!;
-      const cur = layerOf.get(id)!;
       for (const s of upstream.get(id) ?? []) {
         if (!layerOf.has(s)) {
           layerOf.set(s, cur - 1);
-          back.push(s);
+          queue.push(s);
         }
       }
     }
   }
-  // Stragglers — anything still un-bucketed gets a "far" layer.
-  let extra = 4;
+  // Stragglers — genuinely disconnected nodes get a column just past the
+  // rightmost real layer (not a hard-coded index that could collide).
+  let maxLayer = 0;
+  for (const v of layerOf.values()) if (v > maxLayer) maxLayer = v;
+  let extra = maxLayer + 1;
   for (const n of all) {
     if (!layerOf.has(n.id)) {
       layerOf.set(n.id, extra++);
@@ -371,14 +413,14 @@ const layerColumns = computed<LayerColumn[]>(() => {
     const visible = list.slice(0, NODES_PER_LAYER);
     const hidden = list.length - visible.length;
     let label: string;
-    // Layer convention: focus = L0; layers to the LEFT (negative
-     // index, callers / "before") = Downstream in the operator's
-     // wording; layers to the RIGHT (positive, callees / "after")
-     // = Upstream. Matches the nginx/proxy mental model the team
-     // already uses.
-    if (i < 0) label = `L${i} · Downstream`;
-    else if (i === 0) label = 'L0 · Focus';
-    else label = `L+${i} · Upstream`;
+    // Focus = L0; layers to the LEFT (negative index) are the focus's
+    // callers, to the RIGHT (positive) its callees. Labelled `Callers`
+    // / `Callees` to match the node popout (Callers/Callees) and the
+    // expand handles — the old `Upstream`/`Downstream` pair was both
+    // ambiguous and inverted (nginx vs data-flow conventions clashed).
+    if (i < 0) label = t('L{i} · Callers', { i });
+    else if (i === 0) label = t('L0 · Focus');
+    else label = t('L+{i} · Callees', { i });
     return { index: i, label, visible, hidden };
   });
 });
@@ -386,14 +428,13 @@ const layerColumns = computed<LayerColumn[]>(() => {
 // ── SVG layout math. The template binds NW / COL_GAP via the same
 // names; exposing them on a const-bag keeps Vue's setup-script
 // auto-binding happy without resorting to `defineExpose`.
-const NW = 180;
-// Taller box: 3 stacked rows (service name / API name / RPM).
-const NH = 76;
-// Wider gap between columns so the curved edge has room to carry
-// the line-metric chip (60-80px) without colliding with adjacent
-// node boxes.
-const COL_GAP = 320;
-const ROW_GAP = 96;
+const NW = 152;
+// Compact box: 3 tight stacked rows (service name / API name / RPM).
+const NH = 56;
+// Gap between columns leaves room for the curved edge's line-metric
+// chip (60-80px) without colliding with adjacent node boxes.
+const COL_GAP = 300;
+const ROW_GAP = 80;
 const W = computed(() => Math.max(800, layerColumns.value.length * COL_GAP + 80));
 const H = computed(() => {
   const maxNodes = Math.max(1, ...layerColumns.value.map((c) => c.visible.length));
@@ -426,6 +467,20 @@ const nodePos = computed<Map<string, Pos>>(() => {
   return map;
 });
 
+// ── Manual node drag. The operator can drag a box to declutter a dense
+// graph; the offset layers on the BFS layout so edges (which read
+// displayPos) follow. Cleared when a new focus endpoint rebuilds the graph.
+const dragOffsets = ref<Map<string, { dx: number; dy: number }>>(new Map());
+const displayPos = computed<Map<string, Pos>>(() => {
+  if (dragOffsets.value.size === 0) return nodePos.value;
+  const out = new Map<string, Pos>();
+  for (const [id, p] of nodePos.value) {
+    const off = dragOffsets.value.get(id);
+    out.set(id, off ? { ...p, x: p.x + off.dx, y: p.y + off.dy } : p);
+  }
+  return out;
+});
+
 // Filter calls whose endpoints survived the per-layer cap.
 const visibleCalls = computed<EndpointDependencyCall[]>(() => {
   const ids = new Set(nodePos.value.keys());
@@ -437,16 +492,44 @@ const visibleCalls = computed<EndpointDependencyCall[]>(() => {
 // off a clipped column. Wheel + ＋/−/fit buttons zoom; drag pans.
 const svgRef = ref<SVGSVGElement | null>(null);
 const viewBox = ref<{ x: number; y: number; w: number; h: number } | null>(null);
+// Set once the operator wheels / pans / zooms — an automatic refit
+// (canvas resize, sidebar open/close) must not stomp a deliberate viewport.
+const userAdjusted = ref(false);
 const viewBoxStr = computed(() => {
   const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
   return `${v.x} ${v.y} ${v.w} ${v.h}`;
 });
+// On-screen px per graph unit cap. A sparse graph (2-3 nodes) in a wide
+// canvas would otherwise scale up under `meet` until the text balloons —
+// most visible when nothing is selected and the graph spans full width
+// (no detail sidebar). Capping holds node text at the same size whether
+// or not the sidebar is open; the surplus room becomes centered padding.
+const MAX_FIT_SCALE = 1.15;
 function fitView(): void {
-  viewBox.value = { x: 0, y: 0, w: W.value, h: H.value };
+  userAdjusted.value = false;
+  const r = svgRef.value?.getBoundingClientRect();
+  if (!r || !r.width || !r.height) {
+    viewBox.value = { x: 0, y: 0, w: W.value, h: H.value };
+    return;
+  }
+  const scale = Math.min(r.width / W.value, r.height / H.value, MAX_FIT_SCALE);
+  const vw = r.width / scale;
+  const vh = r.height / scale;
+  viewBox.value = { x: (W.value - vw) / 2, y: (H.value - vh) / 2, w: vw, h: vh };
 }
-// Refit when the graph itself changes (focus pick / first load / refresh
-// that adds or drops a column). Operator zoom/pan persists otherwise.
-watch([focusedId, () => layerColumns.value.length], () => fitView(), { immediate: true });
+// A new focus endpoint rebuilds the graph from scratch — always refit
+// (this also clears userAdjusted). nextTick so the canvas has its
+// post-change size.
+watch(focusedId, () => void nextTick(fitView), { immediate: true });
+// Column count changes mid-exploration (expanding a node adds a caller /
+// callee layer). Refit so the new column is in view — unless the operator
+// has zoomed/panned, in which case keep their viewport.
+watch(
+  () => layerColumns.value.length,
+  () => {
+    if (!userAdjusted.value) void nextTick(fitView);
+  },
+);
 
 /** Rendered scale + letterbox offset for the current viewBox under
  *  preserveAspectRatio="xMidYMid meet" — so cursor zoom + drag pan map
@@ -464,6 +547,7 @@ function clientToView(clientX: number, clientY: number): { x: number; y: number 
   return { x: v.x + (clientX - left - offX) / scale, y: v.y + (clientY - top - offY) / scale };
 }
 function zoomAround(factor: number, cx: number, cy: number): void {
+  userAdjusted.value = true;
   const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
   // viewBox width bounded to [30%, 160%] of the full graph (zoom-in / out caps).
   const newW = Math.min(W.value * 1.6, Math.max(W.value * 0.3, v.w * factor));
@@ -490,6 +574,7 @@ function onPanStart(e: PointerEvent): void {
 }
 function onPanMove(e: PointerEvent): void {
   if (!panning) return;
+  userAdjusted.value = true;
   const { v, scale } = viewMetrics();
   viewBox.value = { ...v, x: panStart.vx - (e.clientX - panStart.cx) / scale, y: panStart.vy - (e.clientY - panStart.cy) / scale };
 }
@@ -537,6 +622,42 @@ function ringColor(n: EndpointDependencyNode): string {
 // ── Selected node popout state. Anchors the design's tail callout
 // just right of the clicked node.
 const selectedNodeId = ref<string | null>(null);
+
+// Per-node drag (distinct from the background pan). Pointer-captured on
+// the box so move/up land here even off-box; screen pixels → graph units
+// via the view scale. Under the 3px threshold it's a click → toggle
+// selection (the box has no @click any more).
+const nodeDragId = ref<string | null>(null);
+let nodeDragStart = { x: 0, y: 0, baseDx: 0, baseDy: 0, moved: false };
+function onNodePointerDown(e: PointerEvent, id: string): void {
+  if (e.button !== 0) return;
+  e.stopPropagation(); // don't also start a background pan
+  const off = dragOffsets.value.get(id) ?? { dx: 0, dy: 0 };
+  nodeDragId.value = id;
+  nodeDragStart = { x: e.clientX, y: e.clientY, baseDx: off.dx, baseDy: off.dy, moved: false };
+  (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
+}
+function onNodePointerMove(e: PointerEvent): void {
+  if (nodeDragId.value === null) return;
+  const dxs = e.clientX - nodeDragStart.x;
+  const dys = e.clientY - nodeDragStart.y;
+  if (!nodeDragStart.moved && Math.hypot(dxs, dys) > 3) nodeDragStart.moved = true;
+  if (!nodeDragStart.moved) return;
+  const { scale } = viewMetrics();
+  const next = new Map(dragOffsets.value);
+  next.set(nodeDragId.value, { dx: nodeDragStart.baseDx + dxs / scale, dy: nodeDragStart.baseDy + dys / scale });
+  dragOffsets.value = next;
+}
+function onNodePointerUp(e: PointerEvent, id: string): void {
+  const el = e.currentTarget as Element;
+  if (el.hasPointerCapture?.(e.pointerId)) el.releasePointerCapture(e.pointerId);
+  const downOnThis = nodeDragId.value === id;
+  const moved = nodeDragStart.moved;
+  nodeDragId.value = null;
+  if (downOnThis && !moved) {
+    selectedNodeId.value = selectedNodeId.value === id ? null : id;
+  }
+}
 const selectedNode = computed<EndpointDependencyNode | null>(() => {
   const id = selectedNodeId.value;
   if (!id) return null;
@@ -572,16 +693,24 @@ function formatEdgeRowLabel(row: { label: string; unit?: string | null }): strin
   return `${lab} (${u.toUpperCase()})`;
 }
 
+/** Open a route in a fresh browser tab — the graph stays put so the
+ *  operator can fan out to several services/endpoints without losing
+ *  their place. History mode means `resolve(...).href` is a real URL. */
+function openRouteInNewTab(to: RouteLocationRaw): void {
+  const href = router.resolve(to).href;
+  window.open(href, '_blank', 'noopener');
+}
+
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${layerKey.value}/service`,
     query: { service: sel.serviceId },
   });
 }
 /**
- * Navigate to the Endpoint dashboard for the clicked node — same
+ * Open the Endpoint dashboard for the clicked node in a new tab — same
  * pattern as topology's "Open service" jump. No client-side keyword
  * search: we hand the endpoint name + service id to the page via the
  * URL, and the Endpoint view's own auto-pick effect resolves it.
@@ -589,7 +718,7 @@ function jumpToService(): void {
 function jumpToEndpointDashboard(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${layerKey.value}/endpoint`,
     query: {
       service: sel.serviceId,
@@ -610,8 +739,8 @@ function bowSign(c: EndpointDependencyCall): number {
   return c.source < c.target ? 1 : -1;
 }
 function callPathD(c: EndpointDependencyCall): string {
-  const a = nodePos.value.get(c.source);
-  const b = nodePos.value.get(c.target);
+  const a = displayPos.value.get(c.source);
+  const b = displayPos.value.get(c.target);
   if (!a || !b) return '';
   const x1 = a.x + NW;
   const y1 = a.y + NH / 2;
@@ -633,8 +762,8 @@ function callPathD(c: EndpointDependencyCall): string {
   return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`;
 }
 function callMidpoint(c: EndpointDependencyCall): { x: number; y: number } | null {
-  const a = nodePos.value.get(c.source);
-  const b = nodePos.value.get(c.target);
+  const a = displayPos.value.get(c.source);
+  const b = displayPos.value.get(c.target);
   if (!a || !b) return null;
   const x1 = a.x + NW;
   const y1 = a.y + NH / 2;
@@ -679,6 +808,29 @@ const selectedCallTarget = computed<EndpointDependencyNode | null>(() => {
   if (!c) return null;
   return nodes.value.find((n) => n.id === c.target) ?? null;
 });
+
+// The detail sidebar appears only when a node or edge is selected, and its
+// presence changes the canvas width — which would otherwise rescale the
+// viewBox and resize node text. Refit on that toggle (and on window
+// resize) so the capped scale recomputes for the new width, unless the
+// operator has taken manual control of the viewport.
+watch(
+  () => Boolean(selectedNode.value || selectedCall.value),
+  () => {
+    if (!userAdjusted.value) void nextTick(fitView);
+  },
+);
+function onWindowResize(): void {
+  if (!userAdjusted.value) fitView();
+}
+onMounted(() => {
+  fitView();
+  window.addEventListener('resize', onWindowResize);
+});
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize);
+  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
+});
 function edgeSeries(c: EndpointDependencyCall, def: TopologyMetricDef): Array<number | null> {
   return c.metricSeries?.[def.id] ?? [];
 }
@@ -711,7 +863,7 @@ function edgeRowCrosshair(rowId: string): number | null {
     <!-- Endpoint picker — search-on-Enter (mirrors the Endpoint tab). -->
     <section class="ep-picker sw-card">
       <header class="picker-head">
-        <span class="kicker">API dependency</span>
+        <span class="kicker">{{ t('API dependency') }}</span>
         <span v-if="serviceName" class="for-svc">
           on
           <span v-if="identity(serviceName).cluster" class="sw-tag accent tiny inline-tag">
@@ -724,27 +876,27 @@ function edgeRowCrosshair(rowId: string): number | null {
           </span>
           <b>{{ identity(serviceName).display }}</b>
         </span>
-        <span v-if="isFetching" class="hint">refreshing…</span>
+        <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
       </header>
       <div v-if="!serviceName" class="empty inline">
-        Pick a service in the header above to search its endpoints.
+        {{ t('Pick a service in the header above to search its endpoints.') }}
       </div>
       <template v-else>
         <div class="ep-controls">
           <input
             class="ep-search"
             type="search"
-            placeholder="Search endpoints, press Enter…"
+            :placeholder="t('Search endpoints, press Enter…')"
             v-model="endpointSearchInput"
             @keydown.enter.prevent="submitEndpointSearch"
             @search="submitEndpointSearch"
           />
-          <button class="sw-btn small" type="button" @click="submitEndpointSearch">Search</button>
+          <button class="sw-btn small" type="button" @click="submitEndpointSearch">{{ t('Search') }}</button>
           <button v-if="endpointQuery" class="sw-btn ghost small" type="button" @click="clearEndpointSearch">
-            Clear
+            {{ t('Clear') }}
           </button>
           <label class="ep-limit">
-            <span>Top</span>
+            <span>{{ t('Top') }}</span>
             <select v-model.number="endpointLimit">
               <option :value="20">20</option>
               <option :value="30">30</option>
@@ -765,37 +917,42 @@ function edgeRowCrosshair(rowId: string): number | null {
           </li>
         </ul>
         <div v-else-if="!endpointsLoading" class="empty inline">
-          No endpoints found.
+          {{ t('No endpoints found.') }}
         </div>
       </template>
     </section>
 
     <div v-if="!reachable" class="banner err">
-      <strong>OAP unreachable.</strong>
-      {{ errorText ?? 'API dependency feed failed — check the BFF and OAP.' }}
+      <strong>{{ t('OAP unreachable.') }}</strong>
+      {{ errorText ?? t('API dependency feed failed — check the BFF and OAP.') }}
     </div>
 
-    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :style="{ height: cardHeightPx + 'px' }">
+    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
       <!-- Two-column layout: graph on the left, selection detail
            panel on the right. Mirrors the topology view's sidebar so
            operators get the same interaction pattern across the two
            dependency tabs. -->
       <div class="ep-graph">
         <header class="graph-head">
-          <h4>API dependency chain</h4>
+          <h4>{{ t('API dependency chain') }}</h4>
           <span class="hint">
-            {{ layerColumns.length }} columns · {{ nodes.length }} endpoints
-            · click a node for details
+            {{ t('{cols} columns · {eps} endpoints · click a node or edge for details', { cols: layerColumns.length, eps: nodes.length }) }}
           </span>
         </header>
 
         <div class="ep-scroll">
+        <!-- Transient feedback when an expand returns no new dependency. -->
+        <transition name="ep-flash">
+          <div v-if="noDepFlash" class="ep-nodep-flash">
+            <span>{{ t('No further callers or callees for {name}', { name: noDepFlash }) }}</span>
+          </div>
+        </transition>
         <!-- Zoom toolbar — over the canvas (not the header); wheel + drag
              also work directly on the graph. -->
         <div v-if="layoutNodes.length > 0" class="ep-zoom">
-          <button type="button" title="Zoom in" @click="zoomBtn(0.8)">＋</button>
-          <button type="button" title="Zoom out" @click="zoomBtn(1.25)">−</button>
-          <button type="button" title="Fit to view" @click="fitView">⤢</button>
+          <button type="button" :title="t('Zoom in')" @click="zoomBtn(0.8)">＋</button>
+          <button type="button" :title="t('Zoom out')" @click="zoomBtn(1.25)">−</button>
+          <button type="button" :title="t('Fit to view')" @click="fitView">⤢</button>
         </div>
         <svg
           v-if="layoutNodes.length > 0"
@@ -878,24 +1035,25 @@ function edgeRowCrosshair(rowId: string): number | null {
             >
               <title v-if="lineDef">{{ lineDef.label }}: {{ fmtMetric(edgeVal(c, lineDef)) }} {{ lineDef.unit ?? '' }}</title>
             </path>
-            <!-- Animated traffic dots on focus/heaviest/selected edges. -->
-            <template v-if="c.source === focusedId || c.target === focusedId || selectedCallId === c.id">
-              <circle
-                v-for="off in [0, 0.5, 1.0]"
-                :key="off"
-                r="2.2"
-                :fill="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-accent)'"
-                opacity="0.85"
-                style="pointer-events: none"
-              >
-                <animateMotion
-                  :dur="`${2.4 + (off * 0.4)}s`"
-                  :begin="`${off}s`"
-                  repeatCount="indefinite"
-                  :path="callPathD(c)"
-                />
-              </circle>
-            </template>
+            <!-- Animated traffic dots on EVERY edge — they advertise call
+                 direction (source→target) in place of arrowheads, so an
+                 expanded edge that doesn't touch the focus still shows
+                 which way the call flows. Selected edge dots brighten. -->
+            <circle
+              v-for="off in [0, 0.5, 1.0]"
+              :key="off"
+              r="2.2"
+              :fill="selectedCallId === c.id ? 'var(--sw-accent-2)' : 'var(--sw-accent)'"
+              :opacity="selectedCallId === c.id || c.source === focusedId || c.target === focusedId ? 0.9 : 0.6"
+              style="pointer-events: none"
+            >
+              <animateMotion
+                :dur="`${2.4 + (off * 0.4)}s`"
+                :begin="`${off}s`"
+                repeatCount="indefinite"
+                :path="callPathD(c)"
+              />
+            </circle>
             <!-- Compact metric chip at the curve midpoint. -->
             <template v-if="lineDef && edgeVal(c, lineDef) !== null && callMidpoint(c)">
               <g
@@ -931,9 +1089,17 @@ function edgeRowCrosshair(rowId: string): number | null {
           <g
             v-for="n in layoutNodes.filter((nn) => nodePos.get(nn.id))"
             :key="n.id"
-            :transform="`translate(${nodePos.get(n.id)!.x}, ${nodePos.get(n.id)!.y})`"
+            :transform="`translate(${displayPos.get(n.id)!.x}, ${displayPos.get(n.id)!.y})`"
             class="ep-node"
-            @click="selectedNodeId = selectedNodeId === n.id ? null : n.id"
+            :class="{ dragging: nodeDragId === n.id }"
+            role="button"
+            tabindex="0"
+            :aria-label="`${n.name} — ${identity(n.serviceName).display}`"
+            @pointerdown="onNodePointerDown($event, n.id)"
+            @pointermove="onNodePointerMove($event)"
+            @pointerup="onNodePointerUp($event, n.id)"
+            @keydown.enter.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
+            @keydown.space.prevent="selectedNodeId = selectedNodeId === n.id ? null : n.id"
           >
             <!-- Selection halo only — the FOCUS node is identifiable
                  by its column header (`L0 · Focus`) and an inset
@@ -965,55 +1131,69 @@ function edgeRowCrosshair(rowId: string): number | null {
             <!-- Focus marker — small star bottom-right. Operator's
                  mental cue: "this is the endpoint I clicked into",
                  without sharing the orange halo with selection. -->
-            <g v-if="n.id === focusedId" :transform="`translate(${NW - 14}, ${NH - 14})`">
-              <circle r="8" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
+            <g v-if="n.id === focusedId" :transform="`translate(${NW - 12}, ${NH - 12})`">
+              <circle r="7" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
               <text
                 text-anchor="middle"
                 y="3"
-                font-size="10"
+                font-size="9"
                 font-weight="700"
                 fill="var(--sw-accent-2)"
               >★</text>
-              <title>Focus endpoint</title>
+              <title>{{ t('Focus endpoint') }}</title>
             </g>
-            <!-- Kind stripe removed — endpoint nodes don't carry a
-                 meaningful component classification (booster derives
-                 kind from service type which doesn't apply to plain
-                 HTTP endpoints). Border + focus star carry all the
-                 visual signal. -->
+            <!-- Agent badge — straddles the top-left corner the way the
+                 service-map hexagon's does (top-right is the expand
+                 handle, bottom-right the focus star). Marks an endpoint
+                 on an instrumented (real) service; the synthetic User and
+                 external callees carry none. Shares the Topology node
+                 vocabulary. No kind icon — endpoint nodes don't carry a
+                 component classification on the OAP wire. -->
+            <g v-if="n.isReal" transform="translate(0, 0)">
+              <circle r="8" fill="var(--sw-bg-0)" stroke="var(--sw-accent-line)" stroke-width="1" />
+              <circle r="6.8" fill="var(--sw-accent)" opacity="0.18" />
+              <g transform="translate(-5.4, -5.4) scale(0.48)" fill="var(--sw-accent-2)">
+                <path d="M3 14c4-3 8-3 12-1 3 1.4 5 .5 6-1-1 5-4 8-9 8-4 0-7-2-9-6z" />
+                <path
+                  d="M5 10c3-2 7-2 11 0 3 1.3 5 .6 6-1-1 3.6-4 6-8 6-4 0-7-1.6-9-5z"
+                  fill="#fff"
+                  opacity="0.25"
+                />
+              </g>
+            </g>
             <!-- Row 1: full service name (small, fg-3 mono). -->
             <text
-              x="12"
-              y="18"
+              x="11"
+              y="16"
               fill="var(--sw-fg-3)"
-              font-size="10"
+              font-size="9"
               font-family="var(--sw-mono)"
               clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.serviceName }}</title>
-              {{ identity(n.serviceName).display.length > 24 ? identity(n.serviceName).display.slice(0, 22) + '…' : identity(n.serviceName).display }}
+              {{ identity(n.serviceName).display.length > 21 ? identity(n.serviceName).display.slice(0, 19) + '…' : identity(n.serviceName).display }}
             </text>
             <!-- Row 2: API (endpoint) name — the headline. -->
             <text
-              x="12"
-              y="38"
+              x="11"
+              y="31"
               fill="var(--sw-fg-0)"
-              font-size="12"
+              font-size="11.5"
               font-family="var(--sw-mono)"
               :font-weight="n.id === focusedId ? 700 : 600"
               clip-path="url(#ep-node-text-clip)"
             >
               <title>{{ n.name }}</title>
-              {{ n.name.length > 21 ? n.name.slice(0, 19) + '…' : n.name }}
+              {{ n.name.length > 18 ? n.name.slice(0, 16) + '…' : n.name }}
             </text>
             <!-- Row 3: configured `center` metric (typically RPM).
                  Coloured in the ring band so the visual signal
                  reinforces the border. -->
             <text
-              x="12"
-              y="60"
+              x="11"
+              y="45"
               :fill="centerDef && nodeVal(n, centerDef) !== null ? ringColor(n) : 'var(--sw-fg-3)'"
-              font-size="11.5"
+              font-size="10"
               font-family="var(--sw-mono)"
               font-weight="700"
             >
@@ -1025,36 +1205,58 @@ function edgeRowCrosshair(rowId: string): number | null {
                   : ''
               }}<template v-if="secondaryDef && nodeVal(n, secondaryDef) !== null"><tspan fill="var(--sw-fg-3)"> · </tspan><tspan fill="var(--sw-fg-2)" font-weight="500">{{ fmtMetric(nodeVal(n, secondaryDef)) }}{{ secondaryDef.unit ? ' ' + secondaryDef.unit.toUpperCase() : '' }}</tspan></template>
             </text>
-            <!-- Expand left (upstream) / right (downstream) buttons,
-                 visible on the SELECTED node so the operator can
-                 walk the chain without leaving the canvas. Already-
-                 expanded directions show a filled mark instead. -->
+            <!-- One neutral expand handle (top-right corner) on the
+                 SELECTED non-focus node. A single `getEndpointDependencies`
+                 call returns the node's WHOLE neighbourhood, so one click
+                 expands BOTH directions — new callers land left, callees
+                 right via the layout. States: `+` (expandable) → spinner
+                 (loading callers & callees) → `+` accent (expanded) or a
+                 faded `·` (no further dependency). -->
             <g
               v-if="selectedNodeId === n.id && n.id !== focusedId"
               class="ep-expand"
-              :transform="`translate(-14, ${NH / 2 - 10})`"
-              @click.stop="expandNode(n, 'upstream')"
+              :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n) }"
+              :transform="`translate(${NW - 9}, -9)`"
+              role="button"
+              tabindex="0"
+              :aria-label="t('Expand {name} — show its callers and callees', { name: n.name })"
+              @pointerdown.stop
+              @click.stop="expandNode(n)"
+              @keydown.enter.prevent="expandNode(n)"
+              @keydown.space.prevent="expandNode(n)"
             >
-              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n, 'upstream') ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n, 'upstream') ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">‹</text>
-              <title>Expand upstream callers</title>
-            </g>
-            <g
-              v-if="selectedNodeId === n.id && n.id !== focusedId"
-              class="ep-expand"
-              :transform="`translate(${NW - 6}, ${NH / 2 - 10})`"
-              @click.stop="expandNode(n, 'downstream')"
-            >
-              <circle r="10" cx="10" cy="10" fill="var(--sw-bg-0)" :stroke="hasExpansion(n, 'downstream') ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <text x="10" y="13.5" text-anchor="middle" font-size="11" font-weight="700" :fill="hasExpansion(n, 'downstream') ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'">›</text>
-              <title>Expand downstream callees</title>
+              <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) || isLoadingExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
+              <!-- loading spinner: a spinning arc while the dependency query is in flight -->
+              <circle
+                v-if="isLoadingExpansion(n)"
+                cx="9"
+                cy="9"
+                r="6"
+                fill="none"
+                stroke="var(--sw-accent-2)"
+                stroke-width="2"
+                stroke-dasharray="11 30"
+                stroke-linecap="round"
+              >
+                <animateTransform attributeName="transform" type="rotate" from="0 9 9" to="360 9 9" dur="0.7s" repeatCount="indefinite" />
+              </circle>
+              <text
+                v-else
+                x="9"
+                y="13"
+                text-anchor="middle"
+                font-size="14"
+                font-weight="600"
+                :fill="isExhausted(n) ? 'var(--sw-fg-3)' : hasExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-fg-1)'"
+              >{{ isExhausted(n) ? '·' : '+' }}</text>
+              <title>{{ isLoadingExpansion(n) ? t('Loading callers and callees of {name}…', { name: n.name }) : isExhausted(n) ? t('No further callers or callees for {name}', { name: n.name }) : t('Expand {name} — show its callers and callees', { name: n.name }) }}</title>
             </g>
           </g>
         </svg>
 
-          <div v-else-if="isLoading" class="loader">loading…</div>
+          <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
           <div v-else class="loader">
-            No dependency graph available for this endpoint in the last 15 minutes.
+            {{ t('No dependency graph available for this endpoint in the last 15 minutes.') }}
           </div>
         </div>
 
@@ -1072,14 +1274,14 @@ function edgeRowCrosshair(rowId: string): number | null {
             </span>
           </div>
           <div class="lg-block">
-            <span class="lg-lbl">Calls</span>
+            <span class="lg-lbl">{{ t('Calls') }}</span>
             <span class="lg-aside">
-              thicker = heaviest (by {{ lineDef?.label ?? 'RPM' }})
+              {{ t('thicker = heaviest (by {metric})', { metric: lineDef?.label ?? 'RPM' }) }}
             </span>
           </div>
           <div class="lg-block">
             <span class="lg-lbl">★</span>
-            <span class="lg-aside">Focus endpoint</span>
+            <span class="lg-aside">{{ t('Focus endpoint') }}</span>
           </div>
         </div>
       </div>
@@ -1102,7 +1304,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                 <span class="tag-val">{{ identity(selectedNode.serviceName).legacyGroup }}</span>
               </span>
               <span class="ed-svc">{{ identity(selectedNode.serviceName).display }}</span>
-              <span v-if="selectedNode.id === focusedId" class="sw-tag accent">focus</span>
+              <span v-if="selectedNode.id === focusedId" class="sw-tag accent">{{ t('focus') }}</span>
             </div>
             <div class="ed-name">{{ selectedNode.name }}</div>
           </div>
@@ -1120,32 +1322,32 @@ function edgeRowCrosshair(rowId: string): number | null {
           </div>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Inbound ({{ popoutUpstream.length }})</div>
+          <div class="ed-section-title">{{ t('Callers ({n})', { n: popoutUpstream.length }) }}</div>
           <ul class="ed-list">
             <li v-for="u in popoutUpstream" :key="u.id">
               <span class="ed-mono small">{{ u.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
             </li>
-            <li v-if="popoutUpstream.length === 0" class="ed-empty">no inbound calls in window</li>
+            <li v-if="popoutUpstream.length === 0" class="ed-empty">{{ t('no callers in this window') }}</li>
           </ul>
         </div>
         <div class="ed-section">
-          <div class="ed-section-title">Outbound ({{ popoutDownstream.length }})</div>
+          <div class="ed-section-title">{{ t('Callees ({n})', { n: popoutDownstream.length }) }}</div>
           <ul class="ed-list">
             <li v-for="d in popoutDownstream" :key="d.id">
               <span class="ed-mono small accent">{{ selectedNode.name }}</span>
               <span class="ed-arrow">→</span>
               <span class="ed-mono small">{{ d.name }}</span>
             </li>
-            <li v-if="popoutDownstream.length === 0" class="ed-empty">no outbound calls in window</li>
+            <li v-if="popoutDownstream.length === 0" class="ed-empty">{{ t('no callees in this window') }}</li>
           </ul>
         </div>
         <div class="ed-actions">
           <button class="sw-btn small primary" type="button" @click="jumpToEndpointDashboard">
-            Open endpoint
+            {{ t('Open endpoint') }}
           </button>
-          <button class="sw-btn small" type="button" @click="jumpToService">Service →</button>
+          <button class="sw-btn small" type="button" @click="jumpToService">{{ t('Service →') }}</button>
         </div>
       </section>
 
@@ -1161,13 +1363,13 @@ function edgeRowCrosshair(rowId: string): number | null {
               <span class="ed-mono small">{{ selectedCallTarget.name }}</span>
             </div>
             <div class="ed-edge-svc">
-              {{ selectedCallSource.serviceName }} → {{ selectedCallTarget.serviceName }}
+              {{ identity(selectedCallSource.serviceName).display }} → {{ identity(selectedCallTarget.serviceName).display }}
             </div>
           </div>
           <button class="sw-btn small" type="button" @click="selectedCallId = null">×</button>
         </header>
         <div class="ed-section">
-          <div class="ed-section-title">Line metrics (server-side)</div>
+          <div class="ed-section-title">{{ t('Line metrics (server-side)') }}</div>
           <div v-if="(cfg.linkMetrics ?? []).length > 0" class="ed-edge-rows">
             <div
               v-for="m in (cfg.linkMetrics ?? [])"
@@ -1196,16 +1398,16 @@ function edgeRowCrosshair(rowId: string): number | null {
               />
             </div>
           </div>
-          <div v-else class="ed-empty">no line metrics configured</div>
+          <div v-else class="ed-empty">{{ t('no line metrics configured') }}</div>
         </div>
       </section>
 
       <!-- Empty prompts. -->
       <section v-if="!selectedNode" class="ep-detail-empty">
-        <span>Click an endpoint node to inspect it</span>
+        <span>{{ t('Click an endpoint node to inspect it') }}</span>
       </section>
       <section v-if="!(selectedCall && selectedCallSource && selectedCallTarget)" class="ep-detail-empty">
-        <span>Click an edge to inspect the call</span>
+        <span>{{ t('Click an edge to inspect the call') }}</span>
       </section>
       </aside>
     </section>
@@ -1222,6 +1424,27 @@ function edgeRowCrosshair(rowId: string): number | null {
   flex-direction: column;
   gap: 12px;
   padding: 4px 0 0;
+}
+/* Per-node outward expand handle. */
+.ep-expand {
+  cursor: pointer;
+}
+/* Only the actionable (expandable) handle brightens on hover. */
+.ep-expand:not(.exhausted):not(.loading):hover circle {
+  stroke: var(--sw-accent);
+}
+.ep-expand:not(.exhausted):not(.loading):hover text {
+  fill: var(--sw-accent);
+}
+/* No-dependency = a click revealed nothing new (chain leaf): faded `·`,
+   not clickable-feeling, but still hoverable so the tooltip explains it
+   (the click handler is already a no-op once expanded). */
+.ep-expand.exhausted {
+  opacity: 0.5;
+  cursor: default;
+}
+.ep-expand.loading {
+  cursor: progress;
 }
 .ep-picker { padding: 0; }
 .picker-head {
@@ -1336,8 +1559,14 @@ function edgeRowCrosshair(rowId: string): number | null {
      the section wins over this declaration. */
   padding: 0;
   display: grid;
-  grid-template-columns: 1fr 320px;
+  /* Single column by default; the 320px detail sidebar only takes space
+     once a node/edge is selected, so the graph fills the full width on
+     the default page instead of reserving an empty panel. */
+  grid-template-columns: 1fr;
   overflow: hidden;
+}
+.ep-graph-card.has-detail {
+  grid-template-columns: 1fr 320px;
 }
 /* Legend strip at the bottom of the graph column. Sits inside
    `.ep-graph` so it shares the card height with the SVG scroll. */
@@ -1619,6 +1848,47 @@ function edgeRowCrosshair(rowId: string): number | null {
   min-height: 0;
   overflow: hidden;
 }
+/* Transient "no further dependency" banner over the canvas. */
+.ep-nodep-flash {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  max-width: 90%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  background: var(--sw-info-soft);
+  border: 1px solid var(--sw-info);
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+.ep-nodep-flash::before {
+  content: 'ⓘ';
+  flex: 0 0 auto;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--sw-info);
+}
+.ep-nodep-flash span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ep-flash-enter-active,
+.ep-flash-leave-active {
+  transition: opacity 0.25s ease;
+}
+.ep-flash-enter-from,
+.ep-flash-leave-to {
+  opacity: 0;
+}
 .ep-svg {
   width: 100%;
   height: 100%;
@@ -1658,8 +1928,23 @@ function edgeRowCrosshair(rowId: string): number | null {
   border-color: var(--sw-accent);
   color: var(--sw-fg-0);
 }
-.ep-node { cursor: pointer; }
+.ep-node { cursor: grab; }
+.ep-node.dragging { cursor: grabbing; }
+.ep-node.dragging rect { stroke: var(--sw-accent-2); }
 .ep-node:hover rect { stroke: var(--sw-accent-2); }
+/* The node + expand handle are focusable for keyboard a11y (tabindex).
+   Suppress the browser's default (blue) focus ring on pointer focus —
+   the orange selection border already shows state — but keep a
+   design-consistent accent ring for keyboard focus. */
+.ep-node:focus,
+.ep-expand:focus {
+  outline: none;
+}
+.ep-node:focus-visible,
+.ep-expand:focus-visible {
+  outline: 2px solid var(--sw-accent-2);
+  outline-offset: 2px;
+}
 .loader {
   padding: 60px;
   text-align: center;

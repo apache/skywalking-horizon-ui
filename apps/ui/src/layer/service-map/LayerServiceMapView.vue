@@ -53,7 +53,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as d3 from 'd3';
-import { useRoute, useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import type {
   LayerDef,
   TopologyCall,
@@ -83,6 +84,7 @@ import { useServiceHierarchy } from '@/layer/service-map/useServiceHierarchy';
 const props = defineProps<{ layerKey?: string; embedded?: boolean }>();
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -984,6 +986,38 @@ const selectedCallTarget = computed<LayoutNode | null>(() => {
   return layoutNodes.value.find((n) => n.id === c.target) ?? null;
 });
 
+// ── Instance-topology drill-down. Offered on an edge only when the
+// layer ships an `instanceTopology` config (echoed in `cfg`) AND both
+// endpoints are real services — OAP's getServiceInstanceTopology needs
+// two real services. Clicking it switches the Topology tab to the
+// Instance map sub-tab, pre-filled with this edge's client/server pair
+// (edge source = client, target = server).
+const hasInstanceTopology = computed<boolean>(() => Boolean(cfg.value?.instanceTopology));
+const canDrillInstance = computed<boolean>(
+  () =>
+    !embedded.value &&
+    hasInstanceTopology.value &&
+    Boolean(selectedCallSource.value?.isReal && selectedCallTarget.value?.isReal),
+);
+/** Open a route in a fresh browser tab — the operator keeps the service
+ *  map they're exploring while the drill-down opens alongside it. History
+ *  mode means `resolve(...).href` is a real URL. */
+function openRouteInNewTab(to: RouteLocationRaw): void {
+  const href = router.resolve(to).href;
+  window.open(href, '_blank', 'noopener');
+}
+
+function openInstanceTopology(): void {
+  const c = selectedCall.value;
+  const src = selectedCallSource.value;
+  const dst = selectedCallTarget.value;
+  if (!c || !src || !dst || !src.isReal || !dst.isReal) return;
+  openRouteInNewTab({
+    path: `/layer/${layerKey.value}/topology`,
+    query: { ...route.query, view: 'instance', client: c.source, server: c.target },
+  });
+}
+
 /**
  * Visual focus sets. When a node OR an edge is selected, we keep the
  * "related" subgraph at full opacity and dim everything else, so the
@@ -1174,7 +1208,7 @@ function targetLayerFor(n: TopologyNode): string {
 function jumpToService(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${targetLayerFor(sel)}/service`,
     query: { service: sel.id },
   });
@@ -1182,7 +1216,7 @@ function jumpToService(): void {
 function jumpToEndpointDependency(): void {
   const sel = selectedNode.value;
   if (!sel) return;
-  void router.push({
+  openRouteInNewTab({
     path: `/layer/${targetLayerFor(sel)}/dependency`,
     query: { service: sel.id },
   });
@@ -1487,14 +1521,6 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <option :value="3">3 hops</option>
           </select>
         </label>
-        <!-- Open this layer's topology in the 3D map, focused on just
-             this layer (the existing /3d/map scene scoped via ?layer). -->
-        <router-link
-          class="sw-btn small"
-          :to="{ path: '/3d/map', query: { layer: layerKey } }"
-          target="_blank"
-          title="View this layer's topology in 3D"
-        >View in 3D</router-link>
         <button class="sw-btn small" type="button" @click="() => refetch()">Refresh</button>
       </div>
     </header>
@@ -2052,7 +2078,15 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <span class="sw-tag">{{ selectedCall.detectPoints.join(' · ') || 'relation' }}</span>
             </div>
           </div>
-          <button class="sw-btn small" type="button" @click="selectedCallId = null">×</button>
+          <div class="sp-head-actions">
+            <button
+              v-if="canDrillInstance"
+              class="sw-btn small primary"
+              type="button"
+              @click="openInstanceTopology"
+            >{{ t('Instance map') }} →</button>
+            <button class="sw-btn small" type="button" @click="selectedCallId = null">×</button>
+          </div>
         </header>
         <!-- Edge line metrics — one card per metric. Inside, client
              and server cells sit SIDE-BY-SIDE (left | right) and each
@@ -2752,6 +2786,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   border-bottom: 1px solid var(--sw-line);
 }
 .sp-id { min-width: 0; flex: 1; }
+.sp-head-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .sp-mono {
   font-family: var(--sw-mono);
   font-size: 12.5px;

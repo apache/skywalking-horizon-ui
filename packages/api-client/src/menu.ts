@@ -36,6 +36,10 @@ export interface LayerSlots {
   endpoints?: string;
   /** Label for the endpoint-to-endpoint dependency feature. Defaults to `${endpoints} dependency`. */
   endpointDependency?: string;
+  /** Label for the service-topology tab. Defaults to "Topology". */
+  topology?: string;
+  /** Label for the instance-topology sub-tab. Defaults to "Instance map". */
+  instanceTopology?: string;
 }
 
 export interface LayerCaps {
@@ -195,16 +199,11 @@ export interface OverviewGroup {
  *   - `metrics: string[]` of column-key refs → resolved against
  *                                     `layer-header.columns` then
  *                                     wrapped as above.
- *   - `throughput` / `spark` (oldest) → resolved same way.
  */
 export interface LayerOverviewConfig {
   groups?: OverviewGroup[];
   /** @deprecated — wrapped into a single auto-size group on load. */
   metrics?: OverviewMetric[];
-  /** @deprecated — migrated to the first group's first metric. */
-  throughput?: string;
-  /** @deprecated — sparkline follows the headline metric. */
-  spark?: string;
 }
 
 export interface LayerDef {

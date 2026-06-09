@@ -45,7 +45,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { useLayerServices } from '@/layer/useLayerServices';
+import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetricAs } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
@@ -119,23 +119,11 @@ function xLabelsForLen(len: number): string[] {
   );
 }
 const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
-// The layer's REAL service roster (id + name), independent of the
-// landing top-N. The cascade prefers landing rows when they include
-// the selectedId (so the display name has the same casing / cluster
-// suffix the landing rollup uses), but falls back to the full roster
-// for low-traffic services that never make landing's sample. Without
-// the roster fallback the dashboard would sit on "Resolving service…"
-// forever for any deep-link / hierarchy-peer entry whose service
-// isn't in landing's top-N.
-const { services: layerServices } = useLayerServices(layerKey);
-const serviceName = computed<string | null>(() => {
-  const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
-  const match = rows.find((r) => r.serviceId === selectedId.value);
-  if (match) return match.serviceName;
-  const fromRoster = layerServices.value.find((s) => s.id === selectedId.value);
-  if (fromRoster) return fromRoster.name;
-  return null;
-});
+// Prefer landing rows for the selected service's name, falling back to
+// the full roster for low-traffic / deep-linked services that miss
+// landing's top-N — without it the dashboard would sit on "Resolving
+// service…" forever. Shared with every other layer tab.
+const serviceName = useLayerServiceName(layerKey, landing);
 // Dev-only escape hatch: appending `?mockTop=10` to the page URL pads
 // every TopList result to N synthetic rows. Helps operators verify
 // widget heights without waiting for OAP to populate the layer.
@@ -513,51 +501,13 @@ function hasTopData(w: { id: string; type: string }): boolean {
 }
 
 /**
- * Evaluate a widget's `visibleWhen` predicate.
- *   - `<metric_name> has value`  → the widget's result has a non-null
- *     scalar / a non-empty series.
- *   - `#entity.<key>`             → entity attribute exists (deferred —
- *     we don't surface entity attributes yet; defaults true).
- *   - anything else               → treated as "always visible".
- *
- * Empty / unset → always visible. Predicates that mention a metric not
- * in the widget's own results never hide the widget either; they're
- * advisory hints for the operator's mental model.
+ * `visibleWhen` is now evaluated BFF-side: a gated-out widget comes back
+ * flagged `hidden: true` (group/entity misses also skip their MQE there).
+ * The grid drops those; a widget with no result yet (loading) stays
+ * visible until its result lands.
  */
-function isVisible(
-  w: { id: string; visibleWhen?: string },
-  result:
-    | {
-        value?: number | null;
-        series?: Array<{ data: Array<number | null> }>;
-        topList?: Array<unknown>;
-        topGroups?: Array<{ items: Array<unknown> }>;
-        records?: Array<unknown>;
-        table?: Array<unknown>;
-      }
-    | undefined,
-): boolean {
-  const cond = w.visibleWhen?.trim();
-  if (!cond) return true;
-  const hasValueMatch = /^(\S+)\s+has\s+value$/i.exec(cond);
-  if (hasValueMatch && result) {
-    if (result.value !== undefined && result.value !== null) return true;
-    if (result.series && result.series.some((s) => s.data.some((v) => v !== null))) return true;
-    // Top + record widgets: a non-empty list counts as "has value".
-    // Without these checks, every gated `top` / `record` widget would
-    // hide itself the moment the BFF returns its rows, since neither
-    // .value nor .series is populated.
-    if (result.topList && result.topList.length > 0) return true;
-    if (result.topGroups && result.topGroups.some((g) => g.items.length > 0)) return true;
-    if (result.records && result.records.length > 0) return true;
-    return false;
-  }
-  if (cond.startsWith('#entity.')) {
-    // Entity-attribute predicates need an attributes feed we don't
-    // surface yet. Render the widget unconditionally for now.
-    return true;
-  }
-  return true;
+function isHidden(id: string): boolean {
+  return resultsById.value.get(id)?.hidden === true;
 }
 </script>
 
@@ -757,7 +707,7 @@ function isVisible(
     </div>
     <div v-else class="grid">
       <div
-        v-for="w in widgets.filter((wi) => isVisible(wi, resultsById.get(wi.id)))"
+        v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
         class="widget sw-card"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"

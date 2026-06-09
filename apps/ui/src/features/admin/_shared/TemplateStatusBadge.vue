@@ -53,7 +53,7 @@ function title(s: TemplateStatus): string {
     case 'diverged': return 'OAP-stored copy differs from bundled. OAP wins at render time.';
     case 'disabled': return 'Template is disabled on OAP. Hidden from render until re-enabled.';
     case 'remote-only': return 'OAP has this template but bundled does not. OAP is the only source.';
-    case 'bundled-fallback': return 'OAP has no copy of this template right now — rendering bundled.';
+    case 'bundled-fallback': return 'Shipped with Horizon but not synced to OAP yet. It is NOT rendered as-is — push it (or let boot-seed run) to publish; until then the page uses built-in defaults, and blocks if OAP’s template store is unreachable.';
     default: return '';
   }
 }

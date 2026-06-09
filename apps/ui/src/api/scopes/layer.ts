@@ -20,6 +20,7 @@ import type {
   DashboardResponse,
   DashboardWidget,
   EndpointDependencyResponse,
+  InstanceTopologyResponse,
   LandingConfig,
   LandingResponse,
   ServiceHierarchyResponse,
@@ -51,8 +52,6 @@ export class LayerApi {
       topN: cfg.topN,
       orderBy: cfg.orderBy,
       columns: cfg.columns,
-      ...(cfg.spark ? { spark: cfg.spark } : {}),
-      ...(cfg.throughput ? { throughput: cfg.throughput } : {}),
     };
     if (range) {
       body.step = range.step;
@@ -187,6 +186,9 @@ export class LayerApi {
     service?: string,
     depth = 1,
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
+    /** Admin preview: the operator's draft `topology` block (JSON string).
+     *  Renders the draft against live OAP instead of the remote template. */
+    previewConfig?: string,
   ): Promise<TopologyResponse> {
     const qs = new URLSearchParams();
     if (service) qs.set('service', service);
@@ -196,9 +198,37 @@ export class LayerApi {
       qs.set('startMs', String(range.startMs));
       qs.set('endMs', String(range.endMs));
     }
+    if (previewConfig) qs.set('previewConfig', previewConfig);
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/topology?${qs.toString()}`,
+    );
+  }
+
+  /** Instance-to-instance topology between two services, opened from a
+   *  service-map edge. `client` = the edge source service, `server` =
+   *  the edge target service (matches OAP's getServiceInstanceTopology
+   *  clientServiceId / serverServiceId). Only the layers whose topology
+   *  config carries an `instanceTopology` block answer this (404 else). */
+  instanceTopology(
+    layerKey: string,
+    clientServiceId: string,
+    serverServiceId: string,
+    range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
+    /** Admin preview: the operator's draft `topology` block (JSON string);
+     *  the BFF reads its nested `instanceTopology`. */
+    previewConfig?: string,
+  ): Promise<InstanceTopologyResponse> {
+    const qs = new URLSearchParams({ client: clientServiceId, server: serverServiceId });
+    if (range) {
+      qs.set('step', range.step);
+      qs.set('startMs', String(range.startMs));
+      qs.set('endMs', String(range.endMs));
+    }
+    if (previewConfig) qs.set('previewConfig', previewConfig);
+    return this.bff.request(
+      'GET',
+      `/api/layer/${encodeURIComponent(layerKey)}/instance-topology?${qs.toString()}`,
     );
   }
 
@@ -206,8 +236,11 @@ export class LayerApi {
     layerKey: string,
     service: string,
     endpoint: string,
+    /** Admin preview: the operator's draft `endpointDependency` block. */
+    previewConfig?: string,
   ): Promise<EndpointDependencyResponse> {
     const qs = new URLSearchParams({ service, endpoint });
+    if (previewConfig) qs.set('previewConfig', previewConfig);
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/endpoint-dependency?${qs.toString()}`,

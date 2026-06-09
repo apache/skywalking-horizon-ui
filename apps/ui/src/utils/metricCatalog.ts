@@ -382,8 +382,6 @@ interface DefaultLandingSet {
   columns: Array<{ metric: string; label?: string; unit?: string }>;
   /** Metric key used to rank the top-N. */
   orderBy: string;
-  /** Sparkline metric (defaults to `orderBy` when omitted). */
-  spark?: string;
 }
 
 const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
@@ -412,7 +410,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'k8s.restart' },
     ],
     orderBy: 'k8s.cpu',
-    spark: 'k8s.cpu',
   },
   browser: {
     columns: [
@@ -422,7 +419,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'browser.js-err' },
     ],
     orderBy: 'browser.pv',
-    spark: 'browser.pv',
   },
   database: {
     columns: [
@@ -432,7 +428,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'db.conn' },
     ],
     orderBy: 'db.qps',
-    spark: 'db.qps',
   },
   mq: {
     columns: [
@@ -441,7 +436,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'mq.consumer-lag' },
     ],
     orderBy: 'mq.msg-rate',
-    spark: 'mq.msg-rate',
   },
   faas: {
     columns: [
@@ -451,7 +445,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'err' },
     ],
     orderBy: 'faas.invocations',
-    spark: 'faas.invocations',
   },
   genai: {
     columns: [
@@ -460,7 +453,6 @@ const LAYER_TYPE_DEFAULTS: Record<LayerCategory, DefaultLandingSet> = {
       { metric: 'genai.latency' },
     ],
     orderBy: 'genai.req',
-    spark: 'genai.tokens',
   },
 };
 
@@ -483,12 +475,6 @@ export function defaultColumnsForLayer(
 /** Metric key used to rank the top-N services on a layer's landing card. */
 export function defaultOrderByForLayer(layerKey: string): string {
   return LAYER_TYPE_DEFAULTS[layerCategory(layerKey)].orderBy;
-}
-
-/** Sparkline metric for the landing card (falls back to the order-by key). */
-export function defaultSparkForLayer(layerKey: string): string {
-  const set = LAYER_TYPE_DEFAULTS[layerCategory(layerKey)];
-  return set.spark ?? set.orderBy;
 }
 
 /**

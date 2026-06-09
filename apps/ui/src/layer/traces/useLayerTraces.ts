@@ -23,6 +23,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 import type {
   TraceDetailResponse,
@@ -59,10 +60,13 @@ export interface TraceListParams {
 }
 
 export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
+  // Preview-only: forward the draft `traces` block (source selector).
+  const previewCfg = usePreviewLayerBlock(layerKey, 'traces');
   const q = useQuery<TraceListResponse>({
     queryKey: [
       'layer-traces',
       layerKey,
+      previewCfg,
       params.source,
       params.service,
       params.instanceId,
@@ -96,6 +100,7 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
         ...(params.customStart.value && params.customEnd.value
           ? { start: params.customStart.value, end: params.customEnd.value }
           : { windowMinutes: params.windowMinutes.value }),
+        ...(previewCfg.value ? { previewConfig: previewCfg.value } : {}),
       }),
     enabled: computed(
       () => layerKey.value.length > 0 && (params.enabled ? params.enabled.value : true),

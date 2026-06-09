@@ -52,8 +52,6 @@ export function useLayerLanding(
     topN: cfg.value.topN,
     orderBy: cfg.value.orderBy,
     columns: cfg.value.columns,
-    spark: cfg.value.spark,
-    throughput: cfg.value.throughput,
   }));
   const rangeRef = range ?? computed<LandingRange | null>(() => null);
   const rangeKey = computed(() => {

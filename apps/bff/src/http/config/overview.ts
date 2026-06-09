@@ -35,16 +35,24 @@ import type {
   OverviewDashboard,
   OverviewDashboardListResponse,
   OverviewDashboardResponse,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
-import { getOverviewDashboard, loadOverviewDashboards } from '../../logic/overview/loader.js';
-import { localize, getOverviewOverlay, localeFromRequest } from '../../i18n/index.js';
+import {
+  resolveEffectiveOverviews,
+  resolveEffectiveOverview,
+} from '../../logic/overview/effective.js';
+import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface OverviewRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
+  /** OAP UI-template client — serve the in-use (remote-or-bundled)
+   *  overviews + apply OAP translation overlays, matching the bundle. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRouteDeps): void {
@@ -52,22 +60,28 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
 
   app.get('/api/overview/dashboards', { preHandler: auth }, async (req, reply) => {
     const locale = localeFromRequest(req);
-    const dashboards = loadOverviewDashboards();
+    const dashboards = await resolveEffectiveOverviews(deps.uiTemplateClient);
     const body: OverviewDashboardListResponse = {
       generatedAt: Date.now(),
-      dashboards: dashboards.map((d) => {
-        const ld = localize<OverviewDashboard>(d, getOverviewOverlay(d.id, locale), locale);
-        return {
-          id: ld.id,
-          title: ld.title,
-          description: ld.description,
-          visibility: ld.visibility,
-          icon: ld.icon,
-          order: ld.order,
-          layers: ld.layers,
-          widgetCount: ld.widgets.length,
-        };
-      }),
+      dashboards: await Promise.all(
+        dashboards.map(async (d) => {
+          const ld = localizeContent<OverviewDashboard>(
+            d,
+            await oapOverlayContentFor(deps.uiTemplateClient, 'overview', d.id, locale),
+            locale,
+          );
+          return {
+            id: ld.id,
+            title: ld.title,
+            description: ld.description,
+            visibility: ld.visibility,
+            icon: ld.icon,
+            order: ld.order,
+            layers: ld.layers,
+            widgetCount: ld.widgets.length,
+          };
+        }),
+      ),
     };
     return reply.send(body);
   });
@@ -77,8 +91,10 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const { id } = req.params as { id: string };
-      const dash = getOverviewDashboard(id);
+      const dash = await resolveEffectiveOverview(deps.uiTemplateClient, id);
       if (!dash) {
+        // null ⇒ unknown OR admin-disabled on OAP — either way it doesn't
+        // render (a disabled overview must not resurrect from bundled).
         const body: OverviewDashboardResponse = {
           generatedAt: Date.now(),
           dashboard: { id, title: id, widgets: [] },
@@ -90,7 +106,11 @@ export function registerOverviewRoutes(app: FastifyInstance, deps: OverviewRoute
       const locale = localeFromRequest(req);
       const body: OverviewDashboardResponse = {
         generatedAt: Date.now(),
-        dashboard: localize<OverviewDashboard>(dash, getOverviewOverlay(dash.id, locale), locale),
+        dashboard: localizeContent<OverviewDashboard>(
+          dash,
+          await oapOverlayContentFor(deps.uiTemplateClient, 'overview', dash.id, locale),
+          locale,
+        ),
         reachable: true,
       };
       return reply.send(body);

@@ -110,6 +110,16 @@
     "linkServerMetrics": [
       { "label": "HTTP RPM" },
       { "label": "平均延迟" }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "平均延迟" }
+      ],
+      "linkServerMetrics": [
+        { "label": "HTTP RPM" },
+        { "label": "平均延迟" }
+      ]
+    }
   }
 }

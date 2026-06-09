@@ -135,6 +135,21 @@
     "linkClientMetrics": [
       { "label": "RPM" },
       { "label": "平均响应时间" }
-    ]
+    ],
+    "instanceTopology": {
+      "nodeMetrics": [
+        { "label": "RPM" },
+        { "label": "成功率" },
+        { "label": "延迟" }
+      ],
+      "linkServerMetrics": [
+        { "label": "RPM" },
+        { "label": "平均响应时间" }
+      ],
+      "linkClientMetrics": [
+        { "label": "RPM" },
+        { "label": "平均响应时间" }
+      ]
+    }
   }
 }

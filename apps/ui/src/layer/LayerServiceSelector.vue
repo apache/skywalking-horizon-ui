@@ -51,6 +51,16 @@ const props = withDefaults(
      *  "ActiveMQ clusters", "Databases"). Falls back to the generic
      *  "Service" when the layer defines no alias. */
     serviceLabel?: string;
+    /** Full layer roster (id + name for EVERY service). When supplied,
+     *  the picker lists the WHOLE layer — services beyond the
+     *  metric-probed `services` set (those that ranked below
+     *  `query.landingServiceCap` on the order-by metric) render as
+     *  "low <orderBy>" tail rows instead of being hidden, so every
+     *  service stays browsable / searchable / selectable regardless of
+     *  the metric fan-out cap. */
+    roster?: ReadonlyArray<{ id: string; name: string }>;
+    /** Order-by metric key — labels the tail rows ("low RPM"). */
+    orderBy?: string;
   }>(),
   {
     accent: 'var(--sw-accent)',
@@ -66,10 +76,47 @@ const emit = defineEmits<{ (e: 'select', id: string): void }>();
 const filter = ref('');
 const page = ref(0);
 
+// A probed row carries landing metrics; a tail row is a roster-only
+// service that ranked below the metric cap — id+name with no numbers.
+type PickerRow =
+  | { kind: 'probed'; id: string; name: string; row: LandingServiceRow }
+  | { kind: 'tail'; id: string; name: string };
+
+// Probed rows first (already sorted by orderBy from the BFF), then the
+// roster tail that wasn't metric-probed. Without a roster prop the
+// behaviour is unchanged — just the probed set.
+const allRows = computed<PickerRow[]>(() => {
+  const probed: PickerRow[] = props.services.map((r) => ({
+    kind: 'probed',
+    id: r.serviceId,
+    name: r.serviceName,
+    row: r,
+  }));
+  const roster = props.roster;
+  if (!roster || roster.length === 0) return probed;
+  const probedIds = new Set(probed.map((p) => p.id));
+  const tail: PickerRow[] = roster
+    .filter((r) => !probedIds.has(r.id))
+    .map((r) => ({ kind: 'tail', id: r.id, name: r.name }));
+  return [...probed, ...tail];
+});
+
+// Display label for the order-by metric, used in the "low <metric>"
+// tail message. Prefer the matching column's header; fall back to the
+// catalog short label, then the raw key.
+const orderByLabel = computed(() => {
+  const ob = props.orderBy;
+  if (!ob) return '';
+  const col = props.columns.find((c) => c.metric === ob);
+  return col?.label ?? metricMeta(ob).label ?? ob;
+});
+
+const probedCount = computed(() => props.services.length);
+
 const filtered = computed(() => {
   const q = filter.value.trim().toLowerCase();
-  if (q.length === 0) return props.services;
-  return props.services.filter((s) => s.serviceName.toLowerCase().includes(q));
+  if (q.length === 0) return allRows.value;
+  return allRows.value.filter((r) => r.name.toLowerCase().includes(q));
 });
 const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / props.pageSize)));
 const currentPage = computed(() => Math.min(page.value, pageCount.value - 1));
@@ -94,7 +141,12 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
         spellcheck="false"
         autocomplete="off"
       />
-      <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: services.length }) }}</span>
+      <span class="count">{{ t('{n} of {total}', { n: filtered.length, total: allRows.length }) }}</span>
+      <span
+        v-if="probedCount > 0 && allRows.length > probedCount"
+        class="count capped"
+        :title="t('Metrics are probed for the top {n} services by {metric}; the rest are listed as low-traffic. Raise query.landingServiceCap to probe more.', { n: probedCount, metric: orderByLabel })"
+      >{{ t('metrics: top {n}', { n: probedCount }) }}</span>
     </header>
     <table class="sw-table picker-table">
       <thead>
@@ -111,31 +163,61 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="row in visible"
-          :key="row.serviceId"
-          class="row"
-          :class="{ active: row.serviceId === selectedId }"
-          @click="emit('select', row.serviceId)"
-        >
-          <td class="svc-col" :title="row.serviceName">
-            <span class="pulse" :style="{ background: colorForStatus(statusForMetrics(row.metrics)) }" />
-            <span v-if="identity(row.serviceName).cluster" class="group-chip">
-              <span class="chip-alias">{{ identity(row.serviceName).clusterAlias }}</span>
-              <span class="chip-val">{{ identity(row.serviceName).cluster }}</span>
-            </span>
-            <span class="name-text">{{ row.shortName || identity(row.serviceName).display }}</span>
-          </td>
-          <td
-            v-for="c in columns"
-            :key="c.metric"
-            class="num"
-            :class="{ muted: row.metrics[c.metric] == null }"
-            :style="{ color: thresholdColor(c.metric, row.metrics[c.metric] ?? null) ?? undefined }"
+        <template v-for="r in visible" :key="r.id">
+          <tr
+            v-if="r.kind === 'probed'"
+            class="row"
+            :class="{ active: r.id === selectedId }"
+            @click="emit('select', r.id)"
           >
-            {{ fmtMetric(row.metrics[c.metric]) }}
-          </td>
-        </tr>
+            <td class="svc-col" :title="r.name">
+              <span class="pulse" :style="{ background: colorForStatus(statusForMetrics(r.row.metrics)) }" />
+              <span v-if="identity(r.name).cluster" class="group-chip">
+                <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
+                <span class="chip-val">{{ identity(r.name).cluster }}</span>
+              </span>
+              <span class="name-text">{{ r.row.shortName || identity(r.name).display }}</span>
+            </td>
+            <td
+              v-for="c in columns"
+              :key="c.metric"
+              class="num"
+              :class="{ muted: r.row.metrics[c.metric] == null }"
+              :style="{ color: thresholdColor(c.metric, r.row.metrics[c.metric] ?? null) ?? undefined }"
+            >
+              {{ fmtMetric(r.row.metrics[c.metric]) }}
+            </td>
+          </tr>
+          <!-- Below the metric cap: roster-only row, no numbers probed.
+               Still selectable — picking it loads that service's own
+               dashboard (which probes per-service metrics directly). -->
+          <tr
+            v-else
+            class="row tail"
+            :class="{ active: r.id === selectedId }"
+            @click="emit('select', r.id)"
+          >
+            <td class="svc-col" :title="r.name">
+              <span class="pulse tail-dot" />
+              <span v-if="identity(r.name).cluster" class="group-chip">
+                <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
+                <span class="chip-val">{{ identity(r.name).cluster }}</span>
+              </span>
+              <span class="name-text">{{ identity(r.name).display }}</span>
+            </td>
+            <!-- "low" sits in the order-by column (that's the metric it
+                 ranked low on); the others show "—" — they were never
+                 probed, so they're unknown, not zero. -->
+            <td
+              v-for="c in columns"
+              :key="c.metric"
+              class="num"
+              :class="{ 'low-tail': c.metric === orderBy, muted: c.metric !== orderBy }"
+            >
+              {{ c.metric === orderBy ? t('low') : '—' }}
+            </td>
+          </tr>
+        </template>
         <tr v-if="visible.length === 0">
           <td :colspan="columns.length + 1" class="empty">
             {{ t('No services match') }} <code>{{ filter }}</code>.
@@ -188,6 +270,11 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
   margin-left: auto;
   font-variant-numeric: tabular-nums;
 }
+.count.capped {
+  margin-left: 8px;
+  color: var(--sw-warn);
+  cursor: help;
+}
 .picker-table {
   width: 100%;
   font-size: 11.5px;
@@ -216,6 +303,23 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
 }
 .picker-table td.muted {
   color: var(--sw-fg-3);
+}
+.picker-table tr.tail td {
+  /* The unprobed long-tail reads a notch quieter than measured rows. */
+  opacity: 0.8;
+}
+.picker-table td.low-tail {
+  text-align: right;
+  color: var(--sw-fg-3);
+  font-size: 10.5px;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+.pulse.tail-dot {
+  /* Neutral grey, never green: this service was NOT measured, so its
+     dot must not read as "healthy". */
+  background: var(--sw-fg-3);
+  opacity: 0.5;
 }
 .picker-table tr.row {
   cursor: pointer;

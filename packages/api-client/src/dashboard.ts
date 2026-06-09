@@ -53,6 +53,39 @@
 export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table';
 
 /**
+ * Structured widget visibility predicate. When set on a widget, the BFF
+ * evaluates it and flags the widget's result `hidden: true` when the
+ * predicate is false; the SPA drops hidden widgets from the grid.
+ *
+ * Two kinds:
+ *   - `mqe`    — gate on an MQE expression's result. `exists` passes when
+ *               at least one non-null value appears anywhere in the result
+ *               (every labeled series, every bucket). `gt` / `lt` pass when
+ *               at least one value is above / below `value`. When the
+ *               expression is one of the widget's own `expressions` it is a
+ *               *self-gate* (evaluated from the widget's own data, no extra
+ *               query); otherwise it is a *group-gate* — the BFF probes the
+ *               expression once for all widgets that share it and skips the
+ *               whole group's MQE when it fails.
+ *   - `entity` — gate on the active entity's attributes. Only meaningful on
+ *               the Instance scope (Service / Endpoint entities carry no
+ *               attribute bag). `exists` passes when the named attribute is
+ *               present with a non-empty value; `eq` compares it to `value`
+ *               case-insensitively (e.g. `attribute: 'language', value: 'java'`
+ *               matches OAP's uppercase `JAVA`). On non-Instance scopes an
+ *               entity gate is a no-op (always visible).
+ *
+ * Legacy free-text predicates (`"<metric> has value"`, `#entity.<key>`) are
+ * no longer parsed — they degrade to ungated (the BFF's tolerant schema maps
+ * any non-conforming value to `undefined`).
+ */
+export type VisibleWhen =
+  | { kind: 'mqe'; expression: string; op: 'exists' }
+  | { kind: 'mqe'; expression: string; op: 'gt' | 'lt'; value: number }
+  | { kind: 'entity'; attribute: string; op: 'exists' }
+  | { kind: 'entity'; attribute: string; op: 'eq'; value: string };
+
+/**
  * Per-entity dashboard scope. Each layer carries an independent widget
  * set per scope; the SPA picks the right set based on the active
  * sub-route under `/layer/:key/`.
@@ -143,13 +176,10 @@ export interface DashboardWidget {
   /** Row span (number of 14px rows). Default 8. */
   rowSpan?: number;
   /**
-   * Optional visibility predicate. When set, the widget only renders if
-   * the predicate is truthy for the active entity. Supported forms:
-   *   - `#entity.<key>`                — entity attribute exists
-   *   - `<metric_name> has value`      — at least one bucket is non-null
-   * Future-compatible; the SPA evaluates this client-side.
+   * Optional visibility predicate — see {@link VisibleWhen}. Evaluated
+   * BFF-side; hidden widgets come back flagged `hidden: true`.
    */
-  visibleWhen?: string;
+  visibleWhen?: VisibleWhen;
   /**
    * When true, the BFF runs this widget's MQE against the whole layer
    * rather than scoping it to the currently-selected service. Used for
@@ -228,6 +258,10 @@ export interface DashboardWidgetResult {
   id: string;
   /** Set when every MQE expression for this widget errored. */
   error?: string;
+  /** Set when the widget's `visibleWhen` predicate evaluated false. The
+   *  SPA drops these from the grid; group/entity-gated misses also carry
+   *  no payload (their MQE was skipped server-side). */
+  hidden?: boolean;
   /** `card` payload — single scalar (avg across the time window). */
   value?: number | null;
   /** `line` payload — one entry per expression. The line chart picks

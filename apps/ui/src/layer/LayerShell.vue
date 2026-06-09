@@ -29,7 +29,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { LayerDef, LandingServiceRow } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { useAuthStore } from '@/state/auth';
 import Icon from '@/components/icons/Icon.vue';
@@ -269,12 +269,30 @@ const aggregates = computed(() =>
 const { selectedId, setSelected } = useSelectedService();
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const selectorColumns = computed(() => safeCfg.value.columns);
-const selectedRow = computed(
-  () =>
-    sampledServices.value.find((s) => s.serviceId === selectedId.value) ??
-    sampledServices.value[0] ??
-    null,
-);
+// Full service roster (the layer's REAL catalog, independent of landing's
+// top-N sample which misses low-traffic services / anything beyond the
+// landingServiceCap). A URL `?service=` is validated against THIS, not the
+// sample, and `selectedRow` resolves an off-sample selection from it.
+const { services: fullRoster, isLoading: rosterLoading } = useLayerServices(layerKey);
+const selectedRow = computed<LandingServiceRow | null>(() => {
+  const id = selectedId.value;
+  if (id) {
+    // The sampled row carries metrics — prefer it.
+    const inSample = sampledServices.value.find((s) => s.serviceId === id);
+    if (inSample) return inSample;
+    // Valid but off-sample (low-traffic, or beyond landingServiceCap):
+    // resolve the NAME from the full roster so the header + KPI strip
+    // reflect the ACTUAL selected service the dashboard queries — not the
+    // top sampled one. Metrics aren't in the sample, so the KPIs show
+    // dashes (honest "not probed") rather than another service's numbers.
+    const inRoster = fullRoster.value.find((s) => s.id === id);
+    if (inRoster) {
+      return { serviceId: inRoster.id, serviceName: inRoster.name, metrics: {} };
+    }
+  }
+  // No (or genuinely stale) selection → default to the first sampled row.
+  return sampledServices.value[0] ?? null;
+});
 const selectedParsed = computed(() => parseServiceName(selectedRow.value?.serviceName));
 const selectedGroup = computed(() => selectedParsed.value.group);
 // Switch-button label — base name only when the service has a group
@@ -303,12 +321,6 @@ const isZipkinTrace = computed<boolean>(() => {
   if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
   return scopeSegment.value === 'trace' && layer.value?.traces?.source === 'zipkin';
 });
-
-// Full service roster (the layer's REAL catalog, independent of landing's
-// top-N sample which misses low-traffic services). A URL `?service=` is
-// validated against THIS, not the sample — otherwise a valid but
-// low-traffic deep link is wrongly treated as stale.
-const { services: fullRoster, isLoading: rosterLoading } = useLayerServices(layerKey);
 
 // Keep the URL-backed service selection honest for every page that
 // uses the shell picker. A `?service=` outside the landing sample is
@@ -585,8 +597,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
          Sits below the General header so the page reads top-to-bottom:
          layer identity → expanded service picker → sub-route body. -->
     <LayerServiceSelector
-      v-if="layer && pickerOpen && sampledServices.length > 0 && !viewOwnsServiceSelector"
+      v-if="layer && pickerOpen && (sampledServices.length > 0 || fullRoster.length > 0) && !viewOwnsServiceSelector"
       :services="sampledServices"
+      :roster="fullRoster"
+      :order-by="safeCfg.orderBy"
       :columns="selectorColumns"
       :selected-id="selectedId"
       :accent="layer.color"

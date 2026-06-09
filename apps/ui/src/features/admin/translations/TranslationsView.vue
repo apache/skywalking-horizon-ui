@@ -199,16 +199,20 @@ watch(
 
 // ── Source + draft state ───────────────────────────────────────────
 
-/** Effective SOURCE for the picked template — remote (OAP) overrides
- *  bundled. Embedded `i18n` is no longer written by this page (the
- *  split storage uses sibling overlay rows). Any historical embedded
- *  block is stripped defensively. */
+/** Effective SOURCE for the picked template — strictly REMOTE (the
+ *  version published to OAP). We translate the PUBLISHED template's
+ *  fields, not the bundled disk copy: the runtime localizes against the
+ *  remote source, so enumerating fields from bundled would let an
+ *  operator translate fields that never reach end users. A template with
+ *  no OAP row therefore isn't translatable until it's published (the
+ *  editor shows the empty state). Embedded `i18n` is no longer written by
+ *  this page; any historical embedded block is stripped defensively. */
 const effective = computed<{ source: Record<string, unknown> } | null>(() => {
   const name = selectedName.value;
   const kind = selectedKind.value;
   if (!name) return null;
   const sources = kind === 'overview' ? overviewSources : layerSources;
-  const raw = sources.remote<Record<string, unknown>>(name) ?? sources.bundled<Record<string, unknown>>(name);
+  const raw = sources.remote<Record<string, unknown>>(name);
   if (!raw) return null;
   const { i18n: _i18n, ...rest } = raw as { i18n?: Record<string, unknown> };
   void _i18n;

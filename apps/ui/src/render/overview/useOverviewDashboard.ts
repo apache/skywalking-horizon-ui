@@ -20,6 +20,8 @@ import { useQueries, useQuery } from '@tanstack/vue-query';
 import type { LandingConfig, OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { useTimeRangeStore } from '@/controls/timeRange';
+import { getPreviewContentFor } from '@/controls/configBundle';
+import { overviewEditName } from '@/controls/localTemplateEdits';
 
 /**
  * Resolved value for one overview widget. The renderer reads
@@ -105,7 +107,20 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     staleTime: 60_000,
   });
 
-  const widgets = computed<OverviewWidget[]>(() => dash.data.value?.dashboard.widgets ?? []);
+  // Preview overlay: when the admin opens this page in `?mode=preview`,
+  // render the previewed source (local draft / bundled / remote snapshot)
+  // instead of the fetched live remote — the same overlay the config
+  // bundle applies to overview LIST views, so the admin Preview button
+  // works on the detail page too. Both the rendered widgets AND the MQE
+  // fan-out below read from this, so previewed metrics resolve live.
+  const dashboard = computed<OverviewDashboard | null>(
+    () =>
+      getPreviewContentFor<OverviewDashboard>(overviewEditName(idRef.value)) ??
+      dash.data.value?.dashboard ??
+      null,
+  );
+
+  const widgets = computed<OverviewWidget[]>(() => dashboard.value?.widgets ?? []);
   const layerRequests = computed(() => groupByLayer(widgets.value));
 
   // The topbar time picker is part of every overview query so flipping
@@ -128,7 +143,10 @@ export function useOverviewDashboard(idRef: Ref<string>) {
       const entries = Array.from(layerRequests.value.entries());
       const range = rangeKey.value;
       return entries.map(([layer, reqs]) => ({
-        queryKey: ['overview-dashboard-data', idRef.value, layer, range],
+        // Include the MQE column set (`reqs`), not just the overview id:
+        // a remote sync or preview edit that keeps the id but changes a
+        // widget's MQE must refire, or the cache serves stale data.
+        queryKey: ['overview-dashboard-data', idRef.value, layer, range, JSON.stringify(reqs)],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
@@ -204,7 +222,6 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     return out;
   });
 
-  const dashboard = computed<OverviewDashboard | null>(() => dash.data.value?.dashboard ?? null);
   const isLoadingData = computed(() => layerQueries.value.some((q) => q.isLoading));
 
   return {

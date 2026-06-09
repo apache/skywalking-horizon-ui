@@ -22,12 +22,16 @@
  * lot in localStorage and serve config lookups synchronously after the
  * first visit.
  *
- * Layer / overview content reflects the merged view from the sync
- * orchestrator: when OAP holds a (non-disabled) remote template under
- * the matching `horizon.*` name, that wins over bundled — operators
- * edit OAP, the BFF reflects what they edited. When OAP admin is
- * unreachable OR the remote is missing, bundled is used. Disabled
- * templates are dropped from the bundle entirely.
+ * Layer / overview content is strictly REMOTE at runtime: a (non-
+ * disabled) remote OAP template under the matching `horizon.*` name is
+ * rendered; anything else is dropped from the bundle. Bundled disk
+ * content is NEVER served here at runtime — it reaches the UI only by
+ * being synced INTO OAP (boot seed / admin reset) or via the explicit
+ * `?prefer=local` preview. So when OAP admin is unreachable, or a
+ * template is disabled / missing its remote row, that entry is simply
+ * absent from the bundle (the SPA blocks via the connectivity banner /
+ * falls to per-page in-code defaults), rather than masked by stale
+ * bundled config.
  *
  * `syncStatus` carries per-template badges for the admin pages so the
  * SPA can render `synced / diverged / disabled / remote-only /
@@ -67,12 +71,7 @@ import { formatName, parseEnvelope } from '../../logic/templates/names.js';
 import { resync as resyncTemplates } from '../../logic/templates/sync.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
-import {
-  localizeContent,
-  getLayerOverlay,
-  getOverviewOverlay,
-  localeFromRequest,
-} from '../../i18n/index.js';
+import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface ConfigBundleDeps {
   config: ConfigSource;
@@ -169,25 +168,36 @@ async function buildBundle(
   };
 
   const layers: Record<string, ScopeMap> = {};
-  for (const tpl of allLayerTemplates()) {
-    const picked = pickLayerContent(tpl, remoteByName, preferLocal);
-    if (picked === null) continue; // disabled
-    // Localize: OAP overlay wins where present, disk overlay fills the
-    // rest, English source falls through for the remainder. Both
-    // overlays are keyed by the layer key (the source's `key`,
-    // upper-snake to match OAP's enum).
-    const effective = localizeContent(
-      picked,
-      oapOverlayFor('layer', picked.key),
-      getLayerOverlay(picked.key, locale),
-      locale,
-    );
+  // Localize + slice a resolved layer template into per-scope widget sets.
+  const addLayer = (picked: LayerTemplate): void => {
+    // Localize against the OAP overlay row (keyed on the layer's
+    // upper-snake `key`); English fills the rest. Disk i18n is seed/reset
+    // only, never a runtime fill — same remote-first rule as the template.
+    const effective = localizeContent(picked, oapOverlayFor('layer', picked.key), locale);
     const scopes: ScopeMap = {};
     for (const scope of ['service', 'instance', 'endpoint'] as const) {
       const ws = widgetsForScope(effective, scope);
       if (ws.length > 0) scopes[scope] = ws;
     }
     layers[effective.key.toLowerCase()] = scopes;
+  };
+  if (preferLocal) {
+    // Preview (`?prefer=local`): the disk-bundled copy is the thing being
+    // previewed for diverged rows, so reading disk here is the allowed
+    // preview path.
+    for (const tpl of allLayerTemplates()) {
+      const picked = pickLayerContent(tpl, remoteByName, true);
+      if (picked) addLayer(picked);
+    }
+  } else {
+    // Normal runtime: enumerate the REMOTE layer rows only — never the disk
+    // bundle. A bundled-but-unsynced (or disabled / unreachable) layer is
+    // simply absent, exactly like the per-page routes' remote-or-default.
+    for (const row of sync.rows) {
+      if (row.kind !== 'layer' || row.status === 'disabled' || !row.remote || row.locale !== undefined) continue;
+      const env = parseEnvelope(row.remote.configuration);
+      if (env && isLayerLike(env.content)) addLayer(env.content as LayerTemplate);
+    }
   }
 
   const overviews: OverviewDashboard[] = [];
@@ -196,14 +206,7 @@ async function buildBundle(
     diskOverviewIds.add(dash.id);
     const picked = pickOverviewContent(dash, remoteByName, preferLocal);
     if (picked === null) continue; // disabled
-    overviews.push(
-      localizeContent(
-        picked,
-        oapOverlayFor('overview', picked.id),
-        getOverviewOverlay(picked.id, locale),
-        locale,
-      ),
-    );
+    overviews.push(localizeContent(picked, oapOverlayFor('overview', picked.id), locale));
   }
   // Remote-only overviews: dashboards that live on OAP with no on-disk
   // base — created in the admin UI and pushed. The disk loop can't see
@@ -216,11 +219,9 @@ async function buildBundle(
     if (!env || !isOverviewLike(env.content)) continue;
     const dash = env.content as OverviewDashboard;
     if (diskOverviewIds.has(dash.id)) continue; // already handled above
-    // Remote-only dashboards: no disk overlay, but a per-locale OAP
-    // overlay row may still apply.
-    overviews.push(
-      localizeContent(dash, oapOverlayFor('overview', dash.id), null, locale),
-    );
+    // Remote-only dashboards: localize against the per-locale OAP overlay
+    // row when one exists, else English.
+    overviews.push(localizeContent(dash, oapOverlayFor('overview', dash.id), locale));
   }
 
   const syncStatus: BundleSyncStatus = {
@@ -255,18 +256,19 @@ async function buildBundle(
   return { etag, generatedAt: Date.now(), ...body };
 }
 
-/** Choose remote envelope.content over bundled when the row is synced or
- *  diverged. `disabled` returns null (drop from bundle). `bundled-fallback`,
- *  `unknown`, and `remote-only` fall to bundled (remote-only is impossible
- *  here because the bundled iterator would have included it — but be
- *  defensive). */
+/** Choose the remote envelope content when the row is synced or diverged.
+ *  Runtime is REMOTE-ONLY: a missing row / `disabled` / `bundled-fallback`
+ *  (remote absent) all return `null` so the entry is dropped from the
+ *  bundle — bundled disk content is never served at runtime. The ONE
+ *  exception is `preferLocal` (the `?prefer=local` preview), where bundled
+ *  IS the thing being previewed. */
 function pickLayerContent(
   bundled: LayerTemplate,
   byName: Map<string, TemplateRow>,
   preferLocal = false,
 ): LayerTemplate | null {
   const row = byName.get(formatName('layer', bundled.key));
-  if (!row) return bundled;
+  if (!row) return preferLocal ? bundled : null;
   if (row.status === 'disabled') return null;
   // Operator opted to preview unpublished local edits: bundled wins for
   // diverged templates (synced rows are byte-equal, so it's a no-op there).
@@ -277,7 +279,7 @@ function pickLayerContent(
       return env.content as LayerTemplate;
     }
   }
-  return bundled;
+  return preferLocal ? bundled : null;
 }
 
 function pickOverviewContent(
@@ -286,7 +288,7 @@ function pickOverviewContent(
   preferLocal = false,
 ): OverviewDashboard | null {
   const row = byName.get(formatName('overview', bundled.id));
-  if (!row) return bundled;
+  if (!row) return preferLocal ? bundled : null;
   if (row.status === 'disabled') return null;
   if (preferLocal && row.status === 'diverged') return bundled;
   if (row.effective === 'remote' && row.remote) {
@@ -295,7 +297,7 @@ function pickOverviewContent(
       return env.content as OverviewDashboard;
     }
   }
-  return bundled;
+  return preferLocal ? bundled : null;
 }
 
 function isLayerLike(v: unknown): boolean {

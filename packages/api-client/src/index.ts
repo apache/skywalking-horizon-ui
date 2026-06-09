@@ -36,7 +36,6 @@ export type {
   LayerConfig,
   SetupResponse,
   SetupSavePayload,
-  ThroughputConfig,
 } from './setup.js';
 export type { LandingAggregates, LandingResponse, LandingServiceRow } from './landing.js';
 export type {
@@ -50,10 +49,12 @@ export type {
   DashboardWidget,
   DashboardWidgetResult,
   DashboardWidgetType,
+  VisibleWhen,
 } from './dashboard.js';
 export type {
   TopologyMetricDef,
   TopologyConfig,
+  InstanceTopologyConfig,
   EndpointDependencyConfig,
   ProcessTopologyConfig,
   ProcessRelationMetric,
@@ -62,6 +63,9 @@ export type {
   TopologyNode,
   TopologyCall,
   TopologyResponse,
+  InstanceTopologyNode,
+  InstanceTopologyCall,
+  InstanceTopologyResponse,
   EndpointDependencyNode,
   EndpointDependencyCall,
   EndpointDependencyResponse,

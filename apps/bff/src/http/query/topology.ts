@@ -43,6 +43,7 @@ import type {
   TopologyMetricDef,
   TopologyNode,
   TopologyResponse,
+  UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
@@ -54,13 +55,18 @@ import {
   type TimeStep,
   type Window,
 } from '../../util/window.js';
-import { getLayerTemplate, topologyConfigFor } from '../../logic/layers/loader.js';
+import { topologyConfigFor } from '../../logic/layers/loader.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
 
 export interface TopologyRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
+  /** OAP UI-template client — lets the route serve the in-use
+   *  (remote-or-bundled) topology config, matching the admin + sidebar. */
+  uiTemplateClient?: () => UITemplateClient;
 }
 
 interface OapTopoNode {
@@ -107,7 +113,7 @@ interface MqeValueRow {
 interface MqeResult {
   values?: MqeValueRow[];
 }
-interface MqeShape {
+export interface MqeShape {
   type?: string;
   error?: string | null;
   results?: MqeResult[];
@@ -166,7 +172,7 @@ function relationFragment(
   );
 }
 
-function aggregateMqe(env: MqeShape | undefined, kind: 'avg' | 'sum'): number | null {
+export function aggregateMqe(env: MqeShape | undefined, kind: 'avg' | 'sum'): number | null {
   if (!env || env.error) return null;
   const values = env.results?.[0]?.values ?? [];
   const nums: number[] = [];
@@ -186,7 +192,7 @@ function aggregateMqe(env: MqeShape | undefined, kind: 'avg' | 'sum'): number | 
  * sparkline chart (client | server) so the operator sees the trend
  * shape over the duration window rather than a single scalar.
  */
-function seriesFromMqe(env: MqeShape | undefined): Array<number | null> | null {
+export function seriesFromMqe(env: MqeShape | undefined): Array<number | null> | null {
   if (!env || env.error) return null;
   const values = env.results?.[0]?.values ?? [];
   if (values.length === 0) return null;
@@ -266,12 +272,33 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         step?: string;
         startMs?: string;
         endMs?: string;
+        previewConfig?: string;
       };
       const serviceArg = (q.service ?? '').trim();
       const depth = Math.max(1, Math.min(3, Number(q.depth) || 1));
 
-      const template = getLayerTemplate(layerKey);
-      const topoCfg: TopologyConfig = topologyConfigFor(template);
+      // Admin "Preview" mode: the page forwards the operator's unpublished
+      // draft `topology` block so we render it against live OAP without
+      // publishing first. When present + valid it wins outright — the
+      // remote-resolved config and its block/disabled gate don't apply to
+      // a draft the operator is actively editing.
+      const previewCfg = parsePreviewTopology(q.previewConfig);
+      let topoCfg: TopologyConfig;
+      if (previewCfg) {
+        topoCfg = previewCfg;
+      } else {
+        const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
+        if (eff.blocked) {
+          // Template store unreachable or this layer's template disabled —
+          // block: serve no map and no in-code default config. The SPA's
+          // connectivity banner explains the empty state (unreachable); a
+          // disabled layer is hidden from the sidebar so it isn't reached.
+          return reply.send(
+            emptyResponse(layerKey, serviceArg, depth, { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] }, true),
+          );
+        }
+        topoCfg = topologyConfigFor(eff.template);
+      }
 
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);

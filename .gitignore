@@ -6,6 +6,7 @@ dist-ssr
 
 # Claude Code per-user settings — user-specific allow-list, not for git.
 .claude/settings.local.json
+.claude/settings.json
 
 # Editor
 .idea
@@ -19,6 +20,9 @@ dist-ssr
 
 # Logs
 logs
+# …but `apps/ui/src/layer/logs/` is the Logs *feature* source, not log
+# output — re-include it so new components there aren't silently dropped.
+!apps/ui/src/layer/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
