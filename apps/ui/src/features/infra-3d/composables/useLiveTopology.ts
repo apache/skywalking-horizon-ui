@@ -203,61 +203,6 @@ export async function loadLiveTopologies(
   return probes;
 }
 
-/**
- * Internal-topology override — for layers the operator toggled into
- * "internal topology" mode (3D side panel). For each such layer, replace
- * its zone's SERVICE nodes with the INSTANCE-to-instance graph WITHIN each
- * of its services: one `getServiceInstanceTopology(svc, svc)` per service,
- * unioned. The result is written back onto the SAME `MapTopology` shape
- * (`servicesByLayer` + `topologies`) the scene already renders, so instance
- * cubes + instance-relation arcs render through the unchanged pipeline. Each
- * instance ref carries its owning service id + instance name so the detail
- * card can open the instance dashboard.
- *
- * A layer whose services have no intra-service instance relations in the
- * window collapses to an empty zone (the expected "blank topo" — the data
- * is backend-dependent). Per-service try/catch so one failure never aborts.
- */
-export async function loadLiveInternalTopologies(
-  layers: LayerDef[],
-  topo: MapTopology,
-  window: LiveWindow,
-): Promise<void> {
-  for (const L of layers) {
-    const services = topo.servicesByLayer[L.key] ?? [];
-    const instById = new Map<string, MapServiceRef>();
-    const calls: MapTopologyCall[] = [];
-    for (const svc of services) {
-      try {
-        // structure-only: the scene draws wiring; metric/attribute fan-out
-        // would be discarded — and this path re-runs per service per refresh.
-        const resp = await bff.layer.deployment(L.key, svc.id, window, undefined, true);
-        for (const n of resp.nodes) {
-          if (instById.has(n.id)) continue;
-          instById.set(n.id, {
-            id: n.id,
-            name: n.name,
-            normal: svc.normal,
-            ownerServiceId: n.serviceId,
-            instanceName: n.name,
-          });
-        }
-        for (const c of resp.calls) {
-          calls.push({ source: c.source, target: c.target, detectPoints: c.detectPoints });
-        }
-      } catch (err) {
-        console.warn(`[infra-3d] live internal topology failed for ${L.key}/${svc.id}:`, err);
-      }
-    }
-    const instances = [...instById.values()];
-    topo.servicesByLayer[L.key] = instances;
-    topo.topologies[L.key] = {
-      nodes: instances.map((r) => ({ id: r.id, name: r.name, layer: L.key })),
-      calls,
-    };
-  }
-}
-
 /** Cache key — `LAYER::serviceId`, the unique identity of a service projection. */
 function hierKey(layer: string, id: string): string {
   return `${layer.toUpperCase()}::${id}`;
@@ -307,24 +252,13 @@ export async function loadLiveHierarchy(
   cache: Map<string, MapHierarchyEntry | null>,
 ): Promise<void> {
   rep.start();
-  // A layer toggled into deployment mode lists INSTANCE refs in
-  // servicesByLayer — getServiceHierarchy is service-scope, so probing those
-  // ids would be wrong-scope wire calls. Skip them, and keep the layer's
-  // cached SERVICE entries alive so toggling back doesn't re-fetch the
-  // whole layer's hierarchies.
   const current: Array<{ layer: string; ref: MapServiceRef }> = [];
-  const instanceModeLayers = new Set<string>();
   for (const [layer, refs] of Object.entries(topo.servicesByLayer)) {
-    if (refs.some((r) => r.instanceName)) {
-      instanceModeLayers.add(layer.toUpperCase());
-      continue;
-    }
     for (const ref of refs) current.push({ layer, ref });
   }
   const present = new Set(current.map((c) => hierKey(c.layer, c.ref.id)));
   for (const k of [...cache.keys()]) {
     if (present.has(k)) continue;
-    if (instanceModeLayers.has(k.split('::', 1)[0])) continue;
     cache.delete(k);
   }
 

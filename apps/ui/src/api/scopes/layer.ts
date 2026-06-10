@@ -243,9 +243,6 @@ export class LayerApi {
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `deployment` block. */
     previewConfig?: string,
-    /** Graph shape only (nodes + calls, no metrics/attributes) — for
-     *  consumers that just draw the wiring, like the 3D map. */
-    structureOnly?: boolean,
   ): Promise<DeploymentResponse> {
     const qs = new URLSearchParams({ service: serviceId });
     if (range) {
@@ -254,7 +251,6 @@ export class LayerApi {
       qs.set('endMs', String(range.endMs));
     }
     if (previewConfig) qs.set('previewConfig', previewConfig);
-    if (structureOnly) qs.set('structure', '1');
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/deployment?${qs.toString()}`,

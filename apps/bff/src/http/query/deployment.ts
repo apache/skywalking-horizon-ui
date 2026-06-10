@@ -252,12 +252,7 @@ export function registerDeploymentRoute(
         startMs?: string;
         endMs?: string;
         previewConfig?: string;
-        structure?: string;
       };
-      // `structure=1` — graph shape only (nodes + calls). Skips the roster
-      // resolve, the attributes join and ALL MQE fan-out; for consumers that
-      // only draw the wiring (the 3D map polls this per service per refresh).
-      const structureOnly = q.structure === '1' || q.structure === 'true';
       const serviceId = (q.service ?? '').trim();
       if (!serviceId) {
         return reply.code(400).send({ error: 'missing_service' });
@@ -311,22 +306,20 @@ export function registerDeploymentRoute(
       // `normal = service.normal || isReal`.
       let serviceName: string | null = null;
       let serviceNormal = true;
-      if (!structureOnly) {
-        try {
-          const data = await graphqlPost<{
-            services: Array<{ id: string; name: string; normal?: boolean | null }>;
-          }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: oapLayer });
-          const svc = data.services.find((s) => s.id === serviceId) ?? null;
-          if (svc) {
-            serviceName = svc.name;
-            serviceNormal = svc.normal !== false;
-          }
-        } catch (err) {
-          return reply.send(
-            emptyResponse(layerKey, serviceId, cfg, false,
-              err instanceof Error ? err.message : String(err)),
-          );
+      try {
+        const data = await graphqlPost<{
+          services: Array<{ id: string; name: string; normal?: boolean | null }>;
+        }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: oapLayer });
+        const svc = data.services.find((s) => s.id === serviceId) ?? null;
+        if (svc) {
+          serviceName = svc.name;
+          serviceNormal = svc.normal !== false;
         }
+      } catch (err) {
+        return reply.send(
+          emptyResponse(layerKey, serviceId, cfg, false,
+            err instanceof Error ? err.message : String(err)),
+        );
       }
 
       // ── Fetch the intra-service instance topology (same id both sides).
@@ -360,20 +353,18 @@ export function registerDeploymentRoute(
       // attributes, only attribute-clustering degrades to ungrouped.
       const attrsById = new Map<string, Array<{ name: string; value: string }>>();
       const attrsByName = new Map<string, Array<{ name: string; value: string }>>();
-      if (!structureOnly) {
-        try {
-          const data = await graphqlPost<{ instances: OapInstanceMeta[] }>(opts, LIST_INSTANCES, {
-            serviceId,
-            duration: durationVar,
-          });
-          for (const inst of data.instances ?? []) {
-            const a = inst.attributes ?? [];
-            attrsById.set(inst.id, a);
-            attrsByName.set(inst.name, a);
-          }
-        } catch {
-          // keep going with empty attribute maps
+      try {
+        const data = await graphqlPost<{ instances: OapInstanceMeta[] }>(opts, LIST_INSTANCES, {
+          serviceId,
+          duration: durationVar,
+        });
+        for (const inst of data.instances ?? []) {
+          const a = inst.attributes ?? [];
+          attrsById.set(inst.id, a);
+          attrsByName.set(inst.name, a);
         }
+      } catch {
+        // keep going with empty attribute maps
       }
       function attrsFor(n: OapInstNode): Array<{ name: string; value: string }> {
         return attrsById.get(n.id) ?? attrsByName.get(n.name) ?? [];
@@ -396,7 +387,7 @@ export function registerDeploymentRoute(
       // ── Per-node MQE (each node uses its role's defs).
       const nodeMetricVals = new Map<string, Record<string, number | null>>();
       const realNodes = nodes.filter((n) => n.isReal);
-      if (!structureOnly) {
+      {
         const fragments: string[] = [];
         const aliasMap = new Map<string, { nodeId: string; metric: DeploymentMetricDef }>();
         realNodes.forEach((n, i) => {
@@ -440,7 +431,7 @@ export function registerDeploymentRoute(
         const b = nodeById.get(c.target);
         return !!a && !!b && !!a.name && !!b.name;
       });
-      if (!structureOnly && candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
+      if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
         const fragments: string[] = [];
         const aliasMap = new Map<
           string,

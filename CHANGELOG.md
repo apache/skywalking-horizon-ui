@@ -119,11 +119,6 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   scope) plus the clustering-rule picker. The config is a self-contained
   block on the layer template, so it travels with template export/import and
   is independent of the service-map topology config.
-- **3D infra map integration.** On the 3D map, a layer that enables
-  Deployment gains a per-layer toggle in the side panel: switch it on and that
-  layer's zone renders its **instances** and their intra-service relations
-  instead of service cubes — selecting an instance cube opens the **instance**
-  dashboard. Toggle it off to return to the service view.
 - **Pod / sibling model.** Instances render as **hexagons** and can bundle into
   pods: a pod's **main** container is a full hex with its **sibling** containers
   attached as smaller hexes around its edges. Three independent rules drive it —
