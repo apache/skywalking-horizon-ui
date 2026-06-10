@@ -46,30 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "jobs",
-            "label": "Running Jobs",
-            "tip": "Active Flink jobs.",
-            "mqe": "latest(meter_flink_jobManager_running_job_number)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "slotsAvail",
-            "label": "Slots Available",
-            "tip": "Free task slots.",
-            "mqe": "latest(meter_flink_jobManager_taskManagers_slots_available)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

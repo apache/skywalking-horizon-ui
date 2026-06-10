@@ -13,32 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "レイテンシとエラー",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "レイヤー全体の応答時間の 95 パーセンタイル。"
-          },
-          {
-            "label": "エラー率",
-            "tip": "100 − SLA。高いほど悪化。"
-          }
-        ]
-      },
-      {
-        "title": "健全性",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "0 – 1 スケールのユーザー満足度スコア。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

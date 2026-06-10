@@ -19,31 +19,6 @@
   "layer-header": {
     "columns": []
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Satellite health",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "cpu",
-            "label": "CPU %",
-            "tip": "Satellite process CPU.",
-            "mqe": "satellite_service_server_cpu_utilization",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "queueUsed",
-            "label": "Queue Used",
-            "tip": "Outstanding queue items \u2014 backlog indicator.",
-            "mqe": "satellite_service_queue_used_count",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

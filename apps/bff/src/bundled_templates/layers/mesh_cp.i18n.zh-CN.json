@@ -12,17 +12,6 @@
       { "label": "服务" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Istio 健康",
-        "metrics": [
-          { "label": "CPU", "tip": "Istio 控制面进程的 CPU。" },
-          { "label": "Goroutines", "tip": "活跃 Go goroutine 数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "CPU" },

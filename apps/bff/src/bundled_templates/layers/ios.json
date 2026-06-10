@@ -49,39 +49,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "App health",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "launch_p95",
-            "label": "Launch P95",
-            "tip": "95th-percentile cold-launch time as measured by MetricKit.",
-            "mqe": "meter_ios_app_launch_time_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "hang_p95",
-            "label": "Hang P95",
-            "tip": "95th-percentile UI hang duration.",
-            "mqe": "meter_ios_hang_time_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "crashes",
-            "label": "Crashes",
-            "tip": "Foreground + background abnormal exits.",
-            "mqe": "meter_ios_foreground_abnormal_exit_count + meter_ios_background_abnormal_exit_count",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

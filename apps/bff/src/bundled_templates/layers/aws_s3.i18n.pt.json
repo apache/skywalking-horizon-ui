@@ -20,27 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Erros",
-        "metrics": [
-          {
-            "label": "Contagem de 4xx",
-            "tip": "Erros de cliente observados pelo CloudWatch."
-          },
-          {
-            "label": "Contagem de 5xx",
-            "tip": "Erros de servidor observados pelo CloudWatch."
-          },
-          {
-            "label": "Latência média",
-            "tip": "Latência média da requisição."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

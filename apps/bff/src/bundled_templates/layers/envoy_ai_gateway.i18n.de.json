@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz",
-        "metrics": [
-          {
-            "label": "Mittlere Latenz",
-            "tip": "Durchschnittliche Ende-zu-Ende-Anfragelatenz."
-          },
-          {
-            "label": "TTFT-Mittel",
-            "tip": "Zeit bis zum ersten Token — Latenzindikator für generative Modelle."
-          }
-        ]
-      },
-      {
-        "title": "Tokens",
-        "metrics": [
-          {
-            "label": "Tokens/min",
-            "tip": "Kombinierte Input- + Output-Token-Rate."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

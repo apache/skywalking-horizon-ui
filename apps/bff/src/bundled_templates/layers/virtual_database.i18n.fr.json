@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latence d'accès à la base au 95e centile."
-          },
-          {
-            "label": "Taux d'erreur",
-            "tip": "100 − taux de succès des accès à la base. Calculé à partir des exceptions de requête capturées par l'agent du service appelant."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM d'accès",
-            "tip": "Requêtes par minute vers cette base virtuelle."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

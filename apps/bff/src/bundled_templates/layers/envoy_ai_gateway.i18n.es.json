@@ -15,32 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia",
-        "metrics": [
-          {
-            "label": "Latencia media",
-            "tip": "Latencia media de petición extremo a extremo."
-          },
-          {
-            "label": "TTFT medio",
-            "tip": "Tiempo hasta el primer token — indicador de latencia del modelo generativo."
-          }
-        ]
-      },
-      {
-        "title": "Tokens",
-        "metrics": [
-          {
-            "label": "Tokens/min",
-            "tip": "Tasa combinada de tokens de entrada + salida."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Nodos",
     "services": "AI Gateways"

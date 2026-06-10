@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz",
-        "metrics": [
-          {
-            "label": "Kong-Latenz",
-            "tip": "Zeit, die Kong selbst pro Anfrage benötigt, p50/p95."
-          },
-          {
-            "label": "Upstream-Latenz",
-            "tip": "Wartezeit auf den Upstream-Dienst."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Anfragen pro Sekunde durch Kong."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

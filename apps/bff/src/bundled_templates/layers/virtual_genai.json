@@ -48,45 +48,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "respTime",
-            "label": "Avg Latency",
-            "tip": "Avg call latency to the GenAI provider.",
-            "mqe": "gen_ai_provider_resp_time",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "err",
-            "label": "Error Rate",
-            "tip": "100 \u2212 provider SLA.",
-            "mqe": "100 - gen_ai_provider_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Cost",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "totalCost",
-            "label": "Total Estimated Cost",
-            "tip": "Cumulative provider cost estimate.",
-            "mqe": "latest(gen_ai_provider_total_estimated_cost)/1000000",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

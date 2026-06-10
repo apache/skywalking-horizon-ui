@@ -46,50 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Capacity",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "pods",
-            "label": "Pods",
-            "tip": "Total pods reported across the cluster.",
-            "mqe": "k8s_cluster_pod_total",
-            "aggregation": "sum"
-          },
-          {
-            "id": "nodes",
-            "label": "Nodes",
-            "tip": "Node count.",
-            "mqe": "k8s_cluster_node_total",
-            "aggregation": "sum"
-          },
-          {
-            "id": "services",
-            "label": "Services",
-            "tip": "K8s Service objects.",
-            "mqe": "k8s_cluster_service_total",
-            "aggregation": "sum"
-          }
-        ]
-      },
-      {
-        "title": "Trouble",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "podsNotRunning",
-            "label": "Pods not running",
-            "tip": "Pods in any non-Running state \u2014 pending, failed, unknown.",
-            "mqe": "latest(k8s_cluster_pod_status_not_running)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

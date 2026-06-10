@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "클러스터",
-        "metrics": [
-          {
-            "label": "상태",
-            "tip": "0 green / 1 yellow / 2 red."
-          },
-          {
-            "label": "미할당 샤드",
-            "tip": "아직 어떤 노드에도 배치되지 않은 샤드입니다."
-          },
-          {
-            "label": "발생한 서킷 브레이커",
-            "tip": "누적 서킷 브레이커 트립 — 값이 크면 메모리 압박을 의미합니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

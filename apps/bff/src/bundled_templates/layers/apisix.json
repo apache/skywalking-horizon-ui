@@ -46,30 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "rps",
-            "label": "RPS",
-            "tip": "Requests per second matched by APISIX routes.",
-            "mqe": "aggregate_labels(meter_apisix_sv_http_requests,sum(service_instance_id))",
-            "aggregation": "sum"
-          },
-          {
-            "id": "status5xx",
-            "label": "5xx",
-            "tip": "Upstream / gateway error class.",
-            "mqe": "aggregate_labels(meter_apisix_sv_http_status_matched{code='503'},sum(code))",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

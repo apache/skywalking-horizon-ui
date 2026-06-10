@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latence de consommation au 95e centile (timestamp(received) − timestamp(producing))."
-          },
-          {
-            "label": "Taux d'erreur de consommation",
-            "tip": "100 − taux de succès de consommation."
-          },
-          {
-            "label": "Taux d'erreur de production",
-            "tip": "100 − taux de succès de production."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM de consommation",
-            "tip": "Messages consommés par minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

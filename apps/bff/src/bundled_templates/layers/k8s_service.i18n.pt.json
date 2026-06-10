@@ -21,36 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "HTTP",
-        "metrics": [
-          {
-            "label": "RPM",
-            "tip": "Requisições HTTP por minuto observadas pela instrumentação eBPF."
-          },
-          {
-            "label": "Latência",
-            "tip": "Tempo médio de resposta HTTP no cluster."
-          },
-          {
-            "label": "Taxa de erros",
-            "tip": "100 − taxa de sucesso HTTP."
-          }
-        ]
-      },
-      {
-        "title": "Saúde",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

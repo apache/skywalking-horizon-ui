@@ -46,37 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "produceTps",
-            "label": "Produce TPS",
-            "tip": "Messages produced per second across the cluster.",
-            "mqe": "meter_rocketmq_cluster_total_producer_tps",
-            "aggregation": "avg"
-          },
-          {
-            "id": "consumeTps",
-            "label": "Consume TPS",
-            "tip": "Messages consumed per second.",
-            "mqe": "meter_rocketmq_cluster_total_consumer_tps",
-            "aggregation": "avg"
-          },
-          {
-            "id": "maxLag",
-            "label": "Max Consumer Latency",
-            "tip": "Worst consumer latency across the cluster.",
-            "mqe": "latest(meter_rocketmq_cluster_max_consumer_latency)",
-            "aggregation": "max"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

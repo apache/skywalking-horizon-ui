@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "Msg In/s",
-            "tip": "초당 생산된 메시지 수입니다."
-          },
-          {
-            "label": "Msg Out/s",
-            "tip": "초당 소비된 메시지 수입니다."
-          },
-          {
-            "label": "스토리지 MB",
-            "tip": "관리되는 원장 스토리지 총 크기입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

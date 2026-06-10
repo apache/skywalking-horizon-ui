@@ -22,27 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "TPS de produção",
-            "tip": "Mensagens produzidas por segundo no cluster."
-          },
-          {
-            "label": "TPS de consumo",
-            "tip": "Mensagens consumidas por segundo."
-          },
-          {
-            "label": "Latência máxima do consumidor",
-            "tip": "Pior latência de consumidor no cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

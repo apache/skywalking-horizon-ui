@@ -407,8 +407,6 @@
   "silence left": "サイレンス残り",
   "window": "ウィンドウ",
   "window end": "ウィンドウ終了",
-  "No published version on OAP": "OAP に公開済みのバージョンがありません",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "このレイヤーのテンプレートは OAP に保存されていません。Horizon には同梱版のデフォルトがありますが、編集用には読み込まれず、ライブ UI でも描画されません。公開するにはバージョンをプッシュしてください。同梱版から始めるには「同梱版にリセット」を実行し、編集してから公開します。",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "この概要のバージョンは OAP に保存されていません。Horizon に同梱版のデフォルトが含まれる場合がありますが、編集用には読み込まれず、ライブ UI でも描画されません。同梱版から始めるには「同梱版にリセット」を実行し、編集してから公開します。",
   "client": "クライアント",
   "server": "サーバー",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "インポートに失敗しました: {error}",
   "Unsupported language: {locale}": "サポートされていない言語: {locale}",
   "Template {name} is not loaded on this deployment.": "テンプレート {name} はこのデプロイメントに読み込まれていません。",
-  "Could not load the target template.": "対象のテンプレートを読み込めませんでした。"
+  "Could not load the target template.": "対象のテンプレートを読み込めませんでした。",
+  "Deployment": "デプロイメント",
+  "clustered by": "クラスタリング基準",
+  "ungrouped": "未分類",
+  "Scale": "表示倍率",
+  "Pick a service to see its deployment topology.": "サービスを選択すると、デプロイメントトポロジーが表示されます。",
+  "No deployment topology in this window.": "この時間範囲にデプロイメントトポロジーはありません。"
 }

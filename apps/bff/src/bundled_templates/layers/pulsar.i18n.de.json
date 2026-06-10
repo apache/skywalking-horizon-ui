@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Msg ein/s",
-            "tip": "Pro Sekunde erzeugte Nachrichten."
-          },
-          {
-            "label": "Msg aus/s",
-            "tip": "Pro Sekunde konsumierte Nachrichten."
-          },
-          {
-            "label": "Storage MB",
-            "tip": "Gesamt-Storage-Größe der verwalteten Ledger."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

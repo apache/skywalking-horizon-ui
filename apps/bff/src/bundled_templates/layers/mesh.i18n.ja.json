@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "レイテンシとエラー",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Mesh 全体での Sidecar 経由応答時間の 95 パーセンタイル。"
-          },
-          {
-            "label": "エラー率",
-            "tip": "100 − Mesh SLA。Sidecar ALS で非 2xx ステータスを返したコール。"
-          }
-        ]
-      },
-      {
-        "title": "健全性",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "0 – 1 スケールのユーザー満足度スコア。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

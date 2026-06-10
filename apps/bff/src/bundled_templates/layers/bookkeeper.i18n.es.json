@@ -1,21 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Escritura B/s",
-            "tip": "Rendimiento de escritura de bookies en el clúster."
-          },
-          {
-            "label": "Lectura B/s",
-            "tip": "Rendimiento de lectura de bookies en el clúster."
-          }
-        ]
-      }
-    ]
-  },
   "alias": "BookKeeper",
   "group": "MQ",
   "layer-header": {

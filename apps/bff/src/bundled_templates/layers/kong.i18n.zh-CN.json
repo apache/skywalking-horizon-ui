@@ -14,23 +14,6 @@
       { "label": "500/秒" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟",
-        "metrics": [
-          { "label": "Kong 延迟", "tip": "Kong 自身处理每个请求的耗时，p50/p95。" },
-          { "label": "上游延迟", "tip": "等待上游服务的耗时。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "RPS", "tip": "通过 Kong 的每秒请求数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "HTTP 请求趋势" },

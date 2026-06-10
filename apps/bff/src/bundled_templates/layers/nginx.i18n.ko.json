@@ -14,32 +14,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "오류",
-        "metrics": [
-          {
-            "label": "5xx 비율",
-            "tip": "분당 5xx 를 반환하는 요청의 비율입니다."
-          },
-          {
-            "label": "4xx 비율",
-            "tip": "분당 4xx 를 반환하는 요청의 비율입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Nginx 서비스의 초당 요청 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

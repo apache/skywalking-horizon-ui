@@ -407,8 +407,6 @@
   "silence left": "silencio restante",
   "window": "ventana",
   "window end": "fin de ventana",
-  "No published version on OAP": "Sin versión publicada en OAP",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "Esta capa no tiene plantilla almacenada en OAP. Horizon incluye una predeterminada, pero no se carga para editar y la UI en vivo no la renderiza: publica una versión para activarla. Restablece a la incluida para partir de la predeterminada que viene con Horizon, luego edita y publica.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "Este resumen no tiene ninguna versión almacenada en OAP. Es posible que Horizon incluya una predeterminada, pero no se carga para editar y la UI en vivo no la renderiza. Restablece a la incluida para partir de la predeterminada que viene con Horizon, luego edita y publica.",
   "client": "cliente",
   "server": "servidor",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "Error al importar: {error}",
   "Unsupported language: {locale}": "Idioma no admitido: {locale}",
   "Template {name} is not loaded on this deployment.": "La plantilla {name} no está cargada en este despliegue.",
-  "Could not load the target template.": "No se pudo cargar la plantilla de destino."
+  "Could not load the target template.": "No se pudo cargar la plantilla de destino.",
+  "Deployment": "Despliegue",
+  "clustered by": "agrupado por",
+  "ungrouped": "sin agrupar",
+  "Scale": "Escala",
+  "Pick a service to see its deployment topology.": "Elige un servicio para ver su topología de despliegue.",
+  "No deployment topology in this window.": "No hay topología de despliegue en esta ventana."
 }

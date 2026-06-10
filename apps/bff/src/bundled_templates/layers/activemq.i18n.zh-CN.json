@@ -13,18 +13,6 @@
       { "label": "线程数" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "入队/秒", "tip": "每秒入队的消息数。" },
-          { "label": "出队/秒", "tip": "每秒出队的消息数。" },
-          { "label": "过期/秒", "tip": "在被消费前过期的消息数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "系统平均负载" },

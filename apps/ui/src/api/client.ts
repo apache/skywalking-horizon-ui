@@ -42,6 +42,7 @@ import type {
   MetricRow,
   ProcessTopologyConfig,
   RuleStatus,
+  DeploymentConfig,
   TopologyConfig,
   TracesConfig,
   Catalog,
@@ -129,6 +130,12 @@ export type {
   InstanceTopologyNode,
   InstanceTopologyCall,
   InstanceTopologyResponse,
+  ClusterByRule,
+  NodeRoleConfig,
+  DeploymentConfig,
+  DeploymentNode,
+  DeploymentCall,
+  DeploymentResponse,
   EndpointDependencyNode,
   EndpointDependencyCall,
   EndpointDependencyResponse,
@@ -262,13 +269,14 @@ export interface AdminLayerTemplate {
   /** `public` (default) surfaces in the Layers section; `operate`
    *  surfaces in the Self-Observability block under Manage. */
   visibility?: 'public' | 'operate';
-  slots: { services?: string; instances?: string; endpoints?: string; endpointDependency?: string; topology?: string; instanceTopology?: string };
+  slots: { services?: string; instances?: string; endpoints?: string; endpointDependency?: string; topology?: string; instanceTopology?: string; deployment?: string };
   components: {
     service?: boolean;
     instances?: boolean;
     endpoints?: boolean;
     endpointDependency?: boolean;
     topology?: boolean;
+    deployment?: boolean;
     traces?: boolean;
     logs?: boolean;
     podLogs?: boolean;
@@ -295,6 +303,7 @@ export interface AdminLayerTemplate {
   overview?: LayerOverviewConfig;
   widgets: DashboardWidget[];
   topology?: TopologyConfig;
+  deployment?: DeploymentConfig;
   endpointDependency?: EndpointDependencyConfig;
   processTopology?: ProcessTopologyConfig;
   traces?: TracesConfig;

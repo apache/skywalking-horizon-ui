@@ -22,36 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência e erros",
-        "metrics": [
-          {
-            "label": "Requisição P95",
-            "tip": "Duração da requisição no percentil 95 a partir da ponte de rede do mini programa."
-          },
-          {
-            "label": "Inicialização",
-            "tip": "Duração aproximada de inicialização do mini programa."
-          },
-          {
-            "label": "Erros",
-            "tip": "Contagem de erros reportados."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPM de requisições",
-            "tip": "Requisições da ponte por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

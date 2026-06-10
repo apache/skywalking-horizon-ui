@@ -1,31 +1,5 @@
 {
   "group": "Bases de datos",
-  "overview": {
-    "groups": [
-      {
-        "title": "Estado",
-        "metrics": [
-          {
-            "label": "Tasa de aciertos",
-            "tip": "Ratio de aciertos de caché. Bajando = thrashing."
-          },
-          {
-            "label": "Memoria %",
-            "tip": "Memoria en uso / máx. >80% = warn."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Comandos/s",
-            "tip": "Comandos totales por segundo en el clúster."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Nodos",
     "services": "Clústeres de Redis"

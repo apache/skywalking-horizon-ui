@@ -46,51 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "err4xx",
-            "label": "4xx",
-            "tip": "Client-error count from CloudWatch.",
-            "mqe": "aws_gateway_service_4xx",
-            "aggregation": "sum"
-          },
-          {
-            "id": "err5xx",
-            "label": "5xx",
-            "tip": "Server-error count from CloudWatch.",
-            "mqe": "aws_gateway_service_5xx",
-            "aggregation": "sum"
-          },
-          {
-            "id": "latency",
-            "label": "Avg Latency",
-            "tip": "Average end-to-end latency.",
-            "mqe": "aws_gateway_service_latency",
-            "unit": "ms",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "count",
-            "label": "Requests",
-            "tip": "Total request count in the window.",
-            "mqe": "aws_gateway_service_count",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

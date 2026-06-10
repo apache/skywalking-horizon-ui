@@ -15,36 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "metrics": [
-          {
-            "label": "RPM",
-            "tip": "Peticiones HTTP por minuto observadas por instrumentación eBPF."
-          },
-          {
-            "label": "Latencia",
-            "tip": "Tiempo de respuesta HTTP medio en el clúster."
-          },
-          {
-            "label": "Tasa de errores",
-            "tip": "100 − tasa de éxito HTTP."
-          }
-        ],
-        "title": "HTTP"
-      },
-      {
-        "title": "Estado",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

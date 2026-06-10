@@ -14,18 +14,6 @@
       { "label": "出站 RPM" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "应用健康",
-        "metrics": [
-          { "label": "启动 P95", "tip": "MetricKit 测量的冷启动 95 分位耗时。" },
-          { "label": "Hang P95", "tip": "UI Hang 持续时间的 95 分位。" },
-          { "label": "崩溃", "tip": "前台 + 后台异常退出。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "应用启动耗时分位" },

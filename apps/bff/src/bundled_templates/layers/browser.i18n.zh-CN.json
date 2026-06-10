@@ -12,22 +12,6 @@
       { "label": "错误" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "页面健康",
-        "metrics": [
-          { "label": "错误率", "tip": "出现错误的页面加载比例。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "PV / 分钟", "tip": "每分钟页面浏览量。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "应用负载（PV）" },

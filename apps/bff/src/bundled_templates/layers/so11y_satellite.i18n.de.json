@@ -1,23 +1,6 @@
 {
   "alias": "Satellite",
   "group": "Selbstbeobachtung",
-  "overview": {
-    "groups": [
-      {
-        "title": "Satellite-Status",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "CPU des Satellite-Prozesses."
-          },
-          {
-            "label": "Queue genutzt",
-            "tip": "Ausstehende Queue-Items — Backlog-Indikator."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -13,32 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "지연 시간 및 오류",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "레이어 전체의 95번째 백분위 응답 시간입니다."
-          },
-          {
-            "label": "오류율",
-            "tip": "100 − SLA. 값이 클수록 나쁩니다."
-          }
-        ]
-      },
-      {
-        "title": "상태",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "사용자 만족도 점수 (0 – 1 척도)."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

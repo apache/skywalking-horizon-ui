@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Drosselung",
-        "metrics": [
-          {
-            "label": "Lese-Drosselung",
-            "tip": "Drosselung der Leseanfragen — Kapazitätserschöpfung."
-          },
-          {
-            "label": "Schreib-Drosselung",
-            "tip": "Schreibanfragen gedrosselt."
-          },
-          {
-            "label": "Benutzerfehler",
-            "tip": "Benutzerfehler vom Typ Bad Request."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

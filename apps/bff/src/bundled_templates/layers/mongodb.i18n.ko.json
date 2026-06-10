@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "용량",
-        "metrics": [
-          {
-            "label": "데이터 크기 (GB)",
-            "tip": "클러스터 전체 데이터 크기입니다."
-          },
-          {
-            "label": "컬렉션",
-            "tip": "클러스터 전체의 컬렉션 수입니다."
-          },
-          {
-            "label": "객체",
-            "tip": "문서 객체 수입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "Doc QPS",
-            "tip": "초당 문서 작업 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

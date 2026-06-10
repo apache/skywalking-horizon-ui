@@ -1,25 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Errores",
-        "metrics": [
-          {
-            "label": "Conteo 4xx",
-            "tip": "Errores de cliente observados por CloudWatch."
-          },
-          {
-            "label": "Conteo 5xx",
-            "tip": "Errores de servidor observados por CloudWatch."
-          },
-          {
-            "label": "Latencia media",
-            "tip": "Latencia media de petición."
-          }
-        ]
-      }
-    ]
-  },
   "alias": "AWS S3",
   "group": "AWS",
   "layer-header": {

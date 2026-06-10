@@ -9,6 +9,29 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Layers
+
+- **Every layer OAP reports now appears in the sidebar**, including ones
+  with no Horizon template (they render with default capabilities — a plain
+  Service page). The previous hard-coded hidden-layer list (which dropped
+  `BanyanDB`) is gone; a layer is hidden only when an admin explicitly
+  disables its template, or when it is listed in the new config-driven
+  `layers.excluded` block in `horizon.yaml` (defaults: `FAAS` and
+  `VIRTUAL_GATEWAY`; clear the list to surface every reported layer).
+- **The admin Layer dashboards page is now layer-list-oriented.** It lists
+  every available layer — not just the ones shipping a bundled JSON or living
+  on OAP. A layer with no template yet opens on a blank default you can
+  configure (components, metric columns, widgets, topology) and **Save**,
+  which publishes the template to OAP on first save. No per-layer JSON has to
+  be shipped for a layer to be configurable. The picker gains a **Not
+  configured** filter (beside Diverged / Local) and the sync banner spells out
+  "N templates match bundled defaults · M layers not configured yet".
+- **Removed the legacy per-layer `overview` block** from every bundled layer
+  template (and its translation overlays). It no longer rendered anything —
+  the standalone **Overview Dashboards** replaced the old per-layer Overview
+  tile — so it was dead config; the per-layer KPI strip is driven by the
+  layer-header columns.
+
 ### Dashboard widget visibility
 
 - Layer-dashboard widgets gain a structured **Visible when** gate (Layer
@@ -68,6 +91,55 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   strings are now translated in zh-CN, ja, ko, es, pt, de and fr (English
   stays the source) — no feature renders English-only for non-English
   operators.
+
+### Deployment
+
+- New per-layer **Deployment** tab — the **deployment topology of all of a
+  service's instances**: the instance-to-instance call graph **within a single
+  service**. Where the instance map drills into the instances *between* two
+  services, this shows how one service's own instances are deployed and talk to
+  each other (e.g. a clustered store's nodes calling each other). Pick a service
+  from the layer's Service header and the tab draws its instances as health-ring
+  nodes with the intra-service calls between them — pan/zoom, animated edge flow,
+  the per-call client/server metric sidebar, and a node popover that shows the
+  instance's attributes and an **Open instance dashboard** link. Self-calls and
+  back-and-forth pairs are drawn distinctly.
+- **Node clustering.** Instances can group into labelled boxes by a single
+  **instance attribute** (e.g. role / tier), by **several attributes** combined
+  into one key (e.g. `node_role` + `node_type`, where an attribute absent on a
+  node drops out — so a BanyanDB cluster splits its data nodes into hot / warm /
+  cold boxes while the liaison nodes, which carry no tier, stay one box), or by
+  a **name regex** run on the instance name — so a fleet of mixed-role nodes
+  reads as one box per role instead of a flat cloud. The boxes lay out
+  left→right along the calls between them, so an upstream→downstream chain reads
+  in order.
+- **Optional + configurable.** Off by default for every layer; a layer opts
+  in from the Layer-dashboards admin → **Deployment** scope, which
+  has its own node / server-edge / client-edge metric editors (instance
+  scope) plus the clustering-rule picker. The config is a self-contained
+  block on the layer template, so it travels with template export/import and
+  is independent of the service-map topology config.
+- **3D infra map integration.** On the 3D map, a layer that enables
+  Deployment gains a per-layer toggle in the side panel: switch it on and that
+  layer's zone renders its **instances** and their intra-service relations
+  instead of service cubes — selecting an instance cube opens the **instance**
+  dashboard. Toggle it off to return to the service view.
+- **Pod / sibling model.** Instances render as **hexagons** and can bundle into
+  pods: a pod's **main** container is a full hex with its **sibling** containers
+  attached as smaller hexes around its edges. Three independent rules drive it —
+  **cluster** (the dashed boxes), **sibling** (which containers form one pod),
+  and **role** (per-container-type metrics + which container is the main).
+  Edges resolve to the exact container, so cross-pod sidecar links (e.g. a
+  lifecycle agent calling its peer in another pod) connect the small hexes.
+  The model can be previewed before real data exists via the admin's draft
+  **Preview** flow — edit the Deployment scope and preview the live page
+  without publishing.
+- **Tiered layout + draggable pods.** Each cluster box lays its pods out by
+  call depth — sources on the left, the pods they call to the right — so a
+  hot → warm → cold lifecycle chain reads as left-to-right tiers. Pods stack
+  vertically within a tier, and a tier with more than four pods wraps into
+  additional stacked columns of four. Drag any pod to rearrange; its cluster
+  box re-flows to keep every node enclosed.
 
 ### API dependency
 
@@ -205,6 +277,14 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   endpoints (or a search matches nothing). It now shows the empty picker and
   renders the metric widgets in their normal "no data" state, so the layout
   stays visible and ready for services that do report them.
+- **Clearer cluster boundaries on every topology view.** The dashed grouping
+  boxes — namespaces on the service map, per-service boxes on the instance
+  map, role/tier clusters on the Deployment tab — now draw with a bolder,
+  brighter dashed border and a fully transparent background, so the boundary
+  reads clearly on every theme (light themes included) instead of fading into
+  the canvas. The Deployment tab also packs its cluster boxes evenly: boxes
+  sit at a uniform spacing with no dead corridor between tiers and no blank
+  strip before the first box.
 
 ## 0.6.0
 

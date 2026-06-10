@@ -38,6 +38,7 @@ import type {
   EndpointDependencyConfig,
   TracesConfig,
   ProcessTopologyConfig,
+  DeploymentConfig,
   TopologyMetricDef,
 } from './loader.js';
 
@@ -86,6 +87,39 @@ export function parsePreviewTopology(raw: string | undefined): TopologyConfig | 
     if (inst.linkClientMetrics !== undefined && !isMetricList(inst.linkClientMetrics)) return null;
   }
   return o as unknown as TopologyConfig;
+}
+
+/** `deployment` block — node + per-side link metric lists,
+ *  plus the optional `clusterBy` rule (rides through verbatim once the
+ *  metric lists pass the same bound; it carries no MQE to validate). */
+export function parsePreviewDeployment(
+  raw: string | undefined,
+): DeploymentConfig | null {
+  const o = parseJson(raw);
+  if (!o) return null;
+  if (o.nodeMetrics !== undefined && !isMetricList(o.nodeMetrics)) return null;
+  if (o.linkServerMetrics !== undefined && !isMetricList(o.linkServerMetrics)) return null;
+  if (o.linkClientMetrics !== undefined && !isMetricList(o.linkClientMetrics)) return null;
+  // Each role's nodeMetrics is bounded the same way (it carries MQE too).
+  if (o.roles !== undefined) {
+    if (!Array.isArray(o.roles) || o.roles.length > MAX_METRICS) return null;
+    for (const r of o.roles) {
+      if (!r || typeof r !== 'object') return null;
+      const rr = r as Record<string, unknown>;
+      if (typeof rr.key !== 'string' || rr.key.length === 0) return null;
+      if (rr.nodeMetrics !== undefined && !isMetricList(rr.nodeMetrics)) return null;
+    }
+  }
+  // Need at least one metric source — top-level or a role.
+  const hasTop = Array.isArray(o.nodeMetrics) && o.nodeMetrics.length > 0;
+  const hasRole =
+    Array.isArray(o.roles) &&
+    o.roles.some((r) => {
+      const nm = (r as Record<string, unknown>)?.nodeMetrics;
+      return Array.isArray(nm) && nm.length > 0;
+    });
+  if (!hasTop && !hasRole) return null;
+  return o as unknown as DeploymentConfig;
 }
 
 /** `endpointDependency` block — node + (server-only) link metric lists. */

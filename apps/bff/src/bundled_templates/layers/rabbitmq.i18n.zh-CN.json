@@ -13,18 +13,6 @@
       { "label": "未确认" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "Published / 分钟", "tip": "每分钟发布的消息数。" },
-          { "label": "未确认", "tip": "等待 publisher confirm 的消息数。" },
-          { "label": "无法路由丢弃", "tip": "无匹配交换机路由而被丢弃的消息数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "Block 前可用内存（MB）" },

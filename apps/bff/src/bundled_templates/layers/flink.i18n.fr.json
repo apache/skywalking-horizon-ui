@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Jobs en exécution",
-            "tip": "Jobs Flink actifs."
-          },
-          {
-            "label": "Slots disponibles",
-            "tip": "Slots de tâches libres."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

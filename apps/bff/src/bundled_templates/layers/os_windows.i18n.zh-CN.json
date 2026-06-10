@@ -11,17 +11,6 @@
       { "label": "虚拟内存 %" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "资源",
-        "metrics": [
-          { "label": "CPU %", "tip": "CPU 总使用率。" },
-          { "label": "虚拟内存 %", "tip": "虚拟内存使用率。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "CPU 平均使用率（%）" },

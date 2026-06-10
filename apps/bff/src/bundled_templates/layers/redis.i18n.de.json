@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Status",
-        "metrics": [
-          {
-            "label": "Trefferrate",
-            "tip": "Cache-Trefferquote. Sinkender Trend = Thrashing."
-          },
-          {
-            "label": "Speicher %",
-            "tip": "Genutzter / max. Speicher. >80% = Warnung."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Befehle/s",
-            "tip": "Befehle pro Sekunde im Cluster gesamt."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

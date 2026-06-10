@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Status",
-        "metrics": [
-          {
-            "label": "Cache-Treffer",
-            "tip": "Buffer-Cache-Trefferquote im Cluster."
-          },
-          {
-            "label": "Deadlocks/s",
-            "tip": "Erkannte Deadlocks pro Sekunde."
-          },
-          {
-            "label": "Konflikte/s",
-            "tip": "Recovery-Konflikte pro Sekunde."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Geholt /s",
-            "tip": "Pro Sekunde geholte Zeilen."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

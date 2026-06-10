@@ -41,6 +41,12 @@ export interface MapServiceRef {
   id: string;
   name: string;
   normal: boolean;
+  /** Set only when this ref is an INSTANCE node (a layer in
+   *  internal-topology mode): the owning service's id + the instance name,
+   *  so the scene's "open dashboard" can target the instance dashboard.
+   *  Absent for ordinary service nodes. */
+  ownerServiceId?: string;
+  instanceName?: string;
 }
 export interface MapHierarchyPeer {
   layer: string;
@@ -127,6 +133,11 @@ export interface SceneServiceNode {
   name: string;
   shortName: string;
   normal: boolean;
+  /** Instance-node fields (layer in internal-topology mode): the owning
+   *  service id + instance name. When set, the node is an instance, not a
+   *  service — the detail card opens the instance dashboard. */
+  ownerServiceId?: string;
+  instanceName?: string;
 }
 
 export interface SceneHierarchyEdge {
@@ -215,6 +226,8 @@ export function buildSceneGraph(
       name: s.name,
       shortName: shortName(s.name),
       normal: s.normal,
+      ownerServiceId: s.ownerServiceId,
+      instanceName: s.instanceName,
     }));
     // Intra-layer call edges from the topology snapshot. We filter to
     // calls where BOTH endpoints are services that belong to this

@@ -51,6 +51,7 @@ import {
   liveSkeleton,
   loadLiveServices,
   loadLiveTopologies,
+  loadLiveInternalTopologies,
   loadLiveHierarchy,
   type LiveWindow,
 } from './composables/useLiveTopology';
@@ -161,6 +162,14 @@ interface PipelineCtx {
 // scene renders complete (see sceneReady), never piecemeal.
 const liveTopologyEnabled = computed(() => route.query.live !== '0');
 const liveTopo = shallowRef<MapTopology | null>(null);
+// Layers the operator switched into INTERNAL-TOPOLOGY mode (side-panel
+// toggle, only offered for layers carrying the deployment
+// cap). Their zone renders instance cubes + instance-relation arcs instead
+// of service cubes — see the `topologies` stage + loadLiveInternalTopologies.
+// In-memory only (visibility/mode aren't persisted across reloads, per
+// CLAUDE.md). Read inside the pipeline stage, so a toggle re-runs the light
+// pipeline to re-fetch.
+const internalLayers = ref<Set<string>>(new Set());
 const liveWindow = (): LiveWindow => ({
   startMs: Date.now() - 2 * 3600_000,
   endMs: Date.now(),
@@ -197,7 +206,10 @@ const sceneKey = computed(() => {
     .map((h) => `${h.fromLayer}/${h.fromService.id}:${h.peers.reduce((a, p) => a + p.services.length, 0)}`)
     .sort()
     .join(',');
-  return `${naming}:${struct}#${hier}`;
+  // Fold the internal-topology mode set in too, so toggling a layer re-keys
+  // the scene even in the (degenerate) case the swapped roster hashes the same.
+  const internal = [...internalLayers.value].sort().join(',');
+  return `${naming}:${struct}#${hier}@${internal}`;
 });
 
 // Render gate: in live mode hold the scene until the first full assembly
@@ -500,6 +512,14 @@ const livePipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
     const rosterKeys = new Set(topo.layers.map((l) => l.key));
     const bearing = menuLayers.value.filter((L) => rosterKeys.has(L.key) && isTopologyBearing(L));
     await loadLiveTopologies(rep, bearing, topo, liveWindow());
+    // Internal-topology mode: for toggled-on layers carrying the cap, swap
+    // their zone to the within-service instance graph. Runs after the
+    // service-map fetch so it overrides those layers' servicesByLayer +
+    // topologies in place.
+    const internal = menuLayers.value.filter(
+      (L) => rosterKeys.has(L.key) && internalLayers.value.has(L.key) && !!L.caps.deployment,
+    );
+    if (internal.length > 0) await loadLiveInternalTopologies(internal, topo, liveWindow());
   },
   hierarchy: async (rep, ctx) => {
     const topo = ctx.topo;
@@ -553,6 +573,26 @@ async function runLight(): Promise<void> {
   pipelineMode.value = 'light';
   const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
   await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'hierarchy', 'metrics']);
+}
+
+/** True when a side-panel layer entry can offer the deployment
+ *  toggle — i.e. the layer carries the `deployment` cap. A
+ *  group entry (clustered layers) never qualifies. */
+function layerSupportsInternal(layerKey: string): boolean {
+  return !!menuLayers.value.find((L) => L.key === layerKey)?.caps.deployment;
+}
+function isInternalOn(layerKey: string): boolean {
+  return internalLayers.value.has(layerKey);
+}
+/** Flip a layer between service-topology and internal (instance) topology.
+ *  Re-runs the light pipeline so the toggled layer's zone re-fetches with
+ *  the new mode; the scene re-keys off `sceneKey` and rebuilds. */
+function toggleInternal(layerKey: string): void {
+  const next = new Set(internalLayers.value);
+  if (next.has(layerKey)) next.delete(layerKey);
+  else next.add(layerKey);
+  internalLayers.value = next;
+  void runLight();
 }
 
 /** Arm (or re-arm) the auto-refresh timer + countdown anchor. */
@@ -1004,6 +1044,17 @@ function onPanelZoneFocus(zoneKey: string): void {
                   <span class="lr-dot" :style="e.color ? { background: e.color } : undefined" />
                   <span class="lr-name">{{ e.name }}</span>
                   <span v-if="e.kind === 'group'" class="lr-tag">group</span>
+                  <!-- Deployment toggle — only for layers carrying the
+                       cap. On = the zone shows instance-to-instance topology
+                       within each service instead of service cubes. -->
+                  <button
+                    v-if="e.kind === 'layer' && layerSupportsInternal(e.key)"
+                    type="button"
+                    class="lr-internal"
+                    :class="{ on: isInternalOn(e.key) }"
+                    :title="isInternalOn(e.key) ? 'Showing deployment (instance) topology — click for service topology' : 'Show deployment (instance) topology'"
+                    @click.stop="toggleInternal(e.key)"
+                  >⊟</button>
                   <span class="lr-stat">{{ e.services }}</span>
                 </li>
               </ul>
@@ -1312,6 +1363,15 @@ function onPanelZoneFocus(zoneKey: string): void {
   border-radius: 3px; padding: 0 4px;
 }
 .lr-stat { font-size: 9.5px; color: var(--sw-fg-3); font-variant-numeric: tabular-nums; }
+.lr-internal {
+  flex: 0 0 auto; width: 18px; height: 18px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--sw-line-2); border-radius: 4px;
+  background: transparent; color: var(--sw-fg-3); cursor: pointer;
+  font-size: 11px; line-height: 1;
+}
+.lr-internal:hover { color: var(--sw-fg-1); border-color: var(--sw-line-3); }
+.lr-internal.on { color: var(--sw-accent-2); border-color: var(--sw-accent-line); background: var(--sw-accent-soft); }
 .tier-name {
   flex: 1;
   min-width: 0;

@@ -1,35 +1,5 @@
 {
   "group": "Bases de datos",
-  "overview": {
-    "groups": [
-      {
-        "title": "Capacidad",
-        "metrics": [
-          {
-            "label": "Tamaño de datos (GB)",
-            "tip": "Tamaño total de datos en el clúster."
-          },
-          {
-            "label": "Colecciones",
-            "tip": "Conteo de colecciones en el clúster."
-          },
-          {
-            "label": "Objetos",
-            "tip": "Conteo de objetos documento."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "QPS de documentos",
-            "tip": "Operaciones de documento / segundo."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

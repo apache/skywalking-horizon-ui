@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "지연 시간",
-        "metrics": [
-          {
-            "label": "Kong 지연 시간",
-            "tip": "요청당 Kong 자체가 소비하는 시간 (p50/p95)입니다."
-          },
-          {
-            "label": "업스트림 지연 시간",
-            "tip": "업스트림 서비스 대기 시간입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Kong을 통과하는 초당 요청 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

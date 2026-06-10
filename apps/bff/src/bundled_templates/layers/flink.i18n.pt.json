@@ -22,23 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Jobs em execução",
-            "tip": "Jobs do Flink ativos."
-          },
-          {
-            "label": "Slots disponíveis",
-            "tip": "Slots de tarefa livres."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

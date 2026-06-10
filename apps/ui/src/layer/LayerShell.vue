@@ -180,6 +180,7 @@ const SCOPE_CAP_PREDICATE: Record<string, (L: LayerDef) => boolean> = {
   instance: (L) => Boolean(L.slots?.instances),
   endpoint: (L) => Boolean(L.slots?.endpoints),
   topology: (L) => Boolean(L.caps?.serviceMap || L.caps?.instanceTopology || L.caps?.processTopology),
+  'deployment': (L) => Boolean(L.caps?.deployment),
   dependency: (L) => Boolean(L.caps?.endpointDependency),
   trace: (L) => Boolean(L.caps?.traces),
   logs: (L) => Boolean(L.caps?.logs),

@@ -22,27 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Saúde do app",
-        "metrics": [
-          {
-            "label": "Inicialização P95",
-            "tip": "Tempo de cold-start no percentil 95 conforme medido pelo MetricKit."
-          },
-          {
-            "label": "Hang P95",
-            "tip": "Duração de travamentos de UI no percentil 95."
-          },
-          {
-            "label": "Crashes",
-            "tip": "Saídas anormais em foreground + background."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

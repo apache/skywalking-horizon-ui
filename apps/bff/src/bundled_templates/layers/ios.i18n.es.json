@@ -111,27 +111,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Estado de la app",
-        "metrics": [
-          {
-            "label": "Lanzamiento P95",
-            "tip": "Tiempo de arranque en frío en el percentil 95 según MetricKit."
-          },
-          {
-            "label": "Hang P95",
-            "tip": "Duración de bloqueos de UI en el percentil 95."
-          },
-          {
-            "label": "Crashes",
-            "tip": "Salidas anómalas en primer plano + segundo plano."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "services": "Apps",
     "instances": "Sesiones de la app",

@@ -13,18 +13,6 @@
       { "label": "打开文件数" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "Select QPS", "tip": "集群每秒 Select 数。" },
-          { "label": "Insert QPS", "tip": "每秒 Insert 数。" },
-          { "label": "慢读", "tip": "慢文件读计数器。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "打开文件数" },

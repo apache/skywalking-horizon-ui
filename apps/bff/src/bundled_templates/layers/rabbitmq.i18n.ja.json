@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "発行 / 分",
-            "tip": "1分あたりの発行メッセージ数。"
-          },
-          {
-            "label": "未確認",
-            "tip": "Publisher Confirm を待っているメッセージ。"
-          },
-          {
-            "label": "ルーティング不可破棄",
-            "tip": "Exchange ルートにマッチせず破棄されたメッセージ。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

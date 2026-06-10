@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "APISIX ルートにマッチした 1秒あたりのリクエスト数。"
-          },
-          {
-            "label": "5xx",
-            "tip": "アップストリーム / ゲートウェイエラークラス。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

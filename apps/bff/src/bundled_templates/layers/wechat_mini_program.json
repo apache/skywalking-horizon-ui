@@ -49,53 +49,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "request_p95",
-            "label": "Request P95",
-            "tip": "95th-percentile request duration from the WeChat network bridge.",
-            "mqe": "meter_wechat_mp_request_duration_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "launch",
-            "label": "Launch",
-            "tip": "Mini-program launch duration as observed by the WeChat client.",
-            "mqe": "meter_wechat_mp_app_launch_duration",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "errors",
-            "label": "Errors",
-            "tip": "Reported error count.",
-            "mqe": "meter_wechat_mp_error_count",
-            "aggregation": "sum"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "cpm",
-            "label": "Request RPM",
-            "tip": "Bridge requests per minute.",
-            "mqe": "meter_wechat_mp_request_cpm",
-            "unit": "rpm",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

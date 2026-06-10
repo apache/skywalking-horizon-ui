@@ -21,27 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "QPS de select",
-            "tip": "Selects por segundo no cluster."
-          },
-          {
-            "label": "QPS de insert",
-            "tip": "Inserts por segundo."
-          },
-          {
-            "label": "Leituras lentas",
-            "tip": "Contador de leituras lentas de arquivo."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

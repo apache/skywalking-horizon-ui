@@ -46,37 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "enqueue",
-            "label": "Enqueue/s",
-            "tip": "Messages enqueued per second.",
-            "mqe": "meter_activemq_cluster_enqueue_rate",
-            "aggregation": "avg"
-          },
-          {
-            "id": "dequeue",
-            "label": "Dequeue/s",
-            "tip": "Messages dequeued per second.",
-            "mqe": "meter_activemq_cluster_dequeue_rate",
-            "aggregation": "avg"
-          },
-          {
-            "id": "expired",
-            "label": "Expired/s",
-            "tip": "Messages that expired before consumption.",
-            "mqe": "meter_activemq_cluster_expired_rate",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

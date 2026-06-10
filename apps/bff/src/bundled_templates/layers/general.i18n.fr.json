@@ -13,32 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Temps de réponse au 95e centile sur l'ensemble de la couche."
-          },
-          {
-            "label": "Taux d'erreur",
-            "tip": "100 − SLA. Plus la valeur est haute, plus la situation est mauvaise."
-          }
-        ]
-      },
-      {
-        "title": "Santé",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Score de satisfaction utilisateur sur une échelle de 0 à 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

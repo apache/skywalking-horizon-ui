@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "offline",
-            "label": "Offline Partitions",
-            "tip": "Partitions without an active leader.",
-            "mqe": "meter_kafka_offline_partitions_count",
-            "aggregation": "sum"
-          },
-          {
-            "id": "underReplicated",
-            "label": "Under-Replicated",
-            "tip": "Partitions whose ISR set is below replication factor.",
-            "mqe": "meter_kafka_under_replicated_partitions",
-            "aggregation": "sum"
-          },
-          {
-            "id": "maxLag",
-            "label": "Max Lag",
-            "tip": "Largest consumer lag observed.",
-            "mqe": "meter_kafka_max_lag",
-            "aggregation": "max"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

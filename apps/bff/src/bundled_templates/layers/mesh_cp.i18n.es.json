@@ -15,23 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "metrics": [
-          {
-            "label": "CPU",
-            "tip": "CPU del proceso del plano de control de Istio."
-          },
-          {
-            "label": "Goroutines",
-            "tip": "Goroutines de Go vivas."
-          }
-        ],
-        "title": "Estado de Istio"
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

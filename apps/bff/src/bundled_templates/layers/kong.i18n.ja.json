@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "レイテンシ",
-        "metrics": [
-          {
-            "label": "Kong レイテンシ",
-            "tip": "Kong 自体がリクエストごとに費やす時間 (p50/p95)。"
-          },
-          {
-            "label": "アップストリームレイテンシ",
-            "tip": "アップストリームサービス待ち時間。"
-          }
-        ]
-      },
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Kong を通過する 1秒あたりのリクエスト数。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

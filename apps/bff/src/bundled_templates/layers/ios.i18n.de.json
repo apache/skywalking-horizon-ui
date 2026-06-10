@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "App-Status",
-        "metrics": [
-          {
-            "label": "Start P95",
-            "tip": "95. Perzentil der Kaltstartzeit, gemessen durch MetricKit."
-          },
-          {
-            "label": "Hang P95",
-            "tip": "95. Perzentil der UI-Hängezeit."
-          },
-          {
-            "label": "Abstürze",
-            "tip": "Vordergrund- + Hintergrund-Abnormalbeendigungen."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

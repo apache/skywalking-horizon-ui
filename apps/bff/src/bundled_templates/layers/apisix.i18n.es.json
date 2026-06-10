@@ -1,21 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Peticiones por segundo coincidentes con rutas de APISIX."
-          },
-          {
-            "label": "5xx",
-            "tip": "Clase de error upstream / gateway."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Nodos",
     "services": "Servicios de APISIX",

@@ -16,27 +16,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Clúster",
-        "metrics": [
-          {
-            "label": "Estado",
-            "tip": "0 verde / 1 amarillo / 2 rojo."
-          },
-          {
-            "label": "Shards sin asignar",
-            "tip": "Shards aún no colocados en ningún nodo."
-          },
-          {
-            "label": "Breakers disparados",
-            "tip": "Disparos acumulados de circuit-breaker — valores altos indican presión de memoria."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

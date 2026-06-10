@@ -40,6 +40,9 @@ export interface LayerSlots {
   topology?: string;
   /** Label for the instance-topology sub-tab. Defaults to "Instance map". */
   instanceTopology?: string;
+  /** Label for the service-deployment tab. Defaults to
+   *  "Deployment". */
+  deployment?: string;
 }
 
 export interface LayerCaps {
@@ -48,6 +51,10 @@ export interface LayerCaps {
   instances?: boolean;
   endpoints?: boolean;
   instanceTopology?: boolean;
+  /** Per-layer "Deployment" tab — instance-to-instance
+   *  call graph within one service. Opt-in; gated by the presence of the
+   *  layer template's `deployment` config block. */
+  deployment?: boolean;
   processTopology?: boolean;
   dashboards?: boolean;
   traces?: boolean;

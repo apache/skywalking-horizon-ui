@@ -14,23 +14,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressourcen",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "CPU-Gesamtauslastung."
-          },
-          {
-            "label": "VSpeicher %",
-            "tip": "Auslastung virtueller Speicher."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

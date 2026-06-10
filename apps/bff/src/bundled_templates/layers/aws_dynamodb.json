@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throttling",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "throttledR",
-            "label": "Read Throttled",
-            "tip": "Read requests throttled \u2014 capacity exhaustion.",
-            "mqe": "aws_dynamodb_read_throttled_requests",
-            "aggregation": "sum"
-          },
-          {
-            "id": "throttledW",
-            "label": "Write Throttled",
-            "tip": "Write requests throttled.",
-            "mqe": "aws_dynamodb_write_throttled_requests",
-            "aggregation": "sum"
-          },
-          {
-            "id": "userErr",
-            "label": "User Errors",
-            "tip": "Bad-request style user errors.",
-            "mqe": "aws_dynamodb_user_errors",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

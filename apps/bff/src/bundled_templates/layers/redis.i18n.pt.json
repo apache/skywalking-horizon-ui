@@ -21,32 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Saúde",
-        "metrics": [
-          {
-            "label": "Hit Rate",
-            "tip": "Taxa de cache hit. Em queda = thrashing."
-          },
-          {
-            "label": "Memória %",
-            "tip": "Em uso / máx. >80% = atenção."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Comandos/s",
-            "tip": "Total de comandos por segundo no cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

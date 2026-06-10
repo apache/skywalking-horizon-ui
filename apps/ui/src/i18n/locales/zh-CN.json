@@ -407,8 +407,6 @@
   "silence left": "距静默结束",
   "window": "时间窗口",
   "window end": "窗口结束",
-  "No published version on OAP": "OAP 上无已发布版本",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "该层级在 OAP 上没有存储模板。Horizon 内置了一份默认模板，但它不会加载到编辑器中，实时界面也不会渲染——请推送一个版本进行发布。点击“重置为内置”可从内置默认模板开始，再编辑并发布。",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "该概览在 OAP 上没有存储版本。Horizon 可能内置了一份默认配置，但它不会加载到编辑器中，实时界面也不会渲染。点击“重置为内置”可从内置默认配置开始，再编辑并发布。",
   "client": "客户端",
   "server": "服务端",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "导入失败：{error}",
   "Unsupported language: {locale}": "不支持的语言：{locale}",
   "Template {name} is not loaded on this deployment.": "模板 {name} 未在此部署中加载。",
-  "Could not load the target template.": "无法加载目标模板。"
+  "Could not load the target template.": "无法加载目标模板。",
+  "Deployment": "部署",
+  "clustered by": "聚类依据",
+  "ungrouped": "未分组",
+  "Scale": "缩放比例",
+  "Pick a service to see its deployment topology.": "选择一个服务以查看其部署拓扑。",
+  "No deployment topology in this window.": "此时间窗口内没有部署拓扑。"
 }

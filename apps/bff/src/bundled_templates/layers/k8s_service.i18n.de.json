@@ -20,36 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "HTTP",
-        "metrics": [
-          {
-            "label": "RPM",
-            "tip": "HTTP-Anfragen pro Minute, beobachtet durch eBPF-Instrumentierung."
-          },
-          {
-            "label": "Latenz",
-            "tip": "Durchschnittliche HTTP-Antwortzeit über den Cluster."
-          },
-          {
-            "label": "Fehlerrate",
-            "tip": "100 − HTTP-Erfolgsrate."
-          }
-        ]
-      },
-      {
-        "title": "Status",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

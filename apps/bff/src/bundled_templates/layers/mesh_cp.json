@@ -50,30 +50,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Istio health",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "cpu",
-            "label": "CPU",
-            "tip": "Istio control-plane process CPU.",
-            "mqe": "meter_istio_cpu",
-            "aggregation": "avg"
-          },
-          {
-            "id": "goroutines",
-            "label": "Goroutines",
-            "tip": "Live Go goroutines.",
-            "mqe": "meter_istio_go_goroutines",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

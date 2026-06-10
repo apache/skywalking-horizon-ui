@@ -20,36 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "HTTP",
-        "metrics": [
-          {
-            "label": "RPM",
-            "tip": "eBPF 인스트루먼트가 관측한 분당 HTTP 요청 수입니다."
-          },
-          {
-            "label": "지연 시간",
-            "tip": "클러스터 전체의 평균 HTTP 응답 시간입니다."
-          },
-          {
-            "label": "오류율",
-            "tip": "100 − HTTP 성공률입니다."
-          }
-        ]
-      },
-      {
-        "title": "상태",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "사용자 만족도 점수 (0 – 1 척도)."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

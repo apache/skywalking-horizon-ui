@@ -50,54 +50,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "p95",
-            "label": "P95",
-            "tip": "95th-percentile consume latency (timestamp(received) \u2212 timestamp(producing)).",
-            "mqe": "mq_service_consume_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "consumeErr",
-            "label": "Consume Error Rate",
-            "tip": "100 \u2212 consume success rate.",
-            "mqe": "100 - mq_service_consume_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "produceErr",
-            "label": "Produce Error Rate",
-            "tip": "100 \u2212 produce success rate.",
-            "mqe": "100 - mq_service_produce_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "consumeCpm",
-            "label": "Consume RPM",
-            "tip": "Messages consumed per minute.",
-            "mqe": "mq_service_consume_cpm",
-            "unit": "rpm",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

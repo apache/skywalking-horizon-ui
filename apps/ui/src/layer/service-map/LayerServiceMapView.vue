@@ -1564,16 +1564,18 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <g class="sm-cluster-layer">
               <template v-for="c in clusterRects" :key="c.key">
                 <g :transform="`translate(${c.rect.x}, ${c.rect.y})`">
+                  <!-- Clear fill + bold fg-token dashed stroke so the
+                       boundary reads on any theme (a bg-tinted fill is
+                       near-invisible on dark themes, a haze on light). -->
                   <rect
                     :width="c.rect.w"
                     :height="c.rect.h"
                     rx="14"
                     ry="14"
-                    fill="var(--sw-bg-1)"
-                    fill-opacity="0.35"
-                    stroke="var(--sw-line-2)"
-                    stroke-width="1"
-                    stroke-dasharray="4 5"
+                    fill="none"
+                    stroke="var(--sw-fg-3)"
+                    stroke-width="1.5"
+                    stroke-dasharray="7 5"
                   />
                   <!-- Header chip rendered INSIDE the cluster top
                        (in the CLUSTER_HEAD_HEIGHT padding above the

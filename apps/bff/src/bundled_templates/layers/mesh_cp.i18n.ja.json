@@ -20,23 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Istio ヘルス",
-        "metrics": [
-          {
-            "label": "CPU",
-            "tip": "Istio コントロールプレーンのプロセス CPU。"
-          },
-          {
-            "label": "Goroutine",
-            "tip": "ライブな Go goroutine。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

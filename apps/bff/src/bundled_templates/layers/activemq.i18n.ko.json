@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "Enqueue/s",
-            "tip": "초당 Enqueue 된 메시지 수입니다."
-          },
-          {
-            "label": "Dequeue/s",
-            "tip": "초당 Dequeue 된 메시지 수입니다."
-          },
-          {
-            "label": "Expired/s",
-            "tip": "소비되기 전에 만료된 메시지입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

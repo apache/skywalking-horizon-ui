@@ -46,50 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Capacity",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "dataSize",
-            "label": "Data Size (GB)",
-            "tip": "Total data size across the cluster.",
-            "mqe": "latest(aggregate_labels(meter_mongodb_cluster_data_size,sum))/1024/1024/1024",
-            "aggregation": "sum"
-          },
-          {
-            "id": "collCount",
-            "label": "Collections",
-            "tip": "Collection count across the cluster.",
-            "mqe": "latest(aggregate_labels(meter_mongodb_cluster_collection_count,sum))",
-            "aggregation": "sum"
-          },
-          {
-            "id": "objCount",
-            "label": "Objects",
-            "tip": "Document object count.",
-            "mqe": "latest(aggregate_labels(meter_mongodb_cluster_object_count,sum))",
-            "aggregation": "sum"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "docQps",
-            "label": "Doc QPS",
-            "tip": "Document operations / second.",
-            "mqe": "aggregate_labels(meter_mongodb_cluster_document_avg_qps, sum(doc_op_type))",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

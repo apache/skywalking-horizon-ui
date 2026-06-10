@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Fehler",
-        "metrics": [
-          {
-            "label": "4xx-Anzahl",
-            "tip": "Client-Fehler, beobachtet von CloudWatch."
-          },
-          {
-            "label": "5xx-Anzahl",
-            "tip": "Server-Fehler, beobachtet von CloudWatch."
-          },
-          {
-            "label": "Mittlere Latenz",
-            "tip": "Durchschnittliche Anfragelatenz."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Msg entrants/s",
-            "tip": "Messages produits par seconde."
-          },
-          {
-            "label": "Msg sortants/s",
-            "tip": "Messages consommés par seconde."
-          },
-          {
-            "label": "Stockage Mo",
-            "tip": "Taille totale du stockage des managed-ledgers."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "selRate",
-            "label": "Select QPS",
-            "tip": "Selects per second across the cluster.",
-            "mqe": "aggregate_labels(meter_clickhouse_query_select_rate,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "insRate",
-            "label": "Insert QPS",
-            "tip": "Inserts per second.",
-            "mqe": "aggregate_labels(meter_clickhouse_query_insert_rate,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "slowQ",
-            "label": "Slow Reads",
-            "tip": "Slow file-reads counter.",
-            "mqe": "aggregate_labels(meter_clickhouse_query_slow,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

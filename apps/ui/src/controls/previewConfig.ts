@@ -37,6 +37,7 @@ import { layerEditName } from '@/controls/localTemplateEdits';
 
 export type PreviewBlock =
   | 'topology'
+  | 'deployment'
   | 'endpointDependency'
   | 'traces'
   | 'processTopology';

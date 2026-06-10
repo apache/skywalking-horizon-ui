@@ -15,36 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "Petición P95",
-            "tip": "Duración de petición en el percentil 95 desde el puente de red de WeChat."
-          },
-          {
-            "label": "Lanzamiento",
-            "tip": "Duración del lanzamiento del mini programa observada por el cliente de WeChat."
-          },
-          {
-            "label": "Errores",
-            "tip": "Conteo de errores reportados."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "RPM de peticiones",
-            "tip": "Peticiones del puente por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Versiones",
     "endpoints": "Páginas",

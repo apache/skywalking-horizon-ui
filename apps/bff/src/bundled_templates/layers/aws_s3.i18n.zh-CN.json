@@ -12,18 +12,6 @@
       { "label": "5xx" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "错误",
-        "metrics": [
-          { "label": "4xx 数量", "tip": "CloudWatch 观测到的客户端错误。" },
-          { "label": "5xx 数量", "tip": "CloudWatch 观测到的服务端错误。" },
-          { "label": "平均延迟", "tip": "平均请求延迟。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "全部请求数" },

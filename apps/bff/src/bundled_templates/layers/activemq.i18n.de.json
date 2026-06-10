@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Enqueue/s",
-            "tip": "Pro Sekunde in die Queue gestellte Nachrichten."
-          },
-          {
-            "label": "Dequeue/s",
-            "tip": "Pro Sekunde aus der Queue entnommene Nachrichten."
-          },
-          {
-            "label": "Abgelaufen/s",
-            "tip": "Vor dem Verbrauch abgelaufene Nachrichten."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

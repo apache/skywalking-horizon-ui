@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "APISIX 라우트가 매칭한 초당 요청 수입니다."
-          },
-          {
-            "label": "5xx",
-            "tip": "업스트림 / 게이트웨이 오류 클래스입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

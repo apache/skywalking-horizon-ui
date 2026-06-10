@@ -1496,7 +1496,14 @@ const openDashboardHref = computed<string>(() => {
   const d = selectedNodeDetail.value;
   if (!d) return import.meta.env.BASE_URL;
   const base = import.meta.env.BASE_URL; // ends with '/'
-  return `${base}layer/${d.node.layerKey}/service?service=${encodeURIComponent(d.node.serviceId)}`;
+  const n = d.node;
+  // Instance node (layer in internal-topology mode) → instance dashboard,
+  // pre-selecting the owning service + the instance. Service node → the
+  // service dashboard.
+  if (n.instanceName && n.ownerServiceId) {
+    return `${base}layer/${n.layerKey}/instance?service=${encodeURIComponent(n.ownerServiceId)}&instance=${encodeURIComponent(n.instanceName)}`;
+  }
+  return `${base}layer/${n.layerKey}/service?service=${encodeURIComponent(n.serviceId)}`;
 });
 
 // ── Detail-card side: flip to whichever side of the canvas has more

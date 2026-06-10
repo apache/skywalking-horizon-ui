@@ -19,32 +19,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Erros",
-        "metrics": [
-          {
-            "label": "Taxa 5xx",
-            "tip": "Porcentagem de requisições que retornam 5xx por minuto."
-          },
-          {
-            "label": "Taxa 4xx",
-            "tip": "Porcentagem de requisições que retornam 4xx por minuto."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Requisições por segundo no serviço Nginx."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

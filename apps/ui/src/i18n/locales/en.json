@@ -890,7 +890,6 @@
   "must be an integer": "must be an integer",
   "must be between {min} and {max}": "must be between {min} and {max}",
   "name": "name",
-  "never": "never",
   "never signed in": "never signed in",
   "next entity": "next entity",
   "no MAL records from this node": "no MAL records from this node",
@@ -1215,8 +1214,6 @@
   "Editor buffer differs from OAP — not the live version.": "Editor buffer differs from OAP — not the live version.",
   "from local": "from local",
   "from bundled": "from bundled",
-  "No published version on OAP": "No published version on OAP",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.",
   "(synced)": "(synced)",
   "Unpublished local edits — Push to publish to OAP.": "Unpublished local edits — Push to publish to OAP.",
@@ -1354,5 +1351,11 @@
   "Pick a client and server service to see their instance topology.": "Pick a client and server service to see their instance topology.",
   "higher = better": "higher = better",
   "lower = better": "lower = better",
-  "Node ring": "Node ring"
+  "Node ring": "Node ring",
+  "Deployment": "Deployment",
+  "clustered by": "clustered by",
+  "ungrouped": "ungrouped",
+  "Scale": "Scale",
+  "Pick a service to see its deployment topology.": "Pick a service to see its deployment topology.",
+  "No deployment topology in this window.": "No deployment topology in this window."
 }

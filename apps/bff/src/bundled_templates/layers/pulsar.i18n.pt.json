@@ -21,27 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Msg entrada/s",
-            "tip": "Mensagens produzidas por segundo."
-          },
-          {
-            "label": "Msg saída/s",
-            "tip": "Mensagens consumidas por segundo."
-          },
-          {
-            "label": "Armazenamento MB",
-            "tip": "Tamanho total do managed-ledger."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

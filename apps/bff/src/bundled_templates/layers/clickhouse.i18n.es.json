@@ -1,26 +1,5 @@
 {
   "group": "Bases de datos",
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "QPS de select",
-            "tip": "Selects por segundo en el clúster."
-          },
-          {
-            "label": "QPS de inserción",
-            "tip": "Inserts por segundo."
-          },
-          {
-            "label": "Lecturas lentas",
-            "tip": "Contador de lecturas lentas de archivo."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "instance": [
       {

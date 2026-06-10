@@ -1,23 +1,6 @@
 {
   "alias": "Satellite",
   "group": "セルフ可観測性",
-  "overview": {
-    "groups": [
-      {
-        "title": "Satellite ヘルス",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "Satellite プロセス CPU。"
-          },
-          {
-            "label": "キュー使用中",
-            "tip": "キュー内未処理アイテム — バックログ指標。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

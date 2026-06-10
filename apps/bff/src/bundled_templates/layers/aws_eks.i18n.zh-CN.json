@@ -14,17 +14,6 @@
       { "label": "服务" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "资源",
-        "metrics": [
-          { "label": "节点", "tip": "EKS 集群节点数。" },
-          { "label": "失败节点", "tip": "集群上报的失败 EKS 节点数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "节点数" },

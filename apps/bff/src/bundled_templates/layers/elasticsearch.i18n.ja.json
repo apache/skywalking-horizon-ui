@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "クラスタ",
-        "metrics": [
-          {
-            "label": "健全性",
-            "tip": "0 green / 1 yellow / 2 red。"
-          },
-          {
-            "label": "未割当シャード",
-            "tip": "まだノードに配置されていないシャード。"
-          },
-          {
-            "label": "発動した Breaker",
-            "tip": "サーキットブレーカー発動の累積 — 値が高い場合はメモリ圧迫を示す。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

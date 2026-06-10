@@ -1,35 +1,5 @@
 {
   "group": "Bases de datos",
-  "overview": {
-    "groups": [
-      {
-        "title": "Estado",
-        "metrics": [
-          {
-            "label": "Acierto de caché",
-            "tip": "Tasa de aciertos del buffer-cache en el clúster."
-          },
-          {
-            "label": "Deadlocks/s",
-            "tip": "Deadlocks detectados por segundo."
-          },
-          {
-            "label": "Conflictos/s",
-            "tip": "Conflictos de recovery por segundo."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Obtenidos /s",
-            "tip": "Filas obtenidas por segundo."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Nodos",
     "services": "Clústeres de PostgreSQL"

@@ -1,22 +1,5 @@
 {
   "alias": "Linux",
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressources",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "Utilisation CPU totale."
-          },
-          {
-            "label": "Mém. %",
-            "tip": "Mémoire utilisée / totale."
-          }
-        ]
-      }
-    ]
-  },
   "group": "OS",
   "layer-header": {
     "columns": [

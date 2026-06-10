@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "Mittlere Latenz",
-            "tip": "Durchschnittliche Aufruflatenz zum GenAI-Anbieter."
-          },
-          {
-            "label": "Fehlerrate",
-            "tip": "100 − Anbieter-SLA."
-          }
-        ]
-      },
-      {
-        "title": "Kosten",
-        "metrics": [
-          {
-            "label": "Gesamt geschätzte Kosten",
-            "tip": "Kumulative Anbieter-Kostenschätzung."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

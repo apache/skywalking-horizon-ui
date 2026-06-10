@@ -13,23 +13,6 @@
       { "label": "4xx %" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "错误",
-        "metrics": [
-          { "label": "5xx 比率", "tip": "每分钟返回 5xx 的请求占比。" },
-          { "label": "4xx 比率", "tip": "每分钟返回 4xx 的请求占比。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "RPS", "tip": "Nginx 服务每秒请求数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "HTTP 请求趋势" },

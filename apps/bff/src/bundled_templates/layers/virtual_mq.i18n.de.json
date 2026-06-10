@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "95. Perzentil der Verbrauchs-Latenz (timestamp(received) − timestamp(producing))."
-          },
-          {
-            "label": "Konsum-Fehlerrate",
-            "tip": "100 − Verbrauchs-Erfolgsrate."
-          },
-          {
-            "label": "Erzeugungs-Fehlerrate",
-            "tip": "100 − Erzeugungs-Erfolgsrate."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Konsum-RPM",
-            "tip": "Pro Minute konsumierte Nachrichten."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

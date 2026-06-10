@@ -20,23 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Saúde do Istio",
-        "metrics": [
-          {
-            "label": "CPU",
-            "tip": "CPU do processo do plano de controle do Istio."
-          },
-          {
-            "label": "Goroutines",
-            "tip": "Goroutines do Go vivas."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -46,37 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "health",
-            "label": "Health",
-            "tip": "0 green / 1 yellow / 2 red.",
-            "mqe": "meter_elasticsearch_cluster_health_status",
-            "aggregation": "avg"
-          },
-          {
-            "id": "unassigned",
-            "label": "Unassigned Shards",
-            "tip": "Shards not yet placed on any node.",
-            "mqe": "latest(meter_elasticsearch_cluster_unassigned_shards_total)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "breakers",
-            "label": "Tripped Breakers",
-            "tip": "Cumulative circuit-breaker trips \u2014 high values indicate memory pressure.",
-            "mqe": "latest(meter_elasticsearch_cluster_breakers_tripped)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

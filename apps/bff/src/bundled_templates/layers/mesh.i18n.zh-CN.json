@@ -14,23 +14,6 @@
       { "label": "错误率" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "P95", "tip": "Mesh 中由 Sidecar 路由的响应时间 95 分位。" },
-          { "label": "错误率", "tip": "100 − Mesh SLA。基于 Sidecar ALS 上报的非 2xx 响应状态。" }
-        ]
-      },
-      {
-        "title": "健康度",
-        "metrics": [
-          { "label": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

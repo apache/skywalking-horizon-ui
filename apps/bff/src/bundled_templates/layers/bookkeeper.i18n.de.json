@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Schreiben B/s",
-            "tip": "Bookie Schreib-Durchsatz im Cluster."
-          },
-          {
-            "label": "Lesen B/s",
-            "tip": "Bookie Lese-Durchsatz im Cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

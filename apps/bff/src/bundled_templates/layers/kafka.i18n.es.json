@@ -1,25 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Clúster",
-        "metrics": [
-          {
-            "label": "Particiones offline",
-            "tip": "Particiones sin líder activo."
-          },
-          {
-            "label": "Sub-replicadas",
-            "tip": "Particiones cuyo conjunto ISR está por debajo del factor de replicación."
-          },
-          {
-            "label": "Lag máximo",
-            "tip": "Mayor lag de consumidor observado."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Brokers",
     "services": "Clústeres de Kafka"

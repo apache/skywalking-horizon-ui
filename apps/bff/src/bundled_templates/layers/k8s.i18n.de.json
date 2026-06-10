@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Kapazität",
-        "metrics": [
-          {
-            "label": "Pods",
-            "tip": "Pods insgesamt im Cluster gemeldet."
-          },
-          {
-            "label": "Knoten",
-            "tip": "Knotenanzahl."
-          },
-          {
-            "label": "Dienste",
-            "tip": "K8s-Service-Objekte."
-          }
-        ]
-      },
-      {
-        "title": "Probleme",
-        "metrics": [
-          {
-            "label": "Pods nicht laufend",
-            "tip": "Pods in einem nicht-Running-Status — pending, failed, unknown."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

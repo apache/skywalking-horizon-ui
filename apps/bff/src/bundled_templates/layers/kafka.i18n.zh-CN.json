@@ -13,18 +13,6 @@
       { "label": "Leader 数" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "集群",
-        "metrics": [
-          { "label": "下线分区", "tip": "没有活跃 Leader 的分区。" },
-          { "label": "副本不足", "tip": "ISR 数量低于副本数的分区。" },
-          { "label": "最大 Lag", "tip": "观察到的最大消费者 Lag。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "分区数" },

@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Santé",
-        "metrics": [
-          {
-            "label": "Hit cache",
-            "tip": "Taux de hit du buffer-cache sur l'ensemble du cluster."
-          },
-          {
-            "label": "Deadlocks/s",
-            "tip": "Deadlocks détectés par seconde."
-          },
-          {
-            "label": "Conflits/s",
-            "tip": "Conflits de récupération par seconde."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Récupérées /s",
-            "tip": "Lignes récupérées par seconde."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

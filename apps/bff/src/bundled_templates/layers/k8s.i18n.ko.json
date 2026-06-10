@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "용량",
-        "metrics": [
-          {
-            "label": "Pod",
-            "tip": "클러스터 전반에서 보고된 총 Pod 수입니다."
-          },
-          {
-            "label": "노드",
-            "tip": "노드 수입니다."
-          },
-          {
-            "label": "서비스",
-            "tip": "Kubernetes Service 객체입니다."
-          }
-        ]
-      },
-      {
-        "title": "문제",
-        "metrics": [
-          {
-            "label": "실행되지 않는 Pod",
-            "tip": "Running 상태가 아닌 모든 Pod — pending, failed, unknown."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

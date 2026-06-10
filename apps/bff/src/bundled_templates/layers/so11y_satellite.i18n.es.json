@@ -1,23 +1,6 @@
 {
   "group": "Auto-observabilidad",
   "alias": "Satellite",
-  "overview": {
-    "groups": [
-      {
-        "title": "Estado de Satellite",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "CPU del proceso Satellite."
-          },
-          {
-            "label": "Cola usada",
-            "tip": "Elementos de cola pendientes — indicador de backlog."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

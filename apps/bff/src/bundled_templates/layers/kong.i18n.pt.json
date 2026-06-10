@@ -22,32 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência",
-        "metrics": [
-          {
-            "label": "Latência do Kong",
-            "tip": "Tempo que o próprio Kong gasta por requisição, p50/p95."
-          },
-          {
-            "label": "Latência upstream",
-            "tip": "Tempo aguardando o serviço upstream."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Requisições por segundo passando pelo Kong."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

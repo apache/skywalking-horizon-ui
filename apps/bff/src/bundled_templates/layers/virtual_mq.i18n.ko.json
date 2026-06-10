@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "지연 시간 및 오류",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "95번째 백분위 소비 지연 시간 (timestamp(received) − timestamp(producing))."
-          },
-          {
-            "label": "소비 오류율",
-            "tip": "100 − 소비 성공률입니다."
-          },
-          {
-            "label": "생산 오류율",
-            "tip": "100 − 생산 성공률입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "소비 RPM",
-            "tip": "분당 소비된 메시지 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

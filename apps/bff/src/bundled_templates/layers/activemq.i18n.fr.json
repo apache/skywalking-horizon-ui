@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Enqueue/s",
-            "tip": "Messages empilés par seconde."
-          },
-          {
-            "label": "Dequeue/s",
-            "tip": "Messages dépilés par seconde."
-          },
-          {
-            "label": "Expirés/s",
-            "tip": "Messages expirés avant consommation."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

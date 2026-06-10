@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Erzeugungs-TPS",
-            "tip": "Pro Sekunde im Cluster erzeugte Nachrichten."
-          },
-          {
-            "label": "Konsum-TPS",
-            "tip": "Pro Sekunde konsumierte Nachrichten."
-          },
-          {
-            "label": "Max. Consumer-Latenz",
-            "tip": "Schlechteste Verbraucherlatenz im Cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

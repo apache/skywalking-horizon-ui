@@ -18,28 +18,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Saúde da página",
-        "metrics": [
-          {
-            "label": "Taxa de erros",
-            "tip": "Porcentagem de carregamentos de página que resultaram em erro."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "PV / min",
-            "tip": "Page views por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

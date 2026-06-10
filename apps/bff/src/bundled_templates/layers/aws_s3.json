@@ -45,38 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "err4xx",
-            "label": "4xx Count",
-            "tip": "Client errors observed by CloudWatch.",
-            "mqe": "latest(aws_s3_4xx)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "err5xx",
-            "label": "5xx Count",
-            "tip": "Server errors observed by CloudWatch.",
-            "mqe": "latest(aws_s3_5xx)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "latency",
-            "label": "Avg Latency",
-            "tip": "Average request latency.",
-            "mqe": "avg(aws_s3_request_latency)",
-            "unit": "ms",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {
