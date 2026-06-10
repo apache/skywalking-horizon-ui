@@ -83,7 +83,7 @@ function isSingleFeatureLayer(L: SidebarLayer): boolean {
   if (hasTopology(L)) return false;
   const c = L.caps;
   if (c.traces || c.logs || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
-  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology) return false;
+  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
   return true;
 }
 

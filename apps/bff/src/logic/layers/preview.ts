@@ -110,7 +110,10 @@ export function parsePreviewDeployment(
       if (rr.nodeMetrics !== undefined && !isMetricList(rr.nodeMetrics)) return null;
     }
   }
-  // Need at least one metric source — top-level or a role.
+  // Need at least one metric source — a node family (top-level or a role) OR
+  // an edge family. The BFF renders edge-only configs (link metrics with no
+  // node metrics), so preview must accept them too; otherwise an unpublished
+  // edge-only config falls back / 404s and only "works" once published.
   const hasTop = Array.isArray(o.nodeMetrics) && o.nodeMetrics.length > 0;
   const hasRole =
     Array.isArray(o.roles) &&
@@ -118,7 +121,10 @@ export function parsePreviewDeployment(
       const nm = (r as Record<string, unknown>)?.nodeMetrics;
       return Array.isArray(nm) && nm.length > 0;
     });
-  if (!hasTop && !hasRole) return null;
+  const hasLink =
+    (Array.isArray(o.linkServerMetrics) && o.linkServerMetrics.length > 0) ||
+    (Array.isArray(o.linkClientMetrics) && o.linkClientMetrics.length > 0);
+  if (!hasTop && !hasRole && !hasLink) return null;
   return o as unknown as DeploymentConfig;
 }
 
