@@ -48,7 +48,7 @@ import type {
   DeploymentConfig,
   DeploymentNode,
   DeploymentResponse,
-  TopologyMetricDef,
+  DeploymentMetricDef,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
@@ -138,7 +138,7 @@ const DEFAULT_WINDOW_MIN = 60;
 /** Per-instance fragment under `{ scope: ServiceInstance }`. */
 function nodeFragment(
   alias: string,
-  m: TopologyMetricDef,
+  m: DeploymentMetricDef,
   serviceName: string,
   instanceName: string,
   normal: boolean,
@@ -164,7 +164,7 @@ function nodeFragment(
  */
 function relationFragment(
   alias: string,
-  m: TopologyMetricDef,
+  m: DeploymentMetricDef,
   serviceName: string,
   srcInstanceName: string,
   dstInstanceName: string,
@@ -387,7 +387,7 @@ export function registerDeploymentRoute(
       function roleOf(n: OapInstNode): string | undefined {
         return ruleKey(cfgNN.roleBy, n.name, attrsFor(n)) ?? undefined;
       }
-      function defsFor(n: OapInstNode): TopologyMetricDef[] {
+      function defsFor(n: OapInstNode): DeploymentMetricDef[] {
         const rk = roleOf(n);
         const rc = rk ? cfgRoles.find((r) => r.key.toLowerCase() === rk.toLowerCase()) : undefined;
         return rc?.nodeMetrics ?? cfgNN.nodeMetrics ?? [];
@@ -398,7 +398,7 @@ export function registerDeploymentRoute(
       const realNodes = nodes.filter((n) => n.isReal);
       if (!structureOnly) {
         const fragments: string[] = [];
-        const aliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
+        const aliasMap = new Map<string, { nodeId: string; metric: DeploymentMetricDef }>();
         realNodes.forEach((n, i) => {
           defsFor(n).forEach((m, j) => {
             const alias = `n${i}_${j}`;
@@ -444,7 +444,7 @@ export function registerDeploymentRoute(
         const fragments: string[] = [];
         const aliasMap = new Map<
           string,
-          { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
+          { callId: string; metric: DeploymentMetricDef; side: 'server' | 'client' }
         >();
         candidateEdges.forEach((c, i) => {
           const src = nodeById.get(c.source)!;

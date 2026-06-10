@@ -39,8 +39,9 @@ import type {
   ClusterByRule,
   LayerDef,
   DeploymentCall,
+  DeploymentConfig,
   DeploymentNode,
-  TopologyMetricDef,
+  DeploymentMetricDef,
 } from '@/api/client';
 import { useDeployment } from '@/layer/service-map/useDeployment';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -72,10 +73,10 @@ const enabled = computed(() => !!selectedId.value);
 const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled);
 const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
 
-const cfg = computed(
-  () => data.value?.config ?? { nodeMetrics: [] as TopologyMetricDef[] },
+const cfg = computed<DeploymentConfig>(
+  () => data.value?.config ?? { nodeMetrics: [] },
 );
-function pickByRole(defs: TopologyMetricDef[], role: TopologyMetricDef['role']): TopologyMetricDef | null {
+function pickByRole(defs: DeploymentMetricDef[], role: DeploymentMetricDef['role']): DeploymentMetricDef | null {
   return defs.find((d) => d.role === role) ?? null;
 }
 // Per-node metric defs: a node's role (from `roleBy`, set by the BFF)
@@ -85,34 +86,34 @@ function roleConfigFor(n: DeploymentNode) {
   if (!want) return null;
   return cfg.value.roles?.find((r) => r.key.toLowerCase() === want) ?? null;
 }
-function metricDefsFor(n: DeploymentNode): TopologyMetricDef[] {
+function metricDefsFor(n: DeploymentNode): DeploymentMetricDef[] {
   return roleConfigFor(n)?.nodeMetrics ?? cfg.value.nodeMetrics ?? [];
 }
-function centerDefFor(n: DeploymentNode): TopologyMetricDef | null {
+function centerDefFor(n: DeploymentNode): DeploymentMetricDef | null {
   return pickByRole(metricDefsFor(n), 'center');
 }
-function ringDefFor(n: DeploymentNode): TopologyMetricDef | null {
+function ringDefFor(n: DeploymentNode): DeploymentMetricDef | null {
   return pickByRole(metricDefsFor(n), 'ring');
 }
 // Union of the top-level + every role's metric defs (deduped by id) — drives
 // the toolbar legend + the ring-legend baseline, since with roles the
 // top-level `nodeMetrics` may be empty.
-const allMetricDefs = computed<TopologyMetricDef[]>(() => {
-  const map = new Map<string, TopologyMetricDef>();
+const allMetricDefs = computed<DeploymentMetricDef[]>(() => {
+  const map = new Map<string, DeploymentMetricDef>();
   for (const d of cfg.value.nodeMetrics ?? []) if (!map.has(d.id)) map.set(d.id, d);
   for (const r of cfg.value.roles ?? []) for (const d of r.nodeMetrics ?? []) if (!map.has(d.id)) map.set(d.id, d);
   return [...map.values()];
 });
 const defaultRingDef = computed(() => pickByRole(allMetricDefs.value, 'ring'));
 
-function nodeVal(n: DeploymentNode, def: TopologyMetricDef | null): number | null {
+function nodeVal(n: DeploymentNode, def: DeploymentMetricDef | null): number | null {
   return def ? (n.metrics?.[def.id] ?? null) : null;
 }
 function fmtVal(v: number | null, unit?: string): string {
   if (v === null) return '—';
   return unit ? `${fmtMetric(v)}${unit === '%' ? '' : ' '}${unit}` : fmtMetric(v);
 }
-function bandColor(value: number, th: NonNullable<TopologyMetricDef['thresholds']>): string {
+function bandColor(value: number, th: NonNullable<DeploymentMetricDef['thresholds']>): string {
   const base = th.invertBase ?? 100;
   const v = th.invertHealth ? Math.max(0, base - value) : value;
   if (v > (th.danger ?? 5)) return 'var(--sw-err)';
@@ -778,7 +779,7 @@ function openInstanceDashboard(n: DeploymentNode): void {
 }
 
 // ── Edge detail rows (aligned client | server) — same as the instance map.
-interface EdgeRow { id: string; label: string; unit: string; serverDef: TopologyMetricDef | null; clientDef: TopologyMetricDef | null }
+interface EdgeRow { id: string; label: string; unit: string; serverDef: DeploymentMetricDef | null; clientDef: DeploymentMetricDef | null }
 const edgeRows = computed<EdgeRow[]>(() => {
   const map = new Map<string, EdgeRow>();
   for (const m of cfg.value.linkServerMetrics ?? []) {
@@ -795,12 +796,12 @@ const edgeRows = computed<EdgeRow[]>(() => {
   }
   return [...map.values()];
 });
-function edgeVal(c: DeploymentCall, side: 'server' | 'client', def: TopologyMetricDef | null): number | null {
+function edgeVal(c: DeploymentCall, side: 'server' | 'client', def: DeploymentMetricDef | null): number | null {
   if (!def) return null;
   const b = side === 'server' ? c.serverMetrics : c.clientMetrics;
   return b?.[def.id] ?? null;
 }
-function edgeSeries(c: DeploymentCall, side: 'server' | 'client', def: TopologyMetricDef | null): Array<number | null> {
+function edgeSeries(c: DeploymentCall, side: 'server' | 'client', def: DeploymentMetricDef | null): Array<number | null> {
   if (!def) return [];
   const b = side === 'server' ? c.serverMetricSeries : c.clientMetricSeries;
   return b?.[def.id] ?? [];

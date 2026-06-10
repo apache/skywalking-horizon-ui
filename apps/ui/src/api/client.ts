@@ -130,6 +130,7 @@ export type {
   InstanceTopologyNode,
   InstanceTopologyCall,
   InstanceTopologyResponse,
+  DeploymentMetricDef,
   ClusterByRule,
   NodeRoleConfig,
   DeploymentConfig,

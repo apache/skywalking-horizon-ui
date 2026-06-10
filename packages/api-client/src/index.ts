@@ -66,16 +66,19 @@ export type {
   InstanceTopologyNode,
   InstanceTopologyCall,
   InstanceTopologyResponse,
+  EndpointDependencyNode,
+  EndpointDependencyCall,
+  EndpointDependencyResponse,
+} from './topology.js';
+export type {
+  DeploymentMetricDef,
   ClusterByRule,
   NodeRoleConfig,
   DeploymentConfig,
   DeploymentNode,
   DeploymentCall,
   DeploymentResponse,
-  EndpointDependencyNode,
-  EndpointDependencyCall,
-  EndpointDependencyResponse,
-} from './topology.js';
+} from './deployment.js';
 export type {
   LayerLevel,
   HierarchyPeer,

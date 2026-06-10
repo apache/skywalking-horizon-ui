@@ -38,6 +38,7 @@ import type {
   EndpointDependencyConfig,
   ProcessTopologyConfig,
   DeploymentConfig,
+  DeploymentMetricDef,
   TopologyConfig,
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
@@ -1179,8 +1180,10 @@ const currentWidgets = computed(() => widgetsFor(activeScope.value));
  * linkClientMetrics. Endpoint-dependency only has two: nodeMetrics,
  * linkMetrics (OAP has no client family for endpoint relations).
  *
- * Each list edits an array of TopologyMetricDef objects. The form
- * surfaces id / label / mqe / unit / role / aggregation + thresholds.
+ * Each list edits an array of metric-def objects (the topology/dependency
+ * scopes use TopologyMetricDef; the deployment scope uses the structurally
+ * identical DeploymentMetricDef). The form surfaces id / label / mqe / unit /
+ * role / aggregation + thresholds.
  *
  * Initial state: when the template has no `topology` /
  * `endpointDependency` block the helpers seed an empty one so the
@@ -1243,7 +1246,7 @@ function ensureDeployment(): DeploymentConfig {
 }
 function ensureDeploymentList(
   bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient',
-): TopologyMetricDef[] {
+): DeploymentMetricDef[] {
   const t = ensureDeployment();
   const key =
     bucket === 'sitNode' ? 'nodeMetrics'
@@ -1346,9 +1349,9 @@ function toggleInstanceTopology(): void {
   }
 }
 // Service-deployment config (top-level, independent of `topology`).
-const serviceInternalNodeMetrics = computed(() => getMetricList('sitNode'));
-const serviceInternalServerMetrics = computed(() => getMetricList('sitLinkServer'));
-const serviceInternalClientMetrics = computed(() => getMetricList('sitLinkClient'));
+const deploymentNodeMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitNode'));
+const deploymentServerMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitLinkServer'));
+const deploymentClientMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitLinkClient'));
 
 // clusterBy editor — four modes: off / by one instance attribute / by several
 // attributes (composite key) / by name regex. Reads + writes
@@ -2941,9 +2944,9 @@ const namingTest = computed<NamingTestResult>(() => {
                 <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
                 <button class="sw-btn add" type="button" @click="addMetric('sitNode')">＋ Add</button>
               </header>
-              <div v-if="serviceInternalNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+              <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in serviceInternalNodeMetrics" :key="i" class="metric-row">
+                <article v-for="(m, i) in deploymentNodeMetrics" :key="i" class="metric-row">
                   <div class="metric-row-head">
                     <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
                     <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
@@ -2959,7 +2962,7 @@ const namingTest = computed<NamingTestResult>(() => {
                     </label>
                     <div class="metric-row-actions">
                       <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('sitNode', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === serviceInternalNodeMetrics.length - 1" title="Move down" @click="moveMetric('sitNode', i, 1)">↓</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentNodeMetrics.length - 1" title="Move down" @click="moveMetric('sitNode', i, 1)">↓</button>
                       <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('sitNode', i)">×</button>
                     </div>
                   </div>
@@ -2983,9 +2986,9 @@ const namingTest = computed<NamingTestResult>(() => {
                 <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
                 <button class="sw-btn add" type="button" @click="addMetric('sitLinkServer')">＋ Add</button>
               </header>
-              <div v-if="serviceInternalServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+              <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in serviceInternalServerMetrics" :key="i" class="metric-row">
+                <article v-for="(m, i) in deploymentServerMetrics" :key="i" class="metric-row">
                   <div class="metric-row-head">
                     <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
                     <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
@@ -2996,7 +2999,7 @@ const namingTest = computed<NamingTestResult>(() => {
                     </label>
                     <div class="metric-row-actions">
                       <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkServer', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === serviceInternalServerMetrics.length - 1" @click="moveMetric('sitLinkServer', i, 1)">↓</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentServerMetrics.length - 1" @click="moveMetric('sitLinkServer', i, 1)">↓</button>
                       <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkServer', i)">×</button>
                     </div>
                   </div>
@@ -3010,9 +3013,9 @@ const namingTest = computed<NamingTestResult>(() => {
                 <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
                 <button class="sw-btn add" type="button" @click="addMetric('sitLinkClient')">＋ Add</button>
               </header>
-              <div v-if="serviceInternalClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+              <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in serviceInternalClientMetrics" :key="i" class="metric-row">
+                <article v-for="(m, i) in deploymentClientMetrics" :key="i" class="metric-row">
                   <div class="metric-row-head">
                     <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
                     <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
@@ -3023,7 +3026,7 @@ const namingTest = computed<NamingTestResult>(() => {
                     </label>
                     <div class="metric-row-actions">
                       <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkClient', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === serviceInternalClientMetrics.length - 1" @click="moveMetric('sitLinkClient', i, 1)">↓</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentClientMetrics.length - 1" @click="moveMetric('sitLinkClient', i, 1)">↓</button>
                       <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkClient', i)">×</button>
                     </div>
                   </div>
