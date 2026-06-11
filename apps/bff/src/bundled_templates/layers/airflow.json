@@ -29,7 +29,8 @@
         "metric": "dagTotalParseTime",
         "label": "DAG Total Parse Time",
         "mqe": "meter_airflow_dag_total_parse_time",
-        "aggregation": "sum"
+        "aggregation": "sum",
+        "unit": "s"
       },
       {
         "metric": "openSlots",
@@ -179,18 +180,20 @@
         "title": "DAG Total Parse Time",
         "tip": "Seconds to scan and import queued DAG files (airflow.dag_processing.total_parse_time).",
         "type": "line",
+        "unit": "s",
         "expressions": [
           "meter_airflow_dag_total_parse_time"
         ],
         "span": 6,
         "rowSpan": 2,
-        "format": "int"
+        "format": "decimal"
       },
       {
         "id": "dag_file_refresh_error",
         "title": "DAG File Refresh Errors",
         "tip": "DAG file load failures per minute (airflow.dag_file_refresh_error).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_dag_file_refresh_error"
         ],
@@ -203,6 +206,7 @@
         "title": "Asset Updates",
         "tip": "Asset update events per minute (airflow.asset.updates).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_asset_updates"
         ],
@@ -255,6 +259,7 @@
         "title": "Scheduler Heartbeat",
         "tip": "Scheduler heartbeats per minute (airflow.scheduler_heartbeat).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_instance_scheduler_heartbeat"
         ],
@@ -286,6 +291,7 @@
         "title": "Asset Updates",
         "tip": "Asset update events on the scheduler (airflow.asset.updates).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_instance_asset_updates"
         ],
@@ -299,6 +305,7 @@
         "title": "Asset Triggered DagRuns",
         "tip": "DagRuns triggered by asset events on the scheduler (airflow.asset.triggered_dagruns).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_instance_asset_triggered_dagruns"
         ],
@@ -312,6 +319,7 @@
         "title": "Triggerer Heartbeat",
         "tip": "Triggerer process heartbeats per minute (airflow.triggerer_heartbeat).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_instance_triggerer_heartbeat"
         ],
@@ -343,6 +351,7 @@
         "title": "Triggers Blocked / Failed / Succeeded",
         "tip": "Deferred trigger outcomes on the triggerer host (airflow.triggers.blocked_main_thread, airflow.triggers.failed, airflow.triggers.succeeded).",
         "type": "line",
+        "unit": "/min",
         "expressions": [
           "meter_airflow_instance_triggers_blocked_main_thread",
           "meter_airflow_instance_triggers_failed",
