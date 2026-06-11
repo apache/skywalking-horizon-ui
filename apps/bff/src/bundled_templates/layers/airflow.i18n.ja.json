@@ -13,18 +13,6 @@
       { "label": "スケジュール済みスロット" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "クラスタ",
-        "metrics": [
-          { "label": "実行可能タスク", "tip": "クラスタ全体で実行可能なタスク数。" },
-          { "label": "キュー待ちタスク", "tip": "Executor で待機中のタスク数。" },
-          { "label": "Executor 空きスロット", "tip": "Executor の空きスロット（プール容量ではない）。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "実行可能タスク" },
@@ -37,11 +25,11 @@
       { "title": "DAG bag サイズ" },
       { "title": "DAG 総パース時間" },
       { "title": "DAG ファイル更新エラー" },
-      { "title": "アセット更新" }
+      { "title": "Asset 更新" }
     ],
     "instance": [
       {
-        "title": "プール空き / 延期 / 実行中スロット",
+        "title": "Pool 空き / 延期 / 実行中スロット",
         "expressionLabels": ["pool open", "pool deferred", "pool running"]
       },
       {
@@ -53,8 +41,8 @@
         "title": "Executor 空き / キュー待ちスロット",
         "expressionLabels": ["open slots", "queued tasks"]
       },
-      { "title": "アセット更新" },
-      { "title": "アセット起動 DagRun" },
+      { "title": "Asset 更新" },
+      { "title": "Asset 起動 DagRun" },
       { "title": "トリガラーハートビート" },
       {
         "title": "実行中トリガ / 残り容量",

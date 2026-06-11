@@ -13,18 +13,6 @@
       { "label": "Slots programados" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Clúster",
-        "metrics": [
-          { "label": "Tasks ejecutables", "tip": "Tasks listas para ejecutar en el clúster." },
-          { "label": "Tasks en cola", "tip": "Tasks en espera en el executor." },
-          { "label": "Slots libres del executor", "tip": "Slots libres del executor, no capacidad de pool." }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "Tasks ejecutables" },
