@@ -21,7 +21,9 @@
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.1",
+    "@fastify/multipart": "^10.0.0",
     "@fastify/static": "^9.1.1",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@skywalking-horizon-ui/api-client": "workspace:*",
     "argon2": "^0.41.1",
     "chokidar": "^4.0.1",
@@ -29,6 +31,7 @@
     "ldapts": "^8.1.7",
     "pino": "^9.5.0",
     "pino-pretty": "^11.3.0",
+    "stacktrace-parser": "^0.1.11",
     "yaml": "^2.6.0",
     "zod": "^3.23.8"
   },

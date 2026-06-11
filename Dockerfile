@@ -65,6 +65,11 @@ COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled
 RUN mkdir -p /data && chown horizon:horizon /data
 VOLUME ["/data"]
 
+# Static source-map mount point for the Browser Errors tab (#6784). Drop
+# (or bind-mount) `.map` files here and they're indexed at boot — durable
+# across restarts, unlike runtime uploads which live in memory only.
+RUN mkdir -p /app/sourcemaps && chown horizon:horizon /app/sourcemaps
+
 ENV NODE_ENV=production \
     HORIZON_SERVER_HOST=0.0.0.0 \
     HORIZON_SERVER_PORT=8081 \
@@ -73,7 +78,8 @@ ENV NODE_ENV=production \
     HORIZON_AUDIT_FILE=/data/horizon-audit.jsonl \
     HORIZON_SETUP_FILE=/data/horizon-setup.json \
     HORIZON_ALARMS_FILE=/data/horizon-alarms.json \
-    HORIZON_WIRE_LOG_FILE=/data/horizon-wire.jsonl
+    HORIZON_WIRE_LOG_FILE=/data/horizon-wire.jsonl \
+    HORIZON_SOURCEMAPS_DIR=/app/sourcemaps
 
 USER horizon
 EXPOSE 8081

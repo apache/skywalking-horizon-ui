@@ -82,7 +82,7 @@ function isSingleFeatureLayer(L: SidebarLayer): boolean {
   if (hasInstances(L) || hasEndpoints(L)) return false;
   if (hasTopology(L)) return false;
   const c = L.caps;
-  if (c.traces || c.logs || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
+  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
   if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
   return true;
 }
@@ -580,6 +580,14 @@ watch(
                   <Icon name="log" /><span>Logs</span>
                 </RouterLink>
                 <RouterLink
+                  v-if="L.caps.browserErrors"
+                  :to="`/layer/${L.key}/browser-errors`"
+                  class="sw-nav-item"
+                  :class="{ 'is-active': isActive(`/layer/${L.key}/browser-errors`) }"
+                >
+                  <Icon name="web" /><span>{{ t('Browser Logs') }}</span>
+                </RouterLink>
+                <RouterLink
                   v-if="L.caps.podLogs"
                   :to="`/layer/${L.key}/pod-logs`"
                   class="sw-nav-item"
@@ -733,6 +741,14 @@ watch(
             :class="{ 'is-active': isActive(`/layer/${E.layer.key}/logs`) }"
           >
             <Icon name="log" /><span>Logs</span>
+          </RouterLink>
+          <RouterLink
+            v-if="E.layer.caps.browserErrors"
+            :to="`/layer/${E.layer.key}/browser-errors`"
+            class="sw-nav-item"
+            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/browser-errors`) }"
+          >
+            <Icon name="web" /><span>{{ t('Browser Logs') }}</span>
           </RouterLink>
           <RouterLink
             v-if="E.layer.caps.podLogs"

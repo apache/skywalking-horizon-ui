@@ -51,6 +51,7 @@ rbac:
       - "alarms:read"
       - "traces:read"
       - "logs:read"
+      - "browser-errors:read"
       - "topology:read"
       - "profile:read"
       - "overview:read"
@@ -59,6 +60,7 @@ rbac:
       - "alarms:read"
       - "traces:read"
       - "logs:read"
+      - "browser-errors:read"
       - "topology:read"
       - "profile:read"
       - "overview:read"
@@ -71,6 +73,8 @@ rbac:
       - "alarms:read"
       - "traces:read"
       - "logs:read"
+      - "browser-errors:read"
+      - "source-map:write"
       - "topology:read"
       - "profile:read"
       - "cluster:read"
@@ -112,3 +116,4 @@ audit:    { file: ./horizon-audit.jsonl }
 setup:    { file: ./horizon-setup.json }
 alarms:   { file: ./horizon-alarms.json }
 debugLog: { enabled: false, file: ./horizon-wire.jsonl, maxBodyChars: 8192, redactAuthHeaders: true }
+sourceMaps: { enabled: true, maxFileBytes: 67108864, maxTotalBytes: 536870912, maxFileCount: 128, bootMountDir: "" }

@@ -46,37 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "tasksExecutable",
-            "label": "Tasks Executable",
-            "tip": "Tasks ready for execution across the cluster (airflow.scheduler.tasks.executable).",
-            "mqe": "meter_airflow_scheduler_tasks_executable",
-            "aggregation": "sum"
-          },
-          {
-            "id": "queuedTasks",
-            "label": "Queued Tasks",
-            "tip": "Tasks waiting on the executor (airflow.executor.queued_tasks).",
-            "mqe": "meter_airflow_executor_queued_tasks",
-            "aggregation": "sum"
-          },
-          {
-            "id": "openSlots",
-            "label": "Executor Open Slots",
-            "tip": "Free executor slots, not pool capacity (airflow.executor.open_slots).",
-            "mqe": "meter_airflow_executor_open_slots",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

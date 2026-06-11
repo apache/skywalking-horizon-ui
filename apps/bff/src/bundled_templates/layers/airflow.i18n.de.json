@@ -13,18 +13,6 @@
       { "label": "Geplante Slots" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          { "label": "Ausführbare Tasks", "tip": "Auf dem Cluster ausführbare Tasks." },
-          { "label": "Wartende Tasks", "tip": "Tasks in der Executor-Warteschlange." },
-          { "label": "Freie Executor-Slots", "tip": "Freie Executor-Slots, keine Pool-Kapazität." }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "Ausführbare Tasks" },
@@ -36,12 +24,12 @@
       { "title": "DAG-Importfehler" },
       { "title": "DAG-Bag-Größe" },
       { "title": "DAG-Gesamt-Parsezeit" },
-      { "title": "DAG-Datei-Refresh-Fehler" },
+      { "title": "DAG-Datei-Aktualisierungsfehler" },
       { "title": "Asset-Updates" }
     ],
     "instance": [
       {
-        "title": "Pool offen / zurückgestellt / laufend",
+        "title": "Pool frei / zurückgestellt / laufend",
         "expressionLabels": ["pool open", "pool deferred", "pool running"]
       },
       {
@@ -50,7 +38,7 @@
       },
       { "title": "Scheduler-Heartbeat" },
       {
-        "title": "Executor offen / wartend",
+        "title": "Executor frei / wartend",
         "expressionLabels": ["open slots", "queued tasks"]
       },
       { "title": "Asset-Updates" },

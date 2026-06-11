@@ -174,6 +174,7 @@ const rbacSchema = z
           'alarms:read',
           'traces:read',
           'logs:read',
+          'browser-errors:read',
           'topology:read',
           'profile:read',
           'overview:read',
@@ -187,6 +188,7 @@ const rbacSchema = z
           'alarms:read',
           'traces:read',
           'logs:read',
+          'browser-errors:read',
           'topology:read',
           'profile:read',
           'overview:read',
@@ -204,6 +206,8 @@ const rbacSchema = z
           'alarms:read',
           'traces:read',
           'logs:read',
+          'browser-errors:read',
+          'source-map:write',
           'topology:read',
           'profile:read',
           'cluster:read',
@@ -319,6 +323,43 @@ const querySchema = z
   .strict()
   .default({ landingServiceCap: 100 });
 
+// JS source maps for de-obfuscating BROWSER-layer error stacks (#6784).
+// Maps live in the BFF process heap — there is NO OAP-side storage — so
+// the budgets below bound a per-instance, intentionally-ephemeral cache.
+// `HORIZON_SOURCEMAPS_DIR` is set by the Docker image to /app/sourcemaps
+// so a mounted maps directory is picked up with zero YAML.
+const sourceMapsDirDefault = process.env.HORIZON_SOURCEMAPS_DIR ?? '';
+const sourceMapsSchema = z
+  .object({
+    /** Master switch for the upload / static-mount / resolve capability.
+     *  When false the Browser Errors tab still lists errors, but the map
+     *  controls are hidden and the source-map routes reject. */
+    enabled: z.boolean().default(true),
+    /** Reject any single `.map` larger than this (upload or mount). Maps
+     *  carrying `sourcesContent` are commonly 5–40 MiB; large bundles run
+     *  bigger. Default 64 MiB. */
+    maxFileBytes: z.number().int().positive().default(64 * 1024 * 1024),
+    /** Budget for the resident UPLOADED maps (raw `.map` bytes in the Node
+     *  heap). An upload bigger than this is rejected; past it, least-recently-
+     *  used uploads are evicted. A small parsed-map cache rides on top
+     *  (bounded by count + this budget), so plan ~2x headroom; mounted maps
+     *  are disk-backed and don't count. Lowering it trims on the next
+     *  upload / resolve / list. Default 512 MiB. */
+    maxTotalBytes: z.number().int().positive().default(512 * 1024 * 1024),
+    /** Cap on the NUMBER of maps held, independent of bytes — bounds the
+     *  in-memory uploaded set (LRU-evicted past it) and the count of
+     *  statically-mounted maps indexed at boot (the rest are skipped).
+     *  Default 128. */
+    maxFileCount: z.number().int().positive().default(128),
+    /** Directory scanned at boot for statically-provisioned `.map` files
+     *  (Docker/k8s mount). Disk-backed: evictable from memory but reloaded
+     *  on demand, so they survive restarts and aren't deletable from the
+     *  UI. Empty disables the static mount. */
+    bootMountDir: z.string().default(sourceMapsDirDefault),
+  })
+  .strict()
+  .default({});
+
 // Layers hidden from the sidebar / menu even when OAP reports them in
 // `listLayers`. Config-driven (replaces a former hard-coded hide list): an
 // operator can clear `excluded` to surface every reported layer, or add keys
@@ -357,6 +398,7 @@ export const configSchema = z
     alarms: alarmsSchema,
     debugLog: debugLogSchema,
     query: querySchema,
+    sourceMaps: sourceMapsSchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
     // than rejected by `.strict()`) so an existing config carrying the block
@@ -366,6 +408,7 @@ export const configSchema = z
   .strict();
 
 export type HorizonConfig = z.infer<typeof configSchema>;
+export type SourceMapsConfig = z.infer<typeof sourceMapsSchema>;
 export type LdapConfig = z.infer<typeof ldapSchema>;
 export type LocalUser = z.infer<typeof localUserSchema>;
 export type BreakGlassConfig = z.infer<typeof breakGlassSchema>;

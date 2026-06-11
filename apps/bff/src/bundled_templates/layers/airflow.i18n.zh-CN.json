@@ -13,27 +13,6 @@
       { "label": "已调度 Slot" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "集群",
-        "metrics": [
-          {
-            "label": "可执行任务",
-            "tip": "集群内待执行的任务数（airflow.scheduler.tasks.executable）。"
-          },
-          {
-            "label": "排队任务",
-            "tip": "Executor 上排队等待的任务数（airflow.executor.queued_tasks）。"
-          },
-          {
-            "label": "Executor 空闲 Slot",
-            "tip": "Executor 可用 slot，非 pool 容量（airflow.executor.open_slots）。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {
@@ -66,18 +45,18 @@
     "instance": [
       {
         "title": "Pool 空闲 / 延迟 / 运行 Slot",
-        "tip": "Scheduler 上的 pool 容量（airflow.pool.open_slots、deferred_slots、running_slots）。",
+        "tip": "Scheduler 上的 pool 容量（airflow.pool.open_slots、airflow.pool.deferred_slots、airflow.pool.running_slots）。",
         "expressionLabels": ["pool open", "pool deferred", "pool running"]
       },
       {
         "title": "运行中任务 / 已调度 Slot",
-        "tip": "Scheduler executor 队列深度及待运行的 pool slot。",
+        "tip": "Scheduler executor 队列深度及待运行的 pool slot（airflow.executor.running_tasks、airflow.pool.scheduled_slots）。",
         "expressionLabels": ["running tasks", "scheduled slots"]
       },
       { "title": "Scheduler 心跳", "tip": "Scheduler 每分钟心跳数（airflow.scheduler_heartbeat）。" },
       {
         "title": "Executor 空闲 / 排队 Slot",
-        "tip": "Scheduler 上 executor 容量与队列深度。",
+        "tip": "Scheduler 上 executor 容量与队列深度（airflow.executor.open_slots、airflow.executor.queued_tasks）。",
         "expressionLabels": ["open slots", "queued tasks"]
       },
       { "title": "Asset 更新", "tip": "Scheduler 上的 asset 更新事件（airflow.asset.updates）。" },
@@ -85,12 +64,12 @@
       { "title": "Triggerer 心跳", "tip": "Triggerer 每分钟心跳数（airflow.triggerer_heartbeat）。" },
       {
         "title": "运行中 Trigger / 剩余容量",
-        "tip": "Triggerer 上 deferrable trigger 负载。",
+        "tip": "Triggerer 上 deferrable trigger 负载（airflow.triggers.running、airflow.triggerer.capacity_left）。",
         "expressionLabels": ["triggers running", "capacity left"]
       },
       {
         "title": "Trigger 阻塞 / 失败 / 成功",
-        "tip": "Triggerer 主机上 deferred trigger 结果。",
+        "tip": "Triggerer 主机上 deferred trigger 结果（airflow.triggers.blocked_main_thread、airflow.triggers.failed、airflow.triggers.succeeded）。",
         "expressionLabels": ["blocked", "failed", "succeeded"]
       }
     ]

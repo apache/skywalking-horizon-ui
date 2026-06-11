@@ -1652,6 +1652,7 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
   { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
   { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
+  { key: 'browserErrors', label: 'Browser Logs', hint: 'BROWSER-layer JS error logs with source-map de-obfuscation of the minified stack.' },
   { key: 'podLogs', label: 'Pod Logs', hint: 'On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.' },
   { key: 'traceProfiling', label: 'Trace Profiling', hint: 'Trace-driven thread profiling — the original SkyWalking profile.' },
   { key: 'ebpfProfiling', label: 'eBPF Profiling', hint: 'Kernel-level CPU / off-CPU profiling via eBPF agents.' },
@@ -1682,8 +1683,9 @@ const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
   deployment: 'deployment',
   traces: 'trace',
   logs: 'logs',
-  // Pod Logs has no editable widget grid — filler to satisfy the
-  // exhaustive Record; the menu-preview click no-ops for it.
+  // Browser Errors + Pod Logs have no editable widget grid — filler to
+  // satisfy the exhaustive Record; the menu-preview click no-ops for them.
+  browserErrors: 'logs',
   podLogs: 'logs',
   traceProfiling: 'traceProfiling',
   ebpfProfiling: 'ebpfProfiling',

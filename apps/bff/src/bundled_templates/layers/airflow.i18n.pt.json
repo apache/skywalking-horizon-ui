@@ -8,21 +8,9 @@
   "layer-header": {
     "columns": [
       { "label": "Tamanho do DAG bag" },
-      { "label": "Tempo total de parse DAG" },
+      { "label": "Tempo total de parsing do DAG" },
       { "label": "Slots livres do executor" },
       { "label": "Slots agendados" }
-    ]
-  },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          { "label": "Tasks executáveis", "tip": "Tasks prontas para execução no cluster." },
-          { "label": "Tasks enfileiradas", "tip": "Tasks aguardando no executor." },
-          { "label": "Slots livres do executor", "tip": "Slots livres do executor, não capacidade do pool." }
-        ]
-      }
     ]
   },
   "dashboards": {
@@ -35,7 +23,7 @@
       { "title": "Tamanho da fila de arquivos DAG" },
       { "title": "Erros de importação DAG" },
       { "title": "Tamanho do DAG bag" },
-      { "title": "Tempo total de parse DAG" },
+      { "title": "Tempo total de parsing do DAG" },
       { "title": "Erros de refresh de arquivos DAG" },
       { "title": "Atualizações de assets" }
     ],
@@ -61,7 +49,7 @@
         "expressionLabels": ["triggers running", "capacity left"]
       },
       {
-        "title": "Triggers bloqueados / falhos / bem-sucedidos",
+        "title": "Triggers bloqueados / com falha / bem-sucedidos",
         "expressionLabels": ["blocked", "failed", "succeeded"]
       }
     ]

@@ -20,6 +20,7 @@ import { resolve as resolvePath } from 'node:path';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
+import fastifyMultipart from '@fastify/multipart';
 import { AuditLogger } from './audit/logger.js';
 import { SessionStore } from './user/sessions.js';
 import { LdapHealth } from './user/ldap-health.js';
@@ -43,6 +44,7 @@ import { registerTraceRoutes } from './http/query/trace.js';
 import { registerTraceTagRoutes } from './http/query/trace-tag.js';
 import { registerZipkinRoutes } from './http/query/zipkin.js';
 import { registerLogRoute } from './http/query/log.js';
+import { registerBrowserErrorsRoute } from './http/query/browser-errors.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
 import { registerAlarmsQueryRoutes } from './http/query/alarms.js';
@@ -78,11 +80,13 @@ import { registerAlarmRulesRoutes } from './http/admin/alarm-rules.js';
 import { registerOverviewTemplatesAdminRoutes } from './http/admin/overview-templates.js';
 import { registerAuthStatusRoutes } from './http/admin/auth-status.js';
 import { registerAdminUsersRoute } from './http/admin/users.js';
+import { registerSourceMapRoutes } from './http/admin/source-maps.js';
 import { registerAuthHealthRoute } from './http/auth-health.js';
 import { registerColdStageHook } from './util/duration.js';
 // Logic / stores
 import { AlarmsStore } from './logic/alarms/store.js';
 import { SetupStore } from './logic/setup/store.js';
+import { SourceMapStore } from './logic/browser-errors/store.js';
 import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
 import { logger, loggerOptions } from './logger.js';
@@ -133,6 +137,14 @@ const setupStore = new SetupStore(source.current.setup.file);
 await setupStore.load();
 const alarmsStore = new AlarmsStore(source.current.alarms.file);
 await alarmsStore.load();
+// In-memory source-map cache for the Browser Errors tab (#6784). Process-
+// global (NOT per-session); statically-mounted maps are indexed once here.
+// The store reads config through a live getter so `enabled` + the budgets
+// hot-reload with horizon.yaml. (The multipart hard-cap below is the one
+// exception — it's fixed at registration, so raising maxFileBytes needs a
+// restart; the store still enforces the live value for everything else.)
+const sourceMapStore = new SourceMapStore(() => source.current.sourceMaps);
+await sourceMapStore.loadMountDir(source.current.sourceMaps.bootMountDir);
 // Server-global service-by-layer index — shared by the sidebar menu, the
 // alarms tagger, and any other surface that needs the service ↔ layer
 // mapping. 60s TTL + single-flight dedup; one OAP fan-out per minute
@@ -140,6 +152,13 @@ await alarmsStore.load();
 const serviceLayer = serviceLayerCatalog({ config: source });
 
 await app.register(cookie);
+
+// Multipart for source-map (.map) uploads on the Browser Errors tab. The
+// fileSize cap mirrors `sourceMaps.maxFileBytes` so an oversized stream is
+// rejected before it's buffered; the store re-checks the live value too.
+await app.register(fastifyMultipart, {
+  limits: { fileSize: source.current.sourceMaps.maxFileBytes, files: 1 },
+});
 
 // Text/plain body parser — the rule editor sends raw YAML to /api/rule.
 app.addContentTypeParser('text/plain', { parseAs: 'string' }, (_req, body, done) => done(null, body));
@@ -199,6 +218,7 @@ registerTraceRoutes(app, {
 registerTraceTagRoutes(app, { config: source, sessions });
 registerZipkinRoutes(app, { config: source, sessions });
 registerLogRoute(app, { config: source, sessions });
+registerBrowserErrorsRoute(app, { config: source, sessions });
 registerPodLogRoutes(app, { config: source, sessions });
 registerDashboardQueryRoute(app, {
   config: source,
@@ -265,6 +285,7 @@ registerAlarmRulesRoutes(app, { config: source, sessions });
 registerOverviewTemplatesAdminRoutes(app, { config: source, sessions });
 registerAuthStatusRoutes(app, { config: source, ldapHealth, sessions });
 registerAdminUsersRoute(app, { config: source, seenCache });
+registerSourceMapRoutes(app, { config: source, sessions, store: sourceMapStore });
 registerTemplateSyncAdminRoutes(app, {
   config: source,
   sessions,
