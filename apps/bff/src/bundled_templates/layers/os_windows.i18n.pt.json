@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Recursos",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "Utilização total de CPU."
-          },
-          {
-            "label": "VMem %",
-            "tip": "Utilização de memória virtual."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

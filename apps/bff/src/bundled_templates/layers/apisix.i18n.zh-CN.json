@@ -13,17 +13,6 @@
       { "label": "503/秒" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "RPS", "tip": "APISIX 路由匹配的每秒请求数。" },
-          { "label": "5xx", "tip": "上游 / 网关错误类。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "HTTP 请求趋势" },

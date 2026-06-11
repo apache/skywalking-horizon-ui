@@ -36,6 +36,7 @@ import { registerInstanceRoute } from './http/query/instance.js';
 import { registerEndpointRoute } from './http/query/endpoint.js';
 import { registerTopologyRoute } from './http/query/topology.js';
 import { registerInstanceTopologyRoute } from './http/query/instance-topology.js';
+import { registerDeploymentRoute } from './http/query/deployment.js';
 import { registerLayerServicesRoute } from './http/query/services.js';
 import { registerEndpointDependencyRoute } from './http/query/endpoint-dependency.js';
 import { registerTraceRoutes } from './http/query/trace.js';
@@ -175,6 +176,11 @@ registerTopologyRoute(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerInstanceTopologyRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
+registerDeploymentRoute(app, {
   config: source,
   sessions,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),

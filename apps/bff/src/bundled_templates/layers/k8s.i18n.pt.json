@@ -20,36 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Capacidade",
-        "metrics": [
-          {
-            "label": "Pods",
-            "tip": "Total de Pods reportados no cluster."
-          },
-          {
-            "label": "Nós",
-            "tip": "Quantidade de nós."
-          },
-          {
-            "label": "Serviços",
-            "tip": "Objetos Service do K8s."
-          }
-        ]
-      },
-      {
-        "title": "Problemas",
-        "metrics": [
-          {
-            "label": "Pods não-Running",
-            "tip": "Pods em qualquer estado diferente de Running — pending, failed, unknown."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

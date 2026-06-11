@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "오류",
-        "metrics": [
-          {
-            "label": "4xx",
-            "tip": "CloudWatch에서 가져온 클라이언트 오류 수입니다."
-          },
-          {
-            "label": "5xx",
-            "tip": "CloudWatch에서 가져온 서버 오류 수입니다."
-          },
-          {
-            "label": "평균 지연 시간",
-            "tip": "평균 종단 간 지연 시간입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "요청",
-            "tip": "윈도우 내 총 요청 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -21,36 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência e erros",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latência de consumo no percentil 95 (timestamp(recebido) − timestamp(produzido))."
-          },
-          {
-            "label": "Taxa de erros de consumo",
-            "tip": "100 − taxa de sucesso de consumo."
-          },
-          {
-            "label": "Taxa de erros de produção",
-            "tip": "100 − taxa de sucesso de produção."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPM de consumo",
-            "tip": "Mensagens consumidas por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -152,6 +152,7 @@ export function firstLayerTab(L: LayerDef | undefined): string {
   if (L.caps?.instances ?? Boolean(L.slots?.instances)) return 'instance';
   if (L.caps?.endpoints ?? Boolean(L.slots?.endpoints)) return 'endpoint';
   if (L.caps?.serviceMap || L.caps?.instanceTopology || L.caps?.processTopology) return 'topology';
+  if (L.caps?.deployment) return 'deployment';
   if (L.caps?.endpointDependency) return 'dependency';
   if (L.caps?.traces) return 'trace';
   if (L.caps?.logs) return 'logs';

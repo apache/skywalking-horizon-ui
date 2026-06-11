@@ -56,6 +56,9 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     // topology.instanceTopology config block, not the component flag —
     // overridden per-layer at the call site (see resolveLayerDef).
     instanceTopology: false,
+    // deployment rides the component flag here; the call site
+    // ANDs it with the presence of the top-level config block.
+    deployment: !!components.deployment,
     processTopology: !!components.topology,
     traces: !!components.traces,
     logs: !!components.logs,
@@ -299,6 +302,11 @@ function deriveLayer(
         // topology map, so disabling the Topology component must hide it
         // too — even if a stale `topology.instanceTopology` block lingers.
         c.instanceTopology = c.serviceMap && !!rawTpl?.topology?.instanceTopology;
+        // Deployment is its own tab (not a drill-down of the
+        // service map), so it's gated only on its own config block presence
+        // AND its component flag — independent of `serviceMap`.
+        c.deployment =
+          c.deployment && !!rawTpl?.deployment;
         return c;
       })(),
       header: tpl.header,
@@ -330,6 +338,12 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
     const queryUrl = cfg.oap.queryUrl;
     const opts = buildOapOpts(cfg, deps.fetch);
     const locale = localeFromRequest(req);
+    // Operator-configured hidden layers (horizon.yaml `layers.excluded`).
+    // Defaults to FaaS (deprecated) + Virtual Gateway (not planned). Matched
+    // case-insensitively against the canonical layer key.
+    const excludedLayers = new Set(
+      (cfg.layers?.excluded ?? []).map((e) => e.key.toUpperCase()),
+    );
     try {
       const raw = await graphqlPost<MenuRaw>(opts, MENU_QUERY);
 
@@ -382,19 +396,12 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         ordered.push(k);
       }
 
-      // Layers we deliberately drop from the sidebar even when OAP
-      // surfaces them. BanyanDB is OAP's storage backend — it shows up
-      // as a Layer in `listLayers`, but the operator monitors it via
-      // the OAP self-observability dashboard (CPU / memory / GC
-      // metrics there cover the storage node too). Keeping it as a
-      // standalone Databases-ish row was confusing per operator
-      // feedback. Add more keys here if other internal-only layers
-      // need the same treatment.
-      const HIDDEN_LAYERS = new Set(['BANYANDB']);
-      // Disabled-in-admin layers are soft-deleted — drop from the sidebar
-      // (matches how disabled overviews vanish).
+      // Every layer OAP surfaces in `listLayers` is shown — including
+      // ones with no Horizon template (they render with default caps, a
+      // bare Service page). Dropped only when admin-disabled (soft-deleted,
+      // like disabled overviews) or config-excluded (`layers.excluded`).
       const layers = ordered
-        .filter((key) => !HIDDEN_LAYERS.has(key) && !disabled.has(key))
+        .filter((key) => !disabled.has(key) && !excludedLayers.has(key.toUpperCase()))
         .map((key) =>
           deriveLayer(
             key,
@@ -422,13 +429,12 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // bundled files; defaults here are the in-code LAYER_DEFAULTS that
       // deriveLayer falls to on an empty row map. Counts unknown (-1),
       // layers inactive.
-      const HIDDEN_LAYERS = new Set(['BANYANDB']);
       const seen = new Set<string>();
       const layers: LayerDef[] = [];
       const emptyRows = new Map<string, TemplateRow>();
       for (const rawKey of Object.keys(LAYER_DEFAULTS)) {
         const key = canonical(rawKey);
-        if (seen.has(key) || HIDDEN_LAYERS.has(key)) continue;
+        if (seen.has(key) || excludedLayers.has(key.toUpperCase())) continue;
         seen.add(key);
         layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows, null));
       }

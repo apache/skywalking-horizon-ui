@@ -15,6 +15,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `setup` / `alarms` | State file paths. | [files](files.md) |
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
 | `query` | Per-request query limits (the layer-landing service cap). | [below](#query-limits) |
+| `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
 
@@ -45,6 +46,7 @@ audit:   { file? }
 setup:   { file? }
 alarms:  { file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
+layers:  { excluded?: [{ key, reason? }] }
 ```
 
 ## Environment variable interpolation
@@ -127,6 +129,28 @@ OAP traffic. If you need a hard ceiling on a pathological layer, lower the
 cap and pair it with a tighter OAP rate limit.
 
 Hot-reloadable — a change takes effect on the next landing request.
+
+## Excluded layers
+
+```yaml
+layers:
+  excluded:            # defaults when the block is omitted:
+    - key: FAAS              # deprecated
+      reason: Deprecated.
+    - key: VIRTUAL_GATEWAY   # not planned
+      reason: Not planned to set up.
+```
+
+`layers.excluded` hides specific layers from the sidebar even when OAP
+reports them in `listLayers`. Keys are OAP layer keys (UPPER_SNAKE), matched
+case-insensitively. `reason` is a note for whoever reads the file — it is
+not shown in the UI; an excluded layer simply doesn't appear.
+
+- **Defaults**: `FAAS` and `VIRTUAL_GATEWAY` are excluded when the block is
+  omitted. Set `excluded: []` to surface **every** layer OAP reports.
+- This is the only hide list — there is no hard-coded one. The other way a
+  layer disappears is an admin explicitly disabling its template on the
+  Layer dashboards page.
 
 ## Cross-references
 

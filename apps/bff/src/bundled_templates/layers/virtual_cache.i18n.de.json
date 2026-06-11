@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "95. Perzentil der Cache-Zugriffs-Latenz."
-          },
-          {
-            "label": "Fehlerrate",
-            "tip": "100 − Cache-Zugriffs-Erfolgsrate. Cache-Ausnahmen erfasst durch den Agenten des aufrufenden Dienstes."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Zugriffs-RPM",
-            "tip": "Cache-Operationen pro Minute (Lesen + Schreiben)."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

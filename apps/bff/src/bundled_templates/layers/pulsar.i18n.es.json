@@ -15,27 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Msg entrada/s",
-            "tip": "Mensajes producidos por segundo."
-          },
-          {
-            "label": "Msg salida/s",
-            "tip": "Mensajes consumidos por segundo."
-          },
-          {
-            "label": "Almacenamiento MB",
-            "tip": "Tamaño total de almacenamiento de managed-ledger."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

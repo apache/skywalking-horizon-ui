@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95 des requêtes",
-            "tip": "Durée de requête au 95e centile depuis le bridge réseau WeChat."
-          },
-          {
-            "label": "Lancement",
-            "tip": "Durée de lancement du mini-programme observée par le client WeChat."
-          },
-          {
-            "label": "Erreurs",
-            "tip": "Nombre d'erreurs remontées."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM des requêtes",
-            "tip": "Requêtes via le bridge par minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

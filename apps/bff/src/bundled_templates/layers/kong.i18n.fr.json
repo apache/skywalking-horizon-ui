@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence",
-        "metrics": [
-          {
-            "label": "Latence Kong",
-            "tip": "Temps passé par Kong lui-même par requête, p50/p95."
-          },
-          {
-            "label": "Latence upstream",
-            "tip": "Temps d'attente sur le service upstream."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Requêtes par seconde à travers Kong."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

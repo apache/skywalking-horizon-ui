@@ -13,23 +13,6 @@
       { "label": "输出 Token" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "平均延迟", "tip": "调用 GenAI Provider 的平均延迟。" },
-          { "label": "错误率", "tip": "100 − Provider SLA。" }
-        ]
-      },
-      {
-        "title": "成本",
-        "metrics": [
-          { "label": "累计预估成本", "tip": "Provider 的累计成本预估。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "调用 / 分钟" },

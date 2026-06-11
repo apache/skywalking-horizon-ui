@@ -13,23 +13,6 @@
       { "label": "客户端" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "健康度",
-        "metrics": [
-          { "label": "命中率", "tip": "缓存命中率。下降趋势 = 抖动。" },
-          { "label": "内存 %", "tip": "已用 / 最大内存。>80% = 警告。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "命令/秒", "tip": "集群每秒命令总数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "运行时长（天）" },

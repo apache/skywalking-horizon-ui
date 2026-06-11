@@ -257,7 +257,10 @@ export async function loadLiveHierarchy(
     for (const ref of refs) current.push({ layer, ref });
   }
   const present = new Set(current.map((c) => hierKey(c.layer, c.ref.id)));
-  for (const k of [...cache.keys()]) if (!present.has(k)) cache.delete(k);
+  for (const k of [...cache.keys()]) {
+    if (present.has(k)) continue;
+    cache.delete(k);
+  }
 
   const fresh = current.filter((c) => !cache.has(hierKey(c.layer, c.ref.id)));
   const reused = current.length - fresh.length;

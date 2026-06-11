@@ -15,36 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Errores",
-        "metrics": [
-          {
-            "label": "4xx",
-            "tip": "Conteo de errores de cliente desde CloudWatch."
-          },
-          {
-            "label": "5xx",
-            "tip": "Conteo de errores de servidor desde CloudWatch."
-          },
-          {
-            "label": "Latencia media",
-            "tip": "Latencia media extremo a extremo."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Peticiones",
-            "tip": "Conteo total de peticiones en la ventana."
-          }
-        ]
-      }
-    ]
-  },
   "alias": "AWS API Gateway",
   "group": "AWS",
   "dashboards": {

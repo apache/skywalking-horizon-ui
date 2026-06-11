@@ -20,23 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Istio 상태",
-        "metrics": [
-          {
-            "label": "CPU",
-            "tip": "Istio 컨트롤 플레인 프로세스 CPU입니다."
-          },
-          {
-            "label": "Goroutine",
-            "tip": "활성 Go goroutine 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

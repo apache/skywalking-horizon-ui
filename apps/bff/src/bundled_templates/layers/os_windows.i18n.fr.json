@@ -1,22 +1,5 @@
 {
   "alias": "Windows",
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressources",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "Utilisation CPU totale."
-          },
-          {
-            "label": "VMém. %",
-            "tip": "Utilisation de la mémoire virtuelle."
-          }
-        ]
-      }
-    ]
-  },
   "group": "OS",
   "layer-header": {
     "columns": [

@@ -21,27 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Limitação",
-        "metrics": [
-          {
-            "label": "Leituras limitadas",
-            "tip": "Requisições de leitura limitadas — capacidade esgotada."
-          },
-          {
-            "label": "Escritas limitadas",
-            "tip": "Requisições de escrita limitadas."
-          },
-          {
-            "label": "Erros de usuário",
-            "tip": "Erros de usuário tipo bad-request."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

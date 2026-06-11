@@ -50,45 +50,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "latency",
-            "label": "Avg Latency",
-            "tip": "Average end-to-end request latency.",
-            "mqe": "meter_envoy_ai_gw_request_latency_avg",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "ttft",
-            "label": "TTFT Avg",
-            "tip": "Time to first token \u2014 generative-model latency indicator.",
-            "mqe": "meter_envoy_ai_gw_ttft_avg",
-            "unit": "ms",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Tokens",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "tokens",
-            "label": "Tokens/min",
-            "tip": "Combined input + output token rate.",
-            "mqe": "meter_envoy_ai_gw_input_token_rate + meter_envoy_ai_gw_output_token_rate",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

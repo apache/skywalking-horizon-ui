@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Kapazität",
-        "metrics": [
-          {
-            "label": "Datenmenge (GB)",
-            "tip": "Datenmenge gesamt im Cluster."
-          },
-          {
-            "label": "Sammlungen",
-            "tip": "Sammlungs-Anzahl im Cluster."
-          },
-          {
-            "label": "Objekte",
-            "tip": "Dokument-Objektanzahl."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Doc-QPS",
-            "tip": "Dokumentoperationen / Sekunde."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

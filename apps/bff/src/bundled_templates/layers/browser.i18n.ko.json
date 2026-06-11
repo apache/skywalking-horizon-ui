@@ -13,28 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "페이지 상태",
-        "metrics": [
-          {
-            "label": "오류율",
-            "tip": "오류를 발생시킨 페이지 로드의 비율입니다."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "PV / 분",
-            "tip": "분당 페이지 뷰입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

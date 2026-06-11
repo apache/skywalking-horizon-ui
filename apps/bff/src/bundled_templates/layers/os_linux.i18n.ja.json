@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "リソース",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "CPU 使用率合計。"
-          },
-          {
-            "label": "メモリ %",
-            "tip": "メモリ使用量 / 合計。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

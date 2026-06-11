@@ -14,32 +14,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "エラー",
-        "metrics": [
-          {
-            "label": "5xx 率",
-            "tip": "1分あたりの 5xx を返したリクエストの割合。"
-          },
-          {
-            "label": "4xx 率",
-            "tip": "1分あたりの 4xx を返したリクエストの割合。"
-          }
-        ]
-      },
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Nginx サービス全体の 1秒あたりリクエスト数。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -41,32 +41,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Resource",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "cpu",
-            "label": "CPU %",
-            "tip": "Total CPU utilization.",
-            "mqe": "meter_win_cpu_total_percentage",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "vmem",
-            "label": "VMem %",
-            "tip": "Virtual memory utilization.",
-            "mqe": "avg(meter_win_memory_virtual_memory_percentage)",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

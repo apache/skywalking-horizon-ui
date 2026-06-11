@@ -15,32 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latencia de acceso al caché en el percentil 95."
-          },
-          {
-            "label": "Tasa de errores",
-            "tip": "100 − tasa de éxito de acceso al caché. Excepciones de caché capturadas por el agente del servicio invocador."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "RPM de acceso",
-            "tip": "Operaciones de caché por minuto (lectura + escritura)."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "services": "Cachés"
   },

@@ -12,17 +12,6 @@
       { "label": "FS %" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "资源",
-        "metrics": [
-          { "label": "CPU %", "tip": "CPU 总使用率。" },
-          { "label": "内存 %", "tip": "内存已用 / 总量。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "CPU 平均使用率（%）" },

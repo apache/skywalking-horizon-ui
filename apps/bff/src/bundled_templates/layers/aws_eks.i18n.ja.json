@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "リソース",
-        "metrics": [
-          {
-            "label": "ノード",
-            "tip": "EKS クラスタのノード数。"
-          },
-          {
-            "label": "失敗ノード",
-            "tip": "クラスタが報告した失敗 EKS ノード。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

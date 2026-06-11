@@ -12,28 +12,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "metrics": [
-          {
-            "label": "Tasa de errores",
-            "tip": "Porcentaje de cargas de página que produjeron un error."
-          }
-        ],
-        "title": "Estado de la página"
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "PV / min",
-            "tip": "Vistas de página por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -24,24 +24,6 @@
       { "metric": "errorSum", "label": "Errors", "mqe": "browser_app_error_sum", "aggregation": "sum" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Page health",
-        "size": "auto",
-        "metrics": [
-          { "id": "errorRate", "label": "Error Rate", "tip": "Percentage of page loads that produced an error.", "mqe": "browser_app_error_rate/100", "unit": "%", "aggregation": "avg" }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          { "id": "pv", "label": "PV / min", "tip": "Page views per minute.", "mqe": "browser_app_pv", "unit": "/min", "aggregation": "sum" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

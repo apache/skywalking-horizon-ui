@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "QPS de sélection",
-            "tip": "Selects par seconde à l'échelle du cluster."
-          },
-          {
-            "label": "QPS d'insertion",
-            "tip": "Insertions par seconde."
-          },
-          {
-            "label": "Lectures lentes",
-            "tip": "Compteur de lectures de fichiers lentes."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

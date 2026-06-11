@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "95. Perzentil der über Sidecars geleiteten Antwortzeit im Mesh."
-          },
-          {
-            "label": "Fehlerrate",
-            "tip": "100 − Mesh-SLA. Aufrufe mit nicht-2xx-Antwortstatus aus Sidecar-ALS."
-          }
-        ]
-      },
-      {
-        "title": "Status",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

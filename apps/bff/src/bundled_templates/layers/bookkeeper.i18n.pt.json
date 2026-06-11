@@ -21,23 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Escrita B/s",
-            "tip": "Vazão de escrita dos bookies no cluster."
-          },
-          {
-            "label": "Leitura B/s",
-            "tip": "Vazão de leitura dos bookies no cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

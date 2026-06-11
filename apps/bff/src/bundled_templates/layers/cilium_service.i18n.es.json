@@ -15,32 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "Latencia media",
-            "tip": "Latencia media del protocolo (ms)."
-          },
-          {
-            "label": "Tasa de éxito",
-            "tip": "Llamadas exitosas / total de llamadas."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "RPM de protocolo",
-            "tip": "Llamadas de protocolo por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "topology": {
     "nodeMetrics": [
       {

@@ -21,27 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "QPS",
-            "tip": "Consultas por segundo no cluster."
-          },
-          {
-            "label": "TPS",
-            "tip": "Transações por segundo."
-          },
-          {
-            "label": "Consultas lentas/s",
-            "tip": "Taxa de consultas lentas no cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

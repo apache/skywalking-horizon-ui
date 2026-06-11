@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "Select QPS",
-            "tip": "클러스터 전체의 초당 Select 수입니다."
-          },
-          {
-            "label": "Insert QPS",
-            "tip": "초당 Insert 입니다."
-          },
-          {
-            "label": "느린 읽기",
-            "tip": "느린 파일 읽기 카운터입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

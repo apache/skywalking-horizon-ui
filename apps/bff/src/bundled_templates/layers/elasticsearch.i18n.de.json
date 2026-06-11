@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Status",
-            "tip": "0 grün / 1 gelb / 2 rot."
-          },
-          {
-            "label": "Nicht zugewiesene Shards",
-            "tip": "Shards, die noch keinem Knoten zugewiesen sind."
-          },
-          {
-            "label": "Ausgelöste Breaker",
-            "tip": "Kumulative Circuit-Breaker-Auslösungen — hohe Werte deuten auf Speicherdruck hin."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

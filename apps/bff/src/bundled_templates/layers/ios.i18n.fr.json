@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Santé de l'app",
-        "metrics": [
-          {
-            "label": "Lancement P95",
-            "tip": "Temps de lancement à froid au 95e centile, mesuré par MetricKit."
-          },
-          {
-            "label": "Gel P95",
-            "tip": "Durée de gel de l'interface au 95e centile."
-          },
-          {
-            "label": "Crashes",
-            "tip": "Sorties anormales premier plan + arrière-plan."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

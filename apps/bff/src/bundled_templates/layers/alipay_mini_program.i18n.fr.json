@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95 des requêtes",
-            "tip": "Durée de requête au 95e centile depuis le bridge réseau du mini-programme."
-          },
-          {
-            "label": "Lancement",
-            "tip": "Durée approximative de lancement du mini-programme."
-          },
-          {
-            "label": "Erreurs",
-            "tip": "Nombre d'erreurs remontées."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM des requêtes",
-            "tip": "Requêtes via le bridge par minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

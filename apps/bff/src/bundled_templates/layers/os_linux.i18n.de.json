@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressourcen",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "CPU-Gesamtauslastung."
-          },
-          {
-            "label": "Speicher %",
-            "tip": "Speicher genutzt / gesamt."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

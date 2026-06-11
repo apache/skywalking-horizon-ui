@@ -22,27 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Enqueue/s",
-            "tip": "Mensagens enfileiradas por segundo."
-          },
-          {
-            "label": "Dequeue/s",
-            "tip": "Mensagens desenfileiradas por segundo."
-          },
-          {
-            "label": "Expiradas/s",
-            "tip": "Mensagens que expiraram antes de serem consumidas."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

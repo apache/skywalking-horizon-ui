@@ -46,30 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Resource",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "nodes",
-            "label": "Nodes",
-            "tip": "EKS cluster node count.",
-            "mqe": "latest(eks_cluster_node_count)",
-            "aggregation": "avg"
-          },
-          {
-            "id": "failedNodes",
-            "label": "Failed Nodes",
-            "tip": "Failed EKS nodes reported by the cluster.",
-            "mqe": "latest(eks_cluster_failed_node_count)",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

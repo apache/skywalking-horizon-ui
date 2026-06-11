@@ -13,24 +13,6 @@
       { "label": "Deployment" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "容量",
-        "metrics": [
-          { "label": "Pod", "tip": "集群中上报的 Pod 总数。" },
-          { "label": "节点", "tip": "节点数。" },
-          { "label": "服务", "tip": "K8s Service 对象数。" }
-        ]
-      },
-      {
-        "title": "异常",
-        "metrics": [
-          { "label": "未运行 Pod", "tip": "处于任何非 Running 状态的 Pod — pending、failed、unknown。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "节点总数" },

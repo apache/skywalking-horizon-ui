@@ -13,17 +13,6 @@
       { "label": "目录使用" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "写入 B/s", "tip": "集群所有 Bookie 的写吞吐量。" },
-          { "label": "读取 B/s", "tip": "集群所有 Bookie 的读吞吐量。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "Bookie Ledger 数" },

@@ -22,27 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Saúde",
-            "tip": "0 verde / 1 amarelo / 2 vermelho."
-          },
-          {
-            "label": "Shards sem atribuição",
-            "tip": "Shards ainda não alocados em nenhum nó."
-          },
-          {
-            "label": "Breakers disparados",
-            "tip": "Disparos acumulados de circuit-breaker — valores altos indicam pressão de memória."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -55,6 +55,11 @@ function layerRoute(): RouteRecordRaw {
         meta: { ownsServiceSelector: true },
       },
       { path: 'dependency', component: () => import('@/layer/endpoint-dependency/LayerEndpointDependencyView.vue') },
+      // Deployment — instance-to-instance graph within one
+      // service. Service-scoped, so it deliberately does NOT set
+      // `ownsServiceSelector`: the shell's Service header picker stays
+      // visible and the view reads `useSelectedService`.
+      { path: 'deployment', component: () => import('@/layer/service-map/LayerDeploymentView.vue') },
       // `LayerTracesEntry` is a runtime dispatcher: it inspects the
       // layer template's `traces.source` and renders either the native
       // trace view or the Zipkin one. Mesh / k8s layers land on Zipkin.

@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Select-QPS",
-            "tip": "Selects pro Sekunde im Cluster."
-          },
-          {
-            "label": "Insert-QPS",
-            "tip": "Inserts pro Sekunde."
-          },
-          {
-            "label": "Langsame Lesevorgänge",
-            "tip": "Zähler langsamer Dateilesevorgänge."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

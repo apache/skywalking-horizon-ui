@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência e erros",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latência de acesso ao banco no percentil 95."
-          },
-          {
-            "label": "Taxa de erros",
-            "tip": "100 − taxa de sucesso de acesso ao banco. Baseada em exceções de query capturadas pelo agente do serviço chamador."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPM de acesso",
-            "tip": "Consultas por minuto neste banco virtual."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

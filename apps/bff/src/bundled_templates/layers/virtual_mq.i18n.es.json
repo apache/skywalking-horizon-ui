@@ -1,34 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latencia de consumo en el percentil 95 (timestamp(recibido) − timestamp(produciendo))."
-          },
-          {
-            "label": "Tasa de errores de consumo",
-            "tip": "100 − tasa de éxito de consumo."
-          },
-          {
-            "label": "Tasa de errores de producción",
-            "tip": "100 − tasa de éxito de producción."
-          }
-        ]
-      },
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "RPM de consumo",
-            "tip": "Mensajes consumidos por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "endpoints": "Topics",
     "services": "Clústeres de MQ"

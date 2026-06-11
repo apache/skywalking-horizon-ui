@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "レイテンシとエラー",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "コンシュームレイテンシの 95 パーセンタイル (timestamp(received) − timestamp(producing))。"
-          },
-          {
-            "label": "コンシュームエラー率",
-            "tip": "100 − コンシューム成功率。"
-          },
-          {
-            "label": "プロデュースエラー率",
-            "tip": "100 − プロデュース成功率。"
-          }
-        ]
-      },
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "コンシューム RPM",
-            "tip": "1分あたりの消費メッセージ数。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

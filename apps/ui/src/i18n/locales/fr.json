@@ -407,8 +407,6 @@
   "silence left": "silence restant",
   "window": "fenêtre",
   "window end": "fin de fenêtre",
-  "No published version on OAP": "Aucune version publiée sur OAP",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "Cette couche n'a aucun modèle stocké sur OAP. Horizon fournit un modèle intégré par défaut, mais il n'est pas chargé pour l'édition et l'UI en direct ne l'affiche pas — publiez une version. Réinitialisez au modèle intégré pour partir de la valeur par défaut livrée, puis modifiez et publiez.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "Cette vue d'ensemble n'a aucune version stockée sur OAP. Un modèle intégré par défaut est peut-être livré avec Horizon, mais il n'est pas chargé pour l'édition et l'UI en direct ne l'affiche pas. Réinitialisez au modèle intégré pour partir de la valeur par défaut livrée, puis modifiez et publiez.",
   "client": "client",
   "server": "serveur",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "Échec de l'import : {error}",
   "Unsupported language: {locale}": "Langue non prise en charge : {locale}",
   "Template {name} is not loaded on this deployment.": "Le modèle {name} n'est pas chargé sur ce déploiement.",
-  "Could not load the target template.": "Impossible de charger le modèle cible."
+  "Could not load the target template.": "Impossible de charger le modèle cible.",
+  "Deployment": "Déploiement",
+  "clustered by": "regroupé par",
+  "ungrouped": "non groupé",
+  "Scale": "Échelle",
+  "Pick a service to see its deployment topology.": "Choisissez un service pour voir sa topologie de déploiement.",
+  "No deployment topology in this window.": "Aucune topologie de déploiement dans cette fenêtre."
 }

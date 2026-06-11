@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Santé",
-        "metrics": [
-          {
-            "label": "Taux de hit",
-            "tip": "Taux de hit du cache. Une tendance à la baisse indique du thrash."
-          },
-          {
-            "label": "Mémoire %",
-            "tip": "Mémoire utilisée / max. >80% = alerte."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Commandes/s",
-            "tip": "Total des commandes par seconde à l'échelle du cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

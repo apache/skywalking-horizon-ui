@@ -16,32 +16,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "Latencia media",
-            "tip": "Latencia media de llamada al proveedor de GenAI."
-          },
-          {
-            "label": "Tasa de errores",
-            "tip": "100 − SLA del proveedor."
-          }
-        ]
-      },
-      {
-        "title": "Coste",
-        "metrics": [
-          {
-            "label": "Coste estimado total",
-            "tip": "Estimación de coste acumulado del proveedor."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

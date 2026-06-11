@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "QPS",
-            "tip": "Queries pro Sekunde im Cluster."
-          },
-          {
-            "label": "TPS",
-            "tip": "Transaktionen pro Sekunde."
-          },
-          {
-            "label": "Langsame Queries/s",
-            "tip": "Slow-Query-Rate im Cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

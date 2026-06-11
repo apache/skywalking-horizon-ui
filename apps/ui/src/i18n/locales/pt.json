@@ -407,8 +407,6 @@
   "silence left": "silêncio restante",
   "window": "janela",
   "window end": "fim da janela",
-  "No published version on OAP": "Nenhuma versão publicada no OAP",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "Esta camada não tem template armazenado no OAP. O Horizon traz um padrão embutido, mas ele não é carregado para edição e a UI ativa não o renderiza — envie uma versão para publicá-lo. Use \"Restaurar embutido\" para começar a partir do padrão fornecido, depois edite e publique.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "Esta visão geral não tem versão armazenada no OAP. Um padrão embutido pode vir com o Horizon, mas ele não é carregado para edição e a UI ativa não o renderiza. Use \"Restaurar embutido\" para começar a partir do padrão fornecido, depois edite e publique.",
   "client": "cliente",
   "server": "servidor",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "Falha na importação: {error}",
   "Unsupported language: {locale}": "Idioma não suportado: {locale}",
   "Template {name} is not loaded on this deployment.": "O modelo {name} não está carregado nesta implantação.",
-  "Could not load the target template.": "Não foi possível carregar o modelo de destino."
+  "Could not load the target template.": "Não foi possível carregar o modelo de destino.",
+  "Deployment": "Implantação",
+  "clustered by": "agrupado por",
+  "ungrouped": "sem grupo",
+  "Scale": "Escala",
+  "Pick a service to see its deployment topology.": "Escolha um serviço para ver sua topologia de implantação.",
+  "No deployment topology in this window.": "Nenhuma topologia de implantação nesta janela."
 }

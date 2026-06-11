@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Publiés / min",
-            "tip": "Messages publiés par minute."
-          },
-          {
-            "label": "Non confirmés",
-            "tip": "Messages en attente de confirmation du publisher."
-          },
-          {
-            "label": "Non routables rejetés",
-            "tip": "Messages rejetés faute de route d'exchange correspondante."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

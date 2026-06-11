@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "クラスタ",
-        "metrics": [
-          {
-            "label": "実行中ジョブ",
-            "tip": "アクティブな Flink ジョブ。"
-          },
-          {
-            "label": "利用可能スロット",
-            "tip": "空きタスクスロット。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

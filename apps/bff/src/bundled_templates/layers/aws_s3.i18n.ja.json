@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "エラー",
-        "metrics": [
-          {
-            "label": "4xx 件数",
-            "tip": "CloudWatch で観測されたクライアントエラー。"
-          },
-          {
-            "label": "5xx 件数",
-            "tip": "CloudWatch で観測されたサーバーエラー。"
-          },
-          {
-            "label": "平均レイテンシ",
-            "tip": "平均リクエストレイテンシ。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

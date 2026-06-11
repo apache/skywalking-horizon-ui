@@ -41,6 +41,7 @@ import type {
   EndpointDependencyConfig,
   InstanceTopologyConfig,
   ProcessTopologyConfig,
+  DeploymentConfig,
   ServiceNamingRule,
   TopologyConfig,
   TopologyMetricDef,
@@ -48,7 +49,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { isOverlayFilename, reloadI18nStore } from '../../i18n/store.js';
 
-export type { TopologyConfig, InstanceTopologyConfig, EndpointDependencyConfig, ProcessTopologyConfig, TopologyMetricDef, TracesConfig, ServiceNamingRule };
+export type { TopologyConfig, InstanceTopologyConfig, EndpointDependencyConfig, ProcessTopologyConfig, DeploymentConfig, TopologyMetricDef, TracesConfig, ServiceNamingRule };
 
 export interface LayerComponentFlags {
   service?: boolean;
@@ -72,6 +73,10 @@ export interface LayerComponentFlags {
    *  fetched on demand from the K8s API (never persisted). Only K8s-
    *  deployed layers (k8s_service, mesh) carry pods that resolve. */
   podLogs?: boolean;
+  /** Service-deployment tab — instance-to-instance call graph
+   *  within one service. Opt-in; the tab also requires a
+   *  `deployment` config block. */
+  deployment?: boolean;
 }
 
 export interface LayerSlotsConfig {
@@ -83,6 +88,8 @@ export interface LayerSlotsConfig {
   topology?: string;
   /** Instance-topology sub-tab label (default "Instance map"). */
   instanceTopology?: string;
+  /** Service-deployment tab label (default "Deployment"). */
+  deployment?: string;
 }
 
 export interface LayerMetricColumn {
@@ -215,6 +222,12 @@ export interface LayerTemplate {
    *  editable ProcessRelation MQE. When absent the loader fills it from
    *  {@link BOOSTER_PROCESS_TOPOLOGY_DEFAULTS}. */
   processTopology?: ProcessTopologyConfig;
+  /** Service-deployment config — operator-editable node + per-side
+   *  edge MQE (ServiceInstance / ServiceInstanceRelation scope) plus an
+   *  optional node-clustering rule. Top-level + independent of `topology`;
+   *  its presence opts the layer into the "Deployment" tab.
+   *  No defaults — absent ⇒ the tab is off. */
+  deployment?: DeploymentConfig;
   /** Traces tab config. The `source` field picks which trace backend
    *  the UI's filter selector defaults to (`both` shows two parallel
    *  tables; `native` / `zipkin` pin to one). Default `both` when
@@ -569,6 +582,17 @@ export function instanceTopologyConfigFor(
   template: LayerTemplate | null,
 ): InstanceTopologyConfig | null {
   return template?.topology?.instanceTopology ?? null;
+}
+
+/** Resolve the service-deployment config, or `null` when the layer
+ *  doesn't opt in. A top-level `deployment` block (independent
+ *  of `topology`); only layers that ship it return non-null. No
+ *  booster-style defaults — the metric set is layer-specific (instance
+ *  scope), so an unconfigured layer simply has no Deployment tab. */
+export function deploymentConfigFor(
+  template: LayerTemplate | null,
+): DeploymentConfig | null {
+  return template?.deployment ?? null;
 }
 
 /** Resolve the endpoint-dependency config — same fallback rule. */

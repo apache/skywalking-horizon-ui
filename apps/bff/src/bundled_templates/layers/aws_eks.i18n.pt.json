@@ -22,23 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Recurso",
-        "metrics": [
-          {
-            "label": "Nós",
-            "tip": "Quantidade de nós do cluster EKS."
-          },
-          {
-            "label": "Nós com falha",
-            "tip": "Nós EKS com falha reportados pelo cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

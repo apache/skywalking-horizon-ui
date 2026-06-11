@@ -46,51 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Health",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "cacheHit",
-            "label": "Cache Hit",
-            "tip": "Buffer-cache hit ratio across the cluster.",
-            "mqe": "aggregate_labels(meter_pg_cache_hit_rate,avg)",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "deadlocks",
-            "label": "Deadlocks/s",
-            "tip": "Detected deadlocks per second.",
-            "mqe": "aggregate_labels(meter_pg_deadlocks_rate,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "conflicts",
-            "label": "Conflicts/s",
-            "tip": "Recovery conflicts per second.",
-            "mqe": "aggregate_labels(meter_pg_conflicts_rate,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "fetched",
-            "label": "Fetched /s",
-            "tip": "Rows fetched per second.",
-            "mqe": "aggregate_labels(meter_pg_fetched_rows_rate,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

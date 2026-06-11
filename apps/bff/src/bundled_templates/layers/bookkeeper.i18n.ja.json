@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "書き込み B/s",
-            "tip": "クラスタ全体の Bookie 書き込みスループット。"
-          },
-          {
-            "label": "読み取り B/s",
-            "tip": "クラスタ全体の Bookie 読み取りスループット。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

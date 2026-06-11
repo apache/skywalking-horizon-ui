@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressourcen",
-        "metrics": [
-          {
-            "label": "Knoten",
-            "tip": "EKS-Cluster-Knotenanzahl."
-          },
-          {
-            "label": "Fehlerhafte Knoten",
-            "tip": "Vom Cluster gemeldete fehlerhafte EKS-Knoten."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "QPS",
-            "tip": "Requêtes par seconde à l'échelle du cluster."
-          },
-          {
-            "label": "TPS",
-            "tip": "Transactions par seconde."
-          },
-          {
-            "label": "Requêtes lentes/s",
-            "tip": "Taux de requêtes lentes sur l'ensemble du cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

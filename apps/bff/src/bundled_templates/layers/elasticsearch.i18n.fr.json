@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Santé",
-            "tip": "0 vert / 1 jaune / 2 rouge."
-          },
-          {
-            "label": "Shards non assignées",
-            "tip": "Shards pas encore placées sur un nœud."
-          },
-          {
-            "label": "Breakers déclenchés",
-            "tip": "Déclenchements cumulés des circuit-breakers — des valeurs élevées indiquent une pression mémoire."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

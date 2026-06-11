@@ -45,30 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "writeRate",
-            "label": "Write B/s",
-            "tip": "Bookie write throughput across the cluster.",
-            "mqe": "aggregate_labels(meter_bookkeeper_bookie_write_rate,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "readRate",
-            "label": "Read B/s",
-            "tip": "Bookie read throughput across the cluster.",
-            "mqe": "aggregate_labels(meter_bookkeeper_bookie_read_rate,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

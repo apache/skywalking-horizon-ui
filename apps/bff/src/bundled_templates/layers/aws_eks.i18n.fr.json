@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Ressources",
-        "metrics": [
-          {
-            "label": "Nœuds",
-            "tip": "Nombre de nœuds du cluster EKS."
-          },
-          {
-            "label": "Nœuds en échec",
-            "tip": "Nœuds EKS en échec remontés par le cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

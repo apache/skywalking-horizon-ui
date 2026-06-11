@@ -21,27 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Publicadas / min",
-            "tip": "Mensagens publicadas por minuto."
-          },
-          {
-            "label": "Não confirmadas",
-            "tip": "Mensagens aguardando confirmação do publisher."
-          },
-          {
-            "label": "Sem rota descartadas",
-            "tip": "Mensagens descartadas por falta de rota no exchange."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

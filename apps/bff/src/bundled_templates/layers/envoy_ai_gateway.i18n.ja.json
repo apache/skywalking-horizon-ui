@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "レイテンシ",
-        "metrics": [
-          {
-            "label": "平均レイテンシ",
-            "tip": "平均エンドツーエンドリクエストレイテンシ。"
-          },
-          {
-            "label": "TTFT 平均",
-            "tip": "Time to first token — 生成モデルのレイテンシ指標。"
-          }
-        ]
-      },
-      {
-        "title": "トークン",
-        "metrics": [
-          {
-            "label": "トークン/分",
-            "tip": "入力 + 出力トークンレートの合計。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

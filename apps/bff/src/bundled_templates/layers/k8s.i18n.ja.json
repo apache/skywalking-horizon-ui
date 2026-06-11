@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "キャパシティ",
-        "metrics": [
-          {
-            "label": "Pod",
-            "tip": "クラスタ全体で報告された Pod 合計。"
-          },
-          {
-            "label": "ノード",
-            "tip": "ノード数。"
-          },
-          {
-            "label": "サービス",
-            "tip": "K8s Service オブジェクト。"
-          }
-        ]
-      },
-      {
-        "title": "問題",
-        "metrics": [
-          {
-            "label": "実行中でない Pod",
-            "tip": "Running 以外の状態の Pod — pending、failed、unknown。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

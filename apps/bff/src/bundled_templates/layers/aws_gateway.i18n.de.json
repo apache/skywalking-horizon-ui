@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Fehler",
-        "metrics": [
-          {
-            "label": "4xx",
-            "tip": "Anzahl Client-Fehler von CloudWatch."
-          },
-          {
-            "label": "5xx",
-            "tip": "Anzahl Server-Fehler von CloudWatch."
-          },
-          {
-            "label": "Mittlere Latenz",
-            "tip": "Durchschnittliche Ende-zu-Ende-Latenz."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Anfragen",
-            "tip": "Gesamtanzahl Anfragen im Zeitfenster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

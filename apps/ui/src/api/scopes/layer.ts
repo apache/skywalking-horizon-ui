@@ -24,6 +24,7 @@ import type {
   LandingConfig,
   LandingResponse,
   ServiceHierarchyResponse,
+  DeploymentResponse,
   TopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
@@ -229,6 +230,30 @@ export class LayerApi {
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/instance-topology?${qs.toString()}`,
+    );
+  }
+
+  /** Deployment — instance-to-instance call graph WITHIN
+   *  one service (OAP's getServiceInstanceTopology with the same id on both
+   *  sides). Only layers carrying a `deployment` config block
+   *  answer this (404 otherwise). */
+  deployment(
+    layerKey: string,
+    serviceId: string,
+    range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
+    /** Admin preview: the operator's draft `deployment` block. */
+    previewConfig?: string,
+  ): Promise<DeploymentResponse> {
+    const qs = new URLSearchParams({ service: serviceId });
+    if (range) {
+      qs.set('step', range.step);
+      qs.set('startMs', String(range.startMs));
+      qs.set('endMs', String(range.endMs));
+    }
+    if (previewConfig) qs.set('previewConfig', previewConfig);
+    return this.bff.request(
+      'GET',
+      `/api/layer/${encodeURIComponent(layerKey)}/deployment?${qs.toString()}`,
     );
   }
 

@@ -7,23 +7,6 @@
       { "label": "错误率" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "P95", "tip": "跨该层服务的 95 分位响应时间。" },
-          { "label": "错误率", "tip": "100 − SLA，数值越高越糟。" }
-        ]
-      },
-      {
-        "title": "健康度",
-        "metrics": [
-          { "label": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

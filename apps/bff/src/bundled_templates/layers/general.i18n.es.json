@@ -12,32 +12,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Tiempo de respuesta en el percentil 95 en toda la capa."
-          },
-          {
-            "label": "Tasa de errores",
-            "tip": "100 − SLA. Más alto = peor."
-          }
-        ]
-      },
-      {
-        "title": "Estado",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

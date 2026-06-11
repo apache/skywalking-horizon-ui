@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Latence d'accès au cache au 95e centile."
-          },
-          {
-            "label": "Taux d'erreur",
-            "tip": "100 − taux de succès des accès au cache. Les exceptions de cache sont capturées par l'agent du service appelant."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM d'accès",
-            "tip": "Opérations cache par minute (lecture + écriture)."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

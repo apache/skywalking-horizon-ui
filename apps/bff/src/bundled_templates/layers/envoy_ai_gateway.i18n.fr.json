@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence",
-        "metrics": [
-          {
-            "label": "Latence moyenne",
-            "tip": "Latence moyenne des requêtes de bout en bout."
-          },
-          {
-            "label": "TTFT moyen",
-            "tip": "Time to first token — indicateur de latence des modèles génératifs."
-          }
-        ]
-      },
-      {
-        "title": "Tokens",
-        "metrics": [
-          {
-            "label": "Tokens/min",
-            "tip": "Débit combiné de tokens entrants + sortants."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

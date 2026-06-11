@@ -13,24 +13,6 @@
       { "label": "复制 Lag" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "容量",
-        "metrics": [
-          { "label": "数据大小（GB）", "tip": "集群范围内的数据总量。" },
-          { "label": "集合数", "tip": "集群范围内的集合数。" },
-          { "label": "对象数", "tip": "文档对象数。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "文档 QPS", "tip": "每秒文档操作数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "集群运行时长（天）" },

@@ -100,6 +100,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // ── Topology (read) ──────────────────────────────────────────────
   'GET /api/layer/:key/topology':                  'topology:read',
   'GET /api/layer/:key/instance-topology':         'topology:read',
+  'GET /api/layer/:key/deployment':                'topology:read',
   'GET /api/layer/:key/endpoint-dependency':       'topology:read',
   'GET /api/layer/:key/service-hierarchy':         'topology:read',
 

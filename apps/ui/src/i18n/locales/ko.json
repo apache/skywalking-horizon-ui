@@ -407,8 +407,6 @@
   "silence left": "음소거 남은 시간",
   "window": "구간",
   "window end": "구간 종료",
-  "No published version on OAP": "OAP에 게시된 버전 없음",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "이 레이어에는 OAP에 저장된 템플릿이 없습니다. Horizon에 번들 기본값이 포함되어 있지만 편집용으로 로드되지 않으며 라이브 UI에서도 렌더링되지 않습니다 — 게시하려면 버전을 푸시하세요. 포함된 기본값에서 시작하려면 번들로 재설정한 뒤 편집하고 게시하세요.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "이 개요에는 OAP에 저장된 버전이 없습니다. Horizon에 번들 기본값이 포함되어 있을 수 있지만 편집용으로 로드되지 않으며 라이브 UI에서도 렌더링되지 않습니다. 포함된 기본값에서 시작하려면 번들로 재설정한 뒤 편집하고 게시하세요.",
   "client": "클라이언트",
   "server": "서버",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "가져오기 실패: {error}",
   "Unsupported language: {locale}": "지원하지 않는 언어: {locale}",
   "Template {name} is not loaded on this deployment.": "템플릿 {name}은(는) 이 배포에 로드되어 있지 않습니다.",
-  "Could not load the target template.": "대상 템플릿을 불러올 수 없습니다."
+  "Could not load the target template.": "대상 템플릿을 불러올 수 없습니다.",
+  "Deployment": "배포",
+  "clustered by": "클러스터 기준",
+  "ungrouped": "미분류",
+  "Scale": "배율",
+  "Pick a service to see its deployment topology.": "서비스를 선택하면 배포 토폴로지가 표시됩니다.",
+  "No deployment topology in this window.": "이 기간에 배포 토폴로지가 없습니다."
 }

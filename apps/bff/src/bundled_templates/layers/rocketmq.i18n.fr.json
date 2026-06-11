@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "TPS de production",
-            "tip": "Messages produits par seconde à l'échelle du cluster."
-          },
-          {
-            "label": "TPS de consommation",
-            "tip": "Messages consommés par seconde."
-          },
-          {
-            "label": "Latence consumer max",
-            "tip": "Pire latence consommateur sur l'ensemble du cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

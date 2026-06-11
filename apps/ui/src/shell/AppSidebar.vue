@@ -83,7 +83,7 @@ function isSingleFeatureLayer(L: SidebarLayer): boolean {
   if (hasTopology(L)) return false;
   const c = L.caps;
   if (c.traces || c.logs || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
-  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology) return false;
+  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
   return true;
 }
 
@@ -540,6 +540,14 @@ watch(
                   <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
                 </RouterLink>
                 <RouterLink
+                  v-if="L.caps.deployment"
+                  :to="`/layer/${L.key}/deployment`"
+                  class="sw-nav-item"
+                  :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
+                >
+                  <Icon name="topo" /><span>{{ L.slots.deployment ?? t('Deployment') }}</span>
+                </RouterLink>
+                <RouterLink
                   v-if="L.caps.endpointDependency"
                   :to="`/layer/${L.key}/dependency`"
                   class="sw-nav-item"
@@ -685,6 +693,14 @@ watch(
             :class="{ 'is-active': isActive(`/layer/${E.layer.key}/topology`) }"
           >
             <Icon name="topo" /><span>{{ E.layer.slots.topology ?? 'Topology' }}</span>
+          </RouterLink>
+          <RouterLink
+            v-if="E.layer.caps.deployment"
+            :to="`/layer/${E.layer.key}/deployment`"
+            class="sw-nav-item"
+            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/deployment`) }"
+          >
+            <Icon name="topo" /><span>{{ E.layer.slots.deployment ?? t('Deployment') }}</span>
           </RouterLink>
           <RouterLink
             v-if="E.layer.caps.endpointDependency"

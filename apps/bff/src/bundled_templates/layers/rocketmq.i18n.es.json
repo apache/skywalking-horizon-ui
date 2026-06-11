@@ -15,27 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "TPS de producción",
-            "tip": "Mensajes producidos por segundo en el clúster."
-          },
-          {
-            "label": "TPS de consumo",
-            "tip": "Mensajes consumidos por segundo."
-          },
-          {
-            "label": "Latencia máxima del consumidor",
-            "tip": "Peor latencia de consumidor en el clúster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

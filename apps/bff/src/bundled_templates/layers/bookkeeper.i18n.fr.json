@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "Écriture o/s",
-            "tip": "Débit d'écriture Bookie sur l'ensemble du cluster."
-          },
-          {
-            "label": "Lecture o/s",
-            "tip": "Débit de lecture Bookie sur l'ensemble du cluster."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

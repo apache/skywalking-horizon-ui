@@ -14,32 +14,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Erreurs",
-        "metrics": [
-          {
-            "label": "Taux de 5xx",
-            "tip": "Pourcentage de requêtes retournant 5xx par minute."
-          },
-          {
-            "label": "Taux de 4xx",
-            "tip": "Pourcentage de requêtes retournant 4xx par minute."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Requêtes par seconde sur le service Nginx."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

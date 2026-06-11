@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "Latence moyenne",
-            "tip": "Latence moyenne du protocole (ms)."
-          },
-          {
-            "label": "Taux de succès",
-            "tip": "Appels réussis / appels totaux."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "RPM de protocole",
-            "tip": "Appels de protocole par minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

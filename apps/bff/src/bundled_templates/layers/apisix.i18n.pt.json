@@ -22,23 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Requisições por segundo casadas com rotas do APISIX."
-          },
-          {
-            "label": "5xx",
-            "tip": "Classe de erro de upstream / gateway."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

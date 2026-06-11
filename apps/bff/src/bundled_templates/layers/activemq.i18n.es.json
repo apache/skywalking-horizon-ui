@@ -1,25 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Enqueue/s",
-            "tip": "Mensajes encolados por segundo."
-          },
-          {
-            "label": "Dequeue/s",
-            "tip": "Mensajes desencolados por segundo."
-          },
-          {
-            "label": "Expirados/s",
-            "tip": "Mensajes que expiraron antes de ser consumidos."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Brokers",
     "endpoints": "Destinos",

@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "rateIn",
-            "label": "Msg In/s",
-            "tip": "Messages produced per second.",
-            "mqe": "aggregate_labels(meter_pulsar_message_rate_in,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "rateOut",
-            "label": "Msg Out/s",
-            "tip": "Messages consumed per second.",
-            "mqe": "aggregate_labels(meter_pulsar_message_rate_out,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "storage",
-            "label": "Storage MB",
-            "tip": "Total managed-ledger storage size.",
-            "mqe": "aggregate_labels(meter_pulsar_storage_size,sum)/1024/1024",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

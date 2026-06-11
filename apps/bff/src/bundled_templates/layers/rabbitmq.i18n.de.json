@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Veröffentlicht / min",
-            "tip": "Pro Minute veröffentlichte Nachrichten."
-          },
-          {
-            "label": "Unbestätigt",
-            "tip": "Nachrichten, die auf Publisher-Bestätigung warten."
-          },
-          {
-            "label": "Nicht-routbar verworfen",
-            "tip": "Nachrichten verworfen, weil keine Exchange-Route passte."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

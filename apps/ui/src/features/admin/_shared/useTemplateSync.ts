@@ -177,7 +177,7 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     }
     return {
       severity: 'clean',
-      message: `Synced from OAP — all ${ownBadges.value.length} templates match bundled.${localSuffix.value}`,
+      message: `Synced from OAP — ${ownBadges.value.length} templates match bundled defaults.${localSuffix.value}`,
       detail: GLOSSARY,
       counts,
       localCount: localCount.value,

@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "쓰기 B/s",
-            "tip": "클러스터 전체의 Bookie 쓰기 처리량입니다."
-          },
-          {
-            "label": "읽기 B/s",
-            "tip": "클러스터 전체의 Bookie 읽기 처리량입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -14,18 +14,6 @@
       { "label": "Broker" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "生产 TPS", "tip": "集群每秒生产的消息数。" },
-          { "label": "消费 TPS", "tip": "每秒消费的消息数。" },
-          { "label": "最大消费延迟", "tip": "集群范围内最差的消费者延迟。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "今日生产" },

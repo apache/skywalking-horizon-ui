@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "Select QPS",
-            "tip": "クラスタ全体の 1秒あたり Select 数。"
-          },
-          {
-            "label": "Insert QPS",
-            "tip": "1秒あたりの挿入数。"
-          },
-          {
-            "label": "低速読み取り",
-            "tip": "低速ファイル読み取りカウンタ。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

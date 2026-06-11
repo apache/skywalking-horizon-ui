@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "Mittlere Latenz",
-            "tip": "Durchschnittliche Protokoll-Latenz (ms)."
-          },
-          {
-            "label": "Erfolgsrate",
-            "tip": "Erfolgreiche Aufrufe / Gesamtaufrufe."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Protokoll-RPM",
-            "tip": "Protokollaufrufe pro Minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -13,18 +13,6 @@
       { "label": "写系统错误" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "限流",
-        "metrics": [
-          { "label": "读限流", "tip": "读请求被限流 — 容量耗尽。" },
-          { "label": "写限流", "tip": "写请求被限流。" },
-          { "label": "用户错误", "tip": "类似 bad-request 的用户错误。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "被限流请求", "expressionLabels": ["read", "write"] },

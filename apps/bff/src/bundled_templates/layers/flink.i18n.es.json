@@ -1,21 +1,4 @@
 {
-  "overview": {
-    "groups": [
-      {
-        "title": "Clúster",
-        "metrics": [
-          {
-            "label": "Jobs en ejecución",
-            "tip": "Jobs de Flink activos."
-          },
-          {
-            "label": "Slots disponibles",
-            "tip": "Slots de tareas libres."
-          }
-        ]
-      }
-    ]
-  },
   "alias": "Flink",
   "group": "MQ",
   "layer-header": {

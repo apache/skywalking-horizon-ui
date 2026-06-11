@@ -319,9 +319,35 @@ const querySchema = z
   .strict()
   .default({ landingServiceCap: 100 });
 
+// Layers hidden from the sidebar / menu even when OAP reports them in
+// `listLayers`. Config-driven (replaces a former hard-coded hide list): an
+// operator can clear `excluded` to surface every reported layer, or add keys
+// for internal-only layers they don't want on the menu. The `reason` is
+// documentation for whoever reads this file — it isn't shown in the UI (an
+// excluded layer simply doesn't appear).
+const excludedLayerSchema = z
+  .object({
+    /** OAP layer key (UPPER_SNAKE), matched case-insensitively. */
+    key: z.string().min(1),
+    /** Why it's hidden — operator-facing note, not surfaced in the UI. */
+    reason: z.string().optional(),
+  })
+  .strict();
+const DEFAULT_EXCLUDED_LAYERS = [
+  { key: 'FAAS', reason: 'Deprecated.' },
+  { key: 'VIRTUAL_GATEWAY', reason: 'Not planned to set up.' },
+];
+const layersSchema = z
+  .object({
+    excluded: z.array(excludedLayerSchema).default(DEFAULT_EXCLUDED_LAYERS),
+  })
+  .strict()
+  .default({ excluded: DEFAULT_EXCLUDED_LAYERS });
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
+    layers: layersSchema,
     oap: oapSchema.default({}),
     auth: authSchema,
     rbac: rbacSchema,

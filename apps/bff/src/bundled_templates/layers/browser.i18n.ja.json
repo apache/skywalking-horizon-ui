@@ -13,28 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "ページヘルス",
-        "metrics": [
-          {
-            "label": "エラー率",
-            "tip": "エラーを発生させたページロードの割合。"
-          }
-        ]
-      },
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "PV / 分",
-            "tip": "1分あたりのページビュー。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

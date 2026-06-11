@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "클러스터",
-        "metrics": [
-          {
-            "label": "실행 중인 잡",
-            "tip": "활성 Flink 잡입니다."
-          },
-          {
-            "label": "사용 가능한 슬롯",
-            "tip": "여유 태스크 슬롯입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

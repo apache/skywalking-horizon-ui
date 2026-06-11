@@ -17,32 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "지연 시간 및 오류",
-        "metrics": [
-          {
-            "label": "평균 지연 시간",
-            "tip": "GenAI 제공자에 대한 평균 호출 지연 시간입니다."
-          },
-          {
-            "label": "오류율",
-            "tip": "100 − 제공자 SLA입니다."
-          }
-        ]
-      },
-      {
-        "title": "비용",
-        "metrics": [
-          {
-            "label": "총 추정 비용",
-            "tip": "누적 제공자 비용 추정치입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

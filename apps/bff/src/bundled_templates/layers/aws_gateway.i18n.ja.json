@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "エラー",
-        "metrics": [
-          {
-            "label": "4xx",
-            "tip": "CloudWatch からのクライアントエラー件数。"
-          },
-          {
-            "label": "5xx",
-            "tip": "CloudWatch からのサーバーエラー件数。"
-          },
-          {
-            "label": "平均レイテンシ",
-            "tip": "平均エンドツーエンドレイテンシ。"
-          }
-        ]
-      },
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "リクエスト",
-            "tip": "ウィンドウ内の合計リクエスト数。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

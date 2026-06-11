@@ -17,36 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "Anfrage-P95",
-            "tip": "95. Perzentil der Anfragedauer über die WeChat-Netzwerk-Bridge."
-          },
-          {
-            "label": "Start",
-            "tip": "Mini-Programm-Startdauer, beobachtet vom WeChat-Client."
-          },
-          {
-            "label": "Fehler",
-            "tip": "Gemeldete Fehleranzahl."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "Anfrage-RPM",
-            "tip": "Bridge-Anfragen pro Minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

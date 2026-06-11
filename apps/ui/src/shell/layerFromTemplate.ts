@@ -42,6 +42,9 @@ export interface LayerTemplateContent {
   /** Only the `instanceTopology` presence is read here, to gate the
    *  Instance-map drill-down cap — same rule the menu's `deriveLayer` uses. */
   topology?: { instanceTopology?: unknown };
+  /** Presence gates the Deployment cap (with its component
+   *  flag), so a draft enabling it opens the Deployment tab in preview. */
+  deployment?: unknown;
 }
 
 /** `components.*` → `caps.*` (the tab-visibility flags the sidebar reads).
@@ -52,6 +55,7 @@ export interface LayerTemplateContent {
 export function componentsToCaps(
   components: Record<string, boolean | undefined> | undefined,
   topology?: { instanceTopology?: unknown },
+  deployment?: unknown,
 ): LayerCaps {
   const c = components ?? {};
   const serviceMap = !!c.topology;
@@ -61,6 +65,7 @@ export function componentsToCaps(
     endpoints: !!c.endpoints,
     serviceMap,
     instanceTopology: serviceMap && !!topology?.instanceTopology,
+    deployment: !!c.deployment && !!deployment,
     endpointDependency: !!c.endpointDependency,
     traces: !!c.traces,
     logs: !!c.logs,
@@ -86,7 +91,7 @@ export function layerContentToDef(t: LayerTemplateContent): LayerDef {
     normal: null,
     documentLink: t.documentLink,
     slots: t.slots ?? {},
-    caps: componentsToCaps(t.components, t.topology),
+    caps: componentsToCaps(t.components, t.topology, t.deployment),
     header: t.metrics,
     metrics: t.metrics,
     overview: t.overview,
@@ -102,6 +107,6 @@ export function overlayLayerDef(base: LayerDef, t: LayerTemplateContent): LayerD
   return {
     ...base,
     slots: { ...base.slots, ...(t.slots ?? {}) },
-    caps: componentsToCaps(t.components, t.topology),
+    caps: componentsToCaps(t.components, t.topology, t.deployment),
   };
 }

@@ -1,26 +1,5 @@
 {
   "alias": "AWS DynamoDB",
-  "overview": {
-    "groups": [
-      {
-        "title": "Limitación",
-        "metrics": [
-          {
-            "label": "Lecturas limitadas",
-            "tip": "Peticiones de lectura throttled — capacidad agotada."
-          },
-          {
-            "label": "Escrituras limitadas",
-            "tip": "Peticiones de escritura throttled."
-          },
-          {
-            "label": "Errores de usuario",
-            "tip": "Errores de usuario tipo bad-request."
-          }
-        ]
-      }
-    ]
-  },
   "group": "AWS",
   "layer-header": {
     "columns": [

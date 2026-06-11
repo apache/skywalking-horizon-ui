@@ -21,36 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Capacidade",
-        "metrics": [
-          {
-            "label": "Tamanho dos dados (GB)",
-            "tip": "Tamanho total dos dados no cluster."
-          },
-          {
-            "label": "Coleções",
-            "tip": "Quantidade de coleções no cluster."
-          },
-          {
-            "label": "Objetos",
-            "tip": "Quantidade de objetos documento."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "QPS de documentos",
-            "tip": "Operações de documento / segundo."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

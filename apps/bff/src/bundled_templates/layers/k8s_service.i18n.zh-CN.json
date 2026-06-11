@@ -14,24 +14,6 @@
       { "label": "成功率" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "HTTP",
-        "metrics": [
-          { "label": "RPM", "tip": "eBPF 探测到的每分钟 HTTP 请求数。" },
-          { "label": "延迟", "tip": "集群范围内的 HTTP 平均响应时间。" },
-          { "label": "错误率", "tip": "100 − HTTP 成功率。" }
-        ]
-      },
-      {
-        "title": "健康度",
-        "metrics": [
-          { "label": "Apdex", "tip": "用户满意度评分，取值范围 0 – 1。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "服务 Pod" },

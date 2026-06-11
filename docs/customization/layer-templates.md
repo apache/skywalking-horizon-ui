@@ -2,7 +2,7 @@
 
 A **layer template** is a single JSON file that describes everything Horizon needs to know about one OAP layer: its display name, color, sidebar grouping, which sub-tabs to expose, the service-list picker columns, the per-scope widget grids, the trace/log/topology routing, and the service-name parsing rule.
 
-There is **one template per layer**. Horizon ships a bundled template for every supported layer, and an administrator customizes them in the **Layer Dashboards** admin page (under *Dashboard setup*) — a visual editor that saves a local draft and publishes to OAP with **Check diff & push**. You don't hand-edit JSON on the page; the shape documented below is the stored format the editor reads and writes, useful for understanding what each control maps to and for authoring templates as files.
+There is **one template per layer**. Horizon ships bundled templates for the common layers, and every layer your OAP reports — with or without a bundled template — is editable in the **Layer Dashboards** admin page (under *Dashboard setup*): a visual editor that saves a local draft and publishes to OAP with **Check diff & push**. You don't hand-edit JSON on the page; the shape documented below is the stored format the editor reads and writes, useful for understanding what each control maps to and for authoring templates as files.
 
 ## Template shape (reference)
 
@@ -17,7 +17,6 @@ There is **one template per layer**. Horizon ships a bundled template for every 
   "slots": { ... },
   "components": { ... },
   "header": { ... },
-  "overview": { ... },
   "dashboards": {
     "service":   [ ... widgets ... ],
     "instance":  [ ... widgets ... ],
@@ -53,7 +52,6 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 | `slots` | object | OAP defaults | Per-layer entity term overrides (see below). |
 | `components` | object | all-`true` | Which sub-tabs are enabled (see below). |
 | `header` | object | — | Service-list picker columns + default sort. |
-| `overview` | object | — | Overview tile config (groups of self-contained metrics) shown above the dashboard. |
 | `dashboards` | object | — | Per-scope widget arrays (the bulk of the template). |
 | `topology` | object | — | Topology MQE override for the service-map view. |
 | `endpointDependency` | object | — | API-dependency dashboard MQE override. |
@@ -94,11 +92,14 @@ Per-tab feature toggles. A `false` value hides the tab.
   "traceProfiling":     true,
   "ebpfProfiling":      false,
   "asyncProfiling":     false,
-  "pprofProfiling":     false
+  "pprofProfiling":     false,
+  "deployment":         false
 }
 ```
 
 The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available; any key omitted defaults to enabled. The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instances → endpoints → endpointDependency → topology → traces → logs → traceProfiling`.
+
+`deployment` is the exception: it is **off by default** and only appears when the layer also carries a [`deployment`](#deployment) config block — see [Deployment](#deployment) below.
 
 ## `header`
 
@@ -139,47 +140,6 @@ The service-list picker on the layer landing page. Columns sortable, with one de
 | `columns[].mqe` | string | MQE expression evaluated per service. |
 | `columns[].unit` | string | Optional unit suffix. |
 | `columns[].aggregation` | `sum` \| `avg` | Aggregation across the time window. |
-
-## `overview`
-
-Header summary tiles on the layer page (above the dashboard grid). Renders self-contained, sub-layout-aware groups of metrics.
-
-```json
-"overview": {
-  "groups": [
-    {
-      "title": "Latency & errors",
-      "size": "auto",
-      "metrics": [
-        {
-          "id": "p95",
-          "label": "P95",
-          "mqe": "service_percentile{p='95'}",
-          "unit": "ms",
-          "aggregation": "avg"
-        },
-        {
-          "id": "errors",
-          "label": "Errors",
-          "mqe": "service_resp_time_percent_99",
-          "unit": "%",
-          "aggregation": "avg"
-        }
-      ]
-    }
-  ]
-}
-```
-
-| Field | Type | Notes |
-|---|---|---|
-| `groups[].title` | string | Group header. |
-| `groups[].size` | `auto` \| `wide` | Layout hint. `wide` doubles the group's column allocation. |
-| `groups[].metrics[].id` | string | Unique id within the group. |
-| `groups[].metrics[].label` | string | Tile label. |
-| `groups[].metrics[].mqe` | string | MQE expression evaluated layer-wide (or per-service if a service is selected). |
-| `groups[].metrics[].unit` | string | Unit suffix. |
-| `groups[].metrics[].aggregation` | `sum` \| `avg` | Aggregation across the time window. |
 
 ## `dashboards`
 
@@ -303,6 +263,46 @@ When `topology.instanceTopology` is set, the Topology map gains an **instance-to
 
 Enable and configure it in the admin: open the layer's **Topology** scope and turn on **Enable instance topology**, which reveals its own node / server-edge / client-edge metric editors (kept separate from the service-topology metrics). Horizon ships it pre-enabled for **GENERAL**, **MESH**, **K8S_SERVICE**, and **CILIUM_SERVICE**; it rides the topology block, so it travels with template export/import.
 
+## `deployment`
+
+Config for the **Deployment** tab — the **deployment topology of all of a service's instances**. Where the [instance map](#instance-map) drills into the instances *between* two services, Deployment shows how **one** service's own instances are deployed and call each other (for example a clustered store whose nodes call one another). Pick a service from the layer's Service header and the tab draws its instances as health-ring nodes with the intra-service calls between them — pan/zoom, animated edge flow, a per-call client/server metric panel, and a node popover with **Open instance dashboard**. The boxes lay out left → right along the calls between them, so an upstream → downstream chain reads in order.
+
+It is **opt-in**: off for every layer until you enable the `deployment` component **and** add a `deployment` block — the **Deployment** sub-tab appears only when both are set. When the backend exposes no intra-service instance relations for the selected service, the tab simply shows an empty state — it is a pure consumer of what OAP reports.
+
+**Node grouping.** Instances can be grouped into labelled boxes by one of three rules:
+
+- **by one instance attribute** — e.g. group by `node_role`;
+- **by several attributes** (composite) — combine attribute values into one key (e.g. `node_role` + `node_type`); an attribute that is absent on a node drops out of its key, so nodes carrying only the first attribute stay in one box while those carrying both split further;
+- **by a name regex** — a named-capture pattern run on the instance name (same mechanism as the service-map grouping).
+
+A second rule can **bundle a pod**: instances sharing a value (e.g. the same `pod_name`) render as one pod — a **main** hexagon with its sidecar containers attached as smaller hexes. A third rule picks each container's **role**, which sets the main container and lets each role carry its own metrics.
+
+**Configure it in the admin.** Open the layer in **Dashboard setup → Layer dashboards**, enable **Deployment** under **Components**, then open the **Deployment** scope. It has its own node / server-edge / client-edge metric editors (evaluated at instance scope — `service_instance_*` for nodes, instance-relation metrics for edges) plus the **Node clustering** picker (off / by attribute / by attributes / by name regex). The block is self-contained on the layer template, independent of the service-map topology config, so it travels with template export/import.
+
+### Stored format (reference)
+
+```json
+"deployment": {
+  "clusterBy": { "kind": "attributes", "attributes": ["node_role", "node_type"], "separator": " / ", "alias": "role" },
+  "siblingBy": { "kind": "attribute", "attribute": "pod_name", "alias": "pod" },
+  "roleBy":    { "kind": "attribute", "attribute": "container_name", "alias": "container" },
+  "roles": [
+    { "key": "data", "label": "Data", "main": true, "nodeMetrics": [ { "id": "write", "label": "Write/s", "mqe": "service_instance_cpm", "unit": "w/s", "role": "center", "aggregation": "avg" } ] }
+  ],
+  "linkServerMetrics": [ ... ],
+  "linkClientMetrics": [ ... ]
+}
+```
+
+| Field | Purpose |
+|---|---|
+| `clusterBy` | Which dashed box an instance lands in. `kind: "attribute"` (one attribute), `kind: "attributes"` (several, joined by `separator`, default ` / `), or `kind: "nameRegex"` (named-capture regex on the instance name). |
+| `siblingBy` | Bundles instances that share this value into one pod (main + sidecar hexes). Same `kind` choices. Omit for one hex per instance. |
+| `roleBy` | Resolves each instance's role (e.g. by `container_name`); the role decides the main container and which `roles[]` metrics apply. |
+| `roles[]` | Per-role display: `key` (matches the `roleBy` value), `label`, `main` (true for the pod's primary hex), and `nodeMetrics[]` (same metric-def shape as the topology node metrics). |
+| `nodeMetrics[]` | Fallback per-instance metrics for instances with no matching role. Optional when `roles[]` cover every instance. |
+| `linkServerMetrics[]` / `linkClientMetrics[]` | Per-call metrics on the server and client side of each intra-service edge. |
+
 ## `endpointDependency`
 
 Config for the **API dependency** view — the endpoint-to-endpoint dependency map: which MQE metrics decorate each endpoint node and each endpoint-to-endpoint call edge. Same metric-def shape as [`topology`](#topology), but the MQE is evaluated at **endpoint** scope (`endpoint_*`) for nodes and **endpoint-relation** scope (`endpoint_relation_*`) for edges. Without a block, a sensible default metric set is used.
@@ -368,7 +368,7 @@ When set, the layer's service list groups by `cluster`. Without it, services are
 
 ## Admin Editor
 
-Layer templates are editable at runtime via **Dashboard setup → Layer dashboards** (`/admin/layer-dashboards`, verb `dashboard:write`). Pick a layer from the filterable dropdown (alias + key + sync status), then edit its service / instance / endpoint / topology / trace / log / profiling views. A live menu preview sits beside the Alias / Components / Menu-labels editor; clicking a menu item jumps to that component's config.
+Layer templates are editable at runtime via **Dashboard setup → Layer dashboards** (`/admin/layer-dashboards`, verb `dashboard:write`). The picker lists **every layer your OAP reports**, not just the ones with a shipped template — a layer with no template yet opens on a blank default you can configure and publish on first save. Pick a layer from the filterable dropdown (alias + key + sync status), then edit its service / instance / endpoint / topology / trace / log / profiling views. A live menu preview sits beside the Alias / Components / Menu-labels editor; clicking a menu item jumps to that component's config.
 
 ### How edits flow: draft → preview → publish
 
@@ -379,7 +379,7 @@ Your work-in-progress lives **in your browser**, never on the server until you p
 3. **Preview ▾.** Opens the real layer page in a new tab rendering your **Local** draft, the **Bundled** default, or **Remote** — using sample data, so you can check layout, enabled components, and menu labels without touching the server. Preview works even for layers OAP currently reports no services for.
 4. **Check diff & push.** Shows a side-by-side *remote → local* diff and publishes to OAP (the runtime source of truth). Enabled only when your draft actually differs from remote. After publishing, the draft is cleared and everyone sees the change.
 
-A top banner summarizes page state — *Synced from OAP — N diverged, Y local* — and **Diverged** / **Local** filters narrow the picker. Each row shows a status chip: **synced** (bundled == OAP), **diverged** (OAP differs from bundled — OAP wins at render), **remote-only** (on OAP, no bundled default), **disabled** (deleted — see below), or **bundled** (OAP has no copy right now).
+A top banner summarizes page state — *Synced from OAP — N diverged, Y local* plus how many layers are *not configured yet* — and **Diverged** / **Local** / **Not configured** filters narrow the picker. Each row shows a status chip: **synced** (bundled == OAP), **diverged** (OAP differs from bundled — OAP wins at render), **remote-only** (on OAP, no bundled default), **disabled** (deleted — see below), or **bundled** (OAP has no copy right now).
 
 ### Bundled defaults vs. your OAP-published templates
 

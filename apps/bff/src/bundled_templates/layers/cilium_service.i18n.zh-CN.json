@@ -14,23 +14,6 @@
       { "label": "TCP 丢包" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "平均延迟", "tip": "平均协议延迟（ms）。" },
-          { "label": "成功率", "tip": "成功调用 / 总调用。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "协议 RPM", "tip": "每分钟协议调用次数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "L4 读包/分钟" },

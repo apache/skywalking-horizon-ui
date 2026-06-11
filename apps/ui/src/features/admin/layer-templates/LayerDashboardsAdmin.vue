@@ -32,21 +32,24 @@ import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type { AdminLayerTemplate } from '@/api/client';
 import type {
+  ClusterByRule,
   DashboardScope,
   DashboardWidget,
   EndpointDependencyConfig,
   ProcessTopologyConfig,
+  DeploymentConfig,
+  DeploymentMetricDef,
   TopologyConfig,
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
 
-/** Admin-only scope. `networkProfiling` isn't a dashboard-widget scope
- *  (the network-profiling page is the process topology + edge panel, not
- *  a widget grid), so it lives outside `DashboardScope` — but the admin's
- *  scope-tab strip surfaces it as an editable config tab for the
- *  ProcessRelation MQE. */
-type AdminScope = DashboardScope | 'networkProfiling';
+/** Admin-only scopes that aren't dashboard-widget scopes. `networkProfiling`
+ *  is the process-topology edge editor; `deployment` is the
+ *  instance-deployment config (node + edge MQE + clusterBy). Both
+ *  live outside `DashboardScope` but surface as editable config tabs. */
+type AdminScope = DashboardScope | 'networkProfiling' | 'deployment';
 import { bff, bffClient, BffApiError } from '@/api/client';
+import { useLayers } from '@/shell/useLayers';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
@@ -75,6 +78,7 @@ const SCOPES: AdminScope[] = [
   // Topology before dependency — operator order request: service map
   // is the primary canvas; API dependency drills into one endpoint.
   'topology',
+  'deployment',
   'dependency',
   'trace',
   'logs',
@@ -92,6 +96,7 @@ const SCOPE_LABELS: Record<AdminScope, string> = {
   endpoint: 'endpoint',
   dependency: 'dependency',
   topology: 'topology',
+  deployment: 'deployment',
   trace: 'trace',
   logs: 'logs',
   traceProfiling: 'trace profiling',
@@ -100,7 +105,47 @@ const SCOPE_LABELS: Record<AdminScope, string> = {
   networkProfiling: 'network profiling',
 };
 
-const templates = ref<AdminLayerTemplate[]>([]);
+// Templates loaded from the BFF (bundled + remote). The editable list
+// (`templates`) is LAYER-LIST oriented: it merges the loaded templates with
+// EVERY layer the live roster reports, so the picker shows all available
+// layers — not only the ones shipping a bundled JSON or living on OAP. A
+// layer with no template yet opens from a blank default and becomes real on
+// first Save (published to OAP).
+const rawTemplates = ref<AdminLayerTemplate[]>([]);
+const { layers: menuLayers } = useLayers();
+function blankTemplateFor(key: string, alias: string, color?: string): AdminLayerTemplate {
+  return {
+    key,
+    alias,
+    ...(color ? { color } : {}),
+    slots: {},
+    components: { service: true },
+    metrics: {},
+    widgets: [],
+  };
+}
+const templates = computed<AdminLayerTemplate[]>(() => {
+  const present = new Set(rawTemplates.value.map((t) => t.key.toUpperCase()));
+  const synthesized = menuLayers.value
+    .filter((L) => !present.has(L.key.toUpperCase()))
+    .map((L) => blankTemplateFor(L.key.toUpperCase(), L.name, L.color))
+    .sort((a, b) => a.key.localeCompare(b.key));
+  return [...rawTemplates.value, ...synthesized];
+});
+// Layers the roster reports that carry no dashboard template yet (the
+// synthesized blanks above). Surfaced in the sync banner so the operator
+// reads the picker's total as "configured + not-configured-yet".
+const unconfiguredCount = computed(() => Math.max(0, templates.value.length - rawTemplates.value.length));
+// The shared sync banner counts only TEMPLATED layers (synced / diverged /
+// local). On this layer-list view we append the not-yet-configured count so
+// the summary explains the full picker. Other admin pages keep the plain
+// banner (they aren't layer-list oriented).
+const layerSyncBanner = computed(() => {
+  const b = sync.banner.value;
+  const n = unconfiguredCount.value;
+  if (n === 0) return b;
+  return { ...b, message: `${b.message} ${n} layer${n === 1 ? '' : 's'} not configured yet.` };
+});
 const isLoading = ref(true);
 const error = ref<string | null>(null);
 const selectedKey = ref<string>('');
@@ -180,10 +225,26 @@ const layerSearch = ref('');
 // "Sync all to OAP" would push. Off shows every layer.
 const divergedOnly = ref(false);
 const localOnly = ref(false);
+const unconfiguredOnly = ref(false);
 function isDivergedRow(key: string): boolean {
   const s = sync.badgeFor(`horizon.layer.${key}`);
   return s === 'diverged' || s === 'bundled-fallback';
 }
+/** A layer with no dashboard template yet — present only via the merged live
+ *  roster (a synthesized blank), not in the BFF's loaded template set. */
+function isUnconfiguredRow(key: string): boolean {
+  return !rawTemplates.value.some((t) => t.key.toUpperCase() === key.toUpperCase());
+}
+// Declared HERE — before divergedCount / localCount and their watches.
+// Those watches evaluate their source at setup, and `templates` can already
+// be non-empty (the merged live roster), so the filter callbacks read
+// `localEdits` synchronously — it must be initialized first (TDZ otherwise).
+const localEdits = useLocalTemplateEdits();
+// Server-side bundled + remote content for the Reset-to / Preview editor
+// sources. Local (browser draft) comes from `localEdits`.
+const sources = useTemplateSources('layer');
+const sourcesReady = computed(() => !sources.isLoading.value);
+const previewOverride = usePreviewOverride();
 const divergedCount = computed(() => templates.value.filter((t) => isDivergedRow(t.key)).length);
 const localCount = computed(() => templates.value.filter((t) => localEdits.has(layerEditName(t.key))).length);
 
@@ -195,11 +256,13 @@ const localCount = computed(() => templates.value.filter((t) => localEdits.has(l
 // Catches every path that depletes the set, not just reset.
 watch(divergedCount, (n) => { if (n === 0) divergedOnly.value = false; });
 watch(localCount, (n) => { if (n === 0) localOnly.value = false; });
+watch(unconfiguredCount, (n) => { if (n === 0) unconfiguredOnly.value = false; });
 const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
   const q = layerSearch.value.trim().toLowerCase();
   return templates.value.filter((t) => {
     if (divergedOnly.value && !isDivergedRow(t.key)) return false;
     if (localOnly.value && !localEdits.has(layerEditName(t.key))) return false;
+    if (unconfiguredOnly.value && !isUnconfiguredRow(t.key)) return false;
     if (!q) return true;
     return (t.alias ?? '').toLowerCase().includes(q) || t.key.toLowerCase().includes(q);
   });
@@ -209,28 +272,12 @@ const filteredTemplates = computed<AdminLayerTemplate[]>(() => {
  *  the Save / Reset state. */
 const draft = reactive<{ template: AdminLayerTemplate | null }>({ template: null });
 
-// Unpublished edits live in THIS browser (localStorage), not on the BFF
-// disk. The editor seeds from the browser draft when one exists, and the
-// config bundle overlays it on live pages — see controls/localTemplateEdits.
-const localEdits = useLocalTemplateEdits();
-// Server-side bundled + remote content for the Reset-to / Preview editor
-// sources. Local (browser draft) comes from `localEdits`.
-const sources = useTemplateSources('layer');
-// Settled-state flag for the source pill: until the config-bundle
-// fetch resolves, `hasRemote(name)` returns false for every name, so
-// any pill we render reflects the boot fallback (bundled) and then
-// flips to its real value when the bundle lands — a visual flash on
-// every page open. The pill v-if's on `sourcesReady` so it stays
-// hidden until the data is real.
-const sourcesReady = computed(() => !sources.isLoading.value);
-const previewOverride = usePreviewOverride();
-
 async function loadAll(): Promise<void> {
   isLoading.value = true;
   error.value = null;
   try {
     const res = await bffClient.layerTemplates.list();
-    templates.value = res.templates;
+    rawTemplates.value = res.templates;
     // Hydrate from `?layer=&scope=` first; fall back to the first
     // template only when the URL doesn't pin a layer. This preserves
     // refresh state.
@@ -342,14 +389,10 @@ function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
  *  canonical baseline — it's what the runtime bundle serves to end users
  *  for synced / diverged / remote-only rows, so the editor opens from
  *  remote whenever remote is reachable.
- *  Priority:
- *    1. Local draft — unpublished in-progress edits in this browser.
- *    2. Remote — the default for every re-mount when remote exists.
- *    3. Otherwise: NOTHING. We do NOT auto-load bundled when remote is
- *       absent — bundled is the seed/reset source, not the working copy,
- *       and the runtime doesn't render it either. The editor shows a
- *       "no published version" panel; the operator hits "Reset to bundled"
- *       to explicitly start from the shipped default (via `resetTo`). */
+ *  Priority: local draft → remote → bundled (or the synthesized blank for
+ *  layers that ship no JSON). The bundled fall-through is what makes every
+ *  roster layer editable; nothing renders live until the operator
+ *  publishes, so opening from bundled is safe. */
 function syncDraft(): void {
   if (hasLocalDraft.value) {
     loadFrom('local');
@@ -359,22 +402,19 @@ function syncDraft(): void {
     loadFrom('remote');
     return;
   }
+  // No local draft and nothing on OAP — fall back to the bundled/synthesized
+  // template so layers that ship no JSON (an untemplated OAP layer like
+  // BanyanDB, surfaced from the live roster) still open in a blank editor
+  // the operator can configure and Save (publishing creates the OAP copy).
+  // `bundledContent()` resolves the synthesized blank via the templates list.
+  if (bundledContent()) {
+    loadFrom('bundled');
+    return;
+  }
   draft.template = null;
   loadedSnapshot.value = '';
   saveMsg.value = null;
 }
-
-/** Selected layer exists but has neither a local draft nor an OAP row, so
- *  nothing is loaded (we don't fall back to bundled). Drives the "no
- *  published version" panel + its Reset-to-bundled CTA. */
-const noPublishedVersion = computed<boolean>(
-  () =>
-    sourcesReady.value &&
-    !!selectedKey.value &&
-    !hasLocalDraft.value &&
-    !remoteAvailable.value &&
-    !draft.template,
-);
 
 /** Write the editor content to the local draft. If it equals remote, the
  *  draft is cleared instead (no point keeping a draft identical to live) —
@@ -487,6 +527,7 @@ const SCOPE_COMPONENT: Record<AdminScope, ComponentKey> = {
   endpoint: 'endpoints',
   dependency: 'endpointDependency',
   topology: 'topology',
+  deployment: 'deployment',
   trace: 'traces',
   logs: 'logs',
   // Profiling scopes: each granular component flag controls one tab.
@@ -889,10 +930,27 @@ function removeExpr(i: number): void {
 }
 
 
+/** An all-empty `deployment` block (no metrics anywhere, no rules) carries no
+ *  renderable config but its mere presence flips caps.deployment on save —
+ *  strip it so an opened-then-abandoned editor can't enable the tab. */
+function stripEmptyDeployment(tpl: AdminLayerTemplate): void {
+  const d = tpl.deployment;
+  if (!d) return;
+  const hasMetrics =
+    (d.nodeMetrics?.length ?? 0) > 0 ||
+    (d.linkServerMetrics?.length ?? 0) > 0 ||
+    (d.linkClientMetrics?.length ?? 0) > 0 ||
+    (d.roles?.some((r) => (r.nodeMetrics?.length ?? 0) > 0) ?? false);
+  if (!hasMetrics && !d.clusterBy && !d.siblingBy && !d.roleBy && !(d.roles?.length)) {
+    delete tpl.deployment;
+  }
+}
+
 /** Save the current editor state to the browser local draft. This is the
  *  only "save" — it never writes OAP. Publish later with "Push local → OAP". */
 function save(): void {
   if (!draft.template) return;
+  stripEmptyDeployment(draft.template);
   persistLocal(draft.template);
   editorSource.value = 'local';
   saveMsg.value = 'Saved to your browser (local). Publish with “Check diff & push”.';
@@ -1122,8 +1180,10 @@ const currentWidgets = computed(() => widgetsFor(activeScope.value));
  * linkClientMetrics. Endpoint-dependency only has two: nodeMetrics,
  * linkMetrics (OAP has no client family for endpoint relations).
  *
- * Each list edits an array of TopologyMetricDef objects. The form
- * surfaces id / label / mqe / unit / role / aggregation + thresholds.
+ * Each list edits an array of metric-def objects (the topology/dependency
+ * scopes use TopologyMetricDef; the deployment scope uses the structurally
+ * identical DeploymentMetricDef). The form surfaces id / label / mqe / unit /
+ * role / aggregation + thresholds.
  *
  * Initial state: when the template has no `topology` /
  * `endpointDependency` block the helpers seed an empty one so the
@@ -1172,10 +1232,34 @@ function ensureProcessTopology(): ProcessTopologyConfig {
   if (!tpl.processTopology.edgeServerMetrics) tpl.processTopology.edgeServerMetrics = [];
   return tpl.processTopology;
 }
+// Write-path accessors for the `deployment` block. The block's PRESENCE is
+// what flips caps.deployment on save (the menu gate is presence-only), so it
+// must never materialize from a render-time read — only from an explicit
+// operator edit. Targeted per-list creation also keeps a roles-first config
+// (which deliberately omits top-level nodeMetrics) untouched by edits to the
+// other lists.
+function ensureDeployment(): DeploymentConfig {
+  if (!draft.template) throw new Error('no template selected');
+  const tpl = draft.template;
+  if (!tpl.deployment) tpl.deployment = {};
+  return tpl.deployment;
+}
+function ensureDeploymentList(
+  bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient',
+): DeploymentMetricDef[] {
+  const t = ensureDeployment();
+  const key =
+    bucket === 'sitNode' ? 'nodeMetrics'
+    : bucket === 'sitLinkServer' ? 'linkServerMetrics'
+    : 'linkClientMetrics';
+  if (!t[key]) t[key] = [];
+  return t[key];
+}
 
 type MetricBucket =
   | 'node' | 'linkServer' | 'linkClient'
   | 'instNode' | 'instLinkServer' | 'instLinkClient'
+  | 'sitNode' | 'sitLinkServer' | 'sitLinkClient'
   | 'link' | 'edgeClient' | 'edgeServer';
 
 function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
@@ -1191,6 +1275,13 @@ function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
     if (bucket === 'instNode') return t.instanceTopology?.nodeMetrics ?? [];
     if (bucket === 'instLinkServer') return t.instanceTopology?.linkServerMetrics ?? [];
     if (bucket === 'instLinkClient') return t.instanceTopology?.linkClientMetrics ?? [];
+  } else if (activeScope.value === 'deployment') {
+    // Read straight off the block — never auto-create it on render (see
+    // ensureDeployment); a missing block reads as empty detached lists.
+    const t = draft.template.deployment;
+    if (bucket === 'sitNode') return t?.nodeMetrics ?? [];
+    if (bucket === 'sitLinkServer') return t?.linkServerMetrics ?? [];
+    if (bucket === 'sitLinkClient') return t?.linkClientMetrics ?? [];
   } else if (activeScope.value === 'dependency') {
     const t = ensureEndpointDep();
     if (bucket === 'node') return t.nodeMetrics;
@@ -1205,7 +1296,10 @@ function getMetricList(bucket: MetricBucket): TopologyMetricDef[] {
 
 function addMetric(bucket: MetricBucket): void {
   if (!draft.template) return;
-  const list = getMetricList(bucket);
+  const list =
+    bucket === 'sitNode' || bucket === 'sitLinkServer' || bucket === 'sitLinkClient'
+      ? ensureDeploymentList(bucket)
+      : getMetricList(bucket);
   const next: TopologyMetricDef = {
     id: `metric_${list.length + 1}`,
     label: `Metric ${list.length + 1}`,
@@ -1254,6 +1348,117 @@ function toggleInstanceTopology(): void {
     t.instanceTopology = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
   }
 }
+// Service-deployment config (top-level, independent of `topology`).
+const deploymentNodeMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitNode'));
+const deploymentServerMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitLinkServer'));
+const deploymentClientMetrics = computed<DeploymentMetricDef[]>(() => getMetricList('sitLinkClient'));
+
+// clusterBy editor — four modes: off / by one instance attribute / by several
+// attributes (composite key) / by name regex. Reads + writes
+// `deployment.clusterBy`; switching mode reshapes the
+// discriminated union.
+type ClusterMode = 'none' | 'attribute' | 'attributes' | 'nameRegex';
+const sitClusterMode = computed<ClusterMode>({
+  get: () => {
+    const cb = draft.template?.deployment?.clusterBy;
+    return cb?.kind ?? 'none';
+  },
+  set: (mode) => {
+    const t = ensureDeployment();
+    if (mode === 'none') {
+      delete t.clusterBy;
+    } else if (mode === 'attribute') {
+      const prev = t.clusterBy;
+      t.clusterBy = {
+        kind: 'attribute',
+        attribute: prev?.kind === 'attribute' ? prev.attribute : 'node_role',
+        alias: prev?.alias ?? 'role',
+      };
+    } else if (mode === 'attributes') {
+      const prev = t.clusterBy;
+      t.clusterBy = {
+        kind: 'attributes',
+        attributes: prev?.kind === 'attributes' ? prev.attributes : ['node_role', 'node_type'],
+        separator: prev?.kind === 'attributes' ? prev.separator : undefined,
+        alias: prev?.alias ?? 'role',
+      };
+    } else {
+      const prev = t.clusterBy;
+      t.clusterBy = {
+        kind: 'nameRegex',
+        pattern: prev?.kind === 'nameRegex' ? prev.pattern : '',
+        flags: prev?.kind === 'nameRegex' ? prev.flags : undefined,
+        displayGroup: prev?.kind === 'nameRegex' ? prev.displayGroup : undefined,
+        valueGroup: prev?.kind === 'nameRegex' ? prev.valueGroup : undefined,
+        alias: prev?.alias ?? 'group',
+      };
+    }
+  },
+});
+function clusterRuleField<K extends keyof Extract<ClusterByRule, { kind: 'nameRegex' }>>(
+  field: K,
+  kind: ClusterByRule['kind'],
+) {
+  return computed<string>({
+    get: () => {
+      const cb = draft.template?.deployment?.clusterBy;
+      if (!cb || cb.kind !== kind) return '';
+      return (cb as Record<string, unknown>)[field as string] as string ?? '';
+    },
+    set: (v) => {
+      const cb = ensureDeployment().clusterBy;
+      if (cb && cb.kind === kind) {
+        (cb as Record<string, unknown>)[field as string] = v || undefined;
+      }
+    },
+  });
+}
+const sitClusterAttribute = computed<string>({
+  get: () => {
+    const cb = draft.template?.deployment?.clusterBy;
+    return cb?.kind === 'attribute' ? cb.attribute : '';
+  },
+  set: (v) => {
+    const cb = ensureDeployment().clusterBy;
+    if (cb?.kind === 'attribute') cb.attribute = v;
+  },
+});
+// Composite mode — comma-separated attribute list (order = key order).
+const sitClusterAttributes = computed<string>({
+  get: () => {
+    const cb = draft.template?.deployment?.clusterBy;
+    return cb?.kind === 'attributes' ? cb.attributes.join(', ') : '';
+  },
+  set: (v) => {
+    const cb = ensureDeployment().clusterBy;
+    if (cb?.kind === 'attributes') {
+      cb.attributes = v.split(',').map((s) => s.trim()).filter(Boolean);
+    }
+  },
+});
+// Composite mode — joiner between present attribute values (default ` / `).
+const sitClusterSeparator = computed<string>({
+  get: () => {
+    const cb = draft.template?.deployment?.clusterBy;
+    return cb?.kind === 'attributes' ? (cb.separator ?? '') : '';
+  },
+  set: (v) => {
+    const cb = ensureDeployment().clusterBy;
+    if (cb?.kind === 'attributes') cb.separator = v || undefined;
+  },
+});
+const sitClusterAlias = computed<string>({
+  get: () => draft.template?.deployment?.clusterBy?.alias ?? '',
+  set: (v) => {
+    const cb = ensureDeployment().clusterBy;
+    if (cb) cb.alias = v;
+  },
+});
+const sitClusterPattern = clusterRuleField('pattern', 'nameRegex');
+const sitClusterFlags = clusterRuleField('flags', 'nameRegex');
+const sitClusterDisplayGroup = clusterRuleField('displayGroup', 'nameRegex');
+const sitClusterValueGroup = clusterRuleField('valueGroup', 'nameRegex');
+
 const epDepNodeMetrics = computed(() => activeScope.value === 'dependency' ? getMetricList('node') : []);
 const epDepLinkMetrics = computed(() => getMetricList('link'));
 const processEdgeClientMetrics = computed(() =>
@@ -1443,6 +1648,7 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'endpoints', label: 'Endpoints', hint: 'Per-endpoint dashboard (dashboards.endpoint widget set).' },
   // Order mirrors the real sidebar: Topology sits before API dependency.
   { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer.' },
+  { key: 'deployment', label: 'Deployment', hint: 'Deployment topology of all of a service’s instances — the instance-to-instance call graph within one service. Needs a deployment config block to appear.' },
   { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
   { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
   { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
@@ -1473,6 +1679,7 @@ const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
   endpoints: 'endpoint',
   endpointDependency: 'dependency',
   topology: 'topology',
+  deployment: 'deployment',
   traces: 'trace',
   logs: 'logs',
   // Pod Logs has no editable widget grid — filler to satisfy the
@@ -1496,6 +1703,7 @@ const COMPONENT_SLOT: Partial<Record<ComponentKey, keyof NonNullable<AdminLayerT
   endpoints: 'endpoints',
   endpointDependency: 'endpointDependency',
   topology: 'topology',
+  deployment: 'deployment',
 };
 /** The layer's sidebar menu as the operator would see it — only the
  *  enabled components, in COMPONENT_TOGGLES order, labelled with the
@@ -1556,7 +1764,7 @@ function scopeLabel(s: AdminScope): string {
 const serviceNoun = computed(() => scopeLabel('service'));
 const instanceNoun = computed(() => scopeLabel('instance'));
 
-/** The four configurable slot aliases. Shown for the components the
+/** The configurable slot aliases. Shown for the components the
  *  layer actually exposes so the editor mirrors the menu. */
 const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string; requireInstanceTopology?: boolean }> = [
   // Order mirrors the real sidebar / menu: Topology (+ its Instance map
@@ -1566,6 +1774,7 @@ const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; de
   { slot: 'endpoints', label: 'Endpoints', comp: 'endpoints', def: 'Endpoint' },
   { slot: 'topology', label: 'Topology', comp: 'topology', def: 'Topology' },
   { slot: 'instanceTopology', label: 'Instance topology', comp: 'topology', def: 'Instance map', requireInstanceTopology: true },
+  { slot: 'deployment', label: 'Deployment', comp: 'deployment', def: 'Deployment' },
   { slot: 'endpointDependency', label: 'API dependency', comp: 'endpointDependency', def: 'Dependency' },
 ];
 const visibleAliasFields = computed(() =>
@@ -1698,7 +1907,7 @@ const namingTest = computed<NamingTestResult>(() => {
       </div>
     </header>
 
-    <SyncStatusBanner :banner="sync.banner.value" />
+    <SyncStatusBanner :banner="layerSyncBanner" />
 
     <div v-if="error" class="banner err">{{ error }}</div>
     <div v-if="isLoading" class="empty">Loading templates…</div>
@@ -1744,6 +1953,10 @@ const namingTest = computed<NamingTestResult>(() => {
           <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
             <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
             Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+          </label>
+          <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? 'Every reported layer has a dashboard template' : `${unconfiguredCount} layer(s) reported by OAP with no dashboard template yet`">
+            <input v-model="unconfiguredOnly" type="checkbox" :disabled="unconfiguredCount === 0" />
+            Not configured<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
           </label>
         </div>
         <button
@@ -1803,6 +2016,10 @@ const namingTest = computed<NamingTestResult>(() => {
                   <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
                     <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
                     Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+                  </label>
+                  <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? 'Every reported layer has a dashboard template' : `${unconfiguredCount} layer(s) reported by OAP with no dashboard template yet`">
+                    <input v-model="unconfiguredOnly" type="checkbox" :disabled="unconfiguredCount === 0" />
+                    Not configured<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
                   </label>
                 </div>
                 <div class="layer-dd-list">
@@ -2672,6 +2889,153 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
+        <!-- Deployment config — instance node + per-side edge metrics
+             (ServiceInstance / ServiceInstanceRelation scope) plus the optional
+             node-clustering rule. Independent of the service-map topology block. -->
+        <section
+          v-else-if="activeScope === 'deployment'"
+          class="sw-card editor-card topo-cfg-card"
+        >
+          <div class="card-head">
+            <h4>Deployment config</h4>
+            <span class="sub">deployment topology of all the service’s instances. node = {{ instanceNoun }} · edges = intra-service instance relations.</span>
+          </div>
+          <div class="topo-cfg-body">
+            <!-- Node clustering: group instance nodes into boxes either by an
+                 instance attribute (node_role / node_type) or by a name regex
+                 run on the instance name. -->
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Node clustering</h5>
+                <span class="sub">group {{ instanceNoun.toLowerCase() }} into boxes — off, by attribute, or by a name regex</span>
+              </header>
+              <div class="sit-cluster-cfg">
+                <label class="mf mf-narrow">
+                  <span>mode</span>
+                  <select v-model="sitClusterMode" class="mf-input">
+                    <option value="none">none</option>
+                    <option value="attribute">by attribute</option>
+                    <option value="attributes">by attributes (composite)</option>
+                    <option value="nameRegex">by name regex</option>
+                  </select>
+                </label>
+                <template v-if="sitClusterMode === 'attribute'">
+                  <label class="mf"><span>attribute</span><input v-model="sitClusterAttribute" type="text" class="mf-input mono" placeholder="node_role" /></label>
+                  <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+                </template>
+                <template v-else-if="sitClusterMode === 'attributes'">
+                  <label class="mf mf-wide"><span>attributes</span><input v-model="sitClusterAttributes" type="text" class="mf-input mono" placeholder="node_role, node_type" /></label>
+                  <label class="mf mf-narrow"><span>separator</span><input v-model="sitClusterSeparator" type="text" class="mf-input mono" placeholder=" / " /></label>
+                  <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+                </template>
+                <template v-else-if="sitClusterMode === 'nameRegex'">
+                  <label class="mf mf-wide"><span>pattern</span><input v-model="sitClusterPattern" type="text" class="mf-input mono" placeholder="^(?<service>.+?)-(?<group>data|liaison)" /></label>
+                  <label class="mf mf-narrow"><span>flags</span><input v-model="sitClusterFlags" type="text" class="mf-input mono" placeholder="i" /></label>
+                  <label class="mf mf-narrow"><span>display grp</span><input v-model="sitClusterDisplayGroup" type="text" class="mf-input mono" placeholder="service" /></label>
+                  <label class="mf mf-narrow"><span>value grp</span><input v-model="sitClusterValueGroup" type="text" class="mf-input mono" placeholder="group" /></label>
+                  <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="group" /></label>
+                </template>
+              </div>
+            </div>
+
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>{{ instanceNoun }} node metrics</h5>
+                <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
+                <button class="sw-btn add" type="button" @click="addMetric('sitNode')">＋ Add</button>
+              </header>
+              <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+              <div v-else class="metric-list">
+                <article v-for="(m, i) in deploymentNodeMetrics" :key="i" class="metric-row">
+                  <div class="metric-row-head">
+                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_instance_cpm" /></label>
+                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
+                    <label class="mf"><span>role</span>
+                      <select v-model="m.role" class="mf-input">
+                        <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
+                      </select>
+                    </label>
+                    <label class="mf mf-narrow"><span>agg</span>
+                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                    </label>
+                    <div class="metric-row-actions">
+                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('sitNode', i, -1)">↑</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentNodeMetrics.length - 1" title="Move down" @click="moveMetric('sitNode', i, 1)">↓</button>
+                      <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('sitNode', i)">×</button>
+                    </div>
+                  </div>
+                  <div class="metric-thresholds">
+                    <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
+                    <template v-if="m.thresholds">
+                      <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
+                      <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
+                      <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
+                      <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
+                    </template>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Link · server-side metrics</h5>
+                <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
+                <button class="sw-btn add" type="button" @click="addMetric('sitLinkServer')">＋ Add</button>
+              </header>
+              <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+              <div v-else class="metric-list">
+                <article v-for="(m, i) in deploymentServerMetrics" :key="i" class="metric-row">
+                  <div class="metric-row-head">
+                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                    <label class="mf mf-narrow"><span>agg</span>
+                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                    </label>
+                    <div class="metric-row-actions">
+                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkServer', i, -1)">↑</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentServerMetrics.length - 1" @click="moveMetric('sitLinkServer', i, 1)">↓</button>
+                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkServer', i)">×</button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Link · client-side metrics</h5>
+                <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
+                <button class="sw-btn add" type="button" @click="addMetric('sitLinkClient')">＋ Add</button>
+              </header>
+              <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+              <div v-else class="metric-list">
+                <article v-for="(m, i) in deploymentClientMetrics" :key="i" class="metric-row">
+                  <div class="metric-row-head">
+                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
+                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
+                    <label class="mf mf-narrow"><span>agg</span>
+                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                    </label>
+                    <div class="metric-row-actions">
+                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkClient', i, -1)">↑</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentClientMetrics.length - 1" @click="moveMetric('sitLinkClient', i, 1)">↓</button>
+                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkClient', i)">×</button>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section
           v-else-if="activeScope === 'dependency'"
           class="sw-card editor-card topo-cfg-card"
@@ -3191,21 +3555,6 @@ const namingTest = computed<NamingTestResult>(() => {
         </section>
       </main>
 
-      <!-- Layer selected but no working copy: no local draft and no OAP
-           row. We deliberately do NOT auto-load the bundled default here
-           (bundled is the seed/reset source, never the runtime render);
-           the operator adopts it explicitly. -->
-      <main v-else-if="noPublishedVersion" class="detail">
-        <section class="sw-card no-remote-card">
-          <h3>{{ t('No published version on OAP') }}</h3>
-          <p>
-            {{ t('This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.') }}
-          </p>
-          <button class="sw-btn primary" type="button" :disabled="!bundledExists" @click="loadFrom('bundled')">
-            {{ t('Reset to bundled') }}
-          </button>
-        </section>
-      </main>
     </div>
 
     <!-- Push confirm: shows the remote → local diff before publishing. -->
@@ -4369,6 +4718,7 @@ const namingTest = computed<NamingTestResult>(() => {
   border-radius: 4px;
 }
 .metric-list { display: flex; flex-direction: column; gap: 8px; }
+.sit-cluster-cfg { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
 .metric-row {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);

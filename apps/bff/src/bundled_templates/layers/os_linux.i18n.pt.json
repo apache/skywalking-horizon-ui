@@ -20,23 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Recursos",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "Utilização total de CPU."
-          },
-          {
-            "label": "Mem %",
-            "tip": "Memória em uso / total."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

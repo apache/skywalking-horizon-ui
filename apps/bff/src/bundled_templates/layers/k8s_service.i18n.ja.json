@@ -20,36 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "HTTP",
-        "metrics": [
-          {
-            "label": "RPM",
-            "tip": "eBPF インスツルメンテーションが観測した 1分あたりの HTTP リクエスト。"
-          },
-          {
-            "label": "レイテンシ",
-            "tip": "クラスタ全体の平均 HTTP 応答時間。"
-          },
-          {
-            "label": "エラー率",
-            "tip": "100 − HTTP 成功率。"
-          }
-        ]
-      },
-      {
-        "title": "健全性",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "0 – 1 スケールのユーザー満足度スコア。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

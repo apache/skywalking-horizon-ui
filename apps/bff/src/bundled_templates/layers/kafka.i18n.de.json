@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Cluster",
-        "metrics": [
-          {
-            "label": "Offline-Partitionen",
-            "tip": "Partitionen ohne aktiven Leader."
-          },
-          {
-            "label": "Unter-repliziert",
-            "tip": "Partitionen, deren ISR-Set unter dem Replikationsfaktor liegt."
-          },
-          {
-            "label": "Max. Lag",
-            "tip": "Größter beobachteter Verbraucher-Lag."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

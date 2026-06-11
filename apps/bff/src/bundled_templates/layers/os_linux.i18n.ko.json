@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "리소스",
-        "metrics": [
-          {
-            "label": "CPU %",
-            "tip": "전체 CPU 사용률입니다."
-          },
-          {
-            "label": "메모리 %",
-            "tip": "사용된 메모리 / 전체."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

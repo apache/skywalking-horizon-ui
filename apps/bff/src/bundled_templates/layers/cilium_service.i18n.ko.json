@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "지연 시간 및 오류",
-        "metrics": [
-          {
-            "label": "평균 지연 시간",
-            "tip": "평균 프로토콜 지연 시간 (ms)입니다."
-          },
-          {
-            "label": "성공률",
-            "tip": "성공 호출 / 전체 호출."
-          }
-        ]
-      },
-      {
-        "title": "처리량",
-        "metrics": [
-          {
-            "label": "프로토콜 RPM",
-            "tip": "분당 프로토콜 호출 수입니다."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

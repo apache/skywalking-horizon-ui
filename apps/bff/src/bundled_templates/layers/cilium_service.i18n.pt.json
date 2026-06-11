@@ -22,32 +22,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência e erros",
-        "metrics": [
-          {
-            "label": "Latência média",
-            "tip": "Latência média do protocolo (ms)."
-          },
-          {
-            "label": "Taxa de sucesso",
-            "tip": "Chamadas bem-sucedidas / total de chamadas."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "RPM de protocolo",
-            "tip": "Chamadas de protocolo por minuto."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

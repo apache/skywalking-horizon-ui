@@ -13,24 +13,6 @@
       { "label": "死锁" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "健康度",
-        "metrics": [
-          { "label": "缓存命中率", "tip": "集群范围内的缓冲缓存命中率。" },
-          { "label": "死锁/秒", "tip": "每秒检测到的死锁数。" },
-          { "label": "冲突/秒", "tip": "每秒恢复冲突数。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "Fetched / 秒", "tip": "每秒拉取的行数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "拉取行数 / 秒" },

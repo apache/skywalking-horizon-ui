@@ -15,23 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "metrics": [
-          {
-            "label": "Nodos",
-            "tip": "Conteo de nodos del clúster EKS."
-          },
-          {
-            "label": "Nodos con fallo",
-            "tip": "Nodos EKS con fallo reportados por el clúster."
-          }
-        ],
-        "title": "Recurso"
-      }
-    ]
-  },
   "slots": {
     "services": "Clústeres",
     "instances": "Nodos",

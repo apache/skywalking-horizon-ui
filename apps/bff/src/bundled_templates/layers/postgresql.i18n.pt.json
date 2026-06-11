@@ -21,36 +21,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Saúde",
-        "metrics": [
-          {
-            "label": "Cache Hit",
-            "tip": "Taxa de acerto do buffer-cache no cluster."
-          },
-          {
-            "label": "Deadlocks/s",
-            "tip": "Deadlocks detectados por segundo."
-          },
-          {
-            "label": "Conflitos/s",
-            "tip": "Conflitos de recovery por segundo."
-          }
-        ]
-      },
-      {
-        "title": "Vazão",
-        "metrics": [
-          {
-            "label": "Fetched /s",
-            "tip": "Linhas retornadas por segundo."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

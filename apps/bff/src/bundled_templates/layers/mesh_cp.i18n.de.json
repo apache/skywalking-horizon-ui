@@ -20,23 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Istio-Status",
-        "metrics": [
-          {
-            "label": "CPU",
-            "tip": "CPU des Istio-Control-Plane-Prozesses."
-          },
-          {
-            "label": "Goroutines",
-            "tip": "Aktive Go-Goroutines."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

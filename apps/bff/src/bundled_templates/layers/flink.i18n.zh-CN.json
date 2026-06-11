@@ -14,17 +14,6 @@
       { "label": "总 Slot" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "集群",
-        "metrics": [
-          { "label": "运行中 Job", "tip": "活跃的 Flink Job 数。" },
-          { "label": "可用 Slot", "tip": "空闲 Task Slot 数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "运行中 Job" },

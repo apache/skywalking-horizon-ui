@@ -17,27 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "スループット",
-        "metrics": [
-          {
-            "label": "メッセージ入/s",
-            "tip": "1秒あたりの生産メッセージ数。"
-          },
-          {
-            "label": "メッセージ出/s",
-            "tip": "1秒あたりの消費メッセージ数。"
-          },
-          {
-            "label": "ストレージ MB",
-            "tip": "managed-ledger ストレージサイズ合計。"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

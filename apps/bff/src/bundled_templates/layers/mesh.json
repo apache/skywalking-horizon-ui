@@ -59,45 +59,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "p95",
-            "label": "P95",
-            "tip": "95th-percentile sidecar-routed response time across the mesh.",
-            "mqe": "service_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "err",
-            "label": "Error Rate",
-            "tip": "100 \u2212 mesh SLA. Calls with non-2xx response status from sidecar ALS.",
-            "mqe": "100 - service_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Health",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "apdex",
-            "label": "Apdex",
-            "tip": "User-satisfaction score on a 0 \u2013 1 scale.",
-            "mqe": "service_apdex/10000",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

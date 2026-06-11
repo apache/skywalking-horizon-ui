@@ -47,45 +47,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Health",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "hitRate",
-            "label": "Hit Rate",
-            "tip": "Cache hit ratio. Trending down = thrash.",
-            "mqe": "aggregate_labels(meter_redis_hit_rate,avg)",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "memUsage",
-            "label": "Memory %",
-            "tip": "Used / max memory. >80% = warn.",
-            "mqe": "latest(aggregate_labels(meter_redis_memory_used_bytes,sum)/aggregate_labels(meter_redis_memory_max_bytes,sum))*100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "cmds",
-            "label": "Commands/s",
-            "tip": "Total commands per second across the cluster.",
-            "mqe": "aggregate_labels(meter_redis_total_commands_rate,sum(cmd))",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

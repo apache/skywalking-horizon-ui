@@ -13,18 +13,6 @@
       { "label": "出站消息" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "入站消息/秒", "tip": "每秒生产的消息数。" },
-          { "label": "出站消息/秒", "tip": "每秒消费的消息数。" },
-          { "label": "存储 MB", "tip": "Managed-ledger 总存储大小。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "Topic 总数" },

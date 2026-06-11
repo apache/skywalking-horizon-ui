@@ -15,27 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "Publicados / min",
-            "tip": "Mensajes publicados por minuto."
-          },
-          {
-            "label": "Sin confirmar",
-            "tip": "Mensajes en espera de confirmación del publicador."
-          },
-          {
-            "label": "Sin ruta descartados",
-            "tip": "Mensajes descartados por falta de ruta de exchange."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

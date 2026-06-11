@@ -20,32 +20,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latence et erreurs",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Temps de réponse au 95e centile routé par le sidecar sur l'ensemble du mesh."
-          },
-          {
-            "label": "Taux d'erreur",
-            "tip": "100 − SLA du mesh. Appels avec un statut non-2xx remonté par les ALS du sidecar."
-          }
-        ]
-      },
-      {
-        "title": "Santé",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Score de satisfaction utilisateur sur une échelle de 0 à 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

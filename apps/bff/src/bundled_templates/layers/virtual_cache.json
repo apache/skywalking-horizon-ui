@@ -49,46 +49,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "p95",
-            "label": "P95",
-            "tip": "95th-percentile cache access latency.",
-            "mqe": "cache_access_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "err",
-            "label": "Error Rate",
-            "tip": "100 \u2212 cache access success rate. Cache exceptions captured by the calling service's agent.",
-            "mqe": "100 - cache_access_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "cpm",
-            "label": "Access RPM",
-            "tip": "Cache operations per minute (read + write).",
-            "mqe": "cache_access_cpm",
-            "unit": "rpm",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

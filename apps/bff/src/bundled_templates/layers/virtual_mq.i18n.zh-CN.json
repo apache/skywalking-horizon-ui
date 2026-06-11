@@ -13,24 +13,6 @@
       { "label": "消费错误率" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "P95", "tip": "消费延迟（接收时间 − 生产时间）的 95 分位。" },
-          { "label": "消费错误率", "tip": "100 − 消费成功率。" },
-          { "label": "生产错误率", "tip": "100 − 生产成功率。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "消费 RPM", "tip": "每分钟消费的消息数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "消费流量" },

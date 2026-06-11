@@ -19,32 +19,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latência e erros",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Tempo de resposta no percentil 95 ao longo da camada."
-          },
-          {
-            "label": "Taxa de erros",
-            "tip": "100 − SLA. Quanto maior, pior."
-          }
-        ]
-      },
-      {
-        "title": "Saúde",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Pontuação de satisfação do usuário na escala 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

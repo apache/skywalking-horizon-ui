@@ -752,7 +752,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
   background: radial-gradient(circle at center, var(--sw-bg-1) 0%, var(--sw-bg-0) 100%);
 }
 .imv-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--sw-fg-3); font-size: 12px; text-align: center; padding: 24px; }
-.imv-grp-rect { fill: var(--sw-bg-1); fill-opacity: 0.35; stroke: var(--sw-line-2); stroke-width: 1; stroke-dasharray: 4 5; }
+.imv-grp-rect { fill: none; stroke: var(--sw-fg-3); stroke-width: 1.5; stroke-dasharray: 7 5; }
 .imv-grp-name { fill: var(--sw-fg-1); font-size: 12px; font-weight: 700; }
 .imv-grp-role { fill: var(--sw-fg-3); font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; }
 .imv-svg { width: 100%; height: 100%; display: block; cursor: grab; }

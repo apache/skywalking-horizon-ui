@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "qps",
-            "label": "QPS",
-            "tip": "Queries per second across the cluster.",
-            "mqe": "aggregate_labels(meter_mysql_qps,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "tps",
-            "label": "TPS",
-            "tip": "Transactions per second.",
-            "mqe": "aggregate_labels(meter_mysql_tps,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "slowRate",
-            "label": "Slow Queries/s",
-            "tip": "Slow query rate across the cluster.",
-            "mqe": "aggregate_labels(meter_mysql_slow_queries_rate,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

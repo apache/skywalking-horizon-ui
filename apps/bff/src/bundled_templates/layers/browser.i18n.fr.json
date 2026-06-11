@@ -13,28 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Santé de la page",
-        "metrics": [
-          {
-            "label": "Taux d'erreur",
-            "tip": "Pourcentage de chargements de page ayant produit une erreur."
-          }
-        ]
-      },
-      {
-        "title": "Débit",
-        "metrics": [
-          {
-            "label": "PV / min",
-            "tip": "Pages vues par minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -42,45 +42,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "err5xx",
-            "label": "5xx Rate",
-            "tip": "Percentage of requests returning 5xx per minute.",
-            "mqe": "aggregate_labels(meter_nginx_service_http_5xx_requests_increment, sum)/aggregate_labels(meter_nginx_service_http_requests_increment, sum)*100",
-            "unit": "%",
-            "aggregation": "avg"
-          },
-          {
-            "id": "err4xx",
-            "label": "4xx Rate",
-            "tip": "Percentage of requests returning 4xx per minute.",
-            "mqe": "aggregate_labels(meter_nginx_service_http_4xx_requests_increment, sum)/aggregate_labels(meter_nginx_service_http_requests_increment, sum)*100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "rps",
-            "label": "RPS",
-            "tip": "Requests per second across the Nginx service.",
-            "mqe": "aggregate_labels(meter_nginx_service_http_requests, sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

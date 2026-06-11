@@ -13,24 +13,6 @@
       { "label": "5xx" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "错误",
-        "metrics": [
-          { "label": "4xx", "tip": "来自 CloudWatch 的客户端错误数。" },
-          { "label": "5xx", "tip": "来自 CloudWatch 的服务端错误数。" },
-          { "label": "平均延迟", "tip": "平均端到端延迟。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "请求数", "tip": "窗口内的请求总数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "请求数" },

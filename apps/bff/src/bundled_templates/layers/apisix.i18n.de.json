@@ -17,23 +17,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "RPS",
-            "tip": "Anfragen pro Sekunde, die von APISIX-Routen getroffen wurden."
-          },
-          {
-            "label": "5xx",
-            "tip": "Upstream- / Gateway-Fehlerklasse."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

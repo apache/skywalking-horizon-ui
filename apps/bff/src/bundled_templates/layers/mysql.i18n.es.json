@@ -1,26 +1,5 @@
 {
   "group": "Bases de datos",
-  "overview": {
-    "groups": [
-      {
-        "title": "Rendimiento",
-        "metrics": [
-          {
-            "label": "QPS",
-            "tip": "Consultas por segundo en el clúster."
-          },
-          {
-            "label": "TPS",
-            "tip": "Transacciones por segundo."
-          },
-          {
-            "label": "Consultas lentas/s",
-            "tip": "Tasa de consultas lentas en el clúster."
-          }
-        ]
-      }
-    ]
-  },
   "slots": {
     "instances": "Nodos",
     "services": "Clústeres de MySQL"

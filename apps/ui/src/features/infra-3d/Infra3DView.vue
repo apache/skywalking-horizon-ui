@@ -555,6 +555,7 @@ async function runLight(): Promise<void> {
   await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'hierarchy', 'metrics']);
 }
 
+
 /** Arm (or re-arm) the auto-refresh timer + countdown anchor. */
 function scheduleRefresh(): void {
   if (refreshTimer !== null) clearTimeout(refreshTimer);

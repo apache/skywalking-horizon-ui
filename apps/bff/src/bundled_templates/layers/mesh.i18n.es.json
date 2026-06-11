@@ -15,32 +15,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latencia y errores",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "Tiempo de respuesta enrutado por sidecar en el percentil 95 en toda la malla."
-          },
-          {
-            "label": "Tasa de errores",
-            "tip": "100 − SLA de la malla. Llamadas con respuesta distinta a 2xx según ALS del sidecar."
-          }
-        ]
-      },
-      {
-        "title": "Estado",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Puntuación de satisfacción del usuario en escala 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

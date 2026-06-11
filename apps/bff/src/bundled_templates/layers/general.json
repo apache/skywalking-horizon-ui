@@ -30,45 +30,6 @@
       { "metric": "err", "label": "Error Rate", "unit": "%", "mqe": "100 - service_sla/100", "aggregation": "avg" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency & errors",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "p95",
-            "label": "P95",
-            "tip": "95th-percentile response time across the layer.",
-            "mqe": "service_percentile{p='95'}",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "err",
-            "label": "Error Rate",
-            "tip": "100 − SLA. Higher = worse.",
-            "mqe": "100 - service_sla/100",
-            "unit": "%",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Health",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "apdex",
-            "label": "Apdex",
-            "tip": "User-satisfaction score on a 0 – 1 scale.",
-            "mqe": "service_apdex/10000",
-            "aggregation": "avg"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

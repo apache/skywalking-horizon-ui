@@ -24,6 +24,20 @@ server:
   host: 127.0.0.1
   port: 8081
 
+# Layers hidden from the sidebar even when OAP reports them in listLayers.
+# Config-driven — there is no hard-coded hide list. Clear `excluded` to
+# surface every reported layer, or add keys for internal-only layers you
+# don't want on the menu. `reason` is a note for whoever reads this file;
+# it is NOT shown in the UI (an excluded layer simply doesn't appear).
+# Keys are OAP layer keys (UPPER_SNAKE), matched case-insensitively.
+# The defaults below are applied when this block is omitted entirely.
+layers:
+  excluded:
+    - key: FAAS
+      reason: Deprecated.
+    - key: VIRTUAL_GATEWAY
+      reason: Not planned to set up.
+
 oap:
   # OAP query host (port 12800 by default; GraphQL + /status/*). One URL
   # because query traffic is load-balanceable — any OAP node can answer.

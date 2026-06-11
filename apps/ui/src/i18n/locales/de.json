@@ -407,8 +407,6 @@
   "silence left": "bis Stummschaltung",
   "window": "Fenster",
   "window end": "Fensterende",
-  "No published version on OAP": "Keine veröffentlichte Version auf OAP",
-  "This layer has no template stored on OAP. Horizon ships a bundled default, but it is not loaded for editing and the live UI does not render it — push a version to publish. Reset to bundled to start from the shipped default, then edit and publish.": "Für diesen Layer ist keine Vorlage auf OAP gespeichert. Horizon liefert eine integrierte Standardvorlage mit, doch diese wird nicht zum Bearbeiten geladen und von der Live-UI nicht gerendert — veröffentlichen Sie eine Version, um sie bereitzustellen. Setzen Sie auf die integrierte Vorlage zurück, um vom mitgelieferten Standard auszugehen, und bearbeiten und veröffentlichen Sie sie anschließend.",
   "This overview has no version stored on OAP. A bundled default may ship with Horizon, but it is not loaded for editing and the live UI does not render it. Reset to bundled to start from the shipped default, then edit and publish.": "Für diese Übersicht ist keine Version auf OAP gespeichert. Möglicherweise liefert Horizon eine integrierte Standardvorlage mit, doch diese wird nicht zum Bearbeiten geladen und von der Live-UI nicht gerendert. Setzen Sie auf die integrierte Vorlage zurück, um vom mitgelieferten Standard auszugehen, und bearbeiten und veröffentlichen Sie sie anschließend.",
   "client": "Client",
   "server": "Server",
@@ -1353,5 +1351,11 @@
   "Import failed: {error}": "Import fehlgeschlagen: {error}",
   "Unsupported language: {locale}": "Nicht unterstützte Sprache: {locale}",
   "Template {name} is not loaded on this deployment.": "Vorlage {name} ist auf dieser Instanz nicht geladen.",
-  "Could not load the target template.": "Die Zielvorlage konnte nicht geladen werden."
+  "Could not load the target template.": "Die Zielvorlage konnte nicht geladen werden.",
+  "Deployment": "Deployment",
+  "clustered by": "gruppiert nach",
+  "ungrouped": "ohne Gruppe",
+  "Scale": "Maßstab",
+  "Pick a service to see its deployment topology.": "Wählen Sie einen Service, um seine Deployment-Topologie zu sehen.",
+  "No deployment topology in this window.": "Keine Deployment-Topologie in diesem Zeitfenster."
 }

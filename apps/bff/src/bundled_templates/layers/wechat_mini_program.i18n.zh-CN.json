@@ -14,24 +14,6 @@
       { "label": "错误" }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "延迟与错误",
-        "metrics": [
-          { "label": "请求 P95", "tip": "来自微信网络桥的 95 分位请求耗时。" },
-          { "label": "启动", "tip": "微信客户端观察到的小程序启动耗时。" },
-          { "label": "错误", "tip": "上报的错误次数。" }
-        ]
-      },
-      {
-        "title": "吞吐量",
-        "metrics": [
-          { "label": "请求 RPM", "tip": "桥每分钟的请求数。" }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       { "title": "应用启动耗时" },

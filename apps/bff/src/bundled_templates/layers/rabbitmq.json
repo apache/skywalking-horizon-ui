@@ -45,37 +45,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Throughput",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "published",
-            "label": "Published / min",
-            "tip": "Messages published per minute.",
-            "mqe": "aggregate_labels(meter_rabbitmq_messages_published,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "unconfirmed",
-            "label": "Unconfirmed",
-            "tip": "Messages awaiting publisher confirm.",
-            "mqe": "aggregate_labels(meter_rabbitmq_messages_unconfirmed,sum)",
-            "aggregation": "sum"
-          },
-          {
-            "id": "unroutable",
-            "label": "Unroutable dropped",
-            "tip": "Messages dropped because no exchange route matched.",
-            "mqe": "meter_rabbitmq_messages_unroutable_dropped",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

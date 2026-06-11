@@ -46,45 +46,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latency",
-        "size": "auto",
-        "metrics": [
-          {
-            "id": "kongLatency",
-            "label": "Kong Latency",
-            "tip": "Time Kong itself spends per request, p50/p95.",
-            "mqe": "aggregate_labels(meter_kong_service_kong_latency,avg(p))",
-            "unit": "ms",
-            "aggregation": "avg"
-          },
-          {
-            "id": "upstreamLatency",
-            "label": "Upstream Latency",
-            "tip": "Time waiting on the upstream service.",
-            "mqe": "aggregate_labels(meter_kong_service_upstream_latency,avg(p))",
-            "unit": "ms",
-            "aggregation": "avg"
-          }
-        ]
-      },
-      {
-        "title": "Throughput",
-        "size": "square",
-        "metrics": [
-          {
-            "id": "rps",
-            "label": "RPS",
-            "tip": "Requests per second through Kong.",
-            "mqe": "aggregate_labels(meter_kong_service_http_requests,sum)",
-            "aggregation": "sum"
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

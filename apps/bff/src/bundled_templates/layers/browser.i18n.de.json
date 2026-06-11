@@ -13,28 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Seitenstatus",
-        "metrics": [
-          {
-            "label": "Fehlerrate",
-            "tip": "Prozentsatz der Seitenladevorgänge, die einen Fehler erzeugten."
-          }
-        ]
-      },
-      {
-        "title": "Durchsatz",
-        "metrics": [
-          {
-            "label": "PV / min",
-            "tip": "Seitenaufrufe pro Minute."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {

@@ -13,32 +13,6 @@
       }
     ]
   },
-  "overview": {
-    "groups": [
-      {
-        "title": "Latenz & Fehler",
-        "metrics": [
-          {
-            "label": "P95",
-            "tip": "95. Perzentil der Antwortzeit über die Schicht."
-          },
-          {
-            "label": "Fehlerrate",
-            "tip": "100 − SLA. Höher = schlechter."
-          }
-        ]
-      },
-      {
-        "title": "Status",
-        "metrics": [
-          {
-            "label": "Apdex",
-            "tip": "Nutzerzufriedenheits-Score auf einer Skala von 0 – 1."
-          }
-        ]
-      }
-    ]
-  },
   "dashboards": {
     "service": [
       {
