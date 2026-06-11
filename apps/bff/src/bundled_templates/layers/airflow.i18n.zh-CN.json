@@ -1,0 +1,98 @@
+{
+  "alias": "Airflow",
+  "group": "工作流调度",
+  "slots": {
+    "services": "Airflow 集群",
+    "instances": "组件"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "DAG Bag 大小" },
+      { "label": "DAG 总解析时间" },
+      { "label": "Executor 空闲 Slot" },
+      { "label": "已调度 Slot" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "集群",
+        "metrics": [
+          {
+            "label": "可执行任务",
+            "tip": "集群内待执行的任务数（airflow.scheduler.tasks.executable）。"
+          },
+          {
+            "label": "排队任务",
+            "tip": "Executor 上排队等待的任务数（airflow.executor.queued_tasks）。"
+          },
+          {
+            "label": "Executor 空闲 Slot",
+            "tip": "Executor 可用 slot，非 pool 容量（airflow.executor.open_slots）。"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "可执行任务",
+        "tip": "集群内待执行的任务数（airflow.scheduler.tasks.executable）。"
+      },
+      {
+        "title": "运行中任务",
+        "tip": "Executor 上正在运行的任务数（airflow.executor.running_tasks）。"
+      },
+      {
+        "title": "已调度 Slot",
+        "tip": "Pool 中已调度但未运行的 slot，跨 pool 聚合（airflow.pool.scheduled_slots）。"
+      },
+      {
+        "title": "排队任务",
+        "tip": "Executor 上排队等待的任务数（airflow.executor.queued_tasks）。"
+      },
+      {
+        "title": "Executor 空闲 Slot",
+        "tip": "Executor 可用 slot（airflow.executor.open_slots）。"
+      },
+      { "title": "DAG 文件队列大小", "tip": "待扫描的 DAG 文件数（airflow.dag_processing.file_path_queue_size）。" },
+      { "title": "DAG 导入错误", "tip": "解析失败的 DAG 文件数（airflow.dag_processing.import_errors）。" },
+      { "title": "DAG Bag 大小", "tip": "最近一次 scheduler 扫描发现的 DAG 数（airflow.dagbag_size）。" },
+      { "title": "DAG 总解析时间", "tip": "扫描并导入排队 DAG 文件的秒数（airflow.dag_processing.total_parse_time）。" },
+      { "title": "DAG 文件刷新错误", "tip": "每分钟 DAG 文件加载失败次数（airflow.dag_file_refresh_error）。" },
+      { "title": "Asset 更新", "tip": "每分钟 asset 更新事件数（airflow.asset.updates）。" }
+    ],
+    "instance": [
+      {
+        "title": "Pool 空闲 / 延迟 / 运行 Slot",
+        "tip": "Scheduler 上的 pool 容量（airflow.pool.open_slots、deferred_slots、running_slots）。",
+        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+      },
+      {
+        "title": "运行中任务 / 已调度 Slot",
+        "tip": "Scheduler executor 队列深度及待运行的 pool slot。",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Scheduler 心跳", "tip": "Scheduler 每分钟心跳数（airflow.scheduler_heartbeat）。" },
+      {
+        "title": "Executor 空闲 / 排队 Slot",
+        "tip": "Scheduler 上 executor 容量与队列深度。",
+        "expressionLabels": ["open slots", "queued tasks"]
+      },
+      { "title": "Asset 更新", "tip": "Scheduler 上的 asset 更新事件（airflow.asset.updates）。" },
+      { "title": "Asset 触发的 DagRun", "tip": "Scheduler 上由 asset 事件触发的 DagRun（airflow.asset.triggered_dagruns）。" },
+      { "title": "Triggerer 心跳", "tip": "Triggerer 每分钟心跳数（airflow.triggerer_heartbeat）。" },
+      {
+        "title": "运行中 Trigger / 剩余容量",
+        "tip": "Triggerer 上 deferrable trigger 负载。",
+        "expressionLabels": ["triggers running", "capacity left"]
+      },
+      {
+        "title": "Trigger 阻塞 / 失败 / 成功",
+        "tip": "Triggerer 主机上 deferred trigger 结果。",
+        "expressionLabels": ["blocked", "failed", "succeeded"]
+      }
+    ]
+  }
+}

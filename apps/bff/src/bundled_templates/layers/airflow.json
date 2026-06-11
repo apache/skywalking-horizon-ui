@@ -1,0 +1,372 @@
+{
+  "key": "AIRFLOW",
+  "alias": "Airflow",
+  "group": "Workflow Scheduler",
+  "color": "var(--sw-cyan)",
+  "documentLink": "https://skywalking.apache.org/docs/main/next/en/setup/backend/backend-airflow-monitoring/",
+  "aliases": {
+    "services": "Airflow clusters",
+    "instances": "Components"
+  },
+  "components": {
+    "service": true,
+    "instances": true,
+    "endpoints": false,
+    "topology": false,
+    "traces": false,
+    "logs": false
+  },
+  "layer-header": {
+    "orderBy": "dagbagSize",
+    "columns": [
+      {
+        "metric": "dagbagSize",
+        "label": "DAG Bag Size",
+        "mqe": "meter_airflow_dagbag_size",
+        "aggregation": "sum"
+      },
+      {
+        "metric": "dagTotalParseTime",
+        "label": "DAG Total Parse Time",
+        "mqe": "meter_airflow_dag_total_parse_time",
+        "aggregation": "sum",
+        "unit": "s"
+      },
+      {
+        "metric": "openSlots",
+        "label": "Executor Open Slots",
+        "mqe": "meter_airflow_executor_open_slots",
+        "aggregation": "sum"
+      },
+      {
+        "metric": "scheduledSlots",
+        "label": "Scheduled Slots",
+        "mqe": "aggregate_labels(meter_airflow_pool_scheduled_slots, sum)",
+        "aggregation": "sum"
+      }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "size": "auto",
+        "metrics": [
+          {
+            "id": "tasksExecutable",
+            "label": "Tasks Executable",
+            "tip": "Tasks ready for execution across the cluster (airflow.scheduler.tasks.executable).",
+            "mqe": "meter_airflow_scheduler_tasks_executable",
+            "aggregation": "sum"
+          },
+          {
+            "id": "queuedTasks",
+            "label": "Queued Tasks",
+            "tip": "Tasks waiting on the executor (airflow.executor.queued_tasks).",
+            "mqe": "meter_airflow_executor_queued_tasks",
+            "aggregation": "sum"
+          },
+          {
+            "id": "openSlots",
+            "label": "Executor Open Slots",
+            "tip": "Free executor slots, not pool capacity (airflow.executor.open_slots).",
+            "mqe": "meter_airflow_executor_open_slots",
+            "aggregation": "sum"
+          }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "tasks_executable",
+        "title": "Tasks Executable",
+        "tip": "Tasks ready for execution across the cluster (airflow.scheduler.tasks.executable).",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_scheduler_tasks_executable)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Running Tasks",
+        "tip": "Tasks currently running on the executor (airflow.executor.running_tasks).",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_executor_running_tasks)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "scheduled_slots",
+        "title": "Scheduled Slots",
+        "tip": "Pool slots scheduled but not yet running, aggregated across pools (airflow.pool.scheduled_slots).",
+        "type": "card",
+        "expressions": [
+          "latest(aggregate_labels(meter_airflow_pool_scheduled_slots, sum))"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "queued_tasks",
+        "title": "Queued Tasks",
+        "tip": "Tasks waiting on the executor (airflow.executor.queued_tasks).",
+        "type": "card",
+        "expressions": [
+          "latest(meter_airflow_executor_queued_tasks)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "open_slots",
+        "title": "Executor Open Slots",
+        "tip": "Free executor slots (airflow.executor.open_slots).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_executor_open_slots"
+        ],
+        "span": 4,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "dag_file_queue",
+        "title": "DAG File Queue Size",
+        "tip": "DAG files pending scan (airflow.dag_processing.file_path_queue_size).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_dag_file_queue_size"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "dag_import_errors",
+        "title": "DAG Import Errors",
+        "tip": "DAG files that failed to parse (airflow.dag_processing.import_errors).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_dag_import_errors"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "dagbag_size",
+        "title": "DAG Bag Size",
+        "tip": "DAGs found in the last scheduler scan (airflow.dagbag_size).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_dagbag_size"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "dag_total_parse_time",
+        "title": "DAG Total Parse Time",
+        "tip": "Seconds to scan and import queued DAG files (airflow.dag_processing.total_parse_time).",
+        "type": "line",
+        "unit": "s",
+        "expressions": [
+          "meter_airflow_dag_total_parse_time"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "decimal"
+      },
+      {
+        "id": "dag_file_refresh_error",
+        "title": "DAG File Refresh Errors",
+        "tip": "DAG file load failures per minute (airflow.dag_file_refresh_error).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_dag_file_refresh_error"
+        ],
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset Updates",
+        "tip": "Asset update events per minute (airflow.asset.updates).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_asset_updates"
+        ],
+        "span": 12,
+        "rowSpan": 2,
+        "format": "int"
+      }
+    ],
+    "instance": [
+      {
+        "id": "pool_slots",
+        "title": "Pool Open / Deferred / Running Slots",
+        "tip": "Pool capacity on the scheduler (airflow.pool.open_slots, airflow.pool.deferred_slots, airflow.pool.running_slots).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_pool_open_slots",
+          "meter_airflow_instance_pool_deferred_slots",
+          "meter_airflow_instance_pool_running_slots"
+        ],
+        "expressionLabels": [
+          "pool open",
+          "pool deferred",
+          "pool running"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_pool_open_slots", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "running_tasks",
+        "title": "Running Tasks / Scheduled Slots",
+        "tip": "Scheduler executor queue depth and pool slots waiting to run (airflow.executor.running_tasks, airflow.pool.scheduled_slots).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_executor_running_tasks",
+          "meter_airflow_instance_pool_scheduled_slots"
+        ],
+        "expressionLabels": [
+          "running tasks",
+          "scheduled slots"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_executor_running_tasks", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "scheduler_heartbeat",
+        "title": "Scheduler Heartbeat",
+        "tip": "Scheduler heartbeats per minute (airflow.scheduler_heartbeat).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_instance_scheduler_heartbeat"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_scheduler_heartbeat", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "executor_slots",
+        "title": "Executor Open / Queued Slots",
+        "tip": "Executor capacity and queue depth on the scheduler (airflow.executor.open_slots, airflow.executor.queued_tasks).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_executor_open_slots",
+          "meter_airflow_instance_executor_queued_tasks"
+        ],
+        "expressionLabels": [
+          "open slots",
+          "queued tasks"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_executor_open_slots", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_updates",
+        "title": "Asset Updates",
+        "tip": "Asset update events on the scheduler (airflow.asset.updates).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_instance_asset_updates"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_asset_updates", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "asset_triggered",
+        "title": "Asset Triggered DagRuns",
+        "tip": "DagRuns triggered by asset events on the scheduler (airflow.asset.triggered_dagruns).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_instance_asset_triggered_dagruns"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_asset_triggered_dagruns", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "triggerer_heartbeat",
+        "title": "Triggerer Heartbeat",
+        "tip": "Triggerer process heartbeats per minute (airflow.triggerer_heartbeat).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_instance_triggerer_heartbeat"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "triggerer_capacity",
+        "title": "Triggers Running / Capacity Left",
+        "tip": "Live deferrable trigger load on the triggerer (airflow.triggers.running, airflow.triggerer.capacity_left).",
+        "type": "line",
+        "expressions": [
+          "meter_airflow_instance_triggers_running",
+          "meter_airflow_instance_triggerer_capacity_left"
+        ],
+        "expressionLabels": [
+          "triggers running",
+          "capacity left"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      },
+      {
+        "id": "triggers",
+        "title": "Triggers Blocked / Failed / Succeeded",
+        "tip": "Deferred trigger outcomes on the triggerer host (airflow.triggers.blocked_main_thread, airflow.triggers.failed, airflow.triggers.succeeded).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_airflow_instance_triggers_blocked_main_thread",
+          "meter_airflow_instance_triggers_failed",
+          "meter_airflow_instance_triggers_succeeded"
+        ],
+        "expressionLabels": [
+          "blocked",
+          "failed",
+          "succeeded"
+        ],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_airflow_instance_triggerer_heartbeat", "op": "exists" },
+        "span": 6,
+        "rowSpan": 2,
+        "format": "int"
+      }
+    ]
+  }
+}

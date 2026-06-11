@@ -1,0 +1,69 @@
+{
+  "alias": "Airflow",
+  "group": "Workflow-Scheduler",
+  "slots": {
+    "services": "Airflow-Cluster",
+    "instances": "Komponenten"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "DAG-Bag-Größe" },
+      { "label": "DAG-Gesamt-Parsezeit" },
+      { "label": "Freie Executor-Slots" },
+      { "label": "Geplante Slots" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          { "label": "Ausführbare Tasks", "tip": "Auf dem Cluster ausführbare Tasks." },
+          { "label": "Wartende Tasks", "tip": "Tasks in der Executor-Warteschlange." },
+          { "label": "Freie Executor-Slots", "tip": "Freie Executor-Slots, keine Pool-Kapazität." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Ausführbare Tasks" },
+      { "title": "Laufende Tasks" },
+      { "title": "Geplante Slots" },
+      { "title": "Wartende Tasks" },
+      { "title": "Freie Executor-Slots" },
+      { "title": "DAG-Datei-Warteschlange" },
+      { "title": "DAG-Importfehler" },
+      { "title": "DAG-Bag-Größe" },
+      { "title": "DAG-Gesamt-Parsezeit" },
+      { "title": "DAG-Datei-Refresh-Fehler" },
+      { "title": "Asset-Updates" }
+    ],
+    "instance": [
+      {
+        "title": "Pool offen / zurückgestellt / laufend",
+        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+      },
+      {
+        "title": "Laufende Tasks / geplante Slots",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Scheduler-Heartbeat" },
+      {
+        "title": "Executor offen / wartend",
+        "expressionLabels": ["open slots", "queued tasks"]
+      },
+      { "title": "Asset-Updates" },
+      { "title": "Asset-ausgelöste DagRuns" },
+      { "title": "Triggerer-Heartbeat" },
+      {
+        "title": "Laufende Trigger / freie Kapazität",
+        "expressionLabels": ["triggers running", "capacity left"]
+      },
+      {
+        "title": "Trigger blockiert / fehlgeschlagen / erfolgreich",
+        "expressionLabels": ["blocked", "failed", "succeeded"]
+      }
+    ]
+  }
+}

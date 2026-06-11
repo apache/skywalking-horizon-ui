@@ -51,6 +51,14 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   tile — so it was dead config; the per-layer KPI strip is driven by the
   layer-header columns.
 
+### Airflow monitoring layer (SWIP-7)
+
+- New **Airflow** layer under **Workflow Scheduler** — service dashboard
+  (scheduler / executor / pool KPIs and trends), Components dashboard
+  (per-host scheduler and triggerer metrics for **Airflow 3.x** native OTel),
+  and a 3D Infra Map load ring for **Tasks Executable**. Pairs with OAP backend
+  SWIP-7 (`meter_airflow_*` / `meter_airflow_instance_*`).
+
 ### Dashboard widget visibility
 
 - Layer-dashboard widgets gain a structured **Visible when** gate (Layer

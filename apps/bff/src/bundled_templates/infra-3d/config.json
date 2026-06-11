@@ -73,6 +73,7 @@
         "NGINX",
         "KONG",
         "FLINK",
+        "AIRFLOW",
         "SO11Y_OAP",
         "SO11Y_SATELLITE",
         "SO11Y_BANYANDB",
@@ -258,6 +259,10 @@
     "FLINK": {
       "color": "#e6526f",
       "metric":  { "mqe": "latest(meter_flink_jobManager_running_job_number)", "label": "Running Jobs", "unit": "jobs" }
+    },
+    "AIRFLOW": {
+      "color": "#017cee",
+      "metric":  { "mqe": "latest(meter_airflow_scheduler_tasks_executable)", "label": "Tasks Executable" }
     },
     "SO11Y_OAP": {
       "color": "#69b1ff",

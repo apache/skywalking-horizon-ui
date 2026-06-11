@@ -1,0 +1,69 @@
+{
+  "alias": "Airflow",
+  "group": "Agendador de workflows",
+  "slots": {
+    "services": "Clusters Airflow",
+    "instances": "Componentes"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "Tamanho do DAG bag" },
+      { "label": "Tempo total de parse DAG" },
+      { "label": "Slots livres do executor" },
+      { "label": "Slots agendados" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "Cluster",
+        "metrics": [
+          { "label": "Tasks executáveis", "tip": "Tasks prontas para execução no cluster." },
+          { "label": "Tasks enfileiradas", "tip": "Tasks aguardando no executor." },
+          { "label": "Slots livres do executor", "tip": "Slots livres do executor, não capacidade do pool." }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "Tasks executáveis" },
+      { "title": "Tasks em execução" },
+      { "title": "Slots agendados" },
+      { "title": "Tasks enfileiradas" },
+      { "title": "Slots livres do executor" },
+      { "title": "Tamanho da fila de arquivos DAG" },
+      { "title": "Erros de importação DAG" },
+      { "title": "Tamanho do DAG bag" },
+      { "title": "Tempo total de parse DAG" },
+      { "title": "Erros de refresh de arquivos DAG" },
+      { "title": "Atualizações de assets" }
+    ],
+    "instance": [
+      {
+        "title": "Slots de pool abertos / adiados / em execução",
+        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+      },
+      {
+        "title": "Tasks em execução / slots agendados",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "Heartbeat do scheduler" },
+      {
+        "title": "Slots do executor abertos / enfileirados",
+        "expressionLabels": ["open slots", "queued tasks"]
+      },
+      { "title": "Atualizações de assets" },
+      { "title": "DagRuns acionados por assets" },
+      { "title": "Heartbeat do triggerer" },
+      {
+        "title": "Triggers em execução / capacidade restante",
+        "expressionLabels": ["triggers running", "capacity left"]
+      },
+      {
+        "title": "Triggers bloqueados / falhos / bem-sucedidos",
+        "expressionLabels": ["blocked", "failed", "succeeded"]
+      }
+    ]
+  }
+}

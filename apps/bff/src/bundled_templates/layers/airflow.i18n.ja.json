@@ -1,0 +1,69 @@
+{
+  "alias": "Airflow",
+  "group": "ワークフロースケジューラ",
+  "slots": {
+    "services": "Airflow クラスタ",
+    "instances": "コンポーネント"
+  },
+  "layer-header": {
+    "columns": [
+      { "label": "DAG bag サイズ" },
+      { "label": "DAG 総パース時間" },
+      { "label": "Executor 空きスロット" },
+      { "label": "スケジュール済みスロット" }
+    ]
+  },
+  "overview": {
+    "groups": [
+      {
+        "title": "クラスタ",
+        "metrics": [
+          { "label": "実行可能タスク", "tip": "クラスタ全体で実行可能なタスク数。" },
+          { "label": "キュー待ちタスク", "tip": "Executor で待機中のタスク数。" },
+          { "label": "Executor 空きスロット", "tip": "Executor の空きスロット（プール容量ではない）。" }
+        ]
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      { "title": "実行可能タスク" },
+      { "title": "実行中タスク" },
+      { "title": "スケジュール済みスロット" },
+      { "title": "キュー待ちタスク" },
+      { "title": "Executor 空きスロット" },
+      { "title": "DAG ファイルキューサイズ" },
+      { "title": "DAG インポートエラー" },
+      { "title": "DAG bag サイズ" },
+      { "title": "DAG 総パース時間" },
+      { "title": "DAG ファイル更新エラー" },
+      { "title": "アセット更新" }
+    ],
+    "instance": [
+      {
+        "title": "プール空き / 延期 / 実行中スロット",
+        "expressionLabels": ["pool open", "pool deferred", "pool running"]
+      },
+      {
+        "title": "実行中タスク / スケジュール済みスロット",
+        "expressionLabels": ["running tasks", "scheduled slots"]
+      },
+      { "title": "スケジューラハートビート" },
+      {
+        "title": "Executor 空き / キュー待ちスロット",
+        "expressionLabels": ["open slots", "queued tasks"]
+      },
+      { "title": "アセット更新" },
+      { "title": "アセット起動 DagRun" },
+      { "title": "トリガラーハートビート" },
+      {
+        "title": "実行中トリガ / 残り容量",
+        "expressionLabels": ["triggers running", "capacity left"]
+      },
+      {
+        "title": "トリガ ブロック / 失敗 / 成功",
+        "expressionLabels": ["blocked", "failed", "succeeded"]
+      }
+    ]
+  }
+}
