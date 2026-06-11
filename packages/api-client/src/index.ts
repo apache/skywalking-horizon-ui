@@ -119,6 +119,20 @@ export type {
   LogsResponse,
   LogFacetsResponse,
 } from './logs.js';
+export type {
+  BrowserErrorCategory,
+  BrowserErrorRow,
+  BrowserErrorsQueryRequest,
+  BrowserErrorsResponse,
+  SourceMapOrigin,
+  SourceMapDescriptor,
+  SourceMapUsage,
+  SourceMapListResponse,
+  SourceMapUploadResponse,
+  ResolveRequest,
+  ResolvedFrame,
+  ResolveResponse,
+} from './browser-errors.js';
 export type { OapInfo, OapCapabilities, OapBackend } from './oap-info.js';
 export type {
   RecordsTTL,

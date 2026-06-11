@@ -15,6 +15,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `setup` / `alarms` | State file paths. | [files](files.md) |
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
 | `query` | Per-request query limits (the layer-landing service cap). | [below](#query-limits) |
+| `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
@@ -46,6 +47,7 @@ audit:   { file? }
 setup:   { file? }
 alarms:  { file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
+sourceMaps: { enabled?, maxFileBytes?, maxTotalBytes?, maxFileCount?, bootMountDir? }
 layers:  { excluded?: [{ key, reason? }] }
 ```
 
@@ -90,11 +92,14 @@ The config is re-read on file change and the new values take effect without a re
 - RBAC roles and policy (re-evaluated on next route call).
 - OAP URLs and credentials (used on next outbound call).
 - Session TTL (new sessions use the new TTL; existing sessions keep their original).
+- `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below.
 
-Two changes require a process restart:
+These changes require a process restart:
 
 - `server.host`, `server.port` — the listener already bound.
 - Capability probes — the OAP schema introspection cache is per-process.
+- `sourceMaps.bootMountDir` — the static source-map directory is scanned once at startup, so a new directory (and newly-dropped `.map` files) needs a restart. The count of maps loaded from that mount is fixed by the startup scan as well: lowering `sourceMaps.maxFileCount` afterwards trims only the in-memory uploaded set, never the already-mounted maps — restart to re-scan a mount against a lower count.
+- **Raising** `sourceMaps.maxFileBytes` — the multipart upload size limit is fixed at startup; lowering it applies live.
 
 ## Query limits
 

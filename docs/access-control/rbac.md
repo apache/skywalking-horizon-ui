@@ -23,6 +23,7 @@ Known verbs are grouped into areas:
 | `alarms:read` | Alarms page, alarm widgets on overviews. |
 | `traces:read` | Traces tab on any layer, trace detail page. |
 | `logs:read` | Logs tab on any layer, log detail page. |
+| `browser-errors:read` | Browser Logs tab (BROWSER layer): list JS error logs, list source maps, resolve a stack. |
 | `topology:read` | Topology tab, topology widgets on overviews. |
 | `profile:read` | Profiling tab (results read-only). |
 | `overview:read` | Public overview dashboards. |
@@ -43,6 +44,7 @@ Known verbs are grouped into areas:
 | `rule:delete` | DSL Management — delete a rule. |
 | `rule:debug` | DSL Management — debug a rule against sample input. |
 | `live-debug:read` / `live-debug:write` | Live Debugger — observe / start sessions. |
+| `source-map:write` | Browser Logs — upload / remove source maps (held in BFF memory). |
 | `profile:enable` | Create a profiling task on a layer. |
 
 ### Platform monitoring
@@ -94,7 +96,7 @@ Default definitions (used when `rbac.roles` is not overridden):
 Read-only data catalog. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or platform internals.
 
 ```
-metrics:read, alarms:read, traces:read, logs:read, topology:read, profile:read, overview:read
+metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read
 ```
 
 ### `maintainer`
@@ -112,6 +114,7 @@ Configures observability. Inherits maintainer's reads + write access to dashboar
 ```
 maintainer baseline +
 overview:read, overview:write,
+source-map:write,
 setup:read, setup:write,
 dashboard:read, dashboard:write,
 alarm-setup:read, alarm-setup:write,

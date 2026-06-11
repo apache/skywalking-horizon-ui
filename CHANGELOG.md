@@ -9,6 +9,25 @@ packages) plus the BFF's `HORIZON_VERSION` default.
 
 ## 0.7.0
 
+### Browser errors & source maps
+
+- **New "Browser Logs" tab on the BROWSER layer** — lists the JS error logs
+  the browser agent reports (message, category, page, app version, time, and
+  the minified `line:col`), filterable by category and time window. Expanding a
+  row shows the raw stack alongside a de-obfuscated view.
+- **Source-map de-obfuscation (issue [#6784](https://github.com/apache/skywalking/issues/6784)).**
+  Upload a `.map` file from the tab and resolve any error's minified stack back
+  to the original source — file, line, column, symbol name, and a source
+  snippet — by picking which map to apply. Maps are held in the BFF's **memory
+  only** (no backend storage): they're surfaced as *temporary*, evicted
+  least-recently-used when the configured budget is hit, and lost on restart. For durable
+  provisioning, mount `.map` files into the server's static source-map directory
+  (`HORIZON_SOURCEMAPS_DIR`, `/app/sourcemaps` in the image) — those reload
+  automatically and can't be deleted from the UI. Budgets are configurable via
+  the new `sourceMaps` block in `horizon.yaml` (per-file and total in-memory
+  caps; defaults 64 MiB / 512 MiB). Upload/delete require the new
+  `source-map:write` permission; viewing + resolving ride on `browser-errors:read`.
+
 ### Layers
 
 - **Every layer OAP reports now appears in the sidebar**, including ones

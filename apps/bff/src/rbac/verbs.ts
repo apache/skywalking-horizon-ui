@@ -28,6 +28,7 @@ export const VERBS = {
   alarmsRead: 'alarms:read',
   tracesRead: 'traces:read',
   logsRead: 'logs:read',
+  browserErrorsRead: 'browser-errors:read',
   topologyRead: 'topology:read',
   profileRead: 'profile:read',
 
@@ -49,6 +50,8 @@ export const VERBS = {
   alarmRuleWrite: 'alarm-rule:write',
   liveDebugRead: 'live-debug:read',
   liveDebugWrite: 'live-debug:write',
+  /** Upload / delete browser-error source maps held in BFF memory. */
+  sourceMapWrite: 'source-map:write',
   /** Single verb covering task-creation across all profiling families
    *  (agent / async / pprof / eBPF cpu / eBPF network). Reads ride on
    *  `*:read` via `profile:read`. */

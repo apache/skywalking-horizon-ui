@@ -59,6 +59,9 @@ export interface LayerCaps {
   dashboards?: boolean;
   traces?: boolean;
   logs?: boolean;
+  /** Per-layer "Browser Errors" tab — BROWSER-layer JS error logs with
+   *  source-map de-obfuscation of the minified stack (#6784). */
+  browserErrors?: boolean;
   /** Trace-driven thread profiling (the original SkyWalking profile). */
   traceProfiling?: boolean;
   /** Kernel-level CPU / off-CPU profiling sourced from eBPF agents. */

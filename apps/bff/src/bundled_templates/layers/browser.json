@@ -14,7 +14,8 @@
     "endpoints": true,
     "topology": false,
     "traces": true,
-    "logs": true
+    "logs": false,
+    "browserErrors": true
   },
   "layer-header": {
     "orderBy": "pv",

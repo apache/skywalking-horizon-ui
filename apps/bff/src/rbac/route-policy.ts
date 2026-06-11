@@ -97,6 +97,15 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/pod-logs/containers':       'logs:read',
   'POST /api/layer/:key/pod-logs':                 'logs:read',
 
+  // ── Browser errors + source maps (#6784) ─────────────────────────
+  // Listing + resolving rides on the read verb; upload/delete of maps
+  // (which sit in BFF memory) needs the dedicated write verb.
+  'POST /api/layer/:key/browser-errors':           'browser-errors:read',
+  'GET /api/browser-errors/source-maps':           'browser-errors:read',
+  'POST /api/browser-errors/resolve':              'browser-errors:read',
+  'POST /api/browser-errors/source-maps':          'source-map:write',
+  'DELETE /api/browser-errors/source-maps/:id':    'source-map:write',
+
   // ── Topology (read) ──────────────────────────────────────────────
   'GET /api/layer/:key/topology':                  'topology:read',
   'GET /api/layer/:key/instance-topology':         'topology:read',

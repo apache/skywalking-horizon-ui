@@ -184,6 +184,7 @@ const SCOPE_CAP_PREDICATE: Record<string, (L: LayerDef) => boolean> = {
   dependency: (L) => Boolean(L.caps?.endpointDependency),
   trace: (L) => Boolean(L.caps?.traces),
   logs: (L) => Boolean(L.caps?.logs),
+  'browser-errors': (L) => Boolean(L.caps?.browserErrors),
   'trace-profiling': (L) => Boolean(L.caps?.traceProfiling),
   'ebpf-profiling': (L) => Boolean(L.caps?.ebpfProfiling),
   'async-profiling': (L) => Boolean(L.caps?.asyncProfiling),

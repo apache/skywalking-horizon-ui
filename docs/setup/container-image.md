@@ -32,6 +32,7 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 | `/app/horizon.yaml` | n/a | n/a | Where the BFF expects the **active** config. **Not present in the image** — provide via mount or `COPY` (see below). |
 | `/app/bundled_templates/` | **horizon** | **yes** | Layer + overview JSON templates. Owned by `horizon` because the admin **Layer-Templates** and **Overview-Templates** editors write into per-key files here. |
 | `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log, setup state, alarm state, and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
+| `/app/sourcemaps/` | **horizon** | (read) | Static source maps for the **Browser Logs** tab. Bind-mount or copy `.map` files here and they're loaded at boot — durable across restarts. Optional; runtime uploads work without it. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
 The runtime stage runs as the non-root user `horizon`. Two locations are owned by `horizon` so writes work without operator intervention: `bundled_templates/` (so the admin editors save) and `/data/` (so state files land somewhere durable).
 
@@ -47,6 +48,7 @@ The runtime stage runs as the non-root user `horizon`. Two locations are owned b
 | `HORIZON_SETUP_FILE` | `/data/horizon-setup.json` | Default for `setup.file`. |
 | `HORIZON_ALARMS_FILE` | `/data/horizon-alarms.json` | Default for `alarms.file`. |
 | `HORIZON_WIRE_LOG_FILE` | `/data/horizon-wire.jsonl` | Default for `debugLog.file`. |
+| `HORIZON_SOURCEMAPS_DIR` | `/app/sourcemaps` | Default for `sourceMaps.bootMountDir` — the directory scanned at boot for statically-provisioned `.map` files. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
 The four `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/setup/alarms/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
 

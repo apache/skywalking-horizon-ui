@@ -79,6 +79,7 @@ import { LayerApi } from './scopes/layer';
 import { TraceApi } from './scopes/trace';
 import { ZipkinApi } from './scopes/zipkin';
 import { LogApi } from './scopes/log';
+import { BrowserErrorsApi } from './scopes/browser-errors';
 import { ProfileApi } from './scopes/profile';
 import { EbpfApi } from './scopes/ebpf';
 import { NetworkProfileApi } from './scopes/network-profile';
@@ -167,6 +168,17 @@ export type {
   LogQueryRequest,
   LogsResponse,
   LogFacetsResponse,
+  BrowserErrorCategory,
+  BrowserErrorRow,
+  BrowserErrorsQueryRequest,
+  BrowserErrorsResponse,
+  SourceMapDescriptor,
+  SourceMapUsage,
+  SourceMapListResponse,
+  SourceMapUploadResponse,
+  ResolveRequest,
+  ResolvedFrame,
+  ResolveResponse,
   ProfileTask,
   ProfileTaskLog,
   ProfileTaskListResponse,
@@ -280,6 +292,7 @@ export interface AdminLayerTemplate {
     deployment?: boolean;
     traces?: boolean;
     logs?: boolean;
+    browserErrors?: boolean;
     podLogs?: boolean;
     profiling?: boolean;
     traceProfiling?: boolean;
@@ -802,6 +815,53 @@ export class BffClient {
     return (await res.text()) as unknown as T;
   }
 
+  /** Multipart variant of {@link request} for file uploads (source-map
+   *  `.map` files). Sends a FormData body WITHOUT a content-type header so
+   *  the browser sets the multipart boundary; otherwise mirrors request()'s
+   *  401 hook + error envelope. */
+  async requestForm<T>(method: string, path: string, form: FormData): Promise<T> {
+    const init: RequestInit = {
+      method,
+      credentials: 'include',
+      headers: {
+        ...(readColdStageHeader() ? { [COLD_STAGE_HEADER]: '1' } : {}),
+        [LOCALE_HEADER]: currentLocale(),
+      },
+      body: form,
+    };
+    const url = withBase(path);
+    let res: Response;
+    try {
+      res = await fetch(url, init);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      pushEvent('api', 'err', `${method} ${path} · network ${detail}`);
+      throw new BffApiError(0, `Cannot reach the server — the BFF is unreachable (${detail}).`, null);
+    }
+    if (res.status === 401) {
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
+      this.on401?.();
+      throw new BffApiError(401, 'unauthenticated', null);
+    }
+    if (!res.ok) {
+      const raw = await res.text().catch(() => '');
+      let parsed: unknown = raw;
+      if (raw) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          parsed = raw;
+        }
+      }
+      pushEvent('api', 'err', `${method} ${path} · ${res.status}`);
+      throw new BffApiError(res.status, `${method} ${path} failed (${res.status})`, parsed);
+    }
+    if (res.status === 204) return undefined as T;
+    const ct = res.headers.get('content-type') ?? '';
+    if (ct.includes('application/json')) return (await res.json()) as T;
+    return (await res.text()) as unknown as T;
+  }
+
   // ── Sub-clients (one per scope) ───────────────────────────────────
   readonly session = new SessionApi(this);
   readonly menu = new MenuApi(this);
@@ -811,6 +871,7 @@ export class BffClient {
   readonly trace = new TraceApi(this);
   readonly zipkin = new ZipkinApi(this);
   readonly log = new LogApi(this);
+  readonly browserErrors = new BrowserErrorsApi(this);
   readonly profile = new ProfileApi(this);
   readonly ebpf = new EbpfApi(this);
   readonly networkProfile = new NetworkProfileApi(this);

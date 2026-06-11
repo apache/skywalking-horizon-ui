@@ -144,6 +144,7 @@ rbac:
       - alarms:read
       - traces:read
       - logs:read
+      - browser-errors:read
       - topology:read
       - profile:read
       - overview:read
@@ -154,6 +155,7 @@ rbac:
       - alarms:read
       - traces:read
       - logs:read
+      - browser-errors:read
       - topology:read
       - profile:read
       - overview:read
@@ -170,6 +172,8 @@ rbac:
       - alarms:read
       - traces:read
       - logs:read
+      - browser-errors:read
+      - source-map:write
       - topology:read
       - profile:read
       - cluster:read
@@ -225,3 +229,21 @@ debugLog:
   enabled: false
   maxBodyChars: 8192
   redactAuthHeaders: true
+
+# JS source maps for the BROWSER-layer "Browser Errors" tab (#6784).
+# Maps de-obfuscate minified error stacks back to original source. They
+# are held in the BFF process memory ONLY — there is no OAP-side storage —
+# so this cache is per-instance and intentionally temporary: uploaded maps
+# are lost on restart and the least-recently-used are evicted once the
+# budget is hit. For durable provisioning, drop .map files into the static
+# `bootMountDir` (Docker/k8s mount) — those are reloaded on demand and
+# survive restarts.
+sourceMaps:
+  enabled: true
+  maxFileBytes: 67108864      # 64 MiB — reject any single .map larger
+  maxTotalBytes: 536870912    # 512 MiB — total in-memory budget (LRU-evicted)
+  maxFileCount: 128           # cap on number of hosted maps
+  # Directory scanned at boot for statically-provisioned .map files. The
+  # published image sets HORIZON_SOURCEMAPS_DIR=/app/sourcemaps; leave empty
+  # to disable the static mount.
+  bootMountDir: ${HORIZON_SOURCEMAPS_DIR:}
