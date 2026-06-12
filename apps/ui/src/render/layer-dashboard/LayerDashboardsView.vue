@@ -47,7 +47,7 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { fmtMetricAs } from '@/utils/formatters';
+import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
 
 const route = useRoute();
@@ -83,6 +83,26 @@ const safeLayer = computed<LayerDef>(() => layer.value ?? {
   key: layerKey.value, name: layerKey.value, color: 'var(--sw-fg-2)',
   serviceCount: -1, active: false, level: null, slots: {}, caps: {},
 });
+// Instance-row badge: the layer's configured `instances.badge` attribute
+// (default `language`). Hidden when empty or UNKNOWN. See InstanceListConfig.badge.
+function instanceBadge(i: { language?: string | null; attributes: Array<{ name: string; value: string }> }): string | null {
+  const key = layer.value?.instances?.badge ?? 'language';
+  const raw = key.toLowerCase() === 'language'
+    ? (i.language ?? '')
+    : (i.attributes.find((a) => a.name.toLowerCase() === key.toLowerCase())?.value ?? '');
+  return !raw || raw.trim().toUpperCase() === 'UNKNOWN' ? null : raw;
+}
+// Card display string. `format: 'enum'` looks the rounded value up in
+// `valueMap`; labels are localized BFF-side (overlay deep-merge), rendered
+// as-is with no client t(). Otherwise the number is formatted.
+function cardText(w: { id: string; format?: MetricFormat; valueMap?: Record<string, string> }): string {
+  const v = resultsById.value.get(w.id)?.value ?? null;
+  if (v != null && w.format === 'enum' && w.valueMap) {
+    const label = w.valueMap[String(Math.round(v))];
+    if (label != null) return label;
+  }
+  return fmtMetricAs(v, w.format);
+}
 const safeCfg = computed(() => {
   if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [], style: 'table' as const };
   return store.ensure(layer.value.key, { slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics, overview: layer.value.overview }).landing;
@@ -566,7 +586,7 @@ function isHidden(id: string): boolean {
             @click="setSelectedInstance(i.name)"
           >
             <span class="ib-name">{{ i.name }}</span>
-            <span v-if="i.language" class="ib-lang">{{ i.language }}</span>
+            <span v-if="instanceBadge(i)" class="ib-lang">{{ instanceBadge(i) }}</span>
           </button>
           <button
             v-if="i.attributes.length > 0"
@@ -744,7 +764,7 @@ function isHidden(id: string): boolean {
             <div class="card-value">
               <span class="num" :class="{ muted: resultsById.get(w.id)?.value == null }">
                 {{ resultsById.has(w.id)
-                  ? fmtMetricAs(resultsById.get(w.id)?.value ?? null, w.format)
+                  ? cardText(w)
                   : (isFetching ? '…' : fmtMetricAs(null, w.format)) }}
               </span>
               <span v-if="w.unit" class="unit">{{ w.unit }}</span>

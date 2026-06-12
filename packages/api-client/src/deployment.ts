@@ -34,10 +34,17 @@ export interface DeploymentMetricDef {
   id: string;
   /** Display label (UI surfaces this in tooltips + detail panels). */
   label: string;
+  /** Short label shown before the value on the edge pill (e.g. `"W"`, `"R"`),
+   *  so a multi-metric edge reads `W 1.9 · R 2.4`. Absent ⇒ value only. */
+  alias?: string;
   /** The MQE expression evaluated against the entity scope. */
   mqe: string;
   /** Optional unit shown next to the value (e.g. `"rpm"`, `"ms"`, `"%"`). */
   unit?: string;
+  /** Numeric formatting override for the displayed value — same hints as a
+   *  dashboard widget (`'int'` / `'decimal'` / `'compact'` / `'duration'`,
+   *  the last rendering a SECONDS value as a human time-ago like `5m ago`). */
+  format?: 'int' | 'decimal' | 'compact' | 'duration';
   /**
    * Visual binding for the renderer:
    *   - `center`     — number printed in the centre of the hex.
@@ -144,6 +151,34 @@ export interface NodeRoleConfig {
 }
 
 /**
+ * Edge metrics scoped to a specific (source-role → target-role) pair, layered
+ * ON TOP of the global {@link DeploymentConfig.linkServerMetrics} /
+ * `linkClientMetrics`. Lets a `liaison → data` edge surface a different metric
+ * set (and a different headline number) than `data → data`, without forcing one
+ * flat metric list onto every relation.
+ *
+ * Each metric reuses {@link DeploymentMetricDef}; its `role` (`lineServer` /
+ * `lineClient`) picks the relation side, exactly like the flat link defs. The
+ * view resolves an edge's pair via `roleBy`, then renders this pair's metrics in
+ * the edge panel + Flows table; `primary` names the one metric printed on the
+ * edge itself in the map.
+ */
+export interface RolePairMetrics {
+  /** Source-node role key (the value `roleBy` yields), or `'*'` for any.
+   *  Matched case-insensitively. */
+  from: string;
+  /** Target-node role key, or `'*'` for any. Matched case-insensitively. */
+  to: string;
+  /** Metric id(s) (within `metrics`) printed inline on the edge — up to 3,
+   *  stacked. A single string or an ordered array. Absent ⇒ no inline number
+   *  (panel + table only). */
+  primary?: string | string[];
+  /** This pair's edge metrics. Each metric's `role` (`lineServer` /
+   *  `lineClient`) selects the relation side. */
+  metrics: DeploymentMetricDef[];
+}
+
+/**
  * Operator-editable Deployment config. Lives in the layer JSON's own top-level
  * `deployment` block, independent of the service-map `topology` block. Drives
  * the per-layer "Deployment" tab.
@@ -158,10 +193,19 @@ export interface DeploymentConfig {
    *  the FALLBACK for a role that defines none. When `roles` cover every
    *  container, this can be omitted — metrics come from `roles[].nodeMetrics`. */
   nodeMetrics?: DeploymentMetricDef[];
-  /** Per-edge MQE under ServiceInstanceRelation, server side. */
+  /** Per-edge MQE under ServiceInstanceRelation, server side. The FALLBACK
+   *  metric set for an edge whose role-pair matches no {@link roleToRole}
+   *  entry. */
   linkServerMetrics?: DeploymentMetricDef[];
-  /** Per-edge MQE under ServiceInstanceRelation, client side. */
+  /** Per-edge MQE under ServiceInstanceRelation, client side. Fallback, as
+   *  {@link linkServerMetrics}. */
   linkClientMetrics?: DeploymentMetricDef[];
+  /** Per-(role → role) edge metrics, layered on the flat link defs. An edge
+   *  uses the FIRST matching entry (most-specific first: exact `from`/`to`
+   *  beat a `'*'` wildcard); when none matches it falls back to
+   *  `linkServerMetrics`/`linkClientMetrics`. Drives the edge's inline
+   *  `primary` number, the edge panel, and the Flows table. */
+  roleToRole?: RolePairMetrics[];
   /** Node-clustering rule — separates pod-groups into dashed boxes. Absent ⇒
    *  no clustering. Independent of `siblingBy` / `roleBy`. */
   clusterBy?: ClusterByRule;

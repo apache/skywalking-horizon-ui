@@ -49,6 +49,7 @@ import type {
   DeploymentNode,
   DeploymentResponse,
   DeploymentMetricDef,
+  RolePairMetrics,
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
@@ -338,27 +339,24 @@ export function registerDeploymentRoute(
         );
       }
 
-      const nodes = topo.nodes ?? [];
-      const calls = topo.calls ?? [];
-      const nodeById = new Map<string, OapInstNode>();
-      for (const n of nodes) nodeById.set(n.id, n);
-      // OAP hands the decoded service name on each instance node; prefer the
-      // roster name but fall back to it for services missing from the
-      // roster snapshot.
-      if (!serviceName) serviceName = nodes.find((n) => n.serviceId === serviceId)?.serviceName ?? null;
-      const entityServiceName = serviceName ?? '';
-
       // ── Per-instance attributes (node_role / node_type / …) so the UI can
-      // cluster by attribute. Soft-fail: the graph still renders without
-      // attributes, only attribute-clustering degrades to ungrouped.
+      // cluster by attribute — AND the fallback node source. A metrics-only
+      // cluster emits no intra-service instance RELATIONS (OAP ships no MAL
+      // SERVICE_INSTANCE_RELATION scope yet, SWIP-15 future work), so
+      // getServiceInstanceTopology returns nothing — but the containers still
+      // exist as instances. We render them as an inventory (grouped by
+      // role/tier, per-node metrics, no edges) until the relation scope lands.
+      // Soft-fail: degrade to ungrouped if listInstances is unavailable.
       const attrsById = new Map<string, Array<{ name: string; value: string }>>();
       const attrsByName = new Map<string, Array<{ name: string; value: string }>>();
+      let instanceMetas: OapInstanceMeta[] = [];
       try {
         const data = await graphqlPost<{ instances: OapInstanceMeta[] }>(opts, LIST_INSTANCES, {
           serviceId,
           duration: durationVar,
         });
-        for (const inst of data.instances ?? []) {
+        instanceMetas = data.instances ?? [];
+        for (const inst of instanceMetas) {
           const a = inst.attributes ?? [];
           attrsById.set(inst.id, a);
           attrsByName.set(inst.name, a);
@@ -366,6 +364,36 @@ export function registerDeploymentRoute(
       } catch {
         // keep going with empty attribute maps
       }
+
+      const calls = topo.calls ?? [];
+      // Show the FULL container inventory AND the relation edges. Start from the
+      // topology nodes (they carry the call graph), then MERGE IN any roster
+      // instance the topology omits: a container with no intra-service relation
+      // (e.g. the lifecycle sidecar while no migration is running) is absent
+      // from getServiceInstanceTopology but is still a real container we want on
+      // the map. Match by instance name (`pod_name@container_name`), which both
+      // sources key on identically.
+      const topoNodes = topo.nodes ?? [];
+      const topoNames = new Set(topoNodes.map((n) => n.name));
+      const nodes: OapInstNode[] = [
+        ...topoNodes,
+        ...instanceMetas
+          .filter((i) => !topoNames.has(i.name))
+          .map((i) => ({
+            id: i.id,
+            name: i.name,
+            serviceName: serviceName ?? '',
+            serviceId,
+            isReal: true,
+          })),
+      ];
+      const nodeById = new Map<string, OapInstNode>();
+      for (const n of nodes) nodeById.set(n.id, n);
+      // OAP hands the decoded service name on each instance node; prefer the
+      // roster name but fall back to it for services missing from the
+      // roster snapshot.
+      if (!serviceName) serviceName = nodes.find((n) => n.serviceId === serviceId)?.serviceName ?? null;
+      const entityServiceName = serviceName ?? '';
       function attrsFor(n: OapInstNode): Array<{ name: string; value: string }> {
         return attrsById.get(n.id) ?? attrsByName.get(n.name) ?? [];
       }
@@ -426,12 +454,43 @@ export function registerDeploymentRoute(
       const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
       const linkSrv = cfg.linkServerMetrics ?? [];
       const linkCli = cfg.linkClientMetrics ?? [];
+      const roleToRole = cfg.roleToRole ?? [];
+      const dedupeById = (defs: DeploymentMetricDef[]): DeploymentMetricDef[] => {
+        const seen = new Set<string>();
+        return defs.filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
+      };
+      // An edge's role-pair (source role → target role via `roleBy`) selects a
+      // roleToRole entry; most-specific wins (exact `from`/`to` beat a `'*'`
+      // wildcard). The pair's metrics layer on top of the flat link defs.
+      function pairFor(srcRole: string | undefined, dstRole: string | undefined): RolePairMetrics | null {
+        if (roleToRole.length === 0) return null;
+        const s = (srcRole ?? '').toLowerCase();
+        const d = (dstRole ?? '').toLowerCase();
+        const hit = (pat: string, v: string): boolean => pat === '*' || pat.toLowerCase() === v;
+        const score = (p: RolePairMetrics): number => (p.from === '*' ? 0 : 1) + (p.to === '*' ? 0 : 1);
+        let best: RolePairMetrics | null = null;
+        let bestScore = -1;
+        for (const p of roleToRole) {
+          if (hit(p.from, s) && hit(p.to, d) && score(p) > bestScore) { best = p; bestScore = score(p); }
+        }
+        return best;
+      }
+      function edgeDefs(c: OapInstCall): { server: DeploymentMetricDef[]; client: DeploymentMetricDef[] } {
+        const src = nodeById.get(c.source);
+        const dst = nodeById.get(c.target);
+        const pair = pairFor(src ? roleOf(src) : undefined, dst ? roleOf(dst) : undefined);
+        const pm = pair?.metrics ?? [];
+        return {
+          server: dedupeById([...linkSrv, ...pm.filter((m) => m.role === 'lineServer')]),
+          client: dedupeById([...linkCli, ...pm.filter((m) => m.role === 'lineClient')]),
+        };
+      }
       const candidateEdges = calls.filter((c) => {
         const a = nodeById.get(c.source);
         const b = nodeById.get(c.target);
         return !!a && !!b && !!a.name && !!b.name;
       });
-      if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
+      if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0 || roleToRole.length > 0)) {
         const fragments: string[] = [];
         const aliasMap = new Map<
           string,
@@ -440,8 +499,9 @@ export function registerDeploymentRoute(
         candidateEdges.forEach((c, i) => {
           const src = nodeById.get(c.source)!;
           const dst = nodeById.get(c.target)!;
+          const { server, client } = edgeDefs(c);
           if (dst.isReal) {
-            linkSrv.forEach((m, j) => {
+            server.forEach((m, j) => {
               const alias = `s${i}_${j}`;
               aliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
               fragments.push(
@@ -450,7 +510,7 @@ export function registerDeploymentRoute(
             });
           }
           if (src.isReal) {
-            linkCli.forEach((m, j) => {
+            client.forEach((m, j) => {
               const alias = `c${i}_${j}`;
               aliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
               fragments.push(
@@ -485,16 +545,13 @@ export function registerDeploymentRoute(
         }
       }
 
-      // ── Build response. Connected instances only — an instance with no
-      // edge in the window doesn't belong on the graph.
-      const connectedNodeIds = new Set<string>();
-      for (const c of calls) {
-        connectedNodeIds.add(c.source);
-        connectedNodeIds.add(c.target);
-      }
+      // ── Build response. Show EVERY container — both the ones in the call
+      // graph (drawn with edges) and the edge-less ones (lifecycle sidecar, or
+      // a node OAP hasn't yet linked). The graph view groups them by cluster /
+      // pod regardless; hiding un-called nodes would drop the lifecycle
+      // containers the moment any relation edge appears.
       const liveNodes: DeploymentNode[] = [];
       for (const n of nodes) {
-        if (!connectedNodeIds.has(n.id)) continue;
         const m = nodeMetricVals.get(n.id) ?? {};
         const filled: Record<string, number | null> = {};
         for (const def of defsFor(n)) filled[def.id] = m[def.id] ?? null;
@@ -517,15 +574,16 @@ export function registerDeploymentRoute(
         const cm = clientMetricVals.get(c.id) ?? {};
         const ss = serverMetricSeries.get(c.id) ?? {};
         const cs = clientMetricSeries.get(c.id) ?? {};
+        const { server: eServer, client: eClient } = edgeDefs(c);
         const filledSrv: Record<string, number | null> = {};
         const filledSrvSeries: Record<string, Array<number | null> | null> = {};
-        for (const def of linkSrv) {
+        for (const def of eServer) {
           filledSrv[def.id] = sm[def.id] ?? null;
           filledSrvSeries[def.id] = ss[def.id] ?? null;
         }
         const filledCli: Record<string, number | null> = {};
         const filledCliSeries: Record<string, Array<number | null> | null> = {};
-        for (const def of linkCli) {
+        for (const def of eClient) {
           filledCli[def.id] = cm[def.id] ?? null;
           filledCliSeries[def.id] = cs[def.id] ?? null;
         }

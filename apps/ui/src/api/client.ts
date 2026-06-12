@@ -102,6 +102,7 @@ import { TemplateSyncApi } from './scopes/template-sync';
 export type {
   MenuResponse,
   LayerDef,
+  InstanceListConfig,
   LayerCaps,
   LayerSlots,
   OapInfo,
@@ -134,6 +135,7 @@ export type {
   DeploymentMetricDef,
   ClusterByRule,
   NodeRoleConfig,
+  RolePairMetrics,
   DeploymentConfig,
   DeploymentNode,
   DeploymentCall,

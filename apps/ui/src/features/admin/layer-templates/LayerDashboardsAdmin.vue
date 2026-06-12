@@ -39,6 +39,8 @@ import type {
   ProcessTopologyConfig,
   DeploymentConfig,
   DeploymentMetricDef,
+  NodeRoleConfig,
+  RolePairMetrics,
   TopologyConfig,
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
@@ -164,6 +166,9 @@ const RUNTIME_ONLY_SCOPES = new Set<AdminScope>([
   'ebpfProfiling',
   'asyncProfiling',
 ]);
+// Scopes that hold a widget list (so a tab count is meaningful). Config/topology
+// scopes — deployment, topology, dependency — and runtime-only views carry none.
+const WIDGET_SCOPES = new Set<AdminScope>(['service', 'instance', 'endpoint']);
 const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
 const saveMsg = ref<string | null>(null);
 
@@ -843,6 +848,47 @@ function selectWidget(i: number): void {
   selectedIdx.value = i;
 }
 
+function setWidgetFormat(v: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  if (v === 'int' || v === 'decimal' || v === 'compact' || v === 'duration' || v === 'enum') w.format = v;
+  else delete w.format;
+}
+
+// `format: 'enum'` value→label editor — the valueMap is a coded-value → label
+// table (e.g. 1 → OK). Keys are renamed on blur to avoid focus loss mid-edit.
+const valueMapEntries = computed<Array<[string, string]>>(() => {
+  const w = selectedWidget.value;
+  return w?.valueMap ? Object.entries(w.valueMap) : [];
+});
+function setValueMapLabel(key: string, label: string): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  if (!w.valueMap) w.valueMap = {};
+  w.valueMap[key] = label;
+}
+function setValueMapKey(oldKey: string, newKey: string): void {
+  const w = selectedWidget.value;
+  if (!w || !w.valueMap || newKey === oldKey || newKey in w.valueMap) return;
+  const label = w.valueMap[oldKey];
+  delete w.valueMap[oldKey];
+  w.valueMap[newKey] = label;
+}
+function addValueMapRow(): void {
+  const w = selectedWidget.value;
+  if (!w) return;
+  if (!w.valueMap) w.valueMap = {};
+  let k = 0;
+  while (String(k) in w.valueMap) k++;
+  w.valueMap[String(k)] = '';
+}
+function removeValueMapRow(key: string): void {
+  const w = selectedWidget.value;
+  if (!w || !w.valueMap) return;
+  delete w.valueMap[key];
+  if (Object.keys(w.valueMap).length === 0) delete w.valueMap;
+}
+
 /** Drawer commits edits in place on the live draft via v-model — no
  *  separate apply step. The button row offers a delete shortcut. */
 function deleteSelected(): void {
@@ -940,6 +986,7 @@ function stripEmptyDeployment(tpl: AdminLayerTemplate): void {
     (d.nodeMetrics?.length ?? 0) > 0 ||
     (d.linkServerMetrics?.length ?? 0) > 0 ||
     (d.linkClientMetrics?.length ?? 0) > 0 ||
+    (d.roleToRole?.some((p) => (p.metrics?.length ?? 0) > 0) ?? false) ||
     (d.roles?.some((r) => (r.nodeMetrics?.length ?? 0) > 0) ?? false);
   if (!hasMetrics && !d.clusterBy && !d.siblingBy && !d.roleBy && !(d.roles?.length)) {
     delete tpl.deployment;
@@ -1458,6 +1505,148 @@ const sitClusterPattern = clusterRuleField('pattern', 'nameRegex');
 const sitClusterFlags = clusterRuleField('flags', 'nameRegex');
 const sitClusterDisplayGroup = clusterRuleField('displayGroup', 'nameRegex');
 const sitClusterValueGroup = clusterRuleField('valueGroup', 'nameRegex');
+
+// Generic editor for a deployment grouping rule (a `ClusterByRule`). `siblingBy`
+// and `roleBy` share clusterBy's four-mode shape, so rather than duplicate the
+// dozen computeds we bind a fresh editor to each field via read/write closures
+// and expose it as a reactive bag of v-model targets (reactive() unwraps the
+// nested computeds so the template can use `siblingEd.mode` etc. directly).
+function makeRuleEditor(
+  read: () => ClusterByRule | undefined,
+  write: (r: ClusterByRule | undefined) => void,
+  fb: { attribute: string; attributes: string[]; alias: string },
+) {
+  const regexField = (name: 'pattern' | 'flags' | 'displayGroup' | 'valueGroup') =>
+    computed<string>({
+      get: () => {
+        const r = read();
+        return r?.kind === 'nameRegex' ? ((r as Record<string, unknown>)[name] as string) ?? '' : '';
+      },
+      set: (v) => {
+        const r = read();
+        if (r?.kind === 'nameRegex') (r as Record<string, unknown>)[name] = v || undefined;
+      },
+    });
+  return reactive({
+    mode: computed<ClusterMode>({
+      get: () => read()?.kind ?? 'none',
+      set: (m) => {
+        const prev = read();
+        if (m === 'none') return write(undefined);
+        if (m === 'attribute')
+          return write({ kind: 'attribute', attribute: prev?.kind === 'attribute' ? prev.attribute : fb.attribute, alias: prev?.alias ?? fb.alias });
+        if (m === 'attributes')
+          return write({ kind: 'attributes', attributes: prev?.kind === 'attributes' ? prev.attributes : [...fb.attributes], separator: prev?.kind === 'attributes' ? prev.separator : undefined, alias: prev?.alias ?? fb.alias });
+        return write({ kind: 'nameRegex', pattern: prev?.kind === 'nameRegex' ? prev.pattern : '', flags: prev?.kind === 'nameRegex' ? prev.flags : undefined, displayGroup: prev?.kind === 'nameRegex' ? prev.displayGroup : undefined, valueGroup: prev?.kind === 'nameRegex' ? prev.valueGroup : undefined, alias: prev?.alias ?? fb.alias });
+      },
+    }),
+    attribute: computed<string>({
+      get: () => { const r = read(); return r?.kind === 'attribute' ? r.attribute : ''; },
+      set: (v) => { const r = read(); if (r?.kind === 'attribute') r.attribute = v; },
+    }),
+    attributes: computed<string>({
+      get: () => { const r = read(); return r?.kind === 'attributes' ? r.attributes.join(', ') : ''; },
+      set: (v) => { const r = read(); if (r?.kind === 'attributes') r.attributes = v.split(',').map((s) => s.trim()).filter(Boolean); },
+    }),
+    separator: computed<string>({
+      get: () => { const r = read(); return r?.kind === 'attributes' ? (r.separator ?? '') : ''; },
+      set: (v) => { const r = read(); if (r?.kind === 'attributes') r.separator = v || undefined; },
+    }),
+    alias: computed<string>({
+      get: () => read()?.alias ?? '',
+      set: (v) => { const r = read(); if (r) r.alias = v; },
+    }),
+    pattern: regexField('pattern'),
+    flags: regexField('flags'),
+    displayGroup: regexField('displayGroup'),
+    valueGroup: regexField('valueGroup'),
+  });
+}
+const siblingEd = makeRuleEditor(
+  () => draft.template?.deployment?.siblingBy,
+  (r) => { const t = ensureDeployment(); if (r === undefined) delete t.siblingBy; else t.siblingBy = r; },
+  { attribute: 'pod_name', attributes: ['pod_name'], alias: 'pod' },
+);
+const roleEd = makeRuleEditor(
+  () => draft.template?.deployment?.roleBy,
+  (r) => { const t = ensureDeployment(); if (r === undefined) delete t.roleBy; else t.roleBy = r; },
+  { attribute: 'container_name', attributes: ['container_name'], alias: 'container' },
+);
+
+// roleBy → roles[]: per-role metric sets. A node shows its role's metrics
+// (matched on the roleBy value), falling back to the top-level node metrics.
+const deploymentRoles = computed<NodeRoleConfig[]>(() =>
+  activeScope.value === 'deployment' ? draft.template?.deployment?.roles ?? [] : [],
+);
+function addRole(): void {
+  const t = ensureDeployment();
+  if (!t.roles) t.roles = [];
+  t.roles.push({ key: `role_${t.roles.length + 1}`, label: '', main: false, nodeMetrics: [] });
+}
+function removeRole(i: number): void {
+  draft.template?.deployment?.roles?.splice(i, 1);
+}
+function moveRole(i: number, dir: -1 | 1): void {
+  const list = draft.template?.deployment?.roles;
+  if (!list) return;
+  const j = i + dir;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+}
+function ensureRoleMetrics(r: NodeRoleConfig): DeploymentMetricDef[] {
+  if (!r.nodeMetrics) r.nodeMetrics = [];
+  return r.nodeMetrics;
+}
+function addRoleMetric(list: DeploymentMetricDef[]): void {
+  list.push({ id: `metric_${list.length + 1}`, label: `Metric ${list.length + 1}`, mqe: '', unit: '', aggregation: 'avg' });
+}
+function removeRoleMetric(list: DeploymentMetricDef[], i: number): void {
+  list.splice(i, 1);
+}
+function moveRoleMetric(list: DeploymentMetricDef[], i: number, dir: -1 | 1): void {
+  const j = i + dir;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+}
+function toggleRoleThr(m: DeploymentMetricDef): void {
+  m.thresholds = m.thresholds ? undefined : { ok: 0.1, warn: 1, danger: 5 };
+}
+
+// roleToRole[]: per source→target role-pair edge metrics. Pair scaffolding only —
+// the per-metric rows reuse addRoleMetric / moveRoleMetric / removeRoleMetric / toggleRoleThr.
+const deploymentRoleToRole = computed<RolePairMetrics[]>(() =>
+  activeScope.value === 'deployment' ? draft.template?.deployment?.roleToRole ?? [] : [],
+);
+function addRolePair(): void {
+  const t = ensureDeployment();
+  if (!t.roleToRole) t.roleToRole = [];
+  t.roleToRole.push({ from: '*', to: '*', primary: '', metrics: [] });
+}
+function removeRolePair(i: number): void {
+  draft.template?.deployment?.roleToRole?.splice(i, 1);
+}
+function moveRolePair(i: number, dir: -1 | 1): void {
+  const list = draft.template?.deployment?.roleToRole;
+  if (!list) return;
+  const j = i + dir;
+  if (j < 0 || j >= list.length) return;
+  [list[i], list[j]] = [list[j], list[i]];
+}
+function ensurePairMetrics(p: RolePairMetrics): DeploymentMetricDef[] {
+  if (!p.metrics) p.metrics = [];
+  return p.metrics;
+}
+// `primary` is up to 3 metric ids printed on the edge — edited as a comma list,
+// stored as a single string (1) or array (2-3), capped at 3.
+function primaryStr(p: RolePairMetrics): string {
+  return Array.isArray(p.primary) ? p.primary.join(', ') : p.primary ?? '';
+}
+function setPrimary(p: RolePairMetrics, v: string): void {
+  const ids = v.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 3);
+  if (ids.length === 0) delete p.primary;
+  else if (ids.length === 1) p.primary = ids[0];
+  else p.primary = ids;
+}
 
 const epDepNodeMetrics = computed(() => activeScope.value === 'dependency' ? getMetricList('node') : []);
 const epDepLinkMetrics = computed(() => getMetricList('link'));
@@ -2463,7 +2652,7 @@ const namingTest = computed<NamingTestResult>(() => {
               @click="activeScope = s"
             >
               {{ scopeLabel(s) }}
-              <span class="count">{{ widgetsFor(s).length }}</span>
+              <span v-if="WIDGET_SCOPES.has(s)" class="count">{{ widgetsFor(s).length }}</span>
             </button>
           </nav>
           <button
@@ -2909,7 +3098,7 @@ const namingTest = computed<NamingTestResult>(() => {
             <div class="topo-cfg-section">
               <header class="topo-cfg-head">
                 <h5>Node clustering</h5>
-                <span class="sub">group {{ instanceNoun.toLowerCase() }} into boxes — off, by attribute, or by a name regex</span>
+                <span class="sub">group instances into dashed boxes — off, by a single attribute, by several attributes (composite key + separator), or by a name regex (e.g. <code>node_role</code> + <code>node_type</code>)</span>
               </header>
               <div class="sit-cluster-cfg">
                 <label class="mf mf-narrow">
@@ -2940,10 +3129,197 @@ const namingTest = computed<NamingTestResult>(() => {
               </div>
             </div>
 
+            <!-- siblingBy: which containers bundle into ONE pod hex. -->
             <div class="topo-cfg-section">
               <header class="topo-cfg-head">
-                <h5>{{ instanceNoun }} node metrics</h5>
-                <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
+                <h5>Sibling grouping</h5>
+                <span class="sub">bundle related instances into ONE hex group — instances sharing this key render together as one main + attached siblings (e.g. the containers of one Kubernetes pod, keyed by <code>pod_name</code>). Single attribute, several attributes (composite key + separator), or a name regex. Off ⇒ every instance is its own hex.</span>
+              </header>
+              <div class="sit-cluster-cfg">
+                <label class="mf mf-narrow"><span>mode</span>
+                  <select v-model="siblingEd.mode" class="mf-input">
+                    <option value="none">none</option>
+                    <option value="attribute">by attribute</option>
+                    <option value="attributes">by attributes (composite)</option>
+                    <option value="nameRegex">by name regex</option>
+                  </select>
+                </label>
+                <template v-if="siblingEd.mode === 'attribute'">
+                  <label class="mf"><span>attribute</span><input v-model="siblingEd.attribute" type="text" class="mf-input mono" placeholder="pod_name" /></label>
+                  <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+                </template>
+                <template v-else-if="siblingEd.mode === 'attributes'">
+                  <label class="mf mf-wide"><span>attributes</span><input v-model="siblingEd.attributes" type="text" class="mf-input mono" placeholder="pod_name" /></label>
+                  <label class="mf mf-narrow"><span>separator</span><input v-model="siblingEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
+                  <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+                </template>
+                <template v-else-if="siblingEd.mode === 'nameRegex'">
+                  <label class="mf mf-wide"><span>pattern</span><input v-model="siblingEd.pattern" type="text" class="mf-input mono" /></label>
+                  <label class="mf mf-narrow"><span>flags</span><input v-model="siblingEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
+                  <label class="mf mf-narrow"><span>display grp</span><input v-model="siblingEd.displayGroup" type="text" class="mf-input mono" /></label>
+                  <label class="mf mf-narrow"><span>value grp</span><input v-model="siblingEd.valueGroup" type="text" class="mf-input mono" /></label>
+                  <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+                </template>
+              </div>
+            </div>
+
+            <!-- roleBy: classify each container; picks the main hex + per-role metrics. -->
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Node role</h5>
+                <span class="sub">classify each instance by a role — picks the MAIN hex of a sibling group and which role's metric set (below) applies (e.g. <code>container_name</code> → liaison / data / lifecycle). Single attribute, several attributes (composite key + separator), or a name regex.</span>
+              </header>
+              <div class="sit-cluster-cfg">
+                <label class="mf mf-narrow"><span>mode</span>
+                  <select v-model="roleEd.mode" class="mf-input">
+                    <option value="none">none</option>
+                    <option value="attribute">by attribute</option>
+                    <option value="attributes">by attributes (composite)</option>
+                    <option value="nameRegex">by name regex</option>
+                  </select>
+                </label>
+                <template v-if="roleEd.mode === 'attribute'">
+                  <label class="mf"><span>attribute</span><input v-model="roleEd.attribute" type="text" class="mf-input mono" placeholder="container_name" /></label>
+                  <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+                </template>
+                <template v-else-if="roleEd.mode === 'attributes'">
+                  <label class="mf mf-wide"><span>attributes</span><input v-model="roleEd.attributes" type="text" class="mf-input mono" placeholder="container_name" /></label>
+                  <label class="mf mf-narrow"><span>separator</span><input v-model="roleEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
+                  <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+                </template>
+                <template v-else-if="roleEd.mode === 'nameRegex'">
+                  <label class="mf mf-wide"><span>pattern</span><input v-model="roleEd.pattern" type="text" class="mf-input mono" /></label>
+                  <label class="mf mf-narrow"><span>flags</span><input v-model="roleEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
+                  <label class="mf mf-narrow"><span>display grp</span><input v-model="roleEd.displayGroup" type="text" class="mf-input mono" /></label>
+                  <label class="mf mf-narrow"><span>value grp</span><input v-model="roleEd.valueGroup" type="text" class="mf-input mono" /></label>
+                  <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+                </template>
+              </div>
+            </div>
+
+            <!-- roles[]: per-role metric sets keyed by the Container-role value. -->
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Roles</h5>
+                <span class="sub">per-role metric sets — an instance renders the metrics of its role (matched on the “Node role” value above); a role with no metrics falls back to the node metrics below</span>
+                <button class="sw-btn add" type="button" @click="addRole">＋ Add role</button>
+              </header>
+              <div v-if="deploymentRoles.length === 0" class="topo-cfg-empty">No roles defined. Add one per role (e.g. liaison / data / lifecycle) to give each its own metrics.</div>
+              <div v-else class="role-list">
+                <article v-for="(r, ri) in deploymentRoles" :key="ri" class="role-card">
+                  <div class="role-head">
+                    <label class="mf mf-narrow"><span>key</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" /></label>
+                    <label class="mf"><span>label</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" /></label>
+                    <label class="mf mf-checkbox"><input v-model="r.main" type="checkbox" /><span>main hex</span></label>
+                    <div class="metric-row-actions">
+                      <button class="sw-btn small ghost" type="button" :disabled="ri === 0" title="Move up" @click="moveRole(ri, -1)">↑</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="ri === deploymentRoles.length - 1" title="Move down" @click="moveRole(ri, 1)">↓</button>
+                      <button class="sw-btn small ghost danger" type="button" title="Remove role" @click="removeRole(ri)">×</button>
+                    </div>
+                  </div>
+                  <div class="role-metrics">
+                    <header class="topo-cfg-head role-metrics-head">
+                      <h6>metrics for “{{ r.label || r.key || 'role' }}” — queried as <code>service_instance_*</code></h6>
+                      <button class="sw-btn add" type="button" @click="addRoleMetric(ensureRoleMetrics(r))">＋ Add</button>
+                    </header>
+                    <div v-if="!r.nodeMetrics || r.nodeMetrics.length === 0" class="topo-cfg-empty">No metrics — this role falls back to the node metrics below.</div>
+                    <div v-else class="metric-list">
+                      <article v-for="(m, mi) in r.nodeMetrics" :key="mi" class="metric-row">
+                        <div class="metric-row-head">
+                          <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                          <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                          <label class="mf mf-wide"><span>MQE</span><MqeExpressionInput v-model="m.mqe" placeholder="service_instance_cpm" title="Node MQE" /></label>
+                          <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
+                          <label class="mf"><span>role</span>
+                            <select v-model="m.role" class="mf-input">
+                              <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
+                            </select>
+                          </label>
+                          <label class="mf mf-narrow"><span>agg</span>
+                            <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                          </label>
+                          <div class="metric-row-actions">
+                            <button class="sw-btn small ghost" type="button" :disabled="mi === 0" title="Move up" @click="moveRoleMetric(r.nodeMetrics!, mi, -1)">↑</button>
+                            <button class="sw-btn small ghost" type="button" :disabled="mi === r.nodeMetrics!.length - 1" title="Move down" @click="moveRoleMetric(r.nodeMetrics!, mi, 1)">↓</button>
+                            <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeRoleMetric(r.nodeMetrics!, mi)">×</button>
+                          </div>
+                        </div>
+                        <div class="metric-thresholds">
+                          <button class="sw-btn small ghost" type="button" @click="toggleRoleThr(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
+                          <template v-if="m.thresholds">
+                            <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
+                            <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
+                            <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
+                            <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
+                            <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
+                          </template>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <!-- roleToRole[]: per source→target role-pair edge metrics (takes precedence over the link fallback below). -->
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Role-to-role edge metrics</h5>
+                <span class="sub">per source→target role-pair edge metrics (e.g. liaison → data) — takes precedence over the link fallback below; <code>from</code>/<code>to</code> use role keys or <code>*</code> for any</span>
+                <button class="sw-btn add" type="button" @click="addRolePair">＋ Add pair</button>
+              </header>
+              <div v-if="deploymentRoleToRole.length === 0" class="topo-cfg-empty">No role pairs. Add one per edge type (e.g. liaison → data); otherwise edges use the link fallback below.</div>
+              <div v-else class="role-list">
+                <article v-for="(p, pi) in deploymentRoleToRole" :key="pi" class="role-card">
+                  <div class="role-head">
+                    <label class="mf mf-narrow"><span>from</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" /></label>
+                    <label class="mf mf-narrow"><span>to</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" /></label>
+                    <label class="mf"><span>primary (≤3)</span><input :value="primaryStr(p)" type="text" class="mf-input mono" placeholder="write, query" title="Up to 3 metric ids, comma-separated — printed on the edge" @input="setPrimary(p, ($event.target as HTMLInputElement).value)" /></label>
+                    <div class="metric-row-actions">
+                      <button class="sw-btn small ghost" type="button" :disabled="pi === 0" title="Move up" @click="moveRolePair(pi, -1)">↑</button>
+                      <button class="sw-btn small ghost" type="button" :disabled="pi === deploymentRoleToRole.length - 1" title="Move down" @click="moveRolePair(pi, 1)">↓</button>
+                      <button class="sw-btn small ghost danger" type="button" title="Remove pair" @click="removeRolePair(pi)">×</button>
+                    </div>
+                  </div>
+                  <div class="role-metrics">
+                    <header class="topo-cfg-head role-metrics-head">
+                      <h6>edge metrics for “{{ p.from || '*' }} → {{ p.to || '*' }}” — queried as <code>service_instance_relation_*</code></h6>
+                      <button class="sw-btn add" type="button" @click="addRoleMetric(ensurePairMetrics(p))">＋ Add</button>
+                    </header>
+                    <div v-if="!p.metrics || p.metrics.length === 0" class="topo-cfg-empty">No metrics — this edge falls back to the link metrics below.</div>
+                    <div v-else class="metric-list">
+                      <article v-for="(m, mi) in p.metrics" :key="mi" class="metric-row">
+                        <div class="metric-row-head">
+                          <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
+                          <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
+                          <label class="mf mf-narrow"><span>alias</span><input v-model="m.alias" type="text" class="mf-input mono" placeholder="W" title="Short prefix on the edge, e.g. W / R" /></label>
+                          <label class="mf mf-wide"><span>MQE</span><MqeExpressionInput v-model="m.mqe" placeholder="service_instance_relation_client_cpm" title="Edge MQE" /></label>
+                          <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="ms" /></label>
+                          <label class="mf"><span>role</span>
+                            <select v-model="m.role" class="mf-input">
+                              <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
+                            </select>
+                          </label>
+                          <label class="mf mf-narrow"><span>agg</span>
+                            <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
+                          </label>
+                          <div class="metric-row-actions">
+                            <button class="sw-btn small ghost" type="button" :disabled="mi === 0" title="Move up" @click="moveRoleMetric(p.metrics, mi, -1)">↑</button>
+                            <button class="sw-btn small ghost" type="button" :disabled="mi === p.metrics.length - 1" title="Move down" @click="moveRoleMetric(p.metrics, mi, 1)">↓</button>
+                            <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeRoleMetric(p.metrics, mi)">×</button>
+                          </div>
+                        </div>
+                      </article>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+
+            <div class="topo-cfg-section">
+              <header class="topo-cfg-head">
+                <h5>Fallback node metrics</h5>
+                <span class="sub">used for unroled instances + roles with no metrics of their own — queried as <code>service_instance_*</code></span>
                 <button class="sw-btn add" type="button" @click="addMetric('sitNode')">＋ Add</button>
               </header>
               <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
@@ -3415,6 +3791,17 @@ const namingTest = computed<NamingTestResult>(() => {
                     <input v-model="selectedWidget.unit" placeholder="—" />
                   </label>
                   <label>
+                    <span>Format</span>
+                    <select :value="selectedWidget.format ?? ''" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
+                      <option value="">auto</option>
+                      <option value="int">int</option>
+                      <option value="decimal">decimal</option>
+                      <option value="compact">compact</option>
+                      <option value="duration">duration</option>
+                      <option v-if="selectedWidget.type === 'card'" value="enum">enum</option>
+                    </select>
+                  </label>
+                  <label>
                     <span>Span</span>
                     <input type="number" min="1" max="12" v-model.number="selectedWidget.span" />
                   </label>
@@ -3422,6 +3809,29 @@ const namingTest = computed<NamingTestResult>(() => {
                     <span>Row span</span>
                     <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" />
                   </label>
+                </div>
+                <div v-if="selectedWidget.format === 'enum'" class="d-section">
+                  <span class="d-label">Value map (enum → label)</span>
+                  <div class="vm-rows">
+                    <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
+                      <input
+                        class="mono vm-key"
+                        :value="row[0]"
+                        @change="setValueMapKey(row[0], ($event.target as HTMLInputElement).value)"
+                        placeholder="0"
+                      />
+                      <span class="vm-arrow">→</span>
+                      <input
+                        class="vm-label"
+                        :value="row[1]"
+                        @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
+                        placeholder="Failed"
+                      />
+                      <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
+                    </div>
+                  </div>
+                  <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
+                  <p class="d-hint">Map a coded value to a label (e.g. 1 → OK). Card widgets only; labels are translatable per locale.</p>
                 </div>
                 <div class="d-section">
                   <span class="d-label">MQE expressions</span>
@@ -3453,7 +3863,7 @@ const namingTest = computed<NamingTestResult>(() => {
                         class="mono expr-unit"
                         :value="selectedWidget.expressionUnits?.[i] ?? ''"
                         @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
-                        placeholder="ms"
+                        :placeholder="selectedWidget.unit || 'ms'"
                       />
                       <select
                         v-if="showExprMeta && selectedWidget.type === 'line'"
@@ -4721,6 +5131,15 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 .metric-list { display: flex; flex-direction: column; gap: 8px; }
 .sit-cluster-cfg { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+/* Container roles editor — each role is a card holding its own metric list. */
+.role-list { display: flex; flex-direction: column; gap: 10px; }
+.role-card { border: 1px solid var(--sw-line); border-radius: 6px; padding: 10px 12px; background: var(--sw-bg-0); }
+.role-head { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.role-head .metric-row-actions { margin-left: auto; }
+.role-metrics { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--sw-line); }
+.role-metrics-head { margin-bottom: 6px; }
+.role-metrics-head h6 { margin: 0; font-size: 11px; font-weight: 600; color: var(--sw-fg-2); }
+.role-metrics-head h6 code { font-family: var(--sw-mono); color: var(--sw-fg-3); background: var(--sw-bg-1); padding: 0 4px; border-radius: 3px; }
 .metric-row {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
@@ -5185,8 +5604,13 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-wrap: wrap;
 }
 .vw-row .vw-target { flex: 1 1 140px; min-width: 90px; }
-.vw-row .vw-val { width: 72px; flex: 0 0 auto; }
+.vw-row .vw-val { flex: 1 1 120px; min-width: 96px; }
 .vw-row select { flex: 0 0 auto; }
+.vm-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.vm-row { display: flex; align-items: center; gap: 6px; }
+.vm-row .vm-key { width: 64px; flex: 0 0 auto; }
+.vm-row .vm-arrow { color: var(--sw-fg-3); }
+.vm-row .vm-label { flex: 1 1 auto; min-width: 0; }
 .expr-rows { display: flex; flex-direction: column; gap: 4px; }
 .expr-row { display: flex; gap: 6px; align-items: center; }
 .expr-row .expr-mqe { flex: 1 1 auto; min-width: 0; }

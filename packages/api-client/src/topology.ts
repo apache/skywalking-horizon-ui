@@ -48,6 +48,10 @@ export interface TopologyMetricDef {
   mqe: string;
   /** Optional unit shown next to the value (e.g. `"rpm"`, `"ms"`, `"%"`). */
   unit?: string;
+  /** Numeric formatting override for the displayed value — same hints as a
+   *  dashboard widget (`'int'` / `'decimal'` / `'compact'` / `'duration'`,
+   *  the last rendering a SECONDS value as a human time-ago like `5m ago`). */
+  format?: 'int' | 'decimal' | 'compact' | 'duration';
   /**
    * Visual binding for the renderer:
    *   - `center`     — number printed in the centre of the circle / box.

@@ -59,6 +59,91 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   and a 3D Infra Map load ring for **Tasks Executable**. Pairs with OAP backend
   SWIP-7 (`meter_airflow_*` / `meter_airflow_instance_*`).
 
+### BanyanDB self-observability layer (SWIP-15)
+
+- New **BanyanDB** layer under **Self-Observability**, modeling a clustered,
+  role- and tier-aware BanyanDB deployment scraped through its FODC proxy. The
+  cluster is one **Cluster** (service), each container is one **Container**
+  (instance, carrying its `container_name` role and `node_type` tier as
+  attributes), and each storage **Group** is an endpoint:
+  - **Cluster** dashboard — write / query / error-rate KPIs, CPU / memory / disk
+    capacity, a throughput + errors trend, and a **Containers by Role** table.
+  - **Container** dashboard adapts to the selected container's role: every
+    container shows CPU / memory / Go-runtime resources (and, where the system
+    collector runs, uptime / disk / network); a **liaison** adds ingestion,
+    query, gRPC errors, the tier-2 publish pipeline and write-queue depth; a
+    **data** node adds storage totals, merge/compaction, inverted index,
+    subscribe queue and retention; a **lifecycle** sidecar shows migration
+    cycles and last-run time / status. Liaison and data panels are gated on the
+    container's role attribute; resource panels the lifecycle sidecar doesn't
+    emit, and the lifecycle migration panels themselves, self-gate on data
+    presence so they surface only once that container actually reports them
+    (the lifecycle panels stay hidden until the first migration cycle runs).
+    This template targets the **clustered** model; a single-process standalone
+    BanyanDB (`container_name=standalone`) shows the shared resource / Go
+    panels but not the role-specific ingestion / storage panels — those extend
+    to standalone once the entity-gate membership operator (SWIP-15 §6) lands.
+  - **Group** dashboard — metrics split **per data-model** (measure / stream /
+    trace / property): each model gets write rate, query latency, stored data,
+    merge rate / latency / partitions, series write + term-search and total
+    series, plus the type-agnostic subscribe / publish queue (throughput, p99,
+    batch + message rate, publish bytes). Because a BanyanDB group stores one
+    catalog, only the matching model's panels render for a given group — gated
+    by the model's series-count flag — so a `measure` group shows the measure
+    panels, a `property` group its index-write / merge / term-search / series
+    panels, and so on.
+  - A **Deployment** tab renders the cluster's container **inventory** — every
+    container grouped into its node's role/tier box (liaison, data hot/warm/cold)
+    and its pod, with per-role health metrics (liaison query rate + gRPC errors,
+    data ingest rate + disk usage, lifecycle migration cycles + last-run status).
+    The node health-ring legend names **each role's own** ring metric **and its
+    colour-band thresholds** (driven by the layer template) instead of a single
+    shared, hard-coded one.
+    Container-to-container call **edges** carry **role-pair-specific** metrics
+    off the SWIP-15 instance-relation families: a **liaison → data** edge shows
+    write / query / part-sync throughput + p99 (one per queue `operation`), a
+    **liaison → liaison** edge shows write-forward + control, and a
+    **lifecycle → data** edge shows tier-migration volume / rate / p99. The edge
+    prints up to **3** of the pair's metrics inline (short aliases like `W` / `R`,
+    flowing onto one line or stacking by edge length); the selected-edge panel
+    keeps the full client | server breakdown, and the **Flows** sub-tab tables
+    every edge per role-pair. Edges render once the OAP build includes the
+    `SERVICE_INSTANCE_RELATION` scope (the `migration_*` family also needs the
+    lifecycle sidecar reporting); until then the tab shows the inventory
+    without edges.
+  - The whole deployment model — clustering / grouping rules, per-role node
+    metrics, and role-pair edge metrics — is editable from the **Layer
+    dashboards** admin → **Deployment** scope.
+- Pairs with OAP backend SWIP-15 (`meter_banyandb_*` cluster /
+  `meter_banyandb_instance_*` container / `meter_banyandb_endpoint_*` group).
+  Queue-batch and lifecycle last-run panels appear once the cluster runs a
+  BanyanDB build that emits those metrics.
+
+### Dashboard widget value formatting
+
+- Card widgets gain a **`enum`** format with a **value→label map**: a coded
+  metric (e.g. a 1/0 success gauge) renders a readable label (`1 → OK`,
+  `0 → Failed`) instead of the raw number. Labels are **translatable per
+  locale** (BFF-side template i18n overlay) and the map is editable in the
+  Layer dashboards admin. BanyanDB's lifecycle **Last Sync** card uses it.
+- New **`duration`** format renders a SECONDS metric as a human time-ago
+  (`5m 20s ago`; compact `5m` / `2h` on axes) — used by BanyanDB's
+  **Time Since Last Sync** card.
+- Line-chart **axis labels and tooltips now use scientific notation** (`1.2e6`)
+  for large magnitudes (≥ 10,000) so dense byte / count series stay readable,
+  with the axis tick and its hovered value sharing one notation.
+
+### Instance-list badge
+
+- The badge on each row of the **instance list** (Containers / Pods / Nodes /
+  …) is now **configurable per layer** (`instances.badge` on the layer
+  template) — it can show any instance **attribute** instead of the fixed agent
+  `language`. BanyanDB shows `container_name` (**liaison / data / lifecycle**),
+  the role that actually distinguishes a container; agent-traced layers keep
+  `language` (Java / Go / …). The badge is now **hidden when the value is empty
+  or `UNKNOWN`**, so OpenTelemetry-scraped layers (which report no agent
+  language) drop the meaningless `UNKNOWN` chip across the board.
+
 ### Dashboard widget visibility
 
 - Layer-dashboard widgets gain a structured **Visible when** gate (Layer
@@ -162,6 +247,16 @@ packages) plus the BFF's `HORIZON_VERSION` default.
   vertically within a tier, and a tier with more than four pods wraps into
   additional stacked columns of four. Drag any pod to rearrange; its cluster
   box re-flows to keep every node enclosed.
+- **Role-to-role edge metrics + a Flows view.** Deployment edge metrics are keyed
+  by the **(source-role → target-role)** pair, so each kind of link shows its own
+  metrics rather than one flat set — a `liaison → data` edge can surface
+  write / query / part-sync throughput while a `lifecycle → data` edge surfaces
+  migration volume. Pairs match most-specific-first with a `*` wildcard fallback.
+  Each pair names a **primary** metric that prints **inline on the edge** in the
+  map, so the headline number reads at a glance without opening anything; the
+  selected-edge sidebar shows that pair's full metric set. A new **Flows** sub-tab
+  (next to Topology) lays the edges out as **one aligned table per role-pair** —
+  click a row to jump to that edge in the graph.
 
 ### API dependency
 

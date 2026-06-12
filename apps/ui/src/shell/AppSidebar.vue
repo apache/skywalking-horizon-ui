@@ -545,7 +545,7 @@ watch(
                   class="sw-nav-item"
                   :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
                 >
-                  <Icon name="topo" /><span>{{ L.slots.deployment ?? t('Deployment') }}</span>
+                  <Icon name="topo" /><span>{{ L.slots.deployment ?? 'Deployment' }}</span>
                 </RouterLink>
                 <RouterLink
                   v-if="L.caps.endpointDependency"
@@ -708,7 +708,7 @@ watch(
             class="sw-nav-item"
             :class="{ 'is-active': isActive(`/layer/${E.layer.key}/deployment`) }"
           >
-            <Icon name="topo" /><span>{{ E.layer.slots.deployment ?? t('Deployment') }}</span>
+            <Icon name="topo" /><span>{{ E.layer.slots.deployment ?? 'Deployment' }}</span>
           </RouterLink>
           <RouterLink
             v-if="E.layer.caps.endpointDependency"
@@ -878,6 +878,22 @@ watch(
               :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
             >
               <Icon name="ep" /><span>{{ L.slots.endpoints ?? 'Endpoint' }}</span>
+            </RouterLink>
+            <RouterLink
+              v-if="hasTopology(L)"
+              :to="`/layer/${L.key}/topology`"
+              class="sw-nav-item"
+              :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
+            >
+              <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
+            </RouterLink>
+            <RouterLink
+              v-if="L.caps.deployment"
+              :to="`/layer/${L.key}/deployment`"
+              class="sw-nav-item"
+              :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
+            >
+              <Icon name="topo" /><span>{{ L.slots.deployment ?? 'Deployment' }}</span>
             </RouterLink>
           </div>
         </template>

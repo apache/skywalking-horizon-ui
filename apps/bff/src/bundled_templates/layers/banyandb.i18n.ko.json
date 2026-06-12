@@ -1,0 +1,386 @@
+{
+  "alias": "BanyanDB",
+  "group": "자체 관측가능성",
+  "slots": {
+    "services": "클러스터",
+    "instances": "컨테이너",
+    "endpoints": "그룹",
+    "deployment": "배포"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "쓰기/s"
+      },
+      {
+        "label": "쿼리/s"
+      },
+      {
+        "label": "오류/min"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "쓰기 비율",
+        "tip": "measure + stream + trace 데이터 모델 전반에 걸친 클러스터 전체 초당 쓰기입니다."
+      },
+      {
+        "title": "쿼리 비율",
+        "tip": "liaison 진입점에서 관측된 클러스터 전체 초당 gRPC 쿼리 호출입니다."
+      },
+      {
+        "title": "오류 비율",
+        "tip": "클러스터 전체 분당 오류입니다 (gRPC + registry + stream-msg + publish + sync-loop). 데이터가 없으면 정상 클러스터에서는 0으로 표시됩니다."
+      },
+      {
+        "title": "CPU 코어",
+        "tip": "클러스터의 컨테이너 전반에서 관측되는 전체 CPU 코어입니다."
+      },
+      {
+        "title": "사용 메모리",
+        "tip": "클러스터 전체에서 사용 중인 전체 메모리입니다."
+      },
+      {
+        "title": "사용 디스크",
+        "tip": "클러스터의 data 경로 전반에서 사용 중인 전체 디스크 바이트입니다."
+      },
+      {
+        "title": "클러스터 처리량",
+        "tip": "시간에 따른 쓰기 비율과 쿼리 비율입니다.",
+        "expressionLabels": [
+          "writes/s",
+          "queries/s"
+        ]
+      },
+      {
+        "title": "클러스터 오류 / min"
+      },
+      {
+        "title": "역할별 컨테이너",
+        "tip": "시스템 가동 시간 게이지에서 도출한 역할별 (data / liaison) 실시간 컨테이너 수입니다. lifecycle 사이드카는 시스템 컬렉터를 실행하지 않으므로 여기에 절대 표시되지 않습니다."
+      }
+    ],
+    "instance": [
+      {
+        "title": "마지막 동기화 이후 경과 시간",
+        "tip": "마지막 마이그레이션 주기가 시작된 이후 경과 시간(예: \"5m 20s ago\"). 첫 마이그레이션 주기가 실행되면 표시됩니다."
+      },
+      {
+        "title": "마지막 동기화",
+        "valueMap": {
+          "0": "실패",
+          "1": "정상"
+        }
+      },
+      {
+        "title": "마이그레이션 사이클",
+        "tip": "lifecycle 사이드카가 실행한 누적 계층 마이그레이션 사이클입니다."
+      },
+      {
+        "title": "CPU 사용량",
+        "tip": "코어 단위의 프로세스 CPU 소비량입니다."
+      },
+      {
+        "title": "상주 메모리"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "GC 일시 정지 (평균)",
+        "tip": "사이클당 평균 Go GC 일시 정지 시간입니다."
+      },
+      {
+        "title": "Go 힙",
+        "expressionLabels": [
+          "in-use",
+          "next GC"
+        ]
+      },
+      {
+        "title": "Go 할당 비율"
+      },
+      {
+        "title": "가동 시간",
+        "tip": "노드가 시작된 이후 경과 일수입니다. lifecycle 사이드카에서는 데이터가 없습니다 (시스템 컬렉터 없음)."
+      },
+      {
+        "title": "시스템 사용 메모리"
+      },
+      {
+        "title": "디스크 사용량",
+        "tip": "노드의 data 경로 전반에서 사용량 / 전체입니다."
+      },
+      {
+        "title": "디스크 사용량 / 총량",
+        "tip": "각 데이터 경로의 사용량을 파일시스템 총 용량과 대비. 동일한 파일시스템을 공유하는 경로는 동일한 값을 보고합니다.",
+        "expressionLabels": [
+          "사용량",
+          "총량"
+        ]
+      },
+      {
+        "title": "네트워크 I/O",
+        "tip": "인터페이스별 수신 / 전송 처리량입니다.",
+        "expressionLabels": [
+          "recv",
+          "sent"
+        ]
+      },
+      {
+        "title": "서비스별 쿼리 비율",
+        "tip": "BanyanDB 데이터 모델 서비스 (measure / stream / trace / property) 별로 분리한 초당 gRPC 쿼리 호출입니다."
+      },
+      {
+        "title": "gRPC 오류 / min",
+        "tip": "total + registry + stream-msg gRPC 오류의 합계입니다. 지연 등록 방식이므로 데이터가 없으면 정상 liaison에서는 0으로 표시됩니다."
+      },
+      {
+        "title": "Registry 작업 / s",
+        "tip": "liaison 진입점에서 관측된 초당 스키마 registry 작업입니다."
+      },
+      {
+        "title": "쓰기 비율",
+        "tip": "세 가지 데이터 모델 전반에 걸쳐 liaison 진입점에서 관측된 초당 쓰기입니다."
+      },
+      {
+        "title": "Publish 처리량",
+        "tip": "작업별로 분리한 2계층 publish 파이프라인 (liaison → data) 입니다."
+      },
+      {
+        "title": "Publish p99 지연 시간",
+        "tip": "작업별 2계층 publish 파이프라인의 p99 전송 지연 시간입니다."
+      },
+      {
+        "title": "Part-sync 바이트"
+      },
+      {
+        "title": "쓰기 큐 대기",
+        "tip": "liaison 쓰기 버퍼 깊이: publish 전 진입점에서 버퍼링된 레코드입니다."
+      },
+      {
+        "title": "Publish 배치 처리량",
+        "tip": "작업별 초당 발행 batch 수. 클러스터가 batch 메트릭을 보낼 때까지 숨겨집니다."
+      },
+      {
+        "title": "Publish 배치 p99"
+      },
+      {
+        "title": "저장된 데이터 요소",
+        "tip": "measure + stream + trace 전반에 저장된 전체 file 요소입니다."
+      },
+      {
+        "title": "쓰기 큐 (wqueue)",
+        "tip": "data 노드 쓰기 큐: 대기 중인 레코드, 온디스크 file parts, 인메모리 parts입니다."
+      },
+      {
+        "title": "Merge 루프 비율"
+      },
+      {
+        "title": "Merge 파일 지연 시간",
+        "tip": "merge 루프당 평균 온디스크 파일 병합 지연 시간입니다."
+      },
+      {
+        "title": "Merge Parts / Loop",
+        "tip": "온디스크 merge 루프당 평균 병합된 parts입니다."
+      },
+      {
+        "title": "역색인 비율",
+        "tip": "초당 시리즈 인덱스 갱신 및 term 검색입니다 (measure + stream storage + stream tst).",
+        "expressionLabels": [
+          "series writes",
+          "series searches",
+          "tst writes",
+          "tst searches"
+        ]
+      },
+      {
+        "title": "인덱스 문서",
+        "tip": "전체 역색인 문서입니다 (series proxy).",
+        "expressionLabels": [
+          "series docs",
+          "tst docs"
+        ]
+      },
+      {
+        "title": "Subscribe 처리량",
+        "tip": "작업별 (query / file-sync / batch-write / control) subscribe 측 큐 처리량입니다."
+      },
+      {
+        "title": "Subscribe p99 지연 시간"
+      },
+      {
+        "title": "Retention 디스크 사용량",
+        "tip": "데이터 모델별 retention 디스크 사용률입니다.",
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ]
+      },
+      {
+        "title": "Subscribe 메시지 처리량",
+        "tip": "구독자가 batch에서 풀어내는 레코드 단위 처리 속도."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Measure 쓰기 / s",
+        "tip": "이 그룹의 초당 쓰기입니다 (데이터 모델별 쓰기 카운터 기준)."
+      },
+      {
+        "title": "Measure 쿼리 지연 시간",
+        "tip": "이 그룹의 평균 liaison 쿼리 지연 시간입니다."
+      },
+      {
+        "title": "Measure 전체 데이터",
+        "tip": "이 그룹에 현재 저장된 데이터 요소입니다."
+      },
+      {
+        "title": "Measure Merge 비율",
+        "tip": "분당 file merge 루프 반복 횟수입니다."
+      },
+      {
+        "title": "Measure Merge 지연 시간",
+        "tip": "merge 루프당 평균 파일 병합 지연 시간입니다."
+      },
+      {
+        "title": "Measure Merge Partitions",
+        "tip": "file merge 루프당 평균 병합된 parts입니다."
+      },
+      {
+        "title": "Measure Series 쓰기 / s",
+        "tip": "초당 역색인 갱신입니다 (series-write 대리 지표)."
+      },
+      {
+        "title": "Measure Term Search / s",
+        "tip": "초당 역색인 term 검색 호출입니다 (인덱스 읽기 부하)."
+      },
+      {
+        "title": "Measure 전체 Series",
+        "tip": "이 그룹의 전체 역색인 문서입니다 (series 대리 지표)."
+      },
+      {
+        "title": "Stream 쓰기 / s",
+        "tip": "이 그룹의 초당 쓰기입니다 (데이터 모델별 쓰기 카운터 기준)."
+      },
+      {
+        "title": "Stream 쿼리 지연 시간",
+        "tip": "이 그룹의 평균 liaison 쿼리 지연 시간입니다."
+      },
+      {
+        "title": "Stream 전체 데이터",
+        "tip": "이 그룹에 현재 저장된 데이터 요소입니다."
+      },
+      {
+        "title": "Stream Merge 비율",
+        "tip": "분당 file merge 루프 반복 횟수입니다."
+      },
+      {
+        "title": "Stream Merge 지연 시간",
+        "tip": "merge 루프당 평균 파일 병합 지연 시간입니다."
+      },
+      {
+        "title": "Stream Merge Partitions",
+        "tip": "file merge 루프당 평균 병합된 parts입니다."
+      },
+      {
+        "title": "Stream Series 쓰기 / s",
+        "tip": "초당 역색인 갱신입니다 (series-write 대리 지표)."
+      },
+      {
+        "title": "Stream TST 인덱스 쓰기 / s",
+        "tip": "초당 stream tst 스코프 역색인 갱신입니다 (storage 스코프 series 인덱스와 별개)."
+      },
+      {
+        "title": "Stream Term Search / s",
+        "tip": "초당 역색인 term 검색 호출입니다 (인덱스 읽기 부하)."
+      },
+      {
+        "title": "Stream 전체 Series",
+        "tip": "이 그룹의 전체 역색인 문서입니다 (series 대리 지표)."
+      },
+      {
+        "title": "Stream TST 전체 Series",
+        "tip": "stream tst 스코프 인덱스 문서 총계입니다 (storage 스코프 series 인덱스와 별개)."
+      },
+      {
+        "title": "Trace 쓰기 / s",
+        "tip": "이 그룹의 초당 쓰기입니다 (데이터 모델별 쓰기 카운터 기준)."
+      },
+      {
+        "title": "Trace 쿼리 지연 시간",
+        "tip": "이 그룹의 평균 liaison 쿼리 지연 시간입니다."
+      },
+      {
+        "title": "Trace 전체 데이터",
+        "tip": "이 그룹에 현재 저장된 데이터 요소입니다."
+      },
+      {
+        "title": "Trace Merge 비율",
+        "tip": "분당 file merge 루프 반복 횟수입니다."
+      },
+      {
+        "title": "Trace Merge 지연 시간",
+        "tip": "merge 루프당 평균 파일 병합 지연 시간입니다."
+      },
+      {
+        "title": "Trace Merge Partitions",
+        "tip": "file merge 루프당 평균 병합된 parts입니다."
+      },
+      {
+        "title": "Trace Series 쓰기 / s",
+        "tip": "초당 역색인 갱신입니다 (series-write 대리 지표)."
+      },
+      {
+        "title": "Trace Term Search / s",
+        "tip": "초당 역색인 term 검색 호출입니다 (인덱스 읽기 부하)."
+      },
+      {
+        "title": "Trace 전체 Series",
+        "tip": "이 그룹의 전체 역색인 문서입니다 (series 대리 지표)."
+      },
+      {
+        "title": "Property 인덱스 쓰기 / s",
+        "tip": "초당 property registry 역색인 갱신입니다 (property의 쓰기 신호)."
+      },
+      {
+        "title": "Property 인덱스 Merge 비율",
+        "tip": "분당 property 역색인 세그먼트 병합입니다 (property에는 tst merge 루프가 없습니다)."
+      },
+      {
+        "title": "Property 인덱스 Merge 지연 시간",
+        "tip": "평균 property 역색인 병합 지연 시간입니다."
+      },
+      {
+        "title": "Property Term Search / s",
+        "tip": "초당 property term 검색 호출입니다. property는 liaison 쿼리 메서드가 아니라 registry/term-search 경로로 읽으므로 이것이 property의 읽기 부하 신호입니다."
+      },
+      {
+        "title": "Property 전체 Series",
+        "tip": "이 그룹의 전체 property 역색인 문서입니다."
+      },
+      {
+        "title": "Subscribe 처리량",
+        "tip": "작업별로 분리한 이 그룹의 초당 subscribe 측 큐 메시지입니다."
+      },
+      {
+        "title": "Publish p99",
+        "tip": "이 그룹의 publish 측 큐 p99 지연 시간입니다."
+      },
+      {
+        "title": "배치 처리량",
+        "tip": "group별 쓰기 batch 속도(작업별)."
+      },
+      {
+        "title": "메시지 처리량",
+        "tip": "group별 레코드 단위 속도(작업별)."
+      },
+      {
+        "title": "Part-sync 바이트 / s"
+      }
+    ]
+  }
+}

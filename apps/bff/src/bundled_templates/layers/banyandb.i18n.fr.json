@@ -1,0 +1,386 @@
+{
+  "alias": "BanyanDB",
+  "group": "Auto-observabilité",
+  "slots": {
+    "services": "Clusters",
+    "instances": "Conteneurs",
+    "endpoints": "Groupes",
+    "deployment": "Déploiement"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Écritures/s"
+      },
+      {
+        "label": "Requêtes/s"
+      },
+      {
+        "label": "Erreurs/min"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Débit d'écriture",
+        "tip": "Écritures par seconde à l'échelle du cluster, tous modèles de données confondus : measure + stream + trace."
+      },
+      {
+        "title": "Débit de requêtes",
+        "tip": "Appels de requête gRPC par seconde à l'échelle du cluster, observés en entrée du liaison."
+      },
+      {
+        "title": "Taux d'erreurs",
+        "tip": "Erreurs par minute à l'échelle du cluster (gRPC + registry + stream-msg + publish + sync-loop). Affiché à 0 lorsqu'absent sur un cluster sain."
+      },
+      {
+        "title": "Cœurs CPU",
+        "tip": "Nombre total de cœurs CPU visibles sur les conteneurs du cluster."
+      },
+      {
+        "title": "Mémoire utilisée",
+        "tip": "Mémoire totale utilisée sur l'ensemble du cluster."
+      },
+      {
+        "title": "Disque utilisé",
+        "tip": "Total des octets utilisés sur disque par les chemins de données du cluster."
+      },
+      {
+        "title": "Débit du cluster",
+        "tip": "Débit d'écriture vs requêtes dans le temps.",
+        "expressionLabels": [
+          "écritures/s",
+          "requêtes/s"
+        ]
+      },
+      {
+        "title": "Erreurs du cluster / min"
+      },
+      {
+        "title": "Conteneurs par rôle",
+        "tip": "Nombre de conteneurs actifs par rôle (data / liaison), dérivé de la jauge d'uptime système. Le sidecar lifecycle n'exécute aucun collecteur système, il n'apparaît donc jamais ici."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Temps depuis la dernière synchro",
+        "tip": "Temps écoulé depuis le début du dernier cycle de migration, p. ex. \"5m 20s ago\". Apparaît une fois le premier cycle de migration exécuté."
+      },
+      {
+        "title": "Dernière synchronisation",
+        "valueMap": {
+          "0": "Échec",
+          "1": "OK"
+        }
+      },
+      {
+        "title": "Cycles de migration",
+        "tip": "Cycles de migration entre niveaux cumulés exécutés par le sidecar lifecycle."
+      },
+      {
+        "title": "Utilisation CPU",
+        "tip": "Consommation CPU du processus, en cœurs."
+      },
+      {
+        "title": "Mémoire résidente"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "Pause GC (moy)",
+        "tip": "Pause GC Go moyenne par cycle."
+      },
+      {
+        "title": "Tas Go",
+        "expressionLabels": [
+          "en cours d'utilisation",
+          "prochain GC"
+        ]
+      },
+      {
+        "title": "Taux d'allocation Go"
+      },
+      {
+        "title": "Uptime",
+        "tip": "Jours écoulés depuis le démarrage du nœud. Absent sur le sidecar lifecycle (aucun collecteur système)."
+      },
+      {
+        "title": "Mémoire système utilisée"
+      },
+      {
+        "title": "Utilisation disque",
+        "tip": "Utilisé / total sur les chemins de données du nœud."
+      },
+      {
+        "title": "Disque utilisé / total",
+        "tip": "Utilisation par chemin de données, par rapport à la capacité totale du système de fichiers. Les chemins partageant un système de fichiers affichent des valeurs identiques.",
+        "expressionLabels": [
+          "Utilisé",
+          "Total"
+        ]
+      },
+      {
+        "title": "I/O réseau",
+        "tip": "Débit réception / émission par interface.",
+        "expressionLabels": [
+          "réception",
+          "émission"
+        ]
+      },
+      {
+        "title": "Débit de requêtes par service",
+        "tip": "Appels de requête gRPC/s répartis par service de modèle de données BanyanDB (measure / stream / trace / property)."
+      },
+      {
+        "title": "Erreurs gRPC / min",
+        "tip": "Somme des erreurs gRPC total + registry + stream-msg. Enregistrées paresseusement — affiché à 0 lorsqu'absent sur un liaison sain."
+      },
+      {
+        "title": "Opérations registry / s",
+        "tip": "Opérations du registry de schémas par seconde, observées en entrée du liaison."
+      },
+      {
+        "title": "Débit d'écriture",
+        "tip": "Écritures/s observées en entrée du liaison sur les trois modèles de données."
+      },
+      {
+        "title": "Débit de publication",
+        "tip": "Pipeline de publication de niveau 2 (liaison → data), ventilé par opération."
+      },
+      {
+        "title": "Latence p99 de publication",
+        "tip": "Latence d'émission p99 du pipeline de publication de niveau 2, par opération."
+      },
+      {
+        "title": "Octets de part-sync"
+      },
+      {
+        "title": "File d'écriture en attente",
+        "tip": "Profondeur du tampon d'écriture du liaison : enregistrements mis en tampon en entrée avant publication."
+      },
+      {
+        "title": "Débit de lots de publication",
+        "tip": "Batches publiés/s par opération. Masqué jusqu’à ce que le cluster émette des métriques de batch."
+      },
+      {
+        "title": "p99 des lots de publication"
+      },
+      {
+        "title": "Éléments de données stockés",
+        "tip": "Total des éléments de fichier stockés sur measure + stream + trace."
+      },
+      {
+        "title": "File d'écriture (wqueue)",
+        "tip": "File d'écriture du nœud data : enregistrements en attente, parts de fichier sur disque, parts en mémoire."
+      },
+      {
+        "title": "Débit des boucles de fusion"
+      },
+      {
+        "title": "Latence de fusion de fichiers",
+        "tip": "Latence moyenne de fusion de fichiers sur disque par boucle de fusion."
+      },
+      {
+        "title": "Parts fusionnées / boucle",
+        "tip": "Nombre moyen de parts fusionnées par boucle de fusion sur disque."
+      },
+      {
+        "title": "Débit de l'index inversé",
+        "tip": "Mises à jour de l'index de séries et recherches de termes par seconde (measure + stream storage + stream tst).",
+        "expressionLabels": [
+          "écritures séries",
+          "recherches séries",
+          "écritures tst",
+          "recherches tst"
+        ]
+      },
+      {
+        "title": "Documents d'index",
+        "tip": "Total des documents de l'index inversé (proxy de séries).",
+        "expressionLabels": [
+          "docs séries",
+          "docs tst"
+        ]
+      },
+      {
+        "title": "Débit de souscription",
+        "tip": "Débit de file côté souscription par opération (query / file-sync / batch-write / control)."
+      },
+      {
+        "title": "Latence p99 de souscription"
+      },
+      {
+        "title": "Utilisation disque par rétention",
+        "tip": "Pourcentage d'utilisation disque de rétention par modèle de données.",
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ]
+      },
+      {
+        "title": "Débit de messages de souscription",
+        "tip": "Débit de traitement par enregistrement que l’abonné extrait des batches."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Measure Écritures / s",
+        "tip": "Écritures par seconde pour ce group (compteur d'écriture du modèle de données)."
+      },
+      {
+        "title": "Latence de requête Measure",
+        "tip": "Latence moyenne de requête liaison pour ce group."
+      },
+      {
+        "title": "Total des données Measure",
+        "tip": "Éléments de données actuellement stockés pour ce group."
+      },
+      {
+        "title": "Débit de fusion Measure",
+        "tip": "Itérations de la boucle de fusion de fichiers par minute."
+      },
+      {
+        "title": "Latence de fusion Measure",
+        "tip": "Latence moyenne de fusion de fichiers par boucle de fusion."
+      },
+      {
+        "title": "Parts fusionnées Measure",
+        "tip": "Nombre moyen de parts fusionnées par boucle de fusion de fichiers."
+      },
+      {
+        "title": "Écritures de séries Measure / s",
+        "tip": "Mises à jour de l'index inversé par seconde (proxy d'écriture de séries)."
+      },
+      {
+        "title": "Recherches de termes Measure / s",
+        "tip": "Recherches de termes dans l'index inversé par seconde (pression de lecture sur l'index)."
+      },
+      {
+        "title": "Total des séries Measure",
+        "tip": "Total des documents de l'index inversé (proxy de séries) pour ce group."
+      },
+      {
+        "title": "Stream Écritures / s",
+        "tip": "Écritures par seconde pour ce group (compteur d'écriture du modèle de données)."
+      },
+      {
+        "title": "Latence de requête Stream",
+        "tip": "Latence moyenne de requête liaison pour ce group."
+      },
+      {
+        "title": "Total des données Stream",
+        "tip": "Éléments de données actuellement stockés pour ce group."
+      },
+      {
+        "title": "Débit de fusion Stream",
+        "tip": "Itérations de la boucle de fusion de fichiers par minute."
+      },
+      {
+        "title": "Latence de fusion Stream",
+        "tip": "Latence moyenne de fusion de fichiers par boucle de fusion."
+      },
+      {
+        "title": "Parts fusionnées Stream",
+        "tip": "Nombre moyen de parts fusionnées par boucle de fusion de fichiers."
+      },
+      {
+        "title": "Écritures de séries Stream / s",
+        "tip": "Mises à jour de l'index inversé par seconde (proxy d'écriture de séries)."
+      },
+      {
+        "title": "Écritures d'index TST Stream / s",
+        "tip": "Mises à jour de l'index inversé de portée tst pour stream, par seconde (distinct de l'index de séries de portée stockage)."
+      },
+      {
+        "title": "Recherches de termes Stream / s",
+        "tip": "Recherches de termes dans l'index inversé par seconde (pression de lecture sur l'index)."
+      },
+      {
+        "title": "Total des séries Stream",
+        "tip": "Total des documents de l'index inversé (proxy de séries) pour ce group."
+      },
+      {
+        "title": "Total des séries TST Stream",
+        "tip": "Total des documents d'index de portée tst pour stream (distinct de l'index de séries de portée stockage)."
+      },
+      {
+        "title": "Trace Écritures / s",
+        "tip": "Écritures par seconde pour ce group (compteur d'écriture du modèle de données)."
+      },
+      {
+        "title": "Latence de requête Trace",
+        "tip": "Latence moyenne de requête liaison pour ce group."
+      },
+      {
+        "title": "Total des données Trace",
+        "tip": "Éléments de données actuellement stockés pour ce group."
+      },
+      {
+        "title": "Débit de fusion Trace",
+        "tip": "Itérations de la boucle de fusion de fichiers par minute."
+      },
+      {
+        "title": "Latence de fusion Trace",
+        "tip": "Latence moyenne de fusion de fichiers par boucle de fusion."
+      },
+      {
+        "title": "Parts fusionnées Trace",
+        "tip": "Nombre moyen de parts fusionnées par boucle de fusion de fichiers."
+      },
+      {
+        "title": "Écritures de séries Trace / s",
+        "tip": "Mises à jour de l'index inversé par seconde (proxy d'écriture de séries)."
+      },
+      {
+        "title": "Recherches de termes Trace / s",
+        "tip": "Recherches de termes dans l'index inversé par seconde (pression de lecture sur l'index)."
+      },
+      {
+        "title": "Total des séries Trace",
+        "tip": "Total des documents de l'index inversé (proxy de séries) pour ce group."
+      },
+      {
+        "title": "Écritures d'index Property / s",
+        "tip": "Mises à jour de l'index inversé du registry property par seconde (signal d'écriture de property)."
+      },
+      {
+        "title": "Débit de fusion d'index Property",
+        "tip": "Fusions de segments de l'index inversé property par minute (property n'a pas de boucle de fusion tst)."
+      },
+      {
+        "title": "Latence de fusion d'index Property",
+        "tip": "Latence moyenne de fusion de l'index inversé property."
+      },
+      {
+        "title": "Recherches de termes Property / s",
+        "tip": "Recherches de termes property par seconde — property est lu via le chemin registry/recherche de termes, et non par la méthode de requête liaison ; c'est donc son signal de charge en lecture."
+      },
+      {
+        "title": "Total des séries Property",
+        "tip": "Total des documents de l'index inversé property pour ce group."
+      },
+      {
+        "title": "Débit de souscription",
+        "tip": "Messages de file côté souscription par seconde pour ce group, par opération."
+      },
+      {
+        "title": "p99 de publication",
+        "tip": "Latence p99 de file côté publication pour ce group."
+      },
+      {
+        "title": "Débit de lots",
+        "tip": "Débit de batches d’écriture par group, par opération."
+      },
+      {
+        "title": "Débit de messages",
+        "tip": "Débit par enregistrement par group, par opération."
+      },
+      {
+        "title": "Octets de part-sync / s"
+      }
+    ]
+  }
+}

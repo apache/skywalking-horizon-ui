@@ -34,7 +34,7 @@ const props = withDefaults(
     headers?: [string, string];
     showValues?: boolean;
     unit?: string;
-    format?: 'int' | 'decimal' | 'compact';
+    format?: 'int' | 'decimal' | 'compact' | 'duration' | 'enum';
   }>(),
   { showValues: true },
 );

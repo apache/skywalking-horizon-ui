@@ -162,11 +162,25 @@ export interface DashboardWidget {
    * integral (pod count, replica count, error count) so the value
    * reads as `8` not `8.0`.
    *
-   *   - `'int'`     → round to nearest integer (no decimals)
-   *   - `'decimal'` → always 1 decimal place
-   *   - `'compact'` → the default smart rule (explicit opt-in is fine)
+   *   - `'int'`      → round to nearest integer (no decimals)
+   *   - `'decimal'`  → always 1 decimal place
+   *   - `'compact'`  → the default smart rule (explicit opt-in is fine)
+   *   - `'duration'` → a SECONDS value rendered as a human time-ago
+   *                    (`5m 20s ago`, `2h ago`) — for "time since" / age
+   *                    metrics (chart axis labels stay compact: `5m`, `2h`)
+   *   - `'enum'`     → a coded value rendered via {@link valueMap}
    */
-  format?: 'int' | 'decimal' | 'compact';
+  format?: 'int' | 'decimal' | 'compact' | 'duration' | 'enum';
+  /**
+   * Value→label map for a `format: 'enum'` `card` whose metric is a coded
+   * enum/flag rather than a quantity (e.g. a 1/0 success gauge →
+   * `{ "1": "OK", "0": "Failed" }`). The card renders the matched label
+   * instead of the number; the value is rounded to the nearest integer
+   * before lookup. Labels are translated BFF-side via the layer-template
+   * i18n overlay (sibling `*.i18n.<lang>.json`), same path as `aliases` /
+   * `slots`. Absent / no match ⇒ the numeric value is formatted.
+   */
+  valueMap?: Record<string, string>;
   /**
    * Column span in a 12-column flow grid. Default 4. Widgets pack via
    * `grid-auto-flow: dense` so positions are dynamic — operators

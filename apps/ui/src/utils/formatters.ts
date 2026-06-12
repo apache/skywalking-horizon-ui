@@ -46,6 +46,8 @@ export function fmtMetric(v: number | null | undefined): string {
  *                   suffixed for large values (`12k`, `1M`) — operators
  *                   never want a literal `1234567` in a card.
  *   - `'decimal'` → always one decimal place, no SI.
+ *   - `'duration'`→ a SECONDS value rendered as a human time-ago
+ *                   (`5m 20s ago`) — for "time since" / age metrics.
  *   - `'compact'` / undefined → defer to {@link fmtMetric}.
  *
  * Used by metrics that are intrinsically integral (pod count, replica
@@ -53,7 +55,31 @@ export function fmtMetric(v: number | null | undefined): string {
  * 3-decimal precision, say). The `format` field rides on
  * `DashboardWidget` so it's part of the bundled layer JSON.
  */
-export type MetricFormat = 'int' | 'decimal' | 'compact';
+export type MetricFormat = 'int' | 'decimal' | 'compact' | 'duration' | 'enum';
+
+/**
+ * Human duration from a SECONDS value — for "time since" / age / staleness
+ * metrics (e.g. seconds since the last lifecycle sync). `compact` keeps a
+ * single largest unit (tight axis labels: `5m`, `2h`, `3d`); the default
+ * shows up to two units (`5m 20s`) for tooltips / cards. Negatives clamp to 0.
+ */
+export function formatDuration(seconds: number | null | undefined, compact = false): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—';
+  let s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s}s`;
+  const units: Array<[string, number]> = [['d', 86400], ['h', 3600], ['m', 60], ['s', 1]];
+  const parts: string[] = [];
+  for (const [label, size] of units) {
+    if (s >= size) {
+      const n = Math.floor(s / size);
+      s -= n * size;
+      parts.push(`${n}${label}`);
+      if (parts.length >= (compact ? 1 : 2)) break;
+    }
+  }
+  return parts.join(' ');
+}
+
 export function fmtMetricAs(
   v: number | null | undefined,
   format: MetricFormat | undefined,
@@ -68,6 +94,9 @@ export function fmtMetricAs(
   }
   if (format === 'decimal') {
     return v.toFixed(1);
+  }
+  if (format === 'duration') {
+    return `${formatDuration(v)} ago`;
   }
   return fmtMetric(v);
 }

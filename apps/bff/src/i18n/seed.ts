@@ -64,9 +64,10 @@ const STRING_FIELDS = new Set([
 ]);
 
 /** Field names whose value is an object of `{ key: translatableString }`.
- *  Keys are NOT translated; only values are. Matches the layer
- *  template's `aliases` and `slots` and the overview's `aliases`. */
-const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots']);
+ *  Keys are NOT translated; only values are. Matches the layer template's
+ *  `aliases` / `slots`, the overview's `aliases`, and a card widget's
+ *  `valueMap` (enum value → label — labels translate, enum keys don't). */
+const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots', 'valueMap']);
 
 /** Field names whose value is an array of translatable strings. */
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);

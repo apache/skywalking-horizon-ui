@@ -61,7 +61,7 @@ interface Finding {
 }
 
 const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group']);
-const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots']);
+const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots', 'valueMap']);
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);
 
 function walk(source: unknown, overlay: unknown, path: string[], findings: Finding[], file: string): void {

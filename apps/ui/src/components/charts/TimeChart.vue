@@ -25,6 +25,7 @@
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { formatDuration } from '@/utils/formatters';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
@@ -53,7 +54,7 @@ const props = withDefaults(
     /** Numeric format hint — `'int'` rounds all axis labels + tooltip
      *  values to integers (pod counts, replica counts, error counts).
      *  Defaults to the compact-readable rule. */
-    format?: 'int' | 'decimal' | 'compact';
+    format?: 'int' | 'decimal' | 'compact' | 'duration' | 'enum';
     /** Explicit x-axis bucket labels. When provided (and length-matched)
      *  these replace the default relative `-Nm` markers — e.g. a caller
      *  with a known window can pass `mm:ss` elapsed labels. */
@@ -65,16 +66,23 @@ const props = withDefaults(
   },
 );
 
+// Scientific notation, trailing mantissa zeros trimmed. Axis and tooltip
+// share it so a tick and its hovered value read the same.
+function sci(v: number): string {
+  if (v === 0) return '0';
+  return v.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e');
+}
 function formatVal(v: number): string {
+  if (props.format === 'duration') return `${formatDuration(v)} ago`;
+  if (Math.abs(v) >= 10_000) return sci(v);
   if (props.format === 'int') return Math.round(v).toString();
   if (props.format === 'decimal') return v.toFixed(1);
-  // Default: two decimals on tooltip / smart on axis (echarts handles
-  // axis labels itself when no formatter is set).
   return v.toFixed(2);
 }
 function formatAxis(v: number): string {
+  if (props.format === 'duration') return formatDuration(v, true);
+  if (Math.abs(v) >= 10_000) return sci(v);
   if (props.format === 'int') return Math.round(v).toString();
-  // Let echarts default-handle non-int axis formatting.
   return String(v);
 }
 
@@ -226,7 +234,9 @@ function buildOption(): echarts.EChartsCoreOption {
         {
           type: 'value',
           name: legendVisible ? '' : leftUnit ?? '',
-          nameTextStyle: { color: '#64748b', fontSize: 9, padding: [0, 0, 0, 0] },
+          // Right-align the unit so it sits directly above the (right-
+          // aligned) tick labels at the axis line, not floating left of them.
+          nameTextStyle: { color: '#64748b', fontSize: 9, align: 'right', padding: [0, 0, 0, 0] },
           nameGap: 8,
           axisLine: { show: false },
           axisLabel: { color: '#64748b', fontSize: 9, formatter: (v: number) => formatAxis(v) },
@@ -237,7 +247,8 @@ function buildOption(): echarts.EChartsCoreOption {
         axes.push({
           type: 'value',
           name: legendVisible ? '' : rightUnit ?? '',
-          nameTextStyle: { color: '#64748b', fontSize: 9 },
+          // Left-align over the right axis's (left-aligned) tick labels.
+          nameTextStyle: { color: '#64748b', fontSize: 9, align: 'left' },
           nameGap: 8,
           axisLine: { show: false },
           axisLabel: { color: '#64748b', fontSize: 9, formatter: (v: number) => formatAxis(v) },

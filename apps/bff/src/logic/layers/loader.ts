@@ -42,6 +42,7 @@ import type {
   InstanceTopologyConfig,
   ProcessTopologyConfig,
   DeploymentConfig,
+  InstanceListConfig,
   ServiceNamingRule,
   TopologyConfig,
   TopologyMetricDef,
@@ -250,6 +251,8 @@ export interface LayerTemplate {
    *  so the UI can derive `{ display, cluster }` per service and
    *  cluster topology nodes accordingly. */
   naming?: ServiceNamingRule;
+  /** Instance-list config (badge attribute). Surfaced on the menu response. */
+  instances?: InstanceListConfig;
 }
 
 export interface LogConfig {

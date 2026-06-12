@@ -1,0 +1,386 @@
+{
+  "alias": "BanyanDB",
+  "group": "セルフ可観測性",
+  "slots": {
+    "services": "クラスタ",
+    "instances": "コンテナ",
+    "endpoints": "グループ",
+    "deployment": "Deployment"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Write/s"
+      },
+      {
+        "label": "Query/s"
+      },
+      {
+        "label": "Errors/min"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "書き込みレート",
+        "tip": "measure + stream + trace の各データモデルを横断したクラスタ全体の毎秒書き込み数。"
+      },
+      {
+        "title": "クエリレート",
+        "tip": "liaison フロントドアで観測されるクラスタ全体の毎秒 gRPC クエリ呼び出し数。"
+      },
+      {
+        "title": "エラーレート",
+        "tip": "クラスタ全体の毎分エラー数 (gRPC + registry + stream-msg + publish + sync-loop)。データがない場合、健全なクラスタでは 0 として表示されます。"
+      },
+      {
+        "title": "CPU コア数",
+        "tip": "クラスタ内コンテナ全体で確認できる CPU コアの合計。"
+      },
+      {
+        "title": "使用メモリ",
+        "tip": "クラスタ全体で使用されているメモリの合計。"
+      },
+      {
+        "title": "使用ディスク",
+        "tip": "クラスタの data パス全体で使用されているディスク上のバイト数の合計。"
+      },
+      {
+        "title": "クラスタスループット",
+        "tip": "書き込みレートとクエリレートの時系列推移。",
+        "expressionLabels": [
+          "writes/s",
+          "queries/s"
+        ]
+      },
+      {
+        "title": "クラスタエラー / min"
+      },
+      {
+        "title": "ロール別コンテナ数",
+        "tip": "システム稼働時間ゲージから算出した、ロール単位 (data / liaison) の稼働コンテナ数。lifecycle サイドカーはシステムコレクタを実行しないため、ここには表示されません。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "最終同期からの経過時間",
+        "tip": "最後の移行サイクルが開始してからの経過時間（例: \"5m 20s ago\"）。最初の移行サイクルが実行されると表示されます。"
+      },
+      {
+        "title": "前回の同期",
+        "valueMap": {
+          "0": "失敗",
+          "1": "正常"
+        }
+      },
+      {
+        "title": "マイグレーションサイクル数",
+        "tip": "lifecycle サイドカーが実行した累積の tier マイグレーションサイクル数。"
+      },
+      {
+        "title": "CPU 使用率",
+        "tip": "プロセスの CPU 消費量 (コア単位)。"
+      },
+      {
+        "title": "常駐メモリ"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "GC 一時停止 (平均)",
+        "tip": "サイクルあたりの平均 Go GC 一時停止時間。"
+      },
+      {
+        "title": "Go ヒープ",
+        "expressionLabels": [
+          "使用中",
+          "次回 GC"
+        ]
+      },
+      {
+        "title": "Go アロケートレート"
+      },
+      {
+        "title": "稼働時間",
+        "tip": "ノード起動からの経過日数。lifecycle サイドカーには表示されません (システムコレクタなし)。"
+      },
+      {
+        "title": "システム使用メモリ"
+      },
+      {
+        "title": "ディスク使用率",
+        "tip": "ノードの data パス全体での 使用量 / 合計。"
+      },
+      {
+        "title": "ディスク 使用量 / 合計",
+        "tip": "各データパスの使用量と、ファイルシステムの総容量の対比。同一ファイルシステムを共有するパスは同じ値になります。",
+        "expressionLabels": [
+          "使用量",
+          "合計"
+        ]
+      },
+      {
+        "title": "ネットワーク I/O",
+        "tip": "インターフェース単位の受信 / 送信スループット。",
+        "expressionLabels": [
+          "recv",
+          "sent"
+        ]
+      },
+      {
+        "title": "サービス別クエリレート",
+        "tip": "BanyanDB データモデルサービス (measure / stream / trace / property) で分割した gRPC クエリ呼び出し数/s。"
+      },
+      {
+        "title": "gRPC エラー / min",
+        "tip": "total + registry + stream-msg の gRPC エラーの合計。遅延登録のため、データがない場合は健全な liaison では 0 として表示されます。"
+      },
+      {
+        "title": "Registry 操作 / s",
+        "tip": "liaison フロントドアで観測されるスキーマ registry 操作数/s。"
+      },
+      {
+        "title": "書き込みレート",
+        "tip": "liaison フロントドアで観測される、3 つのデータモデルを横断した書き込み数/s。"
+      },
+      {
+        "title": "Publish スループット",
+        "tip": "操作別に分解した Tier-2 publish パイプライン (liaison → data)。"
+      },
+      {
+        "title": "Publish p99 レイテンシ",
+        "tip": "Tier-2 publish パイプラインの操作別 p99 送信レイテンシ。"
+      },
+      {
+        "title": "Part-sync バイト数"
+      },
+      {
+        "title": "書き込みキュー保留数",
+        "tip": "liaison 書き込みバッファの深さ: publish 前にフロントドアでバッファされたレコード数。"
+      },
+      {
+        "title": "Publish バッチスループット",
+        "tip": "操作別の1秒あたりの発行 batch 数。クラスタが batch メトリクスを出すまで非表示です。"
+      },
+      {
+        "title": "Publish バッチ p99"
+      },
+      {
+        "title": "格納データ要素数",
+        "tip": "measure + stream + trace 全体で格納された file 要素の合計。"
+      },
+      {
+        "title": "書き込みキュー (wqueue)",
+        "tip": "data ノードの書き込みキュー: 保留中レコード、ディスク上の file parts、メモリ上の parts。"
+      },
+      {
+        "title": "マージループレート"
+      },
+      {
+        "title": "マージ file レイテンシ",
+        "tip": "マージループあたりの平均ディスク上 file マージレイテンシ。"
+      },
+      {
+        "title": "マージ parts / ループ",
+        "tip": "ディスク上マージループあたりの平均マージ parts 数。"
+      },
+      {
+        "title": "転置インデックスレート",
+        "tip": "毎秒のシリーズインデックス更新と term 検索数 (measure + stream storage + stream tst)。",
+        "expressionLabels": [
+          "series writes",
+          "series searches",
+          "tst writes",
+          "tst searches"
+        ]
+      },
+      {
+        "title": "インデックスドキュメント数",
+        "tip": "転置インデックスドキュメントの合計 (series プロキシ)。",
+        "expressionLabels": [
+          "series docs",
+          "tst docs"
+        ]
+      },
+      {
+        "title": "Subscribe スループット",
+        "tip": "操作別の subscribe 側キュースループット (query / file-sync / batch-write / control)。"
+      },
+      {
+        "title": "Subscribe p99 レイテンシ"
+      },
+      {
+        "title": "保持ディスク使用率",
+        "tip": "データモデル単位の保持ディスク使用率 (%)。",
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ]
+      },
+      {
+        "title": "Subscribe メッセージスループット",
+        "tip": "サブスクライバが batch から取り出すレコード単位の処理レート。"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Measure 書き込み / s",
+        "tip": "この group の毎秒書き込み数 (データモデル単位の書き込みカウンタ)。"
+      },
+      {
+        "title": "Measure クエリレイテンシ",
+        "tip": "この group の liaison クエリ平均レイテンシ。"
+      },
+      {
+        "title": "Measure 格納データ要素数",
+        "tip": "この group に現在格納されているデータ要素数。"
+      },
+      {
+        "title": "Measure マージレート",
+        "tip": "毎分の file マージループ実行回数。"
+      },
+      {
+        "title": "Measure マージレイテンシ",
+        "tip": "マージループあたりの平均 file マージレイテンシ。"
+      },
+      {
+        "title": "Measure マージ parts",
+        "tip": "file マージループあたりの平均マージ parts 数。"
+      },
+      {
+        "title": "Measure シリーズ書き込み / s",
+        "tip": "毎秒の転置インデックス更新数 (シリーズ書き込みの代理指標)。"
+      },
+      {
+        "title": "Measure term 検索 / s",
+        "tip": "毎秒の転置インデックス term 検索呼び出し数 (インデックス読み込み負荷)。"
+      },
+      {
+        "title": "Measure シリーズ合計",
+        "tip": "この group の転置インデックスドキュメント総数 (シリーズの代理指標)。"
+      },
+      {
+        "title": "Stream 書き込み / s",
+        "tip": "この group の毎秒書き込み数 (データモデル単位の書き込みカウンタ)。"
+      },
+      {
+        "title": "Stream クエリレイテンシ",
+        "tip": "この group の liaison クエリ平均レイテンシ。"
+      },
+      {
+        "title": "Stream 格納データ要素数",
+        "tip": "この group に現在格納されているデータ要素数。"
+      },
+      {
+        "title": "Stream マージレート",
+        "tip": "毎分の file マージループ実行回数。"
+      },
+      {
+        "title": "Stream マージレイテンシ",
+        "tip": "マージループあたりの平均 file マージレイテンシ。"
+      },
+      {
+        "title": "Stream マージ parts",
+        "tip": "file マージループあたりの平均マージ parts 数。"
+      },
+      {
+        "title": "Stream シリーズ書き込み / s",
+        "tip": "毎秒の転置インデックス更新数 (シリーズ書き込みの代理指標)。"
+      },
+      {
+        "title": "Stream TST インデックス書き込み / s",
+        "tip": "Stream の tst スコープにおける毎秒の転置インデックス更新数 (storage スコープのシリーズインデックスとは別)。"
+      },
+      {
+        "title": "Stream term 検索 / s",
+        "tip": "毎秒の転置インデックス term 検索呼び出し数 (インデックス読み込み負荷)。"
+      },
+      {
+        "title": "Stream シリーズ合計",
+        "tip": "この group の転置インデックスドキュメント総数 (シリーズの代理指標)。"
+      },
+      {
+        "title": "Stream TST シリーズ合計",
+        "tip": "Stream の tst スコープにおけるインデックスドキュメント総数 (storage スコープのシリーズインデックスとは別)。"
+      },
+      {
+        "title": "Trace 書き込み / s",
+        "tip": "この group の毎秒書き込み数 (データモデル単位の書き込みカウンタ)。"
+      },
+      {
+        "title": "Trace クエリレイテンシ",
+        "tip": "この group の liaison クエリ平均レイテンシ。"
+      },
+      {
+        "title": "Trace 格納データ要素数",
+        "tip": "この group に現在格納されているデータ要素数。"
+      },
+      {
+        "title": "Trace マージレート",
+        "tip": "毎分の file マージループ実行回数。"
+      },
+      {
+        "title": "Trace マージレイテンシ",
+        "tip": "マージループあたりの平均 file マージレイテンシ。"
+      },
+      {
+        "title": "Trace マージ parts",
+        "tip": "file マージループあたりの平均マージ parts 数。"
+      },
+      {
+        "title": "Trace シリーズ書き込み / s",
+        "tip": "毎秒の転置インデックス更新数 (シリーズ書き込みの代理指標)。"
+      },
+      {
+        "title": "Trace term 検索 / s",
+        "tip": "毎秒の転置インデックス term 検索呼び出し数 (インデックス読み込み負荷)。"
+      },
+      {
+        "title": "Trace シリーズ合計",
+        "tip": "この group の転置インデックスドキュメント総数 (シリーズの代理指標)。"
+      },
+      {
+        "title": "Property インデックス書き込み / s",
+        "tip": "毎秒の property registry 転置インデックス更新数 (property の書き込みシグナル)。"
+      },
+      {
+        "title": "Property インデックスマージレート",
+        "tip": "毎分の property 転置インデックスセグメントマージ回数 (property に tst マージループはありません)。"
+      },
+      {
+        "title": "Property インデックスマージレイテンシ",
+        "tip": "property 転置インデックスの平均マージレイテンシ。"
+      },
+      {
+        "title": "Property term 検索 / s",
+        "tip": "毎秒の property term 検索呼び出し数。property は liaison のクエリメソッドではなく registry / term 検索パス経由で読み取られるため、これが読み込み負荷のシグナルになります。"
+      },
+      {
+        "title": "Property シリーズ合計",
+        "tip": "この group の property 転置インデックスドキュメント総数。"
+      },
+      {
+        "title": "Subscribe スループット",
+        "tip": "操作別の、この group の毎秒 subscribe 側キューメッセージ数。"
+      },
+      {
+        "title": "Publish p99",
+        "tip": "この group の publish 側キュー p99 レイテンシ。"
+      },
+      {
+        "title": "バッチスループット",
+        "tip": "group ごとの書き込み batch レート（操作別）。"
+      },
+      {
+        "title": "メッセージスループット",
+        "tip": "group ごとのレコード単位レート（操作別）。"
+      },
+      {
+        "title": "Part-sync バイト数 / s"
+      }
+    ]
+  }
+}

@@ -914,11 +914,13 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
           const unit = widget.expressionUnits?.[eIdx];
           for (const s of labeled) {
             flat.push({
-              // When the operator supplied an explicit expressionLabel
-              // for a single-series expression, prefer that over the
-              // OAP-side relabels value. Multi-series MQEs (relabels)
-              // already arrive with sensible labels.
-              label: labeled.length === 1 && labelOverride ? labelOverride : s.label,
+              // Multi-series: prefix the label onto each metric label so
+              // paired label-dimensioned expressions stay distinct.
+              label: labelOverride
+                ? labeled.length === 1
+                  ? labelOverride
+                  : `${labelOverride}·${s.label}`
+                : s.label,
               data: s.data,
               ...(axis !== undefined ? { yAxisIndex: axis } : {}),
               ...(unit !== undefined ? { unit } : {}),

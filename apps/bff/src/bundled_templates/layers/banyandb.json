@@ -1,0 +1,1869 @@
+{
+  "key": "BANYANDB",
+  "alias": "BanyanDB",
+  "group": "Self-Observability",
+  "visibility": "operate",
+  "color": "var(--sw-accent)",
+  "documentLink": "https://skywalking.apache.org/docs/skywalking-banyandb/next/readme/",
+  "aliases": {
+    "services": "Clusters",
+    "instances": "Containers",
+    "endpoints": "Groups",
+    "deployment": "Deployment"
+  },
+  "components": {
+    "service": true,
+    "instances": true,
+    "endpoints": true,
+    "endpointDependency": false,
+    "topology": false,
+    "traces": false,
+    "logs": false,
+    "deployment": true
+  },
+  "instances": {
+    "badge": "container_name"
+  },
+  "layer-header": {
+    "orderBy": "write",
+    "columns": [
+      {
+        "metric": "write",
+        "label": "Write/s",
+        "mqe": "meter_banyandb_cluster_write_rate",
+        "aggregation": "avg"
+      },
+      {
+        "metric": "query",
+        "label": "Query/s",
+        "mqe": "meter_banyandb_cluster_query_rate",
+        "aggregation": "avg"
+      },
+      {
+        "metric": "err",
+        "label": "Errors/min",
+        "mqe": "meter_banyandb_cluster_error_rate",
+        "aggregation": "avg"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "id": "cluster_write_kpi",
+        "title": "Write Rate",
+        "tip": "Cluster-wide writes per second across measure + stream + trace data models.",
+        "type": "card",
+        "unit": "writes/s",
+        "expressions": [
+          "meter_banyandb_cluster_write_rate"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_query_kpi",
+        "title": "Query Rate",
+        "tip": "Cluster-wide gRPC query calls per second seen at the liaison front door.",
+        "type": "card",
+        "unit": "q/s",
+        "expressions": [
+          "meter_banyandb_cluster_query_rate"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_error_kpi",
+        "title": "Error Rate",
+        "tip": "Cluster-wide errors per minute (gRPC + registry + stream-msg + publish + sync-loop). Absent renders as 0 on a healthy cluster.",
+        "type": "card",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_cluster_error_rate"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_cpu_kpi",
+        "title": "CPU Cores",
+        "tip": "Total CPU cores visible across the cluster's containers.",
+        "type": "card",
+        "unit": "cores",
+        "format": "int",
+        "expressions": [
+          "meter_banyandb_total_cpu_cores"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_mem_kpi",
+        "title": "Memory Used",
+        "tip": "Total memory used across the cluster.",
+        "type": "card",
+        "unit": "GB",
+        "format": "decimal",
+        "expressions": [
+          "meter_banyandb_total_memory_used/1073741824"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_disk_kpi",
+        "title": "Disk Used",
+        "tip": "Total on-disk bytes used across the cluster's data paths.",
+        "type": "card",
+        "unit": "GB",
+        "format": "decimal",
+        "expressions": [
+          "meter_banyandb_total_disk_used/1073741824"
+        ],
+        "span": 2,
+        "rowSpan": 1
+      },
+      {
+        "id": "cluster_throughput",
+        "title": "Cluster Throughput",
+        "tip": "Write vs query rate over time.",
+        "type": "line",
+        "expressions": [
+          "meter_banyandb_cluster_write_rate",
+          "meter_banyandb_cluster_query_rate"
+        ],
+        "expressionLabels": [
+          "writes/s",
+          "queries/s"
+        ],
+        "expressionUnits": [
+          "writes/s",
+          "q/s"
+        ],
+        "span": 5,
+        "rowSpan": 3
+      },
+      {
+        "id": "cluster_errors",
+        "title": "Cluster Errors / min",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_cluster_error_rate"
+        ],
+        "span": 4,
+        "rowSpan": 3
+      },
+      {
+        "id": "containers_by_role",
+        "title": "Containers by Role",
+        "tip": "Live container count per role (data / liaison), derived from the system uptime gauge. The lifecycle sidecar runs no system collector, so it never appears here.",
+        "type": "table",
+        "tableHeaders": [
+          "Role",
+          "Containers"
+        ],
+        "expressions": [
+          "latest(meter_banyandb_reporting_instances)"
+        ],
+        "span": 3,
+        "rowSpan": 3
+      }
+    ],
+    "instance": [
+      {
+        "id": "lifecycle_last_run",
+        "title": "Time Since Last Sync",
+        "tip": "How long ago the last migration cycle started, e.g. \"5m 20s ago\". Appears once the first migration cycle has run.",
+        "type": "card",
+        "format": "duration",
+        "expressions": [
+          "latest(meter_banyandb_instance_lifecycle_last_run)"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "lifecycle"
+        },
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
+        "id": "lifecycle_last_run_success",
+        "title": "Last Sync",
+        "tip": "Whether the last migration cycle succeeded or failed.",
+        "type": "card",
+        "format": "enum",
+        "expressions": [
+          "latest(meter_banyandb_instance_lifecycle_last_run_success)"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "lifecycle"
+        },
+        "span": 4,
+        "rowSpan": 1,
+        "valueMap": {
+          "0": "Failed",
+          "1": "OK"
+        }
+      },
+      {
+        "id": "lifecycle_cycles",
+        "title": "Migration Cycles",
+        "tip": "Cumulative tier-migration cycles run by the lifecycle sidecar.",
+        "type": "card",
+        "unit": "cycles",
+        "expressions": [
+          "latest(meter_banyandb_instance_lifecycle_migration_cycles)"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "lifecycle"
+        },
+        "span": 4,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "cpu_usage",
+        "title": "CPU Usage",
+        "tip": "Process CPU consumption in cores.",
+        "type": "line",
+        "unit": "cores",
+        "expressions": [
+          "meter_banyandb_instance_cpu_usage"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "rss_memory",
+        "title": "Resident Memory",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "meter_banyandb_instance_rss_memory/1048576"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "goroutines",
+        "title": "Goroutines",
+        "type": "line",
+        "expressions": [
+          "meter_banyandb_instance_goroutines"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "gc_pause",
+        "title": "GC Pause (avg)",
+        "tip": "Average Go GC pause per cycle.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_instance_gc_pause_avg*1000"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "go_heap",
+        "title": "Go Heap",
+        "type": "line",
+        "unit": "MB",
+        "expressions": [
+          "meter_banyandb_instance_heap_inuse/1048576",
+          "meter_banyandb_instance_heap_next_gc/1048576"
+        ],
+        "expressionLabels": [
+          "in-use",
+          "next GC"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "go_alloc_rate",
+        "title": "Go Alloc Rate",
+        "type": "line",
+        "unit": "MB/s",
+        "expressions": [
+          "meter_banyandb_instance_alloc_rate/1048576"
+        ],
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "node_uptime",
+        "title": "Uptime",
+        "tip": "Days since the node started. Absent on the lifecycle sidecar (no system collector).",
+        "type": "line",
+        "unit": "days",
+        "expressions": [
+          "meter_banyandb_instance_node_uptime/86400"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_instance_node_uptime",
+          "op": "exists"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "system_memory_percent",
+        "title": "System Memory Used",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_banyandb_instance_system_memory_percent"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_instance_system_memory_percent",
+          "op": "exists"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "disk_usage_percent",
+        "title": "Disk Usage",
+        "tip": "Used / total across the node's data paths.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_banyandb_instance_disk_usage_percent"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_instance_disk_usage_percent",
+          "op": "exists"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "disk_space",
+        "title": "Disk Used / Total",
+        "tip": "Used per data path, against total filesystem capacity. Paths sharing one filesystem report identical figures.",
+        "type": "line",
+        "unit": "GB",
+        "expressions": [
+          "meter_banyandb_instance_disk_used_by_path/1073741824",
+          "meter_banyandb_instance_disk_total_by_path/1073741824"
+        ],
+        "expressionLabels": [
+          "Used",
+          "Total"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_instance_disk_used_by_path",
+          "op": "exists"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "network_io",
+        "title": "Network I/O",
+        "tip": "Per-interface receive / send throughput.",
+        "type": "line",
+        "unit": "KB/s",
+        "expressions": [
+          "meter_banyandb_instance_network_recv/1024",
+          "meter_banyandb_instance_network_sent/1024"
+        ],
+        "expressionLabels": [
+          "recv",
+          "sent"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_instance_network_recv",
+          "op": "exists"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_query_rate",
+        "title": "Query Rate by Service",
+        "tip": "gRPC query calls/s split by BanyanDB data-model service (measure / stream / trace / property).",
+        "type": "line",
+        "unit": "q/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_query_rate"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_grpc_errors",
+        "title": "gRPC Errors / min",
+        "tip": "Sum of total + registry + stream-msg gRPC errors. Lazily registered — absent renders as 0 on a healthy liaison.",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_instance_liaison_grpc_error_rate"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_registry_ops",
+        "title": "Registry Ops / s",
+        "tip": "Schema-registry operations/s seen at the liaison front door.",
+        "type": "line",
+        "unit": "ops/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_registry_op_rate"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_write_rate",
+        "title": "Write Rate",
+        "tip": "Writes/s seen at the liaison front door across the three data models.",
+        "type": "line",
+        "unit": "writes/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_publish_throughput",
+        "title": "Publish Throughput",
+        "tip": "Tier-2 publish pipeline (liaison → data), broken out by operation.",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_publish_throughput"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_publish_latency",
+        "title": "Publish p99 Latency",
+        "tip": "p99 send latency of the tier-2 publish pipeline, per operation.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_instance_liaison_publish_latency_p99"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_publish_bytes",
+        "title": "Part-sync Bytes",
+        "type": "line",
+        "unit": "KB/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_publish_bytes/1024"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2,
+        "tip": "Bytes/s streamed to data nodes on the part-sync (file-sync) path. The queue_pub sent-bytes counter only ticks on chunked file-sync — regular write/query publishes are not counted here."
+      },
+      {
+        "id": "liaison_wqueue",
+        "title": "Write Queue Pending",
+        "tip": "Liaison write-buffer depth: records buffered at the front door before publish.",
+        "type": "line",
+        "expressions": [
+          "meter_banyandb_instance_liaison_wqueue_pending"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2,
+        "unit": "records"
+      },
+      {
+        "id": "liaison_publish_batch_throughput",
+        "title": "Publish Batch Throughput",
+        "tip": "Batches published/s by operation. Hidden until the cluster emits batch metrics.",
+        "type": "line",
+        "unit": "batches/s",
+        "expressions": [
+          "meter_banyandb_instance_liaison_publish_batch_throughput"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "liaison_publish_batch_latency",
+        "title": "Publish Batch p99",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_instance_liaison_publish_batch_latency_p99"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "liaison"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_total",
+        "title": "Stored Data Elements",
+        "tip": "Total file elements stored across measure + stream + trace.",
+        "type": "line",
+        "format": "compact",
+        "expressions": [
+          "meter_banyandb_instance_data_total_data"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_wqueue",
+        "title": "Write Queue (wqueue)",
+        "tip": "Data-node write queue: pending records, on-disk file parts, in-memory parts.",
+        "type": "line",
+        "expressions": [
+          "meter_banyandb_instance_data_wqueue_pending",
+          "meter_banyandb_instance_data_wqueue_file_parts",
+          "meter_banyandb_instance_data_wqueue_mem_part"
+        ],
+        "expressionLabels": [
+          "pending",
+          "file parts",
+          "mem parts"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_merge_rate",
+        "title": "Merge Loop Rate",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_instance_data_merge_file_rate"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_merge_latency",
+        "title": "Merge File Latency",
+        "tip": "Average on-disk file-merge latency per merge loop.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_instance_data_merge_file_latency"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_merge_partitions",
+        "title": "Merge Parts / Loop",
+        "tip": "Average parts merged per on-disk merge loop.",
+        "type": "line",
+        "unit": "parts",
+        "expressions": [
+          "meter_banyandb_instance_data_merge_file_partitions"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_index_rate",
+        "title": "Inverted Index Rate",
+        "tip": "Series-index updates and term searches per second (measure + stream storage + stream tst).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_instance_data_series_write_rate",
+          "meter_banyandb_instance_data_series_term_search_rate",
+          "meter_banyandb_instance_data_stream_tst_write_rate",
+          "meter_banyandb_instance_data_stream_tst_term_search_rate"
+        ],
+        "expressionLabels": [
+          "series writes",
+          "series searches",
+          "tst writes",
+          "tst searches"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_index_docs",
+        "title": "Index Documents",
+        "tip": "Total inverted-index documents (series proxy).",
+        "type": "line",
+        "format": "compact",
+        "expressions": [
+          "meter_banyandb_instance_data_total_series",
+          "meter_banyandb_instance_data_stream_tst_total_docs"
+        ],
+        "expressionLabels": [
+          "series docs",
+          "tst docs"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_subscribe_throughput",
+        "title": "Subscribe Throughput",
+        "tip": "Subscribe-side queue throughput by operation (query / file-sync / batch-write / control).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_instance_data_queue_sub_throughput"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_subscribe_latency",
+        "title": "Subscribe p99 Latency",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_instance_data_queue_sub_latency_p99"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_retention",
+        "title": "Retention Disk Usage",
+        "tip": "Per data-model retention disk-usage percentage.",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_banyandb_instance_data_retention_measure_disk_usage_percent",
+          "meter_banyandb_instance_data_retention_stream_disk_usage_percent",
+          "meter_banyandb_instance_data_retention_trace_disk_usage_percent"
+        ],
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "data_subscribe_message_throughput",
+        "title": "Subscribe Message Throughput",
+        "tip": "Per-record processing rate the subscriber unpacks from batches.",
+        "type": "line",
+        "unit": "msgs/s",
+        "expressions": [
+          "meter_banyandb_instance_data_queue_sub_message_throughput"
+        ],
+        "visibleWhen": {
+          "kind": "entity",
+          "attribute": "container_name",
+          "op": "eq",
+          "value": "data"
+        },
+        "span": 3,
+        "rowSpan": 2
+      }
+    ],
+    "endpoint": [
+      {
+        "id": "measure_write_rate",
+        "title": "Measure Write / s",
+        "tip": "Writes per second for this group (per data-model write counter).",
+        "type": "line",
+        "unit": "writes/s",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_query_latency",
+        "title": "Measure Query Latency",
+        "tip": "Mean liaison query latency for this group.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_query_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_total_data",
+        "title": "Measure Total Data",
+        "tip": "Current stored data elements for this group.",
+        "type": "line",
+        "unit": "elements",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_total_data"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_merge_rate",
+        "title": "Measure Merge Rate",
+        "tip": "File merge-loop iterations per minute.",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_merge_file_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_merge_latency",
+        "title": "Measure Merge Latency",
+        "tip": "Mean file-merge latency per merge loop.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_merge_file_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_merge_partitions",
+        "title": "Measure Merge Partitions",
+        "tip": "Avg parts merged per file merge loop.",
+        "type": "line",
+        "unit": "parts",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_merge_file_partitions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_series_write_rate",
+        "title": "Measure Series Write / s",
+        "tip": "Inverted-index updates per second (series-write proxy).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_series_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_term_search_rate",
+        "title": "Measure Term Search / s",
+        "tip": "Inverted-index term-search invocations per second (index read pressure).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_series_term_search_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "measure_total_series",
+        "title": "Measure Total Series",
+        "tip": "Total inverted-index documents (series proxy) for this group.",
+        "type": "line",
+        "unit": "series",
+        "expressions": [
+          "meter_banyandb_endpoint_measure_total_series"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_measure_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_write_rate",
+        "title": "Stream Write / s",
+        "tip": "Writes per second for this group (per data-model write counter).",
+        "type": "line",
+        "unit": "writes/s",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_query_latency",
+        "title": "Stream Query Latency",
+        "tip": "Mean liaison query latency for this group.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_query_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_total_data",
+        "title": "Stream Total Data",
+        "tip": "Current stored data elements for this group.",
+        "type": "line",
+        "unit": "elements",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_total_data"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_merge_rate",
+        "title": "Stream Merge Rate",
+        "tip": "File merge-loop iterations per minute.",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_merge_file_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_merge_latency",
+        "title": "Stream Merge Latency",
+        "tip": "Mean file-merge latency per merge loop.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_merge_file_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_merge_partitions",
+        "title": "Stream Merge Partitions",
+        "tip": "Avg parts merged per file merge loop.",
+        "type": "line",
+        "unit": "parts",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_merge_file_partitions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_series_write_rate",
+        "title": "Stream Series Write / s",
+        "tip": "Inverted-index updates per second (series-write proxy).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_series_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_tst_index_write_rate",
+        "title": "Stream TST Index Write / s",
+        "tip": "Stream tst-scope inverted-index updates per second (distinct from the storage-scope series index).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_tst_index_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_term_search_rate",
+        "title": "Stream Term Search / s",
+        "tip": "Inverted-index term-search invocations per second (index read pressure).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_series_term_search_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_total_series",
+        "title": "Stream Total Series",
+        "tip": "Total inverted-index documents (series proxy) for this group.",
+        "type": "line",
+        "unit": "series",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_total_series"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "stream_tst_total_series",
+        "title": "Stream TST Total Series",
+        "tip": "Stream tst-scope index document total (distinct from the storage-scope series index).",
+        "type": "line",
+        "unit": "series",
+        "expressions": [
+          "meter_banyandb_endpoint_stream_tst_total_series"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_stream_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_write_rate",
+        "title": "Trace Write / s",
+        "tip": "Writes per second for this group (per data-model write counter).",
+        "type": "line",
+        "unit": "writes/s",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_query_latency",
+        "title": "Trace Query Latency",
+        "tip": "Mean liaison query latency for this group.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_query_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_total_data",
+        "title": "Trace Total Data",
+        "tip": "Current stored data elements for this group.",
+        "type": "line",
+        "unit": "elements",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_total_data"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_merge_rate",
+        "title": "Trace Merge Rate",
+        "tip": "File merge-loop iterations per minute.",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_merge_file_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_merge_latency",
+        "title": "Trace Merge Latency",
+        "tip": "Mean file-merge latency per merge loop.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_merge_file_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_merge_partitions",
+        "title": "Trace Merge Partitions",
+        "tip": "Avg parts merged per file merge loop.",
+        "type": "line",
+        "unit": "parts",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_merge_file_partitions"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_series_write_rate",
+        "title": "Trace Series Write / s",
+        "tip": "Inverted-index updates per second (series-write proxy).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_series_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_term_search_rate",
+        "title": "Trace Term Search / s",
+        "tip": "Inverted-index term-search invocations per second (index read pressure).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_series_term_search_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "trace_total_series",
+        "title": "Trace Total Series",
+        "tip": "Total inverted-index documents (series proxy) for this group.",
+        "type": "line",
+        "unit": "series",
+        "expressions": [
+          "meter_banyandb_endpoint_trace_total_series"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_trace_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "property_index_write_rate",
+        "title": "Property Index Write / s",
+        "tip": "Property registry inverted-index updates per second (property's write signal).",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_property_index_write_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_property_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "property_index_merge_rate",
+        "title": "Property Index Merge Rate",
+        "tip": "Property inverted-index segment merges per minute (property has no tst merge loop).",
+        "type": "line",
+        "unit": "/min",
+        "expressions": [
+          "meter_banyandb_endpoint_property_index_merge_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_property_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "property_index_merge_latency",
+        "title": "Property Index Merge Latency",
+        "tip": "Mean property inverted-index merge latency.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_property_index_merge_latency"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_property_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "property_term_search_rate",
+        "title": "Property Term Search / s",
+        "tip": "Property term-search invocations per second — property is read via the registry/term-search path, not the liaison query method, so this is its read-load signal.",
+        "type": "line",
+        "unit": "/s",
+        "expressions": [
+          "meter_banyandb_endpoint_property_series_term_search_rate"
+        ],
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_property_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "property_total_series",
+        "title": "Property Total Series",
+        "tip": "Total property inverted-index documents for this group.",
+        "type": "line",
+        "unit": "series",
+        "expressions": [
+          "meter_banyandb_endpoint_property_total_series"
+        ],
+        "format": "compact",
+        "visibleWhen": {
+          "kind": "mqe",
+          "expression": "meter_banyandb_endpoint_property_total_series",
+          "op": "exists"
+        },
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "group_queue_throughput",
+        "title": "Subscribe Throughput",
+        "tip": "Subscribe-side queue messages per second for this group, by operation.",
+        "type": "line",
+        "unit": "msgs/s",
+        "expressions": [
+          "meter_banyandb_endpoint_queue_throughput"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "group_queue_latency",
+        "title": "Publish p99",
+        "tip": "Publish-side queue p99 latency for this group.",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_banyandb_endpoint_queue_latency_p99"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "group_queue_batch_throughput",
+        "title": "Batch Throughput",
+        "tip": "Per-group write-batch rate, by operation.",
+        "type": "line",
+        "unit": "batches/s",
+        "expressions": [
+          "meter_banyandb_endpoint_queue_batch_throughput"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "group_queue_message_throughput",
+        "title": "Message Throughput",
+        "tip": "Per-group per-record rate, by operation.",
+        "type": "line",
+        "unit": "msgs/s",
+        "expressions": [
+          "meter_banyandb_endpoint_queue_message_throughput"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "group_publish_bytes",
+        "title": "Part-sync Bytes / s",
+        "tip": "Part-sync (file-sync) bytes per second for this group. Only the chunked part-streaming path increments this — regular write/query publishes are not counted.",
+        "type": "line",
+        "unit": "KB/s",
+        "expressions": [
+          "meter_banyandb_endpoint_publish_bytes/1024"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      }
+    ]
+  },
+  "deployment": {
+    "clusterBy": {
+      "kind": "attributes",
+      "attributes": [
+        "node_role",
+        "node_type"
+      ],
+      "separator": " / ",
+      "alias": "role"
+    },
+    "siblingBy": {
+      "kind": "attribute",
+      "attribute": "pod_name",
+      "alias": "pod"
+    },
+    "roleBy": {
+      "kind": "attribute",
+      "attribute": "container_name",
+      "alias": "container"
+    },
+    "roles": [
+      {
+        "key": "liaison",
+        "label": "Liaison",
+        "main": true,
+        "nodeMetrics": [
+          {
+            "id": "query",
+            "label": "Query/s",
+            "mqe": "meter_banyandb_instance_liaison_query_rate",
+            "unit": "q/s",
+            "role": "center",
+            "aggregation": "sum"
+          },
+          {
+            "id": "grpc_err",
+            "label": "gRPC err/min",
+            "mqe": "meter_banyandb_instance_liaison_grpc_error_rate",
+            "unit": "/min",
+            "role": "ring",
+            "aggregation": "avg",
+            "thresholds": {
+              "ok": 1,
+              "warn": 10,
+              "danger": 60
+            }
+          }
+        ]
+      },
+      {
+        "key": "data",
+        "label": "Data",
+        "main": true,
+        "nodeMetrics": [
+          {
+            "id": "ingest",
+            "label": "Ingest/s",
+            "mqe": "meter_banyandb_instance_data_queue_sub_throughput",
+            "unit": "/s",
+            "role": "center",
+            "aggregation": "sum"
+          },
+          {
+            "id": "disk",
+            "label": "Disk %",
+            "mqe": "meter_banyandb_instance_disk_usage_percent",
+            "unit": "%",
+            "role": "ring",
+            "aggregation": "avg",
+            "thresholds": {
+              "ok": 50,
+              "warn": 75,
+              "danger": 85
+            }
+          }
+        ]
+      },
+      {
+        "key": "lifecycle",
+        "label": "Lifecycle",
+        "nodeMetrics": [
+          {
+            "id": "cycles",
+            "label": "Cycles",
+            "mqe": "meter_banyandb_instance_lifecycle_migration_cycles",
+            "role": "center",
+            "aggregation": "avg"
+          },
+          {
+            "id": "ok",
+            "label": "Last OK",
+            "mqe": "meter_banyandb_instance_lifecycle_last_run_success",
+            "role": "ring",
+            "aggregation": "avg",
+            "thresholds": {
+              "invertHealth": true,
+              "invertBase": 1,
+              "ok": 0.1,
+              "warn": 0.3,
+              "danger": 0.5
+            }
+          }
+        ]
+      }
+    ],
+    "roleToRole": [
+      {
+        "from": "liaison",
+        "to": "data",
+        "primary": [
+          "write",
+          "query"
+        ],
+        "metrics": [
+          {
+            "id": "write",
+            "label": "Write/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_throughput{operation='batch-write'}",
+            "role": "lineClient",
+            "alias": "W"
+          },
+          {
+            "id": "write",
+            "label": "Write/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_throughput{operation='batch-write'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "query",
+            "label": "Query/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_throughput{operation='query'}",
+            "role": "lineClient",
+            "alias": "R"
+          },
+          {
+            "id": "query",
+            "label": "Query/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_throughput{operation='query'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "sync",
+            "label": "Part-sync/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_throughput{operation='file-sync'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "sync",
+            "label": "Part-sync/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_throughput{operation='file-sync'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "write_p99",
+            "label": "Write p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_latency_p99{operation='batch-write'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "write_p99",
+            "label": "Write p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_latency_p99{operation='batch-write'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "query_p99",
+            "label": "Query p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_latency_p99{operation='query'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "query_p99",
+            "label": "Query p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_latency_p99{operation='query'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "bytes",
+            "label": "Part-sync B/s",
+            "unit": "B/s",
+            "aggregation": "avg",
+            "format": "compact",
+            "mqe": "meter_banyandb_instance_relation_publish_bytes_throughput{operation='file-sync'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "bytes",
+            "label": "Part-sync B/s",
+            "unit": "B/s",
+            "aggregation": "avg",
+            "format": "compact",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_bytes_throughput{operation='file-sync'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_publish_error_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_error_throughput,sum)",
+            "role": "lineServer"
+          }
+        ]
+      },
+      {
+        "from": "liaison",
+        "to": "liaison",
+        "primary": "fwd",
+        "metrics": [
+          {
+            "id": "fwd",
+            "label": "Forward/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_throughput{operation='batch-write'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "fwd",
+            "label": "Forward/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_throughput{operation='batch-write'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "fwd_p99",
+            "label": "Forward p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_latency_p99{operation='batch-write'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "fwd_p99",
+            "label": "Forward p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_latency_p99{operation='batch-write'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "ctrl",
+            "label": "Control/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_publish_throughput{operation='control'}",
+            "role": "lineClient"
+          },
+          {
+            "id": "ctrl",
+            "label": "Control/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "meter_banyandb_instance_relation_queue_sub_throughput{operation='control'}",
+            "role": "lineServer"
+          },
+          {
+            "id": "err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_publish_error_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_error_throughput,sum)",
+            "role": "lineServer"
+          }
+        ]
+      },
+      {
+        "from": "lifecycle",
+        "to": "data",
+        "primary": "mig_bytes",
+        "metrics": [
+          {
+            "id": "mig",
+            "label": "Migrate/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_migration_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "mig",
+            "label": "Migrate/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_throughput,sum)",
+            "role": "lineServer"
+          },
+          {
+            "id": "mig_p99",
+            "label": "Migrate p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_migration_latency_p99,avg)",
+            "role": "lineClient"
+          },
+          {
+            "id": "mig_p99",
+            "label": "Migrate p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_latency_p99,avg)",
+            "role": "lineServer"
+          },
+          {
+            "id": "mig_bytes",
+            "label": "Migrate B/s",
+            "unit": "B/s",
+            "aggregation": "avg",
+            "format": "compact",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_migration_bytes_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "mig_bytes",
+            "label": "Migrate B/s",
+            "unit": "B/s",
+            "aggregation": "avg",
+            "format": "compact",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_bytes_throughput,sum)",
+            "role": "lineServer"
+          },
+          {
+            "id": "mig_err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_migration_error_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "mig_err",
+            "label": "Errors/s",
+            "unit": "/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_error_throughput,sum)",
+            "role": "lineServer"
+          }
+        ]
+      },
+      {
+        "from": "*",
+        "to": "*",
+        "primary": "msg",
+        "metrics": [
+          {
+            "id": "msg",
+            "label": "Msg/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_publish_throughput,sum)",
+            "role": "lineClient"
+          },
+          {
+            "id": "msg",
+            "label": "Msg/s",
+            "unit": "msg/s",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_throughput,sum)",
+            "role": "lineServer"
+          },
+          {
+            "id": "p99",
+            "label": "p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_publish_latency_p99,avg)",
+            "role": "lineClient"
+          },
+          {
+            "id": "p99",
+            "label": "p99",
+            "unit": "ms",
+            "aggregation": "avg",
+            "mqe": "aggregate_labels(meter_banyandb_instance_relation_queue_sub_latency_p99,avg)",
+            "role": "lineServer"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -42,11 +42,12 @@ import type {
   DeploymentConfig,
   DeploymentNode,
   DeploymentMetricDef,
+  RolePairMetrics,
 } from '@/api/client';
 import { useDeployment } from '@/layer/service-map/useDeployment';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayers } from '@/shell/useLayers';
-import { fmtMetric } from '@/utils/formatters';
+import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
 
@@ -95,23 +96,53 @@ function centerDefFor(n: DeploymentNode): DeploymentMetricDef | null {
 function ringDefFor(n: DeploymentNode): DeploymentMetricDef | null {
   return pickByRole(metricDefsFor(n), 'ring');
 }
-// Union of the top-level + every role's metric defs (deduped by id) — drives
-// the toolbar legend + the ring-legend baseline, since with roles the
-// top-level `nodeMetrics` may be empty.
-const allMetricDefs = computed<DeploymentMetricDef[]>(() => {
-  const map = new Map<string, DeploymentMetricDef>();
-  for (const d of cfg.value.nodeMetrics ?? []) if (!map.has(d.id)) map.set(d.id, d);
-  for (const r of cfg.value.roles ?? []) for (const d of r.nodeMetrics ?? []) if (!map.has(d.id)) map.set(d.id, d);
-  return [...map.values()];
+// The ring metric is PER-ROLE, so the legend is built ENTIRELY from config —
+// each entry's role name + metric label come from the layer template, and the
+// direction is derived ONLY from the config threshold flag `invertHealth` (no
+// hard-coded metric name/word).
+// Band-edge colors (green / light-yellow / dark-yellow); red has no upper edge.
+const RING_BAND_COLORS = ['var(--sw-ok)', '#fbbf24', 'var(--sw-warn)'];
+const ringByRole = computed<Array<{ role: string; metric: string; bounds: Array<{ v: string; color: string }> }>>(() => {
+  const out: Array<{ role: string; metric: string; bounds: Array<{ v: string; color: string }> }> = [];
+  const num = (n: number): string => String(Math.round(n * 100) / 100);
+  const add = (label: string, ring: DeploymentMetricDef | null): void => {
+    if (!ring) return;
+    const th = ring.thresholds;
+    const inv = !!th?.invertHealth;
+    let bounds: Array<{ v: string; color: string }> = [];
+    if (th && th.ok != null && th.warn != null && th.danger != null) {
+      // Boundaries in the metric's own value space: lower-is-better caps each
+      // band at ok/warn/danger; inverted reads in `invertBase - value`, so the
+      // value-space edges are invertBase − threshold.
+      const B = th.invertBase ?? 100;
+      const vals = inv ? [B - th.ok, B - th.warn, B - th.danger] : [th.ok, th.warn, th.danger];
+      bounds = vals.map((v, i) => ({ v: (inv ? '≥' : '≤') + num(v), color: RING_BAND_COLORS[i] ?? 'var(--sw-fg-3)' }));
+    }
+    out.push({ role: label, metric: ring.label, bounds });
+  };
+  const roles = cfg.value.roles ?? [];
+  if (roles.length > 0) {
+    for (const r of roles) add(r.label || r.key, pickByRole(r.nodeMetrics ?? cfg.value.nodeMetrics ?? [], 'ring'));
+  } else {
+    add('', pickByRole(cfg.value.nodeMetrics ?? [], 'ring'));
+  }
+  return out;
 });
-const defaultRingDef = computed(() => pickByRole(allMetricDefs.value, 'ring'));
 
 function nodeVal(n: DeploymentNode, def: DeploymentMetricDef | null): number | null {
   return def ? (n.metrics?.[def.id] ?? null) : null;
 }
-function fmtVal(v: number | null, unit?: string): string {
+// Format a node/edge metric value honoring the def's `format`. `compact` keeps
+// it tight for the node hex (`5m`); the full form ("5m 20s ago") is for the
+// popover + edge panel. A `duration` value self-describes, so no unit suffix.
+function fmtVal(v: number | null, unit?: string, format?: DeploymentMetricDef['format'], compact = false): string {
   if (v === null) return '—';
-  return unit ? `${fmtMetric(v)}${unit === '%' ? '' : ' '}${unit}` : fmtMetric(v);
+  if (format === 'duration') return compact ? formatDuration(v, true) : `${formatDuration(v)} ago`;
+  const body = format ? fmtMetricAs(v, format) : fmtMetric(v);
+  return unit ? `${body}${unit === '%' ? '' : ' '}${unit}` : body;
+}
+function fmtEdge(v: number | null, def: DeploymentMetricDef | null): string {
+  return fmtVal(v, undefined, def?.format);
 }
 function bandColor(value: number, th: NonNullable<DeploymentMetricDef['thresholds']>): string {
   const base = th.invertBase ?? 100;
@@ -141,34 +172,6 @@ function hexPoints(r: number): string {
   return `${r},0 ${h},${s} ${-h},${s} ${-r},0 ${-h},${-s} ${h},${-s}`;
 }
 
-// ── Ring-colour legend (same break-point derivation as the instance map). */
-const ringScaleLabels = computed<string[]>(() => {
-  const def = defaultRingDef.value;
-  if (!def) return [];
-  const th = def.thresholds ?? { ok: 0.1, warn: 1, danger: 5 };
-  const heuristicInvert = /sla|success|apdex/i.test(def.id) || /sla|apdex|success/i.test(def.label);
-  const invert = th.invertHealth === undefined ? heuristicInvert : Boolean(th.invertHealth);
-  const base = th.invertBase ?? 100;
-  const ok = th.ok ?? 0.1;
-  const warn = th.warn ?? 1;
-  const danger = th.danger ?? 5;
-  const unit = def.unit ?? '';
-  const breaks = invert ? [base, base - ok, base - warn, base - danger] : [0, ok, warn, danger];
-  const fmt = (n: number): string => {
-    const s = Number.isInteger(n) ? n.toString() : n.toFixed(2).replace(/\.?0+$/, '');
-    return `${s}${unit}`;
-  };
-  const out = breaks.map(fmt);
-  if (out.length > 0) out[out.length - 1] = out[out.length - 1] + (invert ? '-' : '+');
-  return out;
-});
-const ringDirectionHint = computed<string>(() => {
-  const def = defaultRingDef.value;
-  if (!def) return '';
-  if (def.thresholds?.invertHealth) return t('higher = better');
-  if (/sla|success|apdex/i.test(def.id) || /sla|apdex|success/i.test(def.label)) return t('higher = better');
-  return t('lower = better');
-});
 
 // ── Three independent rules, each keyed off an instance's name + attributes:
 //   clusterBy → which dashed box (separates pod-groups)
@@ -434,7 +437,9 @@ const layout = computed<Layout>(() => {
   // boxes and a blank leading strip before the first one.
   let cursorX = 0;
   let maxW = 0;
+  let clusterIdx = -1;
   for (const cl of orderedClusters) {
+    clusterIdx++;
     const podById = new Map(cl.pods.map((p) => [podIdOf(cl.key, p.siblingKey), p]));
     const ids = [...podById.keys()];
     const rank = rankPods(ids, intraByCluster.get(cl.key ?? '') ?? []);
@@ -453,10 +458,12 @@ const layout = computed<Layout>(() => {
     const subColsPerRank = rankCols.map((c) => Math.max(1, Math.ceil(c.length / COL_CAP)));
     const headH = showBoxes ? HEAD_H : 0;
     // Pods are TOP-aligned (row 0 just under the header) so tiers line up; the
-    // canvas pans/zooms to fit. Staggered ("错落"): drop every other sub-column
-    // by half a row so adjacent columns interleave — keeps long pod labels and
-    // cross-tier edges from colliding on a rigid grid.
-    const rowTop = headH + CLUSTER_PAD + MAIN_R;
+    // canvas pans/zooms to fit. Staggered: drop every other sub-column by half a
+    // row so adjacent columns interleave — keeps long pod labels and cross-tier
+    // edges from colliding on a rigid grid.
+    // Cluster start rows zigzag (low-high-low) so adjacent clusters don't line
+    // up flat; offset alternates by half the default height diff (50% of POD_DY).
+    const rowTop = headH + CLUSTER_PAD + MAIN_R + (clusterIdx % 2 === 0 ? 1 : -1) * POD_DY * 0.25;
     const clusterNodeIds: string[] = [];
     let subColBase = 0;
     rankCols.forEach((col, r) => {
@@ -517,11 +524,13 @@ const W = computed(() => layout.value.w);
 const H = computed(() => layout.value.h);
 // The canvas needs a CONCRETE height — the tab outlet sizes by content, so a
 // flex/`height:100%` canvas would collapse to its min and starve the fit to a
-// tiny zoom. Size to the graph (+ chrome), clamped, exactly like the service
-// map's card; the fit then reaches the same readable scale (0.79).
+// tiny zoom. Size to the graph (+ chrome), clamped to the service-map card's
+// range, then scaled up: deployment graphs are wide + sparse, so HEIGHT_SCALE
+// gives 50% more vertical room (effective ~702–1650px) than the flat map.
 const CARD_MIN = 468;
 const CARD_MAX = 1100;
-const canvasHeightPx = computed<number>(() => Math.max(CARD_MIN, Math.min(CARD_MAX, H.value + 80)));
+const HEIGHT_SCALE = 1.5;
+const canvasHeightPx = computed<number>(() => Math.round(Math.max(CARD_MIN, Math.min(CARD_MAX, H.value + 80)) * HEIGHT_SCALE));
 function posR(id: string): number {
   return pos.value.get(id)?.r ?? MAIN_R;
 }
@@ -736,7 +745,7 @@ function selectNode(id: string): void {
   selectedCallId.value = null;
   popoverNodeId.value = popoverNodeId.value === id ? null : id;
 }
-watch(selectedId, () => { selectedCallId.value = null; popoverNodeId.value = null; podDelta.value = new Map(); });
+watch(selectedId, () => { selectedCallId.value = null; popoverNodeId.value = null; podDelta.value = new Map(); mapTab.value = 'topology'; });
 const selectedCall = computed<DeploymentCall | null>(
   () => calls.value.find((c) => c.id === selectedCallId.value) ?? null,
 );
@@ -746,7 +755,20 @@ const popoverNode = computed<DeploymentNode | null>(
 function instById(id: string): DeploymentNode | null {
   return nodes.value.find((n) => n.id === id) ?? null;
 }
-const POP_W = 220;
+// Popover attribute search — the FODC proxy stamps many labels onto each
+// instance (k8s_*, net_*, …), so the list is long; filter + scroll it.
+const attrFilter = ref('');
+watch(popoverNodeId, () => { attrFilter.value = ''; });
+const filteredAttrs = computed(() => {
+  const n = popoverNode.value;
+  if (!n) return [];
+  const query = attrFilter.value.trim().toLowerCase();
+  if (!query) return n.attributes;
+  return n.attributes.filter(
+    (a) => a.name.toLowerCase().includes(query) || a.value.toLowerCase().includes(query),
+  );
+});
+const POP_W = 320;
 const popoverStyle = computed<Record<string, string>>(() => {
   const n = popoverNode.value;
   const p = n ? pos.value.get(n.id) : null;
@@ -761,11 +783,20 @@ const popoverStyle = computed<Record<string, string>>(() => {
   const openRight = nx < cw / 2;
   let left = openRight ? nx + r + 10 : nx - r - 10 - POP_W;
   left = Math.max(8, Math.min(left, cw - POP_W - 8));
-  const top = Math.max(72, Math.min(ny, ch - 72));
+  // Keep the WHOLE popover inside the canvas, clear of the toolbar header at
+  // the top. The box is centred on `top` (translateY(-50%)), so it extends
+  // half its height up AND down — clamp the centre by half the (bounded)
+  // height so neither edge is clipped. The attr list scrolls within `maxH`.
+  const HEAD = 72; // toolbar header height to clear at the top
+  const FOOT = 12; // bottom margin
+  const maxH = Math.max(140, Math.min(440, ch - HEAD - FOOT));
+  const half = maxH / 2;
+  const top = Math.max(HEAD + half, Math.min(ny, ch - FOOT - half));
   const style: Record<string, string> = {
     left: `${left}px`,
     top: `${top}px`,
     width: `${POP_W}px`,
+    maxHeight: `${maxH}px`,
     transform: 'translateY(-50%)',
   };
   return style;
@@ -778,16 +809,103 @@ function openInstanceDashboard(n: DeploymentNode): void {
   window.open(href, '_blank', 'noopener');
 }
 
+// ── Role-to-role edge metrics. An edge's role-pair (source role → target role,
+// from `roleBy`) selects a `roleToRole` entry; most-specific wins (an exact
+// from/to beats a `'*'` wildcard). The pair's metrics drive the inline `primary`
+// number on the edge, the edge panel, and the Flows table; an edge matching no
+// pair falls back to the flat linkServer/linkClient defs.
+const roleToRole = computed<RolePairMetrics[]>(() => cfg.value.roleToRole ?? []);
+function roleOfNode(n: DeploymentNode | null): string {
+  return (n?.role ?? '').toLowerCase();
+}
+function pairForCall(c: DeploymentCall | null): RolePairMetrics | null {
+  if (!c || roleToRole.value.length === 0) return null;
+  const s = roleOfNode(instById(c.source));
+  const d = roleOfNode(instById(c.target));
+  const hit = (pat: string, v: string): boolean => pat === '*' || pat.toLowerCase() === v;
+  const score = (p: RolePairMetrics): number => (p.from === '*' ? 0 : 1) + (p.to === '*' ? 0 : 1);
+  let best: RolePairMetrics | null = null;
+  let bestScore = -1;
+  for (const p of roleToRole.value) {
+    if (hit(p.from, s) && hit(p.to, d) && score(p) > bestScore) { best = p; bestScore = score(p); }
+  }
+  return best;
+}
+/** Edge metric value, side derived from the def's `role` (lineServer/lineClient). */
+function edgeMetricVal(c: DeploymentCall, def: DeploymentMetricDef): number | null {
+  return edgeVal(c, def.role === 'lineServer' ? 'server' : 'client', def);
+}
+// Up to 3 primary metric ids (single string or array), in order.
+function primaryIds(pair: RolePairMetrics): string[] {
+  const p = pair.primary;
+  return (Array.isArray(p) ? p : p ? [p] : []).slice(0, 3);
+}
+function primaryDefsFor(c: DeploymentCall): DeploymentMetricDef[] {
+  const pair = pairForCall(c);
+  if (!pair) return [];
+  // If an id has both sides, the inline value prefers the CLIENT metric.
+  return primaryIds(pair)
+    .map((id) => pair.metrics.find((m) => m.id === id && m.role === 'lineClient') ?? pair.metrics.find((m) => m.id === id))
+    .filter((d): d is DeploymentMetricDef => !!d);
+}
+// The selected edge's primary metric ids — the popout flags these rows so it's
+// clear which metrics drive the inline numbers on the edge.
+const selectedPrimaryIds = computed<Set<string>>(() => {
+  const pair = pairForCall(selectedCall.value);
+  return new Set(pair ? primaryIds(pair) : []);
+});
+// ── Edge labels: one pill per edge at its midpoint showing the role-pair's
+// `primary` metric(s). Up to 3 values flow into lines sized to the EDGE LENGTH
+// (drag-reactive via `pos`): a long edge keeps them on one line, a short edge
+// wraps toward one value per line. Width is estimated from the glyph count
+// (mono ≈7.4px/char @13px) since SVG can't auto-size a rect.
+const SEP_W = 12;
+type EdgeItem = { alias: string; value: string; unit: string };
+function edgeItemW(it: EdgeItem): number {
+  return Math.round(((it.alias ? it.alias.length + 1 : 0) + it.value.length + (it.unit ? it.unit.length + 1 : 0)) * 7.4 + 12);
+}
+const edgeLabels = computed<Array<{ id: string; x: number; y: number; lines: EdgeItem[][]; w: number; h: number }>>(() => {
+  const out: Array<{ id: string; x: number; y: number; lines: EdgeItem[][]; w: number; h: number }> = [];
+  for (const c of visibleCalls.value) {
+    const items: EdgeItem[] = [];
+    for (const def of primaryDefsFor(c)) {
+      const v = edgeMetricVal(c, def);
+      if (v === null) continue;
+      items.push({ alias: def.alias ?? '', value: fmtVal(v, undefined, def.format, true), unit: def.unit ?? '' });
+    }
+    if (items.length === 0) continue;
+    const mid = edgeMid(c);
+    if (!mid) continue;
+    const a = pos.value.get(c.source);
+    const b = pos.value.get(c.target);
+    const edgeLen = a && b && c.source !== c.target ? Math.hypot(b.cx - a.cx, b.cy - a.cy) : 130;
+    const budget = Math.max(56, Math.min(edgeLen * 0.7, 260));
+    const lines: EdgeItem[][] = [];
+    let cur: EdgeItem[] = [];
+    let curW = 0;
+    for (const it of items) {
+      const add = (cur.length ? SEP_W : 0) + edgeItemW(it);
+      if (cur.length && curW + add > budget) { lines.push(cur); cur = []; curW = 0; }
+      cur.push(it);
+      curW += (cur.length > 1 ? SEP_W : 0) + edgeItemW(it);
+    }
+    if (cur.length) lines.push(cur);
+    const w = Math.max(44, ...lines.map((line) => line.reduce((s, it, j) => s + (j ? SEP_W : 0) + edgeItemW(it), 0) + 14));
+    out.push({ id: c.id, x: mid.x, y: mid.y, lines, w, h: lines.length * 16 + 8 });
+  }
+  return out;
+});
+
 // ── Edge detail rows (aligned client | server) — same as the instance map.
 interface EdgeRow { id: string; label: string; unit: string; serverDef: DeploymentMetricDef | null; clientDef: DeploymentMetricDef | null }
-const edgeRows = computed<EdgeRow[]>(() => {
+function buildEdgeRows(srv: DeploymentMetricDef[], cli: DeploymentMetricDef[]): EdgeRow[] {
   const map = new Map<string, EdgeRow>();
-  for (const m of cfg.value.linkServerMetrics ?? []) {
+  for (const m of srv) {
     const row = map.get(m.id) ?? { id: m.id, label: m.label, unit: m.unit ?? '', serverDef: null, clientDef: null };
     row.serverDef = m;
     map.set(m.id, row);
   }
-  for (const m of cfg.value.linkClientMetrics ?? []) {
+  for (const m of cli) {
     const row = map.get(m.id) ?? { id: m.id, label: m.label, unit: m.unit ?? '', serverDef: null, clientDef: null };
     row.clientDef = m;
     if (!row.label) row.label = m.label;
@@ -795,6 +913,19 @@ const edgeRows = computed<EdgeRow[]>(() => {
     map.set(m.id, row);
   }
   return [...map.values()];
+}
+// Pair-aware: the selected edge's role-pair metrics (split by side), else the
+// flat link defs. pub/sub metrics carry DIFFERENT ids, so they render as
+// separate client-only / server-only rows (one per Grafana "Flows" column).
+const edgeRows = computed<EdgeRow[]>(() => {
+  const pair = pairForCall(selectedCall.value);
+  if (pair) {
+    return buildEdgeRows(
+      pair.metrics.filter((m) => m.role === 'lineServer'),
+      pair.metrics.filter((m) => m.role === 'lineClient'),
+    );
+  }
+  return buildEdgeRows(cfg.value.linkServerMetrics ?? [], cfg.value.linkClientMetrics ?? []);
 });
 function edgeVal(c: DeploymentCall, side: 'server' | 'client', def: DeploymentMetricDef | null): number | null {
   if (!def) return null;
@@ -825,6 +956,62 @@ function onEdgeBucketHover(rowId: string, bucket: number): void { hoveredEdgeRow
 function onEdgeBucketLeave(): void { hoveredEdgeRowId.value = null; hoveredEdgeBucket.value = null; }
 function rowCrosshair(rowId: string): number | null { return hoveredEdgeRowId.value === rowId ? hoveredEdgeBucket.value : null; }
 
+// ── Edge midpoint for the inline primary label — mirrors edgePathD's control
+// point (quadratic Bézier at t=0.5). Self-loops sit above the node; bidirectional
+// pairs bow apart by `sign`, so their two labels never collide.
+function edgeMid(c: DeploymentCall): { x: number; y: number } | null {
+  const a = pos.value.get(c.source);
+  const b = pos.value.get(c.target);
+  if (!a || !b) return null;
+  if (c.source === c.target) return { x: a.cx, y: a.cy - a.r - 30 };
+  const len = Math.hypot(b.cx - a.cx, b.cy - a.cy) || 1;
+  const nx = -(b.cy - a.cy) / len;
+  const ny = (b.cx - a.cx) / len;
+  const bidirectional = callKeys.value.has(`${c.target}|${c.source}`);
+  const sign = c.source < c.target ? 1 : -1;
+  const bow = bidirectional ? 16 : 0;
+  const mx = (a.cx + b.cx) / 2 + nx * bow * sign;
+  const my = (a.cy + b.cy) / 2 + ny * bow * sign;
+  return { x: (a.cx + 2 * mx + b.cx) / 4, y: (a.cy + 2 * my + b.cy) / 4 };
+}
+
+// ── Map sub-tab: the topology graph, or the role-to-role "Flows" table — every
+// edge's pair metrics in one grid (the Grafana FODC "Flows" board). The tab only
+// appears when the layer configures `roleToRole`.
+const mapTab = ref<'topology' | 'flows'>('topology');
+const hasFlows = computed(() => roleToRole.value.length > 0);
+// Flows grouped BY role-pair: each pair renders as one aligned sub-table with
+// its OWN metric columns, so heterogeneous pairs (liaison→data's write/query/
+// sync set vs lifecycle→data's migration set) never collapse into one sparse
+// 20-column grid. Group order follows the roleToRole config; every edge matches
+// at least the '*' fallback.
+interface FlowGroup { key: string; label: string; pair: RolePairMetrics; calls: DeploymentCall[] }
+function pairLabel(p: RolePairMetrics): string {
+  const f = p.from === '*' ? '·' : p.from;
+  const tt = p.to === '*' ? '·' : p.to;
+  return `${f} → ${tt}`;
+}
+const flowGroups = computed<FlowGroup[]>(() => {
+  const groups = new Map<string, FlowGroup>();
+  for (const c of calls.value) {
+    const pair = pairForCall(c);
+    if (!pair) continue;
+    const key = `${pair.from}␟${pair.to}`;
+    let g = groups.get(key);
+    if (!g) { g = { key, label: pairLabel(pair), pair, calls: [] }; groups.set(key, g); }
+    g.calls.push(c);
+  }
+  return [...groups.values()].sort((a, b) => roleToRole.value.indexOf(a.pair) - roleToRole.value.indexOf(b.pair));
+});
+function flowCell(c: DeploymentCall, def: DeploymentMetricDef): string {
+  return fmtVal(edgeMetricVal(c, def), def.unit, def.format);
+}
+function selectEdgeFromFlows(id: string): void {
+  selectedCallId.value = id;
+  popoverNodeId.value = null;
+  mapTab.value = 'topology';
+}
+
 const showPickPrompt = computed(() => !enabled.value);
 const showLoading = computed(() => enabled.value && isFetching.value && nodes.value.length === 0);
 const isEmpty = computed(() => enabled.value && !isFetching.value && nodes.value.length === 0);
@@ -849,15 +1036,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
       <span v-if="clusterAlias" class="sit-cluster-chip">{{ t('clustered by') }} · {{ clusterAlias }}</span>
       <span v-if="isFetching" class="sit-hint">{{ t('Reading data…') }}</span>
       <div class="sit-spacer" />
-      <div v-if="allMetricDefs.length > 0" class="sit-legend">
-        <span v-for="def in allMetricDefs" :key="def.id" class="lg-item">
-          <span class="lg-dot" :class="def.role || 'plain'" />{{ def.label }}<span v-if="def.unit" class="lg-unit"> ({{ def.unit }})</span>
-        </span>
+      <div v-if="hasFlows" class="sit-tabs" role="tablist">
+        <button class="sit-tab" :class="{ active: mapTab === 'topology' }" type="button" @click="mapTab = 'topology'">{{ t('Topology') }}</button>
+        <button class="sit-tab" :class="{ active: mapTab === 'flows' }" type="button" @click="mapTab = 'flows'">{{ t('Flows') }}</button>
       </div>
     </div>
 
-    <div class="sit-body" :class="{ 'no-selection': !selectedCall }">
-      <div ref="containerEl" class="sit-canvas" :style="{ height: canvasHeightPx + 'px' }">
+    <div class="sit-body" :class="{ 'no-selection': !selectedCall || mapTab === 'flows' }">
+      <div v-show="mapTab === 'topology'" ref="containerEl" class="sit-canvas" :style="{ height: canvasHeightPx + 'px' }">
         <div v-if="showPickPrompt" class="sit-state">{{ t('Pick a service to see its deployment topology.') }}</div>
         <div v-else-if="showLoading" class="sit-state">{{ t('Reading data…') }}</div>
         <div v-else-if="isEmpty" class="sit-state">{{ t('No deployment topology in this window.') }}</div>
@@ -905,13 +1091,28 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
                   stroke-linejoin="round"
                 />
                 <template v-if="!isSiblingNode(n)">
-                  <text class="node-center" text-anchor="middle" :dy="centerDefFor(n)?.unit ? '-1' : '0.36em'">{{ fmtVal(nodeVal(n, centerDefFor(n))) }}</text>
+                  <text class="node-center" text-anchor="middle" :dy="centerDefFor(n)?.unit ? '-1' : '0.36em'">{{ fmtVal(nodeVal(n, centerDefFor(n)), undefined, centerDefFor(n)?.format, true) }}</text>
                   <text v-if="centerDefFor(n)?.unit" class="node-unit" text-anchor="middle" dy="12">{{ centerDefFor(n)?.unit }}</text>
                 </template>
                 <text v-else class="node-sib-glyph" text-anchor="middle" dy="0.34em">{{ siblingGlyph(n) }}</text>
                 <!-- Label only on the MAIN hex, dropped clear below the sibling
                      hexes; siblings carry just their glyph (role in the popover). -->
                 <text v-if="!isSiblingNode(n)" class="node-label mono" text-anchor="middle" :y="MAIN_R + 24">{{ nodeLabel(n) }}</text>
+              </g>
+              <g class="sit-edge-labels">
+                <g
+                  v-for="l in edgeLabels" :key="l.id"
+                  :transform="`translate(${l.x - l.w / 2}, ${l.y - l.h / 2})`"
+                  style="pointer-events: none"
+                >
+                  <rect
+                    x="0" y="0" :width="l.w" :height="l.h" :rx="l.lines.length === 1 ? 12 : 9"
+                    fill="var(--sw-bg-1)"
+                    :stroke="selectedCallId === l.id ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'"
+                    :stroke-width="selectedCallId === l.id ? 1.4 : 1"
+                  />
+                  <text text-anchor="middle" class="sit-edge-lbl" :class="{ sel: selectedCallId === l.id }"><tspan v-for="(line, li) in l.lines" :key="li" :x="l.w / 2" dy="16"><template v-for="(it, j) in line" :key="j"><tspan v-if="j > 0" class="sit-edge-sep"> · </tspan><tspan v-if="it.alias" class="sit-edge-alias">{{ it.alias }}</tspan><tspan :dx="it.alias ? 5 : 0">{{ it.value }}</tspan><tspan v-if="it.unit" dx="2" class="sit-edge-unit">{{ it.unit }}</tspan></template></tspan></text>
+                </g>
               </g>
             </g>
           </svg>
@@ -921,19 +1122,40 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
               <span class="np-name mono">{{ popoverNode.name }}</span>
               <button class="sw-btn small ghost" type="button" @click="popoverNodeId = null">×</button>
             </header>
-            <dl v-if="popoverNode.attributes.length > 0" class="np-attrs">
-              <template v-for="a in popoverNode.attributes" :key="a.name">
-                <dt>{{ a.name }}</dt>
-                <dd class="mono">{{ a.value }}</dd>
-              </template>
-            </dl>
-            <dl class="np-kv">
-              <template v-for="def in metricDefsFor(popoverNode)" :key="def.id">
-                <dt>{{ def.label }}</dt>
-                <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit) }}</dd>
-              </template>
-            </dl>
-            <button class="sw-btn small primary np-open" type="button" @click="openInstanceDashboard(popoverNode)">
+            <section v-if="metricDefsFor(popoverNode).length > 0" class="np-metrics">
+              <div class="np-section-label">{{ t('Key metrics') }}</div>
+              <dl class="np-kv">
+                <template v-for="def in metricDefsFor(popoverNode)" :key="def.id">
+                  <dt>{{ def.label }}</dt>
+                  <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit, def.format) }}</dd>
+                </template>
+              </dl>
+            </section>
+
+            <section v-if="popoverNode.attributes.length > 0" class="np-props">
+              <div class="np-section-label">
+                {{ t('Properties') }}
+                <span class="np-count">{{ popoverNode.attributes.length }}</span>
+              </div>
+              <input
+                v-if="popoverNode.attributes.length > 6"
+                v-model="attrFilter"
+                class="np-search"
+                type="text"
+                :placeholder="t('Filter attributes…')"
+              />
+              <div class="np-attrs-scroll">
+                <dl class="np-attrs">
+                  <template v-for="a in filteredAttrs" :key="a.name">
+                    <dt>{{ a.name }}</dt>
+                    <dd class="mono">{{ a.value }}</dd>
+                  </template>
+                </dl>
+                <div v-if="filteredAttrs.length === 0" class="np-empty">{{ t('No matching attributes') }}</div>
+              </div>
+            </section>
+
+            <button class="sw-btn small np-open" type="button" @click="openInstanceDashboard(popoverNode)">
               {{ t('Open instance dashboard') }} ↗
             </button>
           </div>
@@ -945,25 +1167,59 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
             <span class="sit-zoom-pct" :title="`${t('Scale')} ${Math.round(zoomT.k * 100)}%`">{{ Math.round(zoomT.k * 100) }}%</span>
           </div>
 
-          <div v-if="defaultRingDef" class="sit-ring-legend">
-            <div class="lg-label">
-              {{ t('Node ring') }} · {{ defaultRingDef.label }}
-              <span class="lg-direction">{{ ringDirectionHint }}</span>
-            </div>
+          <div v-if="ringByRole.length" class="sit-ring-legend">
+            <div class="lg-title">{{ t('Node ring') }}</div>
             <div class="lg-ramp">
               <span style="background: var(--sw-ok)" />
               <span style="background: #fbbf24" />
               <span style="background: var(--sw-warn)" />
               <span style="background: var(--sw-err)" />
             </div>
-            <div class="lg-scale">
-              <span v-for="(lbl, i) in ringScaleLabels" :key="i">{{ lbl }}</span>
+            <div class="lg-roles">
+              <template v-for="r in ringByRole" :key="r.role + r.metric">
+                <span class="lg-role-name">{{ r.role }}</span>
+                <span class="lg-role-metric">{{ r.metric }}</span>
+                <span v-for="i in 3" :key="i" class="lg-b" :style="{ color: r.bounds[i - 1]?.color }">{{ r.bounds[i - 1]?.v ?? '' }}</span>
+              </template>
             </div>
           </div>
         </template>
       </div>
 
-      <aside v-if="selectedCall" class="sit-panel">
+      <div v-if="mapTab === 'flows'" class="sit-flows" :style="{ minHeight: canvasHeightPx + 'px' }">
+        <div v-if="showPickPrompt" class="sit-state-inline">{{ t('Pick a service to see its deployment topology.') }}</div>
+        <div v-else-if="flowGroups.length === 0" class="sit-state-inline">{{ t('No flows in this window.') }}</div>
+        <div v-else class="sit-flow-groups">
+          <section v-for="g in flowGroups" :key="g.key" class="sit-flow-group">
+            <header class="sit-flow-group-head">
+              <span class="fg-pair mono">{{ g.label }}</span>
+              <span class="fg-count">{{ g.calls.length }} {{ g.calls.length === 1 ? t('edge') : t('edges') }}</span>
+            </header>
+            <div class="sit-flow-scroll">
+              <table class="sit-flow-table">
+                <thead>
+                  <tr>
+                    <th>{{ t('Source') }}</th>
+                    <th>{{ t('Target') }}</th>
+                    <th v-for="col in g.pair.metrics" :key="col.id" class="fl-num">
+                      {{ col.label }}<span v-if="col.unit" class="fl-unit"> ({{ col.unit }})</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="c in g.calls" :key="c.id" @click="selectEdgeFromFlows(c.id)">
+                    <td class="mono fl-ep" :title="instById(c.source)?.name">{{ instById(c.source)?.name }}</td>
+                    <td class="mono fl-ep" :title="instById(c.target)?.name">{{ instById(c.target)?.name }}</td>
+                    <td v-for="col in g.pair.metrics" :key="col.id" class="mono fl-num" :class="{ 'fl-primary': primaryIds(g.pair).includes(col.id) }">{{ flowCell(c, col) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <aside v-if="selectedCall && mapTab === 'topology'" class="sit-panel">
         <header class="sit-panel-head">
           <div class="ip-edge mono">
             <span>{{ instById(selectedCall.source)?.name }}</span>
@@ -979,33 +1235,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
           <div v-if="edgeRows.length > 0" class="ip-edge-rows">
             <div v-for="row in edgeRows" :key="row.id" class="ip-edge-row">
               <div class="ip-edge-row-head">
-                <span class="ip-edge-row-label">{{ row.label }}<span v-if="row.unit" class="ru"> ({{ row.unit }})</span></span>
+                <span class="ip-edge-row-label">{{ row.label }}<span v-if="row.unit" class="ru"> ({{ row.unit }})</span><span v-if="selectedPrimaryIds.has(row.id)" class="ip-edge-prim" :title="t('Shown on the edge (primary)')">{{ t('★ on edge') }}</span></span>
                 <span v-if="hoveredEdgeRowId === row.id && hoveredEdgeBucket !== null" class="ip-edge-tip">
-                  <template v-if="row.clientDef"><span class="tip-tag" style="color: var(--sw-info)">C</span><span class="tip-val">{{ fmtMetric(seriesAt(edgeSeries(selectedCall, 'client', row.clientDef), hoveredEdgeBucket)) }}</span></template>
-                  <template v-if="row.serverDef"><span class="tip-sep">·</span><span class="tip-tag" style="color: var(--sw-accent)">S</span><span class="tip-val">{{ fmtMetric(seriesAt(edgeSeries(selectedCall, 'server', row.serverDef), hoveredEdgeBucket)) }}</span></template>
+                  <template v-if="row.clientDef"><span class="tip-tag" style="color: var(--sw-info)">C</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'client', row.clientDef), hoveredEdgeBucket), row.clientDef) }}</span></template>
+                  <template v-if="row.serverDef"><span class="tip-sep">·</span><span class="tip-tag" style="color: var(--sw-accent)">S</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'server', row.serverDef), hoveredEdgeBucket), row.serverDef) }}</span></template>
                 </span>
               </div>
               <template v-if="edgeRowValues(selectedCall, row).kind === 'both'">
                 <div class="ip-edge-pair">
                   <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span></div>
+                    <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span></div>
                     <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                   </div>
                   <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span></div>
+                    <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span></div>
                     <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                   </div>
                 </div>
               </template>
               <template v-else-if="edgeRowValues(selectedCall, row).kind === 'client-only'">
                 <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span></div>
+                  <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span></div>
                   <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                 </div>
               </template>
               <template v-else-if="edgeRowValues(selectedCall, row).kind === 'server-only'">
                 <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span></div>
+                  <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span></div>
                   <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                 </div>
               </template>
@@ -1078,16 +1334,38 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 .has-pop .sit-edge { opacity: 0.16; transition: opacity 0.12s ease; }
 .has-pop .sit-node:not(.sel) { opacity: 0.3; transition: opacity 0.12s ease; }
 
-.sit-node-pop { position: absolute; z-index: 5; padding: 8px 10px 10px; box-shadow: 0 6px 22px rgba(0,0,0,0.4); }
-.np-head { display: flex; align-items: center; gap: 6px; }
+/* width + max-height come from `popoverStyle` (inline) so the height bound
+   can account for the toolbar header; here we only set the flex column so the
+   attr list (`.np-attrs-scroll`) is the one scrollable region. */
+.sit-node-pop { position: absolute; z-index: 5; display: flex; flex-direction: column; padding: 8px 10px 10px; box-shadow: 0 6px 22px rgba(0,0,0,0.4); }
+.np-head { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .np-name { font-size: 11.5px; color: var(--sw-fg-0); flex: 1; word-break: break-all; }
-.np-attrs { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0 0; font-size: 10.5px; }
-.np-attrs dt { color: var(--sw-fg-3); }
-.np-attrs dd { margin: 0; color: var(--sw-fg-1); text-align: right; word-break: break-all; }
-.np-kv { display: grid; grid-template-columns: 1fr auto; gap: 3px 10px; margin: 8px 0; font-size: 11px; }
-.np-kv dt { color: var(--sw-fg-3); }
-.np-kv dd { margin: 0; color: var(--sw-fg-1); text-align: right; }
-.np-open { width: 100%; justify-content: center; }
+/* Section label shared by Key metrics + Properties — small uppercase kicker. */
+.np-section-label { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; margin: 9px 1px 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3); }
+.np-count { letter-spacing: 0; font-size: 9px; color: var(--sw-fg-2); background: var(--sw-bg-1); border-radius: 7px; padding: 0 6px; }
+/* Key metrics — a distinct inset card so it reads apart from the properties. */
+.np-metrics { flex: 0 0 auto; }
+.np-kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; padding: 7px 9px; font-size: 11px; background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 6px; }
+.np-kv dt { color: var(--sw-fg-2); }
+.np-kv dd { margin: 0; color: var(--sw-fg-0); font-weight: 600; text-align: right; }
+/* Properties — the scrollable region; only this grows + scrolls. */
+.np-props { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.np-search { flex: 0 0 auto; width: 100%; box-sizing: border-box; margin: 0 0 4px; padding: 3px 7px; font-size: 10.5px; color: var(--sw-fg-1); background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 4px; }
+.np-search:focus { outline: none; border-color: var(--sw-accent); }
+/* Right padding + stable gutter so the scrollbar never overlaps the
+   right-aligned attribute values. */
+.np-attrs-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 12px; scrollbar-gutter: stable; }
+.np-attrs-scroll::-webkit-scrollbar { width: 8px; }
+.np-attrs-scroll::-webkit-scrollbar-thumb { background: var(--sw-line-2); border-radius: 4px; }
+.np-empty { font-size: 10.5px; color: var(--sw-fg-3); padding: 6px 2px; }
+.np-attrs { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 10.5px; }
+.np-attrs dt { color: var(--sw-fg-3); overflow-wrap: anywhere; }
+.np-attrs dd { margin: 0; color: var(--sw-fg-1); text-align: right; overflow-wrap: anywhere; }
+/* Primary action — accent (orange in the default theme), matching the app's
+   accent-button convention. */
+.np-open { flex: 0 0 auto; width: 100%; justify-content: center; margin-top: 9px; }
+.sit-node-pop .np-open { background: var(--sw-accent); border-color: var(--sw-accent); color: #1a1106; }
+.sit-node-pop .np-open:hover { filter: brightness(1.07); }
 
 .sit-zoom {
   position: absolute; top: 12px; right: 12px;
@@ -1104,15 +1382,56 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
   background: rgba(15, 19, 26, 0.92); backdrop-filter: blur(8px);
   border: 1px solid var(--sw-line); border-radius: 6px;
 }
-.sit-ring-legend .lg-label {
+.sit-ring-legend .lg-title {
   font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--sw-fg-3); margin-bottom: 4px; display: flex; align-items: baseline; gap: 6px;
+  color: var(--sw-fg-3); margin-bottom: 4px;
 }
-.sit-ring-legend .lg-direction { font-size: 9px; letter-spacing: 0.04em; text-transform: none; color: var(--sw-fg-3); font-style: italic; opacity: 0.85; }
-.sit-ring-legend .lg-ramp { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 3px; }
+.sit-ring-legend .lg-ramp { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; margin-bottom: 6px; }
 .sit-ring-legend .lg-ramp span { height: 8px; border-radius: 2px; display: block; }
-.sit-ring-legend .lg-scale { display: grid; grid-template-columns: repeat(4, 1fr); color: var(--sw-fg-3); font-size: 9px; }
-.sit-ring-legend .lg-scale span { text-align: left; }
+/* Roles grid — role | metric | 3 band-edge bounds; shared column tracks so the
+   colored thresholds line up vertically (config-derived, no hard-coded word). */
+.sit-ring-legend .lg-roles { display: grid; grid-template-columns: auto auto repeat(3, auto); column-gap: 10px; row-gap: 3px; align-items: baseline; line-height: 1.5; }
+.sit-ring-legend .lg-role-name { color: var(--sw-fg-2); font-weight: 600; }
+.sit-ring-legend .lg-role-metric { color: var(--sw-fg-1); }
+.sit-ring-legend .lg-b { font-family: var(--sw-mono); font-size: 9.5px; white-space: nowrap; text-align: right; }
+
+/* Topology | Flows sub-tab strip (right of the toolbar). */
+.sit-tabs { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--sw-line-2); border-radius: 6px; background: var(--sw-bg-2); }
+.sit-tab { height: 22px; padding: 0 12px; font-size: 11px; color: var(--sw-fg-2); background: transparent; border: none; border-radius: 4px; cursor: pointer; }
+.sit-tab:hover { color: var(--sw-fg-0); }
+.sit-tab.active { color: var(--sw-fg-0); background: var(--sw-bg-0); font-weight: 600; }
+
+/* Edge pill — matches the service-map edge chip (rounded bg + border, mono
+   13px); the dimmer unit tspan + accent text-on-select mirror that style. */
+.sit-edge-lbl { fill: var(--sw-fg-1); font-size: 13px; font-weight: 700; font-family: var(--sw-mono); }
+.sit-edge-lbl.sel { fill: var(--sw-accent-2); }
+.sit-edge-unit { fill: var(--sw-fg-2); font-weight: 600; }
+.sit-edge-sep { fill: var(--sw-fg-3); font-weight: 600; }
+.sit-edge-alias { fill: var(--sw-info); font-weight: 700; }
+
+/* Flows — one aligned sub-table PER role-pair (a "liaison → data" group, a
+   "lifecycle → data" group, …), each with its own metric columns. Rows click
+   through to the topology edge. Outer scrolls vertically across groups; each
+   group scrolls horizontally if its columns overflow. */
+.sit-flows { min-width: 0; border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1); overflow-y: auto; padding: 10px; }
+.sit-state-inline { display: flex; align-items: center; justify-content: center; min-height: 240px; color: var(--sw-fg-3); font-size: 12px; padding: 24px; text-align: center; }
+.sit-flow-groups { display: flex; flex-direction: column; gap: 14px; }
+.sit-flow-group { border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; background: var(--sw-bg-0); }
+.sit-flow-group-head { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; background: var(--sw-bg-2); border-bottom: 1px solid var(--sw-line); }
+.fg-pair { font-size: 11px; font-weight: 700; color: var(--sw-accent); }
+.fg-count { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sw-fg-3); }
+.sit-flow-scroll { overflow-x: auto; }
+.sit-flow-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.sit-flow-table th, .sit-flow-table td { padding: 5px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--sw-line); }
+.sit-flow-table tbody tr:last-child td { border-bottom: none; }
+.sit-flow-table th { background: var(--sw-bg-1); color: var(--sw-fg-2); font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.sit-flow-table th.fl-num, .sit-flow-table td.fl-num { text-align: right; }
+.sit-flow-table .fl-unit { color: var(--sw-fg-3); text-transform: none; letter-spacing: 0; }
+.sit-flow-table tbody tr { cursor: pointer; }
+.sit-flow-table tbody tr:hover { background: var(--sw-bg-2); }
+.sit-flow-table td.fl-ep { color: var(--sw-fg-0); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.sit-flow-table td.fl-num { color: var(--sw-fg-1); }
+.sit-flow-table td.fl-primary { color: var(--sw-fg-0); font-weight: 700; }
 
 .sit-panel { border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .sit-panel-head { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--sw-line); flex: 0 0 auto; }
@@ -1124,6 +1443,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 .ip-edge-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
 .ip-edge-row-label { font-size: 10.5px; color: var(--sw-fg-2); }
 .ip-edge-row-label .ru { color: var(--sw-fg-3); }
+.ip-edge-prim {
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  color: var(--sw-accent);
+  background: color-mix(in srgb, var(--sw-accent) 14%, transparent);
+}
 .ip-edge-tip { display: inline-flex; align-items: baseline; gap: 4px; font-size: 10px; font-family: var(--sw-mono); }
 .ip-edge-tip .tip-tag { font-weight: 700; }
 .ip-edge-tip .tip-val { color: var(--sw-fg-1); }

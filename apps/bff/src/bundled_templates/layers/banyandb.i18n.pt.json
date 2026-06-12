@@ -1,0 +1,386 @@
+{
+  "alias": "BanyanDB",
+  "group": "Auto-observabilidade",
+  "slots": {
+    "services": "Clusters",
+    "instances": "Contêineres",
+    "endpoints": "Grupos",
+    "deployment": "Deployment"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Escritas/s"
+      },
+      {
+        "label": "Queries/s"
+      },
+      {
+        "label": "Erros/min"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "Taxa de escrita",
+        "tip": "Escritas por segundo em todo o cluster, somando os modelos de dados measure + stream + trace."
+      },
+      {
+        "title": "Taxa de query",
+        "tip": "Chamadas de query gRPC por segundo em todo o cluster, observadas na porta de entrada do liaison."
+      },
+      {
+        "title": "Taxa de erro",
+        "tip": "Erros por minuto em todo o cluster (gRPC + registry + stream-msg + publish + sync-loop). Quando ausente, é renderizado como 0 em um cluster saudável."
+      },
+      {
+        "title": "Núcleos de CPU",
+        "tip": "Total de núcleos de CPU visíveis nos contêineres do cluster."
+      },
+      {
+        "title": "Memória usada",
+        "tip": "Total de memória usada em todo o cluster."
+      },
+      {
+        "title": "Disco usado",
+        "tip": "Total de bytes usados em disco nos caminhos de dados do cluster."
+      },
+      {
+        "title": "Throughput do cluster",
+        "tip": "Taxa de escrita vs query ao longo do tempo.",
+        "expressionLabels": [
+          "writes/s",
+          "queries/s"
+        ]
+      },
+      {
+        "title": "Erros do cluster / min"
+      },
+      {
+        "title": "Contêineres por papel",
+        "tip": "Contagem de contêineres ativos por papel (data / liaison), derivada do gauge de uptime do sistema. O sidecar lifecycle não executa coletor de sistema, então nunca aparece aqui."
+      }
+    ],
+    "instance": [
+      {
+        "title": "Tempo desde a última sincronização",
+        "tip": "Tempo desde que o último ciclo de migração começou, p. ex. \"5m 20s ago\". Aparece após o primeiro ciclo de migração ser executado."
+      },
+      {
+        "title": "Última sincronização",
+        "valueMap": {
+          "0": "Falhou",
+          "1": "OK"
+        }
+      },
+      {
+        "title": "Ciclos de migração",
+        "tip": "Ciclos cumulativos de migração entre camadas executados pelo sidecar lifecycle."
+      },
+      {
+        "title": "Uso de CPU",
+        "tip": "Consumo de CPU do processo em núcleos."
+      },
+      {
+        "title": "Memória residente"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "Pausa de GC (média)",
+        "tip": "Pausa média do GC do Go por ciclo."
+      },
+      {
+        "title": "Heap do Go",
+        "expressionLabels": [
+          "em uso",
+          "próximo GC"
+        ]
+      },
+      {
+        "title": "Taxa de alocação do Go"
+      },
+      {
+        "title": "Uptime",
+        "tip": "Dias desde que o nó iniciou. Ausente no sidecar lifecycle (sem coletor de sistema)."
+      },
+      {
+        "title": "Memória do sistema usada"
+      },
+      {
+        "title": "Uso de disco",
+        "tip": "Usado / total nos caminhos de dados do nó."
+      },
+      {
+        "title": "Disco usado / total",
+        "tip": "Uso por caminho de dados, frente à capacidade total do sistema de arquivos. Caminhos que compartilham um sistema de arquivos mostram valores idênticos.",
+        "expressionLabels": [
+          "Usado",
+          "Total"
+        ]
+      },
+      {
+        "title": "I/O de rede",
+        "tip": "Throughput de recepção / envio por interface.",
+        "expressionLabels": [
+          "recepção",
+          "envio"
+        ]
+      },
+      {
+        "title": "Taxa de query por serviço",
+        "tip": "Chamadas de query gRPC/s separadas por serviço do modelo de dados do BanyanDB (measure / stream / trace / property)."
+      },
+      {
+        "title": "Erros gRPC / min",
+        "tip": "Soma dos erros gRPC total + registry + stream-msg. Registrado de forma preguiçosa — quando ausente, é renderizado como 0 em um liaison saudável."
+      },
+      {
+        "title": "Ops de registry / s",
+        "tip": "Operações do schema-registry/s observadas na porta de entrada do liaison."
+      },
+      {
+        "title": "Taxa de escrita",
+        "tip": "Escritas/s observadas na porta de entrada do liaison nos três modelos de dados."
+      },
+      {
+        "title": "Throughput de publish",
+        "tip": "Pipeline de publish da camada 2 (liaison → data), detalhado por operação."
+      },
+      {
+        "title": "Latência p99 de publish",
+        "tip": "Latência de envio p99 do pipeline de publish da camada 2, por operação."
+      },
+      {
+        "title": "Bytes de part-sync"
+      },
+      {
+        "title": "Fila de escrita pendente",
+        "tip": "Profundidade do buffer de escrita do liaison: registros em buffer na porta de entrada antes do publish."
+      },
+      {
+        "title": "Throughput de lotes de publish",
+        "tip": "Batches publicados/s por operação. Oculto até o cluster emitir métricas de batch."
+      },
+      {
+        "title": "p99 de lotes de publish"
+      },
+      {
+        "title": "Elementos de dados armazenados",
+        "tip": "Total de elementos de arquivo armazenados em measure + stream + trace."
+      },
+      {
+        "title": "Fila de escrita (wqueue)",
+        "tip": "Fila de escrita do nó data: registros pendentes, parts de arquivo em disco, parts em memória."
+      },
+      {
+        "title": "Taxa de merge loop"
+      },
+      {
+        "title": "Latência de merge de arquivo",
+        "tip": "Latência média de merge de arquivos em disco por merge loop."
+      },
+      {
+        "title": "Parts mescladas / loop",
+        "tip": "Média de parts mescladas por merge loop em disco."
+      },
+      {
+        "title": "Taxa de índice invertido",
+        "tip": "Atualizações do índice de séries e buscas de termos por segundo (measure + stream storage + stream tst).",
+        "expressionLabels": [
+          "escritas de séries",
+          "buscas de séries",
+          "escritas tst",
+          "buscas tst"
+        ]
+      },
+      {
+        "title": "Documentos de índice",
+        "tip": "Total de documentos do índice invertido (proxy de séries).",
+        "expressionLabels": [
+          "docs de séries",
+          "docs tst"
+        ]
+      },
+      {
+        "title": "Throughput de subscribe",
+        "tip": "Throughput da fila do lado subscribe por operação (query / file-sync / batch-write / control)."
+      },
+      {
+        "title": "Latência p99 de subscribe"
+      },
+      {
+        "title": "Uso de disco de retenção",
+        "tip": "Percentual de uso de disco de retenção por modelo de dados.",
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ]
+      },
+      {
+        "title": "Throughput de mensagens de subscribe",
+        "tip": "Taxa de processamento por registro que o assinante extrai dos batches."
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Measure Escritas / s",
+        "tip": "Escritas por segundo neste group (contador de escrita por modelo de dados)."
+      },
+      {
+        "title": "Latência de query do Measure",
+        "tip": "Latência média de query do liaison para este group."
+      },
+      {
+        "title": "Total de dados do Measure",
+        "tip": "Elementos de dados armazenados atualmente neste group."
+      },
+      {
+        "title": "Taxa de merge do Measure",
+        "tip": "Iterações do merge loop de arquivos por minuto."
+      },
+      {
+        "title": "Latência de merge do Measure",
+        "tip": "Latência média de merge de arquivo por merge loop."
+      },
+      {
+        "title": "Partições de merge do Measure",
+        "tip": "Média de parts mescladas por merge loop de arquivo."
+      },
+      {
+        "title": "Escritas de séries do Measure / s",
+        "tip": "Atualizações do índice invertido por segundo (proxy de escrita de séries)."
+      },
+      {
+        "title": "Term Search do Measure / s",
+        "tip": "Invocações de busca de termos no índice invertido por segundo (pressão de leitura do índice)."
+      },
+      {
+        "title": "Total de séries do Measure",
+        "tip": "Total de documentos do índice invertido (proxy de séries) para este group."
+      },
+      {
+        "title": "Stream Escritas / s",
+        "tip": "Escritas por segundo neste group (contador de escrita por modelo de dados)."
+      },
+      {
+        "title": "Latência de query do Stream",
+        "tip": "Latência média de query do liaison para este group."
+      },
+      {
+        "title": "Total de dados do Stream",
+        "tip": "Elementos de dados armazenados atualmente neste group."
+      },
+      {
+        "title": "Taxa de merge do Stream",
+        "tip": "Iterações do merge loop de arquivos por minuto."
+      },
+      {
+        "title": "Latência de merge do Stream",
+        "tip": "Latência média de merge de arquivo por merge loop."
+      },
+      {
+        "title": "Partições de merge do Stream",
+        "tip": "Média de parts mescladas por merge loop de arquivo."
+      },
+      {
+        "title": "Escritas de séries do Stream / s",
+        "tip": "Atualizações do índice invertido por segundo (proxy de escrita de séries)."
+      },
+      {
+        "title": "Escritas do índice TST do Stream / s",
+        "tip": "Atualizações por segundo do índice invertido no escopo tst do stream (distinto do índice de séries no escopo de armazenamento)."
+      },
+      {
+        "title": "Term Search do Stream / s",
+        "tip": "Invocações de busca de termos no índice invertido por segundo (pressão de leitura do índice)."
+      },
+      {
+        "title": "Total de séries do Stream",
+        "tip": "Total de documentos do índice invertido (proxy de séries) para este group."
+      },
+      {
+        "title": "Total de séries TST do Stream",
+        "tip": "Total de documentos do índice no escopo tst do stream (distinto do índice de séries no escopo de armazenamento)."
+      },
+      {
+        "title": "Trace Escritas / s",
+        "tip": "Escritas por segundo neste group (contador de escrita por modelo de dados)."
+      },
+      {
+        "title": "Latência de query do Trace",
+        "tip": "Latência média de query do liaison para este group."
+      },
+      {
+        "title": "Total de dados do Trace",
+        "tip": "Elementos de dados armazenados atualmente neste group."
+      },
+      {
+        "title": "Taxa de merge do Trace",
+        "tip": "Iterações do merge loop de arquivos por minuto."
+      },
+      {
+        "title": "Latência de merge do Trace",
+        "tip": "Latência média de merge de arquivo por merge loop."
+      },
+      {
+        "title": "Partições de merge do Trace",
+        "tip": "Média de parts mescladas por merge loop de arquivo."
+      },
+      {
+        "title": "Escritas de séries do Trace / s",
+        "tip": "Atualizações do índice invertido por segundo (proxy de escrita de séries)."
+      },
+      {
+        "title": "Term Search do Trace / s",
+        "tip": "Invocações de busca de termos no índice invertido por segundo (pressão de leitura do índice)."
+      },
+      {
+        "title": "Total de séries do Trace",
+        "tip": "Total de documentos do índice invertido (proxy de séries) para este group."
+      },
+      {
+        "title": "Escritas do índice do Property / s",
+        "tip": "Atualizações por segundo do índice invertido do registry do property (sinal de escrita do property)."
+      },
+      {
+        "title": "Taxa de merge do índice do Property",
+        "tip": "Merges de segmentos do índice invertido do property por minuto (property não tem merge loop de tst)."
+      },
+      {
+        "title": "Latência de merge do índice do Property",
+        "tip": "Latência média de merge do índice invertido do property."
+      },
+      {
+        "title": "Term Search do Property / s",
+        "tip": "Invocações de busca de termos do property por segundo — o property é lido pelo caminho de registry/term-search, não pelo método de query do liaison, então este é seu sinal de carga de leitura."
+      },
+      {
+        "title": "Total de séries do Property",
+        "tip": "Total de documentos do índice invertido do property para este group."
+      },
+      {
+        "title": "Throughput de subscribe",
+        "tip": "Mensagens por segundo da fila do lado subscribe para este group, por operação."
+      },
+      {
+        "title": "Publish p99",
+        "tip": "Latência p99 da fila do lado publish para este group."
+      },
+      {
+        "title": "Throughput de lotes",
+        "tip": "Taxa de batches de escrita por group, por operação."
+      },
+      {
+        "title": "Throughput de mensagens",
+        "tip": "Taxa por registro por group, por operação."
+      },
+      {
+        "title": "Bytes de part-sync / s"
+      }
+    ]
+  }
+}

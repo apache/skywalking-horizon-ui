@@ -40,7 +40,7 @@ import { useInstanceTopology } from '@/layer/service-map/useInstanceTopology';
 import { useLayerTopology } from '@/layer/service-map/useLayerTopology';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayers } from '@/shell/useLayers';
-import { fmtMetric } from '@/utils/formatters';
+import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
@@ -171,9 +171,14 @@ const ringDef = computed(() => pickByRole(cfg.value.nodeMetrics, 'ring'));
 function nodeVal(n: InstanceTopologyNode, def: TopologyMetricDef | null): number | null {
   return def ? (n.metrics?.[def.id] ?? null) : null;
 }
-function fmtVal(v: number | null, unit?: string): string {
+function fmtVal(v: number | null, unit?: string, format?: TopologyMetricDef['format'], compact = false): string {
   if (v === null) return '—';
-  return unit ? `${fmtMetric(v)}${unit === '%' ? '' : ' '}${unit}` : fmtMetric(v);
+  if (format === 'duration') return compact ? formatDuration(v, true) : `${formatDuration(v)} ago`;
+  const body = format ? fmtMetricAs(v, format) : fmtMetric(v);
+  return unit ? `${body}${unit === '%' ? '' : ' '}${unit}` : body;
+}
+function fmtEdge(v: number | null, def: TopologyMetricDef | null): string {
+  return fmtVal(v, undefined, def?.format);
 }
 function bandColor(value: number, th: NonNullable<TopologyMetricDef['thresholds']>): string {
   const base = th.invertBase ?? 100;
@@ -599,7 +604,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
                 @click.stop="selectNode(n.id)"
               >
                 <circle :r="NODE_R" class="node-bg" :stroke="ringColor(n)" :stroke-width="popoverNodeId === n.id ? 4 : 3" />
-                <text class="node-center" text-anchor="middle" :dy="centerDef?.unit ? '-1' : '0.36em'">{{ fmtVal(nodeVal(n, centerDef)) }}</text>
+                <text class="node-center" text-anchor="middle" :dy="centerDef?.unit ? '-1' : '0.36em'">{{ fmtVal(nodeVal(n, centerDef), undefined, centerDef?.format, true) }}</text>
                 <text v-if="centerDef?.unit" class="node-unit" text-anchor="middle" dy="12">{{ centerDef.unit }}</text>
                 <text class="node-label mono" text-anchor="middle" :y="NODE_R + 15">{{ n.name }}</text>
               </g>
@@ -615,7 +620,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
             <dl class="np-kv">
               <template v-for="def in cfg.nodeMetrics" :key="def.id">
                 <dt>{{ def.label }}</dt>
-                <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit) }}</dd>
+                <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit, def.format) }}</dd>
               </template>
             </dl>
             <button
@@ -676,32 +681,32 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
               <div class="ip-edge-row-head">
                 <span class="ip-edge-row-label">{{ row.label }}<span v-if="row.unit" class="ru"> ({{ row.unit }})</span></span>
                 <span v-if="hoveredEdgeRowId === row.id && hoveredEdgeBucket !== null" class="ip-edge-tip">
-                  <template v-if="row.clientDef"><span class="tip-tag" style="color: var(--sw-info)">C</span><span class="tip-val">{{ fmtMetric(seriesAt(edgeSeries(selectedCall, 'client', row.clientDef), hoveredEdgeBucket)) }}</span></template>
-                  <template v-if="row.serverDef"><span class="tip-sep">·</span><span class="tip-tag" style="color: var(--sw-accent)">S</span><span class="tip-val">{{ fmtMetric(seriesAt(edgeSeries(selectedCall, 'server', row.serverDef), hoveredEdgeBucket)) }}</span></template>
+                  <template v-if="row.clientDef"><span class="tip-tag" style="color: var(--sw-info)">C</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'client', row.clientDef), hoveredEdgeBucket), row.clientDef) }}</span></template>
+                  <template v-if="row.serverDef"><span class="tip-sep">·</span><span class="tip-tag" style="color: var(--sw-accent)">S</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'server', row.serverDef), hoveredEdgeBucket), row.serverDef) }}</span></template>
                   <template v-if="row.clientDef && row.serverDef"><span class="tip-sep">·</span><span class="tip-tag">Δ</span><span class="tip-val" :style="{ color: diffColor(diffAt(row, hoveredEdgeBucket)) }">{{ diffText(diffAt(row, hoveredEdgeBucket)) }}</span></template>
                 </span>
               </div>
               <template v-if="edgeRowValues(selectedCall, row).kind === 'both'">
                 <div class="ip-edge-pair">
                   <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span></div>
+                    <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span></div>
                     <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                   </div>
                   <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span></div>
+                    <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span></div>
                     <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                   </div>
                 </div>
               </template>
               <template v-else-if="edgeRowValues(selectedCall, row).kind === 'client-only'">
                 <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span><span class="side-note">{{ t('client') }}</span></div>
+                  <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span><span class="side-note">{{ t('client') }}</span></div>
                   <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                 </div>
               </template>
               <template v-else-if="edgeRowValues(selectedCall, row).kind === 'server-only'">
                 <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span><span class="side-note">{{ t('server') }}</span></div>
+                  <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span><span class="side-note">{{ t('server') }}</span></div>
                   <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
                 </div>
               </template>

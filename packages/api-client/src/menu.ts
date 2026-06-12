@@ -275,6 +275,22 @@ export interface LayerDef {
    *  every service name through this regex to derive `{ display, cluster }`
    *  and clusters topology nodes by cluster. Absent ⇒ no clustering. */
   naming?: ServiceNamingRule;
+  /** Per-layer instance-list ("Containers" / "Pods" / …) config. */
+  instances?: InstanceListConfig;
+}
+
+/** Per-layer config for the instance list (the Service page's instance
+ *  selector + the Instance-scope dashboard's container rows). */
+export interface InstanceListConfig {
+  /** Which value renders as each instance row's BADGE chip. The literal
+   *  `'language'` (or absent) uses OAP's agent-language field — the historical
+   *  default, meaningful for agent-traced layers (Java / Go / …). Any other
+   *  value is an instance ATTRIBUTE name (matched case-insensitively against
+   *  the instance's `attributes` bag) — e.g. `'container_name'` for BanyanDB →
+   *  "liaison" / "data" / "lifecycle". The badge is HIDDEN when the resolved
+   *  value is empty or `UNKNOWN`, so OTel-scraped layers (no agent language)
+   *  drop the dead chip instead of showing a meaningless `UNKNOWN`. */
+  badge?: string;
 }
 
 export interface LogConfig {

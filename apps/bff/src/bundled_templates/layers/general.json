@@ -22,6 +22,7 @@
     "asyncProfiling": true,
     "pprofProfiling": true
   },
+  "instances": { "badge": "language" },
   "layer-header": {
     "orderBy": "cpm",
     "columns": [

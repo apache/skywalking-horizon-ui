@@ -1,0 +1,386 @@
+{
+  "alias": "BanyanDB",
+  "group": "自我观测",
+  "slots": {
+    "services": "集群",
+    "instances": "容器",
+    "endpoints": "Group",
+    "deployment": "部署"
+  },
+  "layer-header": {
+    "columns": [
+      {
+        "label": "Write/s"
+      },
+      {
+        "label": "Query/s"
+      },
+      {
+        "label": "Errors/min"
+      }
+    ]
+  },
+  "dashboards": {
+    "service": [
+      {
+        "title": "写入速率",
+        "tip": "整个集群每秒写入次数，涵盖 measure + stream + trace 三种数据模型。"
+      },
+      {
+        "title": "查询速率",
+        "tip": "整个集群在 liaison 入口处观测到的每秒 gRPC 查询调用数。"
+      },
+      {
+        "title": "错误速率",
+        "tip": "整个集群每分钟错误数（gRPC + registry + stream-msg + publish + sync-loop）。健康集群上缺失时显示为 0。"
+      },
+      {
+        "title": "CPU 核数",
+        "tip": "集群各容器可见的 CPU 核数总和。"
+      },
+      {
+        "title": "已用内存",
+        "tip": "整个集群的已用内存总量。"
+      },
+      {
+        "title": "已用磁盘",
+        "tip": "集群各 data 路径上的磁盘已用字节总量。"
+      },
+      {
+        "title": "集群吞吐",
+        "tip": "写入速率与查询速率随时间的变化。",
+        "expressionLabels": [
+          "writes/s",
+          "queries/s"
+        ]
+      },
+      {
+        "title": "集群错误 / min"
+      },
+      {
+        "title": "各角色容器数",
+        "tip": "按角色（data / liaison）统计的存活容器数，由系统运行时长 gauge 推导。lifecycle sidecar 不运行系统采集器，因此不会出现在此处。"
+      }
+    ],
+    "instance": [
+      {
+        "title": "距上次同步时长",
+        "tip": "上一次迁移周期启动至今的时长，例如 \"5m 20s ago\"。在首个迁移周期运行后才出现。"
+      },
+      {
+        "title": "上次同步",
+        "valueMap": {
+          "0": "失败",
+          "1": "正常"
+        }
+      },
+      {
+        "title": "迁移周期数",
+        "tip": "lifecycle sidecar 运行的层级迁移周期累计数。"
+      },
+      {
+        "title": "CPU 使用",
+        "tip": "进程 CPU 消耗，单位为核。"
+      },
+      {
+        "title": "常驻内存"
+      },
+      {
+        "title": "Goroutines"
+      },
+      {
+        "title": "GC 暂停（平均）",
+        "tip": "每个周期的 Go GC 平均暂停时间。"
+      },
+      {
+        "title": "Go 堆",
+        "expressionLabels": [
+          "in-use",
+          "next GC"
+        ]
+      },
+      {
+        "title": "Go 分配速率"
+      },
+      {
+        "title": "运行时长",
+        "tip": "节点启动至今的天数。lifecycle sidecar 上缺失（无系统采集器）。"
+      },
+      {
+        "title": "系统已用内存"
+      },
+      {
+        "title": "磁盘使用",
+        "tip": "节点各 data 路径的已用 / 总量。"
+      },
+      {
+        "title": "磁盘 已用 / 总量",
+        "tip": "各数据路径的已用容量，对比文件系统总容量。共享同一文件系统的路径数值相同。",
+        "expressionLabels": [
+          "已用",
+          "总量"
+        ]
+      },
+      {
+        "title": "网络 I/O",
+        "tip": "各网卡的接收 / 发送吞吐。",
+        "expressionLabels": [
+          "recv",
+          "sent"
+        ]
+      },
+      {
+        "title": "各服务查询速率",
+        "tip": "gRPC 查询调用 calls/s，按 BanyanDB 数据模型服务（measure / stream / trace / property）拆分。"
+      },
+      {
+        "title": "gRPC 错误 / min",
+        "tip": "total + registry + stream-msg 三类 gRPC 错误之和。延迟注册——健康 liaison 上缺失时显示为 0。"
+      },
+      {
+        "title": "Registry 操作 / s",
+        "tip": "liaison 入口处观测到的每秒 schema-registry 操作数。"
+      },
+      {
+        "title": "写入速率",
+        "tip": "liaison 入口处观测到的、涵盖三种数据模型的 Writes/s。"
+      },
+      {
+        "title": "Publish 吞吐",
+        "tip": "第二层 publish 流水线（liaison → data），按操作拆分。"
+      },
+      {
+        "title": "Publish p99 延迟",
+        "tip": "第二层 publish 流水线的 p99 发送延迟，按操作拆分。"
+      },
+      {
+        "title": "Part-sync 字节数"
+      },
+      {
+        "title": "写入队列待处理数",
+        "tip": "liaison 写缓冲深度：发布前在入口处缓冲的记录数。"
+      },
+      {
+        "title": "Publish 批吞吐",
+        "tip": "按操作统计的每秒已发布 batches。在集群发出 batch 指标之前隐藏。"
+      },
+      {
+        "title": "Publish 批 p99"
+      },
+      {
+        "title": "已存储数据元素",
+        "tip": "measure + stream + trace 上已存储的文件元素总数。"
+      },
+      {
+        "title": "写入队列（wqueue）",
+        "tip": "data 节点写入队列：待处理记录、磁盘上的 file parts、内存中的 parts。"
+      },
+      {
+        "title": "合并循环速率"
+      },
+      {
+        "title": "合并文件延迟",
+        "tip": "每个合并循环的磁盘文件合并平均延迟。"
+      },
+      {
+        "title": "每循环合并 Parts 数",
+        "tip": "每个磁盘合并循环平均合并的 parts 数。"
+      },
+      {
+        "title": "倒排索引速率",
+        "tip": "每秒序列索引更新与词项检索（measure + stream storage + stream tst）。",
+        "expressionLabels": [
+          "series writes",
+          "series searches",
+          "tst writes",
+          "tst searches"
+        ]
+      },
+      {
+        "title": "索引文档数",
+        "tip": "倒排索引文档总数（以 series 代理）。",
+        "expressionLabels": [
+          "series docs",
+          "tst docs"
+        ]
+      },
+      {
+        "title": "Subscribe 吞吐",
+        "tip": "按操作（query / file-sync / batch-write / control）统计的订阅侧队列吞吐。"
+      },
+      {
+        "title": "Subscribe p99 延迟"
+      },
+      {
+        "title": "保留磁盘使用率",
+        "tip": "各数据模型的保留磁盘使用率百分比。",
+        "expressionLabels": [
+          "measure",
+          "stream",
+          "trace"
+        ]
+      },
+      {
+        "title": "Subscribe 消息吞吐",
+        "tip": "订阅方从 batches 中拆包的逐记录处理速率。"
+      }
+    ],
+    "endpoint": [
+      {
+        "title": "Measure 写入 / s",
+        "tip": "该 group 每秒写入次数（按数据模型的写入计数器统计）。"
+      },
+      {
+        "title": "Measure 查询延迟",
+        "tip": "该 group 在 liaison 处的平均查询延迟。"
+      },
+      {
+        "title": "Measure 已存储数据元素",
+        "tip": "该 group 当前已存储的数据元素数量。"
+      },
+      {
+        "title": "Measure 合并速率",
+        "tip": "每分钟文件合并循环的迭代次数。"
+      },
+      {
+        "title": "Measure 合并延迟",
+        "tip": "每个合并循环的平均文件合并延迟。"
+      },
+      {
+        "title": "Measure 合并 Parts 数",
+        "tip": "每个文件合并循环平均合并的 parts 数。"
+      },
+      {
+        "title": "Measure 序列写入 / s",
+        "tip": "每秒倒排索引更新数（作为序列写入的代理指标）。"
+      },
+      {
+        "title": "Measure 词项检索 / s",
+        "tip": "每秒倒排索引词项检索调用数（反映索引读取压力）。"
+      },
+      {
+        "title": "Measure 序列总数",
+        "tip": "该 group 的倒排索引文档总数（以 series 代理）。"
+      },
+      {
+        "title": "Stream 写入 / s",
+        "tip": "该 group 每秒写入次数（按数据模型的写入计数器统计）。"
+      },
+      {
+        "title": "Stream 查询延迟",
+        "tip": "该 group 在 liaison 处的平均查询延迟。"
+      },
+      {
+        "title": "Stream 已存储数据元素",
+        "tip": "该 group 当前已存储的数据元素数量。"
+      },
+      {
+        "title": "Stream 合并速率",
+        "tip": "每分钟文件合并循环的迭代次数。"
+      },
+      {
+        "title": "Stream 合并延迟",
+        "tip": "每个合并循环的平均文件合并延迟。"
+      },
+      {
+        "title": "Stream 合并 Parts 数",
+        "tip": "每个文件合并循环平均合并的 parts 数。"
+      },
+      {
+        "title": "Stream 序列写入 / s",
+        "tip": "每秒倒排索引更新数（作为序列写入的代理指标）。"
+      },
+      {
+        "title": "Stream TST 索引写入 / s",
+        "tip": "Stream tst 范围每秒倒排索引更新数（与 storage 范围的 series 索引相互独立）。"
+      },
+      {
+        "title": "Stream 词项检索 / s",
+        "tip": "每秒倒排索引词项检索调用数（反映索引读取压力）。"
+      },
+      {
+        "title": "Stream 序列总数",
+        "tip": "该 group 的倒排索引文档总数（以 series 代理）。"
+      },
+      {
+        "title": "Stream TST 序列总数",
+        "tip": "Stream tst 范围的索引文档总数（与 storage 范围的 series 索引相互独立）。"
+      },
+      {
+        "title": "Trace 写入 / s",
+        "tip": "该 group 每秒写入次数（按数据模型的写入计数器统计）。"
+      },
+      {
+        "title": "Trace 查询延迟",
+        "tip": "该 group 在 liaison 处的平均查询延迟。"
+      },
+      {
+        "title": "Trace 已存储数据元素",
+        "tip": "该 group 当前已存储的数据元素数量。"
+      },
+      {
+        "title": "Trace 合并速率",
+        "tip": "每分钟文件合并循环的迭代次数。"
+      },
+      {
+        "title": "Trace 合并延迟",
+        "tip": "每个合并循环的平均文件合并延迟。"
+      },
+      {
+        "title": "Trace 合并 Parts 数",
+        "tip": "每个文件合并循环平均合并的 parts 数。"
+      },
+      {
+        "title": "Trace 序列写入 / s",
+        "tip": "每秒倒排索引更新数（作为序列写入的代理指标）。"
+      },
+      {
+        "title": "Trace 词项检索 / s",
+        "tip": "每秒倒排索引词项检索调用数（反映索引读取压力）。"
+      },
+      {
+        "title": "Trace 序列总数",
+        "tip": "该 group 的倒排索引文档总数（以 series 代理）。"
+      },
+      {
+        "title": "Property 索引写入 / s",
+        "tip": "property registry 每秒倒排索引更新数（property 的写入信号）。"
+      },
+      {
+        "title": "Property 索引合并速率",
+        "tip": "property 倒排索引每分钟分段合并次数（property 没有 tst 合并循环）。"
+      },
+      {
+        "title": "Property 索引合并延迟",
+        "tip": "property 倒排索引的平均合并延迟。"
+      },
+      {
+        "title": "Property 词项检索 / s",
+        "tip": "property 每秒词项检索调用数——property 经由 registry / 词项检索路径读取，而非 liaison 查询方法，因此这是它的读取负载信号。"
+      },
+      {
+        "title": "Property 序列总数",
+        "tip": "该 group 的 property 倒排索引文档总数。"
+      },
+      {
+        "title": "Subscribe 吞吐",
+        "tip": "该 group 订阅侧队列每秒消息数，按操作拆分。"
+      },
+      {
+        "title": "Publish p99",
+        "tip": "该 group 发布侧队列的 p99 延迟。"
+      },
+      {
+        "title": "批吞吐",
+        "tip": "该 group 的写入批速率，按操作拆分。"
+      },
+      {
+        "title": "消息吞吐",
+        "tip": "该 group 的逐记录速率，按操作拆分。"
+      },
+      {
+        "title": "Part-sync 字节数 / s"
+      }
+    ]
+  }
+}
