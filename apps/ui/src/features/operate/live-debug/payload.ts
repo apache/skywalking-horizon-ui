@@ -97,6 +97,22 @@ export function shortHash(h: string | undefined | null): string {
   return h.slice(0, 8);
 }
 
+/** Trim a captured sample value for display. Integers (the common
+ *  counter case — `3692965`) render exact; floats that arrive as long
+ *  repeating decimals from `rate()` / `avg()` (`57.03333333333…`,
+ *  `0.66666666…`) collapse to ≤4 significant digits so they stop
+ *  overflowing the value column. Non-finite sentinels (`NaN`,
+ *  `Infinity`) pass through verbatim. Callers keep the precise value on
+ *  a `title` so nothing is lost — this is display-only rounding. */
+export function formatSampleValue(v: number): string {
+  if (!Number.isFinite(v)) return String(v);
+  if (Number.isInteger(v)) return String(v);
+  const abs = Math.abs(v);
+  // ≥1 → cap at 4 decimals; <1 → 4 significant figures so tiny rates
+  // don't round to a misleading 0. `String()` drops trailing zeros.
+  return String(abs >= 1 ? Math.round(v * 1e4) / 1e4 : Number(v.toPrecision(4)));
+}
+
 /** Pill tone for a sample-type badge. Centralised across MAL / LAL /
  *  OAL views so a tone tweak lands in one place.
  *

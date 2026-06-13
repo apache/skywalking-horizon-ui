@@ -47,7 +47,12 @@ import { useDebugSession } from '@/features/operate/live-debug/useDebugSession';
 import { useDebugHistory, type HistoryEntry } from '@/features/operate/live-debug/useDebugHistory';
 import Btn from '@/components/primitives/Btn.vue';
 import DebugView from './DebugView.vue';
-import { isMalOutputPayload, isMalSamplesPayload, shortHash } from './payload.js';
+import {
+  formatSampleValue,
+  isMalOutputPayload,
+  isMalSamplesPayload,
+  shortHash,
+} from './payload.js';
 import {
   DEFAULT_RETENTION_MINUTES,
   MS_PER_MINUTE,
@@ -252,12 +257,21 @@ interface MalSampleRow {
   /** Previous sample's payload — what this step received as input.
    *  Null on the first sample (no upstream step). */
   before: MalBefore | null;
+  /** Set only on the synthetic anchor row that stands in for a run of
+   *  ≥2 `output` samples in one record — collapses the repeated meter
+   *  cards into one diff-aware summary (same metric / function, one
+   *  materialised entity each). */
+  outputGroup?: OutputGroup | null;
 }
 
 interface MalRecordView {
   rec: SessionRecord;
   recordIdx: number;
   rows: MalSampleRow[];
+  /** Rows as rendered: the non-output chain followed by either the lone
+   *  output row (rendered as a full meter card) or one anchor row
+   *  carrying the merged `outputGroup`. */
+  displayRows: MalSampleRow[];
 }
 
 interface MalNodeView extends NodeSlice {
@@ -288,6 +302,17 @@ const displaySession = computed<SessionResponse | null>(
 const selectedRow = ref<MalSampleRow | null>(null);
 const expandedEntities = ref<Set<string>>(new Set());
 const foldedRecords = ref<Set<string>>(new Set());
+/** Per-sample-group view state. A "group" is the set of samples sharing
+ *  a metric name within one stage; collapsed by default so a stage that
+ *  emits hundreds of rows shows a one-line summary first. When a
+ *  multi-sample group is expanded it lands in diff mode by default
+ *  (the shared labels collapse, only the differing ones show);
+ *  `fullLabelGroups` tracks the groups where the operator opted back
+ *  out to the full per-sample label list. Both are keyed by
+ *  `groupKey(...)` and reset on historical load (TDZ guard — see the
+ *  block comment above). */
+const expandedGroups = ref<Set<string>>(new Set());
+const fullLabelGroups = ref<Set<string>>(new Set());
 
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
@@ -301,6 +326,8 @@ function loadHistorical(entry: HistoryEntry): void {
   selectedRow.value = null;
   expandedEntities.value = new Set();
   foldedRecords.value = new Set();
+  expandedGroups.value = new Set();
+  fullLabelGroups.value = new Set();
 }
 
 function clearHistorical(): void {
@@ -431,7 +458,25 @@ const nodeViews = computed<MalNodeView[]>(() => {
         prevSamples = thisSamples;
         prevOutput = thisOutput;
       }
-      return { rec, recordIdx: ri, rows };
+      // A MAL record's chain ends with one `output` sample per
+      // materialised entity. When more than one fires they repeat the
+      // same meter card with only the entity differing — collapse that
+      // run into a single anchor carrying an `outputGroup` so the right
+      // pane summarises them the same way input sample groups do.
+      const outputRows = rows.filter((r) => r.output !== null);
+      let displayRows = rows;
+      if (outputRows.length > 1) {
+        const chainRows = rows.filter((r) => r.output === null);
+        const anchor: MalSampleRow = {
+          ...outputRows[0]!,
+          outputGroup: buildOutputGroup(
+            `${nKey}#${ri}#outputs`,
+            outputRows.map((r) => r.output!),
+          ),
+        };
+        displayRows = [...chainRows, anchor];
+      }
+      return { rec, recordIdx: ri, rows, displayRows };
     });
     return { ...n, recordViews };
   });
@@ -478,7 +523,12 @@ interface FlatRow {
   value: number;
 }
 
-const ROWS_CAP = 50;
+// Per-group rendering caps. A stage can emit hundreds of samples; the
+// collapsed summary stays cheap, while an expanded group renders at
+// most GROUP_DETAIL_CAP detail rows (with a "+ N more" note). The
+// summary line previews the first SUMMARY_VALUE_CAP values inline.
+const GROUP_DETAIL_CAP = 50;
+const SUMMARY_VALUE_CAP = 8;
 
 /** Total leaf-row count across both shapes (flat per-stage items, or
  *  nested per-family items on the file-level filter probe). Drives
@@ -499,29 +549,251 @@ function countRows(p: MalSamplesPayload | null): number {
   return p.samples ?? 0;
 }
 
-/** Flatten any payload (flat or nested) to up to ROWS_CAP `{name,
- *  labels, value}` rows for the right-pane RowsTable. */
-function flattenRows(p: MalSamplesPayload | null): FlatRow[] {
-  if (!p || p.empty === true || !p.items || p.items.length === 0) return [];
-  const out: FlatRow[] = [];
+/** One metric-name group within a stage's payload: every leaf row that
+ *  shares `name`. `count` is the exact total; `rows` caps at
+ *  GROUP_DETAIL_CAP for rendering; `diff` is precomputed only when the
+ *  group has >1 sample (the only case the diff toggle is offered). */
+interface SampleGroup {
+  /** Stage-scoped expand/diff toggle key — see `groupKey`. */
+  key: string;
+  name: string;
+  count: number;
+  rows: FlatRow[];
+  diff?: GroupDiff;
+}
+
+interface DiffCell {
+  k: string;
+  v: string;
+  /** Key present on a sibling sample but missing from this one. */
+  absent: boolean;
+}
+
+interface GroupDiff {
+  /** Labels identical (key AND value) across every sample — the shared
+   *  context, rendered once and dimmed. */
+  common: EntityField[];
+  /** Per-sample view carrying only the labels that vary across the
+   *  group, so operators see at a glance what distinguishes each row. */
+  rows: Array<{ value: number; diffs: DiffCell[] }>;
+}
+
+/** A run of ≥2 `output` samples collapsed into one block: same metric /
+ *  function (the shared meter header), one materialised entity each. The
+ *  entity is diffed field-by-field — whichever fields differ surface
+ *  (not just `endpointName`), and each output keeps its own value — so
+ *  no assumption is baked in about what distinguishes the outputs. */
+interface OutputGroup {
+  key: string;
+  metric: string;
+  valueType: string;
+  timeBucket: number;
+  count: number;
+  /** Full-mode rows: every non-null entity field + the value. */
+  rows: OutputRow[];
+  /** Entity fields identical across all outputs (the shared context). */
+  common: EntityField[];
+  /** Diff-mode rows: only the entity fields that vary, + the value. */
+  diffRows: Array<{ diffs: DiffCell[]; value: string; valueRaw: string }>;
+}
+
+interface OutputRow {
+  fields: EntityField[];
+  value: string;
+  valueRaw: string;
+}
+
+/** Walk a payload (flat per-stage items, or nested per-family items on
+ *  the file-level filter probe) yielding every `{name, labels, value}`
+ *  leaf. Mirrors `countRows`' shape detection. */
+function* leafRows(p: MalSamplesPayload | null): Generator<FlatRow> {
+  if (!p || p.empty === true || !p.items || p.items.length === 0) return;
   const first = p.items[0]! as MalSampleItem & MalSamplesPayload;
   const isFlat = typeof first.name === 'string' && typeof first.value === 'number';
   if (isFlat) {
     for (const it of p.items as MalSampleItem[]) {
-      if (out.length >= ROWS_CAP) break;
-      out.push({ name: it.name, labels: it.labels ?? {}, value: it.value });
+      yield { name: it.name, labels: it.labels ?? {}, value: it.value };
     }
   } else {
     for (const fam of p.items as MalSamplesPayload[]) {
       if (fam.empty === true) continue;
       for (const it of (fam.items ?? []) as MalSampleItem[]) {
-        if (out.length >= ROWS_CAP) break;
         if (typeof it.name !== 'string') continue;
-        out.push({ name: it.name, labels: it.labels ?? {}, value: it.value });
+        yield { name: it.name, labels: it.labels ?? {}, value: it.value };
       }
     }
   }
+}
+
+/** Classify keys across N field maps into common (present in ALL with
+ *  one identical value) vs varying. Computed over the FULL set so the
+ *  "common" claim holds even when only a capped subset of rows renders
+ *  below. Generic over any label/entity field map — no field is special-
+ *  cased, so the differing field surfaces whatever it is. */
+function diffLabels(maps: Array<Record<string, string>>): {
+  common: EntityField[];
+  varying: string[];
+} {
+  const stat = new Map<string, { first: string; constant: boolean; seen: number }>();
+  for (const m of maps) {
+    for (const k in m) {
+      const v = m[k]!;
+      const s = stat.get(k);
+      if (!s) stat.set(k, { first: v, constant: true, seen: 1 });
+      else {
+        s.seen++;
+        if (v !== s.first) s.constant = false;
+      }
+    }
+  }
+  const common: EntityField[] = [];
+  const varying: string[] = [];
+  for (const [k, s] of [...stat.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+    if (s.seen === maps.length && s.constant) common.push({ k, v: s.first });
+    else varying.push(k);
+  }
+  return { common, varying };
+}
+
+/** Per-row diff cells for a varying-key set against one row's map. A key
+ *  present on a sibling but missing here surfaces as `absent`. */
+function diffCells(varying: string[], m: Record<string, string>): DiffCell[] {
+  return varying.map((k) => {
+    const v = m[k];
+    return v === undefined ? { k, v: '', absent: true } : { k, v, absent: false };
+  });
+}
+
+/** Group one stage's leaves by metric name for the right-pane summary.
+ *  Detail rows cap at GROUP_DETAIL_CAP; `count` stays exact. The diff's
+ *  common/varying split is computed over EVERY leaf (not just the capped
+ *  rows), so a label uniform across the first 50 but varying later is
+ *  not mis-classified as common. Each group carries a stage-scoped
+ *  `key` so its toggles stay independent across stages/records/nodes. */
+function stageGroups(row: MalSampleRow, stageIdx: number): SampleGroup[] {
+  const map = new Map<string, { group: SampleGroup; maps: Array<Record<string, string>> }>();
+  for (const r of leafRows(row.samples)) {
+    let e = map.get(r.name);
+    if (!e) {
+      e = {
+        group: { key: groupKey(row, stageIdx, r.name), name: r.name, count: 0, rows: [] },
+        maps: [],
+      };
+      map.set(r.name, e);
+    }
+    e.group.count++;
+    if (e.group.rows.length < GROUP_DETAIL_CAP) e.group.rows.push(r);
+    e.maps.push(r.labels);
+  }
+  const groups: SampleGroup[] = [];
+  for (const { group, maps } of map.values()) {
+    // The diff only renders for an expanded group in diff mode, and the
+    // full-set scan is the costly part on high-cardinality stages — so
+    // compute it lazily here, skipping collapsed / opted-out groups
+    // (the call re-runs reactively when a toggle flips those refs).
+    if (isGroupExpanded(group.key) && isDiffMode(group.key, group.count)) {
+      const { common, varying } = diffLabels(maps);
+      group.diff = {
+        common,
+        rows: group.rows.map((r) => ({ value: r.value, diffs: diffCells(varying, r.labels) })),
+      };
+    }
+    groups.push(group);
+  }
+  return groups;
+}
+
+/** First few values of a sample group, comma-joined, for the summary
+ *  line — e.g. `438.95, 57.0333, 0.6667`. Appends `…` when more remain. */
+function summaryValues(g: SampleGroup): string {
+  const shown = g.rows.slice(0, SUMMARY_VALUE_CAP).map((r) => formatSampleValue(r.value));
+  if (g.count > shown.length) shown.push('…');
+  return shown.join(', ');
+}
+
+/** Non-null entity fields of one output, as a flat record, for diffing. */
+function entityRecord(entity: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const f of entityFields(entity, false)) out[f.k] = f.v;
   return out;
+}
+
+/** Collapse a run of `output` samples (same metric / function) into one
+ *  diff-aware group. The entity is diffed field-by-field via the same
+ *  generic helper the sample groups use — whatever differs surfaces
+ *  (endpointName here, but any field for other scopes), with each
+ *  output's value kept in its own column. */
+function buildOutputGroup(key: string, outputs: MalOutputPayload[]): OutputGroup {
+  const first = outputs[0]!;
+  const maps = outputs.map((o) => entityRecord(o.entity));
+  const { common, varying } = diffLabels(maps);
+  const valueOf = (o: MalOutputPayload): string =>
+    o.value === undefined ? '—' : formatOutputValue(o.value);
+  const rawOf = (o: MalOutputPayload): string =>
+    o.value === undefined ? '' : outputValueRaw(o.value);
+  // Render at most GROUP_DETAIL_CAP rows (with a "+ N more" footer),
+  // mirroring sample groups — `common`/`varying` above is already over
+  // the full set, so the cap only bounds the rendered detail.
+  const shown = outputs.slice(0, GROUP_DETAIL_CAP);
+  return {
+    key,
+    metric: first.metric,
+    valueType: first.valueType,
+    timeBucket: first.timeBucket,
+    count: outputs.length,
+    rows: shown.map((o) => ({
+      fields: entityFields(o.entity, false),
+      value: valueOf(o),
+      valueRaw: rawOf(o),
+    })),
+    common,
+    diffRows: shown.map((o, i) => ({
+      diffs: diffCells(varying, maps[i]!),
+      value: valueOf(o),
+      valueRaw: rawOf(o),
+    })),
+  };
+}
+
+/** First few output values, comma-joined, for the summary line. */
+function outputSummaryValues(g: OutputGroup): string {
+  const shown = g.rows.slice(0, SUMMARY_VALUE_CAP).map((r) => r.value);
+  if (g.count > shown.length) shown.push('…');
+  return shown.join(', ');
+}
+
+// ── Per-group expand / diff state ───────────────────────────────────
+// `expandedGroups` / `fullLabelGroups` are declared above `loadHistorical`
+// (TDZ guard). Keyed by stage + metric name (or `…#outputs`) so each
+// group toggles independently and state survives re-renders across polls.
+
+function groupKey(row: MalSampleRow, stageIdx: number, name: string): string {
+  return `${row.nodeKey}#${row.recordIdx}#${stageIdx}#${name}`;
+}
+
+function isGroupExpanded(key: string): boolean {
+  return expandedGroups.value.has(key);
+}
+
+function toggleGroup(key: string): void {
+  const next = new Set(expandedGroups.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  expandedGroups.value = next;
+}
+
+/** Diff is the default view for any multi-member group — a sample group
+ *  with >1 sample or an output group with >1 entity; the operator opts
+ *  out into the full per-member list via the toggle. */
+function isDiffMode(key: string, count: number): boolean {
+  return count > 1 && !fullLabelGroups.value.has(key);
+}
+
+function toggleGroupDiff(key: string): void {
+  const next = new Set(fullLabelGroups.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  fullLabelGroups.value = next;
 }
 
 function labelLines(labels: Record<string, string>): string[] {
@@ -685,11 +957,22 @@ function toggleEntity(row: MalSampleRow): void {
  *  step (each labeled key has already been rendered there as its own
  *  row with full label tuples). */
 function formatOutputValue(v: number | string | Record<string, number>): string {
-  if (typeof v === 'number') return String(v);
+  if (typeof v === 'number') return formatSampleValue(v);
   if (typeof v === 'string') return v;
   const entries = Object.entries(v);
   if (entries.length === 0) return '{}';
-  return entries.map(([k, n]) => `${k}=${n}`).join(' · ');
+  return entries.map(([k, n]) => `${k}=${formatSampleValue(n)}`).join(' · ');
+}
+
+/** Untrimmed output value for the cell `title` — `formatOutputValue`
+ *  rounds long floats for display, so the precise number stays reachable
+ *  on hover. */
+function outputValueRaw(v: number | string | Record<string, number>): string {
+  if (typeof v === 'number') return String(v);
+  if (typeof v === 'string') return v;
+  return Object.entries(v)
+    .map(([k, n]) => `${k}=${n}`)
+    .join(' · ');
 }
 
 </script>
@@ -860,7 +1143,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
             </div>
           </dl>
           <div class="mal__stages">
-            <template v-for="(row, idx) in rv.rows" :key="`${rv.recordIdx}-${idx}`">
+            <template v-for="(row, idx) in rv.displayRows" :key="`${rv.recordIdx}-${idx}`">
               <div
                 class="mal__stagelbl"
                 :class="{
@@ -876,7 +1159,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                 <div class="mal__stageio">
                   {{ inCountStr(row) }}
                   <span class="mal__arrow">→</span>
-                  <span :class="{ 'mal__warn': isDrop(row) }">{{ outCountStr(row) }}</span>
+                  <span :class="{ 'mal__warn': isDrop(row) }">{{ row.outputGroup ? row.outputGroup.count : outCountStr(row) }}</span>
                   <span
                     v-if="!row.sample.continueOn"
                     class="mal__stopflag"
@@ -885,7 +1168,7 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                 </div>
               </div>
               <div class="mal__rail">
-                <div class="mal__railline" :class="{ 'mal__railline--last': idx === rv.rows.length - 1 }"></div>
+                <div class="mal__railline" :class="{ 'mal__railline--last': idx === rv.displayRows.length - 1 }"></div>
                 <div
                   class="mal__raildot"
                   :class="{
@@ -896,8 +1179,93 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                 ></div>
               </div>
               <div class="mal__stageright" :class="{ 'mal__stageright--selected': selectedRow === row }">
-                <template v-if="row.output">
-                  <!-- Output payload renders verbatim — every field
+                <template v-if="row.outputGroup">
+                  <!-- A run of ≥2 output entities for one metric. The
+                       meter header (metric / function / timeBucket) is
+                       shared; the collapsible block summarises the N
+                       entities and, on expand, diffs them field-by-field
+                       — whichever entity field differs surfaces (not just
+                       endpointName), each output keeping its own value. -->
+                  <div class="mal__meter">
+                    <div><span class="mal__mlbl">{{ t('metric') }}</span><span class="mal__mval">{{ row.outputGroup.metric }}</span></div>
+                    <div><span class="mal__mlbl">{{ t('function') }}</span><span class="mal__mval">{{ row.outputGroup.valueType }}</span></div>
+                    <div><span class="mal__mlbl">timeBucket</span><span class="mal__mval">{{ row.outputGroup.timeBucket }}</span></div>
+                  </div>
+                  <div class="mal__groups">
+                    <div class="mal__group">
+                      <button
+                        type="button"
+                        class="mal__grouphead"
+                        :class="{ 'mal__grouphead--open': isGroupExpanded(row.outputGroup.key) }"
+                        @click="toggleGroup(row.outputGroup.key)"
+                      >
+                        <span class="mal__groupcaret">{{ isGroupExpanded(row.outputGroup.key) ? '▾' : '▸' }}</span>
+                        <code class="mal__groupname">{{ t('{n} outputs', { n: row.outputGroup.count }) }}</code>
+                        <span class="mal__groupvals"><span class="mal__groupvalsk">{{ t('values') }}=</span>{{ outputSummaryValues(row.outputGroup) }}</span>
+                      </button>
+
+                      <div v-if="isGroupExpanded(row.outputGroup.key)" class="mal__groupbody">
+                        <table class="mal__gtable">
+                          <colgroup>
+                            <col class="mal__gcollabels" />
+                            <col class="mal__gcolval" />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th class="mal__gthlabels">
+                                <span>{{ t('entity') }}</span>
+                                <button
+                                  type="button"
+                                  class="mal__difftog"
+                                  :class="{ 'mal__difftog--active': isDiffMode(row.outputGroup.key, row.outputGroup.count) }"
+                                  :title="t('show only differing labels')"
+                                  @click="toggleGroupDiff(row.outputGroup.key)"
+                                >{{ t('diff') }}</button>
+                              </th>
+                              <th class="mal__rtval">{{ t('value') }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <template v-if="isDiffMode(row.outputGroup.key, row.outputGroup.count)">
+                              <tr class="mal__diffcommonrow">
+                                <td colspan="2">
+                                  <div class="mal__diffcommonhd">{{ t('common ({n})', { n: row.outputGroup.common.length }) }}</div>
+                                  <div class="mal__diffcommons">
+                                    <span v-if="row.outputGroup.common.length === 0" class="mal__dim">—</span>
+                                    <span v-for="c in row.outputGroup.common" :key="c.k" class="mal__diffcommon">{{ c.k }}={{ c.v }}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                              <tr v-for="(dr, j) in row.outputGroup.diffRows" :key="j">
+                                <td class="mal__rtlabels">
+                                  <span v-if="dr.diffs.length === 0" class="mal__dim">—</span>
+                                  <span v-for="d in dr.diffs" :key="d.k" class="mal__diffcell"><span class="mal__diffk">{{ d.k }}</span>=<span v-if="d.absent" class="mal__dim">∅</span><span v-else class="mal__diffv">{{ d.v }}</span></span>
+                                </td>
+                                <td class="mal__rtval" :title="dr.valueRaw">{{ dr.value }}</td>
+                              </tr>
+                            </template>
+                            <template v-else>
+                              <tr v-for="(o, j) in row.outputGroup.rows" :key="j">
+                                <td class="mal__rtlabels">
+                                  <span v-if="o.fields.length === 0" class="mal__dim">—</span>
+                                  <div v-for="f in o.fields" :key="f.k" class="mal__rtlabel">{{ f.k }}={{ f.v }}</div>
+                                </td>
+                                <td class="mal__rtval" :title="o.valueRaw">{{ o.value }}</td>
+                              </tr>
+                            </template>
+                            <tr v-if="row.outputGroup.count > row.outputGroup.rows.length">
+                              <td colspan="2" class="mal__rtmore">
+                                {{ t('+ {n} more rows', { n: row.outputGroup.count - row.outputGroup.rows.length }) }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else-if="row.output">
+                  <!-- Single output payload renders verbatim — every field
                        present on the wire shows up; nothing is
                        inferred from upstream stages. The materialised
                        `value` is optional on the wire (only newer OAP
@@ -908,7 +1276,10 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                     <div><span class="mal__mlbl">{{ t('function') }}</span><span class="mal__mval">{{ row.output.valueType }}</span></div>
                     <div v-if="row.output.value !== undefined">
                       <span class="mal__mlbl">{{ t('value') }}</span>
-                      <span class="mal__mval mal__mvalnum">{{ formatOutputValue(row.output.value) }}</span>
+                      <span
+                        class="mal__mval mal__mvalnum"
+                        :title="outputValueRaw(row.output.value)"
+                      >{{ formatOutputValue(row.output.value) }}</span>
                     </div>
                     <div><span class="mal__mlbl">timeBucket</span><span class="mal__mval">{{ row.output.timeBucket }}</span></div>
                   </div>
@@ -948,38 +1319,88 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
                   <div class="mal__rtempty">{{ t('empty family · 0 rows') }}</div>
                 </template>
                 <template v-else>
-                  <table class="mal__rtable">
-                    <colgroup>
-                      <col class="mal__rtcolname" />
-                      <col class="mal__rtcollabels" />
-                      <col class="mal__rtcolval" />
-                    </colgroup>
-                    <thead>
-                      <tr>
-                        <th>{{ t('name') }}</th>
-                        <th>{{ t('labels') }}</th>
-                        <th class="mal__rtval">{{ t('value') }}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="(it, j) in flattenRows(row.samples)" :key="j">
-                        <td class="mal__rtname">{{ it.name }}</td>
-                        <td class="mal__rtlabels">
-                          <span v-if="labelLines(it.labels).length === 0" class="mal__dim">—</span>
-                          <div v-for="line in labelLines(it.labels)" :key="line" class="mal__rtlabel">{{ line }}</div>
-                        </td>
-                        <td class="mal__rtval">{{ it.value }}</td>
-                      </tr>
-                      <tr v-if="flattenRows(row.samples).length === 0">
-                        <td colspan="3" class="mal__rtempty">{{ t('no rows in payload') }}</td>
-                      </tr>
-                      <tr v-if="countRows(row.samples) > flattenRows(row.samples).length">
-                        <td colspan="3" class="mal__rtmore">
-                          {{ t('+ {n} more rows', { n: countRows(row.samples) - flattenRows(row.samples).length }) }}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <div v-if="countRows(row.samples) === 0" class="mal__rtempty">{{ t('no rows in payload') }}</div>
+                  <div v-else class="mal__groups">
+                    <!-- One collapsible block per metric name. Collapsed
+                         (default) is a one-line summary so a stage that
+                         fans out to hundreds of samples doesn't dump its
+                         full label set on screen. Expand reveals the
+                         per-sample labels; for multi-sample groups the
+                         `diff` toggle (beside the LABELS header) hides the
+                         shared labels and highlights only what differs. -->
+                    <div v-for="g in stageGroups(row, idx)" :key="g.name" class="mal__group">
+                      <button
+                        type="button"
+                        class="mal__grouphead"
+                        :class="{ 'mal__grouphead--open': isGroupExpanded(g.key) }"
+                        @click="toggleGroup(g.key)"
+                      >
+                        <span class="mal__groupcaret">{{ isGroupExpanded(g.key) ? '▾' : '▸' }}</span>
+                        <code class="mal__groupname">{{ g.name }}</code>
+                        <span class="mal__groupct">{{ t('{n} samples', { n: g.count }) }}</span>
+                        <span class="mal__groupvals"><span class="mal__groupvalsk">{{ t('values') }}=</span>{{ summaryValues(g) }}</span>
+                      </button>
+
+                      <div v-if="isGroupExpanded(g.key)" class="mal__groupbody">
+                        <table class="mal__gtable">
+                          <colgroup>
+                            <col class="mal__gcollabels" />
+                            <col class="mal__gcolval" />
+                          </colgroup>
+                          <thead>
+                            <tr>
+                              <th class="mal__gthlabels">
+                                <span>{{ t('labels') }}</span>
+                                <button
+                                  v-if="g.count > 1"
+                                  type="button"
+                                  class="mal__difftog"
+                                  :class="{ 'mal__difftog--active': isDiffMode(g.key, g.count) }"
+                                  :title="t('show only differing labels')"
+                                  @click="toggleGroupDiff(g.key)"
+                                >{{ t('diff') }}</button>
+                              </th>
+                              <th class="mal__rtval">{{ t('value') }}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <template v-if="g.diff && isDiffMode(g.key, g.count)">
+                              <tr class="mal__diffcommonrow">
+                                <td colspan="2">
+                                  <div class="mal__diffcommonhd">{{ t('common ({n})', { n: g.diff.common.length }) }}</div>
+                                  <div class="mal__diffcommons">
+                                    <span v-if="g.diff.common.length === 0" class="mal__dim">—</span>
+                                    <span v-for="c in g.diff.common" :key="c.k" class="mal__diffcommon">{{ c.k }}={{ c.v }}</span>
+                                  </div>
+                                </td>
+                              </tr>
+                              <tr v-for="(dr, j) in g.diff.rows" :key="j">
+                                <td class="mal__rtlabels">
+                                  <span v-if="dr.diffs.length === 0" class="mal__dim">—</span>
+                                  <span v-for="d in dr.diffs" :key="d.k" class="mal__diffcell"><span class="mal__diffk">{{ d.k }}</span>=<span v-if="d.absent" class="mal__dim">∅</span><span v-else class="mal__diffv">{{ d.v }}</span></span>
+                                </td>
+                                <td class="mal__rtval" :title="String(dr.value)">{{ formatSampleValue(dr.value) }}</td>
+                              </tr>
+                            </template>
+                            <template v-else>
+                              <tr v-for="(it, j) in g.rows" :key="j">
+                                <td class="mal__rtlabels">
+                                  <span v-if="labelLines(it.labels).length === 0" class="mal__dim">—</span>
+                                  <div v-for="line in labelLines(it.labels)" :key="line" class="mal__rtlabel">{{ line }}</div>
+                                </td>
+                                <td class="mal__rtval" :title="String(it.value)">{{ formatSampleValue(it.value) }}</td>
+                              </tr>
+                            </template>
+                            <tr v-if="g.count > g.rows.length">
+                              <td colspan="2" class="mal__rtmore">
+                                {{ t('+ {n} more rows', { n: g.count - g.rows.length }) }}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 </template>
               </div>
             </template>
@@ -1365,36 +1786,113 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   background: var(--rr-bg3);
 }
 
-.mal__rtable {
+/* ── Per-metric sample groups (right pane) ──────────────────────── */
+
+.mal__groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mal__group {
+  border: 1px solid var(--rr-border);
+  background: var(--rr-bg);
+}
+
+.mal__grouphead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-left: 2px solid transparent;
+  color: var(--rr-ink);
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-base);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mal__grouphead:hover {
+  background: var(--rr-bg2);
+}
+
+.mal__grouphead--open {
+  background: var(--rr-bg2);
+  border-left-color: var(--rr-accent, var(--rr-active));
+}
+
+.mal__groupcaret {
+  flex: none;
+  width: 12px;
+  color: var(--rr-dim);
+  font-size: var(--sw-fs-sm);
+}
+
+.mal__groupname {
+  flex: none;
+  color: var(--rr-heading);
+  font-family: var(--rr-font-mono);
+  background: transparent;
+  padding: 0;
+  word-break: break-all;
+}
+
+.mal__groupct {
+  flex: none;
+  color: var(--rr-dim);
+  font-size: var(--sw-fs-sm);
+  white-space: nowrap;
+}
+
+/* Values preview takes the remaining width and ellipsises — the summary
+   line never wraps or pushes the card wider. */
+.mal__groupvals {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--rr-accent, var(--rr-active));
+  font-size: var(--sw-fs-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mal__groupvalsk {
+  color: var(--sw-fg-3);
+}
+
+.mal__groupbody {
+  border-top: 1px solid var(--rr-border);
+}
+
+.mal__gtable {
   width: 100%;
   border-collapse: collapse;
   font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-base);
-  border: 1px solid var(--rr-border);
   background: var(--rr-bg);
-  /* Fixed layout so colgroup widths bind consistently across every
-     stage's table — keeps `name` / `labels` / `value` aligned vertically
-     down the record card regardless of per-step content length. */
+  /* Fixed layout binds the colgroup widths; the value column is sized
+     and wraps so a long float can never push the table past the pane. */
   table-layout: fixed;
 }
 
-.mal__rtcolname {
-  width: 280px;
+.mal__gcollabels {
+  width: auto;
 }
 
-.mal__rtcolval {
-  width: 90px;
+.mal__gcolval {
+  width: 96px;
 }
 
-/* labels column = remaining flex space (no width on the colgroup col). */
-
-.mal__rtable thead tr {
+.mal__gtable thead tr {
   background: var(--rr-bg2);
 }
 
-.mal__rtable th {
+.mal__gtable th {
   text-align: left;
-  padding: 5px 8px;
+  padding: 4px 8px;
   font-size: var(--sw-fs-xs);
   font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
@@ -1403,21 +1901,50 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
   border-bottom: 1px solid var(--rr-border);
 }
 
-.mal__rtable td {
+.mal__gthlabels {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Out-specify `.mal__gtable th { text-align: left }` so the value
+   header lines up over its right-aligned numeric column. */
+.mal__gtable th.mal__rtval {
+  text-align: right;
+}
+
+.mal__gtable td {
   padding: 5px 8px;
   border-bottom: 1px solid var(--rr-border);
   vertical-align: top;
 }
 
-.mal__rtable tbody tr:last-child td {
+.mal__gtable tbody tr:last-child td {
   border-bottom: none;
 }
 
-.mal__rtname {
+.mal__difftog {
+  background: transparent;
+  border: 1px solid var(--rr-border);
+  color: var(--rr-ink2);
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  padding: 1px 7px;
+  cursor: pointer;
+}
+
+.mal__difftog:hover {
   color: var(--rr-heading);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border-color: var(--rr-ink2);
+}
+
+.mal__difftog--active {
+  background: var(--rr-accent, var(--rr-active));
+  border-color: var(--rr-accent, var(--rr-active));
+  color: var(--rr-bg);
 }
 
 .mal__rtlabels {
@@ -1436,10 +1963,52 @@ function formatOutputValue(v: number | string | Record<string, number>): string 
 }
 
 .mal__rtval {
-  text-align: left;
+  text-align: right;
   color: var(--rr-accent, var(--rr-active));
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* ── Diff mode (differing labels only) ──────────────────────────── */
+
+.mal__diffcommonrow td {
+  background: var(--rr-bg2);
+}
+
+.mal__diffcommonhd {
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  margin-bottom: 4px;
+}
+
+.mal__diffcommons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.mal__diffcommon {
+  color: var(--rr-dim);
+  word-break: break-all;
+}
+
+.mal__diffcell {
+  margin-right: 10px;
+  color: var(--rr-ink2);
   white-space: nowrap;
-  width: 1%;
+}
+
+.mal__diffk {
+  color: var(--sw-fg-3);
+}
+
+.mal__diffv {
+  color: var(--rr-heading);
+  background: color-mix(in oklab, var(--rr-accent, var(--rr-active)) 20%, transparent);
+  padding: 0 3px;
 }
 
 .mal__rtempty {
