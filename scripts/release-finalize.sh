@@ -206,13 +206,14 @@ done
 (cd "${ART_DIR}" && shasum -a 512 -c "${SRC_BASE}.sha512" && shasum -a 512 -c "${BIN_BASE}.sha512")
 echo "Checksums verified."
 
-# Extract the CHANGELOG section for this version as the release body.
+# Extract the CHANGELOG section for this version as the release body. The
+# committed CHANGELOG is hard-wrapped at ~80 cols, which reflows cleanly in
+# the repo file view but renders as a ragged column of <br>-broken short
+# lines in a GitHub Release body (GFM hard-line-breaks). The helper unwraps
+# each paragraph / list item onto one line so the release body flows; see
+# scripts/changelog-release-notes.mjs for the full rationale.
 NOTES_FILE="${WORK_DIR}/release-notes.md"
-awk -v v="${RELEASE_VERSION}" '
-    $0 == "## " v   { in_sec=1; next }
-    in_sec && /^## / { in_sec=0 }
-    in_sec           { print }
-' "${PROJECT_DIR}/CHANGELOG.md" > "${NOTES_FILE}"
+node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${PROJECT_DIR}/CHANGELOG.md" > "${NOTES_FILE}"
 {
     echo ""
     echo "---"
