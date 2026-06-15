@@ -662,15 +662,16 @@ interface TopGroup {
   expression: string;
   items: TopItem[];
 }
-// "All" follows the response's own asc/desc (MQE-fixed) then prefixes the
-// entity; per-entity groups keep each entity's native order.
+// "All" merges every entity's rows and re-sorts them in the widget's OWN
+// MQE direction; per-entity groups keep each entity's native order. The
+// direction is resolved BFF-side at template time (`topNOrder`), NOT inferred
+// from the data — inferring from one probe entity flips the sort when that
+// entity's values are flat/equal (e.g. instances all at 100% success rate) or
+// when no entity has ≥2 rows. Default `des` for record widgets / expressions
+// without an explicit order.
 function multiTopGroups(wid: string): TopGroup[] {
   const ents = compareEntities.value;
-  // Detect the MQE's fixed asc/desc from the FIRST entity that actually has
-  // >=2 items — probing only ents[0] inverts the merged sort when the primary
-  // happens to be sparse while a pinned entity carries the full ranking.
-  const probe = ents.map((e) => topItemsFor(wid, e)).find((it) => it.length >= 2) ?? [];
-  const desc = probe.length < 2 || (probe[0].value ?? 0) >= (probe[probe.length - 1].value ?? 0);
+  const desc = widgets.value.find((w) => w.id === wid)?.topNOrder !== 'asc';
   const all: TopItem[] = ents.flatMap((e) =>
     topItemsFor(wid, e).map((it) => ({ name: `${entityLabel(e)} · ${it.name}`, value: it.value })),
   );

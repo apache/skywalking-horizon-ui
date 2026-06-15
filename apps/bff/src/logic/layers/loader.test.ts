@@ -94,6 +94,19 @@ describe('widgetsForScope — scope-resolution + fallback chain', () => {
     expect(widgetsForScope(t, 'service')).toEqual([]);
     expect(widgetsForScope(t, 'instance')).toBe(instance);
   });
+
+  it('resolves topNOrder on top / record widgets from their top_n() expression', () => {
+    const top: DashboardWidget = {
+      id: 'sla',
+      title: 'Top instances by success rate',
+      type: 'top',
+      expressions: ['top_n(service_instance_sla,10,asc)/100'],
+    };
+    const line = widget('cpm-line'); // non-top widget rides through untouched
+    const out = widgetsForScope(tpl({ dashboards: { service: [top, line] } }), 'service');
+    expect(out.find((w) => w.id === 'sla')?.topNOrder).toBe('asc');
+    expect(out.find((w) => w.id === 'cpm-line')).toBe(line); // unchanged reference
+  });
 });
 
 describe('topologyConfigFor / endpointDependencyConfigFor / tracesConfigFor — defaults', () => {
