@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { formatDuration } from '@/utils/formatters';
+import { ENTITY_PALETTE } from '@/utils/metricColor';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
@@ -40,6 +41,10 @@ interface Series {
   /** `0` = left axis (default), `1` = right axis. */
   yAxisIndex?: number;
   unit?: string;
+  /** Explicit per-series hue (CSS color or var). Overrides the
+   *  positional accent/SECONDARY cycle — used by the multi-entity
+   *  overlay so each entity keeps its palette hue. */
+  color?: string;
 }
 
 const props = withDefaults(
@@ -66,24 +71,58 @@ const props = withDefaults(
   },
 );
 
-// Scientific notation, trailing mantissa zeros trimmed. Axis and tooltip
-// share it so a tick and its hovered value read the same.
-function sci(v: number): string {
+// Compact magnitude with an SI suffix (k / M / G / T), ~3 significant
+// figures, trailing zeros trimmed — `45.1k`, not the scientific `4.51e4`
+// operators found unreadable. Axis and tooltip share it so a tick and its
+// hovered value read the same.
+function humanize(v: number): string {
   if (v === 0) return '0';
-  return v.toExponential(2).replace(/\.?0+e/, 'e').replace('e+', 'e');
+  const abs = Math.abs(v);
+  const units: Array<[number, string]> = [
+    [1e12, 'T'],
+    [1e9, 'G'],
+    [1e6, 'M'],
+    [1e3, 'k'],
+  ];
+  for (let i = 0; i < units.length; i += 1) {
+    const [scale, suffix] = units[i];
+    if (abs >= scale) {
+      const n = v / scale;
+      const dec = Math.abs(n) >= 100 ? 0 : Math.abs(n) >= 10 ? 1 : 2;
+      const rounded = parseFloat(n.toFixed(dec));
+      // Carry across the decade boundary: 999_999 rounds to 1000 at 'k' — show
+      // it in the next-larger unit ('1M') instead of the ugly '1000k'.
+      if (Math.abs(rounded) >= 1000 && i > 0) {
+        const [s2, suf2] = units[i - 1];
+        const n2 = v / s2;
+        const d2 = Math.abs(n2) >= 100 ? 0 : Math.abs(n2) >= 10 ? 1 : 2;
+        return `${parseFloat(n2.toFixed(d2))}${suf2}`;
+      }
+      return `${rounded}${suffix}`;
+    }
+  }
+  return String(v);
 }
 function formatVal(v: number): string {
   if (props.format === 'duration') return `${formatDuration(v)} ago`;
-  if (Math.abs(v) >= 10_000) return sci(v);
+  if (Math.abs(v) >= 10_000) return humanize(v);
   if (props.format === 'int') return Math.round(v).toString();
   if (props.format === 'decimal') return v.toFixed(1);
   return v.toFixed(2);
 }
 function formatAxis(v: number): string {
   if (props.format === 'duration') return formatDuration(v, true);
-  if (Math.abs(v) >= 10_000) return sci(v);
+  if (Math.abs(v) >= 10_000) return humanize(v);
   if (props.format === 'int') return Math.round(v).toString();
   return String(v);
+}
+// Tooltip rows are hand-built HTML (the tooltip is appendToBody, so scoped
+// CSS can't reach it) — escape the OAP-supplied series labels before
+// interpolating them in.
+function escHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) =>
+    c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;',
+  );
 }
 
 /**
@@ -106,14 +145,7 @@ function cssVar(token: string): string {
  * accent prop); subsequent lines pick from this palette so the lines
  * are distinguishable. Picks deliberately don't reuse the accent.
  */
-const SECONDARY = [
-  '#60a5fa', // info-ish (blue)
-  '#a78bfa', // purple
-  '#22d3ee', // cyan
-  '#f472b6', // pink
-  '#34d399', // ok-ish (green)
-  '#fbbf24', // amber
-];
+const SECONDARY = ENTITY_PALETTE;
 
 const container = ref<HTMLDivElement | null>(null);
 let chart: EChartsType | null = null;
@@ -140,7 +172,7 @@ function buildOption(): echarts.EChartsCoreOption {
       // at the card edge whenever a chart sits near the boundary.
       appendToBody: true,
       extraCssText:
-        'max-height: 60vh; overflow-y: auto; max-width: 360px; ' +
+        'max-height: 60vh; overflow-y: auto; max-width: 420px; ' +
         'box-shadow: 0 8px 24px rgba(0,0,0,0.45);',
       // Position callback returns an OBJECT form ({top, left/right,
       // bottom}) keyed to the chart's own bbox. With appendToBody:true
@@ -164,26 +196,78 @@ function buildOption(): echarts.EChartsCoreOption {
         _rect: unknown,
         size: { contentSize: [number, number]; viewSize: [number, number] },
       ): Record<string, number> {
+        // Returned anchors are CHART-LOCAL; with appendToBody ECharts offsets
+        // them by the chart's screen position, so the tooltip's viewport
+        // position is `containerRect.{top,left} + local`. We clamp the local
+        // anchor against the real VIEWPORT — `size.viewSize` is only the
+        // chart's own box (~160px here), far too small to place a tall
+        // multi-entity tooltip (N entities × percentile rows), which then
+        // bottom-anchored and ran off the top of the page. When the popup is
+        // larger than the viewport it pins to the top/left edge and scrolls
+        // (max-height + overflow-y in extraCssText above).
         const [tw, th] = size.contentSize;
-        const [vw, vh] = size.viewSize;
         const gap = 12;
-        const obj: Record<string, number> = {};
-        if (point[0] + tw + gap * 2 > vw) {
-          obj.right = vw - point[0] + gap;
-        } else {
-          obj.left = point[0] + gap;
-        }
-        if (point[1] + th + gap * 2 > vh) {
-          obj.bottom = vh - point[1] + gap;
-        } else {
-          obj.top = point[1] + gap;
-        }
-        return obj;
+        const m = 8; // keep this far clear of the viewport edges
+        const r = container.value?.getBoundingClientRect();
+        const rTop = r ? r.top : 0;
+        const rLeft = r ? r.left : 0;
+        // Prefer right-of / below the cursor; flip to the other side when
+        // that edge would overflow, then clamp into the viewport.
+        let left = point[0] + gap;
+        if (rLeft + left + tw > window.innerWidth - m) left = point[0] - tw - gap;
+        let top = point[1] + gap;
+        if (rTop + top + th > window.innerHeight - m) top = point[1] - th - gap;
+        const maxLeft = window.innerWidth - m - tw - rLeft;
+        const maxTop = window.innerHeight - m - th - rTop;
+        return {
+          left: Math.max(m - rLeft, Math.min(left, maxLeft)),
+          top: Math.max(m - rTop, Math.min(top, maxTop)),
+        };
       },
-      valueFormatter: (v: unknown) =>
-        typeof v === 'number' && Number.isFinite(v)
-          ? `${formatVal(v)}${props.unit ? ` ${props.unit}` : ''}`
-          : '—',
+      // Custom row layout: [dot] [name — flex, ellipsized] [value — right,
+      // bold, never wraps]. The default item layout collided the value with
+      // long multi-entity labels (`service · <hash>@<ip>`), pushing the value
+      // onto its own line or dropping it; here the name truncates and the
+      // value stays put on the same row.
+      formatter(params: unknown): string {
+        const arr = (Array.isArray(params) ? params : [params]) as Array<{
+          axisValueLabel?: string;
+          seriesName?: string;
+          value?: unknown;
+          color?: string;
+        }>;
+        const header = arr[0]?.axisValueLabel ? escHtml(arr[0].axisValueLabel) : '';
+        // Fixed-layout TABLE — `table-layout:fixed` + a hard `width` is the
+        // ONLY layout that deterministically pins the columns here: ECharts'
+        // appendToBody tooltip box ignores `max-width`, so any auto/flex/grid
+        // sizing lets the long labels balloon the box and the columns run
+        // ragged. With fixed layout the column widths are frozen (dot 14 /
+        // name rest / value 72) so every name ellipsizes at the SAME boundary
+        // and the numbers form one clean right-aligned column. The unit is
+        // shown once in the header (not repeated on 22 rows), which also keeps
+        // the value column narrow and unit-agnostic (MB / calls·min / ms / %).
+        const unitTag = props.unit
+          ? ` <span style="opacity:0.55;font-weight:400;">${escHtml(props.unit)}</span>`
+          : '';
+        const rows = arr
+          .map((p) => {
+            const val =
+              typeof p.value === 'number' && Number.isFinite(p.value) ? formatVal(p.value) : '—';
+            return (
+              '<tr>' +
+              `<td style="width:14px;padding:2px 0;vertical-align:middle;"><span style="display:block;width:9px;height:9px;border-radius:50%;background:${p.color ?? '#888'};"></span></td>` +
+              `<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:2px 6px 2px 0;vertical-align:middle;">${escHtml(p.seriesName ?? '')}</td>` +
+              `<td style="width:72px;text-align:right;font-weight:600;white-space:nowrap;padding:2px 0;vertical-align:middle;">${escHtml(val)}</td>` +
+              '</tr>'
+            );
+          })
+          .join('');
+        return (
+          `<div style="font-weight:600;margin-bottom:4px;">${header}${unitTag}</div>` +
+          '<table style="width:360px;table-layout:fixed;border-collapse:collapse;border-spacing:0;">' +
+          `${rows}</table>`
+        );
+      },
     },
     legend: {
       show: props.series.length > 1,
@@ -259,7 +343,11 @@ function buildOption(): echarts.EChartsCoreOption {
     })(),
     series: props.series.map((s, i) => {
       const accentHex = cssVar(props.accent);
-      const color = i === 0 ? accentHex : SECONDARY[(i - 1) % SECONDARY.length];
+      const color = s.color
+        ? cssVar(s.color)
+        : i === 0
+          ? accentHex
+          : SECONDARY[(i - 1) % SECONDARY.length];
       // For dual-axis widgets, append the per-series unit to the
       // legend label so operators can tell which line is on which
       // axis at a glance (e.g. "count (/min)" vs "latency (ms)").
@@ -307,7 +395,7 @@ function buildOption(): echarts.EChartsCoreOption {
  *  in on the right. */
 function seriesFingerprint(series: Series[]): string {
   return series
-    .map((s) => `${s.label}|${s.yAxisIndex ?? 0}|${s.unit ?? ''}|${s.data.length}`)
+    .map((s) => `${s.label}|${s.yAxisIndex ?? 0}|${s.unit ?? ''}|${s.color ?? ''}|${s.data.length}`)
     .join('::');
 }
 let prevFingerprint = '';

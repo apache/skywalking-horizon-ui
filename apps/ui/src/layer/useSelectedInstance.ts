@@ -34,5 +34,22 @@ export function useSelectedInstance() {
     store.setInstance(name);
   }
 
-  return { selectedInstance, setSelectedInstance };
+  // Multi-entity lock (instance scope). The locked set is CROSS-SERVICE
+  // compound keys; `isInstanceLocked` checks `name` under the current
+  // primary service via the store (compound-aware).
+  const lockedInstanceNames = computed<string[]>(() => store.activeCompareSet('instance'));
+  function toggleLockInstance(name: string): void {
+    store.toggleLock('instance', name);
+  }
+  function isInstanceLocked(name: string): boolean {
+    return store.isLocked('instance', name);
+  }
+
+  return {
+    selectedInstance,
+    setSelectedInstance,
+    lockedInstanceNames,
+    toggleLockInstance,
+    isInstanceLocked,
+  };
 }

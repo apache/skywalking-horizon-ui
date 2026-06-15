@@ -19,6 +19,7 @@ import { computed, type ComputedRef, type Ref } from 'vue';
 import { useSelectedService } from './useSelectedService';
 import { useLayerServices } from './useLayerServices';
 import type { useLayerLanding } from './useLayerLanding';
+import { isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 
 /**
  * Resolve the selected service's NAME for a layer tab — sample first,
@@ -45,10 +46,16 @@ export function useLayerServiceName(
   const { selectedId } = useSelectedService();
   const { services: roster } = useLayerServices(layerKey);
   return computed<string | null>(() => {
+    // OAP's reserved blank-entity service reports an EMPTY name over the wire
+    // (its id base64-decodes to `_blank`). Resolve it to the literal `_blank`
+    // so every downstream gate (`Boolean(serviceName)`) and MQE entity uses a
+    // non-empty, queryable key — OAP coerces `_blank` back to the same id. An
+    // empty name here would no-op every per-service query and hang the tab.
     const rows = landing.data.value?.sampledRows ?? landing.rows.value ?? [];
     const match = rows.find((r) => r.serviceId === selectedId.value);
-    if (match) return match.serviceName;
+    if (match) return isBlankServiceName(match.serviceName) ? BLANK_SERVICE_NAME : match.serviceName;
     const fromRoster = roster.value.find((s) => s.id === selectedId.value);
-    return fromRoster?.name ?? null;
+    if (fromRoster) return isBlankServiceName(fromRoster.name) ? BLANK_SERVICE_NAME : fromRoster.name;
+    return null;
   });
 }

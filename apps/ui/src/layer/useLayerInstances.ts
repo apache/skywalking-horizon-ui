@@ -35,7 +35,14 @@ export function useLayerInstances(layerKey: Ref<string>, service: Ref<string | n
   });
   return {
     data: computed(() => q.data.value ?? null),
-    instances: computed(() => q.data.value?.instances ?? []),
+    // Sort by name so the selector is scannable. OAP/BFF return instances in
+    // registration order, which reads as random (data-hot-1, liaison-1,
+    // data-warm-1, …). `numeric` keeps `liaison-1 < liaison-10`.
+    instances: computed(() =>
+      [...(q.data.value?.instances ?? [])].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true }),
+      ),
+    ),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

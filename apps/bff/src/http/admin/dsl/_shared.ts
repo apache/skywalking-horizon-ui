@@ -118,6 +118,60 @@ export function passOapError(err: unknown, reply: FastifyReply): FastifyReply {
   });
 }
 
+/**
+ * A structural rule apply (revertToBundled, a storage-change save) can take
+ * longer than OAP's admin request timeout: OAP returns 503
+ * `RequestTimeoutException` at ~10s, or the BFF's own fetch aborts first —
+ * but the apply keeps running under OAP's per-file lock and completes
+ * regardless (verified in the OAP runtime-rule engine logs). Treating that
+ * as a hard failure makes operators retry, which piles new waiters on the
+ * same lock. Instead we report `202 submitted` so the UI confirms by polling
+ * the rule status. Genuine 4xx rejections (409 requires_inactivate_first /
+ * requires_revert_to_bundled, 400 no_bundled_twin, …) are NOT timeouts and
+ * fall through to the normal error path.
+ */
+export function isOapApplyTimeout(err: unknown): boolean {
+  if (err instanceof RuntimeRuleApiError) {
+    return err.status === 503 || err.status === 504;
+  }
+  // The BFF's own AbortController fired (oap.timeoutMs) or a network timeout.
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError');
+}
+
+/** Map an apply-timeout to `202 submitted`; everything else to the normal
+ *  audited OAP-error path. Used by the structural mutation routes. */
+export function passSubmittedOrError(
+  err: unknown,
+  reply: FastifyReply,
+  deps: DslRouteDeps,
+  req: FastifyRequest,
+  action: string,
+  verb: string,
+  catalog: Catalog,
+  name: string,
+  details: Record<string, unknown> = {},
+): FastifyReply {
+  if (isOapApplyTimeout(err)) {
+    deps.audit.record({
+      action,
+      verb,
+      actor: req.session?.username ?? null,
+      outcome: 'submitted',
+      details: { catalog, name, ...details },
+      fromIp: req.ip,
+      sessionId: req.session?.sid,
+    });
+    return reply.code(202).send({
+      applyStatus: 'submitted',
+      catalog,
+      name,
+      message:
+        'OAP accepted the change and is applying it asynchronously; a structural apply can exceed the admin request timeout. Poll the rule status to confirm.',
+    });
+  }
+  return passOapErrorAudit(err, reply, deps, req, action, verb, catalog, name, details);
+}
+
 export function passOapErrorAudit(
   err: unknown,
   reply: FastifyReply,

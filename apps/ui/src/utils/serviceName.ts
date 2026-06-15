@@ -72,6 +72,21 @@ export function serviceGroupName(raw: string | null | undefined): string | null 
 }
 
 /**
+ * OAP buckets metrics that carry no service binding under a synthetic
+ * service whose name comes back empty (its id base64-decodes to `_blank`).
+ * Surface it in pickers so operators can see it exists, but NEVER
+ * auto-select or query it: an empty service name no-ops every per-service
+ * MQE / instance / endpoint query, and the dashboard gate `Boolean(service)`
+ * then never fires — the page would sit on "Reading data…" forever.
+ * `BLANK_SERVICE_NAME` is the verbatim label we show in its place.
+ */
+export const BLANK_SERVICE_NAME = '_blank';
+export function isBlankServiceName(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim();
+  return n === '' || n === BLANK_SERVICE_NAME;
+}
+
+/**
  * Layer-aware identity for a service name.
  *
  * `display` is **always** the pure service label — no `<group>::`

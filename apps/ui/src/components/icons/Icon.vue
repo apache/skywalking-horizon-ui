@@ -52,7 +52,8 @@ export type IconName =
   | 'fn'
   | 'cache'
   | 'topic'
-  | 'snowflake';
+  | 'snowflake'
+  | 'pin';
 </script>
 
 <template>
@@ -226,6 +227,11 @@ export type IconName =
     <template v-else-if="name === 'snowflake'">
       <path d="M12 3v18M3 12h18M5 5l14 14M19 5L5 19" />
       <path d="M9 6l3-3 3 3M15 18l-3 3-3-3M6 9L3 12l3 3M18 9l3 3-3 3" />
+    </template>
+    <template v-else-if="name === 'pin'">
+      <!-- Pushpin — "lock this entity into the comparison set". -->
+      <path d="M9 3h6l-1 5 3 3v2H7v-2l3-3z" />
+      <path d="M12 13v8" />
     </template>
   </svg>
 </template>

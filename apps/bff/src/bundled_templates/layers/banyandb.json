@@ -41,7 +41,8 @@
       },
       {
         "metric": "err",
-        "label": "Errors/min",
+        "label": "Errors",
+        "unit": "/min",
         "mqe": "meter_banyandb_cluster_error_rate",
         "aggregation": "avg"
       }

@@ -15,7 +15,7 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed, ref, shallowRef } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { isCatalog, type Catalog, type RuleResponse } from '@skywalking-horizon-ui/api-client';
@@ -95,6 +95,34 @@ function setFlash(msg: string): void {
   }, 4000);
 }
 
+// A structural apply (revert-to-bundled, storage-change save) runs past
+// OAP's admin request timeout, so the mutation returns `pending` before it
+// lands. Poll the rule to its expected end state instead of re-firing
+// (a retry just queues another waiter on OAP's per-file lock). The action
+// row stays disabled via `applying` for the duration so the operator can't
+// stack retries.
+const applying = ref(false);
+async function trackApply(op: 'revert' | 'inactivate' | 'delete'): Promise<void> {
+  applying.value = true;
+  setFlash(t('submitted — OAP is applying it; a structural apply can take a minute…'));
+  const done =
+    op === 'revert'
+      ? (r: RuleResponse | null): boolean => r != null && (r.status === 'BUNDLED' || r.status === 'STATIC')
+      : op === 'inactivate'
+        ? (r: RuleResponse | null): boolean => r?.status === 'INACTIVE'
+        : (r: RuleResponse | null): boolean => r === null;
+  const res = await editor.awaitApplied(done);
+  applying.value = false;
+  if (res === 'applied') {
+    setFlash(t('applied ✓'));
+    if (op === 'delete') {
+      await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
+    }
+  } else {
+    setFlash(t('still applying on OAP — refresh in a moment to confirm'));
+  }
+}
+
 async function onSave(): Promise<void> {
   const r = await editor.save({ force: force.value });
   if (r.kind === 'ok') {
@@ -129,6 +157,10 @@ async function onInactivate(): Promise<void> {
     setFlash(t('inactivated · {status}', { status: r.result.applyStatus }));
     return;
   }
+  if (r.kind === 'pending') {
+    void trackApply('inactivate');
+    return;
+  }
   if (r.kind === 'error') {
     setFlash(extractErrorMessage(r.error));
   }
@@ -139,6 +171,10 @@ async function onDeleteDefault(): Promise<void> {
   if (r.kind === 'ok') {
     setFlash(t('deleted · {status}', { status: r.result.applyStatus }));
     await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
+    return;
+  }
+  if (r.kind === 'pending') {
+    void trackApply('delete');
     return;
   }
   if (r.kind === 'needs-inactivate-first') {
@@ -169,6 +205,10 @@ function onDeleteRevertToBundled(): void {
       if (r.kind === 'ok') {
         setFlash(t('reverted · {status}', { status: r.result.applyStatus }));
         await router.push({ name: 'catalog', params: { catalog: catalog.value ?? '' } });
+        return;
+      }
+      if (r.kind === 'pending') {
+        void trackApply('revert');
         return;
       }
       if (r.kind === 'no-bundled-twin') {
@@ -237,9 +277,34 @@ const statusTone = computed(() => {
   return 'dim' as const;
 });
 
-const hasBundledTwin = computed(
-  () => editor.original.value?.source === 'static' || bundled.value !== null,
+// Probe the bundled twin eagerly on every (catalog, name) so the action
+// buttons reflect its existence on load — NOT only after the operator opens
+// the "diff vs. bundled" tab (the old `source === 'static'` clause was dead:
+// RuleSource is only ever 'runtime' | 'bundled'). The fetched content is
+// cached in `bundled`, so the diff tab then opens instantly. Guarded against
+// a stale fetch resolving after a newer rule was selected.
+watch(
+  [catalog, name],
+  () => {
+    bundled.value = null;
+    const c = catalog.value;
+    const n = name.value;
+    void editor
+      .fetchBundled()
+      .then((b) => {
+        if (catalog.value === c && name.value === n) bundled.value = b;
+      })
+      .catch(() => {});
+  },
+  { immediate: true },
 );
+const hasBundledTwin = computed<boolean>(() => bundled.value !== null);
+// An operator-pushed runtime row (vs. a pure bundled rule served from disk).
+// Only operator rows can be inactivated / deleted / reverted.
+const isOperatorRow = computed<boolean>(() => {
+  const s = editor.original.value?.status;
+  return s === 'ACTIVE' || s === 'INACTIVE';
+});
 </script>
 
 <template>
@@ -255,7 +320,8 @@ const hasBundledTwin = computed(
         {{ editor.original.value.status }}
       </Pill>
       <Pill v-if="editor.dirty.value" tone="active">{{ t('unsaved') }}</Pill>
-      <Pill v-if="editor.lastApplyStatus.value" tone="info">
+      <Pill v-if="applying" tone="info">{{ t('applying…') }}</Pill>
+      <Pill v-if="!applying && editor.lastApplyStatus.value" tone="info">
         {{ editor.lastApplyStatus.value }}
       </Pill>
       <div class="ed__spacer" />
@@ -295,29 +361,36 @@ const hasBundledTwin = computed(
 
       <Btn
         kind="primary"
-        :disabled="!canWrite || !editor.dirty.value || editor.saving.value"
+        :disabled="!canWrite || !editor.dirty.value || editor.saving.value || applying"
         :data-testid="'editor-save'"
         @click="onSave"
       >
         {{ editor.saving.value ? t('saving…') : t('save') }}
       </Btn>
+      <!-- Inactivate only applies to an ACTIVE operator row — hidden once
+           the rule is already INACTIVE (or a pure bundled rule). -->
       <Btn
-        :disabled="!canWrite || !editor.exists.value || editor.saving.value"
+        v-if="editor.original.value?.status === 'ACTIVE'"
+        :disabled="!canWrite || editor.saving.value || applying"
         @click="onInactivate"
       >
         {{ t('inactivate') }}
       </Btn>
+      <!-- Plain delete is valid ONLY when there's no bundled twin; OAP
+           refuses it with 409 requires_revert_to_bundled when one exists,
+           so for those rules we surface "revert to bundled" instead. -->
       <Btn
+        v-if="isOperatorRow && !hasBundledTwin"
         kind="danger"
-        :disabled="!canDelete || !editor.exists.value || editor.saving.value"
+        :disabled="!canDelete || editor.saving.value || applying"
         @click="onDeleteDefault"
       >
         {{ t('delete') }}
       </Btn>
       <Btn
-        v-if="hasBundledTwin"
+        v-if="isOperatorRow && hasBundledTwin"
         kind="danger"
-        :disabled="!canDelete || !canWriteStructural || editor.saving.value"
+        :disabled="!canDelete || !canWriteStructural || editor.saving.value || applying"
         :data-testid="'editor-revert'"
         @click="onDeleteRevertToBundled"
       >

@@ -47,6 +47,26 @@ function pickQueryString(v: unknown): string | null {
   return v;
 }
 
+/** The three lockable entity scopes for multi-entity cross-check. */
+export type CompareScope = 'service' | 'instance' | 'endpoint';
+
+/** Hard cap on the active comparison set — matches the six-hue
+ *  `ENTITY_PALETTE` so every locked entity gets a distinct color. */
+export const MAX_LOCKED = 6;
+
+/** Instance/endpoint locks are CROSS-SERVICE: a pin carries its service
+ *  so pins from different services compare together. Each is stored as a
+ *  compound `service<SEP>name` key; `compoundKey`/`splitCompound` encode
+ *  and decode it. (Service-scope locks are plain service ids.) */
+const CK_SEP = '\u0001';
+export function compoundKey(service: string, name: string): string {
+  return `${service}${CK_SEP}${name}`;
+}
+export function splitCompound(key: string): { service: string; name: string } {
+  const i = key.indexOf(CK_SEP);
+  return i < 0 ? { service: '', name: key } : { service: key.slice(0, i), name: key.slice(i + 1) };
+}
+
 export const useLayerSelectionStore = defineStore('layer-selection', () => {
   const service = ref<string | null>(null);
   const instance = ref<string | null>(null);
@@ -55,6 +75,15 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
    *  Cross-layer transitions reset; intra-layer scope/tab changes
    *  don't (the operator's pick stays sticky across tabs). */
   const ownerKey = ref<string | null>(null);
+
+  // --- Multi-entity lock (cross-check) state ---
+  // `lockedServices` = service-scope set (service ids). `lockedInstances`
+  // / `lockedEndpoints` = CROSS-SERVICE sets of compound `service<SEP>
+  // name` keys, so pins from different services stay locked together and
+  // compare side by side. Every read goes through `activeCompareSet`.
+  const lockedServices = ref<string[]>([]);
+  const lockedInstances = ref<string[]>([]);
+  const lockedEndpoints = ref<string[]>([]);
 
   /**
    * Bind the store to a layer + seed from the URL query. On layer
@@ -86,6 +115,9 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
     service.value = null;
     instance.value = null;
     endpoint.value = null;
+    lockedServices.value = [];
+    lockedInstances.value = [];
+    lockedEndpoints.value = [];
   }
 
   /**
@@ -113,6 +145,61 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
     endpoint.value = name;
   }
 
+  // The compound-key list backing a non-service scope.
+  function listRefFor(scope: CompareScope) {
+    if (scope === 'service') return lockedServices;
+    return scope === 'instance' ? lockedInstances : lockedEndpoints;
+  }
+  function addOrRemove(scope: CompareScope, key: string): void {
+    const r = listRefFor(scope);
+    if (r.value.includes(key)) r.value = r.value.filter((k) => k !== key);
+    else if (r.value.length < MAX_LOCKED) r.value = [...r.value, key];
+  }
+
+  /** Toggle a lock on `name` at `scope`, from the picker / row list.
+   *  Service scope toggles the service id; instance/endpoint toggle the
+   *  compound (CURRENT primary service, name) so a pin remembers which
+   *  service it belongs to and pins of DIFFERENT services coexist.
+   *  Cap-guarded at MAX_LOCKED; instance/endpoint no-op without a
+   *  primary service. */
+  function toggleLock(scope: CompareScope, name: string): void {
+    if (!name) return;
+    if (scope === 'service') {
+      addOrRemove('service', name);
+      return;
+    }
+    const primary = service.value;
+    if (!primary) return;
+    addOrRemove(scope, compoundKey(primary, name));
+  }
+
+  /** Remove an EXACT locked key — used by the cohort chip's ×, where the
+   *  key may belong to a service other than the current primary. */
+  function removeKey(scope: CompareScope, key: string): void {
+    const r = listRefFor(scope);
+    r.value = r.value.filter((k) => k !== key);
+  }
+
+  /** Is `name` locked at `scope` under the CURRENT primary service (for
+   *  instance/endpoint)? Drives the picker / row pin state. */
+  function isLocked(scope: CompareScope, name: string): boolean {
+    if (scope === 'service') return lockedServices.value.includes(name);
+    const primary = service.value;
+    if (!primary) return false;
+    return listRefFor(scope).value.includes(compoundKey(primary, name));
+  }
+
+  function clearLocks(scope: CompareScope): void {
+    listRefFor(scope).value = [];
+  }
+
+  /** THE read seam — the locked set for a scope. Service ids for service
+   *  scope; cross-service compound `service<SEP>name` keys for
+   *  instance/endpoint (decode with `splitCompound`). */
+  function activeCompareSet(scope: CompareScope): string[] {
+    return listRefFor(scope).value;
+  }
+
   return {
     service,
     instance,
@@ -123,5 +210,16 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
     setService,
     setInstance,
     setEndpoint,
+    // Multi-entity lock. App code reads through activeCompareSet(scope)
+    // + isLocked()/toggleLock()/removeKey(); the raw lists are exposed
+    // for devtools + unit tests only.
+    lockedServices,
+    lockedInstances,
+    lockedEndpoints,
+    toggleLock,
+    removeKey,
+    isLocked,
+    clearLocks,
+    activeCompareSet,
   };
 });

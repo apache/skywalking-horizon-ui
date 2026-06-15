@@ -28,7 +28,7 @@
  */
 
 import { computed, ref, type Ref } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
+import { useQueries, useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import {
@@ -36,9 +36,20 @@ import {
   getDashboardConfig,
   useConfigBundle,
 } from '@/controls/configBundle';
+import {
+  ENTITY_FANOUT_CONCURRENCY,
+  type FanoutScope,
+  createLimiter,
+  entityDashboardBody,
+  entityDashboardKey,
+  fanoutEntities,
+} from './entityFanout';
+import { compoundKey, splitCompound } from '@/state/layerSelection';
 import type {
   DashboardConfig,
+  DashboardResponse,
   DashboardWidget,
+  DashboardWidgetResult,
 } from '@skywalking-horizon-ui/api-client';
 
 export function useLayerDashboardConfig(layerKey: Ref<string>, scope?: Ref<string>) {
@@ -117,6 +128,23 @@ export function useLayerDashboard(
    *  bundle lands. Callers without a config bundle omit it (treated as
    *  ready) and keep the server-resolves-widgets behaviour. */
   configReady?: Ref<boolean>,
+  /** Locked comparison set for this scope (Option B multi-entity
+   *  cross-check). When it holds >=2 entities (counting the primary)
+   *  the composable fans out one single-entity dashboard query per
+   *  locked-but-non-primary entity (concurrency-bounded) and assembles
+   *  `resultByEntity`. Empty/absent ⇒ the single-query path is
+   *  byte-identical. */
+  activeSet?: Ref<string[]>,
+  /** Canonical key of the PRIMARY entity in the SAME representation the
+   *  `activeSet` uses (service id at service scope; `compoundKey(serviceId,
+   *  name)` at instance/endpoint scope). Supplied so the fan-out can dedupe
+   *  the primary out of the comparison set instead of fetching it twice —
+   *  the dashboard query itself still goes out by service NAME (`service`
+   *  arg above), which the BFF resolves to the same entity. When absent the
+   *  composable falls back to reconstructing the key from `service` +
+   *  `entityRefs` (name-based — only correct when the caller keys locks by
+   *  name too). */
+  primaryKey?: Ref<string | null>,
 ) {
   // Auto-refresh is metrics-only. Trace / log / profiling pages are
   // explore-style (operator-driven queries, log tails, etc.) and would
@@ -219,6 +247,150 @@ export function useLayerDashboard(
     refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),
     retry: 1,
   });
+
+  // --- Multi-entity fan-out (Option B) -------------------------------
+  // `q` above always serves the PRIMARY entity (and is the whole story
+  // when nothing is locked). When >=2 entities are in the comparison set
+  // we additionally fan out one single-entity query per LOCKED-but-non-
+  // primary entity (concurrency-bounded), then merge primary + others
+  // into `resultByEntity`. N<=1 leaves all of this inert.
+  const widgetsJson = computed(() => (widgetsList?.value ? JSON.stringify(widgetsList.value) : null));
+  // Instance/endpoint entity keys are CROSS-SERVICE compounds, so the
+  // primary's key carries the current service too (matches the locked
+  // compound keys when the current selection is itself pinned).
+  const primaryEntity = computed<string | null>(() => {
+    // Prefer the caller-supplied canonical key — it matches the locked-set
+    // representation (service id), so the primary dedupes out of the fan-out
+    // instead of being fetched twice. The reconstruction below is the
+    // name-based fallback for callers that key locks by name.
+    if (primaryKey) return primaryKey.value;
+    const s = scope?.value ?? 'service';
+    if (s === 'instance') {
+      const n = entityRefs.instance?.value;
+      return n ? compoundKey(service.value ?? '', n) : null;
+    }
+    if (s === 'endpoint') {
+      const n = entityRefs.endpoint?.value;
+      return n ? compoundKey(service.value ?? '', n) : null;
+    }
+    return service.value;
+  });
+  // The comparison set = the BANNER (primary) entity ALWAYS first, then each
+  // pinned entity (de-duped, empties dropped). The banner is what the top
+  // selector points at — it drives the header KPIs and renders as the
+  // "current" member (reserved accent hue); the pins add to it. So viewing
+  // one entity + a single pin already compares two. No hue collision: the
+  // primary owns the accent, leaving the 6-hue palette for up to six pins.
+  // The banner is served by `q`; the pins by the fan-out.
+  const compareOrder = computed<string[]>(() => {
+    const p = primaryEntity.value;
+    const pins = (activeSet?.value ?? []).filter((e) => e && e !== p);
+    return p ? [p, ...pins] : pins;
+  });
+  const compareActive = computed<boolean>(() => compareOrder.value.length >= 2);
+  // Fan out the non-primary locked entities; the primary (when it is in
+  // the locked set) is served by `q`, the rest by `useQueries`.
+  const fanoutList = computed<string[]>(() =>
+    fanoutEntities(primaryEntity.value, activeSet?.value ?? []),
+  );
+
+  const limit = createLimiter(ENTITY_FANOUT_CONCURRENCY);
+  const entityQueries = useQueries({
+    queries: () => {
+      // Only fan out once there's an actual comparison (>=2 in the set);
+      // a single lock shows in the cohort bar but doesn't fetch.
+      if (!compareActive.value) return [];
+      if (configReady && !configReady.value) return [];
+      const raw = scope?.value ?? 'service';
+      if (raw !== 'service' && raw !== 'instance' && raw !== 'endpoint') return [];
+      const s: FanoutScope = raw;
+      const opts = mockTop?.value ? { mockTop: mockTop.value } : {};
+      return fanoutList.value.map((entity) => {
+        // Decode the cross-service compound key (instance/endpoint) into
+        // its own service + name; at service scope the entity IS the svc.
+        const { service: svc, name } =
+          s === 'service' ? { service: entity, name: '' } : splitCompound(entity);
+        return {
+          queryKey: entityDashboardKey(
+            layerKey.value,
+            s,
+            svc,
+            name,
+            mockTop?.value ?? 0,
+            rangeKey.value,
+            widgetsJson.value,
+          ),
+          queryFn: (): Promise<DashboardResponse> =>
+            limit(() =>
+              bffClient.layer.dashboard(
+                layerKey.value,
+                entityDashboardBody(s, svc, name, rangeRef.value, widgetsList?.value ?? null),
+                opts,
+              ),
+            ),
+          staleTime: 25_000,
+          refetchInterval: refetchIntervalRef,
+          refetchOnWindowFocus: false,
+          retry: 1,
+        };
+      });
+    },
+  });
+
+  function indexById(widgets: DashboardWidgetResult[]): Map<string, DashboardWidgetResult> {
+    const m = new Map<string, DashboardWidgetResult>();
+    for (const w of widgets) m.set(w.id, w);
+    return m;
+  }
+
+  /** Map<entityName, Map<widgetId, result>> — primary from `q`, the
+   *  other locked entities from the fan-out. Assembles progressively as
+   *  each independent query lands. */
+  const resultByEntity = computed<Map<string, Map<string, DashboardWidgetResult>>>(() => {
+    const out = new Map<string, Map<string, DashboardWidgetResult>>();
+    const p = primaryEntity.value;
+    const pData = q.data.value;
+    if (p && pData?.widgets) out.set(p, indexById(pData.widgets));
+    const results = entityQueries.value;
+    fanoutList.value.forEach((entity, i) => {
+      const data = results[i]?.data as DashboardResponse | undefined;
+      if (data?.widgets) out.set(entity, indexById(data.widgets));
+    });
+    return out;
+  });
+
+  /** Entities resolved (success OR error) / total — progressive hint.
+   *  Counts over the compare set: the primary (if in it) via `q`, the
+   *  rest via their fan-out query. */
+  const entityProgress = computed<{ arrived: number; total: number }>(() => {
+    const order = compareOrder.value;
+    const fan = fanoutList.value;
+    let arrived = 0;
+    for (const e of order) {
+      if (e === primaryEntity.value) {
+        if (q.data.value || q.isError.value) arrived += 1;
+      } else {
+        const i = fan.indexOf(e);
+        const r = i >= 0 ? entityQueries.value[i] : undefined;
+        if (r && (r.data !== undefined || r.isError)) arrived += 1;
+      }
+    }
+    return { arrived, total: order.length };
+  });
+
+  /** Loading state for one entity's row in the compare grid. */
+  function entityState(entity: string): 'loading' | 'ready' | 'error' {
+    if (entity === primaryEntity.value) {
+      if (q.isError.value) return 'error';
+      return q.data.value ? 'ready' : 'loading';
+    }
+    const i = fanoutList.value.indexOf(entity);
+    const r = i >= 0 ? entityQueries.value[i] : undefined;
+    if (!r) return 'loading';
+    if (r.isError) return 'error';
+    return r.data !== undefined ? 'ready' : 'loading';
+  }
+
   return {
     data: computed(() => q.data.value ?? null),
     isLoading: q.isLoading,
@@ -230,5 +402,17 @@ export function useLayerDashboard(
      *  chunk's BFF call resolves. `total` is 0 when the legacy
      *  no-widgetsList path is in use. */
     progress,
+    // --- Multi-entity compare (Option B). Inert (single-entity) until a
+    // cohort is locked; consumed by the compare grid in a later phase.
+    /** Comparison-set entity order, primary first. */
+    compareEntities: compareOrder,
+    /** True once >=2 entities are in the comparison set. */
+    compareActive,
+    /** Map<entityName, Map<widgetId, result>>, assembled progressively. */
+    resultByEntity,
+    /** Entities resolved / total, for the progressive loading hint. */
+    entityProgress,
+    /** 'loading' | 'ready' | 'error' for a single entity row. */
+    entityState,
   };
 }

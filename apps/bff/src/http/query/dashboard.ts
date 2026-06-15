@@ -906,8 +906,12 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
           yAxisIndex?: number;
           unit?: string;
         }> = [];
-        widget.expressions.forEach((expr, eIdx) => {
-          const labeled = parseLabeledSeries(data[`w${wIdx}_e${eIdx}`], expr);
+        widget.expressions.forEach((_expr, eIdx) => {
+          // Fallback label for an un-labeled single series is the widget
+          // TITLE, not the raw MQE — operators read titles, never MQE.
+          // `expressionLabels[eIdx]` (when set) still takes precedence
+          // below; this only affects the no-label, no-override case.
+          const labeled = parseLabeledSeries(data[`w${wIdx}_e${eIdx}`], widget.title);
           if (!labeled) return;
           const labelOverride = widget.expressionLabels?.[eIdx];
           const axis = widget.expressionAxes?.[eIdx];

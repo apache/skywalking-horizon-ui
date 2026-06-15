@@ -16,6 +16,24 @@
  */
 
 /**
+ * Stable per-entity color palette for multi-entity compare (lock N
+ * service / instance / endpoint entities and cross-check). Six visually
+ * distinct hues — one per locked entity, assigned by id-keyed slot so a
+ * given entity keeps its color across the chip bar, the compare grid,
+ * and the overlay drill-out. Byte-identical to TimeChart's historic
+ * multi-series `SECONDARY` palette, which now consumes this single
+ * source; six hues is also what caps the lockable set at six.
+ */
+export const ENTITY_PALETTE = [
+  '#60a5fa', // info-ish (blue)
+  '#a78bfa', // purple
+  '#22d3ee', // cyan
+  '#f472b6', // pink
+  '#34d399', // ok-ish (green)
+  '#fbbf24', // amber
+] as const;
+
+/**
  * Per-metric color mapping for KPI tiles. Keeps the per-layer header
  * + selector pinned-bar visually consistent with the design's
  * `Landing / Layer · General` top KPI row (landing-layer.jsx:67-83).

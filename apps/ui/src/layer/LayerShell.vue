@@ -46,7 +46,8 @@ import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
-import { parseServiceName } from '@/utils/serviceName';
+import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
+import { FF_ENTITY_COMPARE } from '@/utils/featureFlags';
 
 const route = useRoute();
 const router = useRouter();
@@ -268,7 +269,7 @@ const aggregates = computed(() =>
 // `resetForLayer` watch above; the dashboard view's auto-pick watch
 // (further down) sets the first roster entry when the selection is
 // null or no longer in the roster.
-const { selectedId, setSelected } = useSelectedService();
+const { selectedId, setSelected, lockedServiceIds, toggleLockService } = useSelectedService();
 const sampledServices = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 const selectorColumns = computed(() => safeCfg.value.columns);
 // Full service roster (the layer's REAL catalog, independent of landing's
@@ -302,7 +303,10 @@ const selectedGroup = computed(() => selectedParsed.value.group);
 // separate chip next to the caret so the user reads it without the
 // raw `::` syntax bleeding into the UI.
 const selectedName = computed(() => {
-  if (selectedRow.value) return selectedParsed.value.base;
+  if (selectedRow.value) {
+    // OAP's blank-entity service has an empty name — show its `_blank` label.
+    return isBlankServiceName(selectedRow.value.serviceName) ? BLANK_SERVICE_NAME : selectedParsed.value.base;
+  }
   return sampledServices.value.length > 0 ? 'pick a service' : '—';
 });
 
@@ -312,6 +316,17 @@ const selectedName = computed(() => {
 // future component-driven views (dashboards with their own filters,
 // say) can flip the same meta flag without touching this file.
 const viewOwnsServiceSelector = computed(() => Boolean(route.meta?.ownsServiceSelector));
+
+// --- Multi-entity compare (service scope) -----------------------------
+// The picker's lock pins + the header chip bar show only on the SERVICE
+// dashboard route — the shell owns service selection; instance/endpoint
+// locking lives in the dashboard view's row list. Behind FF_ENTITY_COMPARE.
+// Service-scope lock is enabled here (the picker rows own the pins); the
+// locked cohort is DISPLAYED by the unified compare bar in the dashboard
+// view, so the shell only gates the picker pins, not a chip bar.
+const comparable = computed(
+  () => FF_ENTITY_COMPARE && !viewOwnsServiceSelector.value && scopeSegment.value === 'service',
+);
 
 // Zipkin trace mode is a self-contained, cross-service explorer (its
 // own service/duration/annotation filters), so the layer identity +
@@ -608,7 +623,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       :accent="layer.color"
       :naming-rule="layer.naming ?? null"
       :service-label="layer.slots.services"
+      :lock-enabled="comparable"
+      :locked-ids="lockedServiceIds"
       @select="pickService"
+      @toggle-lock="toggleLockService"
     />
 
     <!-- Loading state for the menu fetch — appears in the login →

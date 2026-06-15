@@ -35,7 +35,7 @@ import {
   parseDeleteMode,
   parseRequiredCatalog,
   passOapError,
-  passOapErrorAudit,
+  passSubmittedOrError,
 } from './_shared.js';
 
 export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps): void {
@@ -107,7 +107,7 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
       });
       return reply.send(result);
     } catch (err) {
-      return passOapErrorAudit(err, reply, deps, req, 'addOrUpdate', verb, catalog, q.name);
+      return passSubmittedOrError(err, reply, deps, req, 'addOrUpdate', verb, catalog, q.name);
     }
   });
 
@@ -125,7 +125,7 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
         auditMutation(deps, req, 'inactivate', 'rule:write', catalog, q.name, result.applyStatus);
         return reply.send(result);
       } catch (err) {
-        return passOapErrorAudit(
+        return passSubmittedOrError(
           err,
           reply,
           deps,
@@ -159,7 +159,7 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
         auditMutation(deps, req, 'delete', verb, catalog, q.name, result.applyStatus, { mode });
         return reply.send(result);
       } catch (err) {
-        return passOapErrorAudit(err, reply, deps, req, 'delete', verb, catalog, q.name, { mode });
+        return passSubmittedOrError(err, reply, deps, req, 'delete', verb, catalog, q.name, { mode });
       }
     },
   );

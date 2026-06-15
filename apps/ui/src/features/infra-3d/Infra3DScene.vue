@@ -1313,23 +1313,40 @@ const initialTarget = defaultTargetPos();
 //
 // Both refs may still be `null` between mount-tick and the THREE
 // object actually attaching, so every accessor guards for that.
-const controlsRef = shallowRef<any>(null);
-function getControls(): any | null {
+// The only bits of THREE.OrbitControls the camera helpers touch. cientos
+// doesn't ship a stable type for the exposed instance, so we narrow to this
+// structurally rather than depend on its internals.
+interface OrbitControlsLike {
+  update: () => void;
+  target: Vector3;
+}
+function asOrbitControls(v: unknown): OrbitControlsLike | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const o = v as { update?: unknown; target?: unknown };
+  return typeof o.update === 'function' && o.target ? (v as OrbitControlsLike) : null;
+}
+// `unknown` (not the controls type): the template ref is set to cientos's
+// exposed component object, whose shape we probe at runtime in getControls.
+const controlsRef = shallowRef<unknown>(null);
+function getControls(): OrbitControlsLike | null {
   const r = controlsRef.value;
-  if (!r) return null;
-  // Defensive: handle both auto-unwrapped expose AND the (older /
-  // alternative) shape where `instance` would still be a ref.
-  const inst = r.instance;
+  if (!r || typeof r !== 'object') return null;
+  const inst = (r as { instance?: unknown }).instance;
   if (!inst) return null;
-  if (typeof inst.update === 'function' && inst.target) return inst;
-  if (inst.value && typeof inst.value.update === 'function') return inst.value;
-  return null;
+  // Defensive: handle both the auto-unwrapped expose (`inst` IS the controls)
+  // AND the older / alternative shape where `instance` is still a ref.
+  return asOrbitControls(inst) ?? asOrbitControls((inst as { value?: unknown }).value);
 }
 function getCamera(): PerspectiveCamera | null {
-  const r = cameraRef.value as any;
+  // TresJS may set the ref to the THREE camera directly or to a wrapper whose
+  // `.value` holds it — probe both shapes through `unknown`.
+  const r = cameraRef.value as unknown;
   if (!r) return null;
-  if (r.isPerspectiveCamera) return r as PerspectiveCamera;
-  if (r.value?.isPerspectiveCamera) return r.value as PerspectiveCamera;
+  if ((r as { isPerspectiveCamera?: boolean }).isPerspectiveCamera) return r as PerspectiveCamera;
+  const inner = (r as { value?: unknown }).value;
+  if (inner && (inner as { isPerspectiveCamera?: boolean }).isPerspectiveCamera) {
+    return inner as PerspectiveCamera;
+  }
   return null;
 }
 

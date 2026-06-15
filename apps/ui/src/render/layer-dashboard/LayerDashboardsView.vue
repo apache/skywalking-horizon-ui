@@ -38,6 +38,7 @@ import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashb
 import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerInstances } from '@/layer/useLayerInstances';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useTimeRangeStore, type TimeStep } from '@/controls/timeRange';
 import { pushEvent } from '@/controls/eventLog';
@@ -49,6 +50,20 @@ import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { FF_ENTITY_COMPARE } from '@/utils/featureFlags';
+import { useEntityPalette } from '@/utils/useEntityPalette';
+import { serviceBaseName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
+import {
+  MAX_LOCKED,
+  type CompareScope,
+  useLayerSelectionStore,
+  compoundKey,
+  splitCompound,
+} from '@/state/layerSelection';
+import Icon from '@/components/icons/Icon.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -74,7 +89,9 @@ const scope = computed<string>(() => {
   }
   return 'service';
 });
-const { selectedId } = useSelectedService();
+const { selectedId, lockedServiceIds } = useSelectedService();
+// Direct store handle for exact-key cohort removal (cross-service ×).
+const selectionStore = useLayerSelectionStore();
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
 
@@ -160,7 +177,8 @@ const { config, isLoading: configLoading } = useLayerDashboardConfig(layerKey, s
 // selector renders whenever a service is picked AND scope === instance.
 // Cleared automatically when the service changes so a stale instance
 // from a previous service doesn't bleed into the next one's queries.
-const { selectedInstance, setSelectedInstance } = useSelectedInstance();
+const { selectedInstance, setSelectedInstance, lockedInstanceNames, toggleLockInstance, isInstanceLocked } =
+  useSelectedInstance();
 // Instance list waits for `serviceName` (post-landing), not the URL
 // id fallback. Enforces the cascade: landing → service → instance →
 // metrics, each step firing exactly once after the prior resolves.
@@ -183,6 +201,9 @@ const expandedInstance = ref<string | null>(null);
  *  bound to it. */
 const { setSelected: setSelectedService } = useSelectedService();
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
+// Full service roster (all ids→names) — resolves cohort labels for
+// locked services beyond the landing top-N sample.
+const { services: serviceRoster } = useLayerServices(layerKey);
 watch(landingRows, (rows) => {
   const first = rows[0];
   if (!first) return;
@@ -250,7 +271,8 @@ watch([instanceList, scope], ([list, s]) => {
 // there's no full-page paging; the picker is top 20…50. Search fires
 // on Enter (not on every keystroke) so the operator can type a
 // multi-word query without watching the BFF re-query each character.
-const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
+const { selectedEndpoint, setSelectedEndpoint, lockedEndpointNames, toggleLockEndpoint, isEndpointLocked } =
+  useSelectedEndpoint();
 /** Live text in the input — bound via v-model. */
 const endpointSearchInput = ref('');
 /** Committed keyword that actually drives the BFF query. Updated on
@@ -395,7 +417,51 @@ const widgetsForQuery = computed(() => config.value?.widgets ?? []);
 // so we don't fire (which would otherwise make the BFF substitute its own
 // default widget set); metrics run only for resolved widgets.
 const configReady = computed(() => widgetsForQuery.value.length > 0);
-const { data, isFetching, error } = useLayerDashboard(
+
+// Multi-entity compare. The locked set for the CURRENT scope (service /
+// instance / endpoint); empty unless the operator locked a cohort. Gated
+// to the lockable scopes — layer-wide scopes (topology / logs / …) never
+// compare. Feeds the per-entity fan-out in `useLayerDashboard`.
+const compareScope = computed<CompareScope | null>(() => {
+  if (scope.value === 'service' || scope.value === 'instance' || scope.value === 'endpoint') {
+    return scope.value;
+  }
+  return null;
+});
+const activeSet = computed<string[]>(() => {
+  if (!FF_ENTITY_COMPARE) return [];
+  if (compareScope.value === 'service') return lockedServiceIds.value;
+  if (compareScope.value === 'instance') return lockedInstanceNames.value;
+  if (compareScope.value === 'endpoint') return lockedEndpointNames.value;
+  return [];
+});
+// Canonical key of the CURRENT primary entity, in the SAME representation
+// the locked sets use (service id; `compoundKey(serviceId, name)` for
+// instance/endpoint). Fed to the fan-out so the primary dedupes out of the
+// comparison set instead of being fetched twice. Also drives the cohort
+// bar's "primary" chip + the row-list highlight.
+const scopePrimaryKey = computed<string | null>(() => {
+  if (compareScope.value === 'service') return selectedId.value;
+  const svc = selectedId.value ?? '';
+  if (compareScope.value === 'instance') {
+    return selectedInstance.value ? compoundKey(svc, selectedInstance.value) : null;
+  }
+  if (compareScope.value === 'endpoint') {
+    return selectedEndpoint.value ? compoundKey(svc, selectedEndpoint.value) : null;
+  }
+  return null;
+});
+
+const {
+  data,
+  isFetching,
+  error,
+  resultByEntity,
+  compareActive,
+  compareEntities,
+  entityState,
+  entityProgress,
+} = useLayerDashboard(
   layerKey,
   serviceName,
   scope,
@@ -404,8 +470,229 @@ const { data, isFetching, error } = useLayerDashboard(
   rangeRef,
   widgetsForQuery,
   configReady,
+  activeSet,
+  scopePrimaryKey,
 );
 
+const compareMode = computed(() => FF_ENTITY_COMPARE && compareActive.value);
+// In compare mode the tiles render from the per-entity fan-out, not the
+// primary `q` — so widget "no data" fallbacks must consult cohort progress
+// (entities arrived/total), not `isFetching` (the primary query only).
+// Otherwise a tile shows "no data" while the fan-out is still in flight.
+const compareLoading = computed(
+  () => compareMode.value && entityProgress.value.arrived < entityProgress.value.total,
+);
+const palette = useEntityPalette();
+// The banner (primary) entity always renders in the reserved accent; only the
+// PINS draw from the 6-hue palette — so the palette never needs a 7th slot and
+// the "current" entity stays visually tied to the orange header KPIs.
+watch(
+  compareEntities,
+  (ids) => palette.syncToIds(ids.filter((id) => id !== scopePrimaryKey.value)),
+  { immediate: true },
+);
+function compareHue(key: string): string {
+  return key === scopePrimaryKey.value ? 'var(--sw-accent)' : palette.hueFor(key);
+}
+// Hue for an instance/endpoint ROW (raw name) under the current service —
+// the palette is keyed by the cross-service compound key.
+function rowHue(name: string): string {
+  return compareHue(compoundKey(selectedId.value ?? '', name));
+}
+// Display label for an entity key, scope-aware: service ids resolve to a
+// base name from the roster; instance/endpoint names render as-is.
+function serviceLabelFor(id: string): string {
+  // landing sample first (has metrics), then the FULL roster so a locked
+  // low-traffic service beyond the top-N sample still resolves to a name.
+  const name =
+    landingRows.value.find((s) => s.serviceId === id)?.serviceName ??
+    serviceRoster.value.find((s) => s.id === id)?.name ??
+    id;
+  return isBlankServiceName(name) ? BLANK_SERVICE_NAME : serviceBaseName(name);
+}
+function entityLabel(key: string): string {
+  if (compareScope.value === 'service') return serviceLabelFor(key);
+  // instance/endpoint: cross-service compound key → "<serviceBase> · <name>".
+  const { service: svc, name } = splitCompound(key);
+  return svc ? `${serviceLabelFor(svc)} · ${name}` : name;
+}
+function resultFor(widgetId: string, entityKey: string) {
+  return resultByEntity.value.get(entityKey)?.get(widgetId);
+}
+// Table widgets compare per-entity: gather each entity's rows tagged
+// with its key (Option B puts no entityKey on the wire) for TableWidget.
+const compareTableEntities = computed(() =>
+  compareEntities.value.map((e) => ({ key: e, name: entityLabel(e), hue: compareHue(e) })),
+);
+function compareTableRows(widgetId: string) {
+  return compareEntities.value.flatMap((e) =>
+    (resultFor(widgetId, e)?.table ?? []).map((r) => ({ ...r, entityKey: e })),
+  );
+}
+
+// --- Unified compare cohort bar (scope-aware) ---------------------------
+// The persistent working-set surface, decoupled from the (service-
+// dependent, paginated) selection list. Shows the comparison set = the
+// locked set; the list pins are the ADD affordance. All three scopes
+// differ in key/label/primary/unlock, handled below. (`scopePrimaryKey`
+// is defined above the dashboard call so the fan-out can dedupe with it.)
+interface CohortChip {
+  key: string;
+  label: string;
+  hue: string;
+  primary: boolean;
+  /** Per-entity fetch state — surfaces the isolated fan-out error/loading
+   *  on the chip so a failed entity is visible (not silently blank). */
+  state: 'loading' | 'ready' | 'error';
+}
+const cohortChips = computed<CohortChip[]>(() =>
+  compareEntities.value.map((key) => ({
+    key,
+    label: entityLabel(key),
+    hue: compareHue(key),
+    primary: key === scopePrimaryKey.value,
+    state: entityState(key),
+  })),
+);
+// Distinct services represented in the locked instance/endpoint cohort.
+// A cross-service cohort (size > 1) can't be summarised as "of {service}".
+const cohortServices = computed<string[]>(() => {
+  const set = new Set<string>();
+  for (const key of compareEntities.value) set.add(splitCompound(key).service);
+  return [...set];
+});
+// Show the cohort bar from the FIRST lock (so a single lock is visible
+// regardless of list churn); the grid itself still needs >=2.
+const cohortVisible = computed(() => activeSet.value.length >= 1);
+const cohortHeader = computed<string>(() => {
+  const n = compareEntities.value.length;
+  if (n < 2) return t('{n} locked · lock 1 more to compare', { n });
+  if (compareScope.value === 'service') return t('Comparing {n} services', { n });
+  // instance/endpoint: name the service only when the whole cohort shares
+  // one; a mixed-service cohort says "across services" (chips carry the
+  // per-entity service prefix).
+  const svcs = cohortServices.value;
+  const single = svcs.length === 1 ? serviceLabelFor(svcs[0]) : null;
+  if (compareScope.value === 'instance') {
+    return single
+      ? t('Comparing {n} instances of {service}', { n, service: single })
+      : t('Comparing {n} instances across services', { n });
+  }
+  return single
+    ? t('Comparing {n} endpoints of {service}', { n, service: single })
+    : t('Comparing {n} endpoints across services', { n });
+});
+// Cohort chips are display-only: a pin is a comparison member, NOT a
+// banner control. Clicking a chip must NOT refocus the banner (that would
+// re-query the primary + reload the instance/endpoint list — the disruptive
+// "refresh" we explicitly avoid). The banner changes only through the top
+// selector / list rows; chips offer just the × (unpin), and the CURRENT chip
+// (the banner entity) isn't removable.
+function unlockChip(key: string): void {
+  // Remove the EXACT key (compound for instance/endpoint) — it may
+  // belong to a service other than the current primary.
+  if (compareScope.value) selectionStore.removeKey(compareScope.value, key);
+}
+
+// --- Multi-entity INLINE rendering -------------------------------------
+// In compare mode every widget keeps its normal tile and renders all N
+// entities inside it: card -> one row per entity, line -> N overlaid
+// (entity-hued) lines, top/record -> per-entity tabs + a merged "All".
+function cardValueFor(wid: string, e: string): number | null {
+  return resultFor(wid, e)?.value ?? null;
+}
+function cardTextFor(w: { id: string; format?: MetricFormat; valueMap?: Record<string, string> }, e: string): string {
+  const v = cardValueFor(w.id, e);
+  if (v != null && w.format === 'enum' && w.valueMap) {
+    const lbl = w.valueMap[String(Math.round(v))];
+    if (lbl != null) return lbl;
+  }
+  return fmtMetricAs(v, w.format);
+}
+interface CompareSeries {
+  label: string;
+  data: Array<number | null>;
+  yAxisIndex?: number;
+  unit?: string;
+  color: string;
+}
+function multiLineSeries(wid: string): CompareSeries[] {
+  const out: CompareSeries[] = [];
+  for (const e of compareEntities.value) {
+    const series = resultFor(wid, e)?.series ?? [];
+    const multi = series.length > 1;
+    for (const s of series) {
+      out.push({
+        // Label FIRST, then the entity (`service · instance/endpoint`): the
+        // per-series label (e.g. a JVM thread state) is the valuable tag and
+        // must survive truncation, whereas a long instance/endpoint name can
+        // ellipsize at the tail. Entities stay distinguishable by hue + the
+        // (differing) start of the name.
+        label: multi ? `${s.label} · ${entityLabel(e)}` : entityLabel(e),
+        data: s.data,
+        ...(s.yAxisIndex !== undefined ? { yAxisIndex: s.yAxisIndex } : {}),
+        ...(s.unit ? { unit: s.unit } : {}),
+        color: compareHue(e),
+      });
+    }
+  }
+  return out;
+}
+function lineLen(wid: string): number {
+  for (const e of compareEntities.value) {
+    const d = resultFor(wid, e)?.series?.[0]?.data;
+    if (d && d.length) return d.length;
+  }
+  return 0;
+}
+interface TopItem {
+  name: string;
+  value: number | null;
+}
+function topItemsFor(wid: string, e: string): TopItem[] {
+  const r = resultFor(wid, e);
+  if (!r) return [];
+  if (r.topList) return r.topList;
+  if (r.topGroups && r.topGroups[0]) return r.topGroups[0].items;
+  if (r.records) return r.records.map((x) => ({ name: x.name, value: x.value ?? null }));
+  return [];
+}
+interface TopGroup {
+  label: string;
+  expression: string;
+  items: TopItem[];
+}
+// "All" follows the response's own asc/desc (MQE-fixed) then prefixes the
+// entity; per-entity groups keep each entity's native order.
+function multiTopGroups(wid: string): TopGroup[] {
+  const ents = compareEntities.value;
+  // Detect the MQE's fixed asc/desc from the FIRST entity that actually has
+  // >=2 items — probing only ents[0] inverts the merged sort when the primary
+  // happens to be sparse while a pinned entity carries the full ranking.
+  const probe = ents.map((e) => topItemsFor(wid, e)).find((it) => it.length >= 2) ?? [];
+  const desc = probe.length < 2 || (probe[0].value ?? 0) >= (probe[probe.length - 1].value ?? 0);
+  const all: TopItem[] = ents.flatMap((e) =>
+    topItemsFor(wid, e).map((it) => ({ name: `${entityLabel(e)} · ${it.name}`, value: it.value })),
+  );
+  all.sort((a, b) => {
+    const av = a.value ?? (desc ? -Infinity : Infinity);
+    const bv = b.value ?? (desc ? -Infinity : Infinity);
+    return desc ? bv - av : av - bv;
+  });
+  const groups: TopGroup[] = [{ label: t('All'), expression: '', items: all }];
+  for (const e of ents) groups.push({ label: entityLabel(e), expression: '', items: topItemsFor(wid, e) });
+  return groups;
+}
+function hasMultiTopData(wid: string): boolean {
+  return compareEntities.value.some((e) => topItemsFor(wid, e).length > 0);
+}
+// Instance/endpoint row lock pins (service-scope locking lives in the
+// shell). Shown behind the flag; cap-guarded per scope.
+const compareLockable = computed(() => FF_ENTITY_COMPARE);
+const instAtCap = computed(() => lockedInstanceNames.value.length >= MAX_LOCKED);
+const epAtCap = computed(() => lockedEndpointNames.value.length >= MAX_LOCKED);
+
+// Line-cell drill-out → multi-entity overlay chart.
 // Sequential page-init events for the EventTicker — config →
 // services → service → instances/endpoints → instance/endpoint →
 // dashboard. The orchestrator watches the refs above and emits one
@@ -521,13 +808,35 @@ function hasTopData(w: { id: string; type: string }): boolean {
 }
 
 /**
- * `visibleWhen` is now evaluated BFF-side: a gated-out widget comes back
- * flagged `hidden: true` (group/entity misses also skip their MQE there).
- * The grid drops those; a widget with no result yet (loading) stays
- * visible until its result lands.
+ * `visibleWhen` is evaluated BFF-side PER ENTITY: a gated-out widget comes
+ * back flagged `hidden: true` (group/entity misses also skip their MQE
+ * there). A widget with no result yet (loading) stays visible until its
+ * result lands.
+ *
+ * In compare mode the gate is the UNION across the whole cohort — the widget
+ * shows if ANY compared entity has it. `visibleWhen` keys off per-entity
+ * facts (a metric existing, an instance attribute like `language=java`), so
+ * judging visibility by the banner alone would drop, say, every JVM widget
+ * the moment the banner is a non-JVM (e.g. LUA) service even though Java pins
+ * carry rich JVM data. It hides only once EVERY entity has loaded and all
+ * flag it hidden; while any entity is still loading it stays visible.
  */
 function isHidden(id: string): boolean {
-  return resultsById.value.get(id)?.hidden === true;
+  if (!compareMode.value) {
+    return resultsById.value.get(id)?.hidden === true;
+  }
+  let allLoaded = true;
+  for (const e of compareEntities.value) {
+    const r = resultByEntity.value.get(e)?.get(id);
+    if (!r) {
+      allLoaded = false;
+      continue;
+    }
+    if (r.hidden !== true) return false; // at least one entity shows it
+  }
+  // No entity shows it: hide only when the whole cohort has reported in;
+  // otherwise keep it visible while results are still arriving.
+  return allLoaded && compareEntities.value.length > 0;
 }
 </script>
 
@@ -578,8 +887,20 @@ function isHidden(id: string): boolean {
           v-for="i in instanceList"
           :key="i.id"
           class="ib-row"
-          :class="{ on: selectedInstance === i.name }"
+          :class="{ on: selectedInstance === i.name, 'has-lock': compareLockable }"
         >
+          <button
+            v-if="compareLockable"
+            type="button"
+            class="ib-lock"
+            :class="{ locked: isInstanceLocked(i.name) }"
+            :disabled="!isInstanceLocked(i.name) && instAtCap"
+            :title="isInstanceLocked(i.name) ? t('Remove from comparison') : t('Add to comparison')"
+            @click.stop="toggleLockInstance(i.name)"
+          >
+            <span v-if="isInstanceLocked(i.name)" class="ib-lock-dot" :style="{ background: rowHue(i.name) }" />
+            <Icon v-else name="pin" :size="11" />
+          </button>
           <button
             type="button"
             class="ib-pick-btn"
@@ -678,8 +999,20 @@ function isHidden(id: string): boolean {
             v-for="e in endpointList"
             :key="e.id"
             class="ib-row"
-            :class="{ on: selectedEndpoint === e.name }"
+            :class="{ on: selectedEndpoint === e.name, 'has-lock': compareLockable }"
           >
+            <button
+              v-if="compareLockable"
+              type="button"
+              class="ib-lock"
+              :class="{ locked: isEndpointLocked(e.name) }"
+              :disabled="!isEndpointLocked(e.name) && epAtCap"
+              :title="isEndpointLocked(e.name) ? t('Remove from comparison') : t('Add to comparison')"
+              @click.stop="toggleLockEndpoint(e.name)"
+            >
+              <span v-if="isEndpointLocked(e.name)" class="ib-lock-dot" :style="{ background: rowHue(e.name) }" />
+              <Icon v-else name="pin" :size="11" />
+            </button>
             <button
               type="button"
               class="ib-pick-btn"
@@ -725,7 +1058,42 @@ function isHidden(id: string): boolean {
     <div v-else-if="widgets.length === 0" class="empty">
       No widgets defined for this layer. Add some via Dashboard setup → Layer dashboards.
     </div>
-    <div v-else class="grid">
+    <template v-else>
+    <!-- Unified compare cohort bar — the persistent comparison-set surface
+         for all three scopes (service / instance / endpoint). The banner
+         entity is the CURRENT member (accent, not removable); pins add to it
+         and carry × to unpin. Chips are display-only — none switch the
+         banner (that stays with the top selector / list rows). -->
+    <div v-if="cohortVisible" class="cohort-bar">
+      <span class="cohort-head">{{ cohortHeader }}</span>
+      <div class="cohort-chips">
+        <div
+          v-for="c in cohortChips"
+          :key="c.key"
+          class="cohort-chip"
+          :class="{ primary: c.primary, 'is-error': c.state === 'error', 'is-loading': c.state === 'loading' }"
+          :style="c.primary ? { borderColor: c.hue } : {}"
+          :title="c.state === 'error'
+            ? t('Failed to load')
+            : c.primary ? t('Current — drives the header KPIs') : c.label"
+        >
+          <span class="cohort-dot" :style="{ background: c.hue }" />
+          <span class="cohort-name">{{ c.label }}</span>
+          <span v-if="c.primary" class="cohort-tag">{{ t('CURRENT') }}</span>
+          <button
+            v-else
+            type="button"
+            class="cohort-x"
+            :title="t('Remove from comparison')"
+            @click="unlockChip(c.key)"
+          >×</button>
+        </div>
+      </div>
+    </div>
+    <!-- Tile grid keeps its normal layout in compare mode; each widget
+         renders all N entities inline (card rows / overlaid lines /
+         per-entity tabs). -->
+    <div class="grid">
       <div
         v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
@@ -757,11 +1125,23 @@ function isHidden(id: string): boolean {
           </div>
         </div>
         <div class="w-body" :class="`type-${w.type}`">
-          <template v-if="resultsById.get(w.id)?.error">
+          <!-- The primary query's per-widget error gates ONLY the single-
+               entity view. In compare mode the grid renders from the
+               per-entity fan-out (errors are isolated per entity — a bad
+               primary, or a primary outside the locked cohort, must not
+               blank valid locked-entity results). -->
+          <template v-if="!compareMode && resultsById.get(w.id)?.error">
             <span class="muted">{{ resultsById.get(w.id)!.error }}</span>
           </template>
           <template v-else-if="w.type === 'card'">
-            <div class="card-value">
+            <div v-if="compareMode" class="card-compare">
+              <div v-for="e in compareEntities" :key="e" class="cc-row">
+                <span class="cc-dot" :style="{ background: compareHue(e) }" />
+                <span class="cc-name" :title="entityLabel(e)">{{ entityLabel(e) }}</span>
+                <span class="cc-val" :class="{ muted: cardValueFor(w.id, e) == null }">{{ cardTextFor(w, e) }}</span>
+              </div>
+            </div>
+            <div v-else class="card-value">
               <span class="num" :class="{ muted: resultsById.get(w.id)?.value == null }">
                 {{ resultsById.has(w.id)
                   ? cardText(w)
@@ -772,19 +1152,27 @@ function isHidden(id: string): boolean {
           </template>
           <template v-else-if="w.type === 'line'">
             <TimeChart
-              v-if="resultsById.get(w.id)?.series?.length"
-              :series="resultsById.get(w.id)!.series!"
+              v-if="compareMode ? multiLineSeries(w.id).length : resultsById.get(w.id)?.series?.length"
+              :series="compareMode ? multiLineSeries(w.id) : resultsById.get(w.id)!.series!"
               :unit="w.unit"
               :height="(w.rowSpan ?? 1) * 110 - 50"
               :accent="widgetColor(w)"
               :format="w.format"
-              :x-labels="xLabelsForLen(resultsById.get(w.id)!.series![0]?.data.length ?? 0)"
+              :x-labels="xLabelsForLen(compareMode ? lineLen(w.id) : (resultsById.get(w.id)!.series![0]?.data.length ?? 0))"
             />
-            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'top'">
             <TopList
-              v-if="resultsById.get(w.id)?.topGroups?.length"
+              v-if="compareMode && hasMultiTopData(w.id)"
+              :ref="(el) => setTopListRef(w.id, el)"
+              :groups="multiTopGroups(w.id)"
+              :unit="w.unit"
+              :color="widgetColor(w)"
+              :title="w.title"
+            />
+            <TopList
+              v-else-if="!compareMode && resultsById.get(w.id)?.topGroups?.length"
               :ref="(el) => setTopListRef(w.id, el)"
               :groups="resultsById.get(w.id)!.topGroups!"
               :unit="w.unit"
@@ -792,43 +1180,54 @@ function isHidden(id: string): boolean {
               :title="w.title"
             />
             <TopList
-              v-else-if="resultsById.get(w.id)?.topList?.length"
+              v-else-if="!compareMode && resultsById.get(w.id)?.topList?.length"
               :ref="(el) => setTopListRef(w.id, el)"
               :items="resultsById.get(w.id)!.topList!"
               :unit="w.unit"
               :color="widgetColor(w)"
               :title="w.title"
             />
-            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'record'">
             <!-- Slow-statement / record table — reuses the TopList
                  renderer since the shape (name + value) is identical.
                  Future runtime work will add trace-id drill-in. -->
             <TopList
-              v-if="resultsById.get(w.id)?.records?.length"
+              v-if="compareMode && hasMultiTopData(w.id)"
+              :ref="(el) => setTopListRef(w.id, el)"
+              :groups="multiTopGroups(w.id)"
+              :unit="w.unit"
+              :color="widgetColor(w)"
+              :title="w.title"
+            />
+            <TopList
+              v-else-if="!compareMode && resultsById.get(w.id)?.records?.length"
               :ref="(el) => setTopListRef(w.id, el)"
               :items="resultsById.get(w.id)!.records!.map((r) => ({ name: r.name, value: r.value ?? null }))"
               :unit="w.unit"
               :color="widgetColor(w)"
               :title="w.title"
             />
-            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'table'">
             <TableWidget
-              v-if="resultsById.get(w.id)?.table?.length"
-              :rows="resultsById.get(w.id)!.table!"
+              v-if="compareMode ? compareTableRows(w.id).length : resultsById.get(w.id)?.table?.length"
+              :rows="compareMode ? compareTableRows(w.id) : resultsById.get(w.id)!.table!"
+              :entities="compareMode ? compareTableEntities : undefined"
+              :label-top-n="w.labelTopN"
               :headers="w.tableHeaders"
               :show-values="w.showTableValues !== false"
               :unit="w.unit"
               :format="w.format"
             />
-            <span v-else class="muted">{{ isFetching && !resultsById.has(w.id) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -956,6 +1355,124 @@ function isHidden(id: string): boolean {
   gap: 4px 8px;
   padding: 2px 10px;
   border-bottom: 1px solid var(--sw-line);
+}
+.ib-row.has-lock {
+  grid-template-columns: auto 1fr auto;
+}
+.ib-lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  align-self: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+}
+.ib-lock:hover:not(:disabled) {
+  color: var(--sw-fg-1);
+  background: var(--sw-bg-2);
+}
+.ib-lock:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.ib-lock-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.cohort-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 6px;
+}
+.cohort-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-fg-3);
+  white-space: nowrap;
+}
+.cohort-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cohort-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 12px;
+  color: var(--sw-fg-1);
+  font-size: 11px;
+  /* Display-only — the chip itself isn't a control (only its × is). */
+  cursor: default;
+}
+.cohort-chip.primary {
+  font-weight: 700;
+  color: var(--sw-fg-0);
+}
+.cohort-tag {
+  margin-left: 2px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+/* Isolated per-entity fan-out state: a failed entity is tinted (not
+   silently blank); a still-loading one dims until its slot resolves. */
+.cohort-chip.is-error {
+  border-color: var(--sw-err);
+  color: var(--sw-err);
+}
+.cohort-chip.is-loading {
+  opacity: 0.6;
+}
+.cohort-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.cohort-name {
+  font-family: var(--sw-mono);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cohort-x {
+  margin-left: 2px;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--sw-fg-3);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+.cohort-x:hover {
+  color: var(--sw-err);
 }
 .ib-row:last-child { border-bottom: none; }
 .ib-row.on {

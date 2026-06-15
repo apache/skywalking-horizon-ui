@@ -31,8 +31,10 @@ const { t } = useI18n({ useScope: 'global' });
 import { metricMeta } from '@/utils/metricCatalog';
 import { statusForMetrics, thresholdColor } from '@/utils/metricColor';
 import { fmtMetric } from '@/utils/formatters';
-import { resolveServiceIdentity } from '@/utils/serviceName';
+import { resolveServiceIdentity, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
+import Icon from '@/components/icons/Icon.vue';
+import { MAX_LOCKED } from '@/state/layerSelection';
 
 const props = withDefaults(
   defineProps<{
@@ -61,26 +63,54 @@ const props = withDefaults(
     roster?: ReadonlyArray<{ id: string; name: string }>;
     /** Order-by metric key — labels the tail rows ("low RPM"). */
     orderBy?: string;
+    /** Multi-entity lock (cross-check). When enabled, each row gets a
+     *  lock pin; `lockedIds` are the locked service ids and `lockHueFor`
+     *  maps a locked id to its palette hue for the dot. */
+    lockEnabled?: boolean;
+    lockedIds?: ReadonlyArray<string>;
+    lockHueFor?: (id: string) => string;
   }>(),
   {
     accent: 'var(--sw-accent)',
     pageSize: 8,
     namingRule: null,
+    lockEnabled: false,
+    lockedIds: () => [],
   },
 );
 function identity(name: string | null | undefined) {
   return resolveServiceIdentity(name, props.namingRule);
 }
-const emit = defineEmits<{ (e: 'select', id: string): void }>();
+const emit = defineEmits<{
+  (e: 'select', id: string): void;
+  (e: 'toggle-lock', id: string): void;
+}>();
+
+const lockedSet = computed(() => new Set(props.lockedIds));
+const atCap = computed(() => props.lockedIds.length >= MAX_LOCKED);
+function isLocked(id: string): boolean {
+  return lockedSet.value.has(id);
+}
+function lockDotHue(id: string): string {
+  return props.lockHueFor?.(id) ?? 'var(--sw-accent)';
+}
+function lockTitle(r: PickerRow): string {
+  if (r.blank) return t('Cannot compare the blank service');
+  if (isLocked(r.id)) return t('Remove from comparison');
+  if (atCap.value) return t('Comparison is full ({max} max)', { max: MAX_LOCKED });
+  return t('Add to comparison');
+}
 
 const filter = ref('');
 const page = ref(0);
 
 // A probed row carries landing metrics; a tail row is a roster-only
 // service that ranked below the metric cap — id+name with no numbers.
+// `blank` flags OAP's synthetic `_blank` bucket — shown so the operator
+// knows it exists, but rendered disabled (never selectable / queryable).
 type PickerRow =
-  | { kind: 'probed'; id: string; name: string; row: LandingServiceRow }
-  | { kind: 'tail'; id: string; name: string };
+  | { kind: 'probed'; id: string; name: string; blank: boolean; row: LandingServiceRow }
+  | { kind: 'tail'; id: string; name: string; blank: boolean };
 
 // Probed rows first (already sorted by orderBy from the BFF), then the
 // roster tail that wasn't metric-probed. Without a roster prop the
@@ -90,6 +120,7 @@ const allRows = computed<PickerRow[]>(() => {
     kind: 'probed',
     id: r.serviceId,
     name: r.serviceName,
+    blank: isBlankServiceName(r.serviceName),
     row: r,
   }));
   const roster = props.roster;
@@ -97,7 +128,7 @@ const allRows = computed<PickerRow[]>(() => {
   const probedIds = new Set(probed.map((p) => p.id));
   const tail: PickerRow[] = roster
     .filter((r) => !probedIds.has(r.id))
-    .map((r) => ({ kind: 'tail', id: r.id, name: r.name }));
+    .map((r) => ({ kind: 'tail', id: r.id, name: r.name, blank: isBlankServiceName(r.name) }));
   return [...probed, ...tail];
 });
 
@@ -151,6 +182,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
     <table class="sw-table picker-table">
       <thead>
         <tr>
+          <th v-if="lockEnabled" class="lock-col" aria-hidden="true" />
           <th class="svc-col">{{ serviceLabel || t('Service') }}</th>
           <th
             v-for="c in columns"
@@ -170,13 +202,26 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
             :class="{ active: r.id === selectedId }"
             @click="emit('select', r.id)"
           >
-            <td class="svc-col" :title="r.name">
+            <td v-if="lockEnabled" class="lock-col" @click.stop>
+              <button
+                type="button"
+                class="lock-btn"
+                :class="{ locked: isLocked(r.id) }"
+                :disabled="r.blank || (!isLocked(r.id) && atCap)"
+                :title="lockTitle(r)"
+                @click="emit('toggle-lock', r.id)"
+              >
+                <span v-if="isLocked(r.id)" class="lock-dot" :style="{ background: lockDotHue(r.id) }" />
+                <Icon v-else name="pin" :size="11" />
+              </button>
+            </td>
+            <td class="svc-col" :title="r.blank ? BLANK_SERVICE_NAME : r.name">
               <span class="pulse" :style="{ background: colorForStatus(statusForMetrics(r.row.metrics)) }" />
-              <span v-if="identity(r.name).cluster" class="group-chip">
+              <span v-if="!r.blank && identity(r.name).cluster" class="group-chip">
                 <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
                 <span class="chip-val">{{ identity(r.name).cluster }}</span>
               </span>
-              <span class="name-text">{{ r.row.shortName || identity(r.name).display }}</span>
+              <span class="name-text">{{ r.blank ? BLANK_SERVICE_NAME : (r.row.shortName || identity(r.name).display) }}</span>
             </td>
             <td
               v-for="c in columns"
@@ -197,13 +242,26 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
             :class="{ active: r.id === selectedId }"
             @click="emit('select', r.id)"
           >
-            <td class="svc-col" :title="r.name">
+            <td v-if="lockEnabled" class="lock-col" @click.stop>
+              <button
+                type="button"
+                class="lock-btn"
+                :class="{ locked: isLocked(r.id) }"
+                :disabled="r.blank || (!isLocked(r.id) && atCap)"
+                :title="lockTitle(r)"
+                @click="emit('toggle-lock', r.id)"
+              >
+                <span v-if="isLocked(r.id)" class="lock-dot" :style="{ background: lockDotHue(r.id) }" />
+                <Icon v-else name="pin" :size="11" />
+              </button>
+            </td>
+            <td class="svc-col" :title="r.blank ? BLANK_SERVICE_NAME : r.name">
               <span class="pulse tail-dot" />
-              <span v-if="identity(r.name).cluster" class="group-chip">
+              <span v-if="!r.blank && identity(r.name).cluster" class="group-chip">
                 <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
                 <span class="chip-val">{{ identity(r.name).cluster }}</span>
               </span>
-              <span class="name-text">{{ identity(r.name).display }}</span>
+              <span class="name-text">{{ r.blank ? BLANK_SERVICE_NAME : identity(r.name).display }}</span>
             </td>
             <!-- "low" sits in the order-by column (that's the metric it
                  ranked low on); the others show "—" — they were never
@@ -219,7 +277,7 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
           </tr>
         </template>
         <tr v-if="visible.length === 0">
-          <td :colspan="columns.length + 1" class="empty">
+          <td :colspan="columns.length + 1 + (lockEnabled ? 1 : 0)" class="empty">
             {{ t('No services match') }} <code>{{ filter }}</code>.
           </td>
         </tr>
@@ -420,5 +478,40 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
   font-size: 10.5px;
   color: var(--sw-fg-2);
   font-variant-numeric: tabular-nums;
+}
+.lock-col {
+  width: 30px;
+  text-align: center;
+  padding-right: 0 !important;
+}
+.lock-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+}
+.lock-btn:hover:not(:disabled) {
+  color: var(--sw-fg-1);
+  background: var(--sw-bg-2);
+}
+.lock-btn.locked {
+  color: var(--sw-fg-0);
+}
+.lock-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+.lock-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
 }
 </style>

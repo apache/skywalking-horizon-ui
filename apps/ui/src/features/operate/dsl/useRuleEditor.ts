@@ -29,13 +29,19 @@ import { computed, ref, watch, type Ref } from 'vue';
 import type { ApplyResult, Catalog, DeleteMode, RuleResponse } from '@skywalking-horizon-ui/api-client';
 import { bff, type BffApiError } from '@/api/client';
 
+// `pending` = the BFF returned 202 `submitted`: OAP accepted a structural
+// apply that runs past its admin request timeout, so the HTTP call can't
+// confirm completion. The caller polls (see `awaitApplied`) instead of
+// retrying — a retry would pile another waiter on OAP's per-file lock.
 export type SaveOutcome =
   | { kind: 'ok'; result: ApplyResult }
+  | { kind: 'pending'; result: ApplyResult }
   | { kind: 'needs-storage-change'; result: ApplyResult }
   | { kind: 'error'; error: BffApiError | Error };
 
 export type DeleteOutcome =
   | { kind: 'ok'; result: ApplyResult }
+  | { kind: 'pending'; result: ApplyResult }
   | { kind: 'needs-inactivate-first'; result: ApplyResult }
   | { kind: 'no-bundled-twin'; result: ApplyResult }
   | { kind: 'error'; error: BffApiError | Error };
@@ -120,6 +126,7 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
         ...args,
       });
       lastApplyStatus.value = result.applyStatus;
+      if (result.applyStatus === 'submitted') return { kind: 'pending', result };
       // Refresh the original to the just-pushed body so dirty resets.
       await load();
       return { kind: 'ok', result };
@@ -144,6 +151,7 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     try {
       const result = await client.dsl.inactivateRule(opts.catalog.value, opts.name.value);
       lastApplyStatus.value = result.applyStatus;
+      if (result.applyStatus === 'submitted') return { kind: 'pending', result };
       await load();
       return { kind: 'ok', result };
     } catch (err) {
@@ -161,6 +169,7 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     try {
       const result = await client.dsl.deleteRule(opts.catalog.value, opts.name.value, mode);
       lastApplyStatus.value = result.applyStatus;
+      if (result.applyStatus === 'submitted') return { kind: 'pending', result };
       return { kind: 'ok', result };
     } catch (err) {
       if (isApiError(err) && err.status === 409) {
@@ -179,6 +188,43 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     } finally {
       saving.value = false;
     }
+  }
+
+  /**
+   * Confirm an async ("submitted") apply by polling the rule until `done`
+   * holds or the budget elapses. OAP runs structural applies past its admin
+   * request timeout, so the mutation HTTP call returns before the apply
+   * lands — we re-read the rule here rather than re-firing the mutation
+   * (which would queue another waiter on OAP's per-file lock). On success it
+   * refreshes `original` so the editor reflects the new state. `done`
+   * receives the polled rule (or `null` when the rule no longer exists).
+   */
+  async function awaitApplied(
+    done: (rule: RuleResponse | null) => boolean,
+    o: { timeoutMs?: number; intervalMs?: number } = {},
+  ): Promise<'applied' | 'timeout'> {
+    if (!opts.catalog.value || !opts.name.value) return 'timeout';
+    const cat = opts.catalog.value;
+    const nm = opts.name.value;
+    const timeoutMs = o.timeoutMs ?? 150_000;
+    const intervalMs = o.intervalMs ?? 4_000;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise((r) => setTimeout(r, intervalMs));
+      // Operator navigated to a different rule — stop polling the old one.
+      if (opts.catalog.value !== cat || opts.name.value !== nm) return 'timeout';
+      let rule: RuleResponse | null;
+      try {
+        rule = await client.dsl.getRule({ catalog: cat, name: nm });
+      } catch {
+        continue; // transient read error mid-apply — keep waiting
+      }
+      if (done(rule)) {
+        await load();
+        return 'applied';
+      }
+    }
+    return 'timeout';
   }
 
   // Auto-load whenever (catalog, name) settles.
@@ -204,6 +250,7 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     save,
     inactivate,
     deleteRule,
+    awaitApplied,
   };
 }
 

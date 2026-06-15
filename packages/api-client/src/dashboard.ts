@@ -201,6 +201,10 @@ export interface DashboardWidget {
    * layer"). MQE entity flips to `{ scope: All }`.
    */
   layerScope?: boolean;
+  /** Cap on label rows kept per entity in a labeled table widget under
+   *  multi-entity compare; the remainder fold into one `(others)` row.
+   *  Defaults to 8. */
+  labelTopN?: number;
   /** Legacy 24-col grid coordinates — kept for back-compat during the
    *  span-based flow-layout migration. New widgets should leave these
    *  unset and use `span` / `rowSpan` instead. */

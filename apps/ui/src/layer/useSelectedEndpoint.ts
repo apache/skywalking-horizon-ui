@@ -34,5 +34,22 @@ export function useSelectedEndpoint() {
     store.setEndpoint(name);
   }
 
-  return { selectedEndpoint, setSelectedEndpoint };
+  // Multi-entity lock (endpoint scope). Locked set is CROSS-SERVICE
+  // compound keys; `isEndpointLocked` checks `name` under the current
+  // primary service via the store (compound-aware).
+  const lockedEndpointNames = computed<string[]>(() => store.activeCompareSet('endpoint'));
+  function toggleLockEndpoint(name: string): void {
+    store.toggleLock('endpoint', name);
+  }
+  function isEndpointLocked(name: string): boolean {
+    return store.isLocked('endpoint', name);
+  }
+
+  return {
+    selectedEndpoint,
+    setSelectedEndpoint,
+    lockedEndpointNames,
+    toggleLockEndpoint,
+    isEndpointLocked,
+  };
 }

@@ -35,5 +35,11 @@ export function useSelectedService() {
     store.setService(id, opts);
   }
 
-  return { selectedId, setSelected };
+  // Multi-entity lock (service scope).
+  const lockedServiceIds = computed<string[]>(() => store.activeCompareSet('service'));
+  function toggleLockService(id: string): void {
+    store.toggleLock('service', id);
+  }
+
+  return { selectedId, setSelected, lockedServiceIds, toggleLockService };
 }
