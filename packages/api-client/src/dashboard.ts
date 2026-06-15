@@ -205,6 +205,12 @@ export interface DashboardWidget {
    *  multi-entity compare; the remainder fold into one `(others)` row.
    *  Defaults to 8. */
   labelTopN?: number;
+  /** Sort direction of the widget's first `top_n(…)` expression, resolved
+   *  BFF-side at template-resolve time (not inferred from data). Lets the
+   *  multi-entity compare grid merge the per-entity "All" list in the MQE's
+   *  own order — `asc` (worst/lowest first, e.g. success-rate) vs `des`.
+   *  Absent for non-`top_n` widgets; the UI then falls back to `des`. */
+  topNOrder?: 'asc' | 'des';
   /** Legacy 24-col grid coordinates — kept for back-compat during the
    *  span-based flow-layout migration. New widgets should leave these
    *  unset and use `span` / `rowSpan` instead. */

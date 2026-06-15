@@ -560,14 +560,40 @@ function load(): Map<string, LayerTemplate> {
   return out;
 }
 
-/** Resolve the widget set for a given scope, falling back to service. */
+/** Sort direction (`asc`/`des`) of the FIRST `top_n(…)` expression in the
+ *  list, or `undefined` when none declares one. Resolved here at template
+ *  time so the UI never parses MQE or guesses direction from the data —
+ *  today top_n's order is a plain literal arg: `top_n(<metric>, <N>, asc|des)`. */
+export function topNOrderOf(
+  expressions: readonly string[] | undefined,
+): 'asc' | 'des' | undefined {
+  for (const e of expressions ?? []) {
+    const m = /\btop_n\s*\([^)]*,\s*(asc|des)\b/i.exec(e);
+    if (m) return m[1].toLowerCase() as 'asc' | 'des';
+  }
+  return undefined;
+}
+
+/** Resolve the widget set for a given scope, falling back to service.
+ *  Enriches `top` / `record` widgets with the resolved `topNOrder` (from
+ *  their first `top_n(…)`) so the multi-entity compare grid merges the
+ *  per-entity "All" list in the MQE's own direction — without the UI parsing
+ *  MQE or inferring asc/des from one entity's (possibly flat) values. */
 export function widgetsForScope(
   template: LayerTemplate,
   scope: DashboardScope,
 ): DashboardWidget[] {
   const d = template.dashboards;
-  if (!d) return template.widgets ?? [];
-  return d[scope] ?? d.service ?? template.widgets ?? [];
+  const raw = !d ? (template.widgets ?? []) : (d[scope] ?? d.service ?? template.widgets ?? []);
+  // Pass the resolved array straight through unless a top / record widget
+  // needs its sort direction resolved — keeps the common case allocation-free
+  // (and reference-stable) and only copies the widgets that gain `topNOrder`.
+  if (!raw.some((w) => w.type === 'top' || w.type === 'record')) return raw;
+  return raw.map((w) => {
+    if (w.type !== 'top' && w.type !== 'record') return w;
+    const order = topNOrderOf(w.expressions);
+    return order ? { ...w, topNOrder: order } : w;
+  });
 }
 
 /** Resolve the topology config — operator override if present, else
