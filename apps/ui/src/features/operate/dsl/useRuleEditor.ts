@@ -26,21 +26,38 @@
  */
 
 import { computed, ref, watch, type Ref } from 'vue';
-import type { ApplyResult, Catalog, DeleteMode, RuleResponse } from '@skywalking-horizon-ui/api-client';
+import type {
+  ApplyResult,
+  Catalog,
+  DeleteMode,
+  RuleResponse,
+  RuleStatusResponse,
+} from '@skywalking-horizon-ui/api-client';
+import { isTerminalPhase } from '@skywalking-horizon-ui/api-client';
 import { bff, type BffApiError } from '@/api/client';
 
-// `pending` = the BFF returned 202 `submitted`: OAP accepted a structural
-// apply that runs past its admin request timeout, so the HTTP call can't
-// confirm completion. The caller polls (see `awaitApplied`) instead of
-// retrying — a retry would pile another waiter on OAP's per-file lock.
+// A STRUCTURAL `/addOrUpdate` returns 200 `structural_applied` + an `applyId`
+// at phase FENCING ("accepted, not yet durable") — the fence → persist →
+// commit → resume tail runs in OAP's background. `structural` hands the
+// applyId back so the caller polls `awaitPhase` until the phase is terminal.
+// `compile-failed` is the inline-diagnostic case (400 compile_failed).
 export type SaveOutcome =
   | { kind: 'ok'; result: ApplyResult }
-  | { kind: 'pending'; result: ApplyResult }
+  | { kind: 'structural'; result: ApplyResult; applyId: string }
   | { kind: 'needs-storage-change'; result: ApplyResult }
+  | { kind: 'compile-failed'; message: string }
   | { kind: 'error'; error: BffApiError | Error };
 
+// `structural` = revert-to-bundled adopted the async apply API: OAP returns
+// `reverted_to_bundled` + an applyId and runs the schema change in the
+// background — the caller drives the phase stepper via `awaitPhase`, same as a
+// structural save. `pending` is the legacy fallback for an OAP that runs revert
+// inline (no applyId) and times out into a 202 `submitted`: the caller confirms
+// via `awaitApplied` (poll-by-reread) rather than retrying onto OAP's per-file
+// lock.
 export type DeleteOutcome =
   | { kind: 'ok'; result: ApplyResult }
+  | { kind: 'structural'; result: ApplyResult; applyId: string }
   | { kind: 'pending'; result: ApplyResult }
   | { kind: 'needs-inactivate-first'; result: ApplyResult }
   | { kind: 'no-bundled-twin'; result: ApplyResult }
@@ -126,15 +143,26 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
         ...args,
       });
       lastApplyStatus.value = result.applyStatus;
-      if (result.applyStatus === 'submitted') return { kind: 'pending', result };
-      // Refresh the original to the just-pushed body so dirty resets.
+      // Structural apply is async: it's accepted at FENCING but not durable
+      // yet. Hand back the applyId; the caller polls /status and only then
+      // refreshes — re-reading now would still show the pre-apply row.
+      if (result.applyStatus === 'structural_applied' && result.applyId) {
+        return { kind: 'structural', result, applyId: result.applyId };
+      }
+      // no_change / filter_only_applied / filter_only_persisted — synchronous;
+      // refresh the original to the just-pushed body so dirty resets.
       await load();
       return { kind: 'ok', result };
     } catch (err) {
-      if (isApiError(err) && err.status === 409) {
+      if (isApiError(err)) {
         const body = err.body as ApplyResult | undefined;
-        if (body && body.applyStatus === 'storage_change_requires_explicit_approval') {
+        if (err.status === 409 && body?.applyStatus === 'storage_change_requires_explicit_approval') {
           return { kind: 'needs-storage-change', result: body };
+        }
+        // A compile/parse failure is the operator's to fix in the editor —
+        // surface it inline rather than as a transient error toast.
+        if (err.status === 400 && body?.applyStatus === 'compile_failed') {
+          return { kind: 'compile-failed', message: body.message };
         }
       }
       return { kind: 'error', error: err as Error };
@@ -149,9 +177,10 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     }
     saving.value = true;
     try {
+      // Inactivate carries no schema change — it returns synchronously, so
+      // there's nothing async to poll.
       const result = await client.dsl.inactivateRule(opts.catalog.value, opts.name.value);
       lastApplyStatus.value = result.applyStatus;
-      if (result.applyStatus === 'submitted') return { kind: 'pending', result };
       await load();
       return { kind: 'ok', result };
     } catch (err) {
@@ -169,6 +198,15 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     try {
       const result = await client.dsl.deleteRule(opts.catalog.value, opts.name.value, mode);
       lastApplyStatus.value = result.applyStatus;
+      // Revert-to-bundled is structural; a new OAP returns an applyId to poll
+      // (same phase machine as a structural save). Old OAP runs it inline and
+      // may time out into the legacy 202 `submitted` (poll-by-reread).
+      if (
+        result.applyId &&
+        (result.applyStatus === 'reverted_to_bundled' || result.applyStatus === 'structural_applied')
+      ) {
+        return { kind: 'structural', result, applyId: result.applyId };
+      }
       if (result.applyStatus === 'submitted') return { kind: 'pending', result };
       return { kind: 'ok', result };
     } catch (err) {
@@ -227,6 +265,55 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     return 'timeout';
   }
 
+  /**
+   * Drive a STRUCTURAL apply to completion by polling `/runtime/rule/status`.
+   * `onPhase` fires on every poll so the caller can render a phase stepper.
+   * Polls by `applyId` (the live tracker) and carries `contentHash` so the
+   * server can degrade to the durable rule row if the applyId was evicted.
+   * Resolves with the terminal {@link RuleStatusResponse} (APPLIED / DEGRADED
+   * / FAILED) — or the last seen status if the budget elapses (OAP itself
+   * moves to a terminal phase by `deferredFenceTimeoutSeconds`, so a real
+   * apply lands well inside the default budget). On APPLIED / DEGRADED the
+   * durable row advanced, so it refreshes `original` (dirty resets); FAILED
+   * rolled back, so the operator's buffer is left intact to fix and retry.
+   * Stops early if the operator navigated to a different (catalog, name).
+   */
+  async function awaitPhase(
+    applyId: string,
+    contentHash: string,
+    onPhase: (status: RuleStatusResponse) => void,
+    o: { timeoutMs?: number; intervalMs?: number } = {},
+  ): Promise<RuleStatusResponse | null> {
+    if (!opts.catalog.value || !opts.name.value) return null;
+    const cat = opts.catalog.value;
+    const nm = opts.name.value;
+    const timeoutMs = o.timeoutMs ?? 200_000;
+    const intervalMs = o.intervalMs ?? 1_800;
+    const start = Date.now();
+    let last: RuleStatusResponse | null = null;
+    while (Date.now() - start < timeoutMs) {
+      if (opts.catalog.value !== cat || opts.name.value !== nm) return last;
+      try {
+        const status = await client.dsl.ruleStatus({ catalog: cat, name: nm, applyId, contentHash });
+        last = status;
+        onPhase(status);
+        // Stop on a terminal phase, OR when the apply is no longer tracked
+        // (UNKNOWN / found:false) — e.g. the applyId was evicted (~1h TTL,
+        // main restart) and no durable row matched the contentHash. Polling
+        // on past that just burns the budget. APPLIED/DEGRADED advanced the
+        // durable row, so refresh; FAILED/UNKNOWN leave the buffer alone.
+        if (isTerminalPhase(status.phase) || !status.found || status.phase === 'UNKNOWN') {
+          if (status.phase === 'APPLIED' || status.phase === 'DEGRADED') await load();
+          return status;
+        }
+      } catch {
+        // transient read error mid-apply — keep polling.
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    return last;
+  }
+
   // Auto-load whenever (catalog, name) settles.
   watch(
     [opts.catalog, opts.name],
@@ -251,6 +338,7 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     inactivate,
     deleteRule,
     awaitApplied,
+    awaitPhase,
   };
 }
 

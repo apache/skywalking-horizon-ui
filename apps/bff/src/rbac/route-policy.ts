@@ -167,6 +167,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   // ── DSL / OAL / MQE rules (admin operate) ────────────────────────
   'GET /api/rule':                                 'rule:read',
+  'GET /api/rule/status':                          'rule:read',
   'POST /api/rule':                                'rule:write',
   'POST /api/rule/inactivate':                     'rule:write',
   'POST /api/rule/delete':                         'rule:delete',

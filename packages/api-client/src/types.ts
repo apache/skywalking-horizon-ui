@@ -162,7 +162,14 @@ export interface NotModified {
 export type ApplyStatus =
   | 'no_change'
   | 'filter_only_applied'
+  | 'filter_only_persisted'
   | 'structural_applied'
+  | 'inactivated'
+  | 'static_tombstoned'
+  | 'already_inactive'
+  | 'not_found'
+  | 'deleted'
+  | 'reverted_to_bundled'
   | 'persisted_apply_pending'
   | 'compile_failed'
   | 'empty_body'
@@ -172,6 +179,7 @@ export type ApplyStatus =
   | 'no_bundled_twin'
   | 'storage_change_requires_explicit_approval'
   | 'requires_inactivate_first'
+  | 'requires_revert_to_bundled'
   | 'ddl_verify_failed'
   | 'apply_failed'
   | 'persist_failed';
@@ -183,6 +191,83 @@ export interface ApplyResult {
   catalog: string;
   name: string;
   message: string;
+  /** Present ONLY on `structural_applied`: the poll handle for
+   *  {@link RuleStatusResponse}. The structural apply is accepted at
+   *  phase `FENCING` (DDL fired, not yet durable) and the
+   *  fence → persist → commit → resume tail runs in the background —
+   *  poll `GET /runtime/rule/status` until a terminal phase. No other
+   *  applyStatus carries an applyId (the sync paths have nothing to
+   *  poll). */
+  applyId?: string;
+}
+
+// ── /runtime/rule/status (structural-apply progress) ───────────────
+
+/**
+ * Lifecycle phase of a structural `/addOrUpdate`, tracked by the cluster
+ * main. The HTTP apply call returns at {@link 'FENCING'}; the rest runs
+ * in the background:
+ *
+ *   PENDING → DDL → FENCING → ROLLING_OUT → APPLIED
+ *
+ * with two terminal off-ramps and one unknown:
+ *   - `DEGRADED` — committed + durable, but the cluster-wide schema fence
+ *     didn't confirm in time (laggards listed in {@link
+ *     RuleStatusResponse.fenceLaggards}) OR the local commit-tail threw.
+ *     Forward-progress, NOT a revert; laggards self-converge on their
+ *     next scan.
+ *   - `FAILED` — a pre-commit error rolled the apply back; the cluster
+ *     stays on the prior rule.
+ *   - `UNKNOWN` — the applyId is no longer tracked (evicted after ~1h, or
+ *     the main restarted). Re-query by `contentHash`, which degrades to
+ *     the durable rule row.
+ */
+export type ApplyPhase =
+  | 'PENDING'
+  | 'DDL'
+  | 'FENCING'
+  | 'ROLLING_OUT'
+  | 'APPLIED'
+  | 'DEGRADED'
+  | 'FAILED'
+  | 'UNKNOWN';
+
+/** APPLIED / DEGRADED / FAILED — a poller stops here. */
+export function isTerminalPhase(phase: string): boolean {
+  return phase === 'APPLIED' || phase === 'DEGRADED' || phase === 'FAILED';
+}
+
+/**
+ * `GET /runtime/rule/status` response — ALWAYS HTTP 200 (`found: false`
+ * when nothing matches, never 404). Three server builders emit different
+ * field subsets, so everything past `found` + `phase` is conditionally
+ * present:
+ *   - live tracker: `applyId`, `startedAtMs`, `updatedAtMs`, `servedBy`.
+ *   - durable-DAO fallback (live status gone / main unreachable): a
+ *     matching ACTIVE row reports `phase: 'APPLIED'` + `derivedFrom:
+ *     'durable-dao'` + `note`; NO applyId / timestamps / servedBy.
+ *   - not found: `found: false`, `phase: 'UNKNOWN'`.
+ * `failureReason` appears on FAILED/DEGRADED; `fenceLaggards` only on a
+ * fence-non-confirm DEGRADED.
+ */
+export interface RuleStatusResponse {
+  found: boolean;
+  phase: ApplyPhase | (string & {});
+  applyId?: string;
+  catalog?: string;
+  name?: string;
+  contentHash?: string;
+  failureReason?: string;
+  /** Data-node ids that hadn't confirmed the new schema within the fence
+   *  budget — present only on a fence-timeout DEGRADED. */
+  fenceLaggards?: string[];
+  startedAtMs?: number;
+  updatedAtMs?: number;
+  servedBy?: string;
+  /** `'durable-dao'` when the status was reconstructed from the durable
+   *  rule row rather than live progress (e.g. after a page reload). */
+  derivedFrom?: string;
+  note?: string;
 }
 
 // ── /runtime/rule/delete ───────────────────────────────────────────

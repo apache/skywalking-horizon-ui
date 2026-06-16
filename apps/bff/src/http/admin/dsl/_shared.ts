@@ -119,16 +119,18 @@ export function passOapError(err: unknown, reply: FastifyReply): FastifyReply {
 }
 
 /**
- * A structural rule apply (revertToBundled, a storage-change save) can take
- * longer than OAP's admin request timeout: OAP returns 503
- * `RequestTimeoutException` at ~10s, or the BFF's own fetch aborts first —
- * but the apply keeps running under OAP's per-file lock and completes
- * regardless (verified in the OAP runtime-rule engine logs). Treating that
- * as a hard failure makes operators retry, which piles new waiters on the
- * same lock. Instead we report `202 submitted` so the UI confirms by polling
- * the rule status. Genuine 4xx rejections (409 requires_inactivate_first /
- * requires_revert_to_bundled, 400 no_bundled_twin, …) are NOT timeouts and
- * fall through to the normal error path.
+ * Revert-to-bundled runs OAP's structural apply pipeline INLINE (it has no
+ * applyId / phase tracking, unlike `/addOrUpdate`) and can outlast OAP's
+ * admin request timeout: OAP returns 503 `RequestTimeoutException`, or the
+ * BFF's own fetch aborts first — but the apply keeps running under OAP's
+ * per-file lock and completes regardless. Treating that as a hard failure
+ * makes operators retry, piling new waiters on the same lock. So for revert
+ * we report `202 submitted` and the UI confirms by re-reading the rule.
+ * (`/addOrUpdate` no longer needs this: a structural apply returns 200
+ * `structural_applied` + `applyId` immediately at phase FENCING, so the UI
+ * polls /status instead.) Genuine 4xx rejections (409
+ * requires_inactivate_first / requires_revert_to_bundled, 400
+ * no_bundled_twin, …) are NOT timeouts and fall through to the error path.
  */
 export function isOapApplyTimeout(err: unknown): boolean {
   if (err instanceof RuntimeRuleApiError) {

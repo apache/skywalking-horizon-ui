@@ -25,6 +25,7 @@ import type {
   RuleResponse,
   RuleSource,
   RuleStatus,
+  RuleStatusResponse,
 } from './types.js';
 import { RuntimeRuleApiError } from './types.js';
 
@@ -62,6 +63,19 @@ export interface GetRuleArgs {
   /** Conditional fetch — if the server's ETag matches, the client
    *  returns a {@link NotModified} sentinel and saves the body. */
   ifNoneMatch?: string;
+}
+
+export interface RuleStatusArgs {
+  catalog: Catalog;
+  name: string;
+  /** The poll handle from a `structural_applied` response. Resolves the
+   *  live tracker on the main. Omit it (e.g. after a page reload) to
+   *  resolve by catalog+name(+contentHash), which degrades to the
+   *  durable rule row. */
+  applyId?: string;
+  /** SHA-256 hex of the content whose apply you're confirming —
+   *  disambiguates the durable-DAO fallback once the applyId is gone. */
+  contentHash?: string;
 }
 
 /**
@@ -175,6 +189,20 @@ export class RuntimeRuleClient {
     const url = this.url('/runtime/rule/delete', params);
     const res = await this.send(url, { method: 'POST' });
     return this.expectApplyResult(res, url);
+  }
+
+  /** `GET /runtime/rule/status?catalog=&name=[&applyId=][&contentHash=]`.
+   *  Reports the progress of a structural `/addOrUpdate` apply. ALWAYS
+   *  200 — `found: false` (phase `UNKNOWN`) when nothing matches, never
+   *  404. */
+  async status(args: RuleStatusArgs): Promise<RuleStatusResponse> {
+    const params: Record<string, string> = { catalog: args.catalog, name: args.name };
+    if (args.applyId) params.applyId = args.applyId;
+    if (args.contentHash) params.contentHash = args.contentHash;
+    const url = this.url('/runtime/rule/status', params);
+    const res = await this.send(url, { method: 'GET' });
+    if (!res.ok) throw await this.toError(res, url);
+    return (await res.json()) as RuleStatusResponse;
   }
 
   /** `GET /runtime/rule/dump` or `/dump/{catalog}` — streams `tar.gz`. */

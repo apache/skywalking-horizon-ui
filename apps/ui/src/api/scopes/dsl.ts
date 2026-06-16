@@ -26,6 +26,7 @@ import type {
   OalSourceDetail,
   RuleResponse,
   RuleSource,
+  RuleStatusResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient, ClusterStateResponse } from '../client';
 import { BffApiError, withBase } from '../client';
@@ -122,6 +123,21 @@ export class DslApi {
       throw new BffApiError(res.status, `POST ${path} failed (${res.status})`, parsed);
     }
     return (await res.json()) as ApplyResult;
+  }
+
+  /** Poll a structural apply's progress. Pass `applyId` from the
+   *  `structural_applied` response while the apply is live; pass
+   *  `contentHash` to resolve from the durable rule row after a reload. */
+  ruleStatus(args: {
+    catalog: Catalog;
+    name: string;
+    applyId?: string;
+    contentHash?: string;
+  }): Promise<RuleStatusResponse> {
+    const params = new URLSearchParams({ catalog: args.catalog, name: args.name });
+    if (args.applyId) params.set('applyId', args.applyId);
+    if (args.contentHash) params.set('contentHash', args.contentHash);
+    return this.bff.request<RuleStatusResponse>('GET', `/api/rule/status?${params.toString()}`);
   }
 
   inactivateRule(catalog: Catalog, name: string): Promise<ApplyResult> {

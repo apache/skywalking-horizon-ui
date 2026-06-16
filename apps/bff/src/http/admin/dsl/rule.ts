@@ -17,8 +17,13 @@
 
 /**
  *   GET  /api/rule              — single rule fetch (`If-None-Match` aware).
+ *   GET  /api/rule/status       — structural-apply progress (`rule:read`,
+ *                                  poll by `applyId` or `contentHash`).
  *   POST /api/rule              — add or update (audited; structural
  *                                  writes need `rule:write:structural`).
+ *                                  A structural apply returns 200
+ *                                  `structural_applied` + `applyId` at
+ *                                  phase FENCING; the UI polls /status.
  *   POST /api/rule/inactivate   — `rule:write`, audited.
  *   POST /api/rule/delete       — `rule:delete`; `mode=revertToBundled`
  *                                  is treated as a structural write.
@@ -35,6 +40,7 @@ import {
   parseDeleteMode,
   parseRequiredCatalog,
   passOapError,
+  passOapErrorAudit,
   passSubmittedOrError,
 } from './_shared.js';
 
@@ -80,6 +86,30 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
     }
   });
 
+  // Poll target for a structural apply. The `structural_applied` response
+  // carries an `applyId`; the UI polls this until the phase is terminal
+  // (APPLIED / DEGRADED / FAILED), or by `contentHash` after a reload.
+  app.get('/api/rule/status', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
+    if (!ensureVerb(req, reply, deps, 'rule:read')) return;
+    const q = req.query as Record<string, string | undefined>;
+    const catalog = parseRequiredCatalog(q, reply);
+    if (!catalog) return;
+    if (!q.name) return reply.code(400).send({ error: 'missing_name' });
+    try {
+      const status = await clients()
+        .primary()
+        .status({
+          catalog,
+          name: q.name,
+          ...(q.applyId ? { applyId: q.applyId } : {}),
+          ...(q.contentHash ? { contentHash: q.contentHash } : {}),
+        });
+      return reply.send(status);
+    } catch (err) {
+      return passOapError(err, reply);
+    }
+  });
+
   app.post('/api/rule', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const q = req.query as Record<string, string | undefined>;
     const catalog = parseRequiredCatalog(q, reply);
@@ -94,6 +124,9 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
     if (!ensureVerb(req, reply, deps, verb)) return;
 
     try {
+      // A structural apply now returns 200 `structural_applied` + `applyId`
+      // at phase FENCING (no longer runs past the request timeout) — relay
+      // the result verbatim; the UI polls /api/rule/status by applyId.
       const result = await clients().primary().addOrUpdate({
         catalog,
         name: q.name,
@@ -107,7 +140,7 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
       });
       return reply.send(result);
     } catch (err) {
-      return passSubmittedOrError(err, reply, deps, req, 'addOrUpdate', verb, catalog, q.name);
+      return passOapErrorAudit(err, reply, deps, req, 'addOrUpdate', verb, catalog, q.name);
     }
   });
 
@@ -121,20 +154,13 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
       if (!q.name) return reply.code(400).send({ error: 'missing_name' });
       if (!ensureVerb(req, reply, deps, 'rule:write')) return;
       try {
+        // inactivate returns synchronously (no schema change) — no async
+        // apply to poll, so a failure is just an error, never `submitted`.
         const result = await clients().primary().inactivate(catalog, q.name);
         auditMutation(deps, req, 'inactivate', 'rule:write', catalog, q.name, result.applyStatus);
         return reply.send(result);
       } catch (err) {
-        return passSubmittedOrError(
-          err,
-          reply,
-          deps,
-          req,
-          'inactivate',
-          'rule:write',
-          catalog,
-          q.name,
-        );
+        return passOapErrorAudit(err, reply, deps, req, 'inactivate', 'rule:write', catalog, q.name);
       }
     },
   );
@@ -159,7 +185,14 @@ export function registerDslRuleRoutes(app: FastifyInstance, deps: DslRouteDeps):
         auditMutation(deps, req, 'delete', verb, catalog, q.name, result.applyStatus, { mode });
         return reply.send(result);
       } catch (err) {
-        return passSubmittedOrError(err, reply, deps, req, 'delete', verb, catalog, q.name, { mode });
+        // Plain delete and inactivate are synchronous. Only revert-to-bundled
+        // runs the structural apply pipeline inline and can outlast the
+        // request timeout (it has no applyId), so it alone still maps a
+        // timeout to `202 submitted` for the UI's poll-by-reread.
+        if (mode === 'revertToBundled') {
+          return passSubmittedOrError(err, reply, deps, req, 'delete', verb, catalog, q.name, { mode });
+        }
+        return passOapErrorAudit(err, reply, deps, req, 'delete', verb, catalog, q.name, { mode });
       }
     },
   );

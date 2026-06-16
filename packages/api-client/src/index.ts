@@ -229,6 +229,7 @@ export {
   type RuntimeRuleClientOptions,
   type AddOrUpdateArgs,
   type GetRuleArgs,
+  type RuleStatusArgs,
   type FetchLike,
 } from './runtime-rule.js';
 export { StatusClient, type StatusClientOptions, type NormalisedClusterNode } from './status.js';
