@@ -192,7 +192,7 @@ export interface MqeResultShape {
 
 const LIST_FIRST_SERVICE = /* GraphQL */ `
   query FirstService($layer: String!) {
-    services: listServices(layer: $layer) { id name normal }
+    services: listServices(layer: $layer) { id name normal group }
   }
 `;
 
@@ -580,12 +580,15 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // those layers comes back null because the entity-scope filter
       // doesn't match the data dimension OAP stored them under.
       try {
-        const data = await graphqlPost<{ services: Array<{ id: string; name: string; normal: boolean }> }>(
-          opts,
-          LIST_FIRST_SERVICE,
-          { layer: layerKey.toUpperCase() },
-        );
+        const data = await graphqlPost<{
+          services: Array<{ id: string; name: string; normal: boolean; group?: string | null }>;
+        }>(opts, LIST_FIRST_SERVICE, { layer: layerKey.toUpperCase() });
         const all = data.services ?? [];
+        // `?group=` (split-by-service-group menu entry) constrains the
+        // auto-pick default to that OAP Service.group; an explicit
+        // `service` is honored regardless of group.
+        const group = (req.query as { group?: string }).group;
+        const inGroup = group === undefined ? all : all.filter((s) => (s.group ?? '') === group);
         let picked: { id: string; name: string; normal: boolean } | undefined;
         if (serviceName) {
           picked = all.find((s) => s.name === serviceName) ?? all.find((s) => s.id === serviceName);
@@ -597,7 +600,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             });
           }
         } else {
-          picked = all[0];
+          picked = inGroup[0];
           if (!picked) {
             return reply.send({
               ...baseResp,

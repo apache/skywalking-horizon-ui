@@ -45,6 +45,7 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 |---|---|---|---|
 | `key` | string (UPPER_SNAKE) | **required** | Matches the OAP layer enum. The filename is the lowercased key. |
 | `alias` | string | OAP-reported name | Display name in the sidebar and page headers. |
+| `splitByServiceGroup` | boolean | `false` | Split this layer into one sidebar entry per OAP service group (the `<group>::` prefix), each scoped to that group. Off keeps a single combined entry. Toggled in the admin right after **Alias**. |
 | `group` | string | — | Sidebar grouping label. Layers sharing a `group` collapse together. |
 | `visibility` | `public` \| `operate` | `public` | Section placement. `operate` puts the layer under the Operate group. |
 | `color` | string | `var(--sw-accent)` | Hex or CSS variable for the layer's accent. |

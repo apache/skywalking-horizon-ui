@@ -188,6 +188,11 @@ export interface LayerTemplate {
   key: string;
   /** Display name override. */
   alias?: string;
+  /** When true, split this layer into one sidebar menu entry PER OAP
+   *  `Service.group`, each scoped to that group. Off (default) keeps the
+   *  single combined entry holding all groups. Edited in the Layer
+   *  dashboards admin (after Alias); travels with template export/import. */
+  splitByServiceGroup?: boolean;
   /** Sidebar grouping label. Layers that share a `group` value collapse
    *  under one expandable section in the sidebar — used to keep related
    *  layers together (Istio Managed SVCs / Control Plane / Data Plane

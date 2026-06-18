@@ -15,7 +15,7 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { RouterView } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import AppSidebar from './AppSidebar.vue';
@@ -107,13 +107,45 @@ const initReady = computed<boolean>(
 // 260px permanently would waste real estate.
 const { enabled: debugPanelEnabled } = useDebugPanel();
 // Drives the `.sw` grid column width — see `.sw.side-collapsed` below.
-const { collapsed: sidebarCollapsed } = useSidebar();
+const { collapsed: sidebarCollapsed, width: sidebarWidth, setWidth: setSidebarWidth, resetWidth: resetSidebarWidth } = useSidebar();
+
+// Drag-to-resize the expanded sidebar: a thin grab strip on the
+// sidebar/main boundary drives `--sw-side-w` (persisted in useSidebar).
+// Listeners live on `window` so the drag survives the cursor leaving the
+// 6px strip; no-op while collapsed.
+const resizingSidebar = ref(false);
+function startSidebarResize(e: PointerEvent): void {
+  if (sidebarCollapsed.value) return;
+  e.preventDefault();
+  resizingSidebar.value = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  const onMove = (ev: PointerEvent): void => setSidebarWidth(ev.clientX);
+  const onUp = (): void => {
+    resizingSidebar.value = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
 </script>
 
 <template>
-  <div class="sw" :class="{ 'side-collapsed': sidebarCollapsed }">
+  <div class="sw" :class="{ 'side-collapsed': sidebarCollapsed, resizing: resizingSidebar }" :style="{ '--sw-side-w': sidebarWidth + 'px' }">
     <AppSidebar />
     <AppTopbar />
+    <!-- Drag handle on the sidebar/main boundary; hidden when collapsed.
+         Double-click resets to the default width. -->
+    <div
+      v-if="!sidebarCollapsed"
+      class="sw-resize"
+      title="Drag to resize · double-click to reset"
+      @pointerdown="startSidebarResize"
+      @dblclick="resetSidebarWidth"
+    />
     <main class="sw-main" :class="{ 'has-debug-panel': debugPanelEnabled }">
       <!-- Sticky strip under the topbar; only renders when the graphql
            (`:12800`) poll reports unreachable. Admin-port (`:17128`)
@@ -171,6 +203,28 @@ const { collapsed: sidebarCollapsed } = useSidebar();
  * Animates in step with the sidebar's own collapse transition. */
 .sw.side-collapsed { grid-template-columns: 48px 1fr; }
 .sw { transition: grid-template-columns 160ms ease; }
+/* During a drag the column must follow the cursor 1:1, not lag through
+ * the collapse ease. */
+.sw.resizing { transition: none; }
+
+/* Drag-to-resize handle straddling the sidebar/main boundary. Tracks
+ * `--sw-side-w` live as the operator drags. Full height so it's easy to
+ * grab; transparent until hovered/active. While dragging the grid
+ * transition is suppressed (the column should follow the cursor 1:1,
+ * not lag through the 160ms ease). */
+.sw-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sw-side-w, 220px) - 3px);
+  width: 6px;
+  z-index: 50;
+  cursor: col-resize;
+}
+.sw-resize:hover,
+.sw-resize:active {
+  background: var(--sw-accent-line);
+}
 
 .sw-init {
   padding: 48px 20px;

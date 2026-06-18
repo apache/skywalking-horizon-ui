@@ -51,6 +51,10 @@ export interface ServiceRow {
   /** Per-layer `normal` flag from `listServices` — drives MQE entity
    *  scope (`{ normal: true|false }`) without a second roundtrip. */
   normal: boolean | null;
+  /** OAP `Service.group` — the `<group>::` prefix (empty string when the
+   *  service has no group). Drives the per-group menu split + the
+   *  `?group=` service filter. */
+  group: string;
 }
 
 export interface ServiceCatalog {
@@ -124,14 +128,13 @@ export class ServiceLayerCatalog {
     // One aliased GraphQL call instead of N separate roundtrips —
     // a single TCP/TLS handshake amortises across every layer.
     const aliased = layers
-      .map((l, i) => `_${i}: listServices(layer: ${JSON.stringify(l)}) { id name normal }`)
+      .map((l, i) => `_${i}: listServices(layer: ${JSON.stringify(l)}) { id name normal group }`)
       .join('\n');
     const query = `query HorizonServiceCatalogServices { ${aliased} }`;
     try {
-      const data = await graphqlPost<Record<string, Array<{ id: string; name: string; normal?: boolean | null }>>>(
-        opts,
-        query,
-      );
+      const data = await graphqlPost<
+        Record<string, Array<{ id: string; name: string; normal?: boolean | null; group?: string | null }>>
+      >(opts, query);
       const byLayer = new Map<string, ServiceRow[]>();
       const byName = new Map<string, string>();
       layers.forEach((layer, i) => {
@@ -139,6 +142,7 @@ export class ServiceLayerCatalog {
           id: r.id,
           name: r.name,
           normal: r.normal === true ? true : r.normal === false ? false : null,
+          group: r.group ?? '',
         }));
         byLayer.set(layer, rows);
         for (const r of rows) if (r.name) byName.set(r.name.toLowerCase(), layer);

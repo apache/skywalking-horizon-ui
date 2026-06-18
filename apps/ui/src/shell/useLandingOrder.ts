@@ -41,9 +41,15 @@ export function useLandingOrder(layers: ComputedRef<readonly LayerDef[]>) {
   const store = useSetupStore();
   return computed<LayerDef[]>(() => {
     return [...layers.value].sort((a, b) => {
-      const pa = store.priorityFor(a.key);
-      const pb = store.priorityFor(b.key);
+      // A split layer's group-entries carry a composite `<layer>~<group>`
+      // key; resolve priority from the BASE layer so they all land in the
+      // layer's one slot, then keep them contiguous + group-sorted.
+      const ba = a.key.split('~', 1)[0];
+      const bb = b.key.split('~', 1)[0];
+      const pa = store.priorityFor(ba);
+      const pb = store.priorityFor(bb);
       if (pa !== pb) return pa - pb;
+      if (ba === bb) return (a.serviceGroup ?? '').localeCompare(b.serviceGroup ?? '');
       return 0; // preserve incoming catalog order
     });
   });

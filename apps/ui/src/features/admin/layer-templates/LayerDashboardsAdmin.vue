@@ -2501,6 +2501,14 @@ const namingTest = computed<NamingTestResult>(() => {
                 />
                 <span class="alias-hint">Display name in the sidebar, layer list, and landing KPI tile. Defaults to the layer key.</span>
               </label>
+              <div class="alias-field">
+                <span>Group split</span>
+                <label class="split-check">
+                  <input type="checkbox" v-model="selectedTpl.splitByServiceGroup" />
+                  <span>Split this layer's menu by service group</span>
+                </label>
+                <span class="alias-hint">One sidebar entry per OAP <code>Service.group</code> (the <code>group::</code> prefix), each scoped to its group. Off keeps all groups in one menu.</span>
+              </div>
               <div class="setup-section-head">
                 <h4>Components</h4>
                 <span class="sub">which sub-views this layer exposes</span>
@@ -4658,6 +4666,21 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 .alias-input:focus { outline: none; border-color: var(--sw-accent); }
 .alias-hint { font-size: 10.5px; color: var(--sw-fg-3); line-height: 1.4; }
+.alias-hint code {
+  font-family: var(--sw-mono);
+  background: var(--sw-bg-2);
+  padding: 0 3px;
+  border-radius: 3px;
+}
+.split-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--sw-fg-1);
+}
+.split-check input { accent-color: var(--sw-accent); }
 .setup-section-head {
   display: flex;
   align-items: baseline;

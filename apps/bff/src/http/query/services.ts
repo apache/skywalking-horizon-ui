@@ -61,9 +61,13 @@ export function registerLayerServicesRoute(
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
       const layerUpper = layerKey.toUpperCase();
+      // Optional `?group=` (from a split-by-service-group menu entry) —
+      // narrow the roster to that OAP Service.group. Absent ⇒ all groups.
+      const group = (req.query as { group?: string }).group;
       try {
         const snap = await catalog.get();
-        const rows = snap.byLayer.get(layerUpper) ?? [];
+        const all = snap.byLayer.get(layerUpper) ?? [];
+        const rows = group === undefined ? all : all.filter((r) => r.group === group);
         return reply.send({
           reachable: true,
           layer: layerUpper,

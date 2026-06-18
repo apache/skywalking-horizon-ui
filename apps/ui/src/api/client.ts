@@ -279,6 +279,9 @@ export interface MeResponse {
 export interface AdminLayerTemplate {
   key: string;
   alias?: string;
+  /** When true, the sidebar splits this layer into one entry per OAP
+   *  `Service.group`. Edited via the toggle after Alias. Default off. */
+  splitByServiceGroup?: boolean;
   color?: string;
   documentLink?: string;
   /** `public` (default) surfaces in the Layers section; `operate`
@@ -754,7 +757,21 @@ export class BffClient {
       },
     };
     if (body !== undefined) init.body = JSON.stringify(body);
-    const url = withBase(path);
+    // Split a composite `<layer>~<group>` key in a `/api/layer/<key>/…`
+    // path into the real layer + a `group` query param, so a
+    // split-by-service-group menu entry scopes its data without every
+    // endpoint having to parse the composite. The slices stay
+    // URL-encoded (the caller already `encodeURIComponent`'d the key, and
+    // `~` is unreserved). Non-layer paths and plain keys pass through.
+    const splitGroupKeyPath = (p: string): string => {
+      const m = /^(\/api\/layer\/)([^/?]+)(.*)$/.exec(p);
+      if (!m) return p;
+      const i = m[2].indexOf('~');
+      if (i < 0) return p;
+      const sep = m[3].includes('?') ? '&' : '?';
+      return `${m[1]}${m[2].slice(0, i)}${m[3]}${sep}group=${m[2].slice(i + 1)}`;
+    };
+    const url = withBase(splitGroupKeyPath(path));
     let res: Response;
     try {
       res = await fetch(url, init);

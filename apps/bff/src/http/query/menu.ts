@@ -360,10 +360,20 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       const catalog = await deps.serviceCatalog.get();
       const countByCanonical = new Map<string, number>();
       const normalByCanonical = new Map<string, boolean | null>();
+      // Per-group service counts per canonical layer — drives the optional
+      // per-group menu split (`splitByServiceGroup`). Keyed by the OAP
+      // `Service.group` ('' = ungrouped).
+      const groupsByCanonical = new Map<string, Map<string, number>>();
       for (const rawLayer of raw.layers) {
         const key = canonical(rawLayer);
         const rows = catalog.byLayer.get(rawLayer) ?? [];
         countByCanonical.set(key, (countByCanonical.get(key) ?? 0) + rows.length);
+        let gm = groupsByCanonical.get(key);
+        if (!gm) {
+          gm = new Map<string, number>();
+          groupsByCanonical.set(key, gm);
+        }
+        for (const r of rows) gm.set(r.group, (gm.get(r.group) ?? 0) + 1);
         // First non-null `normal` value wins for the canonical key —
         // raw layers that fold into one canonical (e.g. mesh / mesh_cp)
         // share the same `normal` in practice, so collisions are safe.
@@ -404,8 +414,8 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // like disabled overviews) or config-excluded (`layers.excluded`).
       const layers = ordered
         .filter((key) => !disabled.has(key) && !excludedLayers.has(key.toUpperCase()))
-        .map((key) =>
-          deriveLayer(
+        .flatMap((key): LayerDef[] => {
+          const base = deriveLayer(
             key,
             activeCanonical.has(key),
             levelByCanonical.has(key) ? (levelByCanonical.get(key) ?? null) : null,
@@ -414,8 +424,38 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
             locale,
             layerRowsByName,
             oapOverlayContentFromRows(rows, 'layer', key, locale),
-          ),
-        );
+          );
+          // Per-group menu split — opt-in per layer via the template. One
+          // level-0 entry per distinct OAP Service.group (sorted; '' =
+          // ungrouped → plain layer name). The composite `<key>~<group>`
+          // keeps sidebar identity unique while the REAL layer key stays
+          // `base.key` (so routes / the BFF still see `general`, with the
+          // group carried separately as `?group=`). Off ⇒ one combined entry.
+          const tpl = resolveLayerTemplate(key, layerRowsByName);
+          const groups = groupsByCanonical.get(key);
+          if (!tpl?.splitByServiceGroup || !groups || groups.size === 0) return [base];
+          return [...groups.keys()]
+            .sort((a, b) => a.localeCompare(b))
+            .map((g): LayerDef => ({
+              // The display NAME carries the group when split (`General
+              // Service · agent`), so every surface — sidebar, page header,
+              // landing KPI tile — reads the group, not just one sidebar
+              // tag. `serviceGroup` still carries the raw value for
+              // ordering / data scoping. The composite `<layerKey>~<group>`
+              // is the route + sidebar key; the UI api-client splits it on
+              // the first `~` into the real layer key + `?group=` for the
+              // BFF (raw group — OAP groups are service-name-shaped,
+              // URL-safe; layer keys never contain `~`).
+              ...base,
+              key: `${base.key}~${g}`,
+              serviceGroup: g,
+              // Group FIRST so the distinguishing part survives sidebar
+              // truncation (`agent · General Ser…` rather than
+              // `General Service · …`).
+              name: g ? `${g} · ${base.name}` : base.name,
+              serviceCount: groups.get(g) ?? 0,
+            }));
+        });
 
       const body: MenuResponse = {
         layers,

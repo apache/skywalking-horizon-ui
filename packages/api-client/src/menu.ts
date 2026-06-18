@@ -231,6 +231,14 @@ export interface LayerDef {
    *  sidebar (e.g. `Istio` aggregates mesh / mesh_cp / mesh_dp). When
    *  absent the layer renders at the top level on its own. */
   group?: string;
+  /** When this layer is split by service group (template
+   *  `splitByServiceGroup`), the OAP `Service.group` this menu entry is
+   *  scoped to. The sidebar appends it to the display name and forwards
+   *  it as `?group=`. Absent on unsplit layers. Distinct from `group`
+   *  above (the sidebar-section label). The `key` of a split entry is the
+   *  composite `<layerKey>~<serviceGroup>`; the real layer key is `key`
+   *  with the `~…` suffix stripped. */
+  serviceGroup?: string;
   /** Sidebar placement — `public` (default) for layers visible to
    *  everyone in the Layers section, `operate` for operations-only
    *  layers like the SO11Y self-observability tree that surface under

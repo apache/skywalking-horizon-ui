@@ -26,13 +26,29 @@
 import { ref, watch } from 'vue';
 
 const STORAGE_KEY = 'horizon:sidebarCollapsed:v1';
+const WIDTH_KEY = 'horizon:sidebarWidth:v1';
+
+/** Expanded sidebar width bounds (px). The grab handle clamps to these;
+ *  `SIDEBAR_DEFAULT_WIDTH` matches the `--sw-side-w` fallback in tokens.css. */
+export const SIDEBAR_MIN_WIDTH = 160;
+export const SIDEBAR_MAX_WIDTH = 480;
+export const SIDEBAR_DEFAULT_WIDTH = 220;
 
 function detectInitial(): boolean {
   if (typeof localStorage === 'undefined') return false;
   return localStorage.getItem(STORAGE_KEY) === '1';
 }
 
+function detectWidth(): number {
+  if (typeof localStorage === 'undefined') return SIDEBAR_DEFAULT_WIDTH;
+  const raw = Number(localStorage.getItem(WIDTH_KEY));
+  return Number.isFinite(raw) && raw >= SIDEBAR_MIN_WIDTH && raw <= SIDEBAR_MAX_WIDTH
+    ? raw
+    : SIDEBAR_DEFAULT_WIDTH;
+}
+
 const collapsed = ref<boolean>(detectInitial());
+const width = ref<number>(detectWidth());
 
 watch(collapsed, (on) => {
   if (typeof localStorage === 'undefined') return;
@@ -43,14 +59,34 @@ watch(collapsed, (on) => {
   }
 });
 
+watch(width, (w) => {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(WIDTH_KEY, String(Math.round(w)));
+  } catch {
+    /* private mode / quota — degrade silently */
+  }
+});
+
+/** Set the expanded sidebar width, clamped to the [min, max] bounds. */
+function setWidth(px: number): void {
+  width.value = Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, Math.round(px)));
+}
+
 export function useSidebar(): {
   collapsed: typeof collapsed;
+  width: typeof width;
   toggle: () => void;
+  setWidth: (px: number) => void;
+  resetWidth: () => void;
 } {
   return {
     collapsed,
+    width,
     toggle: () => {
       collapsed.value = !collapsed.value;
     },
+    setWidth,
+    resetWidth: () => setWidth(SIDEBAR_DEFAULT_WIDTH),
   };
 }

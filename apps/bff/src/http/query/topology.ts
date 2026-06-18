@@ -101,6 +101,7 @@ const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
       id
       name
       normal
+      group
     }
   }
 `;
@@ -358,7 +359,12 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           // batch-size worry, but the MQE step already chunks at 150
           // fragments per query (see below), so a layer with hundreds
           // of services scales fine.
-          seedIds = data.services.map((s) => s.id);
+          // `?group=` (split-by-service-group menu entry) scopes the
+          // layer-overview seed to one OAP Service.group; absent ⇒ all.
+          const group = (req.query as { group?: string }).group;
+          seedIds = data.services
+            .filter((s) => group === undefined || ((s as { group?: string }).group ?? '') === group)
+            .map((s) => s.id);
           // Debug log so the response size is visible while we
           // diagnose why layers with many services come back small.
           console.log(`[topology] layer=${oapLayer} seed-services=${seedIds.length}`);

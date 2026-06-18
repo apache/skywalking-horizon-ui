@@ -108,9 +108,22 @@ const page = ref(0);
 // service that ranked below the metric cap — id+name with no numbers.
 // `blank` flags OAP's synthetic `_blank` bucket — shown so the operator
 // knows it exists, but rendered disabled (never selectable / queryable).
+interface GroupChip { alias: string; value: string }
 type PickerRow =
-  | { kind: 'probed'; id: string; name: string; blank: boolean; row: LandingServiceRow }
-  | { kind: 'tail'; id: string; name: string; blank: boolean };
+  | { kind: 'probed'; id: string; name: string; blank: boolean; chip: GroupChip | null; row: LandingServiceRow }
+  | { kind: 'tail'; id: string; name: string; blank: boolean; chip: GroupChip | null };
+
+// The compact chip before a service name: the per-layer topology-cluster
+// (k8s / mesh namespace) when the naming rule matches, else OAP's own
+// `Service.group` (the `<group>::` prefix, e.g. `agent`) so the group is
+// visible even on layers with no cluster rule (GENERAL). Null when the
+// service has neither.
+function resolveChip(name: string, group?: string | null): GroupChip | null {
+  const id = identity(name);
+  if (id.cluster) return { alias: id.clusterAlias ?? '', value: id.cluster };
+  const g = group || id.legacyGroup;
+  return g ? { alias: 'group', value: g } : null;
+}
 
 // Probed rows first (already sorted by orderBy from the BFF), then the
 // roster tail that wasn't metric-probed. Without a roster prop the
@@ -121,6 +134,7 @@ const allRows = computed<PickerRow[]>(() => {
     id: r.serviceId,
     name: r.serviceName,
     blank: isBlankServiceName(r.serviceName),
+    chip: resolveChip(r.serviceName, r.group),
     row: r,
   }));
   const roster = props.roster;
@@ -128,7 +142,7 @@ const allRows = computed<PickerRow[]>(() => {
   const probedIds = new Set(probed.map((p) => p.id));
   const tail: PickerRow[] = roster
     .filter((r) => !probedIds.has(r.id))
-    .map((r) => ({ kind: 'tail', id: r.id, name: r.name, blank: isBlankServiceName(r.name) }));
+    .map((r) => ({ kind: 'tail', id: r.id, name: r.name, blank: isBlankServiceName(r.name), chip: resolveChip(r.name, null) }));
   return [...probed, ...tail];
 });
 
@@ -217,9 +231,9 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
             </td>
             <td class="svc-col" :title="r.blank ? BLANK_SERVICE_NAME : r.name">
               <span class="pulse" :style="{ background: colorForStatus(statusForMetrics(r.row.metrics)) }" />
-              <span v-if="!r.blank && identity(r.name).cluster" class="group-chip">
-                <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
-                <span class="chip-val">{{ identity(r.name).cluster }}</span>
+              <span v-if="!r.blank && r.chip" class="group-chip">
+                <span class="chip-alias">{{ r.chip.alias }}</span>
+                <span class="chip-val">{{ r.chip.value }}</span>
               </span>
               <span class="name-text">{{ r.blank ? BLANK_SERVICE_NAME : (r.row.shortName || identity(r.name).display) }}</span>
             </td>
@@ -257,9 +271,9 @@ function colorForStatus(s: 'ok' | 'warn' | 'err'): string {
             </td>
             <td class="svc-col" :title="r.blank ? BLANK_SERVICE_NAME : r.name">
               <span class="pulse tail-dot" />
-              <span v-if="!r.blank && identity(r.name).cluster" class="group-chip">
-                <span class="chip-alias">{{ identity(r.name).clusterAlias }}</span>
-                <span class="chip-val">{{ identity(r.name).cluster }}</span>
+              <span v-if="!r.blank && r.chip" class="group-chip">
+                <span class="chip-alias">{{ r.chip.alias }}</span>
+                <span class="chip-val">{{ r.chip.value }}</span>
               </span>
               <span class="name-text">{{ r.blank ? BLANK_SERVICE_NAME : identity(r.name).display }}</span>
             </td>

@@ -157,8 +157,12 @@
   line-height: 1.45;
   font-feature-settings: "cv11", "ss01", "tnum";
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* `--sw-side-w` is driven by the drag-to-resize handle (AppShell);
+   *  falls back to 220px. The collapsed state overrides this column to a
+   *  48px rail. */
+  grid-template-columns: var(--sw-side-w, 220px) 1fr;
   grid-template-rows: 44px 1fr;
+  position: relative;
   grid-template-areas:
     "side  top"
     "side  main";

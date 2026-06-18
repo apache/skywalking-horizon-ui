@@ -285,6 +285,12 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
           { layer: oapLayer },
         );
         services = data.services ?? [];
+        // Optional `?group=` (split-by-service-group menu entry) — narrow
+        // the roster to that OAP Service.group before the top-N rollup.
+        const group = (req.query as { group?: string }).group;
+        if (group !== undefined) {
+          services = services.filter((s) => ((s as { group?: string }).group ?? '') === group);
+        }
       } catch (err) {
         const body: LandingResponse = {
           layer: layerKey,
