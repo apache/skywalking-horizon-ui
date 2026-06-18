@@ -31,6 +31,7 @@ import { useRoute } from 'vue-router';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
+import RecordList from '@/render/widgets/RecordList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import { colorForMetric } from '@/utils/metricColor';
@@ -1191,9 +1192,11 @@ function isHidden(id: string): boolean {
             <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>
           <template v-else-if="w.type === 'record'">
-            <!-- Slow-statement / record table — reuses the TopList
-                 renderer since the shape (name + value) is identical.
-                 Future runtime work will add trace-id drill-in. -->
+            <!-- Slow-statement / record list. Compare mode falls back to
+                 the plain TopList (name + value, no single trace to jump
+                 to); single-entity uses RecordList, which adds the per-row
+                 jump-to-trace icon (only when the sample carries a trace
+                 id) and click-to-copy on the statement. -->
             <TopList
               v-if="compareMode && hasMultiTopData(w.id)"
               :ref="(el) => setTopListRef(w.id, el)"
@@ -1202,13 +1205,11 @@ function isHidden(id: string): boolean {
               :color="widgetColor(w)"
               :title="w.title"
             />
-            <TopList
+            <RecordList
               v-else-if="!compareMode && resultsById.get(w.id)?.records?.length"
-              :ref="(el) => setTopListRef(w.id, el)"
-              :items="resultsById.get(w.id)!.records!.map((r) => ({ name: r.name, value: r.value ?? null }))"
+              :items="resultsById.get(w.id)!.records!"
               :unit="w.unit"
               :color="widgetColor(w)"
-              :title="w.title"
             />
             <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
           </template>

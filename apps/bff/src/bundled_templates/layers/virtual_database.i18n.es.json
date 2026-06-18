@@ -34,7 +34,7 @@
       },
       {
         "title": "Statements lentos",
-        "tip": "Top 20 statements más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+        "tip": "Top 20 statements más lentos capturados. Cada fila es una ejecución única — clic para copiar, o usa el icono de traza al inicio de la fila para abrir su traza originaria (visible solo cuando la muestra la incluye)."
       }
     ]
   },

@@ -174,8 +174,9 @@ The data source returns a record set (rows × typed columns) rather than a numer
 
 ### Behavior
 
-- Renders as a dense table with column headers from the record's typed fields.
-- Supports sort, filter, and pagination.
+- Each row is one sampled record: the statement / command text, its value (e.g. latency), and — when the sample carries a trace id — a jump-to-trace icon at the row head that opens the originating trace in the trace viewer.
+- Records are sampled, so a row's trace id can be absent; the jump-to-trace icon appears only when the sample has one.
+- Click a row's statement text to copy it to the clipboard.
 
 ## `table`
 

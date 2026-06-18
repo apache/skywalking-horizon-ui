@@ -93,14 +93,14 @@
       },
       {
         "title": "Langsame Lesebefehle",
-        "tip": "Top 10 langsamste erfasste Lesebefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "tip": "Top 10 langsamste erfasste Lesebefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
         "expressions": [
           null
         ]
       },
       {
         "title": "Langsame Schreibbefehle",
-        "tip": "Top 10 langsamste erfasste Schreibbefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "tip": "Top 10 langsamste erfasste Schreibbefehle. Jede Zeile ist eine einzelne Ausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
         "expressions": [
           null
         ]

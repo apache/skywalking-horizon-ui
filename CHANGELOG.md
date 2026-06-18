@@ -40,6 +40,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - New **`duration`** format renders a SECONDS metric as a human time-ago (`5m 20s ago`; compact `5m` / `2h` on axes) — used by BanyanDB's **Time Since Last Sync** card.
 - Line-chart **axis labels and tooltips now use scientific notation** (`1.2e6`) for large magnitudes (≥ 10,000) so dense byte / count series stay readable, with the axis tick and its hovered value sharing one notation.
 
+### Record widgets — jump to trace & copy
+
+- **Record widgets now drill into the originating trace.** Each sampled row gets a **jump-to-trace icon** at the row head — shown only when the sample actually carries a trace id (these are sampled, so it can be absent) — that opens the trace waterfall in the global popout. It resolves the trace **by id, not by layer**, so it works even though the trace belongs to the calling service on a different layer (a virtual-target layer has no traces tab of its own). The statement text itself is **click-to-copy**. For example, the **Slow Statements** record widget on a Virtual Database / Cache / MQ service.
+
 ### Instance-list badge
 
 - The badge on each row of the **instance list** (Containers / Pods / Nodes / …) is now **configurable per layer** (`instances.badge` on the layer template) — it can show any instance **attribute** instead of the fixed agent `language`. BanyanDB shows `container_name` (**liaison / data / lifecycle**), the role that actually distinguishes a container; agent-traced layers keep `language` (Java / Go / …). The badge is now **hidden when the value is empty or `UNKNOWN`**, so OpenTelemetry-scraped layers (which report no agent language) drop the meaningless `UNKNOWN` chip across the board.

@@ -101,7 +101,7 @@
       {
         "id": "slow_statements",
         "title": "Slow Statements",
-        "tip": "Top 20 slowest captured statements. Each row is a single statement execution \u2014 click to drill into the originating trace.",
+        "tip": "Top 20 slowest captured statements. Each row is a single statement execution \u2014 click to copy it, or use the trace icon at the row head to open its originating trace (shown only when the sample carries one).",
         "type": "record",
         "unit": "ms",
         "expressions": [
