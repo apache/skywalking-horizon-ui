@@ -184,7 +184,7 @@ Otherwise it lands in the count tiles. This lets you author a Kubernetes-style s
 
 ## `topology`
 
-**Renders:** Service-map for the configured layer. Static snapshot of the current window — the full Topology tab on a per-layer page is interactive; the overview widget is a glanceable view.
+**Renders:** Service-map for the configured layer. Static snapshot of the current window — the full Topology tab on a per-layer page is interactive (node / edge selection, detail sidebar); the overview widget is a glanceable view. Both share the same map: nodes show their **detected technology's component icon** (PostgreSQL, Redis, Kafka, …), and a **Filter** control (top-left of the map) hides nodes by **layer** — each row shown with the layer's icon and localized name, the same as the sidebar — with an **Others** bucket for peers OAP couldn't resolve and a standalone **User** toggle — the quickest way to drop the conjectured "undefined" nodes from a busy map. The layer rows are built from whatever the map currently shows and default to showing everything.
 
 ### Fields
 

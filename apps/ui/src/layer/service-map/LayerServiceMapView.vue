@@ -71,7 +71,9 @@ import {
   type ServiceIdentity,
 } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
-import { isUserNode } from '@/layer/service-map/useTopologyIcons';
+import { componentIconOrNull, isUserNode } from '@/layer/service-map/useTopologyIcons';
+import Icon from '@/components/icons/Icon.vue';
+import { layerIcon } from '@/shell/icons';
 import ServiceHierarchyOverlay from '@/layer/service-map/ServiceHierarchyOverlay.vue';
 import { useHierarchyOverlayStore } from '@/layer/service-map/hierarchyStore';
 import { useServiceHierarchy } from '@/layer/service-map/useServiceHierarchy';
@@ -137,24 +139,48 @@ const serviceName = computed<string | null>(() =>
   focusServiceNames.value.length === 0 ? null : focusServiceNames.value.join(','),
 );
 
-// Service-list rows grouped by the layer-resolved group value (k8s/mesh
-// ⇒ namespace; generic ⇒ legacy `::` prefix). The search panel renders
-// one section per group; the section heading shows the alias·value
-// (e.g. `namespace · sample`).
-interface GroupedRow { group: string | null; name: string; id: string; raw: string }
+// Service-list rows grouped by the service's own GROUP — OAP's
+// `Service.group` (the `<group>::` prefix, e.g. `agent`,
+// `skywalking-showcase`), a per-service attribute that needs no
+// per-layer setup. The search panel renders one section per group
+// (`group · agent`); a service with no group falls into one
+// header-less section.
+interface GroupedRow { name: string; id: string; raw: string }
 const groupedRows = computed<Map<string, GroupedRow[]>>(() => {
   const map = new Map<string, GroupedRow[]>();
   const term = focusSearch.value.trim().toLowerCase();
   for (const r of landingRows.value) {
     const id = identity(r.serviceName);
     if (term && !r.serviceName.toLowerCase().includes(term)) continue;
-    const key = id.cluster ?? '';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push({ group: id.cluster, name: id.display, id: r.serviceId, raw: r.serviceName });
+    // Group by the service's own group — OAP's served `Service.group`,
+    // falling back to the `::` prefix parsed from the name. NOT the
+    // per-layer topology-cluster rule, so it works on every layer.
+    const grp = r.group ?? id.legacyGroup ?? '';
+    if (!map.has(grp)) map.set(grp, []);
+    map.get(grp)!.push({ name: id.display, id: r.serviceId, raw: r.serviceName });
   }
   return map;
 });
-const groupAliasLabel = computed<string>(() => namingRule.value?.alias ?? 'group');
+const groupAliasLabel = 'group';
+
+// Batch select / unselect every service in a group from its header.
+// Tri-state drives the header glyph: 'all' = every row of the group is
+// focused, 'none' = none, 'some' = partial.
+function groupSelState(rows: GroupedRow[]): 'all' | 'some' | 'none' {
+  const sel = focusServiceNames.value;
+  let n = 0;
+  for (const r of rows) if (sel.includes(r.raw)) n++;
+  return n === 0 ? 'none' : n === rows.length ? 'all' : 'some';
+}
+function toggleGroup(rows: GroupedRow[]): void {
+  const raws = rows.map((r) => r.raw);
+  const allSel = raws.every((x) => focusServiceNames.value.includes(x));
+  // Already all-selected ⇒ drop the whole group; otherwise add the
+  // missing ones (dedup) so a partial group fills to full.
+  focusServiceNames.value = allSel
+    ? focusServiceNames.value.filter((x) => !raws.includes(x))
+    : [...new Set([...focusServiceNames.value, ...raws])];
+}
 
 // Defensive truncate for long node labels — preserves the head + an
 // ellipsis so cluster IDs that share a long prefix still distinguish.
@@ -190,6 +216,102 @@ const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
+
+// ── Node visibility filter ──────────────────────────────────────────
+// One auto-derived facet — LAYER (`node.layers`, multi-valued ⇒
+// any-match) — plus a standalone toggle for the synthetic `User` node.
+// The facet mirrors the sidebar menu: each row carries the layer's own
+// icon + its localized display name. It self-populates from the live
+// node set and re-derives on every re-query, so a layer that only
+// appears after a depth/time change shows up as a row without config.
+//
+// Buckets store EXCLUSIONS (a node is hidden when its layer is in the
+// set), so a freshly-appearing layer defaults visible. A node with no
+// resolvable layer collapses to `Others` (OAP's `UNDEFINED`, e.g. an
+// unresolved `rcmd:80` peer). Client-side — `layers` already rides on
+// the node payload — and on this component, so the per-layer Topology
+// tab AND the embedded overview widget both inherit it.
+const OTHERS_TOKEN = 'UNDEFINED'; // OAP's no-layer fallback, shown as "Others"
+const hiddenLayers = ref<Set<string>>(new Set());
+const hideUser = ref(false);
+const filterOpen = ref(false);
+
+function layerTokens(n: TopologyNode): string[] {
+  const ls = (n.layers ?? []).filter((l) => l && l.length > 0);
+  return ls.length > 0 ? ls : [OTHERS_TOKEN];
+}
+// Layer facet label = the BFF's already-localized layer display name
+// (the same `LayerDef.name` the sidebar renders, sourced from each
+// template's `alias` + per-locale overlay), so `VIRTUAL_DATABASE`
+// reads "Virtual Database" / "虚拟数据库" instead of the raw enum. A
+// layer that isn't in the served menu falls back to a title-cased enum
+// (mirroring the BFF's own template-less naming).
+function titleCaseEnum(raw: string): string {
+  return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function layerLabel(token: string): string {
+  if (token === OTHERS_TOKEN) return 'Others';
+  const def = layers.value.find((l) => l.key === token.toLowerCase());
+  return def?.name ?? titleCaseEnum(token);
+}
+
+interface Facet { token: string; label: string; count: number }
+function facetList(
+  counts: Map<string, number>,
+  label: (tok: string) => string,
+  tail: string,
+): Facet[] {
+  const rows = [...counts.entries()].map(([token, count]) => ({ token, label: label(token), count }));
+  rows.sort((a, b) => {
+    // Pin the catch-all bucket (Others / Unknown) to the bottom.
+    if (a.token === tail) return 1;
+    if (b.token === tail) return -1;
+    const al = a.label.toLowerCase();
+    const bl = b.label.toLowerCase();
+    return al < bl ? -1 : al > bl ? 1 : 0;
+  });
+  return rows;
+}
+// Facets derive from the FULL node set (minus User, which owns its own
+// toggle) so toggling a row off never makes that row disappear.
+const layerFacets = computed<Facet[]>(() => {
+  const counts = new Map<string, number>();
+  for (const n of nodes.value) {
+    if (isUserNode(n)) continue;
+    for (const tok of layerTokens(n)) counts.set(tok, (counts.get(tok) ?? 0) + 1);
+  }
+  return facetList(counts, layerLabel, OTHERS_TOKEN);
+});
+const hasUserNode = computed<boolean>(() => nodes.value.some(isUserNode));
+const userNodeCount = computed<number>(() => nodes.value.filter(isUserNode).length);
+
+function nodeVisible(n: TopologyNode): boolean {
+  if (isUserNode(n)) return !hideUser.value;
+  // Layer is any-match: a node stays as long as at least one of its
+  // layers is still shown.
+  return layerTokens(n).some((tok) => !hiddenLayers.value.has(tok));
+}
+const filteredNodes = computed<TopologyNode[]>(() => nodes.value.filter(nodeVisible));
+
+const filterActive = computed<boolean>(
+  () => hideUser.value || hiddenLayers.value.size > 0,
+);
+const hiddenCount = computed<number>(
+  () => (hideUser.value ? 1 : 0) + hiddenLayers.value.size,
+);
+function toggleFilter(): void {
+  filterOpen.value = !filterOpen.value;
+}
+function toggleLayerFacet(tok: string): void {
+  const s = new Set(hiddenLayers.value);
+  if (s.has(tok)) s.delete(tok);
+  else s.add(tok);
+  hiddenLayers.value = s;
+}
+function resetFilter(): void {
+  hiddenLayers.value = new Set();
+  hideUser.value = false;
+}
 
 // ── Config from response (operator-edited layer JSON). Falls back to
 // an empty config when the BFF hasn't responded yet — the renderer
@@ -538,7 +660,7 @@ const GROUP_GAP_X = 80;
  * preserving the look of layers that haven't opted in to clustering.
  */
 const clusterBuckets = computed<ClusterBucket[]>(() => {
-  const all = nodes.value;
+  const all = filteredNodes.value;
   if (all.length === 0) return [];
   // 1. Bucket nodes by resolved group key.
   const byGroup = new Map<string, TopologyNode[]>();
@@ -857,6 +979,16 @@ function nodeKind(n: TopologyNode): 'client' | 'service' | 'external' {
   if (n.name === 'User') return 'client';
   if (!n.isReal) return 'external';
   return 'service';
+}
+/** Technology badge PNG for the node body, resolved from the node's
+ *  `type` (the OAP component — PostgreSQL / Express / Kafka / …, the
+ *  same icon set the native trace renders per span). Returns `null`
+ *  for the User node (keeps its silhouette) and for any node whose
+ *  component doesn't map to a shipped icon (e.g. an unresolved peer
+ *  with no `type`) — those fall back to the hand-drawn kind glyph. */
+function nodeIconUrl(n: TopologyNode): string | null {
+  if (isUserNode(n)) return null;
+  return componentIconOrNull(n.type);
 }
 /** Pick the edge metric to surface as a label. RPM-only by design —
  *  the canvas chip stays compact and consistent across layers. Other
@@ -1484,26 +1616,35 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 type="button"
                 @click="clearFocus"
               >
-                <span class="focus-check">{{ focusServiceNames.length === 0 ? '●' : '○' }}</span>
+                <span class="focus-check" :class="{ on: focusServiceNames.length === 0 }" />
                 <span class="focus-name">All services</span>
                 <span class="focus-aside">{{ landingRows.length }} total</span>
               </button>
               <template v-for="[gkey, rows] in groupedRows" :key="gkey">
-                <div v-if="gkey" class="focus-group-head">
-                  <span class="focus-group-alias">{{ groupAliasLabel }}</span>
-                  <span class="focus-group-val">{{ gkey }}</span>
-                </div>
                 <button
-                  v-for="r in rows"
-                  :key="r.id"
-                  class="focus-row"
-                  :class="{ selected: focusServiceNames.includes(r.raw) }"
+                  v-if="gkey"
+                  class="focus-group-head"
                   type="button"
-                  @click="toggleService(r.raw)"
+                  :title="groupSelState(rows) === 'all' ? `Unselect all in ${gkey}` : `Select all in ${gkey}`"
+                  @click="toggleGroup(rows)"
                 >
-                  <span class="focus-check">{{ focusServiceNames.includes(r.raw) ? '●' : '○' }}</span>
-                  <span class="focus-name">{{ r.name }}</span>
+                  <span class="focus-check" :class="groupSelState(rows)" />
+                  <span class="focus-group-val">{{ gkey }}</span>
+                  <span class="focus-group-alias">[{{ groupAliasLabel }}]</span>
                 </button>
+                <div :class="['focus-group-body', { grouped: gkey }]">
+                  <button
+                    v-for="r in rows"
+                    :key="r.id"
+                    class="focus-row"
+                    :class="{ selected: focusServiceNames.includes(r.raw), 'in-group': gkey }"
+                    type="button"
+                    @click="toggleService(r.raw)"
+                  >
+                    <span class="focus-check" :class="{ on: focusServiceNames.includes(r.raw) }" />
+                    <span class="focus-name">{{ r.name }}</span>
+                  </button>
+                </div>
               </template>
               <div v-if="groupedRows.size === 0" class="focus-empty">no matches</div>
             </div>
@@ -1784,31 +1925,44 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 stroke-linejoin="round"
               />
 
-              <!-- Kind icon: client = user silhouette, service = 3D
-                   box, external = cloud with `?`. SVG-only, per
-                   design. -->
-              <g v-if="nodeKind(n) === 'client'" transform="translate(-14, -12)" fill="var(--sw-info)">
-                <circle cx="9" cy="6" r="4" />
-                <circle cx="20" cy="6" r="4" />
-                <path d="M2 24 c0 -6 5 -10 10 -10 c5 0 10 4 10 10 z" />
-                <path d="M14 24 c0 -6 5 -10 10 -10 c5 0 10 4 10 10 z" opacity="0.7" />
-              </g>
-              <g v-else-if="nodeKind(n) === 'service'" transform="translate(-14, -14)">
-                <polygon points="14,0 28,7 14,14 0,7" fill="#94a3b8" />
-                <polygon points="0,7 14,14 14,28 0,21" fill="#5b6373" />
-                <polygon points="28,7 14,14 14,28 28,21" fill="#3a4456" />
-              </g>
-              <g v-else transform="translate(-14, -10)" fill="var(--sw-info)">
-                <path d="M6 14 a8 8 0 0 1 8 -8 a7 7 0 0 1 7 5 a6 6 0 0 1 1 12 H6 a6 6 0 0 1 -2 -9 z" />
-                <text
-                  x="14"
-                  y="16"
-                  text-anchor="middle"
-                  font-size="10"
-                  font-weight="700"
-                  fill="var(--sw-bg-2)"
-                >?</text>
-              </g>
+              <!-- Node body: the technology component icon resolved
+                   from the node's `type` (same PNG set the native
+                   trace uses) when one exists; otherwise the hand-drawn
+                   kind glyph — User = silhouette, real service = 3D
+                   box, unresolved peer = cloud with `?`. -->
+              <image
+                v-if="nodeIconUrl(n)"
+                :href="nodeIconUrl(n)!"
+                x="-15"
+                y="-15"
+                width="30"
+                height="30"
+                preserveAspectRatio="xMidYMid meet"
+              />
+              <template v-else>
+                <g v-if="nodeKind(n) === 'client'" transform="translate(-14, -12)" fill="var(--sw-info)">
+                  <circle cx="9" cy="6" r="4" />
+                  <circle cx="20" cy="6" r="4" />
+                  <path d="M2 24 c0 -6 5 -10 10 -10 c5 0 10 4 10 10 z" />
+                  <path d="M14 24 c0 -6 5 -10 10 -10 c5 0 10 4 10 10 z" opacity="0.7" />
+                </g>
+                <g v-else-if="nodeKind(n) === 'service'" transform="translate(-14, -14)">
+                  <polygon points="14,0 28,7 14,14 0,7" fill="#94a3b8" />
+                  <polygon points="0,7 14,14 14,28 0,21" fill="#5b6373" />
+                  <polygon points="28,7 14,14 14,28 28,21" fill="#3a4456" />
+                </g>
+                <g v-else transform="translate(-14, -10)" fill="var(--sw-info)">
+                  <path d="M6 14 a8 8 0 0 1 8 -8 a7 7 0 0 1 7 5 a6 6 0 0 1 1 12 H6 a6 6 0 0 1 -2 -9 z" />
+                  <text
+                    x="14"
+                    y="16"
+                    text-anchor="middle"
+                    font-size="10"
+                    font-weight="700"
+                    fill="var(--sw-bg-2)"
+                  >?</text>
+                </g>
+              </template>
 
               <!-- Agent badge — top-right of the ring. Apache-feather
                    mark inside an accent halo. Only real services
@@ -1910,6 +2064,10 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
           </g>
         </svg>
         <div v-else-if="isLoading" class="loader">loading…</div>
+        <div v-else-if="filterActive && nodes.length > 0" class="loader">
+          All nodes are hidden by the current filter.
+          <button class="sw-btn small" type="button" @click="resetFilter">Reset filter</button>
+        </div>
         <div v-else class="loader">
           No services with metric data in this layer for the last 15 minutes.
         </div>
@@ -1935,6 +2093,60 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
           <button class="sw-btn small" type="button" title="Zoom out (wheel down)" @click="zoomBy(1 / 1.25)">−</button>
           <button class="sw-btn small" type="button" title="Fit to screen (double-click canvas)" @click="fitToScreen(true)">Fit</button>
           <span class="sm-zoom-pct" :title="`Scale ${(zoomT.k * 100).toFixed(0)}%`">{{ Math.round(zoomT.k * 100) }}%</span>
+        </div>
+
+        <!-- Node filter — auto-derived facets (layer + component) plus
+             a standalone User toggle. Floating overlay (top-left) so it
+             shows in BOTH the full Topology tab and the embedded
+             overview widget, which hides the toolbar. Stores
+             exclusions, so toggling a row hides it; default shows all. -->
+        <div
+          v-if="layoutNodes.length > 0 || filterActive"
+          class="sm-filter-ctrls"
+          :class="{ embedded }"
+          @click.stop
+        >
+          <button
+            class="sw-btn small filter-btn"
+            type="button"
+            :class="{ active: filterActive }"
+            :title="filterActive ? `${hiddenCount} filter(s) active — click to edit` : 'Filter nodes'"
+            @click="toggleFilter"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M2 3h12l-4.6 5.8v4.3l-2.8 1.4V8.8z" />
+            </svg>
+            <span v-if="!embedded" class="filter-btn-label">Filter</span>
+            <span v-if="filterActive" class="filter-badge">{{ hiddenCount }}</span>
+          </button>
+          <div v-if="filterOpen" class="sm-filter-pop sw-card">
+            <div class="sf-head">
+              <span class="sf-title">Show nodes</span>
+              <button v-if="filterActive" class="sf-reset" type="button" @click="resetFilter">Reset</button>
+            </div>
+            <div v-if="hasUserNode" class="sf-group">
+              <button class="sf-row" type="button" @click="hideUser = !hideUser">
+                <span class="sf-check" :class="{ on: !hideUser }" />
+                <span class="sf-name">User</span>
+                <span class="sf-count">{{ userNodeCount }}</span>
+              </button>
+            </div>
+            <div v-if="layerFacets.length > 0" class="sf-group">
+              <div class="sf-group-head">Layers</div>
+              <button
+                v-for="f in layerFacets"
+                :key="'l-' + f.token"
+                class="sf-row"
+                type="button"
+                @click="toggleLayerFacet(f.token)"
+              >
+                <span class="sf-check" :class="{ on: !hiddenLayers.has(f.token) }" />
+                <Icon :name="layerIcon(f.token)" class="sf-layer-icon" />
+                <span class="sf-name">{{ f.label }}</span>
+                <span class="sf-count">{{ f.count }}</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="legend">
@@ -2346,17 +2558,59 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   text-transform: uppercase;
   color: var(--sw-fg-3);
   padding: 6px 8px 4px;
-  display: inline-flex;
-  align-items: baseline;
+  display: flex;
+  align-items: center;
   gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
 }
-.focus-group-alias { color: var(--sw-fg-3); }
-.focus-group-alias::after { content: '·'; margin-left: 4px; color: var(--sw-fg-3); }
+.focus-group-head:hover { background: var(--sw-bg-2); }
+/* Tri-state batch-select glyph on a group header: filled = all of the
+   group focused, half = some, hollow = none. */
+/* Selection markers are CSS-drawn circles, NOT font glyphs, so the
+   group header's dot and a service row's dot are pixel-identical
+   regardless of font fallback: a ring when empty, filled when on / all,
+   half-filled for a partially-selected group. */
+.focus-check {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid var(--sw-accent);
+  background: transparent;
+}
+.focus-check.on,
+.focus-check.all { background: var(--sw-accent); }
+.focus-check.some {
+  background: linear-gradient(90deg, var(--sw-accent) 0 50%, transparent 50% 100%);
+}
+/* A group's services nest under its header: a left guide line + extra
+   indent make the parent → children relationship read at a glance.
+   Ungrouped rows (no header) keep the base indent and no guide. */
+.focus-group-body.grouped {
+  margin-left: 15px;
+  border-left: 1px solid var(--sw-line);
+}
+.focus-row.in-group { padding-left: 14px; }
 .focus-group-val {
   color: var(--sw-accent-2);
   font-family: var(--sw-mono);
+  font-size: 12px;
+  font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
+}
+/* `[GROUP]` qualifier trailing the value — subdued so the group name reads first. */
+.focus-group-alias {
+  color: var(--sw-fg-3);
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.85;
 }
 .focus-row {
   display: flex;
@@ -2375,7 +2629,6 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
 }
 .focus-row:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
 .focus-row.selected { color: var(--sw-accent-2); }
-.focus-row .focus-check { width: 12px; text-align: center; color: var(--sw-accent); }
 .focus-row .focus-name { flex: 1; font-family: var(--sw-mono); }
 .focus-row .focus-aside { font-size: 10.5px; color: var(--sw-fg-3); }
 .focus-row.clear { border-bottom: 1px dashed var(--sw-line); padding-bottom: 8px; margin-bottom: 4px; }
@@ -2766,6 +3019,142 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   padding-left: 4px;
   min-width: 38px;
   text-align: right;
+}
+/* Node filter control — top-left of the map, mirroring the zoom
+   controls' glass vocabulary. Shown in BOTH the tab and the embedded
+   widget (unlike the zoom controls, which the widget hides). The
+   popover lists the auto-derived facets; in embedded mode it shrinks
+   so it fits a dashboard-cell footprint. */
+.sm-filter-ctrls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 12;
+}
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+}
+.filter-btn.active {
+  border-color: var(--sw-accent-line);
+  color: var(--sw-accent-2);
+}
+.filter-btn-label {
+  font-size: 11px;
+}
+.filter-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 7px;
+  background: var(--sw-accent);
+  color: var(--sw-bg-0);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sm-filter-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 224px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sm-filter-ctrls.embedded .sm-filter-pop {
+  width: 196px;
+  max-height: 232px;
+}
+.sf-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sf-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-fg-3);
+  font-weight: 700;
+}
+.sf-reset {
+  background: transparent;
+  border: 0;
+  color: var(--sw-accent-2);
+  font: inherit;
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 0;
+}
+.sf-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.sf-group-head {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-fg-3);
+  padding: 4px 4px 2px;
+  font-weight: 600;
+}
+.sf-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 4px 6px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--sw-fg-1);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.sf-row:hover {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-0);
+}
+.sf-check {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--sw-line-2);
+  border-radius: 3px;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+.sf-check.on {
+  background: var(--sw-accent);
+  border-color: var(--sw-accent);
+}
+.sf-layer-icon {
+  flex: 0 0 auto;
+  color: var(--sw-fg-2);
+}
+.sf-name {
+  flex: 1;
+  font-family: var(--sw-mono);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sf-count {
+  font-size: 10px;
+  color: var(--sw-fg-3);
+  font-family: var(--sw-mono);
 }
 .cap-chip {
   position: absolute;
