@@ -57,11 +57,11 @@
       },
       {
         "title": "Commandes de lecture lentes",
-        "tip": "Top 10 des commandes de lecture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour explorer la trace d'origine."
+        "tip": "Top 10 des commandes de lecture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       },
       {
         "title": "Commandes d'écriture lentes",
-        "tip": "Top 10 des commandes d'écriture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour explorer la trace d'origine."
+        "tip": "Top 10 des commandes d'écriture les plus lentes capturées. Chaque ligne est une exécution unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       }
     ]
   },

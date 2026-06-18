@@ -60,11 +60,11 @@
       },
       {
         "title": "Comandos de lectura lentos",
-        "tip": "Top 10 comandos de lectura más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+        "tip": "Top 10 comandos de lectura más lentos capturados. Cada fila es una ejecución única — clic para copiar, o usa el icono de traza al inicio de la fila para abrir su traza originaria (visible solo cuando la muestra la incluye)."
       },
       {
         "title": "Comandos de escritura lentos",
-        "tip": "Top 10 comandos de escritura más lentos capturados. Cada fila es una ejecución única — clic para profundizar en la traza originaria."
+        "tip": "Top 10 comandos de escritura más lentos capturados. Cada fila es una ejecución única — clic para copiar, o usa el icono de traza al inicio de la fila para abrir su traza originaria (visible solo cuando la muestra la incluye)."
       }
     ]
   }

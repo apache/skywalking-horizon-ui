@@ -186,7 +186,7 @@
       {
         "id": "slow_read",
         "title": "Slow Read Commands",
-        "tip": "Top 10 slowest captured read commands. Each row is a single execution \u2014 click to drill into the originating trace.",
+        "tip": "Top 10 slowest captured read commands. Each row is a single execution \u2014 click to copy it, or use the trace icon at the row head to open its originating trace (shown only when the sample carries one).",
         "type": "record",
         "unit": "ms",
         "expressions": [
@@ -198,7 +198,7 @@
       {
         "id": "slow_write",
         "title": "Slow Write Commands",
-        "tip": "Top 10 slowest captured write commands. Each row is a single execution \u2014 click to drill into the originating trace.",
+        "tip": "Top 10 slowest captured write commands. Each row is a single execution \u2014 click to copy it, or use the trace icon at the row head to open its originating trace (shown only when the sample carries one).",
         "type": "record",
         "unit": "ms",
         "expressions": [

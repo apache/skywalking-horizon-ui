@@ -171,6 +171,10 @@ interface MqeOwner {
 interface MqeValueShape {
   id?: string | null;
   value?: string | null;
+  /** Trace id of a RECORD_LIST sample (slow SQL / slow statements) —
+   *  powers the jump-to-trace icon on a `record` widget. Null on
+   *  non-record results. */
+  traceID?: string | null;
   owner?: MqeOwner | null;
 }
 interface MqeLabelShape {
@@ -299,7 +303,7 @@ export function buildFragment(
     `      type error\n` +
     `      results {\n` +
     `        metric { labels { key value } }\n` +
-    `        values { id value owner { scope serviceName serviceInstanceName endpointName } }\n` +
+    `        values { id value traceID owner { scope serviceName serviceInstanceName endpointName } }\n` +
     `      }\n` +
     `    }`
   );
@@ -400,6 +404,29 @@ export function parseTopList(
     }
     const num = v.value !== null && v.value !== undefined ? Number(v.value) : null;
     return { name, value: Number.isFinite(num as number) ? (num as number) : null };
+  });
+}
+
+/**
+ * Extract slow-SQL / slow-statement samples from a RECORD_LIST MQE
+ * response (e.g. `top_n(top_n_database_statement, …)`). Each entry is one
+ * sampled statement execution: `name` is the statement text (the MQE
+ * value `id`), `value` the latency, and `traceId` the originating trace —
+ * which the `record` widget surfaces as a jump-to-trace icon per row.
+ */
+export function parseRecords(
+  r: MqeResultShape | undefined,
+): Array<{ name: string; value: number | null; traceId: string | null }> | null {
+  if (!r || r.error) return null;
+  const values = r.results?.[0]?.values ?? [];
+  if (values.length === 0) return null;
+  return values.map((v) => {
+    const num = v.value !== null && v.value !== undefined ? Number(v.value) : null;
+    return {
+      name: v.id ?? '—',
+      value: Number.isFinite(num as number) ? (num as number) : null,
+      traceId: v.traceID ?? null,
+    };
   });
 }
 
@@ -877,17 +904,19 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         }
 
         if (widget.type === 'record') {
-          // RECORD-typed MQE (slow SQL / slow statements) — the OAP
-          // response is owner-keyed like topList but each entry also
-          // carries a trace/segment id we surface for the drill-in.
-          // We reuse parseTopList for the name/value pair; the
-          // runtime record renderer is a separate phase and will
-          // promote v.id / v.refId fields once it lands.
-          const first = parseTopList(data[`w${wIdx}_e0`]);
+          // RECORD-typed MQE (slow SQL / slow statements). Each sample
+          // carries the originating trace id (MQE `traceID`), forwarded so
+          // the row can show a jump-to-trace icon; the statement text is
+          // click-to-copy on the UI side.
+          const first = parseRecords(data[`w${wIdx}_e0`]);
           if (!first) return { id: widget.id, error: 'no data' };
           return {
             id: widget.id,
-            records: first.map((r) => ({ name: r.name, value: r.value })),
+            records: first.map((r) => ({
+              name: r.name,
+              value: r.value,
+              ...(r.traceId ? { traceId: r.traceId } : {}),
+            })),
           };
         }
 

@@ -36,7 +36,7 @@
       },
       {
         "title": "Requêtes lentes",
-        "tip": "Top 20 des statements les plus lents capturés. Chaque ligne est une exécution de statement unique — cliquer pour explorer la trace d'origine."
+        "tip": "Top 20 des statements les plus lents capturés. Chaque ligne est une exécution de statement unique — cliquer pour copier, ou utiliser l'icône de trace en tête de ligne pour ouvrir la trace d'origine (affichée uniquement lorsque l'échantillon en contient une)."
       }
     ]
   },

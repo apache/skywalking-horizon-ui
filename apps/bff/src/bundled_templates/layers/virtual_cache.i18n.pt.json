@@ -60,11 +60,11 @@
       },
       {
         "title": "Comandos de leitura lentos",
-        "tip": "Top 10 comandos de leitura mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+        "tip": "Top 10 comandos de leitura mais lentos capturados. Cada linha é uma execução única — clique para copiar, ou use o ícone de trace no início da linha para abrir o trace de origem (exibido apenas quando a amostra contém um)."
       },
       {
         "title": "Comandos de escrita lentos",
-        "tip": "Top 10 comandos de escrita mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+        "tip": "Top 10 comandos de escrita mais lentos capturados. Cada linha é uma execução única — clique para copiar, ou use o ícone de trace no início da linha para abrir o trace de origem (exibido apenas quando a amostra contém um)."
       }
     ]
   }

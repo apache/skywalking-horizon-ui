@@ -48,7 +48,7 @@
       },
       {
         "title": "Langsame Anweisungen",
-        "tip": "Top 20 langsamste erfasste Anweisungen. Jede Zeile ist eine einzelne Anweisungsausführung — klicken Sie, um in den auslösenden Trace einzutauchen.",
+        "tip": "Top 20 langsamste erfasste Anweisungen. Jede Zeile ist eine einzelne Anweisungsausführung — klicken Sie zum Kopieren, oder nutzen Sie das Trace-Symbol am Zeilenanfang, um den auslösenden Trace zu öffnen (nur sichtbar, wenn das Sample einen enthält).",
         "expressions": [
           null
         ]

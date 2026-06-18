@@ -39,7 +39,7 @@
       },
       {
         "title": "Statements lentos",
-        "tip": "Top 20 statements mais lentos capturados. Cada linha é uma execução única — clique para investigar o trace de origem."
+        "tip": "Top 20 statements mais lentos capturados. Cada linha é uma execução única — clique para copiar, ou use o ícone de trace no início da linha para abrir o trace de origem (exibido apenas quando a amostra contém um)."
       }
     ]
   }
