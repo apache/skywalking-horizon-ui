@@ -16,18 +16,12 @@
  */
 
 /**
- * Single source of truth for which RBAC verb gates each route.
- *
- *   - 'public'  → no auth, no verb (login / logout / health).
- *   - 'auth'    → authenticated session required, no verb check.
- *                 Used for routes the shell itself needs to render
- *                 (menu, oap-info, preflight, configs bundle, /me).
- *   - '<verb>'  → authenticated session + verb grant required.
- *
- * The `onRoute` hook in `server.ts` reads this table and attaches the
- * appropriate pre-handler to each registered route. Adding a new route
- * without a policy entry logs a warning at startup and defaults to
- * 'auth' (fail-safe: at least require login, never silently open).
+ * Single source of truth for the RBAC verb gating each route.
+ *   - 'public' → no auth (login / logout / health).
+ *   - 'auth'   → signed-in session, no verb (shell bootstrap routes).
+ *   - '<verb>' → signed-in session + that verb grant.
+ * The `onRoute` hook (server.ts) attaches the matching pre-handler. A
+ * missing `/api/*` entry hard-throws at boot — never silently open.
  */
 
 import type { FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
@@ -54,28 +48,30 @@ export function checkVerb(deps: AuthDeps, verb: string) {
   };
 }
 
-/** Routes keyed by `${METHOD} ${url}` (method uppercase, url as registered with `:param` placeholders). */
+/**
+ * Keyed by `${METHOD} ${url}` (url as registered, with `:param` placeholders).
+ * Grouped by the lowest built-in role that can reach each route:
+ * viewer ⊂ maintainer ⊂ operator ⊂ admin.
+ */
 export const ROUTE_POLICY: Record<string, RoutePolicy> = {
-  // ── Public (no auth) ─────────────────────────────────────────────
+  // ── Public — no auth ──
   'POST /api/auth/login':                          'public',
   'POST /api/auth/logout':                         'public',
   'GET /api/health':                               'public',
   'GET /api/auth/health':                          'public',
 
-  // ── Auth-only (every authenticated user) ─────────────────────────
-  // Anything the shell needs to render before the user lands anywhere.
+  // ── Authenticated — any signed-in user (shell bootstrap) ──
   'GET /api/auth/me':                              'auth',
   'GET /api/oap/info':                             'auth',
   'GET /api/menu':                                 'auth',
   'GET /api/preflight':                            'auth',
   'GET /api/configs/bundle':                       'auth',
 
-  // ── Alarms (read) ────────────────────────────────────────────────
+  // ── Viewer — read-only data catalog ──
   'GET /api/alarms':                               'alarms:read',
   'GET /api/alarms/count':                         'alarms:read',
   'GET /api/alarms/services':                      'alarms:read',
 
-  // ── Traces (read) ────────────────────────────────────────────────
   'POST /api/layer/:key/traces':                   'traces:read',
   'GET /api/trace/:traceId':                       'traces:read',
   'GET /api/trace-tags/keys':                      'traces:read',
@@ -89,7 +85,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/zipkin/autocomplete/values':           'traces:read',
   'GET /api/zipkin/traceMany':                     'traces:read',
 
-  // ── Logs (read) ──────────────────────────────────────────────────
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',
   'GET /api/log-tags/keys':                        'logs:read',
@@ -97,23 +92,16 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/pod-logs/containers':       'logs:read',
   'POST /api/layer/:key/pod-logs':                 'logs:read',
 
-  // ── Browser errors + source maps (#6784) ─────────────────────────
-  // Listing + resolving rides on the read verb; upload/delete of maps
-  // (which sit in BFF memory) needs the dedicated write verb.
   'POST /api/layer/:key/browser-errors':           'browser-errors:read',
   'GET /api/browser-errors/source-maps':           'browser-errors:read',
   'POST /api/browser-errors/resolve':              'browser-errors:read',
-  'POST /api/browser-errors/source-maps':          'source-map:write',
-  'DELETE /api/browser-errors/source-maps/:id':    'source-map:write',
 
-  // ── Topology (read) ──────────────────────────────────────────────
   'GET /api/layer/:key/topology':                  'topology:read',
   'GET /api/layer/:key/instance-topology':         'topology:read',
   'GET /api/layer/:key/deployment':                'topology:read',
   'GET /api/layer/:key/endpoint-dependency':       'topology:read',
   'GET /api/layer/:key/service-hierarchy':         'topology:read',
 
-  // ── Metrics & layer-level reads ──────────────────────────────────
   'POST /api/layer/:key/dashboard':                'metrics:read',
   'GET /api/layer/:key/dashboard/config':          'metrics:read',
   'POST /api/layer/:key/landing':                  'metrics:read',
@@ -121,66 +109,34 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/endpoints':                 'metrics:read',
   'GET /api/layer/:key/services':                  'metrics:read',
 
-  // ── Profiling — agent / async / pprof / eBPF / eBPF network ──────
-  // GETs + analyze are reads; POST <family>/tasks creates a task.
+  // Profiling reads — task-creation is operator (profile:enable) below.
   'GET /api/layer/:key/profile/tasks':             'profile:read',
-  'POST /api/layer/:key/profile/tasks':            'profile:enable',
   'GET /api/profile/tasks/:taskId/segments':       'profile:read',
   'GET /api/profile/tasks/:taskId/logs':           'profile:read',
   'POST /api/profile/analyze':                     'profile:read',
-
   'GET /api/layer/:key/async/tasks':               'profile:read',
-  'POST /api/layer/:key/async/tasks':              'profile:enable',
   'GET /api/async/tasks/:taskId/progress':         'profile:read',
   'POST /api/async/analyze':                       'profile:read',
-
   'GET /api/layer/:key/pprof/tasks':               'profile:read',
-  'POST /api/layer/:key/pprof/tasks':              'profile:enable',
   'GET /api/pprof/tasks/:taskId/progress':         'profile:read',
   'POST /api/pprof/analyze':                       'profile:read',
-
   'GET /api/layer/:key/ebpf/tasks':                'profile:read',
-  'POST /api/layer/:key/ebpf/tasks':               'profile:enable',
   'GET /api/ebpf/tasks/:taskId/schedules':         'profile:read',
   'POST /api/ebpf/analyze':                        'profile:read',
-  // eBPF network sub-family (extra surface beyond the cpu profiler).
   'GET /api/layer/:key/ebpf/network/tasks':        'profile:read',
-  'POST /api/layer/:key/ebpf/network/tasks':       'profile:enable',
   'GET /api/ebpf/network/tasks':                   'profile:read',
-  'POST /api/ebpf/network/tasks':                  'profile:enable',
   'GET /api/ebpf/network/topology':                'profile:read',
   'POST /api/layer/:key/ebpf/network/process-relation-metrics': 'profile:read',
-  'POST /api/ebpf/network/tasks/:taskId/keep-alive': 'profile:enable',
 
-  // ── Config — alarm-page setup, layer setup, overview, dashboards ─
-  'GET /api/alarms/config':                        'alarm-setup:read',
-  'POST /api/alarms/config':                       'alarm-setup:write',
-  'GET /api/infra-3d/config':                      'infra-3d:read',
-  'POST /api/infra-3d/metrics':                    'infra-3d:read',
-  'GET /api/setup':                                'setup:read',
-  'POST /api/setup':                               'setup:write',
   'GET /api/overview/dashboards':                  'overview:read',
   'GET /api/overview/dashboards/:id':              'overview:read',
-  'GET /api/admin/layer-templates':                'dashboard:read',
-  // POST /api/admin/layer-templates/:key removed — updates go through
-  // `/api/admin/templates/save` (OAP-backed). See template-sync.ts.
+  'GET /api/admin/templates/sync-status':          'overview:read',
+  'GET /api/admin/templates/:name/i18n/:locale':   'overview:read',
 
-  // ── DSL / OAL / MQE rules (admin operate) ────────────────────────
-  'GET /api/rule':                                 'rule:read',
-  'GET /api/rule/status':                          'rule:read',
-  'POST /api/rule':                                'rule:write',
-  'POST /api/rule/inactivate':                     'rule:write',
-  'POST /api/rule/delete':                         'rule:delete',
-  'GET /api/dump':                                 'rule:debug',
-  'GET /api/dump/:catalog':                        'rule:debug',
-  'GET /api/oal/files':                            'rule:read',
-  'GET /api/oal/files/:name':                      'rule:read',
-  'GET /api/oal/rules':                            'rule:read',
-  'GET /api/oal/rules/:source':                    'rule:read',
-  'GET /api/catalog/list':                         'rule:read',
-  'GET /api/catalog/bundled':                      'rule:read',
+  'GET /api/infra-3d/config':                      'infra-3d:read',
+  'POST /api/infra-3d/metrics':                    'infra-3d:read',
 
-  // ── Platform monitoring (read) ───────────────────────────────────
+  // ── Maintainer — platform-monitoring reads ──
   'GET /api/cluster/state':                        'cluster:read',
   'GET /api/inspect/metrics':                      'inspect:read',
   'GET /api/inspect/catalog':                      'inspect:read',
@@ -191,40 +147,22 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/oap/ttl':                              'ttl:read',
   'GET /api/oap/config':                           'config:read',
 
-  // ── Live debugger (admin operate) ────────────────────────────────
-  'POST /api/debug/session':                       'live-debug:write',
-  'GET /api/debug/session/:id':                    'live-debug:read',
-  'POST /api/debug/session/:id/stop':              'live-debug:write',
-  'GET /api/debug/sessions':                       'live-debug:read',
-  'GET /api/debug/status':                         'live-debug:read',
+  // ── Operator — config / dashboard / rule / diagnostics writes ──
+  'GET /api/setup':                                'setup:read',
+  'POST /api/setup':                               'setup:write',
+  'GET /api/alarms/config':                        'alarm-setup:read',
+  'POST /api/alarms/config':                       'alarm-setup:write',
 
-  // ── Alarm-rule catalog (admin read-only) ─────────────────────────
-  'GET /api/admin/alarm-rules':                    'alarm-rule:read',
-  'GET /api/admin/alarm-rules/:id':                'alarm-rule:read',
-  'GET /api/admin/alarm-rules/:id/context':        'alarm-rule:read',
+  'GET /api/admin/layer-templates':                'dashboard:read',
 
-  // ── Overview-template editor (admin) ─────────────────────────────
-  // The admin editor is an operate-only surface — even reading the
-  // template catalog here needs `overview:write` (operator / admin).
-  // Plain viewers/maintainers consume rendered overviews via
-  // `GET /api/overview/dashboards`, which stays `overview:read`.
+  // Overview-template editor + OAP UI-template sync. The editor catalog needs
+  // write even to read it; rendered overviews stay 'overview:read' above.
   'GET /api/admin/overview-templates':             'overview:write',
   'GET /api/admin/overview-templates/:id':         'overview:write',
   'POST /api/admin/overview-templates':            'overview:write',
-  // POST /api/admin/overview-templates/:id removed — operator updates
-  // now go through `/api/admin/templates/save` (OAP-backed). Bundled
-  // JSON is immutable at runtime.
   'DELETE /api/admin/overview-templates/:id':      'overview:write',
-
-  // ── Template sync (admin) — OAP UI-template REST overlay ─────────
-  // Read = anyone with overview:read can see status. Write actions
-  // (push-bundled, save, resync) need overview:write because save is
-  // the only path that mutates OAP UI-templates.
-  'GET /api/admin/templates/sync-status':          'overview:read',
-  'GET /api/admin/templates/:name/i18n/:locale':   'overview:read',
   'POST /api/admin/templates/resync':              'overview:write',
   'POST /api/admin/templates/resolve-conflicts':   'overview:write',
-  'POST /api/admin/templates/save':                'overview:write',
   'POST /api/admin/templates/save-translation':    'overview:write',
   'POST /api/admin/templates/delete-translation':  'overview:write',
   'POST /api/admin/templates/save-local':          'overview:write',
@@ -232,8 +170,46 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/admin/templates/revert-local':        'overview:write',
   'POST /api/admin/templates/:name/push-bundled':  'overview:write',
   'POST /api/admin/templates/sync-all':            'overview:write',
+  // `save` is gated 'auth'; the real per-kind verb (layer → dashboard:write,
+  // else → overview:write) is enforced in the handler before any OAP write.
+  'POST /api/admin/templates/save':                'auth',
 
-  // ── Auth/admin self-introspection ────────────────────────────────
+  'GET /api/rule':                                 'rule:read',
+  'GET /api/rule/status':                          'rule:read',
+  'GET /api/oal/files':                            'rule:read',
+  'GET /api/oal/files/:name':                      'rule:read',
+  'GET /api/oal/rules':                            'rule:read',
+  'GET /api/oal/rules/:source':                    'rule:read',
+  'GET /api/catalog/list':                         'rule:read',
+  'GET /api/catalog/bundled':                      'rule:read',
+  'POST /api/rule':                                'rule:write',
+  'POST /api/rule/inactivate':                     'rule:write',
+  'POST /api/rule/delete':                         'rule:delete',
+  'GET /api/dump':                                 'rule:debug',
+  'GET /api/dump/:catalog':                        'rule:debug',
+
+  'GET /api/debug/session/:id':                    'live-debug:read',
+  'GET /api/debug/sessions':                       'live-debug:read',
+  'GET /api/debug/status':                         'live-debug:read',
+  'POST /api/debug/session':                       'live-debug:write',
+  'POST /api/debug/session/:id/stop':              'live-debug:write',
+
+  'GET /api/admin/alarm-rules':                    'alarm-rule:read',
+  'GET /api/admin/alarm-rules/:id':                'alarm-rule:read',
+  'GET /api/admin/alarm-rules/:id/context':        'alarm-rule:read',
+
+  'POST /api/layer/:key/profile/tasks':            'profile:enable',
+  'POST /api/layer/:key/async/tasks':              'profile:enable',
+  'POST /api/layer/:key/pprof/tasks':              'profile:enable',
+  'POST /api/layer/:key/ebpf/tasks':               'profile:enable',
+  'POST /api/layer/:key/ebpf/network/tasks':       'profile:enable',
+  'POST /api/ebpf/network/tasks':                  'profile:enable',
+  'POST /api/ebpf/network/tasks/:taskId/keep-alive': 'profile:enable',
+
+  'POST /api/browser-errors/source-maps':          'source-map:write',
+  'DELETE /api/browser-errors/source-maps/:id':    'source-map:write',
+
+  // ── Admin — auth + user administration ──
   'GET /api/admin/auth-status':                    'auth:read',
   'POST /api/admin/auth-status/probe':             'auth:read',
   'GET /api/admin/users':                          'user:read',

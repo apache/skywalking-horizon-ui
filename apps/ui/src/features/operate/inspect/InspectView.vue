@@ -1053,6 +1053,8 @@ function buildOption(w: Widget): echarts.EChartsOption {
     grid: { left: 32, right: 6, top: showLegend ? 30 : 6, bottom: 18 },
     tooltip: {
       trigger: 'axis',
+      // Body-level so it isn't clipped by the card overflow or the sidebar.
+      appendToBody: true,
       backgroundColor: '#1c2630',
       borderWidth: 0,
       textStyle: { color: '#e6edf3', fontSize: 10.5, fontFamily: mono },

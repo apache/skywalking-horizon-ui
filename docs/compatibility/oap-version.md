@@ -2,7 +2,7 @@
 
 ## Native: OAP 11.x; partial support: OAP 10.x
 
-Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes v11. **OAP 10.x is partially supported**: the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) renders correctly because it only touches the query GraphQL port. Everything that lives on OAP's **admin port** — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync — depends on modules (`admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `inspect`) that only exist in v11. On v10 those sidebar entries are hidden and the admin pages fall back to bundled read-only.
+Horizon UI is **built natively against Apache SkyWalking OAP 11.x** — the full feature set assumes the modules and GraphQL fields that v11 ships. **OAP 10.x is partially supported**: the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) renders correctly because it only touches the query GraphQL port. Everything that lives on OAP's **admin port** — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync — depends on modules (`admin-server`, `receiver-runtime-rule`, `dsl-debugging`, `inspect`) that a v10 OAP does not run. Horizon never compares the OAP version number; it detects each module by its presence in OAP's config dump and probes the GraphQL schema for the fields it needs. When the admin-port modules are absent, those sidebar entries are hidden and the admin pages fall back to bundled read-only.
 
 Older 9.x OAPs are not supported — the layer concept, the MQE language baseline Horizon assumes, and the admin port layout all settled later.
 
@@ -24,7 +24,7 @@ Older 9.x OAPs are not supported — the layer concept, the MQE language baselin
 ### What "partial support on v10" means in practice
 
 - **Data-plane pages just work.** Dashboards, overviews, alarms (read), traces, logs, topology, and profiling all render on v10. The GraphQL query port (default `:12800`) is what they use, and the protocol is stable across both lines.
-- **Admin port is dark on v10.** The entire admin port (default `:17128`) is gone — `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, and `inspect` are v11-only. Anything that depends on them (Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync) is unavailable. The sidebar entries are hidden so operators don't see broken pages.
+- **Admin port is dark on v10.** The entire admin port (default `:17128`) is gone — `admin-server`, `receiver-runtime-rule`, `dsl-debugging`, and `inspect` are not run by a v10 OAP. Horizon detects this by their absence from the config dump, not by reading the version number; when those modules don't report, anything that depends on them (Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, OAP UI-template sync) is unavailable and the corresponding sidebar entries are hidden so operators don't see broken pages.
 - **MQE target resolution** falls back to OAP's `core.restHost`/`core.restPort` instead of the v11 `sharing-server.default.restPort` default. Works fine, just a different code path.
 - **Admin template editing** is read-only — the dashboard / overview / alert admin pages render bundled JSON and show the OAP-unreachable banner. Saves are blocked. Display still works.
 

@@ -11,7 +11,7 @@ Common scenarios:
 - **"What metrics does this OAP build expose?"** — search the catalog by regex, filter by metric type / catalog / MQE-queryable.
 - **"Does this metric have data?"** — for a chosen metric, list the entities currently reporting.
 - **"What's the right scope for this metric?"** — the catalog row shows the metric's scope (Service / ServiceInstance / Endpoint / Process / All); this is load-bearing when authoring widgets.
-- **"Which receiver populated this metric?"** — source attribution, when available, surfaces the originating module.
+- **"Which analysis rule defines this metric?"** — rule-source attribution, when available, surfaces the DSL rule file (OAL, MAL·OTEL, MAL·Telegraf, LAL→MAL, …) that defines the metric.
 
 ## Prerequisites
 
@@ -24,9 +24,7 @@ If any of these is missing, the page surfaces a hint banner directing the operat
 
 ## Catalog browser
 
-**Endpoint:** `GET /api/inspect/metrics?regex=<pattern>&type=<type>&catalog=<catalog>&mqeQueryable=<bool>`
-
-Filters:
+The catalog browser lists the metrics OAP exposes. Filters:
 
 | Filter | Notes |
 |---|---|
@@ -41,14 +39,12 @@ Each catalog row shows:
 - Type (counter, gauge, histogram, …).
 - Scope (Service, ServiceInstance, Endpoint, ServiceRelation, ServiceInstanceRelation, EndpointRelation, Process, All).
 - Catalog.
-- Source module (when surfaced).
+- Rule source / file (when surfaced) — which DSL rule file defines the metric.
 - A button to drop the metric into the entity enumerator.
 
 The list is virtualized — a typical OAP exposes hundreds of metrics; scrolling is smooth.
 
 ## Entity enumerator
-
-**Endpoint:** `GET /api/inspect/entities?metric=<name>&start=<...>&end=<...>&step=<DAY|HOUR|MINUTE>&limit=<n>`
 
 For a chosen metric, OAP returns the set of entities that have data in the window. Useful for:
 
@@ -56,7 +52,7 @@ For a chosen metric, OAP returns the set of entities that have data in the windo
 - Finding the exact entity id to use in an MQE expression.
 - Spotting metric-scope mismatches (a Service-scope metric will only return service entities, never instances).
 
-Time-format rules per `step` (UTC-interpreted on the OAP side):
+The page takes a browser-local time range and converts it; the strings are interpreted in the OAP server's timezone. Time-format rules per `step`:
 
 | step | date format |
 |---|---|

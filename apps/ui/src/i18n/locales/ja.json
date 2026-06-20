@@ -1292,6 +1292,8 @@
   "Select a container, then press Start to tail its logs.": "コンテナを選択し、「開始」を押してログをライブで追尾します。",
   "Dashboard setup · 3D Infra Map": "ダッシュボード設定 · 3D Infra Map",
   "3D Infrastructure Map": "3D インフラマップ",
+  "3D infrastructure map": "3D インフラマップ",
+  "See the 3D infrastructure map": "3D インフラマップを確認",
   "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.": "{mapPath} ビューの設定で、OAP に公開されます。レベルは垂直方向の積み重ねを制御し、レイヤーごとの色とメトリックが各キューブを表現します。編集内容は {localDraft} に保存され、{checkDiffPush} で OAP に公開されます。マップはリモート版を表示し、バンドルのデフォルトがフォールバックとなります。",
   "local draft in this browser": "このブラウザ内のローカル草稿",
   "editing: {source}": "編集中: {source}",

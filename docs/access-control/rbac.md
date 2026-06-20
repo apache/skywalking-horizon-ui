@@ -36,7 +36,8 @@ Known verbs are grouped into areas:
 | `overview:write` | Overview templates (`/admin/overview-templates`) and the 3D-map config (`/admin/3d-map`): edit / publish. |
 | `dashboard:read` / `dashboard:write` | Layer dashboard templates admin page: list / edit. |
 | `alarm-setup:read` / `alarm-setup:write` | Alarm Setup page: list / edit. |
-| `alarm-rule:read` / `alarm-rule:write` | Alarm Rule catalog: list / edit. |
+| `alarm-rule:read` | Alarm Rule catalog: list (read-only — alarm-rule edits go through the OAP alarm-rule YAML, not this page). |
+| `alarm-rule:write` | Reserved (the catalog is read-only; no write endpoint). |
 | `setup:read` / `setup:write` | Service / instance / endpoint setup pages. |
 | `rule:read` | DSL Management — list rules. |
 | `rule:write` | DSL Management — content edits (non-structural). |
@@ -96,7 +97,7 @@ Default definitions (used when `rbac.roles` is not overridden):
 Read-only data catalog. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or platform internals.
 
 ```
-metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read
+metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read
 ```
 
 ### `maintainer`

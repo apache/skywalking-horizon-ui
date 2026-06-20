@@ -13,7 +13,7 @@ session:
 
 | Field | Type | Default | Required | Notes |
 |---|---|---|---|---|
-| `ttlMinutes` | number | `60` | no | Session lifetime in minutes. Sessions are sliding: each request bumps `lastSeenAt`. A session that goes idle for longer than `ttlMinutes` is reaped and the next request returns 401. Positive integer. |
+| `ttlMinutes` | number | `60` | no | Session lifetime in minutes. Sessions are sliding: each authenticated request extends the session's last-seen time. A session that goes idle for longer than `ttlMinutes` is reaped and the next request returns 401. Positive integer. |
 | `cookieName` | string | `horizon_sid` | no | Name of the session cookie. Change only if you are running multiple Horizon instances on the same hostname / different paths and need distinct cookies. |
 | `cookieSecure` | boolean | `false` | no | When `true`, cookies carry the `Secure` flag (browser only sends over HTTPS). **Set to `true` in production behind a TLS terminator.** |
 
@@ -34,8 +34,7 @@ The cookie carries only a session id. The server-side session map holds username
 
 - In-memory `Map<sid, Session>`.
 - A background reaper (60 s interval) deletes expired sessions.
-- `sessions.touch(sid)` extends `lastSeenAt` on every authenticated request.
-- `sessions.get(sid)` is a read-without-touch path used by some identity-only checks.
+- Each authenticated request extends the session's last-seen time (sliding TTL). A few identity-only checks read the session without extending it.
 
 There is **no shared session store** between BFF instances. If you run multiple BFF replicas behind a load balancer, use sticky sessions, or accept that a failover causes a re-login.
 

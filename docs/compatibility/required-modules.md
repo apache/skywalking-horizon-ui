@@ -11,7 +11,7 @@ The admin-port endpoints are gated by per-module selectors on the OAP side. Hori
 
 | Module | OAP env-var | Min OAP | Endpoints Horizon hits | What breaks if disabled |
 |---|---|---|---|---|
-| **admin-server** | `SW_ADMIN_SERVER=default` | 11.x | `GET /debugging/config/dump`, `/ui-management/templates*` | Everything on the admin port. With admin-server off, all other admin-port selectors report `enabled: false` regardless of their actual state. The template-sync admin pages fall back to bundled read-only. |
+| **admin-server** | `SW_ADMIN_SERVER=default` | 11.x | `GET /debugging/config/dump`, `/ui-management/templates*` | Everything on the admin port. admin-server serves the config-dump endpoint itself, so with it off Horizon cannot read module state at all and reports every admin-port selector off (and OAP itself fails to start the other three admin modules). The template-sync admin pages fall back to bundled read-only. |
 | **receiver-runtime-rule** | `SW_RECEIVER_RUNTIME_RULE=default` | 11.x | `GET /runtime/rule/list`, `GET /runtime/rule`, `POST /runtime/rule/addOrUpdate`, `POST /runtime/rule/delete`, `GET /runtime/rule/bundled` | DSL Management page; alarm rule editor save/load; cluster-status rule matrix; Live Debugger rule picker; Inspect page source attribution. |
 | **dsl-debugging** | `SW_DSL_DEBUGGING=default` | 11.x | `GET /dsl-debugging/status`, `GET /status/alarm/*` | Live Debugger (MAL / LAL / OAL session start, poll, stop); cluster-status DSL health pane; alarm rule diagnostics. |
 | **inspect** | `SW_INSPECT=default` | 11.x | `GET /inspect/metrics`, `GET /inspect/entities` | Inspect page (returns 404 from OAP). |

@@ -655,7 +655,7 @@ const stats = computed(() => {
         <button class="btn" :disabled="!dirty" @click="save">
           {{ hasLocalDraft && !dirty ? t('Saved local') : t('Save local') }}
         </button>
-        <button class="btn primary" :disabled="readOnly || (!dirty && !hasLocalDraft)" @click="openPushDiff">
+        <button class="btn primary" :disabled="readOnly || dirty || !hasLocalDraft" @click="openPushDiff">
           {{ t('Check diff & push') }}
         </button>
       </div>
@@ -879,7 +879,7 @@ const stats = computed(() => {
     </template>
 
     <!-- ── Check diff & push ──────────────────────────────────────────── -->
-    <Modal :open="pushDiffOpen" :title="t('Push 3D-map config to OAP')" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+    <Modal :open="pushDiffOpen" :title="t('Push 3D-map config to OAP')" width="min(1100px, 94vw)" fit-body @close="pushDiffOpen = false">
       <div class="push-modal">
         <p class="push-lede">
           {{ t('Left = live on OAP (remote). Right = your local draft. Pushing replaces the OAP copy — the map renders it on the next visit.') }}
@@ -887,7 +887,9 @@ const stats = computed(() => {
         <ul v-if="pushErr && pushErr.length" class="issues">
           <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
         </ul>
-        <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
+        <div class="push-diff">
+          <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
+        </div>
       </div>
       <template #footer>
         <button class="btn" :disabled="pushing" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
@@ -987,7 +989,9 @@ export { parseHexColor };
 .reset-suffix { color: var(--sw-fg-3); font-size: 10px; }
 
 /* Push diff modal */
-.push-modal { display: flex; flex-direction: column; gap: 10px; min-width: min(1040px, 90vw); }
+.push-modal { display: flex; flex-direction: column; gap: 10px; min-width: min(1040px, 90vw); flex: 1; min-height: 0; }
+/* Definite height for the Monaco diff to fill (else it collapses). */
+.push-diff { flex: 1; min-height: 0; }
 .push-lede { font-size: 11.5px; color: var(--sw-fg-2); margin: 0; }
 
 /* Buttons */

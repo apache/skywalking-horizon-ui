@@ -1273,6 +1273,8 @@
   "Select a container, then press Start to tail its logs.": "Select a container, then press Start to tail its logs.",
   "Dashboard setup · 3D Infra Map": "Dashboard setup · 3D Infra Map",
   "3D Infrastructure Map": "3D Infrastructure Map",
+  "3D infrastructure map": "3D infrastructure map",
+  "See the 3D infrastructure map": "See the 3D infrastructure map",
   "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.": "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.",
   "local draft in this browser": "local draft in this browser",
   "editing: {source}": "editing: {source}",

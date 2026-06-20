@@ -31,6 +31,7 @@ export const VERBS = {
   browserErrorsRead: 'browser-errors:read',
   topologyRead: 'topology:read',
   profileRead: 'profile:read',
+  infra3dRead: 'infra-3d:read',
 
   // Operate writes
   ruleRead: 'rule:read',

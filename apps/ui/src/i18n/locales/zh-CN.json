@@ -1292,6 +1292,8 @@
   "Select a container, then press Start to tail its logs.": "选择一个容器，然后点击“开始”以实时查看其日志。",
   "Dashboard setup · 3D Infra Map": "仪表板设置 · 3D Infra Map",
   "3D Infrastructure Map": "3D 基础设施地图",
+  "3D infrastructure map": "3D 基础设施地图",
+  "See the 3D infrastructure map": "查看 3D 基础设施地图",
   "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.": "{mapPath} 视图的配置，发布到 OAP。层级（level）控制垂直堆叠；每个 layer 的颜色与指标决定对应方块的呈现。修改会保存到{localDraft}；{checkDiffPush}将其发布到 OAP —— 地图渲染的是远端版本，内置默认值作为兜底。",
   "local draft in this browser": "当前浏览器中的本地草稿",
   "editing: {source}": "正在编辑：{source}",

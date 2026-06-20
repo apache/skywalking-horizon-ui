@@ -161,7 +161,7 @@ spec:
             - name: state
               mountPath: /data
           readinessProbe:
-            httpGet: { path: /api/oap/info, port: 8081 }
+            httpGet: { path: /api/health, port: 8081 }
             periodSeconds: 10
       volumes:
         - name: config
@@ -327,11 +327,13 @@ Wire your platform's readiness probe to one of:
 
 | Endpoint | What it verifies |
 |---|---|
-| `GET /api/oap/info` | BFF is up **and** OAP query port is reachable. Strict — readiness gates on OAP. |
-| `GET /api/auth/health` | BFF is up + auth backend is healthy. Useful if you want readiness independent of OAP. |
-| TCP probe on 8081 | BFF process is listening. Loosest — does not verify OAP wiring. |
+| `GET /api/health` | **Recommended.** Public, unauthenticated, no OAP dependency — returns `{ status: "ok", version }` as soon as the BFF process is serving. Use this for both readiness and liveness. |
+| `GET /api/auth/health` | BFF is up + auth backend is healthy. Public. Useful if you want readiness to fold in auth-backend health. |
+| TCP probe on 8081 | BFF process is listening. Loosest — does not verify HTTP serving. |
 
-Liveness probes should be TCP-only (the BFF process is up). Wiring OAP into liveness creates a cascade failure when OAP blips.
+Do **not** point a probe at `GET /api/oap/info`: it is authenticated, so an unauthenticated probe gets HTTP 401 and the pod never becomes Ready. It is an in-app, authenticated OAP-reachability indicator, not a probe target.
+
+Liveness probes should use the public `GET /api/health` (or TCP-only on 8081). Wiring OAP reachability into liveness creates a cascade failure when OAP blips.
 
 ## Common mistakes
 

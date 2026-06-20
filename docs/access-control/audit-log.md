@@ -12,7 +12,7 @@ Each event has these fields:
 | `actor` | Username, or `null` for system events. |
 | `action` | Operation name, such as `auth.login` or `addOrUpdate`. |
 | `verb` | RBAC verb checked, when applicable. |
-| `target` | Resource id or name, when applicable. |
+| `target` | Reserved — currently unused. DSL mutations carry the rule name in `details.name` and the catalog in `details.catalog` instead. |
 | `outcome` | `success` / `ok` / `break-glass` for normal flows; the OAP `applyStatus` or `http_<code>` on an upstream failure. |
 | `details` | Extra context for the operation. |
 | `fromIp` | Requester IP. |
@@ -33,11 +33,11 @@ The recorded set can grow between releases. The current set:
 | `auth.login` | `success`, `failure` | Standard login. `details.backend` is `local` or `ldap`. On success `details.roles` carries the resolved role list. |
 | `auth.login.break-glass` | `break-glass` | Emergency admin login. Logged in addition to a WARN application log line. |
 | `auth.logout` | `success` | Explicit logout (cookie cleared). Sessions that simply expire are not logged. |
-| `addOrUpdate` | OAP `applyStatus`, or `http_<code>` on failure | DSL Management — create / update a rule. `target` is the rule name; `details.catalog` is the rule catalog (alarm, MAL, OAL, …). |
+| `addOrUpdate` | OAP `applyStatus`, or `http_<code>` on failure | DSL Management — create / update a rule. `details.name` is the rule name; `details.catalog` is the rule catalog (alarm, MAL, OAL, …). |
 | `inactivate` | OAP `applyStatus`, or `http_<code>` | DSL Management — deactivate a rule. |
 | `delete` | OAP `applyStatus`, or `http_<code>` | DSL Management — delete a rule. `details.mode` is the delete mode. |
-| `alarms.config.save` | `ok`, or an error status on failure | Alarm page setup save. |
-| `setup.save` | `success`, or an error status on failure | Per-user setup state write (service / instance / endpoint setup). |
+| `alarms.config.save` | `ok` | Alarm page setup save. Recorded on success only — an invalid payload is rejected before any audit entry. |
+| `setup.save` | `success` | Per-user setup state write (service / instance / endpoint setup). Recorded on success only — an invalid payload is rejected before any audit entry. |
 | `debug.start` | `ok`, or an error status on failure | Live Debugger — start a session. |
 | `debug.stop` | `ok`, or an error status on failure | Live Debugger — stop a session. |
 
@@ -96,9 +96,8 @@ The recorded set can grow between releases. The current set:
   "actor": "alice",
   "action": "addOrUpdate",
   "verb": "rule:write",
-  "target": "service_resp_time_rule",
   "outcome": "success",
-  "details": { "catalog": "alarm" },
+  "details": { "name": "service_resp_time_rule", "catalog": "alarm" },
   "fromIp": "10.0.5.12",
   "sessionId": "k7r..."
 }

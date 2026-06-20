@@ -4,9 +4,9 @@ Horizon talks to OAP on three ports. Two are required; one is only used if you s
 
 | Port | Protocol | OAP module | Horizon usage | Required |
 |---|---|---|---|---|
-| **12800** | HTTP / GraphQL | `query-graphql`, `sharing-server` | All metric, alarm, trace, log, topology, profiling reads. Cluster Status → Query pane. Menu / layer enumeration. MQE execution. `/status/cluster/nodes`. | **Yes.** |
+| **12800** | HTTP / GraphQL | `query-graphql`, `sharing-server` | All metric, alarm, trace, log, topology, profiling reads. Cluster Status → Query pane. Menu / layer enumeration. MQE execution. | **Yes.** |
 | **17128** | HTTP / REST | `admin-server` and its three sub-selectors | Runtime rule list / create / update / delete. DSL debugging. Inspect API. Config dump for module-activity probe. | **Yes** (for Cluster, Inspect, DSL Management, Live Debugger pages). |
-| **9412** | HTTP / Zipkin v2 REST | `query-zipkin` | Trace export endpoint when a layer is configured with `traces.source: zipkin` or `both`. | Only if using Zipkin trace source. |
+| **9412** | HTTP / Zipkin v2 REST | `query-zipkin` | Trace export endpoint when a layer is configured with `traces.source: zipkin` or `both`. Always probed for the Cluster Status → Zipkin/OTLP pane. | Functionally only when a layer's trace source is `zipkin` or `both`. |
 
 ## `horizon.yaml` configuration
 
@@ -88,8 +88,9 @@ For production deployment behind a TLS terminator:
 
 | Endpoint | Returns | Use case |
 |---|---|---|
-| `GET /api/oap/info` | OAP version, server timezone, current timestamp, health score, reachable bool | Topbar status chip; Cluster Status → Query pane. |
+| `GET /api/health` | `{ status: "ok", version }` — no auth, no OAP dependency | **Recommended** container liveness / readiness probe. |
+| `GET /api/oap/info` | OAP version, server timezone, current timestamp, health score, reachable bool | Authenticated, in-app reachability indicator (topbar status chip; Cluster Status → Query pane). Not a probe target. |
 | `GET /api/preflight` | Per-module enabled / disabled state from the OAP config dump | Cluster Status → Admin pane; sidebar "Operate" section visibility. |
 | `GET /api/auth/health` | Auth backend state (local / LDAP reachable / unreachable) | Login page chip; admin Auth Status page. |
 
-The first two together cover the OAP-side liveness; the third covers the auth-side liveness. Wire your container readiness probe to `GET /api/oap/info` if you want to gate ingress on OAP reachability, or skip readiness gating and let the UI surface the banner instead.
+Wire your container liveness and readiness probes to the public `GET /api/health` — it needs no auth and does not depend on OAP. Use `GET /api/auth/health` if you also want auth-backend health folded in. `GET /api/oap/info` is **auth-gated**, so an unauthenticated probe pointed at it always returns 401 and the pod never becomes Ready — use it only as an in-app reachability indicator, not a probe.

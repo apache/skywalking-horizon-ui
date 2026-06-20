@@ -12,7 +12,7 @@ Secret values are masked by OAP before Horizon displays them. Masked values appe
 
 ## Requirements
 
-- OAP 11.x.
+- A recent OAP that ships the admin-server module.
 - `SW_ADMIN_SERVER=default` on OAP.
 - The OAP admin port, usually `17128`, reachable from Horizon.
 - The logged-in user has `config:read`.

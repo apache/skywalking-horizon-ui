@@ -6,7 +6,7 @@ This page is the shortest path from "no Horizon" to "Horizon in front of a runni
 
 - Apache SkyWalking **OAP 11.x** (native). OAP 10.x runs the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) but the entire admin port — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and OAP UI-template sync — is v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the feature-vs-version matrix.
 - Network reachability from the Horizon BFF to the OAP query port (`:12800`) and admin port (`:17128`). See [Network Ports](../compatibility/ports.md).
-- Node.js 20+ for the binary tarball. Source builds also need pnpm 10+.
+- A recent LTS Node.js runtime for the binary tarball. Source builds also need pnpm (pinned via Corepack).
 
 ## Five-step start
 
@@ -123,7 +123,7 @@ HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./dist/static node dist/server.
 - [ ] `audit.file` writes to durable storage (not a container tmpfs).
 - [ ] `debugLog.enabled: false` (or rotate aggressively).
 - [ ] OAP credentials, LDAP bind password, and break-glass hash use `${ENV_VAR}` interpolation, not literal values.
-- [ ] Container readiness probe wired to `GET /api/oap/info` (or accept that the UI surfaces unreachable as a banner).
+- [ ] Container readiness probe wired to the public `GET /api/health` (not `/api/oap/info`, which is authenticated and returns 401 to an unauthenticated probe).
 
 ## Hot reload
 

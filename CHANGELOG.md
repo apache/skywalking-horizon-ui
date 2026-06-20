@@ -121,8 +121,19 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Selecting a low-traffic (below-cap) service now works on *every* tab**, not just the dashboard. Logs, traces, and endpoint-dependency resolved the picked service's name from the landing sample only — so a tail service queried as blank (and Logs even snapped the pick back to the top service). All per-layer tabs now resolve the name from the full roster, so a `low` service drills in everywhere.
 - **Profiling scopes no longer show an editor grid that goes nowhere.** Trace / eBPF / async profiling are built-in runtime views with nothing to author, so the admin now shows a "configured at runtime" note for them instead of a widget grid whose widgets never rendered.
 
+### Access control & permissions
+
+- The **Roles & Permissions** board now lists `infra-3d:read` — the permission to view the **3D Infrastructure Map** — under the data-catalog group, with a matching "3D infrastructure map" row in the menu-visibility matrix. It was already enforced and granted to every built-in role (viewer and up), but it never appeared on the board, so an admin couldn't see who held it.
+- Editing a **layer dashboard template** is now gated on the `dashboard:write` permission the editor already advertises; publishing overview, alert, and 3D-map configs stays on `overview:write`. The required permission is resolved per template kind at save time. Built-in roles are unaffected (`operator` and `admin` hold both), but a custom role granted only `dashboard:write` can now save layer dashboards.
+
+### Fixes
+
+- **Metrics Inspect** — the crosshair value tooltip is no longer clipped behind the navigation sidebar when you hover near a widget's left edge; it now renders above the page chrome.
+- **3D Infrastructure Map config** — "Check diff & push" now requires saving a local draft first (it was selectable while edits were still unsaved), and the push dialog renders the side-by-side before/after JSON diff instead of an empty panel.
+
 ### Documentation & release tooling
 
+- A further accuracy pass corrected the Cluster Status page (three panes — Query, Admin, Zipkin/OTLP — and no per-node member list), the Kubernetes readiness-probe guidance (point it at the public `/api/health`, not the authenticated `/api/oap/info`), the layer-template `components` default (only the service dashboard is on when a key is omitted) and the `aliases` authoring key, the removed `visibleWhen` free-text and embedded-i18n template shapes, and the data-retention cold-stage controls.
 - The website docs were brought current with the 0.6.0 build and the configuration pages restructured around the admin UI — the JSON shape is now a reference appendix, not an authoring surface (these admin pages are structured editors, not raw-JSON editors). Accuracy fixes span the RBAC verbs (incl. `infra-3d:read`), the audit-log action set, the Metrics Inspect API paths, the layer-template component flags, and the redesigned 3D-map config + loading stages. A new `docs/CLAUDE.md` records the doc-writing principles, and the i18n docs gain a language × scope coverage matrix plus a translation step in the add-a-layer recipe.
 - The container image is published to Docker Hub by CI on every `v*` tag; the post-vote finalize script now only verifies the published tags (the manual local-push fallback and Docker Hub login preflight were removed).
 

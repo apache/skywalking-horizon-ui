@@ -1292,6 +1292,8 @@
   "Select a container, then press Start to tail its logs.": "Selecciona un contenedor y pulsa Inicio para seguir sus logs en vivo.",
   "Dashboard setup · 3D Infra Map": "Configuración de paneles · 3D Infra Map",
   "3D Infrastructure Map": "3D Infrastructure Map",
+  "3D infrastructure map": "Mapa de infraestructura 3D",
+  "See the 3D infrastructure map": "Ver el mapa de infraestructura 3D",
   "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.": "Configuración de la vista {mapPath}, publicada en OAP. Los niveles controlan el apilado vertical; el color y las métricas de cada capa definen cada cubo. Las ediciones se guardan en un {localDraft}; {checkDiffPush} publica en OAP — el mapa muestra la versión remote, con los valores bundled como respaldo.",
   "local draft in this browser": "borrador local en este navegador",
   "editing: {source}": "editando: {source}",

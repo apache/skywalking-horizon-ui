@@ -1292,6 +1292,8 @@
   "Select a container, then press Start to tail its logs.": "컨테이너를 선택한 다음 시작을 눌러 로그를 실시간으로 확인하세요.",
   "Dashboard setup · 3D Infra Map": "대시보드 설정 · 3D Infra Map",
   "3D Infrastructure Map": "3D 인프라 맵",
+  "3D infrastructure map": "3D 인프라 맵",
+  "See the 3D infrastructure map": "3D 인프라 맵 보기",
   "Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback.": "OAP에 게시되는 {mapPath} 화면의 설정입니다. 레벨은 수직 적층 순서를 정하고, 각 큐브는 레이어별 색상과 메트릭으로 표현됩니다. 편집 내용은 {localDraft}에 저장되며, {checkDiffPush}로 OAP에 게시합니다 — 맵은 원격 버전을 렌더링하고 번들 기본값을 폴백으로 사용합니다.",
   "local draft in this browser": "이 브라우저의 로컬 초안",
   "editing: {source}": "편집 중: {source}",

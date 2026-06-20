@@ -55,6 +55,7 @@ import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
+import { sessionHasVerb } from '../../rbac/policy.js';
 import {
   createAndConfirm,
   updateAndConfirm,
@@ -557,6 +558,18 @@ export function registerTemplateSyncAdminRoutes(
         code: 'invalid_template_name',
         message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
       });
+    }
+    // Per-kind write authority (route is gated `auth`; the real verb check
+    // is here, before any validation or OAP write). A layer-template save is
+    // gated on `dashboard:write` — the verb the layer-dashboard editor
+    // advertises; every other kind on `overview:write`.
+    const saveVerb = parsed.kind === 'layer' ? 'dashboard:write' : 'overview:write';
+    const session = req.session;
+    if (!session) {
+      return reply.code(401).send({ error: 'unauthenticated' });
+    }
+    if (!sessionHasVerb(deps.config.current, session.roles, saveVerb)) {
+      return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
     }
     // Per-kind content validation. The envelope machinery is content-opaque,
     // so the 3D-map config (the one kind with a strict structural schema)

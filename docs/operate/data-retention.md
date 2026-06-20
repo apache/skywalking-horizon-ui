@@ -10,10 +10,19 @@ The page has two sections:
 
 | Section | What it means |
 |---|---|
-| Records | Event-style data such as traces, Zipkin traces, logs, and browser error logs. |
+| Records | Event-style data such as Normal records, traces, Zipkin traces, logs, and browser error logs. |
 | Metrics | Aggregated metric tiers: minute, hour, day, and metadata when the OAP backend exposes it. |
 
-Values are shown in days. A cold value means BanyanDB cold-stage retention. `no cold stage` means the connected OAP has no cold storage stage for that data class.
+Values are shown in days.
+
+## Stages
+
+Retention is reported in two stages:
+
+- **HOT + WARM** — the default view, the collapsed value OAP returns for each data class.
+- **COLD** — a separate cold-storage stage, present only on a BanyanDB backend. When the backend exposes it, the page renders a **Data lifecycle** bar; otherwise the page shows a single uniform stage and no cold pane.
+
+On a BanyanDB backend, a **cold-stage** toggle appears in the topbar. Enabling it switches reads to cold-only, so recent windows go empty — pick an older time range when the toggle is on. `no cold stage` next to a value means the connected OAP has no cold storage stage for that data class.
 
 ## Requirements
 

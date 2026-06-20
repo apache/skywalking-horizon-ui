@@ -14,7 +14,7 @@ There is **one template per layer**. Horizon ships bundled templates for the com
   "visibility": "public",
   "color": "var(--sw-accent)",
   "documentLink": "https://skywalking.apache.org/docs/main/next/en/concepts-and-designs/scopes/",
-  "slots": { ... },
+  "aliases": { ... },
   "components": { ... },
   "header": { ... },
   "dashboards": {
@@ -50,8 +50,8 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 | `visibility` | `public` \| `operate` | `public` | Section placement. `operate` puts the layer under the Operate group. |
 | `color` | string | `var(--sw-accent)` | Hex or CSS variable for the layer's accent. |
 | `documentLink` | string (URL) | — | External docs URL; renders as a small chip on the layer page. |
-| `slots` | object | OAP defaults | Per-layer entity term overrides (see below). |
-| `components` | object | all-`true` | Which sub-tabs are enabled (see below). |
+| `aliases` | object | OAP defaults | Per-layer entity term overrides (see below). `slots` is an accepted legacy alias for this key. |
+| `components` | object | — | Which sub-tabs are enabled (see below). Every tab except the service dashboard is off unless explicitly set `true`. |
 | `header` | object | — | Service-list picker columns + default sort. |
 | `dashboards` | object | — | Per-scope widget arrays (the bulk of the template). |
 | `topology` | object | — | Topology MQE override for the service-map view. |
@@ -60,12 +60,12 @@ Every field is optional except `key`. Defaults are baked in for the rest.
 | `log` | object | — | Logs tab scope (service / instance / endpoint). |
 | `naming` | object | — | Service-name parsing rule (extracts cluster or other tokens from the OAP-reported name). |
 
-## `slots`
+## `aliases`
 
-Layer-specific term overrides used in UI labels.
+Layer-specific term overrides used in UI labels. (`slots` is an accepted legacy alias for this key; every bundled template uses `aliases`.)
 
 ```json
-"slots": {
+"aliases": {
   "services":         "services",
   "instances":        "instances",
   "endpoints":        "endpoints",
@@ -98,7 +98,7 @@ Per-tab feature toggles. A `false` value hides the tab.
 }
 ```
 
-The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available; any key omitted defaults to enabled. The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instances → endpoints → endpointDependency → topology → traces → logs → traceProfiling`.
+The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also available. Only the **service** dashboard is on when its key is omitted; every other tab is **off unless explicitly set `true`** — the bundled templates enable each tab they want (`general.json` sets every flag `true` for exactly this reason). The landing tab when a layer is clicked is the **first enabled** in the priority order `service → instances → endpoints → endpointDependency → topology → traces → logs → traceProfiling`.
 
 `deployment` is the exception: it is **off by default** and only appears when the layer also carries a [`deployment`](#deployment) config block — see [Deployment](#deployment) below.
 
@@ -212,7 +212,7 @@ A layer without an explicit `instance` widget set will reuse `service` widgets o
 | `format` | Numeric formatting: `int`, `decimal`, `compact` (K / M suffixes). |
 | `span` | Column span in the 12-col grid. Default 4 = three widgets per row. |
 | `rowSpan` | Vertical span. Default 1 (one 120 px row). |
-| `visibleWhen` | Predicate. Two supported shapes: `#entity.<key>` (truthy if the named entity key is set; e.g. `#entity.serviceInstance` to show only when an instance is selected) and `<metric> has value` (only show if the metric returns data). |
+| `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` shows the widget only when the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` shows it only when the selected entity has that attribute — entity gates are Instance-scope only. |
 | `layerScope` | If true, MQE evaluates against the whole layer rather than the selected service. Used for layer-level summaries on the service page. |
 
 ### Choosing `type`

@@ -92,10 +92,9 @@ Renders a read-only board of roles × verbs as a check-mark grid. The intent is 
 
 Layout:
 
-- **Left rail**: verb areas (`metrics`, `alarms`, `rule`, etc.).
-- **Main grid**: rows = areas, columns = roles, cells = check marks per verb in that area.
-- **Header strip**: built-in roles flagged distinctly from custom roles.
-- **Footer**: legend explaining the four grant patterns (`*`, exact, `area:*`, `*:read`).
+- **Menu visibility matrix**: which sidebar destinations each role can see — sidebar item × role.
+- **Per-area cards**: one card per feature area (Data catalog, Platform monitoring, Layer dashboards, …). Each pairs a **scope** list (the screens that area governs) with an **Actions** grid of roles × capabilities, check-marked where the role holds the verb.
+- Any verb not yet placed in an area falls into an **Other** card, so nothing is silently dropped.
 
 A red banner appears when `rbac.enabled: false` — the page warns that every authenticated session is granted `*`.
 

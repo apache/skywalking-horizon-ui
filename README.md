@@ -22,16 +22,16 @@ Full docs ship at [skywalking.apache.org → Horizon UI](https://skywalking.apac
 - **Trace explorer** — duration scatter, sortable list, waterfall with per-span service / kind / error highlighting.
 - **Log explorer** — chip filters, saved views, facets sidebar, timeline brush, mixed JSON / YAML / raw payload tree, top patterns roll-up.
 - **Alarms** — active alarms only, read-only (no acknowledge / close — recovery is backend-driven), with a Live Debug panel for MQE expressions.
-- **Admin** — local + LDAP auth, RBAC (4 built-in roles, 28 verbs), audit log, layer admin, system / OAP cluster health, 5 bundled themes (Horizon · Meridian · Obsidian · Daybreak · Aurora).
+- **Admin** — local + LDAP auth, RBAC (4 built-in roles, fine-grained verbs), audit log, layer admin, system / OAP cluster health, 5 bundled themes (Horizon · Meridian · Obsidian · Daybreak · Aurora).
 - **Profiling** — flame graphs over trace-based / async-profiler / eBPF / pprof data.
 
 ## Tech stack
 
-Vue 3 + TypeScript on Vite 5, Pinia, vue-router 4, Apache ECharts 6, D3 v7, vue-grid-layout, d3-flame-graph, Monaco, Vitest. The BFF is Fastify on Node 20+.
+Vue 3 + TypeScript on Vite, Pinia, vue-router 4, Apache ECharts 6, D3 v7, vue-grid-layout, d3-flame-graph, Monaco, Vitest. The BFF is Fastify on Node.js.
 
 ## Development
 
-Requires Node.js 20+ and pnpm 10+ (pinned via Corepack).
+Requires a recent LTS Node.js and pnpm (pinned via Corepack).
 
 ```bash
 pnpm install                     # one-time / after lockfile changes

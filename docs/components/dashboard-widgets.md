@@ -28,7 +28,7 @@ Five widget types render on per-layer dashboards. Each `widget.type` you set in 
 | `format` | `int`, `decimal`, `compact`. |
 | `tableHeaders` | `table` only — `[, valueHeader]`; the value column's header. Label columns are headed by their dimension name. |
 | `showTableValues` | `table` only — show the value column. `false` for presence-only lists (e.g. node conditions). Default `true`. |
-| `visibleWhen` | Predicate. `#entity.<key>` (hides the widget unless the named entity is selected) or `<metric> has value` (hides unless the metric returns data). |
+| `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` hides the widget unless the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` hides it unless the selected entity has that attribute (Instance-scope only). |
 | `layerScope` | Evaluate against the whole layer rather than the selected service. |
 
 ## `card`
@@ -208,13 +208,12 @@ Renders columns `Condition | Node` (one per label key). A widget like Deployment
 
 ## Visibility predicates
 
-`visibleWhen` lets a widget hide itself based on context:
+`visibleWhen` lets a widget hide itself based on context. It takes a structured object in one of two forms:
 
-- `#entity.serviceInstance` — only show when an instance is selected. Useful for "instance details" widgets on the service page that should not render at the service-only level.
-- `#entity.endpoint` — only show when an endpoint is selected.
-- `<metric-name> has value` — only show when the named metric returns non-null data. Useful for layer-conditional widgets (e.g. JVM metrics only on JVM-based services).
+- **MQE gate** — `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" | "gt" | "lt", "value"?: <n> }`. With `op: "exists"` the widget shows only when the expression returns non-null data (e.g. JVM metrics only on JVM-based services); `gt` / `lt` compare the result against `value`.
+- **Entity gate** — `{ "kind": "entity", "attribute": "<attr>", "op": "exists" | "eq", "value"?: "<v>" }`. Shows the widget only when the selected entity carries that attribute (`exists`) or matches `value` (`eq`). Entity gates are Instance-scope only — use them for "instance details" widgets on the service page that should not render at the service-only level.
 
-The predicate is evaluated on every data refresh; the widget disappears (rather than rendering empty) when the predicate is false.
+The predicate is evaluated on every data refresh; the widget disappears (rather than rendering empty) when it does not hold.
 
 ## Layer scope
 
