@@ -33,10 +33,10 @@
  * vue-query key AND passes `refresh=true` to the catalog + mqe-target
  * endpoints so the BFF rebuilds its attribution / dump caches.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch, watchEffect } from 'vue';
+import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useQuery, useQueryClient } from '@tanstack/vue-query';
-import * as echarts from 'echarts';
+import InspectMetricChart from './InspectMetricChart.vue';
 import {
   INSPECT_STEPS,
   type EntitiesResponse,
@@ -975,168 +975,6 @@ async function refreshEverything() {
   );
 }
 
-// ─── ECharts wiring ────────────────────────────────────────────────
-
-const chartHosts = ref<Record<string, HTMLDivElement | null>>({});
-const chartInstances = new Map<string, echarts.ECharts>();
-
-function setChartHost(id: string, el: HTMLDivElement | null) {
-  /* When the chart container unmounts (loading / error state took
-   * over via v-else-if), the echarts instance is still bound to the
-   * now-removed DOM element. Dispose it here so the next mount gets
-   * a fresh instance bound to the new node — otherwise `setOption`
-   * lands on a detached canvas and the chart silently goes dark. */
-  if (el === null) {
-    const old = chartInstances.get(id);
-    if (old) {
-      old.dispose();
-      chartInstances.delete(id);
-    }
-  }
-  chartHosts.value[id] = el;
-}
-
-const PALETTE = [
-  '#6db4d6', '#4ec9b0', '#f0b454', '#b794e4', '#ff7a90',
-  '#9ad17a', '#e29ec8', '#6c8ee0', '#d8a064', '#73d4cc',
-];
-
-function buildOption(w: Widget): echarts.EChartsOption {
-  if (!w.result || w.result.results.length === 0) return {};
-  const mono = 'JetBrains Mono, ui-monospace, monospace';
-  /* MQE returns per-series values with an `id` field that is the
-   * time-bucket label; use it as the x-axis category. We dedupe ids
-   * across series so the axis is consistent when one series has
-   * gaps. */
-  const xSet = new Set<string>();
-  for (const r of w.result.results) {
-    for (const v of r.values) {
-      if (v.id) xSet.add(v.id);
-    }
-  }
-  const xAxis = [...xSet].sort();
-
-  const series: echarts.EChartsOption['series'] = w.result.results.map((r, idx) => {
-    const color = PALETTE[idx % PALETTE.length];
-    const byId = new Map(r.values.map((v) => [v.id ?? '', v.value]));
-    const data = xAxis.map((id) => {
-      const raw = byId.get(id);
-      return raw === null || raw === undefined ? null : Number.parseFloat(raw);
-    });
-    const name = r.metric.labels.length > 0
-      ? r.metric.labels.map((l) => `${l.key}=${l.value}`).join('·')
-      : (w.metric.name);
-    if (w.chart === 'bar') {
-      return { name, type: 'bar', data, itemStyle: { color }, barMaxWidth: 10 };
-    }
-    /* Always render the marker. With `showSymbol: false` a single
-     * non-null point (or any non-null surrounded by nulls) draws
-     * nothing — the line has no segment, no dot, the value goes
-     * invisible. Small symbol keeps dense series readable while the
-     * sparse case still surfaces every value. */
-    return {
-      name,
-      type: 'line',
-      data,
-      smooth: true,
-      showSymbol: true,
-      symbolSize: 4,
-      connectNulls: false,
-      lineStyle: { width: 1.5, color },
-      itemStyle: { color },
-      areaStyle: w.chart === 'area' ? { color, opacity: 0.14 } : undefined,
-    };
-  });
-
-  const showLegend = series.length > 1;
-  return {
-    grid: { left: 32, right: 6, top: showLegend ? 30 : 6, bottom: 18 },
-    tooltip: {
-      trigger: 'axis',
-      // Body-level so it isn't clipped by the card overflow or the sidebar.
-      appendToBody: true,
-      backgroundColor: '#1c2630',
-      borderWidth: 0,
-      textStyle: { color: '#e6edf3', fontSize: 10.5, fontFamily: mono },
-    },
-    legend: showLegend
-      ? {
-          top: 0, left: 0, right: 0, type: 'scroll',
-          textStyle: { color: '#c2cbd4', fontSize: 11, fontFamily: mono },
-          itemHeight: 8, itemWidth: 14, itemGap: 16,
-          // Active page direction bright; the unavailable one (e.g. the
-          // left arrow on page 1) clearly dim so it doesn't read as
-          // clickable.
-          pageIconColor: '#c2cbd4',
-          pageIconInactiveColor: '#3a4651',
-          pageIconSize: 11,
-          pageTextStyle: { color: '#8a96a3', fontSize: 10 },
-        }
-      : undefined,
-    xAxis: {
-      type: 'category',
-      data: xAxis,
-      axisLine: { lineStyle: { color: '#232f39' } },
-      axisLabel: { color: '#5e6c79', fontSize: 9, hideOverlap: true, fontFamily: mono },
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      axisTick: { show: false },
-      splitLine: { lineStyle: { color: '#1c2630' } },
-      axisLabel: { color: '#5e6c79', fontSize: 9, fontFamily: mono },
-    },
-    series,
-    animationDuration: 250,
-  };
-}
-
-function renderWidget(w: Widget) {
-  const host = chartHosts.value[w.id];
-  if (!host) return;
-  let inst = chartInstances.get(w.id);
-  if (!inst) {
-    inst = echarts.init(host, undefined, { renderer: 'canvas' });
-    chartInstances.set(w.id, inst);
-  }
-  inst.setOption(buildOption(w), true);
-}
-function renderAll() {
-  for (const w of widgets.value) renderWidget(w);
-}
-function resizeAll() {
-  for (const inst of chartInstances.values()) inst.resize();
-}
-
-watch(widgets, async () => {
-  await nextTick();
-  renderAll();
-  const live = new Set(widgets.value.map((w) => w.id));
-  for (const [id, inst] of chartInstances) {
-    if (!live.has(id)) {
-      inst.dispose();
-      chartInstances.delete(id);
-    }
-  }
-}, { deep: true });
-
-watch(density, async () => {
-  await nextTick();
-  resizeAll();
-  renderAll();
-});
-
-onMounted(async () => {
-  await nextTick();
-  renderAll();
-  window.addEventListener('resize', resizeAll);
-});
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', resizeAll);
-  for (const inst of chartInstances.values()) inst.dispose();
-  chartInstances.clear();
-});
-
 // ─── Display helpers ───────────────────────────────────────────────
 
 function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
@@ -1444,10 +1282,12 @@ function scopeShort(scope: InspectScope): string {
             <div v-else-if="w.error" class="card__empty card__empty--err">
               <div class="card__empty-text">{{ w.error }}</div>
             </div>
-            <div
+            <InspectMetricChart
               v-else-if="w.selectedIds.size > 0 && w.result && w.result.results.length > 0"
-              :ref="(el) => setChartHost(w.id, el as HTMLDivElement)"
-              class="card__chart"
+              :result="w.result"
+              :chart="w.chart"
+              :step="step"
+              :metric-name="w.metric.name"
             />
             <div v-else class="card__empty">
               <div class="card__empty-icon">∅</div>
@@ -1918,7 +1758,6 @@ function scopeShort(scope: InspectScope): string {
 .link:hover { text-decoration: underline; }
 
 .card__chartwrap { min-height: var(--chart-h, 150px); position: relative; }
-.card__chart { width: 100%; height: var(--chart-h, 150px); }
 .card__empty {
   height: var(--chart-h, 150px);
   display: flex;

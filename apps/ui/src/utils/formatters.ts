@@ -16,6 +16,20 @@
  */
 
 /**
+ * Time-axis label for a metric bucket at epoch-ms `ms`, formatted browser-local
+ * for the query `step`. Shared by the layer-dashboard line widgets and the
+ * Metrics Inspect board so both read identically:
+ * DAY → `MM-DD`, HOUR → `MM-DD HH:00`, MINUTE → `HH:MM`.
+ */
+export function bucketTimeLabel(step: 'MINUTE' | 'HOUR' | 'DAY', ms: number): string {
+  const d = new Date(ms);
+  const z = (n: number) => String(n).padStart(2, '0');
+  if (step === 'DAY') return `${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+  if (step === 'HOUR') return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:00`;
+  return `${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+
+/**
  * Compact-readable formatter for landing-card numeric cells.
  *
  * Rules:
