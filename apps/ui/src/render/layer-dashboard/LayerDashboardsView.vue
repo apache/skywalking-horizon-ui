@@ -52,7 +52,6 @@ import { useSetupStore } from '@/state/setup';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { FF_ENTITY_COMPARE } from '@/utils/featureFlags';
 import { useEntityPalette } from '@/utils/useEntityPalette';
 import { serviceBaseName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 import {
@@ -423,7 +422,6 @@ const compareScope = computed<CompareScope | null>(() => {
   return null;
 });
 const activeSet = computed<string[]>(() => {
-  if (!FF_ENTITY_COMPARE) return [];
   if (compareScope.value === 'service') return lockedServiceIds.value;
   if (compareScope.value === 'instance') return lockedInstanceNames.value;
   if (compareScope.value === 'endpoint') return lockedEndpointNames.value;
@@ -468,7 +466,7 @@ const {
   scopePrimaryKey,
 );
 
-const compareMode = computed(() => FF_ENTITY_COMPARE && compareActive.value);
+const compareMode = computed(() => compareActive.value);
 // In compare mode the tiles render from the per-entity fan-out, not the
 // primary `q` — so widget "no data" fallbacks must consult cohort progress
 // (entities arrived/total), not `isFetching` (the primary query only).
@@ -682,8 +680,7 @@ function hasMultiTopData(wid: string): boolean {
   return compareEntities.value.some((e) => topItemsFor(wid, e).length > 0);
 }
 // Instance/endpoint row lock pins (service-scope locking lives in the
-// shell). Shown behind the flag; cap-guarded per scope.
-const compareLockable = computed(() => FF_ENTITY_COMPARE);
+// shell). Cap-guarded per scope.
 const instAtCap = computed(() => lockedInstanceNames.value.length >= MAX_LOCKED);
 const epAtCap = computed(() => lockedEndpointNames.value.length >= MAX_LOCKED);
 
@@ -881,11 +878,10 @@ function isHidden(id: string): boolean {
         <li
           v-for="i in instanceList"
           :key="i.id"
-          class="ib-row"
-          :class="{ on: selectedInstance === i.name, 'has-lock': compareLockable }"
+          class="ib-row has-lock"
+          :class="{ on: selectedInstance === i.name }"
         >
           <button
-            v-if="compareLockable"
             type="button"
             class="ib-lock"
             :class="{ locked: isInstanceLocked(i.name) }"
@@ -993,11 +989,10 @@ function isHidden(id: string): boolean {
           <li
             v-for="e in endpointList"
             :key="e.id"
-            class="ib-row"
-            :class="{ on: selectedEndpoint === e.name, 'has-lock': compareLockable }"
+            class="ib-row has-lock"
+            :class="{ on: selectedEndpoint === e.name }"
           >
             <button
-              v-if="compareLockable"
               type="button"
               class="ib-lock"
               :class="{ locked: isEndpointLocked(e.name) }"
