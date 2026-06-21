@@ -55,6 +55,7 @@ import {
   type Window,
 } from '../../util/window.js';
 import { widgetsForScope } from '../../logic/layers/loader.js';
+import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
 
@@ -595,53 +596,58 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         reachable: true,
       };
 
-      // Step 1 — resolve service. We always probe `listServices` so the
-      // correct `normal` flag rides along with the service entity. Some
-      // layers (VIRTUAL_MQ, VIRTUAL_DATABASE, VIRTUAL_CACHE, AWS_*) use
-      // `normal: false` services — without this look-up every MQE on
-      // those layers comes back null because the entity-scope filter
-      // doesn't match the data dimension OAP stored them under.
-      try {
-        const data = await graphqlPost<{
-          services: Array<{ id: string; name: string; normal: boolean; group?: string | null }>;
-        }>(opts, LIST_FIRST_SERVICE, { layer: layerKey.toUpperCase() });
-        const all = data.services ?? [];
-        // `?group=` (split-by-service-group menu entry) constrains the
-        // auto-pick default to that OAP Service.group; an explicit
-        // `service` is honored regardless of group.
-        const group = (req.query as { group?: string }).group;
+      // Step 1 — resolve service. The `normal` flag has to ride along with
+      // the service entity: some layers (VIRTUAL_MQ, VIRTUAL_DATABASE,
+      // VIRTUAL_CACHE, AWS_*) use `normal: false` services, and without it
+      // every MQE on those layers comes back null because the entity-scope
+      // filter doesn't match the dimension OAP stored them under.
+      //
+      // Read the shared per-layer catalog first (60s TTL, kept warm by the
+      // sidebar) so the common case needs no per-dashboard `listServices`.
+      // Fall back to a live `listServices` on a miss — a cold/empty
+      // snapshot, a just-registered service, or OAP being unreachable: the
+      // catalog soft-fails to empty, so only the live probe tells
+      // "unreachable" (reachable:false) apart from "no such service".
+      //
+      // `?group=` (split-by-service-group menu entry) constrains the
+      // auto-pick default to that OAP Service.group; an explicit `service`
+      // is honored regardless of group.
+      const group = (req.query as { group?: string }).group;
+      type PickRow = { id: string; name: string; normal: boolean | null; group?: string | null };
+      const pick = (all: PickRow[]): PickRow | undefined => {
+        if (serviceName) return all.find((s) => s.name === serviceName) ?? all.find((s) => s.id === serviceName);
         const inGroup = group === undefined ? all : all.filter((s) => (s.group ?? '') === group);
-        let picked: { id: string; name: string; normal: boolean } | undefined;
-        if (serviceName) {
-          picked = all.find((s) => s.name === serviceName) ?? all.find((s) => s.id === serviceName);
-          if (!picked) {
-            return reply.send({
-              ...baseResp,
-              service: serviceName,
-              widgets: widgets.map((w) => ({ id: w.id, error: `service "${serviceName}" not in layer` })),
-            });
-          }
-        } else {
-          picked = inGroup[0];
-          if (!picked) {
-            return reply.send({
-              ...baseResp,
-              widgets: widgets.map((w) => ({ id: w.id, error: 'no service in layer' })),
-            });
-          }
+        return inGroup[0];
+      };
+      let picked = pick((await serviceLayerCatalog(deps).get()).byLayer.get(layerKey.toUpperCase()) ?? []);
+      if (!picked) {
+        try {
+          const data = await graphqlPost<{ services: PickRow[] }>(opts, LIST_FIRST_SERVICE, {
+            layer: layerKey.toUpperCase(),
+          });
+          picked = pick(data.services ?? []);
+        } catch (err) {
+          return reply.send({
+            ...baseResp,
+            reachable: false,
+            error: err instanceof Error ? err.message : String(err),
+            widgets: widgets.map((w) => ({ id: w.id, error: 'oap unreachable' })),
+          });
         }
-        serviceName = picked.name;
-        serviceId = picked.id;
-        normal = picked.normal !== false;
-        baseResp.service = serviceName;
-      } catch (err) {
-        return reply.send({
-          ...baseResp,
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-          widgets: widgets.map((w) => ({ id: w.id, error: 'oap unreachable' })),
-        });
+        if (!picked) {
+          return reply.send({
+            ...baseResp,
+            widgets: widgets.map((w) => ({
+              id: w.id,
+              error: serviceName ? `service "${serviceName}" not in layer` : 'no service in layer',
+            })),
+          });
+        }
       }
+      serviceName = picked.name;
+      serviceId = picked.id;
+      normal = picked.normal !== false;
+      baseResp.service = serviceName;
 
       // Step 1b — auto-pick instance/endpoint when scope requires one
       // but the caller didn't pass one. Without this, the first paint
@@ -936,10 +942,16 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         return { id: widget.id, series: flat };
       };
 
+      // Reachability now follows the data batch, not Step 1: a warm catalog hit
+      // skips the Step-1 OAP probe, so "every batched widget failed" is the
+      // OAP-down tell — flip `reachable` so the UI's outage banner still fires.
+      const oapUnreachable = batchWidgets.length > 0 && failedWidgetIdx.size === batchWidgets.length;
       const results: DashboardWidgetResult[] = widgets.map((widget, wIdx) => {
         // Group/entity gate already decided this one out (no MQE ran).
         if (skipped.has(wIdx)) return { id: widget.id, hidden: true };
-        if (failedWidgetIdx.has(wIdx)) return { id: widget.id, error: 'mqe batch failed' };
+        if (failedWidgetIdx.has(wIdx)) {
+          return { id: widget.id, error: oapUnreachable ? 'oap unreachable' : 'mqe batch failed' };
+        }
         const result = collapse(widget, wIdx);
         // SELF gate — evaluate the predicate against the widget's own
         // gate expression result (exact: only that expression's values,
@@ -955,7 +967,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         return result;
       });
 
-      return reply.send({ ...baseResp, widgets: results });
+      return reply.send({ ...baseResp, reachable: !oapUnreachable, widgets: results });
     },
   );
 }

@@ -47,7 +47,6 @@ import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
-import { FF_ENTITY_COMPARE } from '@/utils/featureFlags';
 
 const route = useRoute();
 const router = useRouter();
@@ -320,12 +319,12 @@ const viewOwnsServiceSelector = computed(() => Boolean(route.meta?.ownsServiceSe
 // --- Multi-entity compare (service scope) -----------------------------
 // The picker's lock pins + the header chip bar show only on the SERVICE
 // dashboard route — the shell owns service selection; instance/endpoint
-// locking lives in the dashboard view's row list. Behind FF_ENTITY_COMPARE.
+// locking lives in the dashboard view's row list.
 // Service-scope lock is enabled here (the picker rows own the pins); the
 // locked cohort is DISPLAYED by the unified compare bar in the dashboard
 // view, so the shell only gates the picker pins, not a chip bar.
 const comparable = computed(
-  () => FF_ENTITY_COMPARE && !viewOwnsServiceSelector.value && scopeSegment.value === 'service',
+  () => !viewOwnsServiceSelector.value && scopeSegment.value === 'service',
 );
 
 // Zipkin trace mode is a self-contained, cross-service explorer (its
