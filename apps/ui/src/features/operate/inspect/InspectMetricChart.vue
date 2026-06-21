@@ -24,10 +24,13 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import * as echarts from 'echarts';
 import type { ExpressionResult } from '@skywalking-horizon-ui/api-client';
+import { bucketTimeLabel } from '@/utils/formatters';
 
 const props = defineProps<{
   result: ExpressionResult;
   chart: 'line' | 'bar' | 'area';
+  /** Query step — drives the time-axis label format (same as the dashboards). */
+  step: 'MINUTE' | 'HOUR' | 'DAY';
   /** Fallback series name when a result carries no labels. */
   metricName: string;
 }>();
@@ -53,12 +56,20 @@ function buildOption(): echarts.EChartsOption {
       if (v.id) xSet.add(v.id);
     }
   }
-  const xAxis = [...xSet].sort();
+  // Bucket ids are epoch-ms: sort chronologically and format each by the query
+  // step, identical to the layer-dashboard line widgets (DAY → MM-DD,
+  // HOUR → MM-DD HH:00, MINUTE → HH:MM). Series data aligns to `xIds` by index;
+  // the axis renders the parallel `xLabels`. Non-numeric ids fall back to raw.
+  const xIds = [...xSet].sort((a, b) => Number(a) - Number(b));
+  const xLabels = xIds.map((id) => {
+    const ms = Number(id);
+    return Number.isFinite(ms) ? bucketTimeLabel(props.step, ms) : id;
+  });
 
   const series: echarts.EChartsOption['series'] = props.result.results.map((r, idx) => {
     const color = PALETTE[idx % PALETTE.length];
     const byId = new Map(r.values.map((v) => [v.id ?? '', v.value]));
-    const data = xAxis.map((id) => {
+    const data = xIds.map((id) => {
       const raw = byId.get(id);
       return raw === null || raw === undefined ? null : Number.parseFloat(raw);
     });
@@ -108,7 +119,7 @@ function buildOption(): echarts.EChartsOption {
       : undefined,
     xAxis: {
       type: 'category',
-      data: xAxis,
+      data: xLabels,
       axisLine: { lineStyle: { color: '#232f39' } },
       axisLabel: { color: '#5e6c79', fontSize: 9, hideOverlap: true, fontFamily: mono },
     },

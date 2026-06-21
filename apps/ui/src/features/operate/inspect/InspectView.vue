@@ -1286,6 +1286,7 @@ function scopeShort(scope: InspectScope): string {
               v-else-if="w.selectedIds.size > 0 && w.result && w.result.results.length > 0"
               :result="w.result"
               :chart="w.chart"
+              :step="step"
               :metric-name="w.metric.name"
             />
             <div v-else class="card__empty">

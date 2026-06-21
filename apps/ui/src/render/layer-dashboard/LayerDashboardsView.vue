@@ -41,7 +41,7 @@ import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useLayerLanding } from '@/layer/useLayerLanding';
-import { useTimeRangeStore, type TimeStep } from '@/controls/timeRange';
+import { useTimeRangeStore } from '@/controls/timeRange';
 import { pushEvent } from '@/controls/eventLog';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
@@ -49,7 +49,7 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { fmtMetricAs, type MetricFormat } from '@/utils/formatters';
+import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
 import { ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { FF_ENTITY_COMPARE } from '@/utils/featureFlags';
@@ -140,20 +140,13 @@ const rangeRef = computed(() => {
 // the active window + step — the buckets are uniform, so spacing N points
 // across [start, end] matches OAP's bucketing. Formatted browser-local
 // (the app displays browser-local; ECharts handles ms→local elsewhere).
-function fmtBucket(step: TimeStep, ms: number): string {
-  const d = new Date(ms);
-  const z = (n: number) => String(n).padStart(2, '0');
-  if (step === 'DAY') return `${z(d.getMonth() + 1)}-${z(d.getDate())}`;
-  if (step === 'HOUR') return `${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:00`;
-  return `${z(d.getHours())}:${z(d.getMinutes())}`;
-}
 function xLabelsForLen(len: number): string[] {
   if (len <= 0) return [];
   const { startMs, endMs } = timeRange.range;
   const step = timeRange.step;
-  if (len === 1) return [fmtBucket(step, endMs)];
+  if (len === 1) return [bucketTimeLabel(step, endMs)];
   return Array.from({ length: len }, (_, i) =>
-    fmtBucket(step, startMs + ((endMs - startMs) * i) / (len - 1)),
+    bucketTimeLabel(step, startMs + ((endMs - startMs) * i) / (len - 1)),
   );
 }
 const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
