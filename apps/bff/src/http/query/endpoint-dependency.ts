@@ -41,7 +41,7 @@ import type {
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
-import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { graphqlPost, buildOapOpts, fetchAliasedChunks } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
@@ -395,38 +395,25 @@ export function registerEndpointDependencyRoute(
       const realNodes = graph.nodes.filter(
         (n) => n.isReal && n.serviceName && n.name && n.name !== 'User',
       );
+      // ── Per-node + per-edge MQE. Build both fragment families, then fan them
+      // out concurrently (disjoint OAP entities + result maps); each chunks
+      // internally and soft-fails per chunk, keeping the graph on a hiccup.
       const nodeMetricVals = new Map<string, Record<string, number | null>>();
+      const edgeMetricVals = new Map<string, Record<string, number | null>>();
+      const edgeMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
+
+      const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
+      const nodeFragments: string[] = [];
       if (realNodes.length > 0 && epCfg.nodeMetrics.length > 0) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
         realNodes.forEach((n, i) => {
           const isFocus = n.serviceId === serviceId;
           const useNormal = isFocus ? normal : true;
           epCfg.nodeMetrics.forEach((m, j) => {
             const alias = `e${i}_${j}`;
-            aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(endpointFragment(alias, m, n.serviceName, n.name, useNormal, window, coldStage));
+            nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
+            nodeFragments.push(endpointFragment(alias, m, n.serviceName, n.name, useNormal, window, coldStage));
           });
         });
-        const CHUNK = 150;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query EndpointMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const rec = nodeMetricVals.get(info.nodeId) ?? {};
-            rec[info.metric.id] = v;
-            nodeMetricVals.set(info.nodeId, rec);
-          }
-        }
       }
 
       // ── Per-edge MQE under EndpointRelation. We also capture the
@@ -441,17 +428,15 @@ export function registerEndpointDependencyRoute(
       // virtual we use a synthetic source service name and
       // `sourceNormal: false`, which is what booster does too.
       const linkMetrics = epCfg.linkMetrics ?? [];
-      const edgeMetricVals = new Map<string, Record<string, number | null>>();
-      const edgeMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
       const realEndpointMap = new Map(realNodes.map((n) => [n.id, n]));
       const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
       const candidateEdges = graph.calls.filter((c) => {
         const dst = nodeById.get(c.target);
         return !!dst && dst.isReal && !!dst.name && !!dst.serviceName;
       });
+      const edgeAliasMap = new Map<string, { callId: string; metric: TopologyMetricDef }>();
+      const edgeFragments: string[] = [];
       if (candidateEdges.length > 0 && linkMetrics.length > 0) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<string, { callId: string; metric: TopologyMetricDef }>();
         candidateEdges.forEach((c, i) => {
           const dst = realEndpointMap.get(c.target) ?? nodeById.get(c.target)!;
           const src = nodeById.get(c.source);
@@ -465,8 +450,8 @@ export function registerEndpointDependencyRoute(
           const dstNormal = dst.serviceId === serviceId ? normal : true;
           linkMetrics.forEach((m, j) => {
             const alias = `r${i}_${j}`;
-            aliasMap.set(alias, { callId: c.id, metric: m });
-            fragments.push(
+            edgeAliasMap.set(alias, { callId: c.id, metric: m });
+            edgeFragments.push(
               endpointRelationFragment(
                 alias,
                 m,
@@ -482,28 +467,31 @@ export function registerEndpointDependencyRoute(
             );
           });
         });
-        const CHUNK = 200;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query EndpointEdgeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const rec = edgeMetricVals.get(info.callId) ?? {};
-            rec[info.metric.id] = v;
-            edgeMetricVals.set(info.callId, rec);
-            const sRec = edgeMetricSeries.get(info.callId) ?? {};
-            sRec[info.metric.id] = seriesFromMqe(shape);
-            edgeMetricSeries.set(info.callId, sRec);
-          }
-        }
+      }
+
+      const [nodeEnv, edgeEnv] = await Promise.all([
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'EndpointMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EndpointEdgeMetrics'),
+      ]);
+
+      for (const [alias, shape] of Object.entries(nodeEnv)) {
+        const info = nodeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const rec = nodeMetricVals.get(info.nodeId) ?? {};
+        rec[info.metric.id] = v;
+        nodeMetricVals.set(info.nodeId, rec);
+      }
+      for (const [alias, shape] of Object.entries(edgeEnv)) {
+        const info = edgeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const rec = edgeMetricVals.get(info.callId) ?? {};
+        rec[info.metric.id] = v;
+        edgeMetricVals.set(info.callId, rec);
+        const sRec = edgeMetricSeries.get(info.callId) ?? {};
+        sRec[info.metric.id] = seriesFromMqe(shape);
+        edgeMetricSeries.set(info.callId, sRec);
       }
 
       // ── Build response — drop nodes without any metric values, then

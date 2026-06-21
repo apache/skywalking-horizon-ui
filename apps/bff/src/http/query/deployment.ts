@@ -53,7 +53,7 @@ import type {
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
-import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { graphqlPost, buildOapOpts, fetchAliasedChunks } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
@@ -412,46 +412,29 @@ export function registerDeploymentRoute(
         return rc?.nodeMetrics ?? cfgNN.nodeMetrics ?? [];
       }
 
-      // ── Per-node MQE (each node uses its role's defs).
+      // ── Per-node + per-edge MQE. Build both fragment families (each node uses
+      // its role's metric defs; each edge its role-pair defs), then fan them out
+      // concurrently — disjoint OAP entities + disjoint result maps. Each family
+      // chunks internally and soft-fails per chunk, keeping the graph on a hiccup.
       const nodeMetricVals = new Map<string, Record<string, number | null>>();
-      const realNodes = nodes.filter((n) => n.isReal);
-      {
-        const fragments: string[] = [];
-        const aliasMap = new Map<string, { nodeId: string; metric: DeploymentMetricDef }>();
-        realNodes.forEach((n, i) => {
-          defsFor(n).forEach((m, j) => {
-            const alias = `n${i}_${j}`;
-            aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(nodeFragment(alias, m, n.serviceName, n.name, serviceNormal, window, coldStage));
-          });
-        });
-        const CHUNK = 150;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query DeploymentNodeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break; // soft-fail: keep the graph with null node metrics
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const rec = nodeMetricVals.get(info.nodeId) ?? {};
-            rec[info.metric.id] = v;
-            nodeMetricVals.set(info.nodeId, rec);
-          }
-        }
-      }
-
-      // ── Per-edge MQE (server + client families, per-side gate). Self-loop
-      // edges (source === target) are allowed — a node may call itself.
       const serverMetricVals = new Map<string, Record<string, number | null>>();
       const clientMetricVals = new Map<string, Record<string, number | null>>();
       const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
       const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
+
+      const realNodes = nodes.filter((n) => n.isReal);
+      const nodeAliasMap = new Map<string, { nodeId: string; metric: DeploymentMetricDef }>();
+      const nodeFragments: string[] = [];
+      realNodes.forEach((n, i) => {
+        defsFor(n).forEach((m, j) => {
+          const alias = `n${i}_${j}`;
+          nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
+          nodeFragments.push(nodeFragment(alias, m, n.serviceName, n.name, serviceNormal, window, coldStage));
+        });
+      });
+
+      // Per-edge: server + client families, per-side gate. Self-loop edges
+      // (source === target) are allowed — a node may call itself.
       const linkSrv = cfg.linkServerMetrics ?? [];
       const linkCli = cfg.linkClientMetrics ?? [];
       const roleToRole = cfg.roleToRole ?? [];
@@ -490,12 +473,12 @@ export function registerDeploymentRoute(
         const b = nodeById.get(c.target);
         return !!a && !!b && !!a.name && !!b.name;
       });
+      const edgeAliasMap = new Map<
+        string,
+        { callId: string; metric: DeploymentMetricDef; side: 'server' | 'client' }
+      >();
+      const edgeFragments: string[] = [];
       if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0 || roleToRole.length > 0)) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<
-          string,
-          { callId: string; metric: DeploymentMetricDef; side: 'server' | 'client' }
-        >();
         candidateEdges.forEach((c, i) => {
           const src = nodeById.get(c.source)!;
           const dst = nodeById.get(c.target)!;
@@ -503,8 +486,8 @@ export function registerDeploymentRoute(
           if (dst.isReal) {
             server.forEach((m, j) => {
               const alias = `s${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
-              fragments.push(
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
+              edgeFragments.push(
                 relationFragment(alias, m, entityServiceName, src.name, dst.name, serviceNormal, window, coldStage),
               );
             });
@@ -512,37 +495,40 @@ export function registerDeploymentRoute(
           if (src.isReal) {
             client.forEach((m, j) => {
               const alias = `c${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
-              fragments.push(
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
+              edgeFragments.push(
                 relationFragment(alias, m, entityServiceName, src.name, dst.name, serviceNormal, window, coldStage),
               );
             });
           }
         });
-        const CHUNK = 200;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query DeploymentEdgeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
-            const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
-            const valRec = valBucket.get(info.callId) ?? {};
-            valRec[info.metric.id] = v;
-            valBucket.set(info.callId, valRec);
-            const sRec = seriesBucket.get(info.callId) ?? {};
-            sRec[info.metric.id] = seriesFromMqe(shape);
-            seriesBucket.set(info.callId, sRec);
-          }
-        }
+      }
+
+      const [nodeEnv, edgeEnv] = await Promise.all([
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'DeploymentNodeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'DeploymentEdgeMetrics'),
+      ]);
+
+      for (const [alias, shape] of Object.entries(nodeEnv)) {
+        const info = nodeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const rec = nodeMetricVals.get(info.nodeId) ?? {};
+        rec[info.metric.id] = v;
+        nodeMetricVals.set(info.nodeId, rec);
+      }
+      for (const [alias, shape] of Object.entries(edgeEnv)) {
+        const info = edgeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
+        const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
+        const valRec = valBucket.get(info.callId) ?? {};
+        valRec[info.metric.id] = v;
+        valBucket.set(info.callId, valRec);
+        const sRec = seriesBucket.get(info.callId) ?? {};
+        sRec[info.metric.id] = seriesFromMqe(shape);
+        seriesBucket.set(info.callId, sRec);
       }
 
       // ── Build response. Show EVERY container — both the ones in the call
