@@ -126,6 +126,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - The **Roles & Permissions** board now lists `infra-3d:read` — the permission to view the **3D Infrastructure Map** — under the data-catalog group, with a matching "3D infrastructure map" row in the menu-visibility matrix. It was already enforced and granted to every built-in role (viewer and up), but it never appeared on the board, so an admin couldn't see who held it.
 - Editing a **layer dashboard template** is now gated on the `dashboard:write` permission the editor already advertises; publishing overview, alert, and 3D-map configs stays on `overview:write`. The required permission is resolved per template kind at save time. Built-in roles are unaffected (`operator` and `admin` hold both), but a custom role granted only `dashboard:write` can now save layer dashboards.
 - The **Cluster Status debug view** (`/api/debug/status`) now requires only `live-debug:read`. It previously also demanded `cluster:read`, so a role granted live-debug access but not cluster-read was wrongly blocked.
+- Saving a **local draft** of a template (the "Save local" action) now enforces the same per-kind permission as publishing — a layer draft needs `dashboard:write`, other kinds `overview:write` — instead of a blanket `overview:write`.
 
 ### Fixes
 
@@ -138,6 +139,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Baseline security response headers** (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) are now sent on every response.
 - Removed an internal `?mockTop=` debug query parameter that padded top-N widgets with synthetic rows; it no longer ships in release builds.
 - **The profiling pages now use more of the page height.** The Trace / eBPF / Async / pprof / network profiling layouts were sized off a viewport offset that over-counted the chrome above them, leaving dead space at the bottom on taller screens; they now extend closer to the bottom of the view.
+- **Overview dashboard templates are validated before save.** A malformed overview (missing a required field, an unknown widget type) is now rejected with a clear field-level error instead of being written to OAP — restoring a guard that was lost when overview editing moved to the OAP-backed save path.
 
 ### Documentation & release tooling
 

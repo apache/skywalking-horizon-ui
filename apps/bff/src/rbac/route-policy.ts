@@ -165,7 +165,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save-translation':    'overview:write',
   'POST /api/admin/templates/delete-translation':  'overview:write',
-  'POST /api/admin/templates/save-local':          'overview:write',
+  // `save-local` is gated 'auth'; same per-kind verb as `save` runs in the handler.
+  'POST /api/admin/templates/save-local':          'auth',
   'POST /api/admin/templates/disable':             'overview:write',
   'POST /api/admin/templates/revert-local':        'overview:write',
   'POST /api/admin/templates/:name/push-bundled':  'overview:write',

@@ -101,7 +101,10 @@ const widgetSchema = z.object({
   rowSpan: z.number().int().min(1).max(12).optional(),
 });
 
-const dashboardSchema = z.object({
+/** Overview-dashboard content schema. Exported so the OAP-backed save path
+ *  (`/api/admin/templates/save`) validates the same shape this create route
+ *  does — the guard the editor relied on before the save migration. */
+export const dashboardSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   description: z.string().optional(),

@@ -81,6 +81,7 @@ import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 import { writeOverviewDashboard } from '../../logic/overview/loader.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import { dashboardSchema } from './overview-templates.js';
 import { logger } from '../../logger.js';
 
 export interface TemplateSyncAdminDeps {
@@ -519,6 +520,23 @@ export function registerTemplateSyncAdminRoutes(
         message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
       });
     }
+    // Same per-kind write authority as the OAP-backed save: a layer draft
+    // needs dashboard:write, everything else overview:write.
+    const saveVerb = parsed.kind === 'layer' ? 'dashboard:write' : 'overview:write';
+    const session = req.session;
+    if (!session) {
+      return reply.code(401).send({ error: 'unauthenticated' });
+    }
+    if (!sessionHasVerb(deps.config.current, session.roles, saveVerb)) {
+      return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
+    }
+    if (parsed.kind === 'overview') {
+      const v = dashboardSchema.safeParse(content);
+      if (!v.success) {
+        const issues = v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+        return reply.code(400).send({ code: 'invalid_content', issues });
+      }
+    }
     try {
       if (parsed.kind === 'layer') {
         writeLayerTemplate(content as Parameters<typeof writeLayerTemplate>[0]);
@@ -580,6 +598,12 @@ export function registerTemplateSyncAdminRoutes(
       const v = validateInfra3dConfig(content);
       if (!v.ok) {
         return reply.code(400).send({ code: 'invalid_content', issues: v.issues });
+      }
+    } else if (parsed.kind === 'overview') {
+      const v = dashboardSchema.safeParse(content);
+      if (!v.success) {
+        const issues = v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+        return reply.code(400).send({ code: 'invalid_content', issues });
       }
     }
     resync(); // fresh OAP read before deciding create-vs-update — peers / past races shouldn't leave us writing duplicates
