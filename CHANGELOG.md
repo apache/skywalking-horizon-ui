@@ -128,6 +128,11 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - The **Cluster Status debug view** (`/api/debug/status`) now requires only `live-debug:read`. It previously also demanded `cluster:read`, so a role granted live-debug access but not cluster-read was wrongly blocked.
 - Saving a **local draft** of a template (the "Save local" action) now enforces the same per-kind permission as publishing — a layer draft needs `dashboard:write`, other kinds `overview:write` — instead of a blanket `overview:write`.
 
+### Performance hardening
+
+- **Layer dashboards skip a redundant service lookup on every load.** The dashboard route used to issue its own `listServices` to auto-pick the service and carry its entity-scope flags; it now reads the shared per-layer service catalog the sidebar already keeps warm, so a dashboard's first paint costs one fewer OAP round-trip in the common case. It still falls back to a live lookup for a just-registered service, a cold snapshot, or to surface an OAP outage (the "OAP unreachable" state now follows the actual widget fetch, so a warm cache can't mask a backend that's gone away).
+- **The alarms list and count fire their two startup probes in parallel.** The server-time offset and backend-capability probes that precede every alarms query now run concurrently instead of one-after-the-other.
+
 ### Fixes
 
 - **Metrics Inspect** — the crosshair value tooltip is no longer clipped behind the navigation sidebar when you hover near a widget's left edge; it now renders above the page chrome.

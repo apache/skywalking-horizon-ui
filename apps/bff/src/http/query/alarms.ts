@@ -355,12 +355,14 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
     }
 
-    const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+    const opts = buildOapOpts(deps.config.current, deps.fetch);
+    // offset + caps are independent probes — fetch them in parallel.
+    const [offset, caps] = await Promise.all([
+      getServerOffsetMinutes(deps.config, deps.fetch),
+      getOapCapabilities(deps.config.current, deps.fetch),
+    ]);
     const start = fmtSecond(q.startTime, offset);
     const end = fmtSecond(q.endTime, offset);
-
-    const opts = buildOapOpts(deps.config.current, deps.fetch);
-    const caps = await getOapCapabilities(deps.config.current, deps.fetch);
 
     let msgsRaw: AlarmMessage[];
     try {
@@ -436,12 +438,14 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
       }
 
-      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      // offset + caps are independent probes — fetch them in parallel.
+      const [offset, caps] = await Promise.all([
+        getServerOffsetMinutes(deps.config, deps.fetch),
+        getOapCapabilities(deps.config.current, deps.fetch),
+      ]);
       const start = fmtSecond(q.startTime, offset);
       const end = fmtSecond(q.endTime, offset);
-
-      const opts = buildOapOpts(deps.config.current, deps.fetch);
-      const caps = await getOapCapabilities(deps.config.current, deps.fetch);
 
       let rows: Array<{ id: string; startTime: number; recoveryTime: number | null }>;
       try {
