@@ -50,7 +50,7 @@ import type {
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
-import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { graphqlPost, buildOapOpts, fetchAliasedChunks } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
@@ -320,45 +320,30 @@ export function registerInstanceTopologyRoute(
         return knownServices.get(n.serviceId)?.normal ?? n.isReal;
       }
 
-      // ── Per-node MQE.
+      // ── Per-node + per-edge MQE. Build both fragment families, then fan them
+      // out concurrently (disjoint OAP entities + disjoint result maps); each
+      // chunks internally and soft-fails per chunk, keeping the graph on a hiccup.
       const nodeMetricVals = new Map<string, Record<string, number | null>>();
-      const realNodes = nodes.filter((n) => n.isReal);
-      if (realNodes.length > 0 && instCfg.nodeMetrics.length > 0) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
-        realNodes.forEach((n, i) => {
-          instCfg.nodeMetrics.forEach((m, j) => {
-            const alias = `n${i}_${j}`;
-            aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(nodeFragment(alias, m, n.serviceName, n.name, normalFor(n), window, coldStage));
-          });
-        });
-        const CHUNK = 150;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query InstanceNodeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break; // soft-fail: keep the graph with null node metrics
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const rec = nodeMetricVals.get(info.nodeId) ?? {};
-            rec[info.metric.id] = v;
-            nodeMetricVals.set(info.nodeId, rec);
-          }
-        }
-      }
-
-      // ── Per-edge MQE (server + client families, per-side gate).
       const serverMetricVals = new Map<string, Record<string, number | null>>();
       const clientMetricVals = new Map<string, Record<string, number | null>>();
       const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
       const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
+
+      const realNodes = nodes.filter((n) => n.isReal);
+      const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
+      const nodeFragments: string[] = [];
+      if (realNodes.length > 0 && instCfg.nodeMetrics.length > 0) {
+        realNodes.forEach((n, i) => {
+          instCfg.nodeMetrics.forEach((m, j) => {
+            const alias = `n${i}_${j}`;
+            nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
+            nodeFragments.push(nodeFragment(alias, m, n.serviceName, n.name, normalFor(n), window, coldStage));
+          });
+        });
+      }
+
+      // Per-edge: server + client families, per-side gate (server needs a real
+      // DEST, client a real SOURCE).
       const linkSrv = instCfg.linkServerMetrics ?? [];
       const linkCli = instCfg.linkClientMetrics ?? [];
       const candidateEdges = calls.filter((c) => {
@@ -366,12 +351,12 @@ export function registerInstanceTopologyRoute(
         const b = nodeById.get(c.target);
         return !!a && !!b && !!a.name && !!b.name;
       });
+      const edgeAliasMap = new Map<
+        string,
+        { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
+      >();
+      const edgeFragments: string[] = [];
       if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<
-          string,
-          { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
-        >();
         candidateEdges.forEach((c, i) => {
           const src = nodeById.get(c.source)!;
           const dst = nodeById.get(c.target)!;
@@ -380,8 +365,8 @@ export function registerInstanceTopologyRoute(
           if (dst.isReal) {
             linkSrv.forEach((m, j) => {
               const alias = `s${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
-              fragments.push(
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
+              edgeFragments.push(
                 relationFragment(alias, m, src.serviceName, src.name, srcNormal, dst.serviceName, dst.name, dstNormal, window, coldStage),
               );
             });
@@ -389,37 +374,40 @@ export function registerInstanceTopologyRoute(
           if (src.isReal) {
             linkCli.forEach((m, j) => {
               const alias = `c${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
-              fragments.push(
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
+              edgeFragments.push(
                 relationFragment(alias, m, src.serviceName, src.name, srcNormal, dst.serviceName, dst.name, dstNormal, window, coldStage),
               );
             });
           }
         });
-        const CHUNK = 200;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query InstanceEdgeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
-            const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
-            const valRec = valBucket.get(info.callId) ?? {};
-            valRec[info.metric.id] = v;
-            valBucket.set(info.callId, valRec);
-            const sRec = seriesBucket.get(info.callId) ?? {};
-            sRec[info.metric.id] = seriesFromMqe(shape);
-            seriesBucket.set(info.callId, sRec);
-          }
-        }
+      }
+
+      const [nodeEnv, edgeEnv] = await Promise.all([
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'InstanceNodeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'InstanceEdgeMetrics'),
+      ]);
+
+      for (const [alias, shape] of Object.entries(nodeEnv)) {
+        const info = nodeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const rec = nodeMetricVals.get(info.nodeId) ?? {};
+        rec[info.metric.id] = v;
+        nodeMetricVals.set(info.nodeId, rec);
+      }
+      for (const [alias, shape] of Object.entries(edgeEnv)) {
+        const info = edgeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
+        const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
+        const valRec = valBucket.get(info.callId) ?? {};
+        valRec[info.metric.id] = v;
+        valBucket.set(info.callId, valRec);
+        const sRec = seriesBucket.get(info.callId) ?? {};
+        sRec[info.metric.id] = seriesFromMqe(shape);
+        seriesBucket.set(info.callId, sRec);
       }
 
       // ── Build response. Connected instances only — an instance with no

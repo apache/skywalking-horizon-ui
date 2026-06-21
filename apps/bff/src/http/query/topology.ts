@@ -46,7 +46,7 @@ import type {
   UITemplateClient,
 } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
-import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { graphqlPost, buildOapOpts, fetchAliasedChunks } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
@@ -428,51 +428,34 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       // skipped since OAP has no metrics for them.
       const realNodes = [...nodes.values()].filter((n) => n.isReal);
       const nodeMetricVals = new Map<string, Record<string, number | null>>();
-      if (realNodes.length > 0 && topoCfg.nodeMetrics.length > 0) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
-        realNodes.forEach((n, i) => {
-          const meta = knownServices.get(n.id);
-          const normal = meta?.normal ?? true;
-          topoCfg.nodeMetrics.forEach((m, j) => {
-            const alias = `n${i}_${j}`;
-            aliasMap.set(alias, { nodeId: n.id, metric: m });
-            fragments.push(nodeFragment(alias, m, n.name, normal, window, coldStage));
-          });
-        });
-        const CHUNK = 150;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query NodeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            // Soft-fail per operator direction: keep the graph and
-            // emit null metrics rather than wiping the response.
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const rec = nodeMetricVals.get(info.nodeId) ?? {};
-            rec[info.metric.id] = v;
-            nodeMetricVals.set(info.nodeId, rec);
-          }
-        }
-      }
-
-      // ── Per-edge MQE. Only real → real edges have a relation entity
-      // in OAP. We split into server / client families and fan out in a
-      // single combined aliased query.
       const serverMetricVals = new Map<string, Record<string, number | null>>();
       const clientMetricVals = new Map<string, Record<string, number | null>>();
       // Per-edge time series for the right-sidebar line charts.
       const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
       const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
-      // Per booster: an edge with at least one named endpoint is
-      // queryable. We split per side:
+
+      // Build the per-node and per-edge MQE fragments, then fan BOTH families
+      // out concurrently: they query disjoint OAP entities (node metrics vs
+      // service-relation metrics) and fill disjoint result maps, so there's no
+      // reason to await one before the other. Each family chunks internally and
+      // soft-fails per chunk, keeping the graph with null metrics on a hiccup.
+      const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
+      const nodeFragments: string[] = [];
+      if (realNodes.length > 0 && topoCfg.nodeMetrics.length > 0) {
+        realNodes.forEach((n, i) => {
+          const meta = knownServices.get(n.id);
+          const normal = meta?.normal ?? true;
+          topoCfg.nodeMetrics.forEach((m, j) => {
+            const alias = `n${i}_${j}`;
+            nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
+            nodeFragments.push(nodeFragment(alias, m, n.name, normal, window, coldStage));
+          });
+        });
+      }
+
+      // ── Per-edge MQE. Only real → real edges have a relation entity
+      // in OAP. We split into server / client families and fan both out
+      // concurrently in chunked aliased queries (see the Promise.all below).
       //   - server metrics need a real DEST (the callee that records
       //     the incoming call) — `User → consumer` works on the
       //     server side, `provider → localhost:-1` does not.
@@ -487,12 +470,12 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       });
       const linkSrv = topoCfg.linkServerMetrics ?? [];
       const linkCli = topoCfg.linkClientMetrics ?? [];
+      const edgeAliasMap = new Map<
+        string,
+        { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
+      >();
+      const edgeFragments: string[] = [];
       if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
-        const fragments: string[] = [];
-        const aliasMap = new Map<
-          string,
-          { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
-        >();
         candidateEdges.forEach((c, i) => {
           const src = nodes.get(c.source)!;
           const dst = nodes.get(c.target)!;
@@ -503,53 +486,50 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           // back to the graph node's `isReal`.
           const srcNormal = srcMeta?.normal ?? src.isReal;
           const dstNormal = dstMeta?.normal ?? dst.isReal;
-          // Server metrics live on the DEST — fetch only when the dest
-          // is real. Otherwise OAP returns nothing for the server
-          // family and we'd waste the round trip.
+          // Server metrics live on the DEST — fetch only when the dest is real.
           if (dst.isReal) {
             linkSrv.forEach((m, j) => {
               const alias = `s${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
-              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
+              edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
             });
           }
-          // Client metrics live on the SOURCE — fetch only when the
-          // source is real.
+          // Client metrics live on the SOURCE — fetch only when the source is real.
           if (src.isReal) {
             linkCli.forEach((m, j) => {
               const alias = `c${i}_${j}`;
-              aliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
-              fragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
+              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
+              edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
             });
           }
         });
-        const CHUNK = 200;
-        for (let i = 0; i < fragments.length; i += CHUNK) {
-          const slice = fragments.slice(i, i + CHUNK);
-          const query = `query EdgeMetrics {\n  ${slice.join('\n  ')}\n}`;
-          let env: Record<string, MqeShape>;
-          try {
-            env = await graphqlPost<Record<string, MqeShape>>(opts, query);
-          } catch {
-            // Soft-fail: keep the graph with null edge metrics.
-            break;
-          }
-          for (const [alias, shape] of Object.entries(env)) {
-            const info = aliasMap.get(alias);
-            if (!info) continue;
-            const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-            const seriesBucket =
-              info.side === 'server' ? serverMetricSeries : clientMetricSeries;
-            const valBucket =
-              info.side === 'server' ? serverMetricVals : clientMetricVals;
-            const valRec = valBucket.get(info.callId) ?? {};
-            valRec[info.metric.id] = v;
-            valBucket.set(info.callId, valRec);
-            const sRec = seriesBucket.get(info.callId) ?? {};
-            sRec[info.metric.id] = seriesFromMqe(shape);
-            seriesBucket.set(info.callId, sRec);
-          }
-        }
+      }
+
+      const [nodeEnv, edgeEnv] = await Promise.all([
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'NodeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EdgeMetrics'),
+      ]);
+
+      for (const [alias, shape] of Object.entries(nodeEnv)) {
+        const info = nodeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const rec = nodeMetricVals.get(info.nodeId) ?? {};
+        rec[info.metric.id] = v;
+        nodeMetricVals.set(info.nodeId, rec);
+      }
+      for (const [alias, shape] of Object.entries(edgeEnv)) {
+        const info = edgeAliasMap.get(alias);
+        if (!info) continue;
+        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
+        const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
+        const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
+        const valRec = valBucket.get(info.callId) ?? {};
+        valRec[info.metric.id] = v;
+        valBucket.set(info.callId, valRec);
+        const sRec = seriesBucket.get(info.callId) ?? {};
+        sRec[info.metric.id] = seriesFromMqe(shape);
+        seriesBucket.set(info.callId, sRec);
       }
 
       // ── Build response. Connected nodes only — a service with zero

@@ -17,6 +17,7 @@
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../config/schema.js';
+import { mapPool } from '../util/mapPool.js';
 
 export interface GraphqlOptions {
   queryUrl: string;
@@ -131,4 +132,41 @@ export async function graphqlPost<T>(
     throw new GraphqlError(200, 'graphql response had no data field');
   }
   return body.data;
+}
+
+/**
+ * Fan an aliased-fragment metric query out to OAP in bounded-concurrency
+ * chunks, merging every chunk's aliases into one object. `chunkSize` caps
+ * fragments per request (OAP enforces a per-request complexity ceiling);
+ * `concurrency` caps simultaneous chunk requests so a wide topology doesn't
+ * stampede OAP. Each chunk soft-fails independently — a failed chunk simply
+ * contributes no aliases, so one transient error degrades that slice to
+ * null metrics instead of aborting the whole fan-out (the topology routes
+ * keep the graph and emit nulls). Returns `{}` when there are no fragments.
+ */
+export async function fetchAliasedChunks<T>(
+  opts: GraphqlOptions,
+  fragments: readonly string[],
+  chunkSize: number,
+  queryName: string,
+  concurrency = 4,
+): Promise<Record<string, T>> {
+  if (fragments.length === 0) return {};
+  const chunks: string[][] = [];
+  for (let i = 0; i < fragments.length; i += chunkSize) {
+    chunks.push(fragments.slice(i, i + chunkSize));
+  }
+  const envs = await mapPool(chunks, concurrency, async (slice) => {
+    const query = `query ${queryName} {\n  ${slice.join('\n  ')}\n}`;
+    try {
+      return await graphqlPost<Record<string, T>>(opts, query);
+    } catch {
+      return null;
+    }
+  });
+  const merged: Record<string, T> = {};
+  for (const env of envs) {
+    if (env) Object.assign(merged, env);
+  }
+  return merged;
 }
