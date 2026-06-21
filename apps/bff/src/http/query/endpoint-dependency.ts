@@ -43,7 +43,12 @@ import type {
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
-import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
+import {
+  defaultMinuteWindow,
+  getServerOffsetMinutes,
+  windowFromRange,
+  type TimeStep,
+} from '../../util/window.js';
 import { endpointDependencyConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewEndpointDep } from '../../logic/layers/preview.js';
@@ -120,7 +125,7 @@ function endpointFragment(
   serviceName: string,
   endpointName: string,
   normal: boolean,
-  w: { start: string; end: string },
+  w: { start: string; end: string; step: TimeStep },
   coldStage: boolean,
 ): string {
   const coldFrag = coldStage ? ', coldStage: true' : '';
@@ -131,7 +136,7 @@ function endpointFragment(
     ` serviceName: ${JSON.stringify(serviceName)},` +
     ` endpointName: ${JSON.stringify(endpointName)},` +
     ` normal: ${normal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -150,7 +155,7 @@ function endpointRelationFragment(
   destServiceName: string,
   destEndpointName: string,
   destNormal: boolean,
-  w: { start: string; end: string },
+  w: { start: string; end: string; step: TimeStep },
   coldStage: boolean,
 ): string {
   const coldFrag = coldStage ? ', coldStage: true' : '';
@@ -164,7 +169,7 @@ function endpointRelationFragment(
     ` destServiceName: ${JSON.stringify(destServiceName)},` +
     ` destEndpointName: ${JSON.stringify(destEndpointName)},` +
     ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: MINUTE${coldFrag} }\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
     `    ) { type error results { values { value } } }`
   );
 }
@@ -253,7 +258,14 @@ export function registerEndpointDependencyRoute(
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string; endpoint?: string; previewConfig?: string };
+      const q = req.query as {
+        service?: string;
+        endpoint?: string;
+        previewConfig?: string;
+        step?: string;
+        startMs?: string;
+        endMs?: string;
+      };
       const serviceArg = (q.service ?? '').trim();
       const endpointArg = (q.endpoint ?? '').trim();
       if (!serviceArg) return reply.code(400).send({ error: 'missing_service' });
@@ -277,9 +289,20 @@ export function registerEndpointDependencyRoute(
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
-      const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
+      // Honor the SPA's topbar picker triplet; else fall back to the
+      // last-hour MINUTE window (dashboards family — minute precision).
+      const stepArg = (q.step ?? '').toUpperCase() as TimeStep;
+      const startMs = Number(q.startMs);
+      const endMs = Number(q.endMs);
+      const window =
+        (stepArg === 'MINUTE' || stepArg === 'HOUR' || stepArg === 'DAY') &&
+        Number.isFinite(startMs) &&
+        Number.isFinite(endMs)
+          ? windowFromRange(stepArg, startMs, endMs, offset) ??
+            defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
+          : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
       const oapLayer = layerKey.toUpperCase();
-      const durationVar = withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' });
+      const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
       const coldStage = !!req.coldStage;
 
       // ── Resolve service name → id.

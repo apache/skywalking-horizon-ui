@@ -382,7 +382,7 @@
   "Line metrics (server-side)": "Line metrics (server-side)",
   "Loading callers and callees of {name}…": "Loading callers and callees of {name}…",
   "L{i} · Callers": "L{i} · Callers",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "No dependency graph available for this endpoint in the last 15 minutes.",
+  "No dependency graph available for this endpoint in the selected time range.": "No dependency graph available for this endpoint in the selected time range.",
   "No endpoints found.": "No endpoints found.",
   "No further callers or callees for {name}": "No further callers or callees for {name}",
   "OAP unreachable.": "OAP unreachable.",

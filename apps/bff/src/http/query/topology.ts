@@ -365,9 +365,6 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           seedIds = data.services
             .filter((s) => group === undefined || ((s as { group?: string }).group ?? '') === group)
             .map((s) => s.id);
-          // Debug log so the response size is visible while we
-          // diagnose why layers with many services come back small.
-          console.log(`[topology] layer=${oapLayer} seed-services=${seedIds.length}`);
         }
       } catch (err) {
         return reply.send(
@@ -425,7 +422,6 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       // don't belong on a topology map. The earlier "fill them in as
       // standalone nodes" pass was reverted after a closer look at
       // booster-ui's demo, which only renders connected nodes too.)
-      console.log(`[topology] layer=${oapLayer} returned-nodes=${nodes.size} edges=${calls.size}`);
 
       // ── Per-node MQE. Builds fragments off the layer's
       // `topology.nodeMetrics`. Synthetic nodes (User / external) are

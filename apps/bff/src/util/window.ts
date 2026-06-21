@@ -109,21 +109,6 @@ export function defaultMinuteWindow(
   };
 }
 
-/** Last-N-minutes SECOND window in OAP-local time. Used by record routes
- *  (traces, logs) when no explicit range is supplied. */
-export function defaultSecondWindow(
-  offsetMinutes: number,
-  minutesBack = 30,
-): { start: string; end: string; step: 'SECOND' } {
-  const endMs = Date.now();
-  const startMs = endMs - minutesBack * 60_000;
-  return {
-    start: fmtSecond(startMs, offsetMinutes),
-    end: fmtSecond(endMs, offsetMinutes),
-    step: 'SECOND',
-  };
-}
-
 /** Build an OAP {@link Window} from an operator-supplied range. All three
  *  inputs must be present and `endMs > startMs`; returns null otherwise so
  *  the caller can fall back to a default window. Generic on the step so
@@ -148,6 +133,10 @@ export function windowFromRange<S extends TimeStep>(
 interface TzCacheEntry {
   offsetMinutes: number;
   fetchedAt: number;
+  /** OAP query URL this offset was probed from — a config hot-reload that
+   *  repoints OAP misses the cache and re-probes, instead of serving a
+   *  different server's offset for up to the TTL. */
+  queryUrl: string;
 }
 let tzCache: TzCacheEntry | null = null;
 const TZ_TTL_MS = 60_000;
@@ -159,12 +148,6 @@ const TIME_INFO_QUERY = /* GraphQL */ `
     }
   }
 `;
-
-/** Reset the cached offset. Tests + the `info` route call this on
- *  reconfigure / health-check so a new OAP target re-probes. */
-export function invalidateServerOffsetCache(): void {
-  tzCache = null;
-}
 
 /** Look up the OAP server's UTC offset in minutes. Cached 60s.
  *
@@ -178,7 +161,10 @@ export async function getServerOffsetMinutes(
   fetchImpl?: FetchLike,
 ): Promise<number> {
   const now = Date.now();
-  if (tzCache && now - tzCache.fetchedAt < TZ_TTL_MS) return tzCache.offsetMinutes;
+  const queryUrl = config.current.oap.queryUrl;
+  if (tzCache && tzCache.queryUrl === queryUrl && now - tzCache.fetchedAt < TZ_TTL_MS) {
+    return tzCache.offsetMinutes;
+  }
   try {
     const env = await graphqlPost<{ time?: { timezone?: string | null } | null }>(
       buildOapOpts(config.current, fetchImpl),
@@ -191,12 +177,12 @@ export async function getServerOffsetMinutes(
       const h = parseInt(m[2], 10);
       const mi = parseInt(m[3], 10);
       const offset = sign * (h * 60 + mi);
-      tzCache = { offsetMinutes: offset, fetchedAt: now };
+      tzCache = { offsetMinutes: offset, fetchedAt: now, queryUrl };
       return offset;
     }
   } catch {
     /* fall through to 0 */
   }
-  tzCache = { offsetMinutes: 0, fetchedAt: now };
+  tzCache = { offsetMinutes: 0, fetchedAt: now, queryUrl };
   return 0;
 }

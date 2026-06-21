@@ -207,8 +207,9 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
   app.get(
     '/api/debug/status',
     { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'cluster:read')) return;
+    async (_req: FastifyRequest, reply: FastifyReply) => {
+      // Gated by `live-debug:read` in ROUTE_POLICY (the single source of truth);
+      // no extra in-handler verb so a caller doesn't need two grants.
       const c = clients();
       const targets = await resolveTargets(c.adminUrl());
       const nodes = await Promise.all(

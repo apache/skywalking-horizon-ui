@@ -378,7 +378,7 @@
   "Line metrics (server-side)": "Kantenmetriken (serverseitig)",
   "Loading callers and callees of {name}…": "Aufrufer und Aufgerufene von {name} werden geladen…",
   "L{i} · Callers": "L{i} · Aufrufer",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "Für diesen Endpoint sind in den letzten 15 Minuten keine Abhängigkeitsdaten verfügbar.",
+  "No dependency graph available for this endpoint in the selected time range.": "Für diesen Endpoint sind im ausgewählten Zeitraum keine Abhängigkeitsdaten verfügbar.",
   "No endpoints found.": "Keine Endpoints gefunden.",
   "No further callers or callees for {name}": "Keine weiteren Aufrufer oder Aufgerufene für {name}",
   "OAP unreachable.": "OAP nicht erreichbar.",

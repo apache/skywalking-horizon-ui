@@ -125,11 +125,18 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - The **Roles & Permissions** board now lists `infra-3d:read` — the permission to view the **3D Infrastructure Map** — under the data-catalog group, with a matching "3D infrastructure map" row in the menu-visibility matrix. It was already enforced and granted to every built-in role (viewer and up), but it never appeared on the board, so an admin couldn't see who held it.
 - Editing a **layer dashboard template** is now gated on the `dashboard:write` permission the editor already advertises; publishing overview, alert, and 3D-map configs stays on `overview:write`. The required permission is resolved per template kind at save time. Built-in roles are unaffected (`operator` and `admin` hold both), but a custom role granted only `dashboard:write` can now save layer dashboards.
+- The **Cluster Status debug view** (`/api/debug/status`) now requires only `live-debug:read`. It previously also demanded `cluster:read`, so a role granted live-debug access but not cluster-read was wrongly blocked.
 
 ### Fixes
 
 - **Metrics Inspect** — the crosshair value tooltip is no longer clipped behind the navigation sidebar when you hover near a widget's left edge; it now renders above the page chrome.
 - **3D Infrastructure Map config** — "Check diff & push" now requires saving a local draft first (it was selectable while edits were still unsaved), and the push dialog renders the side-by-side before/after JSON diff instead of an empty panel.
+- **The API-dependency tab now honors the topbar time picker.** It was pinned to the last hour regardless of the selected range; changing the range (and expanding a node) now re-queries the chosen window, like the service map and instance map already did.
+- **A dashboard no longer blanks entirely when one metric group fails.** A transient backend error (timeout / 5xx / query-complexity limit) on a single batch of widgets now marks only those widgets as failed; the rest of the dashboard renders normally instead of every cell going blank.
+- **Trace list rows pick the correct root span on BanyanDB.** A multi-service trace could surface a downstream span's endpoint / duration / start time in the list; the row now reliably reflects the trace's true entry span.
+- **Correct timestamps right after repointing OAP.** The server-timezone offset is now cached per OAP URL, so a configuration reload that switches to a different-timezone OAP re-probes immediately instead of serving the previous server's offset for up to a minute.
+- **Baseline security response headers** (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) are now sent on every response.
+- Removed an internal `?mockTop=` debug query parameter that padded top-N widgets with synthetic rows; it no longer ships in release builds.
 
 ### Documentation & release tooling
 

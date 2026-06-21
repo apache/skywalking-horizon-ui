@@ -378,7 +378,7 @@
   "Line metrics (server-side)": "선 메트릭 (서버 측)",
   "Loading callers and callees of {name}…": "{name}의 호출자와 피호출 불러오는 중…",
   "L{i} · Callers": "L{i} · 호출자",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "최근 15분 동안 이 엔드포인트의 의존성 그래프가 없습니다.",
+  "No dependency graph available for this endpoint in the selected time range.": "선택한 시간 범위 동안 이 엔드포인트의 의존성 그래프가 없습니다.",
   "No endpoints found.": "엔드포인트를 찾을 수 없습니다.",
   "No further callers or callees for {name}": "{name}의 추가 호출자나 피호출이 없습니다",
   "OAP unreachable.": "OAP에 연결할 수 없습니다.",

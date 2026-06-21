@@ -555,11 +555,6 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       if (!parsed.success) {
         return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
       }
-      // Dev-mode query param `?mockTop=N` pads every TopList result to
-      // exactly N entries with synthetic rows. Use to verify widget
-      // height / overflow without waiting for OAP to populate the layer.
-      const mockTopRaw = (req.query as { mockTop?: string }).mockTop;
-      const mockTopN = mockTopRaw ? Math.max(0, Math.min(40, Number(mockTopRaw))) : 0;
       const scope = parsed.data.scope ?? 'service';
       const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
       // Blocked (template store unreachable / layer disabled) → no
@@ -800,40 +795,40 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         widgetChunks.push(batchWidgets.slice(i, i + MAX_WIDGETS_PER_BATCH));
       }
       const data: Record<string, MqeResultShape> = {};
-      try {
-        const chunkResults = await Promise.all(
-          widgetChunks.map(async (chunk) => {
-            const fragments: string[] = [];
-            for (const { widget, wIdx } of chunk) {
-              widget.expressions.forEach((expr, eIdx) => {
-                const alias = `w${wIdx}_e${eIdx}`;
-                fragments.push(
-                  buildFragment(alias, expr, serviceName, normal, window, {
-                    layerScope: widget.layerScope === true,
-                    serviceInstanceName:
-                      widget.layerScope !== true && scopeHonorsInstance ? selectedInstance : null,
-                    endpointName:
-                      widget.layerScope !== true && scopeHonorsEndpoint ? selectedEndpoint : null,
-                    coldStage: !!req.coldStage,
-                  }),
-                );
-              });
-            }
-            if (fragments.length === 0) return {} as Record<string, MqeResultShape>;
-            const query = `query DashboardMqe { ${fragments.join('\n    ')} }`;
-            return graphqlPost<Record<string, MqeResultShape>>(opts, query);
-          }),
-        );
-        for (const chunk of chunkResults) {
-          Object.assign(data, chunk);
-        }
-      } catch (err) {
-        return reply.send({
-          ...baseResp,
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-          widgets: widgets.map((w) => ({ id: w.id, error: 'mqe batch failed' })),
-        });
+      // One chunk failing (transient 5xx / timeout / OAP complexity-limit) must
+      // not blank the whole dashboard — catch per chunk, mark only that chunk's
+      // widgets, and let the rest render their own no-data/value state.
+      const failedWidgetIdx = new Set<number>();
+      const chunkResults = await Promise.all(
+        widgetChunks.map(async (chunk) => {
+          const fragments: string[] = [];
+          for (const { widget, wIdx } of chunk) {
+            widget.expressions.forEach((expr, eIdx) => {
+              const alias = `w${wIdx}_e${eIdx}`;
+              fragments.push(
+                buildFragment(alias, expr, serviceName, normal, window, {
+                  layerScope: widget.layerScope === true,
+                  serviceInstanceName:
+                    widget.layerScope !== true && scopeHonorsInstance ? selectedInstance : null,
+                  endpointName:
+                    widget.layerScope !== true && scopeHonorsEndpoint ? selectedEndpoint : null,
+                  coldStage: !!req.coldStage,
+                }),
+              );
+            });
+          }
+          if (fragments.length === 0) return {} as Record<string, MqeResultShape>;
+          const query = `query DashboardMqe { ${fragments.join('\n    ')} }`;
+          try {
+            return await graphqlPost<Record<string, MqeResultShape>>(opts, query);
+          } catch {
+            for (const { wIdx } of chunk) failedWidgetIdx.add(wIdx);
+            return {} as Record<string, MqeResultShape>;
+          }
+        }),
+      );
+      for (const chunk of chunkResults) {
+        Object.assign(data, chunk);
       }
 
       // Step 3 — collapse per widget. Per-type handling:
@@ -851,33 +846,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
             items: NonNullable<ReturnType<typeof parseTopList>>;
           }> = [];
           widget.expressions.forEach((expr, eIdx) => {
-            let items = parseTopList(data[`w${wIdx}_e${eIdx}`]);
-            // Pad with synthetic rows when mockTop is requested. Each
-            // padded row gets a plausible name + a value tapered down
-            // from the last real row so the list reads as ranked.
-            if (mockTopN > 0) {
-              const current = items ?? [];
-              const padCount = Math.max(0, mockTopN - current.length);
-              if (padCount > 0) {
-                const last = current[current.length - 1]?.value ?? 100;
-                const seed = current[current.length - 1]?.name ?? 'mock-service';
-                const padded = Array.from({ length: padCount }, (_, i) => {
-                  const idx = current.length + i + 1;
-                  const decay = 1 - (i + 1) / (padCount + 2);
-                  return {
-                    name: `${seed} · mock-${idx}`,
-                    value: typeof last === 'number' ? Math.round(last * decay * 100) / 100 : 0,
-                  };
-                });
-                items = [...current, ...padded];
-              }
-              if (!items || items.length === 0) {
-                items = Array.from({ length: mockTopN }, (_, i) => ({
-                  name: `mock-entity-${i + 1}`,
-                  value: Math.round((100 - i * 8) * 100) / 100,
-                }));
-              }
-            }
+            const items = parseTopList(data[`w${wIdx}_e${eIdx}`]);
             if (!items) return;
             const label = widget.expressionLabels?.[eIdx] ?? expr;
             const unit = widget.expressionUnits?.[eIdx];
@@ -970,6 +939,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       const results: DashboardWidgetResult[] = widgets.map((widget, wIdx) => {
         // Group/entity gate already decided this one out (no MQE ran).
         if (skipped.has(wIdx)) return { id: widget.id, hidden: true };
+        if (failedWidgetIdx.has(wIdx)) return { id: widget.id, error: 'mqe batch failed' };
         const result = collapse(widget, wIdx);
         // SELF gate — evaluate the predicate against the widget's own
         // gate expression result (exact: only that expression's values,

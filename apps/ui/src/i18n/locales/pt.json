@@ -378,7 +378,7 @@
   "Line metrics (server-side)": "Métricas de linha (lado do servidor)",
   "Loading callers and callees of {name}…": "Carregando chamadores e chamados de {name}…",
   "L{i} · Callers": "L{i} · Chamadores",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "Nenhum grafo de dependências disponível para este endpoint nos últimos 15 minutos.",
+  "No dependency graph available for this endpoint in the selected time range.": "Nenhum grafo de dependências disponível para este endpoint no intervalo de tempo selecionado.",
   "No endpoints found.": "Nenhum endpoint encontrado.",
   "No further callers or callees for {name}": "Sem mais chamadores ou chamados para {name}",
   "OAP unreachable.": "OAP inacessível.",

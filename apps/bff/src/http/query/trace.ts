@@ -329,12 +329,15 @@ async function fetchNativeList(
         data: { traces: Array<{ spans: NativeSpan[] }> };
       }>(opts, QUERY_TRACES, { condition });
       const traces = (env.data?.traces ?? []).map((t) => {
-        const root = t.spans.find((s) => s.parentSpanId === -1) ?? t.spans[0];
+        // v2 spans are flat across all segments; every segment's entry span
+        // has parentSpanId === -1, so match the global root by its empty refs
+        // (booster-ui does the same) — else a downstream callee can win.
+        const root = t.spans.find((s) => s.parentSpanId === -1 && s.refs.length === 0) ?? t.spans[0];
         const ids = Array.from(new Set(t.spans.map((s) => s.traceId)));
         return {
           key: root?.segmentId ?? ids[0] ?? '',
           segmentId: root?.segmentId ?? '',
-          endpointNames: root ? [root.endpointName] : [],
+          endpointNames: root?.endpointName ? [root.endpointName] : [],
           duration: root ? root.endTime - root.startTime : 0,
           start: root ? String(root.startTime) : '',
           isError: t.spans.some((s) => s.isError),

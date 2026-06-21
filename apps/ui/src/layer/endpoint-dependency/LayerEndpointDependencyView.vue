@@ -43,6 +43,7 @@ import type {
 } from '@/api/client';
 import { bffClient } from '@/api/client';
 import { useLayerEndpointDependency } from '@/layer/endpoint-dependency/useLayerEndpointDependency';
+import { useTimeRangeStore } from '@/controls/timeRange';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
@@ -58,6 +59,7 @@ import Sparkline from '@/components/charts/Sparkline.vue';
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
+const timeRange = useTimeRangeStore();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
@@ -187,6 +189,7 @@ async function expandNode(node: EndpointDependencyNode): Promise<void> {
       layerKey.value,
       node.serviceName,
       node.name,
+      { step: timeRange.step, startMs: timeRange.range.startMs, endMs: timeRange.range.endMs },
     );
     const next = new Map(expansions.value);
     next.set(key, resp);
@@ -1256,7 +1259,7 @@ function edgeRowCrosshair(rowId: string): number | null {
 
           <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
           <div v-else class="loader">
-            {{ t('No dependency graph available for this endpoint in the last 15 minutes.') }}
+            {{ t('No dependency graph available for this endpoint in the selected time range.') }}
           </div>
         </div>
 

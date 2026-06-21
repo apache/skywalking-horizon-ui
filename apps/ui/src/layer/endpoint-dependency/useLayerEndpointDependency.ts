@@ -24,6 +24,7 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
+import { useTimeRangeStore } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
@@ -34,13 +35,20 @@ export function useLayerEndpointDependency(
 ) {
   // Preview-only: forward the draft `endpointDependency` block.
   const previewCfg = usePreviewLayerBlock(layerKey, 'endpointDependency');
+  const timeRange = useTimeRangeStore();
+  const rangeKey = computed(() => ({
+    step: timeRange.step,
+    startMs: timeRange.range.startMs,
+    endMs: timeRange.range.endMs,
+  }));
   const q = useQuery({
-    queryKey: ['layer-endpoint-dependency', layerKey, service, endpoint, previewCfg],
+    queryKey: ['layer-endpoint-dependency', layerKey, service, endpoint, rangeKey, previewCfg],
     queryFn: () =>
       bffClient.layer.endpointDependency(
         layerKey.value,
         service.value ?? '',
         endpoint.value ?? '',
+        rangeKey.value,
         previewCfg.value,
       ),
     enabled: computed(

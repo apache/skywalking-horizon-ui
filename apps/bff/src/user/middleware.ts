@@ -16,25 +16,18 @@
  */
 
 /**
- * Per-request auth + RBAC pre-handlers.
+ * Per-request authentication pre-handler. Verb gating is applied separately
+ * by the ROUTE_POLICY `onRoute` hook (rbac/route-policy.ts); routes wire only
+ * `requireAuth` here.
  *
- * Typical wiring at the route-registration site:
- *
- *   app.get(
- *     '/api/alarms',
- *     { preHandler: [requireAuth(deps), requireVerb(deps, 'alarms:read')] },
- *     handler,
- *   );
- *
- * Both pre-handlers send a JSON error and short-circuit; nothing else
- * runs once they reply. Errors use `reply.code(...).send(...)` rather
- * than `throw` because Fastify's global error handler swallows the
- * `WWW-Authenticate`-style metadata we may want to attach in the future.
+ * It sends a JSON 401 and short-circuits when there's no valid session, using
+ * `reply.code(...).send(...)` rather than `throw` because Fastify's global
+ * error handler swallows the `WWW-Authenticate`-style metadata we may want to
+ * attach in the future.
  */
 
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { ConfigSource } from '../config/loader.js';
-import { sessionHasVerb } from '../rbac/policy.js';
 import type { Session, SessionStore } from './sessions.js';
 
 declare module 'fastify' {
@@ -74,22 +67,5 @@ export function requireAuth(deps: AuthDeps) {
       path: '/',
       maxAge: s.ttlMinutes * 60,
     });
-  };
-}
-
-export function requireVerb(deps: AuthDeps, verb: string) {
-  const auth = requireAuth(deps);
-  return async function verbPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-    await auth(req, reply);
-    // `requireAuth` may have already sent a 401; in that case `reply.sent`
-    // is true and we must not write again.
-    if (reply.sent) return;
-    const session = req.session;
-    if (!session) {
-      return void reply.code(401).send({ error: 'unauthenticated' });
-    }
-    if (!sessionHasVerb(deps.config.current, session.roles, verb)) {
-      return void reply.code(403).send({ error: 'permission_denied', verb });
-    }
   };
 }

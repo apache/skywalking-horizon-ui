@@ -90,28 +90,6 @@ export function isValidRange(step: TimeStep, durationMs: number): boolean {
   return durationMs >= lim.minMs && durationMs <= lim.maxMs;
 }
 
-/** Format `Date` → `YYYY-MM-DD HHmm` (OAP's MINUTE-step format). */
-function fmtMinute(d: Date): string {
-  const z = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${z(d.getUTCMonth() + 1)}-${z(d.getUTCDate())} ${z(d.getUTCHours())}${z(d.getUTCMinutes())}`;
-}
-/** Format `Date` → `YYYY-MM-DD HH` (OAP HOUR-step). */
-function fmtHour(d: Date): string {
-  const z = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${z(d.getUTCMonth() + 1)}-${z(d.getUTCDate())} ${z(d.getUTCHours())}`;
-}
-/** Format `Date` → `YYYY-MM-DD` (OAP DAY-step). */
-function fmtDay(d: Date): string {
-  const z = (n: number) => String(n).padStart(2, '0');
-  return `${d.getUTCFullYear()}-${z(d.getUTCMonth() + 1)}-${z(d.getUTCDate())}`;
-}
-/** Pick the right formatter for an OAP `step`. */
-export function fmtForStep(step: TimeStep, d: Date): string {
-  if (step === 'DAY') return fmtDay(d);
-  if (step === 'HOUR') return fmtHour(d);
-  return fmtMinute(d);
-}
-
 export const useTimeRangeStore = defineStore('time-range', () => {
   /** Selected preset id (`'1h'`, `'7d'`, …) or `'custom'` for an
    *  explicit start/end range. */
@@ -138,16 +116,6 @@ export const useTimeRangeStore = defineStore('time-range', () => {
       return { startMs: endMs - preset.value.durationMs, endMs };
     }
     return { startMs: customStartMs.value, endMs: customEndMs.value };
-  });
-
-  /** OAP `Duration` object for the current range. */
-  const duration = computed<{ start: string; end: string; step: TimeStep }>(() => {
-    const r = range.value;
-    return {
-      start: fmtForStep(step.value, new Date(r.startMs)),
-      end: fmtForStep(step.value, new Date(r.endMs)),
-      step: step.value,
-    };
   });
 
   const label = computed<string>(() => {
@@ -194,7 +162,6 @@ export const useTimeRangeStore = defineStore('time-range', () => {
     step,
     durationMs,
     range,
-    duration,
     label,
     selectPreset,
     selectCustom,

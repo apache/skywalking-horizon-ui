@@ -378,7 +378,7 @@
   "Line metrics (server-side)": "ラインメトリクス (サーバー側)",
   "Loading callers and callees of {name}…": "{name} の呼び出し元と呼び出し先を読み込み中…",
   "L{i} · Callers": "L{i} · 呼び出し元",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "このエンドポイントには直近 15 分間の依存関係グラフがありません。",
+  "No dependency graph available for this endpoint in the selected time range.": "このエンドポイントには選択した時間範囲の依存関係グラフがありません。",
   "No endpoints found.": "エンドポイントが見つかりません。",
   "No further callers or callees for {name}": "{name} にこれ以上の呼び出し元・呼び出し先はありません",
   "OAP unreachable.": "OAP に接続できません。",

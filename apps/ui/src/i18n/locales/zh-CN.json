@@ -378,7 +378,7 @@
   "Line metrics (server-side)": "连线指标（服务端）",
   "Loading callers and callees of {name}…": "正在加载 {name} 的调用方与被调方…",
   "L{i} · Callers": "L{i} · 调用方",
-  "No dependency graph available for this endpoint in the last 15 minutes.": "最近 15 分钟内该端点暂无可用的依赖图。",
+  "No dependency graph available for this endpoint in the selected time range.": "所选时间范围内该端点暂无可用的依赖图。",
   "No endpoints found.": "未找到端点。",
   "No further callers or callees for {name}": "{name} 没有更多的调用方或被调方",
   "OAP unreachable.": "无法连接 OAP。",

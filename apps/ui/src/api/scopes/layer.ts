@@ -261,10 +261,16 @@ export class LayerApi {
     layerKey: string,
     service: string,
     endpoint: string,
+    range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `endpointDependency` block. */
     previewConfig?: string,
   ): Promise<EndpointDependencyResponse> {
     const qs = new URLSearchParams({ service, endpoint });
+    if (range) {
+      qs.set('step', range.step);
+      qs.set('startMs', String(range.startMs));
+      qs.set('endMs', String(range.endMs));
+    }
     if (previewConfig) qs.set('previewConfig', previewConfig);
     return this.bff.request(
       'GET',
