@@ -596,7 +596,7 @@ function fmtTime(ms: number): string {
 <style scoped>
 .prof-shell {
   display: flex;
-  height: calc(100vh - 280px);
+  height: calc(100vh - 200px);
   min-height: 520px;
   padding: 0;
   overflow: hidden;

@@ -812,7 +812,7 @@ function toggleNewTaskLabel(l: string): void {
 <style scoped>
 .ebpf-shell {
   display: flex;
-  height: calc(100vh - 280px);
+  height: calc(100vh - 200px);
   min-height: 520px;
   padding: 0;
   overflow: hidden;

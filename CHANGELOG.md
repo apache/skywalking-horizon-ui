@@ -137,6 +137,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Correct timestamps right after repointing OAP.** The server-timezone offset is now cached per OAP URL, so a configuration reload that switches to a different-timezone OAP re-probes immediately instead of serving the previous server's offset for up to a minute.
 - **Baseline security response headers** (`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`) are now sent on every response.
 - Removed an internal `?mockTop=` debug query parameter that padded top-N widgets with synthetic rows; it no longer ships in release builds.
+- **The profiling pages now use more of the page height.** The Trace / eBPF / Async / pprof / network profiling layouts were sized off a viewport offset that over-counted the chrome above them, leaving dead space at the bottom on taller screens; they now extend closer to the bottom of the view.
 
 ### Documentation & release tooling
 
