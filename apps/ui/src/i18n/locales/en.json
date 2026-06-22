@@ -1,5 +1,7 @@
 {
   "_comment": "Source catalog. Keys ARE the English strings (Lingui-style). Non-English locales translate each key; missing keys fall back to English at render. Edit English here first, then run the BFF i18n:seed CLI (no equivalent on the UI side — translators edit catalogs directly).",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.",
   "Welcome to SkyWalking": "Welcome to SkyWalking",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

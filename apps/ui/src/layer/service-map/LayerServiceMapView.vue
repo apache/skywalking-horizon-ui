@@ -121,8 +121,8 @@ const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.ro
 
 // Focus-service is local to the topology view (NOT the header's
 // `useSelectedService` — the topology map is layer-wide by default).
-//   - empty array = no focus, BFF seeds from up-to-30 services in the
-//     layer for a layer-overview graph
+//   - empty array = no focus, BFF seeds from the layer's services
+//     for a layer-overview graph
 //   - one or more entries = comma-joined and passed as `?service=` so
 //     the BFF seeds BFS from each selected service (multi-select)
 const focusServiceNames = ref<string[]>([]);
@@ -216,6 +216,8 @@ const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
+const tooLarge = computed(() => data.value?.tooLarge ?? null);
+const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
 // ── Node visibility filter ──────────────────────────────────────────
 // One auto-derived facet — LAYER (`node.layers`, multi-valued ⇒
@@ -1651,9 +1653,8 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
           </div>
         </div>
         <!-- Depth is only meaningful when a focus seed is picked —
-             "All services" already seeds from up to 30 layer services
-             so a BFS-depth control would either be redundant or
-             explode the graph. -->
+             "All services" already seeds from the whole layer, so a
+             BFS-depth control would explode the graph. -->
         <label v-if="focusServiceNames.length > 0" class="depth-pick">
           <span>Depth</span>
           <select v-model.number="depth">
@@ -1669,6 +1670,13 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
     <div v-if="!reachable" class="banner err">
       <strong>OAP unreachable.</strong>
       {{ errorText ?? 'Topology feed failed — check the BFF and OAP.' }}
+    </div>
+    <div v-if="tooLarge" class="banner warn">
+      <strong>Topology too large to render</strong> — {{ tooLarge.nodes.toLocaleString() }} services · {{ tooLarge.edges.toLocaleString() }} calls.
+      {{ embedded ? 'Open the Topology tab and narrow the scope to see a complete map.' : 'Pick a specific service above, or lower the depth, to see a complete map.' }}
+    </div>
+    <div v-if="metricsPartial" class="banner warn">
+      Some metrics could not be loaded ({{ metricsPartial.failedChunks }} of {{ metricsPartial.totalChunks }} batches failed) — blank values may be unavailable, not zero.
     </div>
 
     <section class="sm-card sw-card" :class="{ 'has-selection': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
@@ -2068,7 +2076,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
           All nodes are hidden by the current filter.
           <button class="sw-btn small" type="button" @click="resetFilter">Reset filter</button>
         </div>
-        <div v-else class="loader">
+        <div v-else-if="!tooLarge" class="loader">
           No services with metric data in this layer for the last 15 minutes.
         </div>
 
@@ -2639,6 +2647,14 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
   color: #f87171;
+  font-size: 11.5px;
+}
+.banner.warn {
+  padding: 8px 12px;
+  background: var(--sw-warn-soft);
+  border: 1px solid var(--sw-warn);
+  border-radius: 6px;
+  color: var(--sw-warn);
   font-size: 11.5px;
 }
 .sm-card {

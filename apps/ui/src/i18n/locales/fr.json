@@ -1,5 +1,7 @@
 {
   "_comment": "Catalogue francais - cles = source anglaise; sortie = chaine traduite.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "Certaines métriques n'ont pas pu être chargées ({failed} lots sur {total} en échec) — les valeurs vides peuvent être indisponibles, et non nulles.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "Certaines métriques n'ont pas pu être chargées ({failed} lots sur {total} en échec) — certains endpoints ou liens peuvent être manquants.",
   "Welcome to SkyWalking": "Bienvenue dans SkyWalking",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

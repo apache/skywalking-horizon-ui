@@ -383,9 +383,11 @@ export function registerInstanceTopologyRoute(
         });
       }
 
+      // track failed metric chunks → surface "blank may be unavailable, not zero"
+      const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'InstanceNodeMetrics'),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'InstanceEdgeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'InstanceNodeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'InstanceEdgeMetrics', 4, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {
@@ -483,6 +485,7 @@ export function registerInstanceTopologyRoute(
         nodes: liveNodes,
         calls: liveCalls,
         reachable: true,
+        ...(mstats.failed > 0 ? { metricsPartial: { failedChunks: mstats.failed, totalChunks: mstats.total } } : {}),
       } satisfies InstanceTopologyResponse);
     },
   );

@@ -504,9 +504,11 @@ export function registerDeploymentRoute(
         });
       }
 
+      // track failed metric chunks → surface "blank may be unavailable, not zero"
+      const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'DeploymentNodeMetrics'),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'DeploymentEdgeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'DeploymentNodeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'DeploymentEdgeMetrics', 4, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {
@@ -594,6 +596,7 @@ export function registerDeploymentRoute(
         nodes: liveNodes,
         calls: liveCalls,
         reachable: true,
+        ...(mstats.failed > 0 ? { metricsPartial: { failedChunks: mstats.failed, totalChunks: mstats.total } } : {}),
       } satisfies DeploymentResponse);
     },
   );

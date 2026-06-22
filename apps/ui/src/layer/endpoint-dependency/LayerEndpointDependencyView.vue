@@ -143,6 +143,7 @@ const { nodes: baseNodes, calls: baseCalls, isLoading, isFetching, data } = useL
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
+const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
 // ── Interactive expansion ─────────────────────────────────────────
 // `getEndpointDependencies` returns a node's WHOLE neighbourhood (both
@@ -929,6 +930,9 @@ function edgeRowCrosshair(rowId: string): number | null {
       <strong>{{ t('OAP unreachable.') }}</strong>
       {{ errorText ?? t('API dependency feed failed — check the BFF and OAP.') }}
     </div>
+    <div v-if="metricsPartial" class="banner warn">
+      {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
+    </div>
 
     <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
       <!-- Two-column layout: graph on the left, selection detail
@@ -1553,6 +1557,14 @@ function edgeRowCrosshair(rowId: string): number | null {
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
   color: #f87171;
+  font-size: 11.5px;
+}
+.banner.warn {
+  padding: 8px 12px;
+  background: var(--sw-warn-soft);
+  border: 1px solid var(--sw-warn);
+  border-radius: 6px;
+  color: var(--sw-warn);
   font-size: 11.5px;
 }
 .ep-graph-card {

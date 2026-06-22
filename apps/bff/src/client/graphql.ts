@@ -143,6 +143,7 @@ export async function graphqlPost<T>(
  * contributes no aliases, so one transient error degrades that slice to
  * null metrics instead of aborting the whole fan-out (the topology routes
  * keep the graph and emit nulls). Returns `{}` when there are no fragments.
+ * Pass `stats` to accumulate failed/total chunk counts for surfacing.
  */
 export async function fetchAliasedChunks<T>(
   opts: GraphqlOptions,
@@ -150,6 +151,7 @@ export async function fetchAliasedChunks<T>(
   chunkSize: number,
   queryName: string,
   concurrency = 4,
+  stats?: { failed: number; total: number },
 ): Promise<Record<string, T>> {
   if (fragments.length === 0) return {};
   const chunks: string[][] = [];
@@ -167,6 +169,10 @@ export async function fetchAliasedChunks<T>(
   const merged: Record<string, T> = {};
   for (const env of envs) {
     if (env) Object.assign(merged, env);
+  }
+  if (stats) {
+    stats.total += chunks.length;
+    stats.failed += envs.filter((e) => e === null).length;
   }
   return merged;
 }

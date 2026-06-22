@@ -690,6 +690,9 @@ export interface InfraEdgeStyle {
 
 export interface InfraPipelineLimits {
   metricChunkSize: number;
+  /** Max concurrent metric-chunk requests in flight (default 4). Optional
+   *  for back-compat with older saved configs. */
+  metricConcurrency?: number;
   topologyConcurrency: number;
   templateConcurrency: number;
 }

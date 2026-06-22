@@ -469,9 +469,11 @@ export function registerEndpointDependencyRoute(
         });
       }
 
+      // track failed metric chunks → surface "blank may be unavailable, not zero"
+      const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'EndpointMetrics'),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EndpointEdgeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'EndpointMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EndpointEdgeMetrics', 4, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {
@@ -550,6 +552,7 @@ export function registerEndpointDependencyRoute(
         nodes: liveNodes,
         calls: liveCalls,
         reachable: true,
+        ...(mstats.failed > 0 ? { metricsPartial: { failedChunks: mstats.failed, totalChunks: mstats.total } } : {}),
       } satisfies EndpointDependencyResponse);
     },
   );

@@ -10,6 +10,7 @@
   },
   "pipeline": {
     "metricChunkSize":     6,
+    "metricConcurrency":   4,
     "topologyConcurrency": 4,
     "templateConcurrency": 8
   },

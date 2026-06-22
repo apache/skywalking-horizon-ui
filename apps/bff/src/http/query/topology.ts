@@ -204,6 +204,11 @@ export function seriesFromMqe(env: MqeShape | undefined): Array<number | null> |
   });
 }
 
+// Safety valve: above this the graph can't render legibly and risks OOMing the
+// browser, so the route rejects with guidance rather than drawing a partial map.
+const TOPOLOGY_MAX_NODES = 5000;
+const TOPOLOGY_MAX_EDGES = 15000;
+
 function emptyResponse(
   layerKey: string,
   serviceArg: string | null,
@@ -418,6 +423,15 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         );
       }
 
+      // Reject-with-guidance instead of a partial graph: too large to draw
+      // legibly + risks OOMing the browser. UI shows a narrow-scope hint.
+      if (nodes.size > TOPOLOGY_MAX_NODES || calls.size > TOPOLOGY_MAX_EDGES) {
+        return reply.send({
+          ...emptyResponse(layerKey, serviceArg, depth, topoCfg, true),
+          tooLarge: { nodes: nodes.size, edges: calls.size },
+        } satisfies TopologyResponse);
+      }
+
       // (Disconnected services are dropped a few lines below — they
       // don't belong on a topology map. The earlier "fill them in as
       // standalone nodes" pass was reverted after a closer look at
@@ -505,9 +519,12 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         });
       }
 
+      // Accumulate failed metric chunks so the response can flag "blank =
+      // unavailable, not zero" rather than letting an OAP 5xx read as no-traffic.
+      const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'NodeMetrics'),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EdgeMetrics'),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'NodeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EdgeMetrics', 4, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {
@@ -609,6 +626,9 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         nodes: liveNodes,
         calls: liveCalls,
         reachable: true,
+        ...(mstats.failed > 0
+          ? { metricsPartial: { failedChunks: mstats.failed, totalChunks: mstats.total } }
+          : {}),
       } satisfies TopologyResponse);
     },
   );

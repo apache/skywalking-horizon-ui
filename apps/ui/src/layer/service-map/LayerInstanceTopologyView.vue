@@ -152,6 +152,7 @@ function pick(which: 'client' | 'server', val: string): void {
 
 const enabled = computed(() => !!clientId.value && !!serverId.value);
 const { data, nodes, calls, isFetching } = useInstanceTopology(layerKey, clientId, serverId, enabled);
+const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
 // Resolve both names through the SAME layer naming rule the service map
 // uses (`resolveServiceIdentity` → `display`), so the `<group>::` prefix
@@ -562,6 +563,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
       </div>
     </div>
 
+    <div v-if="metricsPartial" class="banner warn">{{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}</div>
+
     <div class="imv-body" :class="{ 'no-selection': !selectedCall }">
       <div ref="containerEl" class="imv-canvas">
         <div v-if="showPickPrompt" class="imv-state">{{ t('Pick a client and server service to see their instance topology.') }}</div>
@@ -833,4 +836,5 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 .mono { font-family: var(--sw-mono); }
 .sw-btn.small { height: 24px; padding: 0 10px; font-size: 11px; }
 .sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); cursor: pointer; }
+.banner.warn { padding: 8px 12px; background: var(--sw-warn-soft); border: 1px solid var(--sw-warn); border-radius: 6px; color: var(--sw-warn); font-size: 11.5px; }
 </style>

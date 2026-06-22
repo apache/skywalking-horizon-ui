@@ -1,5 +1,7 @@
 {
   "_comment": "Deutscher Katalog - Schluessel = englischer Quelltext; Ausgabe = uebersetzte Zeichenkette.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "Einige Metriken konnten nicht geladen werden ({failed} von {total} Batches fehlgeschlagen) — leere Werte sind möglicherweise nicht verfügbar, nicht null.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "Einige Metriken konnten nicht geladen werden ({failed} von {total} Batches fehlgeschlagen) — einige Endpoints oder Verbindungen fehlen möglicherweise.",
   "Welcome to SkyWalking": "Willkommen bei SkyWalking",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

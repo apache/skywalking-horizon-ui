@@ -121,6 +121,8 @@ export interface InfraPipelineLimits {
    *  landing / dashboard chunking constant (6) so the 3D map shares the
    *  same OAP back-pressure profile. */
   metricChunkSize: number;
+  /** Max concurrent metric-chunk requests in stage 5 (each still ≤ metricChunkSize services). */
+  metricConcurrency: number;
   /** Max concurrent `getServicesTopology` calls in stage 3. */
   topologyConcurrency: number;
   /** Max concurrent `getLayerTemplate` calls in stage 2. */

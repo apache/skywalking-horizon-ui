@@ -1,5 +1,7 @@
 {
   "_comment": "日本語訳。固有名詞（SkyWalking、Horizon、Apache、LDAP、OAP、BFF）は原文表記を維持する。プレースホルダ {placeholder} は翻訳しない。",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "一部のメトリクスを読み込めませんでした（{total} バッチ中 {failed} バッチが失敗）。空白の値はゼロではなく、取得できなかった可能性があります。",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "一部のメトリクスを読み込めませんでした（{total} バッチ中 {failed} バッチが失敗）。一部のエンドポイントやリンクが欠落している可能性があります。",
   "Welcome to SkyWalking": "SkyWalking へようこそ",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

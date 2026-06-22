@@ -73,6 +73,7 @@ const { selectedId } = useSelectedService();
 const enabled = computed(() => !!selectedId.value);
 const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled);
 const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
+const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
 const cfg = computed<DeploymentConfig>(
   () => data.value?.config ?? { nodeMetrics: [] },
@@ -1042,6 +1043,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
       </div>
     </div>
 
+    <div v-if="metricsPartial" class="banner warn">
+      {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
+    </div>
+
     <div class="sit-body" :class="{ 'no-selection': !selectedCall || mapTab === 'flows' }">
       <div v-show="mapTab === 'topology'" ref="containerEl" class="sit-canvas" :style="{ height: canvasHeightPx + 'px' }">
         <div v-if="showPickPrompt" class="sit-state">{{ t('Pick a service to see its deployment topology.') }}</div>
@@ -1279,6 +1284,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 
 <style scoped>
 .sit { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+.banner.warn { padding: 8px 12px; background: var(--sw-warn-soft); border: 1px solid var(--sw-warn); border-radius: 6px; color: var(--sw-warn); font-size: 11.5px; }
 .sit-toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 10px; border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1);

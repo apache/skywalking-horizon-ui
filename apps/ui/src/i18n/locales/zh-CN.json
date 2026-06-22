@@ -1,5 +1,7 @@
 {
   "_comment": "简体中文译文。专有名词（SkyWalking、Horizon、Apache、LDAP、OAP 等）按 CLAUDE.md 规定保留原文。占位符如 {placeholder} 不要翻译。",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "部分指标加载失败（{total} 批中有 {failed} 批失败），空白值可能表示数据暂不可用，而非零值。",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "部分指标加载失败（{total} 批中有 {failed} 批失败），部分端点或链路可能缺失。",
   "Welcome to SkyWalking": "欢迎使用 SkyWalking",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

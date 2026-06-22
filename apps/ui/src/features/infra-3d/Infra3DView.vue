@@ -372,8 +372,8 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
 
     // Group chunks by level so the drawer can label the in-flight
     // batch with the level the operator is watching land. Within a
-    // level, slice by chunkSize. Sequential per chunk so the timeline
-    // progress reads honestly (parallel-chunks would jump the bar).
+    // level, slice by chunkSize; chunks then run in bounded-concurrency
+    // groups (below), with progress reported as each chunk lands.
     const byLevel = new Map<string, FetchUnit[]>();
     for (const u of units) {
       const lvl = levelForLayer(u.layer);
@@ -398,30 +398,29 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
       }
     }
 
+    // Fan chunks out in bounded-concurrency groups (each request is still
+    // ≤ metricChunkSize services, so OAP's per-request budget is unchanged).
+    const metricConcurrency = Math.max(1, Math.min(8, cfg.pipeline.metricConcurrency ?? 4));
+    // Two HOUR buckets — cheapest query that still smooths a spiky minute.
+    const metricWindow = { startMs: Date.now() - 2 * 3600_000, endMs: Date.now(), step: 'HOUR' as const };
     let servicesDone = 0;
     let errCount = 0;
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i]!;
-      rep.progress(
-        `fetching ${chunk.level} · chunk ${i + 1} / ${chunks.length}`,
-        {
-          kind: 'metrics',
-          servicesTotal: units.length,
-          servicesDone,
-          chunkIndex: i + 1,
-          chunkTotal: chunks.length,
-          currentLevel: chunk.level,
-        },
-      );
+    let chunksDone = 0;
+    rep.progress(`fetching metrics · 0 / ${chunks.length} chunks`, {
+      kind: 'metrics',
+      servicesTotal: units.length,
+      servicesDone: 0,
+      chunkIndex: 0,
+      chunkTotal: chunks.length,
+      currentLevel: chunks[0]?.level ?? null,
+    });
+    const runChunk = async (chunk: { level: string; units: FetchUnit[] }) => {
       try {
         const r = await bff.infra3d.metrics({
           services: chunk.units.map((u) => ({
             name: u.name, layer: u.layer, normal: u.normal, mqe: u.mqe,
           })),
-          // Last 2h at HOUR step — two buckets, the cheapest query that
-          // still smooths a single spiky minute. The BFF reduces the
-          // series to one scalar for the cube's traffic chip.
-          window: { startMs: Date.now() - 2 * 3600_000, endMs: Date.now(), step: 'HOUR' },
+          window: metricWindow,
         });
         setMetricValues(r.values);
         if (r.errors && Object.keys(r.errors).length > 0) errCount += Object.keys(r.errors).length;
@@ -434,6 +433,18 @@ const pipelineImpls: Record<PipelineStageId, StageImpl<PipelineCtx>> = {
         console.warn('[infra-3d] metrics chunk failed:', err);
       }
       servicesDone += chunk.units.length;
+      chunksDone += 1;
+      rep.progress(`fetching ${chunk.level} · ${chunksDone} / ${chunks.length} chunks`, {
+        kind: 'metrics',
+        servicesTotal: units.length,
+        servicesDone,
+        chunkIndex: chunksDone,
+        chunkTotal: chunks.length,
+        currentLevel: chunk.level,
+      });
+    };
+    for (let g = 0; g < chunks.length; g += metricConcurrency) {
+      await Promise.all(chunks.slice(g, g + metricConcurrency).map(runChunk));
     }
 
     const summary = errCount === 0

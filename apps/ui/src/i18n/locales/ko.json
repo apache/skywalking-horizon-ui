@@ -1,5 +1,7 @@
 {
   "_comment": "한국어 번역. 고유명사 (SkyWalking, Horizon, Apache, LDAP, OAP, BFF)는 원문 그대로 표기한다. `placeholder` 형식의 자리표시자는 번역하지 않는다.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "일부 지표를 불러오지 못했습니다 ({total}개 배치 중 {failed}개 실패) — 빈 값은 0이 아니라 사용할 수 없는 값일 수 있습니다.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "일부 지표를 불러오지 못했습니다 ({total}개 배치 중 {failed}개 실패) — 일부 엔드포인트나 링크가 누락되었을 수 있습니다.",
   "Welcome to SkyWalking": "SkyWalking에 오신 것을 환영합니다",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

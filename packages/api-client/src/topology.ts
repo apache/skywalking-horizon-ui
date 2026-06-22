@@ -241,6 +241,10 @@ export interface TopologyResponse {
   calls: TopologyCall[];
   reachable: boolean;
   error?: string;
+  /** Graph exceeded the render cap — nodes/calls empty, UI shows a narrow-scope hint. */
+  tooLarge?: { nodes: number; edges: number };
+  /** Some metric chunks failed (OAP 5xx); blank values may be unavailable, not zero. */
+  metricsPartial?: { failedChunks: number; totalChunks: number };
 }
 
 /** One instance node in the instance-topology drill-down. `id` is OAP's
@@ -285,6 +289,7 @@ export interface InstanceTopologyResponse {
   calls: InstanceTopologyCall[];
   reachable: boolean;
   error?: string;
+  metricsPartial?: { failedChunks: number; totalChunks: number };
 }
 
 export interface EndpointDependencyNode {
@@ -332,4 +337,5 @@ export interface EndpointDependencyResponse {
   calls: EndpointDependencyCall[];
   reachable: boolean;
   error?: string;
+  metricsPartial?: { failedChunks: number; totalChunks: number };
 }

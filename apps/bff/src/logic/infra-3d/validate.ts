@@ -112,6 +112,8 @@ const configSchema = z
         // ceiling 5xx's beyond 12 services. A larger chunk size makes every
         // oversized request fail, so reject it at config-save time.
         metricChunkSize: z.number().int().min(1).max(12),
+        // Concurrent chunks in flight (each still ≤ chunkSize); default 4 for older configs.
+        metricConcurrency: z.number().int().min(1).max(8).default(4),
         topologyConcurrency: z.number().int().min(1).max(16),
         templateConcurrency: z.number().int().min(1).max(32),
       })

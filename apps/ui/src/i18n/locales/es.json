@@ -1,5 +1,7 @@
 {
   "_comment": "Traducción al español (variante neutra latinoamericana). Nombres propios (SkyWalking, Horizon, Apache, LDAP, OAP, BFF) se mantienen sin traducir. Los marcadores {placeholder} no se traducen.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.": "No se pudieron cargar algunas métricas ({failed} de {total} lotes fallaron) — los valores en blanco pueden no estar disponibles, no son cero.",
+  "Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.": "No se pudieron cargar algunas métricas ({failed} de {total} lotes fallaron) — algunos endpoints o enlaces pueden faltar.",
   "Welcome to SkyWalking": "Te damos la bienvenida a SkyWalking",
   "Horizon": "Horizon",
   "SkyWalking Horizon": "SkyWalking Horizon",

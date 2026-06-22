@@ -267,4 +267,5 @@ export interface DeploymentResponse {
   calls: DeploymentCall[];
   reachable: boolean;
   error?: string;
+  metricsPartial?: { failedChunks: number; totalChunks: number };
 }
