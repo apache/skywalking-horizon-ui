@@ -15,7 +15,7 @@ Registry: **GitHub Container Registry (GHCR)** at `ghcr.io/apache/skywalking-hor
 | `main` | Head of `main`. Moves on every merge. | Smoke-test the development branch. |
 
 ```sh
-docker pull ghcr.io/apache/skywalking-horizon-ui:0.6.0
+docker pull ghcr.io/apache/skywalking-horizon-ui:0.7.0
 docker pull ghcr.io/apache/skywalking-horizon-ui:<sha>
 ```
 
@@ -67,7 +67,7 @@ docker run -d \
   --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
-  ghcr.io/apache/skywalking-horizon-ui:0.6.0
+  ghcr.io/apache/skywalking-horizon-ui:0.7.0
 ```
 
 Notes:
@@ -80,7 +80,7 @@ Notes:
 For immutable single-tenant deployments, build a child image that includes your config:
 
 ```dockerfile
-FROM ghcr.io/apache/skywalking-horizon-ui:0.6.0
+FROM ghcr.io/apache/skywalking-horizon-ui:0.7.0
 COPY horizon.yaml /app/horizon.yaml
 ```
 
@@ -148,7 +148,7 @@ spec:
         fsGroup: 101
       containers:
         - name: horizon
-          image: ghcr.io/apache/skywalking-horizon-ui:0.6.0
+          image: ghcr.io/apache/skywalking-horizon-ui:0.7.0
           ports:
             - containerPort: 8081
           envFrom:
@@ -190,7 +190,7 @@ docker run -d --name horizon \
   -p 8081:8081 \
   -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
   -v horizon-state:/data \
-  ghcr.io/apache/skywalking-horizon-ui:0.6.0
+  ghcr.io/apache/skywalking-horizon-ui:0.7.0
 ```
 
 Without a mounted volume the writes still land in the container's writable layer at `/data/` (ephemeral, but at least non-failing). Mounting a volume is what makes them durable.

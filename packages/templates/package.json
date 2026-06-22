@@ -1,6 +1,6 @@
 {
   "name": "@skywalking-horizon-ui/templates",
-  "version": "0.7.0-dev",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

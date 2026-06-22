@@ -1,6 +1,6 @@
 {
   "name": "@skywalking-horizon-ui/design-tokens",
-  "version": "0.7.0-dev",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
