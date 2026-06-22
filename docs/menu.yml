@@ -84,8 +84,10 @@ catalog:
 
   - name: "Bundled Dashboards"
     catalog:
-      - name: "Overview Dashboards"
-        path: "/dashboards/overviews"
+      - name: "Services Dashboard"
+        path: "/dashboards/overview-services"
+      - name: "Mesh Dashboard"
+        path: "/dashboards/overview-mesh"
       - name: "ActiveMQ"
         path: "/dashboards/activemq"
       - name: "Airflow"
