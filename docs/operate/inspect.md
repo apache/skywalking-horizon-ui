@@ -1,4 +1,4 @@
-# Inspect
+# Metrics Inspect
 
 Path: `/operate/inspect`. Verb: `inspect:read` (granted by maintainer, operator, admin).
 

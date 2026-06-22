@@ -1,4 +1,4 @@
-# Runtime Rules (DSL Management)
+# Runtime Rules (DSL)
 
 Path: `/operate/dsl`. Verbs: `rule:read` to browse, `rule:write` / `rule:write:structural` / `rule:delete` to change (granted by maintainer, operator, admin).
 

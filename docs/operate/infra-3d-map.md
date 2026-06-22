@@ -185,6 +185,17 @@ file and loads it as a local draft; preview it, then **Check diff & push**
 to publish. Import never writes OAP directly, and a file that isn't a valid
 3D-map configuration is rejected with a message.
 
+### Tuning the metric fan-out
+
+The Metrics step loads each layer's traffic numbers in batches, several at once. How aggressively it does this is governed by a small `pipeline` block in the map configuration. These fields are **not** surfaced in the structured editor — they are tuned only by editing the exported configuration JSON and importing it back (or by hand-editing the bundled default before deploying):
+
+- `metricConcurrency` — how many metric batches load at the same time. Default `4`, range `1`–`8`. Raise it to fill the cubes faster on a large deployment when OAP has headroom; lower it (toward `1`) if a busy OAP rejects or slows the burst of metric requests during the Metrics step.
+- `metricChunkSize` — how many services share one metric request. Range `1`–`12`. Larger chunks mean fewer requests, but OAP rejects an oversized request, so this is capped — leave it at the default unless you have a reason to change it.
+- `topologyConcurrency` — how many layer call-graphs load at once during the Topologies step. Range `1`–`16`.
+- `templateConcurrency` — how many layer templates load at once during the Templates step. Range `1`–`32`.
+
+The defaults are tuned for a typical deployment; only revisit these if the loading timeline stalls on the Metrics, Topologies, or Templates step, or if OAP returns errors under the load.
+
 Viewing the map needs read access (`infra-3d:read`, held by the built-in
 viewer role and above); editing and publishing the configuration needs
 `overview:write` (operators and admins by default). See

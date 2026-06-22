@@ -25,7 +25,7 @@ Five widget types render on per-layer dashboards. Each `widget.type` you set in 
 | `expressionUnits[]` | Per-expression unit override (mixed-unit charts). |
 | `expressionAxes[]` | `0` = left axis (default), `1` = right axis. |
 | `unit` | Widget-level default. |
-| `format` | `int`, `decimal`, `compact`. |
+| `format` | `int`, `decimal`, `compact`, `duration` (a seconds value rendered as a human time-ago, e.g. "5m 20s ago"), `enum` (a coded value mapped to a label via `valueMap`). |
 | `tableHeaders` | `table` only — `[, valueHeader]`; the value column's header. Label columns are headed by their dimension name. |
 | `showTableValues` | `table` only — show the value column. `false` for presence-only lists (e.g. node conditions). Default `true`. |
 | `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` hides the widget unless the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` hides it unless the selected entity has that attribute (Instance-scope only). |
@@ -82,7 +82,7 @@ One series per expression in `expressions[]`. Labels from `expressionLabels[]` p
 
 ### Dual y-axis
 
-When any series has `yAxisIndex: 1`, the right axis appears. Use for mixed-unit charts where one series is throughput (rpm) and another is latency (ms).
+When any expression sets `expressionAxes` to `1`, the right axis appears. Use for mixed-unit charts where one series is throughput (rpm) and another is latency (ms).
 
 ```json
 {
@@ -213,7 +213,25 @@ Renders columns `Condition | Node` (one per label key). A widget like Deployment
 - **MQE gate** — `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" | "gt" | "lt", "value"?: <n> }`. With `op: "exists"` the widget shows only when the expression returns non-null data (e.g. JVM metrics only on JVM-based services); `gt` / `lt` compare the result against `value`.
 - **Entity gate** — `{ "kind": "entity", "attribute": "<attr>", "op": "exists" | "eq", "value"?: "<v>" }`. Shows the widget only when the selected entity carries that attribute (`exists`) or matches `value` (`eq`). Entity gates are Instance-scope only — use them for "instance details" widgets on the service page that should not render at the service-only level.
 
-The predicate is evaluated on every data refresh; the widget disappears (rather than rendering empty) when it does not hold.
+The bundled `BANYANDB` layer uses an entity gate to keep lifecycle-only widgets (Time Since Last Sync, Last Sync, and the rest of the lifecycle role's metrics) off instances of every other role. They show only when the selected instance's `container_name` is `lifecycle`:
+
+```json
+{
+  "id": "lifecycle_last_run",
+  "title": "Time Since Last Sync",
+  "type": "card",
+  "format": "duration",
+  "expressions": ["latest(meter_banyandb_instance_lifecycle_last_run)"],
+  "visibleWhen": {
+    "kind": "entity",
+    "attribute": "container_name",
+    "op": "eq",
+    "value": "lifecycle"
+  }
+}
+```
+
+The predicate is evaluated on every data refresh; the widget disappears (rather than rendering empty) when it does not hold. In compare mode (below), the gate is the union across the locked cohort — the widget shows if any compared entity satisfies it.
 
 ## Layer scope
 
@@ -230,6 +248,31 @@ The predicate is evaluated on every data refresh; the widget disappears (rather 
   "span": 3
 }
 ```
+
+## Compare entities
+
+Every widget type is compare-aware. From a service / instance / endpoint dashboard you can **pin** entities into a comparison cohort and see them side by side inline, without changing the primary selection that drives the page header. Pin from the entity list or a row's pin control; pinned entities collect into a cohort bar above the grid, each with its own color.
+
+- **Up to 6 pins**, plus the primary entity — seven series at most. The primary keeps the layer accent color; each pin takes one of the six cohort hues, and an entity holds its hue across the cohort bar and every widget until you unpin it.
+- **The pick stays put.** Pinning does not refocus the page — the header KPIs, the selector, and the entity list keep pointing at the primary. Pins only add to the comparison. Unpin from the cohort bar's `×`; the primary (current) chip can't be removed.
+- **Cohort bar.** It appears from the first pin (`{n} locked · lock 1 more to compare`) and switches to a comparison summary at two or more (e.g. `Comparing {n} services`). Each chip shows its color, label, and per-entity load state, so a pin that failed or is still loading is visible rather than silently blank.
+- **Cross-service for instances and endpoints.** Instance and endpoint pins remember which service they belong to, so you can compare instances (or endpoints) drawn from different services in one cohort. When every pin is from one service the bar names it (`Comparing {n} instances of {service}`); a mixed cohort reads `across services` and each chip carries its service prefix. Service-scope pins are plain services.
+
+Comparison stays active while you navigate between the Service / Instance / Endpoint tabs of the same layer; leaving the layer clears it.
+
+### How each widget renders in compare mode
+
+The widget keeps its normal tile and lays all cohort entities inside it:
+
+| Widget | Compare rendering |
+|---|---|
+| `card` | One row per entity — color dot, entity name, that entity's value. |
+| `line` | One hued series per entity overlaid on the same axes; legend names the entity (and, for multi-series metrics, the series label too). Synced crosshairs still apply. |
+| `top` | A per-entity tab plus a merged view, each tab sorting that entity's list. |
+| `record` | A per-entity tab (the per-row jump-to-trace and click-to-copy are single-entity only; the compared view shows name + value). |
+| `table` | A prepended **Entity** column groups the rows by entity, each tagged with its color dot. |
+
+A failing or empty pin is isolated: a bad pin (or a primary that is itself outside the locked cohort) never blanks the other entities' results.
 
 ## Choosing the right widget
 

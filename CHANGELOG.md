@@ -38,7 +38,6 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - Card widgets gain a **`enum`** format with a **value→label map**: a coded metric (e.g. a 1/0 success gauge) renders a readable label (`1 → OK`, `0 → Failed`) instead of the raw number. Labels are **translatable per locale** (BFF-side template i18n overlay) and the map is editable in the Layer dashboards admin. BanyanDB's lifecycle **Last Sync** card uses it.
 - New **`duration`** format renders a SECONDS metric as a human time-ago (`5m 20s ago`; compact `5m` / `2h` on axes) — used by BanyanDB's **Time Since Last Sync** card.
-- Line-chart **axis labels and tooltips now use scientific notation** (`1.2e6`) for large magnitudes (≥ 10,000) so dense byte / count series stay readable, with the axis tick and its hovered value sharing one notation.
 
 ### Record widgets — jump to trace & copy
 
