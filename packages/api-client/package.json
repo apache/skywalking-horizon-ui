@@ -1,6 +1,6 @@
 {
   "name": "@skywalking-horizon-ui/api-client",
-  "version": "1.0.0-dev-dev",
+  "version": "1.0.0-dev",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
