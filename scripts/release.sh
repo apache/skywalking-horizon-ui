@@ -143,6 +143,22 @@ if ! confirm "Are these correct?"; then
     read -r -p "Enter release version: " RELEASE_VERSION
     read -r -p "Enter next version (without -dev suffix): " NEXT_RELEASE_VERSION
 fi
+
+# Normalize + validate both versions. The "next version" prompt asks for a
+# BARE X.Y.Z — the script appends `-dev` itself (Step 15) — so strip a stray
+# leading `v` / `-dev` / `-SNAPSHOT` an operator may have typed anyway, then
+# reject anything that isn't a clean semver core. Without this, entering
+# "1.0.0-dev" at the prompt silently produces the malformed "1.0.0-dev-dev".
+for _var in RELEASE_VERSION NEXT_RELEASE_VERSION; do
+    _val="${!_var}"
+    _val="${_val#v}"; _val="${_val%-dev}"; _val="${_val%-SNAPSHOT}"
+    if [[ ! "${_val}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        err "${_var} '${!_var}' is not a clean version — enter a bare X.Y.Z (e.g. 1.0.0), without a -dev suffix."
+        exit 1
+    fi
+    printf -v "${_var}" '%s' "${_val}"
+done
+
 TAG="v${RELEASE_VERSION}"
 
 # ========================== Step 4: Version-consistency check ==========================
