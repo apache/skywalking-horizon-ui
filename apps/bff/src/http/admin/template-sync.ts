@@ -599,6 +599,14 @@ export function registerTemplateSyncAdminRoutes(
       if (!v.ok) {
         return reply.code(400).send({ code: 'invalid_content', issues: v.issues });
       }
+      // The metric fan-out moved to horizon.yaml (performance.bulk.infra3d) and
+      // the config endpoint injects the live value at READ time. Strip any
+      // `pipeline` the payload still carries before it is persisted — otherwise
+      // the saved row keeps a block the bundled default no longer has and the
+      // template shows `diverged` forever (the sync compare is byte-exact).
+      if (content && typeof content === 'object') {
+        delete (content as Record<string, unknown>).pipeline;
+      }
     } else if (parsed.kind === 'overview') {
       const v = dashboardSchema.safeParse(content);
       if (!v.success) {
