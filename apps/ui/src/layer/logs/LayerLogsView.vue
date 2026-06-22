@@ -750,6 +750,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <span>Page size</span>
           <select v-model.number="pageSize" class="cf-input">
             <option :value="20">20</option>
+            <option :value="30">30</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
           </select>

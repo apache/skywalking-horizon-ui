@@ -53,12 +53,12 @@ export interface LogRouteDeps {
 
 const DEFAULT_WINDOW_MIN = 30;
 /** OAP feeds `paging.pageSize` straight to its storage layer as a
- *  LIMIT clause. The UI picker caps at 100; mirror that server-side so
- *  the cap holds against direct API callers. */
-const MAX_LOG_PAGE_SIZE = 100;
-function clampPageSize(requested: number | undefined, fallback: number): number {
+ *  LIMIT clause. The cap is `performance.limits.maxPageSize.logs`
+ *  (default 100); mirror that server-side so the cap holds against
+ *  direct API callers. */
+function clampPageSize(requested: number | undefined, fallback: number, max: number): number {
   if (!Number.isFinite(requested as number) || (requested as number) < 1) return fallback;
-  return Math.min(MAX_LOG_PAGE_SIZE, Math.round(requested as number));
+  return Math.min(max, Math.round(requested as number));
 }
 
 /** Build the log query window as SECOND-precision strings. Logs are
@@ -223,7 +223,7 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
         paging: {
           pageNum: Math.max(1, Math.round(body.page ?? 1)),
-          pageSize: clampPageSize(body.pageSize, 50),
+          pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.logs),
         },
       };
 

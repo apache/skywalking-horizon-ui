@@ -8,12 +8,6 @@
     "crossLevelCall": { "color": "#f0a04b", "style": "solid",  "arrow": true  },
     "intraCall":      { "color": "rgba(255,255,255,0.4)", "style": "solid", "arrow": false }
   },
-  "pipeline": {
-    "metricChunkSize":     6,
-    "metricConcurrency":   4,
-    "topologyConcurrency": 4,
-    "templateConcurrency": 8
-  },
   "unknownLayer": {
     "level": "middleware",
     "badge": "unclassified"

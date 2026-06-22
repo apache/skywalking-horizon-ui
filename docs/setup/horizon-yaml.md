@@ -16,6 +16,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
 | `query` | Per-request query limits (the layer-landing service cap). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
+| `performance` | How hard the BFF fans queries out to OAP, plus render / per-request record caps. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape
@@ -48,6 +49,18 @@ setup:   { file? }
 alarms:  { file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
 sourceMaps: { enabled?, maxFileBytes?, maxTotalBytes?, maxFileCount?, bootMountDir? }
+
+performance:
+  bulk:
+    topology:  { nodeBulkSize?, edgeBulkSize?, concurrency? }
+    infra3d:   { metricBulkSize?, metricConcurrency?, topologyConcurrency?, templateConcurrency? }
+    landing:   { bulkSize?, concurrency? }
+    dashboard: { bulkSize? }
+  limits:
+    topologyMaxNodes?: number
+    topologyMaxEdges?: number
+    maxPageSize: { traces?, logs?, browserLogs? }
+
 layers:  { excluded?: [{ key, reason? }] }
 ```
 
@@ -134,6 +147,53 @@ OAP traffic. If you need a hard ceiling on a pathological layer, lower the
 cap and pair it with a tighter OAP rate limit.
 
 Hot-reloadable — a change takes effect on the next landing request.
+
+## Performance tuning
+
+```yaml
+performance:
+  bulk:
+    topology:  { nodeBulkSize: 150, edgeBulkSize: 200, concurrency: 4 }
+    infra3d:   { metricBulkSize: 6, metricConcurrency: 4, topologyConcurrency: 4, templateConcurrency: 8 }
+    landing:   { bulkSize: 6, concurrency: 8 }
+    dashboard: { bulkSize: 6 }
+  limits:
+    topologyMaxNodes: 5000
+    topologyMaxEdges: 15000
+    maxPageSize: { traces: 100, logs: 100, browserLogs: 100 }
+```
+
+The `performance` block tunes how hard Horizon drives your OAP and storage backend. **Every default equals the built-in value, so the whole block is optional** — omit it and Horizon behaves exactly as it does without it. Every value is also **clamped to a hard ceiling**: a number above the ceiling is pulled back down to it (config can only lower the load below a built-in limit, never raise it past one). Hot-reloadable — a change takes effect on the next request of that kind.
+
+The rule of thumb: **raise these on a beefy OAP with a fast storage backend** that can absorb more parallel queries (you'll fill pages and maps faster); **lower them on a modest deployment** where a busy OAP rejects or slows under the burst.
+
+### `performance.bulk` — query fan-out
+
+These govern how Horizon batches and parallelizes its metric queries to OAP. Each family has a **bulk size** (how many metric expressions ride in one OAP request — fewer, larger requests vs. more, smaller ones) and most have a **concurrency** (how many of those requests are in flight at once).
+
+| Section | Tunes | Defaults |
+|---|---|---|
+| `bulk.topology` | The service-map family (topology, instance topology, deployment, endpoint dependency) node/edge metric fan-out. | `nodeBulkSize: 150`, `edgeBulkSize: 200`, `concurrency: 4` |
+| `bulk.infra3d` | The 3D Infrastructure Map's metric, topology, and template loading. | `metricBulkSize: 6`, `metricConcurrency: 4`, `topologyConcurrency: 4`, `templateConcurrency: 8` |
+| `bulk.landing` | The per-layer landing's service-column metric batches. | `bulkSize: 6`, `concurrency: 8` |
+| `bulk.dashboard` | A dashboard's widget metric fan-out. | `bulkSize: 6` |
+
+- **Raise `concurrency` / `*Concurrency`** to load a large topology, 3D map, landing, or dashboard faster when OAP has headroom. **Lower it** (toward `1`) if OAP rejects or slows under the burst of parallel requests.
+- **Bulk sizes** trade request count against request size: a larger bulk means fewer, fatter OAP requests. OAP rejects an oversized request, so each bulk size is capped — leave it at the default unless you have a specific reason to change it.
+- For the 3D map specifically, these knobs are also described in context on the [3D Infrastructure Map](../operate/infra-3d-map.md) page.
+
+### `performance.limits` — render & record caps
+
+| Field | Caps | Default |
+|---|---|---|
+| `topologyMaxNodes` | The render valve for a service map — a graph with more nodes than this is **rejected with a "narrow the scope" notice** rather than drawn as an unreadable hairball. | `5000` |
+| `topologyMaxEdges` | The same valve on edges. | `15000` |
+| `maxPageSize.traces` | The maximum **records** fetched per Traces request (the storage `LIMIT`, not a page count). The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. | `100` |
+| `maxPageSize.logs` | The same per-request record cap for Logs. | `100` |
+| `maxPageSize.browserLogs` | The same per-request record cap for Browser Logs. | `100` |
+
+- **`topologyMaxNodes` / `topologyMaxEdges`** are a readability and safety valve, not a data limit — if your deployment legitimately has a graph this large, raising them lets it render (at the cost of a denser scene and a heavier draw). Lower them if you'd rather force operators to scope down sooner.
+- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs request pulls from storage. Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per fetch.
 
 ## Excluded layers
 

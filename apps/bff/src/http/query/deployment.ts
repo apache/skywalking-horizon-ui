@@ -284,6 +284,7 @@ export function registerDeploymentRoute(
       }
 
       const cfgCurrent = deps.config.current;
+      const perf = cfgCurrent.performance;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar picker triplet; else fall back to the
@@ -507,8 +508,8 @@ export function registerDeploymentRoute(
       // track failed metric chunks → surface "blank may be unavailable, not zero"
       const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'DeploymentNodeMetrics', 4, mstats),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'DeploymentEdgeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, perf.bulk.topology.nodeBulkSize, 'DeploymentNodeMetrics', perf.bulk.topology.concurrency, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, perf.bulk.topology.edgeBulkSize, 'DeploymentEdgeMetrics', perf.bulk.topology.concurrency, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {

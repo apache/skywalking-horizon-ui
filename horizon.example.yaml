@@ -148,6 +148,7 @@ rbac:
       - topology:read
       - profile:read
       - overview:read
+      - infra-3d:read
 
     # Viewer + platform monitoring (OAP cluster + module inspector).
     maintainer:
@@ -160,9 +161,10 @@ rbac:
       - profile:read
       - overview:read
       - cluster:read
+      - inspect:read
       - ttl:read
       - config:read
-      - inspect:read
+      - infra-3d:read
 
     # Configures observability: dashboards, alarm rules, DSL/OAL,
     # diagnostics, profiling. Inherits viewer + platform reads so the
@@ -177,9 +179,9 @@ rbac:
       - topology:read
       - profile:read
       - cluster:read
+      - inspect:read
       - ttl:read
       - config:read
-      - inspect:read
       - overview:read
       - overview:write
       - setup:read
@@ -190,6 +192,7 @@ rbac:
       - alarm-setup:write
       - alarm-rule:read
       - alarm-rule:write
+      - infra-3d:read
       - rule:read
       - rule:write
       - rule:write:structural
@@ -247,3 +250,36 @@ sourceMaps:
   # published image sets HORIZON_SOURCEMAPS_DIR=/app/sourcemaps; leave empty
   # to disable the static mount.
   bootMountDir: ${HORIZON_SOURCEMAPS_DIR:}
+
+# ────────────────────────────────────────────────────────────────────
+# Performance / behavior tuning — how hard the BFF fans queries out to
+# OAP, and the caps that protect storage. OPERATIONAL (per-deployment,
+# hot-reloaded, never published to OAP), unlike dashboard content, which
+# lives in templates. The whole block is optional — defaults equal the
+# built-in values, shown here for reference. Every value is clamped to a
+# hard ceiling; config can lower it, never raise it past that.
+#
+# Node heap: the BFF holds the source-map cache (above) in process memory,
+# so size the container memory limit and `NODE_OPTIONS=--max-old-space-size`
+# to your sourceMaps budget. (--max-old-space-size is a process flag, not a
+# config field — V8 reads it before this file loads.)
+performance:
+  bulk:
+    # Service-map family (topology / instance-topology / deployment /
+    # endpoint-dependency): bulkSize = aliased MQE fragments per OAP
+    # request; concurrency = parallel requests.
+    topology:   { nodeBulkSize: 150, edgeBulkSize: 200, concurrency: 4 }
+    # 3D infrastructure-map metric fan-out (was the 3D template `pipeline`).
+    infra3d:    { metricBulkSize: 6, metricConcurrency: 4, topologyConcurrency: 4, templateConcurrency: 8 }
+    # Per-layer landing metric-column batches.
+    landing:    { bulkSize: 6, concurrency: 8 }
+    # Dashboard widget metric fan-out.
+    dashboard:  { bulkSize: 6 }
+  limits:
+    # Service-map render valve — a larger graph is rejected with a
+    # "narrow the scope" notice rather than drawn unreadably.
+    topologyMaxNodes: 5000
+    topologyMaxEdges: 15000
+    # Max RECORDS per request for each event list (the OAP storage LIMIT)
+    # — not a page count; the UI picker maxes at the same value.
+    maxPageSize: { traces: 100, logs: 100, browserLogs: 100 }

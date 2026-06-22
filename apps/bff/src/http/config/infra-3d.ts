@@ -60,7 +60,21 @@ export function registerInfra3dConfigRoutes(
     { preHandler: auth },
     async (_req: FastifyRequest, reply: FastifyReply) => {
       const cfg = await resolveEffectiveConfig(deps);
-      return reply.send(cfg);
+      // The metric fan-out budget is OPERATIONAL (per-deployment, hot-
+      // reloaded), so it lives in horizon.yaml — NOT the published template.
+      // Inject it server-side so the UI keeps reading `cfg.pipeline.*`; this
+      // overrides any stale `pipeline` a hand-edited / imported template row
+      // might still carry (validate.ts accepts-and-ignores it).
+      const perf = deps.config.current.performance.bulk.infra3d;
+      return reply.send({
+        ...cfg,
+        pipeline: {
+          metricChunkSize: perf.metricBulkSize,
+          metricConcurrency: perf.metricConcurrency,
+          topologyConcurrency: perf.topologyConcurrency,
+          templateConcurrency: perf.templateConcurrency,
+        },
+      });
     },
   );
 }

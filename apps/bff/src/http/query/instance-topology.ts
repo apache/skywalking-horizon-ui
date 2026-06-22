@@ -255,6 +255,7 @@ export function registerInstanceTopologyRoute(
       }
 
       const cfgCurrent = deps.config.current;
+      const perf = cfgCurrent.performance;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar picker triplet; else fall back to the
@@ -386,8 +387,8 @@ export function registerInstanceTopologyRoute(
       // track failed metric chunks → surface "blank may be unavailable, not zero"
       const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'InstanceNodeMetrics', 4, mstats),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'InstanceEdgeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, perf.bulk.topology.nodeBulkSize, 'InstanceNodeMetrics', perf.bulk.topology.concurrency, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, perf.bulk.topology.edgeBulkSize, 'InstanceEdgeMetrics', perf.bulk.topology.concurrency, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {

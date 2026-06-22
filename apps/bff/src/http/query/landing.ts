@@ -97,8 +97,8 @@ const DEFAULT_WINDOW_MIN = 60;
 // The batches then drain through a bounded-concurrency pool so a large
 // layer fans out in controlled waves, not a thundering herd. The number of
 // services probed per request is itself bounded by `query.landingServiceCap`.
-const MAX_SERVICES_PER_BATCH = 6;
-const LANDING_BATCH_CONCURRENCY = 8;
+// Batch size + pool width are config-tunable via
+// `performance.bulk.landing.{bulkSize,concurrency}` (read in the handler).
 
 /** Run `fn` over `items` with at most `limit` promises in flight at once. */
 async function mapPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
@@ -265,6 +265,8 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
       const cfg = parsed.data;
       const oapLayer = layerKey.toUpperCase();
       const cfgCurrent = deps.config.current;
+      const { bulkSize: maxServicesPerBatch, concurrency: batchConcurrency } =
+        cfgCurrent.performance.bulk.landing;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar time picker when all three triplet fields
@@ -353,10 +355,10 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         const out = new Map<string, MqeResultShape>();
         if (svcList.length === 0 || !cols.some((c) => !!c.expression)) return out;
         const chunks: (typeof svcList)[] = [];
-        for (let i = 0; i < svcList.length; i += MAX_SERVICES_PER_BATCH) {
-          chunks.push(svcList.slice(i, i + MAX_SERVICES_PER_BATCH));
+        for (let i = 0; i < svcList.length; i += maxServicesPerBatch) {
+          chunks.push(svcList.slice(i, i + maxServicesPerBatch));
         }
-        await mapPool(chunks, LANDING_BATCH_CONCURRENCY, async (batch) => {
+        await mapPool(chunks, batchConcurrency, async (batch) => {
           const fragments: string[] = [];
           const back: { a: string; key: string }[] = [];
           batch.forEach((svc, li) => {

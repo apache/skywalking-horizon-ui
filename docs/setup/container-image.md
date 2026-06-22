@@ -54,6 +54,21 @@ The four `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses 
 
 `server.host` and `server.port` come from the YAML when present. If they are omitted, the image supplies defaults via `HORIZON_SERVER_HOST=0.0.0.0` and `HORIZON_SERVER_PORT=8081`. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
 
+## Memory & sizing
+
+The BFF holds its **source-map cache in the Node heap** — uploaded Browser-Logs maps live in process memory, not in OAP — so the container's memory limit and Node's heap limit must be sized together with the source-map budget.
+
+- Set **`NODE_OPTIONS=--max-old-space-size=<MB>`** to match the container memory limit (leave headroom for the rest of the process — a value somewhat below the container limit, e.g. `1536` for a 2 GiB container). `--max-old-space-size` is a **process flag read by V8 before any config loads**, so it is **not** a `horizon.yaml` field — pass it via `NODE_OPTIONS` (env), not in the YAML.
+- Size **`sourceMaps.maxTotalBytes`** to fit comfortably inside that heap. A few recently-resolved maps are also kept *parsed* (larger than the raw file), so budget roughly 2× headroom above `maxTotalBytes`. Mounted (static) maps are disk-backed and don't count against the heap. See [Browser Logs & Source Maps](../operate/browser-source-maps.md).
+
+```sh
+docker run -d --name horizon \
+  -p 8081:8081 \
+  -e NODE_OPTIONS=--max-old-space-size=1536 \
+  -v "$PWD/horizon.yaml:/app/horizon.yaml:ro" \
+  ghcr.io/apache/skywalking-horizon-ui:0.7.0
+```
+
 ## How to load `horizon.yaml` into the container
 
 Three common approaches.

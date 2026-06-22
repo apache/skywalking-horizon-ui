@@ -73,13 +73,13 @@ const DEFAULT_WINDOW_MIN = 30;
 const MAX_WINDOW_MIN = 60 * 24 * 7; // 1 week guard
 /** OAP feeds `paging.pageSize` straight to its storage layer as a
  *  LIMIT clause (PaginationUtils.java). A direct API caller could
- *  otherwise pass `pageSize: 100000` and exhaust the backend. The UI
- *  picker caps at 200 — match that server-side, allowing graceful
- *  defaulting when the body omits or mangles the field. */
-const MAX_TRACE_PAGE_SIZE = 200;
-function clampPageSize(requested: number | undefined, fallback: number): number {
+ *  otherwise pass `pageSize: 100000` and exhaust the backend. The cap
+ *  is `performance.limits.maxPageSize.traces` (default 100) — match the
+ *  UI picker server-side, allowing graceful defaulting when the body
+ *  omits or mangles the field. */
+function clampPageSize(requested: number | undefined, fallback: number, max: number): number {
   if (!Number.isFinite(requested as number) || (requested as number) < 1) return fallback;
-  return Math.min(MAX_TRACE_PAGE_SIZE, Math.round(requested as number));
+  return Math.min(max, Math.round(requested as number));
 }
 // Traces are RECORD-style data and have no metric-bucket cap on OAP
 // (`DurationUtils.MAX_TIME_RANGE` only applies to metric queries via
@@ -267,6 +267,7 @@ function buildTraceCondition(
   resolvedServiceId: string | null,
   w: { start: string; end: string },
   coldStage: boolean,
+  maxPageSize: number,
 ) {
   return {
     ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
@@ -289,7 +290,7 @@ function buildTraceCondition(
       // OAP forwards `pageSize` straight to storage as a LIMIT
       // (PaginationUtils.java). The UI picker caps at 200; mirror that
       // server-side so the cap holds against direct API callers.
-      pageSize: clampPageSize(body.pageSize, 20),
+      pageSize: clampPageSize(body.pageSize, 20, maxPageSize),
     },
   };
 }
@@ -300,6 +301,7 @@ async function fetchNativeList(
   layerKey: string,
   coldStage: boolean,
   offsetMinutes: number,
+  maxPageSize: number,
 ): Promise<NativeTraceListResponse> {
   const api = await detectTraceQueryApi(opts);
   // Explicit start+end takes precedence over windowMinutes; falling
@@ -322,7 +324,7 @@ async function fetchNativeList(
       error: err instanceof Error ? err.message : String(err),
     };
   }
-  const condition = buildTraceCondition(body, serviceId, window, coldStage);
+  const condition = buildTraceCondition(body, serviceId, window, coldStage, maxPageSize);
   try {
     if (api === 'queryTraces') {
       const env = await graphqlPost<{
@@ -383,13 +385,14 @@ async function fetchNativeList(
 async function fetchZipkinList(
   opts: GraphqlOptions,
   body: TraceListBody,
+  maxPageSize: number,
 ): Promise<ZipkinTraceListResponse> {
   try {
     const traces = await zipkinFetchTraces(opts, {
       serviceName: body.service,
       minDuration: body.minTraceDuration,
       maxDuration: body.maxTraceDuration,
-      limit: clampPageSize(body.pageSize, 20),
+      limit: clampPageSize(body.pageSize, 20, maxPageSize),
     });
     return { source: 'zipkin', traces, reachable: true };
   } catch (err) {
@@ -434,6 +437,7 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       const requestedSource: TraceSource = body.source ?? tracesCfg.source;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      const maxPageSize = deps.config.current.performance.limits.maxPageSize.traces;
 
       const wantNative = requestedSource === 'both' || requestedSource === 'native';
       const wantZipkin = requestedSource === 'both' || requestedSource === 'zipkin';
@@ -441,9 +445,9 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([
         wantNative
-          ? fetchNativeList(opts, body, layerKey, !!req.coldStage, offset)
+          ? fetchNativeList(opts, body, layerKey, !!req.coldStage, offset, maxPageSize)
           : Promise.resolve(undefined),
-        wantZipkin ? fetchZipkinList(opts, body) : Promise.resolve(undefined),
+        wantZipkin ? fetchZipkinList(opts, body, maxPageSize) : Promise.resolve(undefined),
       ]);
 
       const response: TraceListResponse = {

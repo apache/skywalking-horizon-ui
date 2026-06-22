@@ -1020,11 +1020,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <label class="cf" :title="t('Cap on trace rows returned (default 30).')">
             <span>{{ t('Limit') }}</span>
             <select v-model.number="limit" class="cf-input">
-              <option :value="10">10</option>
+              <option :value="20">20</option>
               <option :value="30">30</option>
               <option :value="50">50</option>
               <option :value="100">100</option>
-              <option :value="200">200</option>
             </select>
           </label>
           <label class="cf" :class="{ 'cf-wide': isCustomRange }">

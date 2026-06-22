@@ -49,10 +49,12 @@ export interface BrowserErrorsRouteDeps {
 }
 
 const DEFAULT_WINDOW_MIN = 30;
-const MAX_PAGE_SIZE = 100;
-function clampPageSize(requested: number | undefined, fallback: number): number {
+/** OAP feeds `paging.pageSize` straight to storage as a LIMIT. The cap
+ *  is `performance.limits.maxPageSize.browserLogs` (default 100);
+ *  mirror that server-side so the cap holds against direct API callers. */
+function clampPageSize(requested: number | undefined, fallback: number, max: number): number {
   if (!Number.isFinite(requested as number) || (requested as number) < 1) return fallback;
-  return Math.min(MAX_PAGE_SIZE, Math.round(requested as number));
+  return Math.min(max, Math.round(requested as number));
 }
 
 function defaultWindow(
@@ -194,7 +196,7 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
         paging: {
           pageNum: Math.max(1, Math.round(body.page ?? 1)),
-          pageSize: clampPageSize(body.pageSize, 50),
+          pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.browserLogs),
         },
       };
 

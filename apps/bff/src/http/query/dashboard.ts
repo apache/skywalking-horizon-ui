@@ -792,7 +792,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // round-trip while staying inside OAP's per-query budget.
       // Gate-skipped widgets are excluded here (their wIdx keeps its
       // original index so Step 3's result map still lines up).
-      const MAX_WIDGETS_PER_BATCH = 6;
+      const MAX_WIDGETS_PER_BATCH = cfgCurrent.performance.bulk.dashboard.bulkSize;
       const batchWidgets = widgets
         .map((widget, wIdx) => ({ widget, wIdx }))
         .filter(({ wIdx }) => !skipped.has(wIdx));

@@ -105,19 +105,12 @@ const configSchema = z
         intraCall: edgeStyleSchema,
       })
       .strict(),
-    pipeline: z
-      .object({
-        // Cap matches the metrics route's MAX_SERVICES (infra-3d-metrics.ts):
-        // each metric chunk is one GraphQL request, and OAP's complexity
-        // ceiling 5xx's beyond 12 services. A larger chunk size makes every
-        // oversized request fail, so reject it at config-save time.
-        metricChunkSize: z.number().int().min(1).max(12),
-        // Concurrent chunks in flight (each still ≤ chunkSize); default 4 for older configs.
-        metricConcurrency: z.number().int().min(1).max(8).default(4),
-        topologyConcurrency: z.number().int().min(1).max(16),
-        templateConcurrency: z.number().int().min(1).max(32),
-      })
-      .strict(),
+    // Deprecated + ignored. The metric fan-out budget moved to horizon.yaml
+    // (performance.bulk.infra3d) — the config endpoint injects the live value
+    // server-side. Accepted here (rather than rejected by `.strict()`) so a
+    // stale saved / imported row that still carries the block keeps loading;
+    // the value is unused.
+    pipeline: z.unknown().optional(),
     unknownLayer: z
       .object({
         level: z.string().min(1),

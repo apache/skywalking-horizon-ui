@@ -385,6 +385,81 @@ const layersSchema = z
   .strict()
   .default({ excluded: DEFAULT_EXCLUDED_LAYERS });
 
+// ────────────────────────────────────────────────────────────────────
+// Performance / behavior tuning — how hard the BFF fans queries out to
+// OAP, plus the render / fetch caps that protect storage. OPERATIONAL,
+// per-deployment, hot-reloaded — NOT dashboard content (those live in
+// templates published to OAP). Defaults equal the built-in values, so
+// omitting this block changes nothing. Every value is clamped to a hard
+// ceiling (the `.max()` below) — config can lower, never exceed it.
+const performanceSchema = z
+  .object({
+    bulk: z
+      .object({
+        // Service-map family routes (topology / instance-topology /
+        // deployment / endpoint-dependency). `*BulkSize` = aliased MQE
+        // fragments per OAP request; `concurrency` = parallel requests.
+        topology: z
+          .object({
+            nodeBulkSize: z.number().int().min(1).max(500).default(150),
+            edgeBulkSize: z.number().int().min(1).max(500).default(200),
+            concurrency: z.number().int().min(1).max(16).default(4),
+          })
+          .strict()
+          .default({}),
+        // 3D infrastructure-map metric fan-out (relocated from the 3D
+        // template's former `pipeline` block).
+        infra3d: z
+          .object({
+            metricBulkSize: z.number().int().min(1).max(12).default(6),
+            metricConcurrency: z.number().int().min(1).max(8).default(4),
+            topologyConcurrency: z.number().int().min(1).max(16).default(4),
+            templateConcurrency: z.number().int().min(1).max(32).default(8),
+          })
+          .strict()
+          .default({}),
+        // Per-layer landing: metric columns fetched in service batches.
+        landing: z
+          .object({
+            bulkSize: z.number().int().min(1).max(12).default(6),
+            concurrency: z.number().int().min(1).max(16).default(8),
+          })
+          .strict()
+          .default({}),
+        // Dashboard widget metric fan-out.
+        dashboard: z
+          .object({
+            bulkSize: z.number().int().min(1).max(12).default(6),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .default({}),
+    limits: z
+      .object({
+        // Service-map render valve: a graph larger than this is rejected
+        // with a "narrow the scope" notice rather than drawn unreadably.
+        topologyMaxNodes: z.number().int().positive().default(5000),
+        topologyMaxEdges: z.number().int().positive().default(15000),
+        // Max RECORDS per request (the OAP storage LIMIT) for each event
+        // list — NOT a page count. The UI page-size picker maxes at the
+        // same value, so a client can't out-ask the dropdown.
+        maxPageSize: z
+          .object({
+            traces: z.number().int().min(1).max(500).default(100),
+            logs: z.number().int().min(1).max(500).default(100),
+            browserLogs: z.number().int().min(1).max(500).default(100),
+          })
+          .strict()
+          .default({}),
+      })
+      .strict()
+      .default({}),
+  })
+  .strict()
+  .default({});
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
@@ -399,6 +474,7 @@ export const configSchema = z
     debugLog: debugLogSchema,
     query: querySchema,
     sourceMaps: sourceMapsSchema,
+    performance: performanceSchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
     // than rejected by `.strict()`) so an existing config carrying the block

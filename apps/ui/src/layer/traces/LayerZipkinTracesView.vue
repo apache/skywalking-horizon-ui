@@ -569,11 +569,10 @@ function openByInput(): void {
         <label class="cf">
           <span>{{ t('Limit') }}</span>
           <select v-model.number="limit" class="cf-input">
-            <option :value="10">10</option>
+            <option :value="20">20</option>
             <option :value="30">30</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
-            <option :value="200">200</option>
           </select>
         </label>
         <!-- Time range pinned to its own final row so the (optional)

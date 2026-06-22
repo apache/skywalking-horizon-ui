@@ -204,11 +204,6 @@ export function seriesFromMqe(env: MqeShape | undefined): Array<number | null> |
   });
 }
 
-// Safety valve: above this the graph can't render legibly and risks OOMing the
-// browser, so the route rejects with guidance rather than drawing a partial map.
-const TOPOLOGY_MAX_NODES = 5000;
-const TOPOLOGY_MAX_EDGES = 15000;
-
 function emptyResponse(
   layerKey: string,
   serviceArg: string | null,
@@ -307,6 +302,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       }
 
       const cfgCurrent = deps.config.current;
+      const perf = cfgCurrent.performance;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar time picker when all three triplet
@@ -425,7 +421,10 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
 
       // Reject-with-guidance instead of a partial graph: too large to draw
       // legibly + risks OOMing the browser. UI shows a narrow-scope hint.
-      if (nodes.size > TOPOLOGY_MAX_NODES || calls.size > TOPOLOGY_MAX_EDGES) {
+      if (
+        nodes.size > perf.limits.topologyMaxNodes ||
+        calls.size > perf.limits.topologyMaxEdges
+      ) {
         return reply.send({
           ...emptyResponse(layerKey, serviceArg, depth, topoCfg, true),
           tooLarge: { nodes: nodes.size, edges: calls.size },
@@ -523,8 +522,8 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       // unavailable, not zero" rather than letting an OAP 5xx read as no-traffic.
       const mstats = { failed: 0, total: 0 };
       const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, 150, 'NodeMetrics', 4, mstats),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, 200, 'EdgeMetrics', 4, mstats),
+        fetchAliasedChunks<MqeShape>(opts, nodeFragments, perf.bulk.topology.nodeBulkSize, 'NodeMetrics', perf.bulk.topology.concurrency, mstats),
+        fetchAliasedChunks<MqeShape>(opts, edgeFragments, perf.bulk.topology.edgeBulkSize, 'EdgeMetrics', perf.bulk.topology.concurrency, mstats),
       ]);
 
       for (const [alias, shape] of Object.entries(nodeEnv)) {

@@ -133,7 +133,7 @@ const endMsRef = computed<number | null>(() =>
 );
 const windowMinutesEffective = computed<number>(() => (isCustomRange.value ? 0 : windowMinutes.value));
 const page = ref(1);
-const pageSize = ref(100);
+const pageSize = ref(30);
 // The query always pulls every category; the legend filters the stream
 // client-side (mirrors the Logs legend) so the chips can show full
 // per-category counts regardless of which one is selected.
@@ -202,7 +202,7 @@ watch(serviceName, () => {
   selectedVersionId.value = '';
   clearPage();
 });
-watch([serviceName, windowMinutes, customStart, customEnd, selectedVersionId, selectedPageId], () => {
+watch([serviceName, windowMinutes, customStart, customEnd, selectedVersionId, selectedPageId, pageSize], () => {
   page.value = 1;
 });
 // Collapse the open row + its resolution whenever a fresh result set
@@ -486,6 +486,15 @@ function loc(row: BrowserErrorRow): string {
           <select v-else v-model.number="windowMinutes" class="cf-input">
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ t(p.label) }}</option>
             <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
+          </select>
+        </label>
+        <label class="cf">
+          <span>{{ t('Page size') }}</span>
+          <select v-model.number="pageSize" class="cf-input">
+            <option :value="20">20</option>
+            <option :value="30">30</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
           </select>
         </label>
       </div>

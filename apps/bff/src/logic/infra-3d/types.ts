@@ -116,19 +116,6 @@ export interface InfraEdgeStyle {
   arrow: boolean;
 }
 
-export interface InfraPipelineLimits {
-  /** Service-bundles per MQE batch in stage 5. Mirrors the existing
-   *  landing / dashboard chunking constant (6) so the 3D map shares the
-   *  same OAP back-pressure profile. */
-  metricChunkSize: number;
-  /** Max concurrent metric-chunk requests in stage 5 (each still ≤ metricChunkSize services). */
-  metricConcurrency: number;
-  /** Max concurrent `getServicesTopology` calls in stage 3. */
-  topologyConcurrency: number;
-  /** Max concurrent `getLayerTemplate` calls in stage 2. */
-  templateConcurrency: number;
-}
-
 export interface Infra3dConfig {
   filter: {
     /** Global layer regex applied before levelling. Default `.*`. */
@@ -139,7 +126,6 @@ export interface Infra3dConfig {
     crossLevelCall: InfraEdgeStyle;
     intraCall: InfraEdgeStyle;
   };
-  pipeline: InfraPipelineLimits;
   /** Where to put OAP layers that don't appear in any level's explicit
    *  `layers` list and don't match any level's regex. The cube renders
    *  with a small `badge` chip so the admin notices. */
