@@ -1,6 +1,6 @@
 {
   "name": "skywalking-horizon-ui",
-  "version": "1.0.0-dev-dev",
+  "version": "1.0.0-dev",
   "private": true,
   "description": "Apache SkyWalking Horizon UI - next-generation web UI",
   "license": "Apache-2.0",

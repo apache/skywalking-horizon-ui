@@ -4,7 +4,7 @@ Notable changes to Apache SkyWalking Horizon UI, written from the operator's poi
 
 The version line is shared by every package in the monorepo (apps + shared packages) plus the BFF's `HORIZON_VERSION` default.
 
-## 1.0.0-dev
+## 1.0.0
 
 (In development — fill in highlights here before cutting the release.)
 
