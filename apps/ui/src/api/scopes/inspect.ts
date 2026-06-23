@@ -24,7 +24,6 @@ import type {
 import type {
   BffClient,
   InspectCatalogResponse,
-  InspectMqeTargetResponse,
   InspectServerTimeResponse,
 } from '../client';
 
@@ -55,11 +54,6 @@ export class InspectApi {
       'GET',
       `/api/inspect/entities?${params.toString()}`,
     );
-  }
-
-  mqeTarget(refresh = false): Promise<InspectMqeTargetResponse> {
-    const path = refresh ? '/api/inspect/mqe-target?refresh=true' : '/api/inspect/mqe-target';
-    return this.bff.request<InspectMqeTargetResponse>('GET', path);
   }
 
   exec(req: InspectExecRequest): Promise<ExpressionResult> {

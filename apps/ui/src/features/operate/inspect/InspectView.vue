@@ -25,13 +25,12 @@
  *   - `GET /api/inspect/catalog`     — full /inspect/metrics + Studio
  *                                      attribution (source + file).
  *   - `GET /api/inspect/entities`    — per-widget entity enumeration.
- *   - `GET /api/inspect/mqe-target`  — resolved MQE base URL.
  *   - `POST /api/inspect/exec`       — fires `execExpression` and
  *                                      returns the ExpressionResult.
  *
  * Refresh: the header button invalidates every `['inspect', …]`
- * vue-query key AND passes `refresh=true` to the catalog + mqe-target
- * endpoints so the BFF rebuilds its attribution / dump caches.
+ * vue-query key AND passes `refresh=true` to the catalog endpoint so
+ * the BFF rebuilds its attribution cache.
  */
 import { computed, reactive, ref, watch, watchEffect } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -289,15 +288,6 @@ const inspectNotEnabled = computed(() => {
     }
   }
   return false;
-});
-
-// ─── MQE target query ──────────────────────────────────────────────
-
-const mqeTargetQuery = useQuery({
-  queryKey: ['inspect', 'mqe-target'],
-  queryFn: () => bff.inspect.mqeTarget(),
-  staleTime: 60_000,
-  refetchOnWindowFocus: false,
 });
 
 // ─── Filter state for the drawer ───────────────────────────────────
@@ -952,16 +942,15 @@ async function rerunInspectFor(w: Widget) {
 // ─── Refresh ───────────────────────────────────────────────────────
 
 async function refreshEverything() {
-  /* 1. Bust BFF-side caches (attribution + mqe-target + server-time).
-   *    These imperative calls return fresh data; vue-query state is
+  /* 1. Bust BFF-side caches (attribution + server-time). These
+   *    imperative calls return fresh data; vue-query state is
    *    refreshed in step 2. */
   await Promise.all([
     bff.inspect.catalog(true),
-    bff.inspect.mqeTarget(true),
     bff.inspect.serverTime(true),
   ]);
   /* 2. Invalidate every vue-query under the `inspect` prefix —
-   *    catalog / mqe-target / server-time all re-pull. */
+   *    catalog / server-time all re-pull. */
   await queryClient.invalidateQueries({ queryKey: ['inspect'] });
   /* 3. Re-resolve entities AND re-fire MQE for every widget on the
    *    board, in parallel. We don't gate on `resolvedFetched` — a
@@ -1085,26 +1074,6 @@ function scopeShort(scope: InspectScope): string {
               @click="density = d"
             >{{ d }}</button>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- MQE target -->
-    <section class="ins__mqe">
-      <header class="ins__sectionhead">
-        {{ t('mqe target') }}
-        <span class="ins__sectionhint">
-          {{ t('where execExpression fires · resolved via /debugging/config/dump on the admin server') }}
-        </span>
-      </header>
-      <div class="mqe">
-        <div class="mqe__row">
-          <span class="ins__lbl">{{ t('effective') }}</span>
-          <code v-if="mqeTargetQuery.data.value" class="mqe__url">{{ mqeTargetQuery.data.value.baseUrl }}</code>
-          <code v-else-if="mqeTargetQuery.isPending.value" class="mqe__url">{{ t('resolving…') }}</code>
-          <code v-else class="mqe__url mqe__url--err">{{ t('unresolved') }}</code>
-          <span v-if="mqeTargetQuery.data.value" class="mqe__via">{{ mqeTargetQuery.data.value.via }}</span>
-          <span v-else-if="mqeTargetQuery.isError.value" class="mqe__via">{{ describeApiError(mqeTargetQuery.error.value) }}</span>
         </div>
       </div>
     </section>
@@ -1498,7 +1467,7 @@ function scopeShort(scope: InspectScope): string {
   letter-spacing: 0;
 }
 
-.ins__filters, .ins__mqe, .ins__board-section { display: flex; flex-direction: column; gap: 6px; }
+.ins__filters, .ins__board-section { display: flex; flex-direction: column; gap: 6px; }
 .ins__filters-body {
   display: flex;
   flex-wrap: wrap;
@@ -1583,20 +1552,6 @@ function scopeShort(scope: InspectScope): string {
   color: var(--rr-heading);
 }
 
-.mqe {
-  background: var(--rr-bg2);
-  border: 1px solid var(--rr-border);
-  border-radius: var(--rr-radius-sm);
-  padding: 10px 12px;
-}
-.mqe__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
-.mqe__url {
-  font-family: var(--rr-font-mono);
-  font-size: var(--sw-fs-sm);
-  color: var(--rr-heading);
-}
-.mqe__url--err { color: var(--rr-err); }
-.mqe__via { font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); flex: 1; }
 
 .ins__empty {
   padding: 24px;

@@ -443,13 +443,6 @@ export interface InspectCatalogResponse {
   attributionFingerprint: string;
 }
 
-/** Discovered (or operator-overridden) MQE base URL. */
-export interface InspectMqeTargetResponse {
-  baseUrl: string;
-  via: string;
-  configured: { host?: string; port?: number };
-}
-
 // ── Alarms wire types (BFF-only) ──────────────────────────────────────
 // Kept inline because every shape is BFF-shaped — getAlarm gets layer-
 // tagged per row, traffic is BFF-aggregated, the config is a BFF file.

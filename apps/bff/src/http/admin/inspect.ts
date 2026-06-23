@@ -165,33 +165,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 
-  // ── /api/inspect/mqe-target ──────────────────────────────────────
-  // Resolves the GraphQL base URL for MQE `execExpression` calls.
-  // The result is cached for ~60s; `?refresh=true` busts the cache
-  // so the operator can re-pull after reconfiguring OAP.
-
-  app.get(
-    '/api/inspect/mqe-target',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'inspect:read')) return;
-      const q = req.query as Record<string, string | undefined>;
-      if (q.refresh === 'true' || q.refresh === '1') mqeTarget.invalidate();
-      try {
-        const target = await mqeTarget.resolve({
-          config: () => deps.config.current,
-          fetch: deps.fetch ?? globalThis.fetch.bind(globalThis),
-        });
-        return reply.send(target);
-      } catch (err) {
-        return reply.code(502).send({
-          error: 'mqe_target_unresolved',
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-    },
-  );
-
   // ── /api/inspect/server-time ─────────────────────────────────────
   // Caches OAP's `getTimeInfo` so the SPA can display dates in browser
   // local TZ while sending server-TZ strings to OAP.
