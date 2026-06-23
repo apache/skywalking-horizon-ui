@@ -23,17 +23,20 @@
   opens the shared LogDetailPopout with the full payload. The
   resolved-query panel surfaces the exact condition the BFF ran.
 
-  Two sources: Log · raw (queryLogs) and Log · browser (BROWSER-layer JS
-  errors). The Browser source swaps the entity to a browser SERVICE picker
+  Three sources: Log · raw (queryLogs), Log · browser (BROWSER-layer JS
+  errors), and Log · Kubernetes Pod logs (on-demand container tail through
+  OAP). The Browser source swaps the entity to a browser SERVICE picker
   and the conditions to Category + Time + Limit, renders an error list, and
   the row-click popout adds the source-map de-obfuscation control (the same
-  resolve flow the per-layer Browser Logs tab uses). The next increment adds
-  the k8s pod-logs source — its toggle is present but disabled.
+  resolve flow the per-layer Browser Logs tab uses). The Kubernetes Pod logs
+  source pins a specific pod (instance) + container and does a one-shot
+  on-demand window fetch (the same BFF route the per-layer Pod Logs tab
+  tails) — these logs are never persisted, so there is no cold-stage.
 -->
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { bffClient } from '@/api/client';
+import { bff, bffClient } from '@/api/client';
 import type {
   BrowserErrorCategory,
   BrowserErrorRow,
@@ -46,8 +49,10 @@ import type {
   LogsResponse,
   SourceMapDescriptor,
 } from '@/api/client';
+import type { PodLogLine } from '@/api/scopes/log';
 import { useLayers } from '@/shell/useLayers';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { WINDOW_OPTS as POD_WINDOW_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
@@ -59,8 +64,9 @@ const { availableLayers } = useLayers();
 const { openTrace } = useTracePopout();
 
 // ── source. `raw` = queryLogs (any service across layers); `browser` =
-// BROWSER-layer JS errors. The k8s pod-logs source lands next (disabled). ─
-type LogSource = 'raw' | 'browser';
+// BROWSER-layer JS errors; `pods` = on-demand Kubernetes Pod logs (a
+// specific pod + container, never persisted). ─────────────────────────
+type LogSource = 'raw' | 'browser' | 'pods';
 const logSource = ref<LogSource>('raw');
 
 // ── browser entity — a BROWSER-layer service. Reuses the Pick metadata
@@ -165,6 +171,50 @@ watch(pickServiceId, () => {
   void loadEndpoints();
 });
 
+// ── pods entity — a specific pod (instance) + container. Reuses the Pick
+// cascade above (layer → service → instance), where the instance IS the
+// pod; the container list is lazy-loaded on-demand from the pod's id. ───
+const podContainer = ref<string>('');
+const podContainers = ref<string[]>([]);
+const containersLoading = ref(false);
+const containersError = ref<string | null>(null);
+
+async function loadContainers(): Promise<void> {
+  podContainer.value = '';
+  podContainers.value = [];
+  containersError.value = null;
+  const id = pickInstanceId.value;
+  if (!pickLayer.value || !id) return;
+  containersLoading.value = true;
+  try {
+    const r = await bff.log.podContainers(pickLayer.value, id);
+    if (r.errorReason) {
+      containersError.value = r.errorReason;
+    } else if (!r.reachable) {
+      containersError.value = r.error ?? t('OAP unreachable');
+    } else {
+      podContainers.value = r.containers;
+      // Auto-pick the first container (OAP lists the app container first).
+      podContainer.value = r.containers[0] ?? '';
+    }
+  } catch (e) {
+    containersError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    containersLoading.value = false;
+  }
+}
+// Only the pods source needs containers — fetch when its pinned pod changes.
+watch(pickInstanceId, () => {
+  if (logSource.value === 'pods') void loadContainers();
+});
+// Switching INTO pods with a pod already picked: list its containers now.
+watch(logSource, (src) => {
+  if (src === 'pods' && pickInstanceId.value && podContainers.value.length === 0) {
+    void loadContainers();
+  }
+});
+const podContainerOptions = computed(() => podContainers.value.map((c) => ({ value: c, label: c })));
+
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 const serviceOptions = computed(() =>
   services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
@@ -179,6 +229,10 @@ const endpointOptions = computed(() => [
 ]);
 const instanceSel = computed<string>({ get: () => pickInstanceId.value, set: (v) => (pickInstanceId.value = v ?? '') });
 const endpointSel = computed<string>({ get: () => pickEndpointId.value, set: (v) => (pickEndpointId.value = v ?? '') });
+// Pods source: the instance is REQUIRED (it is the pod), so no "All
+// instances" sentinel row — just the raw instance list.
+const podInstanceOptions = computed(() => instances.value.map((i) => ({ value: i.id, label: i.name })));
+const podInstanceSel = computed<string>({ get: () => pickInstanceId.value, set: (v) => (pickInstanceId.value = v ?? '') });
 
 const typeService = ref<string>('');
 const typeReal = ref<boolean>(true);
@@ -227,6 +281,12 @@ const cond = reactive({
 });
 const WINDOWS = [15, 30, 60, 180, 360, 720, 1440];
 const LIMITS = [20, 50, 100, 200];
+
+// ── pods condition — a trailing SECOND-precision window (live tail), in
+// seconds. Reuses the per-layer Pod Logs window options. Keywords share
+// the `cond.keywords` field above (→ keywordsOfContent). No cold-stage:
+// pod logs are never persisted. ────────────────────────────────────────
+const podWindowSeconds = ref<number>(60);
 
 // ── browser condition: error category (ALL = no filter; the rest mirror
 // OAP's ErrorCategory enum verbatim). Time + Limit are shared with raw. ─
@@ -280,11 +340,22 @@ const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
 const logsResp = ref<LogsResponse | null>(null);
 const browserResp = ref<BrowserErrorsResponse | null>(null);
-const resolved = ref<ExploreResolved | null>(null);
+// Pod-log one-shot result. `errorReason` carries OAP's verbatim reason
+// (feature disabled / stale pod) so the pane shows a hint, not a blank.
+const podLines = ref<PodLogLine[]>([]);
+const podErrorReason = ref<string | null>(null);
+// The pods source bypasses the BFF explore resolver (it uses the
+// dedicated pod-log route), so its resolved-query echo is built UI-side.
+// `ExploreResolved.source` only types raw/browser, so widen the panel's
+// shape to also accept this local pod echo.
+type ResolvedEcho = ExploreResolved | { source: string; condition: Record<string, unknown> };
+const resolved = ref<ResolvedEcho | null>(null);
 const showResolved = ref(false);
 
 const canRun = computed(() => {
   if (logSource.value === 'browser') return !!browserServiceId.value;
+  // A pod log needs a specific pod + container — both required.
+  if (logSource.value === 'pods') return !!pickInstanceId.value && !!podContainer.value;
   return true;
 });
 
@@ -331,16 +402,58 @@ function buildRequest(): ExploreRequest {
   };
 }
 
+async function runPodQuery(): Promise<void> {
+  const keywords = parseKeywords(cond.keywords);
+  // Echo the exact pod-log condition into the Resolved-query panel —
+  // built UI-side because this source bypasses the explore.ts resolver.
+  resolved.value = {
+    source: 'pods',
+    condition: {
+      serviceInstanceId: pickInstanceId.value,
+      container: podContainer.value,
+      windowSeconds: podWindowSeconds.value,
+      ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
+    },
+  };
+  try {
+    const r = await bff.log.podLogs(pickLayer.value, {
+      serviceInstanceId: pickInstanceId.value,
+      container: podContainer.value,
+      windowSeconds: podWindowSeconds.value,
+      ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
+    });
+    if (r.errorReason) {
+      podErrorReason.value = r.errorReason;
+    } else if (!r.reachable) {
+      errorMsg.value = r.error ?? t('OAP unreachable');
+    } else {
+      podLines.value = r.lines;
+    }
+  } catch (e) {
+    errorMsg.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
 async function runQuery(): Promise<void> {
   if (!canRun.value) return;
   running.value = true;
   hasQueried.value = true;
   errorMsg.value = null;
+  podErrorReason.value = null;
   closeDetail();
   // Cascade-clear: drop the prior result before the new query lands so
   // operators never read stale rows as the new state.
   logsResp.value = null;
   browserResp.value = null;
+  podLines.value = [];
+  if (logSource.value === 'pods') {
+    try {
+      await runPodQuery();
+    } finally {
+      running.value = false;
+    }
+    return;
+  }
   const req = buildRequest();
   try {
     const res = await bffClient.explore.query(req);
@@ -366,6 +479,16 @@ const rows = computed<LogRow[]>(() => (hasQueried.value ? logsResp.value?.logs ?
 const browserRows = computed<BrowserErrorRow[]>(() =>
   hasQueried.value && logSource.value === 'browser' ? browserResp.value?.logs ?? [] : [],
 );
+const podRows = computed<PodLogLine[]>(() =>
+  hasQueried.value && logSource.value === 'pods' ? podLines.value : [],
+);
+/** Pod log line timestamp (ms epoch from the BFF) → HH:MM:SS, browser-local. */
+function fmtPodTime(ts: number | null): string {
+  if (ts == null) return '';
+  const d = new Date(ts);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
 
 // ── detail — clicking a row opens the shared full-payload popout. The
 // stream stays full-width; the popout owns its own Escape / close +
@@ -455,6 +578,8 @@ watch(logSource, () => {
   errorMsg.value = null;
   logsResp.value = null;
   browserResp.value = null;
+  podLines.value = [];
+  podErrorReason.value = null;
   resolved.value = null;
   closeDetail();
 });
@@ -472,7 +597,7 @@ watch(logSource, () => {
       <div class="seg">
         <button :class="{ on: logSource === 'raw' }" @click="logSource = 'raw'">{{ t('Raw') }}</button>
         <button :class="{ on: logSource === 'browser' }" @click="logSource = 'browser'">{{ t('Browser') }}</button>
-        <button disabled :title="t('coming next')">{{ t('Pod logs') }}</button>
+        <button :class="{ on: logSource === 'pods' }" :title="t('Kubernetes Pod logs')" @click="logSource = 'pods'">{{ t('Kubernetes Pod logs') }}</button>
       </div>
     </div>
 
@@ -495,6 +620,52 @@ watch(logSource, () => {
               class="cf-tas"
             />
           </label>
+        </div>
+      </div>
+
+      <!-- Kubernetes Pod logs source: a specific pod (instance) + container,
+           both required. Reuses the layer → service → instance Pick cascade
+           (the instance IS the pod); the container list is lazy-loaded from
+           the pod's id. No Type mode, no endpoint — a pod log scopes to one
+           container. -->
+      <div v-else-if="logSource === 'pods'" class="iq-target">
+        <div class="iq-target-h">
+          <span>{{ t('Kubernetes Pod logs') }} <small class="dim">{{ t('required — pick a pod and a container') }}</small></span>
+        </div>
+        <div class="iq-grid">
+          <label class="cf">
+            <span>{{ t('Layer') }}</span>
+            <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="layerOptions" :placeholder="t('Any layer')" class="cf-tas" />
+          </label>
+          <label class="cf">
+            <span>{{ t('Service') }}</span>
+            <TypeaheadSelect
+              v-model="pickServiceId" :aria-label="t('Service')" :options="serviceOptions" :disabled="!pickLayer || servicesLoading"
+              :placeholder="servicesLoading ? t('Reading…') : t('Pick a service')" class="cf-tas"
+            />
+          </label>
+          <label class="cf">
+            <span>{{ t('Pod') }}</span>
+            <TypeaheadSelect
+              v-model="podInstanceSel" :aria-label="t('Pod')" :options="podInstanceOptions" :disabled="!pickServiceId"
+              :placeholder="t('Select a pod…')" class="cf-tas"
+            />
+          </label>
+          <label class="cf">
+            <span>{{ t('Container') }}</span>
+            <TypeaheadSelect
+              v-model="podContainer" :aria-label="t('Container')" :options="podContainerOptions"
+              :disabled="!pickInstanceId || containersLoading"
+              :placeholder="containersLoading ? t('Loading…') : (podContainers.length ? t('Select a container…') : t('No containers'))"
+              class="cf-tas"
+            />
+          </label>
+        </div>
+        <!-- Listing a pod's containers can itself return OAP's errorReason
+             (feature disabled / stale pod) — surface it before Run. -->
+        <div v-if="containersError" class="iq-pod-banner">
+          <strong>{{ t('Logs unavailable:') }}</strong> {{ containersError }}
+          <span class="dim">{{ t('— pick a currently-running pod, or check that on-demand pod logs are enabled on OAP.') }}</span>
         </div>
       </div>
 
@@ -554,7 +725,7 @@ watch(logSource, () => {
 
         <div class="iq-conditions">
           <div class="iq-conditions-h">
-            <span class="kicker iq-cond-kicker">{{ logSource === 'browser' ? t('Browser errors') : 'Logs' }}</span>
+            <span class="kicker iq-cond-kicker">{{ logSource === 'browser' ? t('Browser errors') : (logSource === 'pods' ? t('Kubernetes Pod logs') : 'Logs') }}</span>
             <button v-if="resolved" class="iq-resolved-tog" @click="showResolved = !showResolved">
               {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
               <span class="dim">{{ resolved.source }}</span>
@@ -572,6 +743,12 @@ watch(logSource, () => {
                 </select>
               </label>
             </template>
+            <template v-else-if="logSource === 'pods'">
+              <label class="cf cf-wide">
+                <span>{{ t('Keywords') }}</span>
+                <input v-model="cond.keywords" class="cf-input mono" type="text" :placeholder="t('space- or comma-separated, AND-joined')" />
+              </label>
+            </template>
             <template v-else>
               <label class="cf cf-wide">
                 <span>{{ t('Keywords') }}</span>
@@ -586,7 +763,15 @@ watch(logSource, () => {
                 <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
               </label>
             </template>
-            <label class="cf iq-time" :class="{ 'cf-wide': isCustomRange }">
+            <!-- Pods: a trailing SECOND-precision window (seconds) — the
+                 logs are tailed live, never persisted, so no custom range. -->
+            <label v-if="logSource === 'pods'" class="cf iq-time">
+              <span>{{ t('Window') }}</span>
+              <select v-model.number="podWindowSeconds" class="cf-input">
+                <option v-for="o in POD_WINDOW_OPTS" :key="o.value" :value="o.value">{{ t(o.label) }}</option>
+              </select>
+            </label>
+            <label v-else class="cf iq-time" :class="{ 'cf-wide': isCustomRange }">
               <span>{{ t('Time') }}</span>
               <template v-if="isCustomRange">
                 <span class="cf-range">
@@ -601,7 +786,7 @@ watch(logSource, () => {
                 <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
               </select>
             </label>
-            <label class="cf">
+            <label v-if="logSource !== 'pods'" class="cf">
               <span>{{ t('Limit') }}</span>
               <select v-model.number="cond.limit" class="cf-input">
                 <option v-for="l in LIMITS" :key="l" :value="l">{{ l }}</option>
@@ -644,6 +829,35 @@ watch(logSource, () => {
                 <span v-if="rowLoc(r)" class="be-loc">{{ rowLoc(r) }}</span>
                 <span class="be-msg-body">{{ r.message || t('(no message)') }}</span>
               </span>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <!-- Kubernetes Pod logs source: a read-only dense pane of on-demand log
+         lines (timestamp + content), matching the per-layer Pod Logs look.
+         OAP's errorReason (feature disabled / stale pod) shows as a hint. -->
+    <div v-else-if="logSource === 'pods'" class="iq-result">
+      <div v-if="!hasQueried" class="iq-empty">{{ t('Pick a pod and a container, then run a query.') }}</div>
+      <div v-else-if="running && podRows.length === 0" class="iq-empty">{{ t('Reading data…') }}</div>
+      <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
+      <div v-else-if="podErrorReason" class="iq-pod-banner">
+        <strong>{{ t('Logs unavailable:') }}</strong> {{ podErrorReason }}
+        <span class="dim">{{ t('— pick a currently-running pod, or check that on-demand pod logs are enabled on OAP.') }}</span>
+      </div>
+      <div v-else-if="podRows.length === 0" class="iq-empty">{{ t('No logs in this window.') }}</div>
+
+      <article v-else class="iq-list-card sw-card">
+        <header class="iq-list-head">
+          <h4>{{ t('Kubernetes Pod logs') }}</h4>
+          <span class="hint">{{ podRows.length }} {{ t('lines') }}</span>
+        </header>
+        <div class="iq-stream-scroll">
+          <div class="pl-stream">
+            <div v-for="(l, idx) in podRows" :key="`pl-${idx}`" class="pl-row">
+              <span class="pl-time mono dim">{{ fmtPodTime(l.timestamp) }}</span>
+              <span class="pl-content mono">{{ l.content }}</span>
             </div>
           </div>
         </div>
@@ -766,4 +980,33 @@ watch(logSource, () => {
   border-radius: 3px; padding: 0 5px; font-variant-numeric: tabular-nums;
 }
 .be-msg-body { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Pod-log line list — read-only dense lines (timestamp + content) in the
+   same dark vocabulary as the per-layer Pod Logs pane. Plain text, no
+   row-click popout (each line is just a string). */
+.pl-stream { font-size: 11.5px; }
+.pl-row {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 10px;
+  align-items: baseline;
+  padding: 2px 12px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.pl-row:hover { background: var(--sw-bg-2); }
+.pl-time { font-size: 10.5px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.pl-content { color: var(--sw-fg-1); white-space: pre-wrap; word-break: break-word; }
+
+/* On-demand pod logs return OAP's errorReason when the feature is disabled
+   or the pod can't be resolved — surface it as a hint, not a blank pane. */
+.iq-pod-banner {
+  margin: 8px 0 0;
+  padding: 8px 12px;
+  border: 1px solid rgba(240, 160, 75, 0.5);
+  background: rgba(240, 160, 75, 0.1);
+  border-radius: 4px;
+  font-size: 11.5px;
+  color: #f0a04b;
+}
+.iq-pod-banner .dim { color: var(--sw-fg-3); }
 </style>
