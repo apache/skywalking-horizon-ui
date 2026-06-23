@@ -299,11 +299,20 @@ async function runQuery(): Promise<void> {
 const rows = computed<NativeTraceListRow[]>(() => (hasQueried.value ? native.value?.traces ?? [] : []));
 const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...rows.value.map((r) => r.duration))));
 
+// Which OAP query answered. `queryBasicTraces` (Trace Query v1 API)
+// returns trace SEGMENTS; `queryTraces` (v2, BanyanDB only) returns whole
+// traces with spans inline. The banner states the API so operators always
+// know what a row represents — same wording as the per-layer Traces tab.
+const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
+const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
+const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
+
 // ── detail (reuses the shared trace-detail card + GET /api/trace/:id) ─
 const selectedTraceId = ref<string | null>(null);
 const selectedTraceIds = ref<string[]>([]);
 const selectedRowKey = ref<string | null>(null);
 const embeddedSpans = ref<NativeSpan[] | null>(null);
+const railOpen = ref<boolean>(true);
 const sourceRef = ref<'native' | 'zipkin'>('native');
 const { nativeDetail, isFetching: detailFetching } = useTraceDetail(selectedTraceId, sourceRef);
 const waterfallSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
@@ -398,110 +407,144 @@ function changeSelectedTraceId(id: string): void {
         </div>
       </div>
 
-      <div class="iq-grid">
-        <label class="cf">
-          <span>{{ t('Trace ID') }}</span>
-          <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
-        </label>
-        <label class="cf">
-          <span>{{ t('Status') }}</span>
-          <select v-model="cond.traceState" class="cf-input">
-            <option value="ALL">{{ t('All') }}</option>
-            <option value="SUCCESS">{{ t('Success') }}</option>
-            <option value="ERROR">{{ t('Error') }}</option>
-          </select>
-        </label>
-        <label class="cf">
-          <span>{{ t('Order') }}</span>
-          <select v-model="cond.queryOrder" class="cf-input">
-            <option value="BY_START_TIME">{{ t('Newest') }}</option>
-            <option value="BY_DURATION">{{ t('Slowest') }}</option>
-          </select>
-        </label>
-        <label class="cf">
-          <span>{{ t('Duration (ms)') }}</span>
-          <span class="cf-range">
-            <input v-model="cond.minDuration" class="cf-input cf-range-num" type="number" min="0" :placeholder="t('min')" />
-            <span class="cf-range-sep">–</span>
-            <input v-model="cond.maxDuration" class="cf-input cf-range-num" type="number" min="0" :placeholder="t('max')" />
-          </span>
-        </label>
-        <label class="cf cf-wide">
-          <span>{{ t('Tags') }}</span>
-          <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('http.status_code=500, …')" />
-        </label>
-        <label class="cf" :class="{ 'cf-wide': isCustomRange }">
-          <span>{{ t('Time') }}</span>
-          <template v-if="isCustomRange">
-            <span class="cf-range">
-              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
-              <span class="cf-range-sep">–</span>
-              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
-              <button class="iq-range-reset" type="button" :title="t('Back to presets')" @click="cond.windowMinutes = 30">×</button>
+      <!-- Top strip: trace conditions (left) + duration distribution
+           (right), mirroring the per-layer Traces tab's `.tr-top-strip`
+           4fr/1fr split. -->
+      <div class="iq-top-strip">
+        <div class="iq-conditions">
+          <div class="iq-grid">
+            <label class="cf">
+              <span>{{ t('Trace ID') }}</span>
+              <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
+            </label>
+            <label class="cf">
+              <span>{{ t('Status') }}</span>
+              <select v-model="cond.traceState" class="cf-input">
+                <option value="ALL">{{ t('All') }}</option>
+                <option value="SUCCESS">{{ t('Success') }}</option>
+                <option value="ERROR">{{ t('Error') }}</option>
+              </select>
+            </label>
+            <label class="cf">
+              <span>{{ t('Order') }}</span>
+              <select v-model="cond.queryOrder" class="cf-input">
+                <option value="BY_START_TIME">{{ t('Newest') }}</option>
+                <option value="BY_DURATION">{{ t('Slowest') }}</option>
+              </select>
+            </label>
+            <label class="cf">
+              <span>{{ t('Duration (ms)') }}</span>
+              <span class="cf-range">
+                <input v-model="cond.minDuration" class="cf-input cf-range-num" type="number" min="0" :placeholder="t('min')" />
+                <span class="cf-range-sep">–</span>
+                <input v-model="cond.maxDuration" class="cf-input cf-range-num" type="number" min="0" :placeholder="t('max')" />
+              </span>
+            </label>
+            <label class="cf cf-wide">
+              <span>{{ t('Tags') }}</span>
+              <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('http.status_code=500, …')" />
+            </label>
+            <label class="cf" :class="{ 'cf-wide': isCustomRange }">
+              <span>{{ t('Time') }}</span>
+              <template v-if="isCustomRange">
+                <span class="cf-range">
+                  <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+                  <span class="cf-range-sep">–</span>
+                  <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+                  <button class="iq-range-reset" type="button" :title="t('Back to presets')" @click="cond.windowMinutes = 30">×</button>
+                </span>
+              </template>
+              <select v-else v-model.number="cond.windowMinutes" class="cf-input">
+                <option v-for="w in WINDOWS" :key="w" :value="w">{{ w < 60 ? `${w}m` : `${w / 60}h` }}</option>
+                <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
+              </select>
+            </label>
+            <label class="cf">
+              <span>{{ t('Limit') }}</span>
+              <select v-model.number="cond.limit" class="cf-input">
+                <option v-for="l in LIMITS" :key="l" :value="l">{{ l }}</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="iq-run-row">
+            <button class="iq-run" :disabled="!canRun || running" @click="runQuery">
+              {{ running ? t('Running…') : t('Run query') }}
+            </button>
+            <button v-if="resolved" class="iq-resolved-tog" @click="showResolved = !showResolved">
+              {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
+              <span class="dim">{{ resolved.source }}{{ resolved.backend ? ` · ${resolved.backend}` : '' }}</span>
+            </button>
+          </div>
+          <pre v-if="resolved && showResolved" class="iq-resolved-body">{{ JSON.stringify(resolved.condition, null, 2) }}</pre>
+        </div>
+
+        <!-- Duration distribution — same dot-plot as the per-layer Traces
+             tab. Click a dot to open that trace. -->
+        <section class="iq-scatter sw-card">
+          <header class="iq-scatter-head">
+            <span class="kicker">{{ t('Distribution') }}</span>
+            <span class="legend">
+              <span class="lg ok" /> {{ t('ok') }}
+              <span class="lg err" /> {{ t('err') }}
             </span>
-          </template>
-          <select v-else v-model.number="cond.windowMinutes" class="cf-input">
-            <option v-for="w in WINDOWS" :key="w" :value="w">{{ w < 60 ? `${w}m` : `${w / 60}h` }}</option>
-            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
-          </select>
-        </label>
-        <label class="cf">
-          <span>{{ t('Limit') }}</span>
-          <select v-model.number="cond.limit" class="cf-input">
-            <option v-for="l in LIMITS" :key="l" :value="l">{{ l }}</option>
-          </select>
-        </label>
+          </header>
+          <TraceDistribution
+            :rows="rows"
+            :max-duration="maxDuration"
+            :selected-key="selectedRowKey"
+            @select="openRow"
+          />
+        </section>
       </div>
 
-      <div class="iq-run-row">
-        <button class="iq-run" :disabled="!canRun || running" @click="runQuery">
-          {{ running ? t('Running…') : t('Run query') }}
-        </button>
-        <button v-if="resolved" class="iq-resolved-tog" @click="showResolved = !showResolved">
-          {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
-          <span class="dim">{{ resolved.source }}{{ resolved.backend ? ` · ${resolved.backend}` : '' }}</span>
-        </button>
+      <!-- Persists across browse + detail so the active trace-query API
+           (and what a row represents) stays visible after a click. -->
+      <div v-if="showApiBanner" class="iq-api-banner">
+        {{ t('This OAP serves traces via') }} <b>{{ t('Trace Query {label} API', { label: traceApiLabel }) }}</b>
+        (<code>{{ native?.api }}</code>).
+        <template v-if="isSegmentList">
+          {{ t('Each row is a trace') }} <b>{{ t('segment') }}</b> — {{ t('click one to fetch its full trace.') }}
+        </template>
+        <template v-else>
+          {{ t('Full traces are returned inline.') }}
+        </template>
       </div>
-      <pre v-if="resolved && showResolved" class="iq-resolved-body">{{ JSON.stringify(resolved.condition, null, 2) }}</pre>
-
-      <!-- Duration distribution — same dot-plot as the per-layer Traces
-           tab. Click a dot to open that trace. -->
-      <section v-if="hasQueried && !errorMsg && rows.length > 0" class="iq-scatter sw-card">
-        <header class="iq-scatter-head">
-          <span class="kicker">{{ t('Distribution') }}</span>
-          <span class="legend">
-            <span class="lg ok" /> {{ t('ok') }}
-            <span class="lg err" /> {{ t('err') }}
-          </span>
-        </header>
-        <TraceDistribution
-          :rows="rows"
-          :max-duration="maxDuration"
-          :selected-key="selectedRowKey"
-          @select="openRow"
-        />
-      </section>
 
       <div class="iq-result">
         <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — name a service or leave it blank.') }}</div>
         <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
         <div v-else-if="rows.length === 0" class="iq-empty">{{ t('No traces in this window.') }}</div>
-        <div v-else class="iq-split">
-          <article class="iq-list-card sw-card">
-            <header class="iq-list-head">
-              <h4>{{ t('Traces') }}</h4>
-              <span class="hint">{{ t('{n} traces', { n: rows.length }) }}</span>
-            </header>
-            <TraceListPanel
-              :rows="rows"
-              :selected-key="selectedRowKey"
-              :max-duration="maxDuration"
-              @select="openRow"
-            />
-          </article>
+
+        <!-- Browsing mode: full-width list when no trace is selected. -->
+        <article v-else-if="!selectedTraceId" class="iq-list-card sw-card">
+          <header class="iq-list-head">
+            <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
+            <span class="hint">{{ rows.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
+          </header>
+          <TraceListPanel
+            :rows="rows"
+            :selected-key="selectedRowKey"
+            :max-duration="maxDuration"
+            @select="openRow"
+          />
+        </article>
+
+        <!-- Inline detail: folded rail (left) + detail (right). -->
+        <section v-else class="iq-detail-split" :class="{ 'rail-collapsed': !railOpen }">
+          <TraceListPanel
+            foldable
+            :rail-open="railOpen"
+            :rows="rows"
+            :selected-key="selectedRowKey"
+            :max-duration="maxDuration"
+            :title="isSegmentList ? t('Segments') : t('Traces')"
+            :count-hint="rows.length"
+            @select="openRow"
+            @toggle-rail="railOpen = !railOpen"
+          />
           <div class="iq-detail">
-            <div v-if="!selectedTraceId" class="iq-empty sm">{{ t('Select a trace.') }}</div>
-            <div v-else-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
+            <div v-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
             <div v-else-if="waterfallSpans.length === 0" class="iq-empty sm">{{ t('No spans (older than the detail window).') }}</div>
             <TraceDetailCard
               v-else
@@ -513,7 +556,7 @@ function changeSelectedTraceId(id: string): void {
               @change-trace-id="changeSelectedTraceId"
             />
           </div>
-        </div>
+        </section>
       </div>
     </template>
   </div>
@@ -543,8 +586,9 @@ function changeSelectedTraceId(id: string): void {
 .iq-target-h .dim { color: var(--sw-fg-4); font-weight: 400; }
 .iq-link { background: none; border: none; color: var(--sw-accent); font-size: 11px; cursor: pointer; padding: 0; margin-left: auto; }
 .iq-link:disabled { color: var(--sw-fg-4); cursor: not-allowed; }
-.iq-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 10px; }
+.iq-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
 @media (max-width: 900px) { .iq-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .iq-grid { grid-template-columns: 1fr; } }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
 .cf.cf-chk { justify-content: flex-end; }
@@ -568,31 +612,56 @@ function changeSelectedTraceId(id: string): void {
 .iq-resolved-tog { background: none; border: none; color: var(--sw-fg-3); font-size: 11px; cursor: pointer; }
 .iq-resolved-tog .dim { color: var(--sw-fg-4); margin-left: 6px; }
 .iq-resolved-body { margin: 0; padding: 8px 12px; font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); background: var(--sw-bg-0); overflow: auto; max-height: 160px; border: 1px solid var(--sw-line); border-radius: 5px; }
-/* Distribution card — mirrors the per-layer Traces tab's scatter strip:
-   a tight kicker + ok/err legend head, the shared dot-plot below. */
-.iq-scatter { padding: 6px 10px 8px; display: flex; flex-direction: column; flex: 0 0 auto; }
+
+/* Top strip — conditions (left) + duration distribution (right),
+   mirroring the per-layer Traces tab's `.tr-top-strip` 4fr/1fr split. */
+.iq-top-strip { display: grid; grid-template-columns: 4fr 1fr; gap: 12px; align-items: stretch; }
+@media (max-width: 1100px) { .iq-top-strip { grid-template-columns: 1fr; } }
+.iq-conditions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+/* Distribution card — mirrors the per-layer Traces tab's scatter card:
+   a tight kicker + ok/err legend head, the shared dot-plot filling the
+   rest of the card height. */
+.iq-scatter { padding: 6px 10px 8px; display: flex; flex-direction: column; min-height: 0; margin: 0; }
 .iq-scatter-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; flex: 0 0 auto; }
 .iq-scatter-head .legend { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); display: inline-flex; gap: 10px; align-items: center; }
 .iq-scatter-head .lg { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
 .iq-scatter-head .lg.ok { background: var(--sw-accent); }
 .iq-scatter-head .lg.err { background: var(--sw-err); }
 .kicker { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sw-accent); font-weight: 600; }
-/* The dot-plot lives in TraceDistribution.vue; cap its height so the
-   distribution stays a strip and the list/detail below get the rest. */
-.iq-scatter :deep(.scatter-wrap) { flex: 0 0 auto; }
-.iq-scatter :deep(.scatter-svg) { min-height: 120px; max-height: 160px; }
+/* The scatter chart internals live in TraceDistribution.vue; this card
+   only styles the head strip. The shared component fills the remaining
+   card height via its own flex. */
+.iq-scatter :deep(.scatter-wrap) { flex: 1; min-height: 0; }
 
-.iq-result { flex: 1; min-height: 0; }
+/* API banner — same v1/v2 line the per-layer Traces tab renders. */
+.iq-api-banner {
+  padding: 7px 12px; border: 1px solid var(--sw-line); border-radius: 6px;
+  background: var(--sw-bg-2); color: var(--sw-fg-2); font-size: 11px; line-height: 1.5;
+}
+.iq-api-banner code {
+  font-family: var(--sw-mono); font-size: 10.5px; padding: 0 3px;
+  border-radius: 3px; background: var(--sw-bg-3); color: var(--sw-accent);
+}
+.iq-api-banner b { color: var(--sw-fg-0); }
+
+.iq-result { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.iq-result > .iq-list-card { flex: 1; }
 .iq-empty, .iq-err { padding: 24px; text-align: center; color: var(--sw-fg-3); font-size: 12px; }
 .iq-empty.sm { padding: 14px; }
 .iq-err { color: var(--sw-err); }
-.iq-split { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 12px; height: 100%; min-height: 0; }
 /* List pane — the same sw-card + header the per-layer Traces tab uses,
-   with the row list scrolling inside. */
+   with the row list scrolling inside. Full width when no trace is
+   selected. */
 .iq-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; }
 .iq-list-head { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--sw-line); flex: 0 0 auto; }
 .iq-list-head h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
 .iq-list-head .hint { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); }
+/* Inline detail split — folded rail (left) + detail (right). Height is
+   driven by the detail card's content; the rail sticks to match. Mirrors
+   the per-layer Traces tab's `.tr-detail-split`. */
+.iq-detail-split { display: grid; grid-template-columns: 320px 1fr; gap: 12px; align-items: start; }
+.iq-detail-split.rail-collapsed { grid-template-columns: 64px 1fr; }
 .iq-detail { overflow: auto; min-width: 0; }
 
 /* Custom-range reset (× back to presets). */
