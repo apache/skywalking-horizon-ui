@@ -516,6 +516,7 @@
   "Clear in-page filter": "In-Page-Filter zurücksetzen",
   "Reset": "Zurücksetzen",
   "picked": "ausgewählt",
+  "selected": "ausgewählt",
   "no traces": "keine Traces",
   "This OAP serves traces via": "Dieses OAP liefert Traces über",
   "Trace Query {label} API": "Trace-Query-{label}-API",

@@ -486,6 +486,7 @@
   "Clear in-page filter": "Clear in-page filter",
   "Reset": "Reset",
   "picked": "picked",
+  "selected": "selected",
   "no traces": "no traces",
   "This OAP serves traces via": "This OAP serves traces via",
   "Trace Query {label} API": "Trace Query {label} API",

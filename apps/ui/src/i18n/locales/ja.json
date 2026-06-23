@@ -516,6 +516,7 @@
   "Clear in-page filter": "ページ内フィルタをクリア",
   "Reset": "リセット",
   "picked": "選択中",
+  "selected": "選択済み",
   "no traces": "トレースなし",
   "This OAP serves traces via": "この OAP は次の経由でトレースを提供します:",
   "Trace Query {label} API": "Trace Query {label} API",

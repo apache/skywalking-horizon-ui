@@ -36,6 +36,7 @@ import type {
   ExploreEntity,
   ExploreRequest,
   ExploreResolved,
+  ExploreWindow,
   NativeSpan,
   NativeTraceListResponse,
   NativeTraceListRow,
@@ -46,6 +47,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
+import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
 const props = defineProps<{ kind: 'trace' | 'log' }>();
@@ -195,6 +197,30 @@ const cond = reactive({
 const WINDOWS = [15, 30, 60, 180, 360, 720, 1440];
 const LIMITS = [20, 30, 50, 100];
 
+// Custom time range — same sentinel-on-windowMinutes shape the per-layer
+// Traces tab uses. When chosen, the Time select swaps to two
+// datetime-local inputs and the query carries explicit epoch-ms bounds.
+const CUSTOM_RANGE_SENTINEL = -1;
+const customStart = ref<string | null>(null);
+const customEnd = ref<string | null>(null);
+const isCustomRange = computed(() => cond.windowMinutes === CUSTOM_RANGE_SENTINEL);
+function fmtLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+watch(isCustomRange, (custom) => {
+  if (custom) {
+    if (customStart.value && customEnd.value) return;
+    const end = new Date();
+    const start = new Date(end.getTime() - 30 * 60_000);
+    customStart.value = fmtLocalInput(start);
+    customEnd.value = fmtLocalInput(end);
+  } else {
+    customStart.value = null;
+    customEnd.value = null;
+  }
+});
+
 function parseTags(s: string): Array<{ key: string; value: string }> {
   return s
     .split(',')
@@ -217,6 +243,25 @@ const showResolved = ref(false);
 
 const canRun = computed(() => props.kind === 'trace' && traceSource.value === 'native');
 
+/** Build the window the request carries: explicit epoch-ms bounds in
+ *  Custom mode (datetime-local strings are browser-local; `Date.parse`
+ *  reads them as local), else the rolling minutes preset. */
+function resolveWindow(): ExploreWindow {
+  if (isCustomRange.value) {
+    if (customStart.value && customEnd.value) {
+      const startMs = Date.parse(customStart.value);
+      const endMs = Date.parse(customEnd.value);
+      if (Number.isFinite(startMs) && Number.isFinite(endMs) && endMs > startMs) {
+        return { startMs, endMs };
+      }
+    }
+    // Custom selected but bounds not yet valid — fall back to a sane
+    // rolling window rather than forwarding the -1 sentinel.
+    return { windowMinutes: 30 };
+  }
+  return { windowMinutes: cond.windowMinutes };
+}
+
 async function runQuery(): Promise<void> {
   running.value = true;
   hasQueried.value = true;
@@ -227,7 +272,7 @@ async function runQuery(): Promise<void> {
     kind: 'trace',
     traceSource: 'native',
     ...(entity ? { entity } : {}),
-    window: { windowMinutes: cond.windowMinutes },
+    window: resolveWindow(),
     pageSize: cond.limit,
     traceId: cond.traceId.trim() || undefined,
     traceState: cond.traceState,
@@ -385,10 +430,19 @@ function changeSelectedTraceId(id: string): void {
           <span>{{ t('Tags') }}</span>
           <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('http.status_code=500, …')" />
         </label>
-        <label class="cf">
+        <label class="cf" :class="{ 'cf-wide': isCustomRange }">
           <span>{{ t('Time') }}</span>
-          <select v-model.number="cond.windowMinutes" class="cf-input">
+          <template v-if="isCustomRange">
+            <span class="cf-range">
+              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <span class="cf-range-sep">–</span>
+              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <button class="iq-range-reset" type="button" :title="t('Back to presets')" @click="cond.windowMinutes = 30">×</button>
+            </span>
+          </template>
+          <select v-else v-model.number="cond.windowMinutes" class="cf-input">
             <option v-for="w in WINDOWS" :key="w" :value="w">{{ w < 60 ? `${w}m` : `${w / 60}h` }}</option>
+            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
           </select>
         </label>
         <label class="cf">
@@ -410,19 +464,41 @@ function changeSelectedTraceId(id: string): void {
       </div>
       <pre v-if="resolved && showResolved" class="iq-resolved-body">{{ JSON.stringify(resolved.condition, null, 2) }}</pre>
 
+      <!-- Duration distribution — same dot-plot as the per-layer Traces
+           tab. Click a dot to open that trace. -->
+      <section v-if="hasQueried && !errorMsg && rows.length > 0" class="iq-scatter sw-card">
+        <header class="iq-scatter-head">
+          <span class="kicker">{{ t('Distribution') }}</span>
+          <span class="legend">
+            <span class="lg ok" /> {{ t('ok') }}
+            <span class="lg err" /> {{ t('err') }}
+          </span>
+        </header>
+        <TraceDistribution
+          :rows="rows"
+          :max-duration="maxDuration"
+          :selected-key="selectedRowKey"
+          @select="openRow"
+        />
+      </section>
+
       <div class="iq-result">
         <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — name a service or leave it blank.') }}</div>
         <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
         <div v-else-if="rows.length === 0" class="iq-empty">{{ t('No traces in this window.') }}</div>
         <div v-else class="iq-split">
-          <div class="iq-list-pane">
+          <article class="iq-list-card sw-card">
+            <header class="iq-list-head">
+              <h4>{{ t('Traces') }}</h4>
+              <span class="hint">{{ t('{n} traces', { n: rows.length }) }}</span>
+            </header>
             <TraceListPanel
               :rows="rows"
               :selected-key="selectedRowKey"
               :max-duration="maxDuration"
               @select="openRow"
             />
-          </div>
+          </article>
           <div class="iq-detail">
             <div v-if="!selectedTraceId" class="iq-empty sm">{{ t('Select a trace.') }}</div>
             <div v-else-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
@@ -444,7 +520,13 @@ function changeSelectedTraceId(id: string): void {
 </template>
 
 <style scoped>
-.iq { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; padding: 14px 16px; }
+/* Fill the viewport below the topbar so the result area (and the list /
+   detail inside it) flex to the available height instead of collapsing to
+   content. The shell `<main>` grows with content rather than imposing a
+   definite height, so a plain `height: 100%` would resolve to auto — the
+   viewport-anchored min-height gives the flex column real height to share
+   (52px ≈ the topbar row). */
+.iq { display: flex; flex-direction: column; gap: 10px; min-height: calc(100vh - 52px); padding: 14px 16px; }
 .iq-head h1 { font-size: 16px; margin: 0; }
 .iq-sub { color: var(--sw-fg-3); font-size: 12px; margin: 2px 0 0; }
 .iq-coming { padding: 40px; text-align: center; color: var(--sw-fg-3); font-size: 13px; }
@@ -486,11 +568,38 @@ function changeSelectedTraceId(id: string): void {
 .iq-resolved-tog { background: none; border: none; color: var(--sw-fg-3); font-size: 11px; cursor: pointer; }
 .iq-resolved-tog .dim { color: var(--sw-fg-4); margin-left: 6px; }
 .iq-resolved-body { margin: 0; padding: 8px 12px; font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); background: var(--sw-bg-0); overflow: auto; max-height: 160px; border: 1px solid var(--sw-line); border-radius: 5px; }
-.iq-result { flex: 1; min-height: 0; border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; }
+/* Distribution card — mirrors the per-layer Traces tab's scatter strip:
+   a tight kicker + ok/err legend head, the shared dot-plot below. */
+.iq-scatter { padding: 6px 10px 8px; display: flex; flex-direction: column; flex: 0 0 auto; }
+.iq-scatter-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; flex: 0 0 auto; }
+.iq-scatter-head .legend { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); display: inline-flex; gap: 10px; align-items: center; }
+.iq-scatter-head .lg { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+.iq-scatter-head .lg.ok { background: var(--sw-accent); }
+.iq-scatter-head .lg.err { background: var(--sw-err); }
+.kicker { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sw-accent); font-weight: 600; }
+/* The dot-plot lives in TraceDistribution.vue; cap its height so the
+   distribution stays a strip and the list/detail below get the rest. */
+.iq-scatter :deep(.scatter-wrap) { flex: 0 0 auto; }
+.iq-scatter :deep(.scatter-svg) { min-height: 120px; max-height: 160px; }
+
+.iq-result { flex: 1; min-height: 0; }
 .iq-empty, .iq-err { padding: 24px; text-align: center; color: var(--sw-fg-3); font-size: 12px; }
 .iq-empty.sm { padding: 14px; }
 .iq-err { color: var(--sw-err); }
-.iq-split { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; height: 100%; min-height: 0; }
-.iq-list-pane { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-right: 1px solid var(--sw-line); }
+.iq-split { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 12px; height: 100%; min-height: 0; }
+/* List pane — the same sw-card + header the per-layer Traces tab uses,
+   with the row list scrolling inside. */
+.iq-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; }
+.iq-list-head { display: flex; align-items: baseline; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--sw-line); flex: 0 0 auto; }
+.iq-list-head h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--sw-fg-0); }
+.iq-list-head .hint { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); }
 .iq-detail { overflow: auto; min-width: 0; }
+
+/* Custom-range reset (× back to presets). */
+.iq-range-reset {
+  flex: 0 0 auto; height: 28px; width: 24px; padding: 0;
+  background: transparent; border: 1px solid var(--sw-line-2); border-radius: 4px;
+  color: var(--sw-fg-2); cursor: pointer; font-size: 13px; line-height: 1;
+}
+.iq-range-reset:hover { color: var(--sw-accent); border-color: var(--sw-accent); }
 </style>

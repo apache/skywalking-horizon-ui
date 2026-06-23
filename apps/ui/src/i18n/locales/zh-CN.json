@@ -516,6 +516,7 @@
   "Clear in-page filter": "清除页内筛选",
   "Reset": "重置",
   "picked": "已选",
+  "selected": "已选中",
   "no traces": "暂无 trace",
   "This OAP serves traces via": "此 OAP 通过以下方式提供 trace 数据：",
   "Trace Query {label} API": "Trace Query {label} API",

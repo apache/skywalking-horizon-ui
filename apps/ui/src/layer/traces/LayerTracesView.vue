@@ -54,10 +54,10 @@ import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { fmtMetric } from '@/utils/formatters';
 import { bffClient } from '@/api/client';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
+import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -337,74 +337,22 @@ const { nativeDetail, isFetching: detailFetching } = useTraceDetail(traceIdRef, 
 // when present, else the on-demand `queryTrace` fetch.
 const detailSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
 
-// ── Render helpers ────────────────────────────────────────────────
-function fmtMs(v: number | null | undefined): string {
-  if (v === null || v === undefined) return '—';
-  return `${fmtMetric(v)} ms`;
-}
-function parseNativeStart(v: string): number {
-  const n = Number(v);
-  if (Number.isFinite(n) && n > 0) return n;
-  const ts = Date.parse(v);
-  return Number.isFinite(ts) ? ts : 0;
-}
-
 const maxTraceDuration = computed(() => {
   const arr = visibleTraces.value;
   if (arr.length === 0) return 0;
   return Math.max(...arr.map((tr) => tr.duration));
 });
 
-// ── Duration scatter ──────────────────────────────────────────────
-interface ScatterPoint { id: string; rowKey: string; x: number; y: number; isError: boolean; label: string; row: NativeTraceListRow; }
-const scatterPoints = computed<ScatterPoint[]>(() => {
-  const out: ScatterPoint[] = [];
-  if (native.value?.traces) {
-    for (const t of native.value.traces) {
-      const ts = parseNativeStart(t.start);
-      out.push({
-        id: t.key,
-        rowKey: t.key,
-        x: ts,
-        y: t.duration,
-        isError: t.isError,
-        label: t.endpointNames[0] ?? '—',
-        row: t,
-      });
-    }
-  }
-  return out;
-});
-const scatterBounds = computed(() => {
-  const pts = scatterPoints.value.filter((p) => p.x > 0 && Number.isFinite(p.y));
-  if (pts.length === 0) return null;
-  const xs = pts.map((p) => p.x);
-  const ys = pts.map((p) => p.y);
-  const rawYMax = Math.max(...ys, 1);
-  const yMax = rawYMax || 1;
-  return { xMin: Math.min(...xs), xMax: Math.max(...xs), yMin: 0, yMax };
-});
-const scatterXTicks = computed(() => {
-  const b = scatterBounds.value;
-  if (!b) return [];
-  const xCount = 3;
-  const span = Math.max(1, b.xMax - b.xMin);
-  return Array.from({ length: xCount }, (_, i) => {
-    const t = b.xMin + (span * i) / (xCount - 1);
-    const d = new Date(t);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return { frac: i / (xCount - 1), label: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
-  });
-});
-
 /* ── Distribution selection (in-page filter) ─────────────────────
  *
  * Clicking a dot adds (or removes) the corresponding trace to the
  * `pickedTraceIds` set. Dragging a rectangle on the chart selects
- * every dot inside it. The list below is then filtered to only the
- * picked traces — no extra query fires. Reset clears the set.
+ * every dot inside it (the shared TraceDistribution emits the matched
+ * keys). The list below is then filtered to only the picked traces —
+ * no extra query fires. Reset clears the set.
  */
 const pickedTraceIds = ref<Set<string>>(new Set());
+const pickedKeys = computed(() => [...pickedTraceIds.value]);
 const isPicking = computed(() => pickedTraceIds.value.size > 0);
 function togglePick(rowKey: string): void {
   const s = new Set(pickedTraceIds.value);
@@ -415,82 +363,16 @@ function togglePick(rowKey: string): void {
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
-
-// Drag-to-select state. Coords are SVG-space (viewBox 0..1000 in x,
-// 1000..0 in y). The drag rect renders while pointer is down.
-const scatterSvgRef = ref<SVGSVGElement | null>(null);
-const dragState = ref<{
-  active: boolean;
-  startVx: number; startVy: number; curVx: number; curVy: number;
-}>({ active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 });
-function clientToViewbox(ev: PointerEvent): { vx: number; vy: number } | null {
-  const svg = scatterSvgRef.value;
-  if (!svg) return null;
-  const rect = svg.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return null;
-  const vx = ((ev.clientX - rect.left) / rect.width) * 1000;
-  const vy = ((ev.clientY - rect.top) / rect.height) * 1000;
-  return { vx, vy };
+// Dot click → toggle picked. The operator picks dots to filter; the
+// inline detail still opens via the list row click below.
+function onScatterSelect(row: NativeTraceListRow): void {
+  togglePick(row.key);
 }
-function onScatterDown(ev: PointerEvent): void {
-  const pt = clientToViewbox(ev);
-  if (!pt) return;
-  const target = ev.target as Element | null;
-  // Click on a dot is handled by its own click handler; the drag is
-  // for the empty plot area.
-  if (target?.classList.contains('scatter-dot')) return;
-  ev.preventDefault();
-  dragState.value = { active: true, startVx: pt.vx, startVy: pt.vy, curVx: pt.vx, curVy: pt.vy };
-  (ev.currentTarget as SVGSVGElement).setPointerCapture(ev.pointerId);
-}
-function onScatterMove(ev: PointerEvent): void {
-  if (!dragState.value.active) return;
-  const pt = clientToViewbox(ev);
-  if (!pt) return;
-  dragState.value = { ...dragState.value, curVx: pt.vx, curVy: pt.vy };
-}
-function onScatterUp(ev: PointerEvent): void {
-  if (!dragState.value.active) return;
-  const { startVx, startVy, curVx, curVy } = dragState.value;
-  dragState.value = { active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 };
-  try {
-    (ev.currentTarget as SVGSVGElement).releasePointerCapture(ev.pointerId);
-  } catch { /* noop */ }
-  // No real drag (click without move) → don't change selection.
-  if (Math.abs(curVx - startVx) < 4 && Math.abs(curVy - startVy) < 4) return;
-  const b = scatterBounds.value;
-  if (!b) return;
-  const vxMin = Math.min(startVx, curVx);
-  const vxMax = Math.max(startVx, curVx);
-  const vyMin = Math.min(startVy, curVy);
-  const vyMax = Math.max(startVy, curVy);
+// Drag-brush → add every matched dot to the picked set.
+function onScatterBrush(keys: string[]): void {
   const next = new Set(pickedTraceIds.value);
-  for (const p of scatterPoints.value) {
-    const cx = b.xMax === b.xMin ? 500 : ((p.x - b.xMin) / (b.xMax - b.xMin)) * 1000;
-    const cy = 1000 - ((p.y - b.yMin) / (b.yMax - b.yMin || 1)) * 990;
-    if (cx >= vxMin && cx <= vxMax && cy >= vyMin && cy <= vyMax) {
-      next.add(p.rowKey);
-    }
-  }
+  for (const k of keys) next.add(k);
   pickedTraceIds.value = next;
-}
-const dragRect = computed(() => {
-  const s = dragState.value;
-  if (!s.active) return null;
-  return {
-    x: Math.min(s.startVx, s.curVx),
-    y: Math.min(s.startVy, s.curVy),
-    w: Math.abs(s.curVx - s.startVx),
-    h: Math.abs(s.curVy - s.startVy),
-  };
-});
-
-// Dot click → toggle picked. Replaces the earlier "open inline
-// detail" wiring: the operator picks dots to filter; the inline
-// detail still opens via the list row click below.
-function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
-  ev.stopPropagation();
-  togglePick(p.rowKey);
 }
 
 // Filter the visible list by the picked set when any are picked.
@@ -673,60 +555,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             @click="resetPick"
           >{{ t('Reset') }}</button>
         </header>
-        <div v-if="scatterPoints.length > 0 && scatterBounds" class="scatter-wrap">
-          <svg
-            ref="scatterSvgRef"
-            class="scatter-svg"
-            viewBox="0 0 1000 1000"
-            preserveAspectRatio="none"
-            @pointerdown="onScatterDown"
-            @pointermove="onScatterMove"
-            @pointerup="onScatterUp"
-            @pointercancel="onScatterUp"
-          >
-            <line x1="0" y1="998" x2="1000" y2="998" stroke="var(--sw-line-2)" stroke-width="1" vector-effect="non-scaling-stroke" />
-            <circle
-              v-for="p in scatterPoints"
-              :key="p.id"
-              :cx="scatterBounds.xMax === scatterBounds.xMin ? 500 : ((p.x - scatterBounds.xMin) / (scatterBounds.xMax - scatterBounds.xMin)) * 1000"
-              :cy="1000 - ((p.y - scatterBounds.yMin) / (scatterBounds.yMax - scatterBounds.yMin || 1)) * 990"
-              :r="pickedTraceIds.has(p.rowKey) ? 6 : 3.2"
-              :fill="p.isError ? 'var(--sw-err)' : 'var(--sw-accent)'"
-              :fill-opacity="pickedTraceIds.has(p.rowKey) ? 1 : (isPicking ? 0.35 : 0.9)"
-              :stroke="pickedTraceIds.has(p.rowKey) ? 'var(--sw-fg-0)' : (p.isError ? 'var(--sw-err)' : 'var(--sw-accent-2)')"
-              :stroke-width="pickedTraceIds.has(p.rowKey) ? 1.8 : 0.8"
-              vector-effect="non-scaling-stroke"
-              class="scatter-dot"
-              @click="pickScatterDot(p, $event)"
-            >
-              <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ pickedTraceIds.has(p.rowKey) ? ` · ${t('picked')}` : '' }}</title>
-            </circle>
-            <!-- Drag-select rectangle. -->
-            <rect
-              v-if="dragRect"
-              :x="dragRect.x"
-              :y="dragRect.y"
-              :width="dragRect.w"
-              :height="dragRect.h"
-              fill="var(--sw-accent)"
-              fill-opacity="0.12"
-              stroke="var(--sw-accent)"
-              stroke-width="1"
-              stroke-dasharray="4 3"
-              vector-effect="non-scaling-stroke"
-              pointer-events="none"
-            />
-          </svg>
-          <div class="scatter-x-axis">
-            <span
-              v-for="(t, i) in scatterXTicks"
-              :key="`x${i}`"
-              class="x-tick"
-              :class="{ first: i === 0, last: i === scatterXTicks.length - 1 }"
-            >{{ t.label }}</span>
-          </div>
-        </div>
-        <div v-else class="scatter-empty">{{ t('no traces') }}</div>
+        <TraceDistribution
+          :rows="native?.traces ?? []"
+          :max-duration="maxTraceDuration"
+          :selected-key="null"
+          :highlight-keys="pickedKeys"
+          @select="onScatterSelect"
+          @brush="onScatterBrush"
+        />
       </section>
     </div>
 
@@ -930,57 +766,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 }
 .tr-scatter-head .lg.ok { background: var(--sw-accent); }
 .tr-scatter-head .lg.err { background: var(--sw-err); }
-.scatter-tools { margin-left: 6px; display: inline-flex; gap: 4px; }
 .pick-kicker {
   color: var(--sw-accent-2);
   font-weight: 700;
 }
 .reset-btn { margin-left: 6px; }
-.pick-hint {
-  background: var(--sw-accent-soft);
-  color: var(--sw-accent-2);
-  padding: 1px 6px;
-  border-radius: 8px;
-  font-weight: 600;
-}
-.scatter-svg { cursor: crosshair; }
-.scatter-dot { cursor: pointer; }
-.scatter-wrap {
-  padding: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-.scatter-svg {
-  width: 100%;
-  flex: 1;
-  min-height: 140px;
-  display: block;
-}
-.scatter-dot { cursor: pointer; transition: r 0.12s ease; }
-.scatter-dot:hover { stroke: var(--sw-fg-0); stroke-width: 1.6; }
-.scatter-x-axis {
-  display: flex;
-  justify-content: space-between;
-  padding: 4px 0 0;
-  font-size: 11px;
-  color: var(--sw-fg-2);
-  font-family: var(--sw-mono);
-  flex: 0 0 auto;
-}
-.x-tick { white-space: nowrap; }
-.x-tick.first { text-align: left; }
-.x-tick.last { text-align: right; }
-.scatter-empty {
-  flex: 1;
-  min-height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: var(--sw-fg-3);
-}
+/* The scatter chart internals (dots, axis, drag) live in
+   TraceDistribution.vue; this card only styles the head strip. The
+   shared component fills the remaining card height via its own flex. */
+.tr-scatter :deep(.scatter-wrap) { flex: 1; min-height: 0; }
 
 /* Browsing list */
 .tr-list-card { padding: 0; display: flex; flex-direction: column; }

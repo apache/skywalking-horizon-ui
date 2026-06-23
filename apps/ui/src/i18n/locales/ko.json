@@ -516,6 +516,7 @@
   "Clear in-page filter": "페이지 내 필터 지우기",
   "Reset": "재설정",
   "picked": "선택됨",
+  "selected": "선택됨",
   "no traces": "트레이스 없음",
   "This OAP serves traces via": "이 OAP는 다음을 통해 트레이스를 제공합니다:",
   "Trace Query {label} API": "Trace Query {label} API",
