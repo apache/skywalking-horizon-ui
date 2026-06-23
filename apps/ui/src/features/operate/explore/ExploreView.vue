@@ -375,6 +375,7 @@ async function runQuery(): Promise<void> {
   hasQueried.value = true;
   errorMsg.value = null;
   closeDetail();
+  brushedKeys.value = [];
   const zipkin = traceSource.value === 'zipkin';
   const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
   try {
@@ -422,6 +423,16 @@ const rows = computed<NativeTraceListRow[]>(() => {
     : native.value?.traces ?? [];
 });
 const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...rows.value.map((r) => r.duration))));
+
+// Brushing a region of the distribution highlights those dots and filters
+// the list to them; a single click still opens one trace's detail.
+const brushedKeys = ref<string[]>([]);
+const brushedSet = computed(() => new Set(brushedKeys.value));
+const displayRows = computed<NativeTraceListRow[]>(() =>
+  brushedKeys.value.length > 0 ? rows.value.filter((r) => brushedSet.value.has(r.key)) : rows.value,
+);
+function onScatterBrush(keys: string[]): void { brushedKeys.value = keys; }
+function clearBrush(): void { brushedKeys.value = []; }
 
 // Which OAP query answered. `queryBasicTraces` (Trace Query v1 API)
 // returns trace SEGMENTS; `queryTraces` (v2, BanyanDB only) returns whole
@@ -662,7 +673,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             :rows="rows"
             :max-duration="maxDuration"
             :selected-key="selectedRowKey"
+            :highlight-keys="brushedKeys"
             @select="openRow"
+            @brush="onScatterBrush"
           />
         </section>
       </div>
@@ -686,10 +699,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
         <article v-else-if="!selectedTraceId" class="iq-list-card sw-card">
           <header class="iq-list-head">
             <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
-            <span class="hint">{{ rows.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
+            <span class="hint">{{ displayRows.length }}<template v-if="brushedKeys.length"> / {{ rows.length }}</template> {{ isSegmentList ? t('segments') : t('traces') }}</span>
+            <button v-if="brushedKeys.length" type="button" class="iq-brush-clear" @click="clearBrush">{{ t('clear') }}</button>
           </header>
           <TraceListPanel
-            :rows="rows"
+            :rows="displayRows"
             :selected-key="selectedRowKey"
             :max-duration="maxDuration"
             @select="openRow"
@@ -700,11 +714,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <TraceListPanel
             foldable
             :rail-open="railOpen"
-            :rows="rows"
+            :rows="displayRows"
             :selected-key="selectedRowKey"
             :max-duration="maxDuration"
             :title="isSegmentList ? t('Segments') : t('Traces')"
-            :count-hint="rows.length"
+            :count-hint="displayRows.length"
             @select="openRow"
             @toggle-rail="railOpen = !railOpen"
           />
@@ -795,12 +809,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .iq-resolved-tog .dim { color: var(--sw-fg-4); margin-left: 6px; }
 .iq-resolved-body { margin: 0; padding: 8px 12px; font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); background: var(--sw-bg-0); overflow: auto; max-height: 160px; border: 1px solid var(--sw-line); border-radius: 5px; }
 
-.iq-top-strip { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: stretch; }
+.iq-top-strip { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 360px); gap: 12px; align-items: start; }
 @media (max-width: 1100px) { .iq-top-strip { grid-template-columns: 1fr; } }
 .iq-form { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .iq-conditions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
-.iq-scatter { padding: 6px 10px 8px; display: flex; flex-direction: column; min-height: 0; margin: 0; height: 100%; aspect-ratio: 1; }
+.iq-scatter { padding: 6px 10px 8px; display: flex; flex-direction: column; min-height: 0; margin: 0; aspect-ratio: 1; }
+.iq-brush-clear { margin-left: 8px; background: none; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); border-radius: 4px; padding: 1px 8px; font: inherit; font-size: 11px; cursor: pointer; }
+.iq-brush-clear:hover { color: var(--sw-fg-0); border-color: var(--sw-fg-3); }
 @media (max-width: 1100px) { .iq-scatter { aspect-ratio: auto; height: 320px; } }
 .iq-scatter-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; flex: 0 0 auto; }
 .iq-scatter-head .legend { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); display: inline-flex; gap: 10px; align-items: center; }
