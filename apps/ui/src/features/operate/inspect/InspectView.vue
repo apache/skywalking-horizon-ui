@@ -1594,10 +1594,6 @@ function scopeShort(scope: InspectScope): string {
   font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-sm);
   color: var(--rr-heading);
-  background: var(--rr-bg);
-  padding: 3px 8px;
-  border-radius: var(--rr-radius-sm);
-  border: 1px solid var(--rr-border);
 }
 .mqe__url--err { color: var(--rr-err); }
 .mqe__via { font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); flex: 1; }
