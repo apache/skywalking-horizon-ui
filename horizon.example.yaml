@@ -145,6 +145,7 @@ rbac:
       - traces:read
       - logs:read
       - browser-errors:read
+      - explore:read
       - topology:read
       - profile:read
       - overview:read
@@ -157,6 +158,7 @@ rbac:
       - traces:read
       - logs:read
       - browser-errors:read
+      - explore:read
       - topology:read
       - profile:read
       - overview:read
@@ -175,6 +177,7 @@ rbac:
       - traces:read
       - logs:read
       - browser-errors:read
+      - explore:read
       - source-map:write
       - topology:read
       - profile:read
