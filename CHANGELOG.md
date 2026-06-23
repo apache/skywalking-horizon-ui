@@ -23,6 +23,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Log inspect uses the full width.** The cross-layer Log inspect form (Target + Keywords / Tags / Trace ID / Time / Limit conditions) now spans the whole page instead of sharing a two-column strip with empty space.
 - **Clicking a log row opens a centered popout.** Both the cross-layer Log inspect and the per-layer Logs tab now open the same full-payload popout on row click — format-aware pretty-print (JSON pretty-printed by content type), the tags table, service / instance / endpoint / time meta, a copy button, and the trace link. Escape or the close button dismisses it.
+- **Log inspect can now query Browser errors across the page.** A new **Browser** source on Log inspect (beside Raw) queries the BROWSER layer's JS error logs from anywhere — pick a browser service, filter by category (AJAX / RESOURCE / VUE / PROMISE / JS / UNKNOWN) and time window, and read the error list (message, category, page path, app version, time, minified `line:col`). Clicking a row opens a popout with the error meta, the raw stack, and the same source-map de-obfuscation control as the per-layer Browser Logs tab — pick a hosted `.map` and resolve the minified stack back to the original frames + source snippet.
 
 ## 0.7.0
 

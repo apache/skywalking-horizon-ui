@@ -46,6 +46,7 @@ import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { buildEndpointId, buildInstanceId, buildServiceId } from '../../util/entityId.js';
 import { fetchNativeList, type TraceListBody } from './trace.js';
 import { fetchLogs } from './log.js';
+import { fetchBrowserErrors } from './browser-errors.js';
 import { zipkinFetchTraces } from '../../client/zipkin.js';
 
 export interface ExploreRouteDeps {
@@ -226,8 +227,8 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         } satisfies ExploreResponse);
       }
 
-      // kind === 'log'. `browser` (BROWSER-layer JS errors) lands in the
-      // next increment; default + only supported source today is `raw`.
+      // kind === 'log'. Two sources: `raw` (queryLogs) and `browser`
+      // (queryBrowserErrorLogs — BROWSER-layer JS errors). Default `raw`.
       const logSource = body.logSource ?? 'raw';
       if (logSource === 'raw') {
         // Entity optional — no service means "all services in the window"
@@ -273,8 +274,44 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         } satisfies ExploreResponse);
       }
 
-      // kind === 'log' && logSource === 'browser' — next increment.
-      return reply.code(501).send({ error: 'browser_log_not_implemented' });
+      // kind === 'log' && logSource === 'browser' — BROWSER-layer JS error
+      // logs. The entity is a browser SERVICE (Pick forwards an id; Type
+      // encodes base64(name).{1|0}). No instance/endpoint — browser errors
+      // scope by serviceVersionId/pagePathId, which Log inspect doesn't
+      // surface, so only the service narrows here. SECOND-precision window
+      // (error logs are event-style — MINUTE rounding chops the newest).
+      const ids = body.entity ? resolveNativeEntity(body.entity) : {};
+      const win = logWindowSecond(body.window ?? {}, offset);
+      const category = body.category ?? 'ALL';
+      const maxBrowser = deps.config.current.performance.limits.maxPageSize.browserLogs;
+      const paging = {
+        pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
+        pageSize: Math.min(maxBrowser, Math.max(1, Math.round(body.pageSize ?? 50))),
+      };
+      const browser = await fetchBrowserErrors(
+        opts,
+        { serviceId: ids.serviceId, category },
+        win,
+        paging,
+        !!req.coldStage,
+      );
+      const resolved: ExploreResolved = {
+        kind: 'log',
+        source: 'browser',
+        entityId: ids.serviceId,
+        condition: {
+          ...(ids.serviceId ? { serviceId: ids.serviceId } : {}),
+          ...(category && category !== 'ALL' ? { category } : {}),
+          ...win,
+        },
+      };
+      return reply.send({
+        kind: 'log',
+        logSource: 'browser',
+        generatedAt,
+        browser,
+        resolved,
+      } satisfies ExploreResponse);
     },
   );
 }

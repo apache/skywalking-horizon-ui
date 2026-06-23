@@ -30,6 +30,7 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type {
+  BrowserErrorCategory,
   BrowserErrorRow,
   BrowserErrorsQueryRequest,
   BrowserErrorsResponse,
@@ -39,7 +40,6 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
-import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface BrowserErrorsRouteDeps {
@@ -127,6 +127,83 @@ interface OapBrowserErrorRow {
   firstReportedError: boolean;
 }
 
+/** OAP id filters the browser-error query scopes by — all PRE-RESOLVED by
+ *  the caller (no `listServices(layer)` lookup). The per-layer route
+ *  resolves a service name first; explore forwards an id it already
+ *  minted. `category` of `ALL` (or omitted) means "no filter". */
+export interface BrowserErrorScope {
+  serviceId?: string | null;
+  serviceVersionId?: string | null;
+  pagePathId?: string | null;
+  category?: BrowserErrorCategory;
+}
+
+/** Run OAP's `queryBrowserErrorLogs(BrowserErrorLogQueryCondition)` for a
+ *  pre-resolved scope + SECOND-precision window + page, mapping rows to
+ *  {@link BrowserErrorRow} (newest-first). Shared by the per-layer Browser
+ *  Logs route and the cross-layer Log inspect browser branch. Soft-fails to
+ *  `reachable: false` on any OAP error. */
+export async function fetchBrowserErrors(
+  opts: GraphqlOptions,
+  scope: BrowserErrorScope,
+  window: { start: string; end: string },
+  paging: { pageNum: number; pageSize: number },
+  coldStage: boolean,
+): Promise<BrowserErrorsResponse> {
+  const condition = {
+    ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
+    ...(scope.serviceVersionId ? { serviceVersionId: scope.serviceVersionId } : {}),
+    ...(scope.pagePathId ? { pagePathId: scope.pagePathId } : {}),
+    // `ALL` is OAP's "no filter" sentinel — omit it so storage doesn't try
+    // to match a literal category named ALL.
+    ...(scope.category && scope.category !== 'ALL' ? { category: scope.category } : {}),
+    queryDuration: {
+      start: window.start,
+      end: window.end,
+      step: 'SECOND',
+      ...(coldStage ? { coldStage: true } : {}),
+    },
+    paging,
+  };
+  try {
+    const env = await graphqlPost<{ data: { logs: OapBrowserErrorRow[] } }>(
+      opts,
+      QUERY_BROWSER_ERRORS,
+      { condition },
+    );
+    const logs: BrowserErrorRow[] = (env.data?.logs ?? []).map((r) => ({
+      service: r.service,
+      serviceVersion: r.serviceVersion,
+      time: r.time,
+      pagePath: r.pagePath,
+      category: r.category,
+      grade: r.grade ?? null,
+      message: r.message ?? null,
+      line: r.line ?? null,
+      col: r.col ?? null,
+      stack: r.stack ?? null,
+      errorUrl: r.errorUrl ?? null,
+      firstReportedError: r.firstReportedError,
+    }));
+    // Normalise to newest-first. OAP's BrowserErrorLog DAO sorts DESC, but
+    // BanyanDB returns it per time-segment (each segment DESC, the segments
+    // concatenated oldest-first), so a multi-segment result is not globally
+    // ordered. Sort by the records' own `time` to guarantee a strictly
+    // newest-first stream.
+    logs.sort((a, b) => b.time - a.time);
+    return { generatedAt: Date.now(), query: {}, total: logs.length, logs, reachable: true };
+  } catch (err) {
+    return {
+      generatedAt: Date.now(),
+      query: {},
+      total: 0,
+      logs: [],
+      reachable: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
 async function resolveServiceId(
   opts: GraphqlOptions,
@@ -186,63 +263,24 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         }
       }
 
-      const condition = {
-        ...(serviceId ? { serviceId } : {}),
-        ...(body.serviceVersionId ? { serviceVersionId: body.serviceVersionId } : {}),
-        ...(body.pagePathId ? { pagePathId: body.pagePathId } : {}),
-        // `ALL` is OAP's "no filter" sentinel — omit it so storage doesn't
-        // try to match a literal category named ALL.
-        ...(body.category && body.category !== 'ALL' ? { category: body.category } : {}),
-        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
-        paging: {
+      const res = await fetchBrowserErrors(
+        opts,
+        {
+          serviceId,
+          serviceVersionId: body.serviceVersionId,
+          pagePathId: body.pagePathId,
+          category: body.category,
+        },
+        window,
+        {
           pageNum: Math.max(1, Math.round(body.page ?? 1)),
           pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.browserLogs),
         },
-      };
-
-      try {
-        const env = await graphqlPost<{ data: { logs: OapBrowserErrorRow[] } }>(
-          opts,
-          QUERY_BROWSER_ERRORS,
-          { condition },
-        );
-        const logs: BrowserErrorRow[] = (env.data?.logs ?? []).map((r) => ({
-          service: r.service,
-          serviceVersion: r.serviceVersion,
-          time: r.time,
-          pagePath: r.pagePath,
-          category: r.category,
-          grade: r.grade ?? null,
-          message: r.message ?? null,
-          line: r.line ?? null,
-          col: r.col ?? null,
-          stack: r.stack ?? null,
-          errorUrl: r.errorUrl ?? null,
-          firstReportedError: r.firstReportedError,
-        }));
-        // Normalise to newest-first. OAP's BrowserErrorLog DAO sorts DESC,
-        // but BanyanDB returns it per time-segment (each segment DESC, the
-        // segments concatenated oldest-first), so a multi-segment result is
-        // not globally ordered. Sort by the records' own `time` to guarantee
-        // a strictly newest-first stream.
-        logs.sort((a, b) => b.time - a.time);
-        return reply.send({
-          generatedAt: Date.now(),
-          query: body,
-          total: logs.length,
-          logs,
-          reachable: true,
-        } satisfies BrowserErrorsResponse);
-      } catch (err) {
-        return reply.send({
-          generatedAt: Date.now(),
-          query: body,
-          total: 0,
-          logs: [],
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies BrowserErrorsResponse);
-      }
+        !!req.coldStage,
+      );
+      // Echo the operator's query (the shared helper returns an empty echo
+      // since it's entity-agnostic).
+      return reply.send({ ...res, query: body } satisfies BrowserErrorsResponse);
     },
   );
 }
