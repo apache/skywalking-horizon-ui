@@ -72,25 +72,9 @@
         ]
       },
       {
-        "title": "CommitLog Disk-Verhältnis (%)",
+        "title": "Max. CommitLog-Disk-Ratio (%)",
         "expressions": [
-          null,
           null
-        ],
-        "expressionLabels": [
-          "aktuell",
-          "max"
-        ]
-      },
-      {
-        "title": "ThreadPool Queue-Head-Wartezeit (ms)",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "pull",
-          "senden"
         ]
       },
       {
@@ -103,6 +87,23 @@
         "title": "Broker",
         "expressions": [
           null
+        ]
+      },
+      {
+        "title": "CommitLog Disk-Verhältnis (%)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ThreadPool Queue-Head-Wartezeit (ms)",
+        "expressions": [
+          null,
+          null
+        ],
+        "expressionLabels": [
+          "pull",
+          "senden"
         ]
       }
     ],
@@ -134,6 +135,30 @@
     ],
     "endpoint": [
       {
+        "title": "Max. Producer-Nachrichtengröße (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Max. Consumer-Nachrichtengröße (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Consumer-Group-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Broker-Anzahl",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "Producer / Consumer-Group TPS",
         "expressions": [
           null,
@@ -156,23 +181,6 @@
         ]
       },
       {
-        "title": "Max. Nachrichtengröße (MB)",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "producer",
-          "consumer"
-        ]
-      },
-      {
-        "title": "Consumer-Latenz (s)",
-        "expressions": [
-          null
-        ]
-      },
-      {
         "title": "Producer / Consumer-Offsets",
         "expressions": [
           null,
@@ -191,13 +199,7 @@
         ]
       },
       {
-        "title": "Consumer-Group-Anzahl",
-        "expressions": [
-          null
-        ]
-      },
-      {
-        "title": "Broker-Anzahl",
+        "title": "Consumer-Latenz (s)",
         "expressions": [
           null
         ]

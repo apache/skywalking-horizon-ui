@@ -19,6 +19,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Shareable trace links are unified.** Native and Zipkin traces both open from a single `?traceId=` link under the layer's trace tab; the viewer auto-selects native vs Zipkin by the trace-ID shape, so `/layer/<layer>/trace?traceId=…` always opens the right one.
 - **Trace filters are searchable, on-theme dropdowns.** The native Service / Instance / Endpoint pickers and the Zipkin Service / Remote service / Span name pickers use a dark type-to-filter dropdown that reopens correctly after a pick.
 
+### Bundled layer dashboards
+
+- **Single-value metrics now render as cards, not flat lines, on several layer dashboards.** Widgets whose expression collapses the window to one number (a `latest(...)` total) had been mis-ported as line charts — drawn as a lone dot that misreads as a time series and shares one axis with an unrelated average trend. Each is now split into a proper single-value **card** (the total) plus a trend **line** (the average), matching the metric's shape, the way booster-ui rendered them. Affects the **Virtual GenAI** (Input / Output Tokens, Estimated Cost — provider and model scopes), **Elasticsearch** (deleted documents), **ClickHouse** (Zookeeper sessions / watches), **RabbitMQ** (connection / publisher / consumer / channel / queue totals, allocated memory), **RocketMQ** (max CommitLog disk ratio, max producer / consumer message size), and **APISIX** (etcd reachability) dashboards; every changed dashboard row still tiles to full width.
+
 ## 0.7.0
 
 ### Browser errors & source maps

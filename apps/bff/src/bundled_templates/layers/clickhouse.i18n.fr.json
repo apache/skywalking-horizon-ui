@@ -83,13 +83,17 @@
         ]
       },
       {
-        "title": "Activité Zookeeper",
+        "title": "Zookeeper Bytes (b/s)",
         "expressionLabels": [
-          "sessions",
-          "watches",
           "octets envoyés",
           "octets reçus"
         ]
+      },
+      {
+        "title": "Sessions Zookeeper"
+      },
+      {
+        "title": "Zookeeper Watches"
       },
       {
         "title": "Connexions Keeper actives"

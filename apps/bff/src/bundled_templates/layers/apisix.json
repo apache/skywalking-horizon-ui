@@ -205,18 +205,27 @@
         "rowSpan": 2
       },
       {
-        "id": "etcd",
-        "title": "etcd",
-        "type": "line",
+        "id": "etcd_total",
+        "title": "etcd Reachable",
+        "tip": "0 represents etcd unreachable, 1 represents etcd connected.",
+        "type": "card",
         "expressions": [
-          "meter_apisix_instance_etcd_indexes",
           "latest(meter_apisix_instance_etcd_reachable)"
         ],
-        "expressionLabels": [
-          "indexes",
-          "reachable"
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "etcd",
+        "title": "etcd Indexes",
+        "type": "line",
+        "expressions": [
+          "meter_apisix_instance_etcd_indexes"
         ],
-        "span": 6,
+        "expressionLabels": [
+          "indexes"
+        ],
+        "span": 3,
         "rowSpan": 2
       },
       {

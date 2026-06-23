@@ -83,13 +83,17 @@
         ]
       },
       {
-        "title": "Zookeeper 활동",
+        "title": "Zookeeper 바이트 (b/s)",
         "expressionLabels": [
-          "세션",
-          "watch",
           "전송 바이트",
           "수신 바이트"
         ]
+      },
+      {
+        "title": "Zookeeper 세션"
+      },
+      {
+        "title": "Zookeeper Watches"
       },
       {
         "title": "Keeper 활성 연결"

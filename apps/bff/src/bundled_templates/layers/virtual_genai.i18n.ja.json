@@ -32,25 +32,22 @@
         "title": "レイテンシパーセンタイル"
       },
       {
-        "title": "入力トークン",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "入力トークン"
       },
       {
-        "title": "出力トークン",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "出力トークン"
       },
       {
-        "title": "推定コスト",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "総推定コスト"
+      },
+      {
+        "title": "平均入力トークン"
+      },
+      {
+        "title": "平均出力トークン"
+      },
+      {
+        "title": "平均推定コスト"
       }
     ],
     "instance": [
@@ -74,25 +71,22 @@
         ]
       },
       {
-        "title": "入力トークン",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "入力トークン"
       },
       {
-        "title": "出力トークン",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "出力トークン"
       },
       {
-        "title": "推定コスト",
-        "expressionLabels": [
-          "合計",
-          "平均"
-        ]
+        "title": "総推定コスト"
+      },
+      {
+        "title": "平均入力トークン"
+      },
+      {
+        "title": "平均出力トークン"
+      },
+      {
+        "title": "平均推定コスト"
       }
     ]
   },

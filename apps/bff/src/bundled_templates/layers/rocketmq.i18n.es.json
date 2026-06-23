@@ -47,11 +47,16 @@
         "title": "Latencia máxima del consumidor"
       },
       {
-        "title": "Ratio de disco de CommitLog (%)",
-        "expressionLabels": [
-          "actual",
-          "máx"
-        ]
+        "title": "Ratio máximo de disco de CommitLog (%)"
+      },
+      {
+        "title": "Topics"
+      },
+      {
+        "title": "Brokers"
+      },
+      {
+        "title": "Ratio de disco de CommitLog (%)"
       },
       {
         "title": "Espera en cabeza de cola del ThreadPool (ms)",
@@ -59,12 +64,6 @@
           "pull",
           "envío"
         ]
-      },
-      {
-        "title": "Topics"
-      },
-      {
-        "title": "Brokers"
       }
     ],
     "instance": [
@@ -83,6 +82,18 @@
     ],
     "endpoint": [
       {
+        "title": "Tamaño máx. de mensaje del productor (MB)"
+      },
+      {
+        "title": "Tamaño máx. de mensaje del consumidor (MB)"
+      },
+      {
+        "title": "Conteo de grupos de consumo"
+      },
+      {
+        "title": "Conteo de brokers"
+      },
+      {
         "title": "TPS de grupos productor / consumidor",
         "expressionLabels": [
           "productor",
@@ -97,16 +108,6 @@
         ]
       },
       {
-        "title": "Tamaño máximo de mensaje (MB)",
-        "expressionLabels": [
-          "productor",
-          "consumidor"
-        ]
-      },
-      {
-        "title": "Latencia del consumidor (s)"
-      },
-      {
         "title": "Offsets productor / consumidor",
         "expressionLabels": [
           "productor",
@@ -118,10 +119,7 @@
         "tip": "Offset del productor menos offset del grupo de consumo — el lag del topic."
       },
       {
-        "title": "Conteo de grupos de consumo"
-      },
-      {
-        "title": "Conteo de brokers"
+        "title": "Latencia del consumidor (s)"
       }
     ]
   },

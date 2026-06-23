@@ -70,10 +70,12 @@
         ]
       },
       {
-        "title": "etcd",
+        "title": "etcd 도달 가능"
+      },
+      {
+        "title": "etcd 인덱스",
         "expressionLabels": [
-          "인덱스",
-          "도달 가능"
+          "인덱스"
         ]
       },
       {

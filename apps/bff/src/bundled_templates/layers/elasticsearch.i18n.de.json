@@ -266,16 +266,20 @@
         ]
       },
       {
+        "title": "Gelöschte Dokumente",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "Dokumente",
         "expressions": [
-          null,
           null,
           null
         ],
         "expressionLabels": [
           "alle",
-          "primary",
-          "gelöscht"
+          "primary"
         ]
       },
       {

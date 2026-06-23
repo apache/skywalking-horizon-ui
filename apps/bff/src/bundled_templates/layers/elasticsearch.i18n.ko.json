@@ -154,11 +154,13 @@
         "title": "인덱스 크기 (primary)"
       },
       {
+        "title": "삭제된 문서"
+      },
+      {
         "title": "문서",
         "expressionLabels": [
           "전체",
-          "primary",
-          "deleted"
+          "primary"
         ]
       },
       {

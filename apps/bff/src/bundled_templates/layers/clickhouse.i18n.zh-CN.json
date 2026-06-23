@@ -45,9 +45,11 @@
         "expressionLabels": ["fetch", "send"]
       },
       {
-        "title": "Zookeeper 活动",
-        "expressionLabels": ["sessions", "watches", "bytes sent", "bytes recv"]
+        "title": "Zookeeper 字节 (b/s)",
+        "expressionLabels": ["bytes sent", "bytes recv"]
       },
+      { "title": "Zookeeper 会话" },
+      { "title": "Zookeeper Watches" },
       { "title": "Keeper 活跃连接" },
       { "title": "Keeper 未完成请求" }
     ],

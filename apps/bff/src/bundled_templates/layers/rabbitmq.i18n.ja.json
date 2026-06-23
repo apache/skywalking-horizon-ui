@@ -94,30 +94,32 @@
         "title": "未確認メッセージ"
       },
       {
-        "title": "接続 / Publisher / Consumer",
-        "expressionLabels": [
-          "接続",
-          "パブリッシャー",
-          "コンシューマー"
-        ]
+        "title": "接続"
       },
       {
-        "title": "Channel + キュー",
-        "expressionLabels": [
-          "channel",
-          "キュー"
-        ]
+        "title": "パブリッシャー"
+      },
+      {
+        "title": "コンシューマー"
+      },
+      {
+        "title": "Channel"
+      },
+      {
+        "title": "キュー"
       },
       {
         "title": "アロケート使用率 %"
+      },
+      {
+        "title": "アロケート合計 (MB)"
       },
       {
         "title": "メモリ (MB)",
         "expressionLabels": [
           "使用中",
           "未使用",
-          "常駐",
-          "合計"
+          "常駐"
         ]
       },
       {

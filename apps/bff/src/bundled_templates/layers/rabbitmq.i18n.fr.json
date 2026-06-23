@@ -94,30 +94,32 @@
         "title": "Messages non acquittés"
       },
       {
-        "title": "Connexions / Publishers / Consumers",
-        "expressionLabels": [
-          "connexions",
-          "publishers",
-          "consumers"
-        ]
+        "title": "Connexions"
       },
       {
-        "title": "Canaux + files",
-        "expressionLabels": [
-          "canaux",
-          "files"
-        ]
+        "title": "Publishers"
+      },
+      {
+        "title": "Consumers"
+      },
+      {
+        "title": "Canaux"
+      },
+      {
+        "title": "Files"
       },
       {
         "title": "Alloué utilisé %"
+      },
+      {
+        "title": "Total alloué (Mo)"
       },
       {
         "title": "Mémoire (Mo)",
         "expressionLabels": [
           "utilisé",
           "inutilisé",
-          "résidente",
-          "total"
+          "résidente"
         ]
       },
       {

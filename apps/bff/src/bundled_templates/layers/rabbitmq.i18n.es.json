@@ -92,30 +92,32 @@
         "title": "Mensajes sin reconocer"
       },
       {
-        "title": "Conexiones / publicadores / consumidores",
-        "expressionLabels": [
-          "conexiones",
-          "publicadores",
-          "consumidores"
-        ]
+        "title": "Conexiones"
       },
       {
-        "title": "Canales + colas",
-        "expressionLabels": [
-          "canales",
-          "colas"
-        ]
+        "title": "Publicadores"
+      },
+      {
+        "title": "Consumidores"
+      },
+      {
+        "title": "Canales"
+      },
+      {
+        "title": "Colas"
       },
       {
         "title": "% asignado en uso"
+      },
+      {
+        "title": "Total asignado (MB)"
       },
       {
         "title": "Memoria (MB)",
         "expressionLabels": [
           "en uso",
           "sin uso",
-          "residente",
-          "total"
+          "residente"
         ]
       },
       {

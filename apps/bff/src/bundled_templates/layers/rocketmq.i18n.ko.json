@@ -49,11 +49,16 @@
         "title": "최대 소비자 지연 시간"
       },
       {
-        "title": "CommitLog 디스크 비율 (%)",
-        "expressionLabels": [
-          "current",
-          "최대"
-        ]
+        "title": "최대 CommitLog 디스크 비율 (%)"
+      },
+      {
+        "title": "Topic"
+      },
+      {
+        "title": "Broker"
+      },
+      {
+        "title": "CommitLog 디스크 비율 (%)"
       },
       {
         "title": "스레드풀 큐 헤드 대기 (ms)",
@@ -61,12 +66,6 @@
           "pull",
           "전송"
         ]
-      },
-      {
-        "title": "Topic"
-      },
-      {
-        "title": "Broker"
       }
     ],
     "instance": [
@@ -85,6 +84,18 @@
     ],
     "endpoint": [
       {
+        "title": "최대 프로듀서 메시지 크기 (MB)"
+      },
+      {
+        "title": "최대 컨슈머 메시지 크기 (MB)"
+      },
+      {
+        "title": "소비자 그룹 수"
+      },
+      {
+        "title": "브로커 수"
+      },
+      {
         "title": "생산자 / 소비자 그룹 TPS",
         "expressionLabels": [
           "생산자",
@@ -99,16 +110,6 @@
         ]
       },
       {
-        "title": "최대 메시지 크기 (MB)",
-        "expressionLabels": [
-          "생산자",
-          "소비자"
-        ]
-      },
-      {
-        "title": "소비자 지연 시간 (s)"
-      },
-      {
         "title": "생산자 / 소비자 오프셋",
         "expressionLabels": [
           "생산자",
@@ -120,10 +121,7 @@
         "tip": "생산자 오프셋에서 소비자 그룹 오프셋을 뺀 값 — 토픽 랙입니다."
       },
       {
-        "title": "소비자 그룹 수"
-      },
-      {
-        "title": "브로커 수"
+        "title": "소비자 지연 시간 (s)"
       }
     ]
   },

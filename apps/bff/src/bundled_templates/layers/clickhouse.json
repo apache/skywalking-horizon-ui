@@ -203,22 +203,40 @@
       },
       {
         "id": "zk",
-        "title": "Zookeeper Activity",
+        "title": "Zookeeper Bytes (b/s)",
         "type": "line",
         "expressions": [
-          "latest(aggregate_labels(meter_clickhouse_zookeeper_session,sum))",
-          "latest(aggregate_labels(meter_clickhouse_zookeeper_watch,sum))",
           "aggregate_labels(meter_clickhouse_zookeeper_bytes_sent,sum)",
           "aggregate_labels(meter_clickhouse_zookeeper_bytes_received,sum)"
         ],
         "expressionLabels": [
-          "sessions",
-          "watches",
           "bytes sent",
           "bytes recv"
         ],
         "span": 6,
         "rowSpan": 2
+      },
+      {
+        "id": "zk_sessions",
+        "title": "Zookeeper Sessions",
+        "type": "card",
+        "expressions": [
+          "latest(aggregate_labels(meter_clickhouse_zookeeper_session,sum))"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "zk_watches",
+        "title": "Zookeeper Watches",
+        "type": "card",
+        "expressions": [
+          "latest(aggregate_labels(meter_clickhouse_zookeeper_watch,sum))"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
       },
       {
         "id": "keeper_alive",

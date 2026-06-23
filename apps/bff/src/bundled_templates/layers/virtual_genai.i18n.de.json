@@ -20,131 +20,73 @@
   "dashboards": {
     "service": [
       {
-        "title": "Aufrufe / min",
-        "expressions": [
-          null
-        ]
+        "title": "Aufrufe / min"
       },
       {
-        "title": "Mittlere Antwortzeit",
-        "expressions": [
-          null
-        ]
+        "title": "Mittlere Antwortzeit"
       },
       {
-        "title": "Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "title": "Erfolgsrate"
       },
       {
-        "title": "Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "title": "Latenz-Perzentil"
       },
       {
-        "title": "Input-Tokens",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "summe",
-          "mittel"
-        ]
+        "title": "Input-Tokens"
       },
       {
-        "title": "Output-Tokens",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "summe",
-          "mittel"
-        ]
+        "title": "Output-Tokens"
       },
       {
-        "title": "Geschätzte Kosten",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "gesamt",
-          "mittel"
-        ]
+        "title": "Geschätzte Gesamtkosten"
+      },
+      {
+        "title": "Mittlere Input-Tokens"
+      },
+      {
+        "title": "Mittlere Output-Tokens"
+      },
+      {
+        "title": "Mittlere geschätzte Kosten"
       }
     ],
     "instance": [
       {
-        "title": "Aufrufe / min",
-        "expressions": [
-          null
-        ]
+        "title": "Aufrufe / min"
       },
       {
-        "title": "Mittlere Latenz",
-        "expressions": [
-          null
-        ]
+        "title": "Mittlere Latenz"
       },
       {
-        "title": "Erfolgsrate",
-        "expressions": [
-          null
-        ]
+        "title": "Erfolgsrate"
       },
       {
-        "title": "Latenz-Perzentil",
-        "expressions": [
-          null
-        ]
+        "title": "Latenz-Perzentil"
       },
       {
         "title": "TTFT",
-        "expressions": [
-          null,
-          null
-        ],
         "expressionLabels": [
           "mittel",
           "perzentil"
         ]
       },
       {
-        "title": "Input-Tokens",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "summe",
-          "mittel"
-        ]
+        "title": "Input-Tokens"
       },
       {
-        "title": "Output-Tokens",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "summe",
-          "mittel"
-        ]
+        "title": "Output-Tokens"
       },
       {
-        "title": "Geschätzte Kosten",
-        "expressions": [
-          null,
-          null
-        ],
-        "expressionLabels": [
-          "gesamt",
-          "mittel"
-        ]
+        "title": "Geschätzte Gesamtkosten"
+      },
+      {
+        "title": "Mittlere Input-Tokens"
+      },
+      {
+        "title": "Mittlere Output-Tokens"
+      },
+      {
+        "title": "Mittlere geschätzte Kosten"
       }
     ]
   },

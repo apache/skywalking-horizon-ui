@@ -81,9 +81,10 @@
       },
       { "title": "索引大小（全部分片）" },
       { "title": "索引大小（主分片）" },
+      { "title": "已删除文档" },
       {
         "title": "文档数",
-        "expressionLabels": ["all", "primary", "deleted"]
+        "expressionLabels": ["all", "primary"]
       },
       {
         "title": "每请求平均搜索耗时（s）",

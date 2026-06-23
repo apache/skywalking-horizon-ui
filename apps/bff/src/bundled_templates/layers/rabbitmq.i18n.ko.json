@@ -94,30 +94,32 @@
         "title": "확인되지 않은 메시지"
       },
       {
-        "title": "연결 / 게시자 / 소비자",
-        "expressionLabels": [
-          "연결",
-          "게시자",
-          "소비자"
-        ]
+        "title": "연결"
       },
       {
-        "title": "채널 + 큐",
-        "expressionLabels": [
-          "채널",
-          "큐"
-        ]
+        "title": "게시자"
+      },
+      {
+        "title": "소비자"
+      },
+      {
+        "title": "채널"
+      },
+      {
+        "title": "큐"
       },
       {
         "title": "할당 사용 %"
+      },
+      {
+        "title": "할당 총량 (MB)"
       },
       {
         "title": "메모리 (MB)",
         "expressionLabels": [
           "사용",
           "미사용",
-          "resident",
-          "전체"
+          "resident"
         ]
       },
       {

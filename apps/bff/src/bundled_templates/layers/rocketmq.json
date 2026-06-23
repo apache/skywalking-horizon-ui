@@ -130,40 +130,19 @@
         "expressions": [
           "latest(meter_rocketmq_cluster_max_consumer_latency)"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 1
       },
       {
-        "id": "commitlog_ratio",
-        "title": "CommitLog Disk Ratio (%)",
-        "type": "line",
+        "id": "commitlog_ratio_total",
+        "title": "Max CommitLog Disk Ratio (%)",
+        "type": "card",
         "unit": "%",
         "expressions": [
-          "meter_rocketmq_cluster_commitLog_disk_ratio",
           "latest(meter_rocketmq_cluster_max_commitLog_disk_ratio)"
         ],
-        "expressionLabels": [
-          "current",
-          "max"
-        ],
-        "span": 4,
-        "rowSpan": 2
-      },
-      {
-        "id": "queue_wait",
-        "title": "ThreadPool Queue Head Wait (ms)",
-        "type": "line",
-        "unit": "ms",
-        "expressions": [
-          "meter_rocketmq_cluster_pull_threadPool_queue_head_wait_time",
-          "meter_rocketmq_cluster_send_threadPool_queue_head_wait_time"
-        ],
-        "expressionLabels": [
-          "pull",
-          "send"
-        ],
-        "span": 4,
-        "rowSpan": 2
+        "span": 3,
+        "rowSpan": 1
       },
       {
         "id": "topic_count",
@@ -186,6 +165,33 @@
         "span": 3,
         "rowSpan": 1,
         "format": "int"
+      },
+      {
+        "id": "commitlog_ratio",
+        "title": "CommitLog Disk Ratio (%)",
+        "type": "line",
+        "unit": "%",
+        "expressions": [
+          "meter_rocketmq_cluster_commitLog_disk_ratio"
+        ],
+        "span": 6,
+        "rowSpan": 2
+      },
+      {
+        "id": "queue_wait",
+        "title": "ThreadPool Queue Head Wait (ms)",
+        "type": "line",
+        "unit": "ms",
+        "expressions": [
+          "meter_rocketmq_cluster_pull_threadPool_queue_head_wait_time",
+          "meter_rocketmq_cluster_send_threadPool_queue_head_wait_time"
+        ],
+        "expressionLabels": [
+          "pull",
+          "send"
+        ],
+        "span": 6,
+        "rowSpan": 2
       }
     ],
     "instance": [
@@ -234,6 +240,48 @@
     ],
     "endpoint": [
       {
+        "id": "max_msg_producer_total",
+        "title": "Max Producer Msg Size (MB)",
+        "type": "card",
+        "unit": "MB",
+        "expressions": [
+          "latest(meter_rocketmq_topic_max_producer_message_size)/1024/1024"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "max_msg_consumer_total",
+        "title": "Max Consumer Msg Size (MB)",
+        "type": "card",
+        "unit": "MB",
+        "expressions": [
+          "latest(meter_rocketmq_topic_max_consumer_message_size)/1024/1024"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "consumer_groups",
+        "title": "Consumer Group Count",
+        "type": "card",
+        "expressions": [
+          "latest(meter_rocketmq_topic_consumer_group_count)"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "brokers",
+        "title": "Broker Count",
+        "type": "card",
+        "expressions": [
+          "latest(meter_rocketmq_topic_broker_count)"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
         "id": "tps",
         "title": "Producer / Consumer Group TPS",
         "type": "line",
@@ -265,33 +313,6 @@
         "rowSpan": 2
       },
       {
-        "id": "max_msg",
-        "title": "Max Message Size (MB)",
-        "type": "line",
-        "unit": "MB",
-        "expressions": [
-          "latest(meter_rocketmq_topic_max_producer_message_size)/1024/1024",
-          "latest(meter_rocketmq_topic_max_consumer_message_size)/1024/1024"
-        ],
-        "expressionLabels": [
-          "producer",
-          "consumer"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
-        "id": "consumer_latency",
-        "title": "Consumer Latency (s)",
-        "type": "line",
-        "unit": "s",
-        "expressions": [
-          "meter_rocketmq_topic_consumer_latency/1000"
-        ],
-        "span": 6,
-        "rowSpan": 2
-      },
-      {
         "id": "offsets",
         "title": "Producer / Consumer Offsets",
         "type": "line",
@@ -318,24 +339,15 @@
         "rowSpan": 2
       },
       {
-        "id": "consumer_groups",
-        "title": "Consumer Group Count",
-        "type": "card",
+        "id": "consumer_latency",
+        "title": "Consumer Latency (s)",
+        "type": "line",
+        "unit": "s",
         "expressions": [
-          "latest(meter_rocketmq_topic_consumer_group_count)"
+          "meter_rocketmq_topic_consumer_latency/1000"
         ],
-        "span": 6,
-        "rowSpan": 1
-      },
-      {
-        "id": "brokers",
-        "title": "Broker Count",
-        "type": "card",
-        "expressions": [
-          "latest(meter_rocketmq_topic_broker_count)"
-        ],
-        "span": 6,
-        "rowSpan": 1
+        "span": 12,
+        "rowSpan": 2
       }
     ]
   }

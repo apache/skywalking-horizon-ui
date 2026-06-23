@@ -32,25 +32,22 @@
         "title": "Centile de latence"
       },
       {
-        "title": "Tokens entrants",
-        "expressionLabels": [
-          "somme",
-          "moy"
-        ]
+        "title": "Tokens entrants"
       },
       {
-        "title": "Tokens sortants",
-        "expressionLabels": [
-          "somme",
-          "moy"
-        ]
+        "title": "Tokens sortants"
       },
       {
-        "title": "Coût estimé",
-        "expressionLabels": [
-          "total",
-          "moy"
-        ]
+        "title": "Coût total estimé"
+      },
+      {
+        "title": "Tokens entrants moyens"
+      },
+      {
+        "title": "Tokens sortants moyens"
+      },
+      {
+        "title": "Coût estimé moyen"
       }
     ],
     "instance": [
@@ -74,25 +71,22 @@
         ]
       },
       {
-        "title": "Tokens entrants",
-        "expressionLabels": [
-          "somme",
-          "moy"
-        ]
+        "title": "Tokens entrants"
       },
       {
-        "title": "Tokens sortants",
-        "expressionLabels": [
-          "somme",
-          "moy"
-        ]
+        "title": "Tokens sortants"
       },
       {
-        "title": "Coût estimé",
-        "expressionLabels": [
-          "total",
-          "moy"
-        ]
+        "title": "Coût total estimé"
+      },
+      {
+        "title": "Tokens entrants moyens"
+      },
+      {
+        "title": "Tokens sortants moyens"
+      },
+      {
+        "title": "Coût estimé moyen"
       }
     ]
   },

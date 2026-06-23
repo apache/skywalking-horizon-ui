@@ -148,27 +148,33 @@
         ]
       },
       {
-        "title": "Verbindungen / Publisher / Consumer",
+        "title": "Verbindungen",
         "expressions": [
-          null,
-          null,
           null
-        ],
-        "expressionLabels": [
-          "verbindungen",
-          "publisher",
-          "consumers"
         ]
       },
       {
-        "title": "Channels + Queues",
+        "title": "Publisher",
         "expressions": [
-          null,
           null
-        ],
-        "expressionLabels": [
-          "channels",
-          "queues"
+        ]
+      },
+      {
+        "title": "Consumer",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Channels",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Queues",
+        "expressions": [
+          null
         ]
       },
       {
@@ -178,9 +184,14 @@
         ]
       },
       {
+        "title": "Zugewiesen gesamt (MB)",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "Speicher (MB)",
         "expressions": [
-          null,
           null,
           null,
           null
@@ -188,8 +199,7 @@
         "expressionLabels": [
           "genutzt",
           "ungenutzt",
-          "resident",
-          "gesamt"
+          "resident"
         ]
       },
       {

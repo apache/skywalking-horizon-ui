@@ -49,11 +49,16 @@
         "title": "最大コンシューマーレイテンシ"
       },
       {
-        "title": "CommitLog ディスク比率 (%)",
-        "expressionLabels": [
-          "現在",
-          "最大"
-        ]
+        "title": "最大 CommitLog ディスク比率 (%)"
+      },
+      {
+        "title": "Topic"
+      },
+      {
+        "title": "Broker"
+      },
+      {
+        "title": "CommitLog ディスク比率 (%)"
       },
       {
         "title": "ThreadPool キュー先頭待ち (ms)",
@@ -61,12 +66,6 @@
           "プル",
           "送信"
         ]
-      },
-      {
-        "title": "Topic"
-      },
-      {
-        "title": "Broker"
       }
     ],
     "instance": [
@@ -85,6 +84,18 @@
     ],
     "endpoint": [
       {
+        "title": "最大プロデューサーメッセージサイズ (MB)"
+      },
+      {
+        "title": "最大コンシューマーメッセージサイズ (MB)"
+      },
+      {
+        "title": "コンシューマーグループ数"
+      },
+      {
+        "title": "Broker 数"
+      },
+      {
         "title": "プロデューサー / コンシューマーグループ TPS",
         "expressionLabels": [
           "プロデューサー",
@@ -99,16 +110,6 @@
         ]
       },
       {
-        "title": "最大メッセージサイズ (MB)",
-        "expressionLabels": [
-          "プロデューサー",
-          "コンシューマー"
-        ]
-      },
-      {
-        "title": "コンシューマーレイテンシ (s)"
-      },
-      {
         "title": "プロデューサー / コンシューマーオフセット",
         "expressionLabels": [
           "プロデューサー",
@@ -120,10 +121,7 @@
         "tip": "プロデューサーオフセット − コンシューマーグループオフセット — Topic のラグ。"
       },
       {
-        "title": "コンシューマーグループ数"
-      },
-      {
-        "title": "Broker 数"
+        "title": "コンシューマーレイテンシ (s)"
       }
     ]
   },

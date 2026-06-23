@@ -129,18 +129,26 @@
         ]
       },
       {
-        "title": "Zookeeper-Aktivität",
+        "title": "Zookeeper Bytes (b/s)",
         "expressions": [
-          null,
-          null,
           null,
           null
         ],
         "expressionLabels": [
-          "sitzungen",
-          "watches",
           "bytes ges.",
           "bytes empf."
+        ]
+      },
+      {
+        "title": "Zookeeper-Sessions",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Zookeeper Watches",
+        "expressions": [
+          null
         ]
       },
       {

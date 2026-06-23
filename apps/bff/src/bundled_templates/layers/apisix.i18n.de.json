@@ -113,14 +113,18 @@
         ]
       },
       {
-        "title": "etcd",
+        "title": "etcd erreichbar",
         "expressions": [
-          null,
+          null
+        ]
+      },
+      {
+        "title": "etcd Indizes",
+        "expressions": [
           null
         ],
         "expressionLabels": [
-          "indizes",
-          "erreichbar"
+          "indizes"
         ]
       },
       {
