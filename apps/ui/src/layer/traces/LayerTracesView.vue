@@ -417,7 +417,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 
 <template>
   <div class="tr-tab">
-    <!-- Top strip: filter (80%) + duration distribution (20%). -->
     <div class="tr-top-strip">
       <header class="tr-toolbar sw-card">
         <div class="tr-toolbar-head">
@@ -532,9 +531,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
         </div>
       </header>
 
-      <!-- Distribution: dots only. Y axis dropped — the y value is
-           surfaced on hover (tooltip) and re-surfaced in the list-row
-           bar below. Click a dot to select the matching trace. -->
       <section class="tr-scatter sw-card">
         <header class="tr-scatter-head">
           <!-- Header text swaps when the operator is picking dots:
@@ -566,8 +562,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       </section>
     </div>
 
-    <!-- Persists across browse + detail so the active trace-query API
-         (and what a row represents) stays visible after a click. -->
     <div v-if="showApiBanner" class="tr-api-banner">
       {{ t('This OAP serves traces via') }} <b>{{ t('Trace Query {label} API', { label: traceApiLabel }) }}</b>
       (<code>{{ native?.api }}</code>).
@@ -579,7 +573,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       </template>
     </div>
 
-    <!-- Browsing mode: full-width list when no trace is selected -->
     <template v-if="!selectedTraceId">
       <article class="tr-list-card sw-card">
         <header class="tr-list-head">
@@ -607,7 +600,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 
     </template>
 
-    <!-- Inline detail: folded rail (left) + detail (right) -->
     <section v-else class="tr-detail-split" :class="{ 'rail-collapsed': !railOpen }">
       <TraceListPanel
         foldable
@@ -746,8 +738,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .sw-btn.small { height: 24px; padding: 0 10px; font-size: 11px; }
 .sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); }
 
-/* Scatter — fills as much of the card as possible. Kicker + legend
-   sit on one tight strip; the chart claims the rest. */
 .tr-scatter {
   padding: 6px 10px 8px;
   display: flex;
@@ -776,8 +766,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
    shared component fills the remaining card height via its own flex. */
 .tr-scatter :deep(.scatter-wrap) { flex: 1; min-height: 0; }
 
-/* Browsing list */
-.tr-list-card { padding: 0; display: flex; flex-direction: column; }
+.tr-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 80px); overflow: hidden; }
 .tr-list-head {
   display: flex;
   align-items: baseline;
@@ -815,10 +804,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 }
 .tr-api-banner b { color: var(--sw-fg-0); }
 .tr-empty { padding: 24px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
-/* Inline detail split — height is driven by the *content* of the
-   detail card on the right. The rail on the left stretches to match
-   (sticky to its scroll context). No fixed min/max-height: short
-   traces stay compact, long ones make the page scroll. */
 .tr-detail-split {
   display: grid;
   grid-template-columns: 320px 1fr;
