@@ -44,7 +44,8 @@ import type {
 } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
-import NativeTraceWaterfall, { type WaterfallSpan } from '@/layer/traces/NativeTraceWaterfall.vue';
+import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
+import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
 const props = defineProps<{ kind: 'trace' | 'log' }>();
@@ -220,8 +221,7 @@ async function runQuery(): Promise<void> {
   running.value = true;
   hasQueried.value = true;
   errorMsg.value = null;
-  selectedTraceId.value = null;
-  embeddedSpans.value = null;
+  closeDetail();
   const entity = currentEntity();
   const req: ExploreRequest = {
     kind: 'trace',
@@ -252,27 +252,32 @@ async function runQuery(): Promise<void> {
 }
 
 const rows = computed<NativeTraceListRow[]>(() => (hasQueried.value ? native.value?.traces ?? [] : []));
+const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...rows.value.map((r) => r.duration))));
 
-// ── detail (reuses the native waterfall + GET /api/trace/:id) ─────────
+// ── detail (reuses the shared trace-detail card + GET /api/trace/:id) ─
 const selectedTraceId = ref<string | null>(null);
+const selectedTraceIds = ref<string[]>([]);
+const selectedRowKey = ref<string | null>(null);
 const embeddedSpans = ref<NativeSpan[] | null>(null);
-const selectedSpan = ref<WaterfallSpan | null>(null);
 const sourceRef = ref<'native' | 'zipkin'>('native');
 const { nativeDetail, isFetching: detailFetching } = useTraceDetail(selectedTraceId, sourceRef);
 const waterfallSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
 
 function openRow(row: NativeTraceListRow): void {
-  selectedSpan.value = null;
+  selectedRowKey.value = row.key;
+  selectedTraceIds.value = row.traceIds;
   selectedTraceId.value = row.traceIds[0] ?? null;
   embeddedSpans.value = row.spans ?? null;
 }
-
-function fmtDur(ms: number): string {
-  return ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms} ms`;
+function closeDetail(): void {
+  selectedTraceId.value = null;
+  selectedTraceIds.value = [];
+  selectedRowKey.value = null;
+  embeddedSpans.value = null;
 }
-function fmtTime(start: string): string {
-  const n = Number(start);
-  return Number.isFinite(n) && n > 0 ? new Date(n).toLocaleTimeString() : start;
+function changeSelectedTraceId(id: string): void {
+  selectedTraceId.value = id;
+  embeddedSpans.value = null;
 }
 </script>
 
@@ -410,22 +415,27 @@ function fmtTime(start: string): string {
         <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
         <div v-else-if="rows.length === 0" class="iq-empty">{{ t('No traces in this window.') }}</div>
         <div v-else class="iq-split">
-          <ul class="iq-list">
-            <li
-              v-for="(row, i) in rows" :key="row.key || i" class="iq-row"
-              :class="{ on: selectedTraceId === (row.traceIds[0] ?? ''), err: row.isError }" @click="openRow(row)"
-            >
-              <span class="iq-flag" :class="{ err: row.isError }"></span>
-              <span class="iq-ep">{{ row.endpointNames[0] || row.traceIds[0] || row.key }}</span>
-              <span class="iq-dur">{{ fmtDur(row.duration) }}</span>
-              <span class="iq-time">{{ fmtTime(row.start) }}</span>
-            </li>
-          </ul>
+          <div class="iq-list-pane">
+            <TraceListPanel
+              :rows="rows"
+              :selected-key="selectedRowKey"
+              :max-duration="maxDuration"
+              @select="openRow"
+            />
+          </div>
           <div class="iq-detail">
             <div v-if="!selectedTraceId" class="iq-empty sm">{{ t('Select a trace.') }}</div>
             <div v-else-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
             <div v-else-if="waterfallSpans.length === 0" class="iq-empty sm">{{ t('No spans (older than the detail window).') }}</div>
-            <NativeTraceWaterfall v-else :spans="waterfallSpans" :selected-span="selectedSpan" @select-span="selectedSpan = $event" />
+            <TraceDetailCard
+              v-else
+              :spans="waterfallSpans"
+              :trace-id="selectedTraceId"
+              :trace-ids="selectedTraceIds"
+              :loading="detailFetching"
+              @close="closeDetail"
+              @change-trace-id="changeSelectedTraceId"
+            />
           </div>
         </div>
       </div>
@@ -481,14 +491,6 @@ function fmtTime(start: string): string {
 .iq-empty.sm { padding: 14px; }
 .iq-err { color: var(--sw-err); }
 .iq-split { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; height: 100%; min-height: 0; }
-.iq-list { list-style: none; margin: 0; padding: 0; overflow: auto; border-right: 1px solid var(--sw-line); }
-.iq-row { display: grid; grid-template-columns: 10px 1fr auto auto; gap: 8px; align-items: center; padding: 5px 10px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--sw-line); }
-.iq-row:hover { background: var(--sw-bg-2); }
-.iq-row.on { background: var(--sw-bg-3); }
-.iq-flag { width: 8px; height: 8px; border-radius: 50%; background: var(--sw-ok, #3a7); }
-.iq-flag.err { background: var(--sw-err); }
-.iq-ep { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.iq-dur { font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); }
-.iq-time { font-size: 11px; color: var(--sw-fg-3); }
+.iq-list-pane { display: flex; flex-direction: column; min-height: 0; overflow: auto; border-right: 1px solid var(--sw-line); }
 .iq-detail { overflow: auto; min-width: 0; }
 </style>
