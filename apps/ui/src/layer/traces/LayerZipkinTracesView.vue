@@ -175,12 +175,9 @@ watch(
 // known to Zipkin) and the operator narrows by picking from the
 // `/api/v2/services` dropdown.
 //
-// Auto-fire one query on landing so the table isn't empty on first
-// arrival — runs with "All" so every layer (mesh / k8s / etc.) shows
-// something immediately.
-watch(layerKey, () => {
-  if (!hasQueried.value) runQuery();
-}, { immediate: true });
+// No auto-fire — traces are expensive, the operator runs explicitly.
+// Switching layer clears the prior result set back to the run prompt.
+watch(layerKey, () => { hasQueried.value = false; });
 
 // Load the full Zipkin service list once for the filter dropdown.
 // Best-effort: a failed fetch leaves the input as plain text.
