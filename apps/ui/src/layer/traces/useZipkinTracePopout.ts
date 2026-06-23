@@ -16,33 +16,37 @@
  */
 
 /**
- * URL-backed popout state for Zipkin traces. Mirrors `useTracePopout`
- * (the native popout) but reads/writes `?openZipkinTraceId=<id>` so
- * the two trace kinds can be open simultaneously without colliding.
+ * URL-backed popout state for Zipkin traces. Shares the native popout's
+ * `?traceId=<id>` param; the two self-select by ID shape (Zipkin IDs are
+ * bare hex, SkyWalking-native IDs are dotted `x.y.z`), so a layer's
+ * `/trace` URL works for either source without a separate param.
  */
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+export function isZipkinTraceId(id: string): boolean {
+  return /^[0-9a-f]{16}$|^[0-9a-f]{32}$/i.test(id);
+}
 
 export function useZipkinTracePopout() {
   const route = useRoute();
   const router = useRouter();
 
   const openTraceId = computed<string | null>(() => {
-    const v = route.query.openZipkinTraceId;
-    return typeof v === 'string' && v.length > 0 ? v : null;
+    const v = route.query.traceId;
+    return typeof v === 'string' && isZipkinTraceId(v) ? v : null;
   });
 
   function openTrace(id: string): void {
     if (!id) return;
-    const next = { ...route.query, openZipkinTraceId: id };
-    void router.replace({ path: route.path, query: next });
+    void router.replace({ path: route.path, query: { ...route.query, traceId: id } });
   }
 
   function closeTrace(): void {
     if (!openTraceId.value) return;
     const next = { ...route.query };
-    delete next.openZipkinTraceId;
+    delete next.traceId;
     void router.replace({ path: route.path, query: next });
   }
 

@@ -36,7 +36,6 @@ import type { ZipkinSpan } from '@skywalking-horizon-ui/api-client';
 const { t } = useI18n({ useScope: 'global' });
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
 import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
-import { readAccent } from '@/utils/cssVar';
 
 const { openTraceId, closeTrace } = useZipkinTracePopout();
 const traceIdRef = computed(() => openTraceId.value);
@@ -132,33 +131,68 @@ function clearSpan(): void {
 // Drop the selection when the trace changes.
 watch(traceIdRef, () => { selectedSpanId.value = null; });
 
-// Floating span-detail dismiss — click outside the .zk-detail panel
-// (but not on another row, which has its own swap handler) clears the
-// pin. Backdrop clicks still close the whole popout via the existing
-// `@click.self` on .zk-popout-backdrop.
+// Click outside the span-detail modal card dismisses it.
 const spanDetailRef = ref<HTMLElement | null>(null);
 function onSpanDetailDocClick(e: MouseEvent): void {
   if (!selectedSpan.value) return;
   const t = e.target as Element | null;
   if (!t) return;
   if (spanDetailRef.value?.contains(t)) return;
-  if (t.closest?.('.zk-row')) return;
   clearSpan();
 }
 
-// ── Color per service so each row reads as a band ────────────────
-// First entry tracks `--sw-accent` so the brand color in the trace
-// waterfall follows the active theme. Rest stay constant for service
-// differentiation.
+// Palette + hash match the native trace detail (TracePopout).
+const SERVICE_PALETTE = [
+  'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
+  'var(--sw-ok)', 'var(--sw-warn)', 'var(--sw-pink)',
+  '#a78bfa', '#fb7185', '#34d399', '#fbbf24', '#60a5fa',
+];
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 function serviceColor(name: string | null | undefined): string {
-  if (!name) return 'var(--sw-fg-3)';
-  const palette = [
-    readAccent('#f97316'), '#60a5fa', '#a78bfa', '#22d3ee',
-    '#f472b6', '#34d399', '#fbbf24', '#fb7185',
-  ];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return palette[Math.abs(h) % palette.length]!;
+  if (!name) return 'var(--sw-fg-2)';
+  return SERVICE_PALETTE[hashString(name) % SERVICE_PALETTE.length]!;
+}
+const serviceColors = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>();
+  for (const s of spans.value) {
+    const n = s.localEndpoint?.serviceName ?? '—';
+    if (!m.has(n)) m.set(n, serviceColor(n));
+  }
+  return m;
+});
+const rootStart = computed<number | null>(() => {
+  const ts = spans.value.map((s) => s.timestamp ?? 0).filter(Boolean);
+  return ts.length ? Math.min(...ts) : null;
+});
+function kindColor(k: string | null | undefined): string {
+  const t = (k ?? '').toUpperCase();
+  if (t.includes('SERVER')) return 'var(--sw-accent)';
+  if (t.includes('CLIENT')) return 'var(--sw-info)';
+  if (t.includes('PRODUCER') || t.includes('CONSUMER')) return 'var(--sw-purple)';
+  return 'var(--sw-fg-2)';
+}
+function fmtDateTime(usSinceEpoch: number | null | undefined): string {
+  if (!usSinceEpoch || !Number.isFinite(usSinceEpoch)) return '—';
+  const d = new Date(usSinceEpoch / 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+const ANNOTATION_LABELS: Record<string, string> = {
+  cs: 'client send', cr: 'client receive',
+  sr: 'server receive', ss: 'server send',
+  ws: 'wire send', wr: 'wire receive',
+  error: 'error',
+};
+function annotationHint(value: string): string | null {
+  return ANNOTATION_LABELS[value.trim().toLowerCase()] ?? null;
+}
+function copyShareableUrl(): void {
+  if (typeof window === 'undefined') return;
+  navigator.clipboard?.writeText(window.location.href).catch(() => {});
 }
 
 // ── Formatting ────────────────────────────────────────────────────
@@ -166,10 +200,6 @@ function fmtMs(us: number): string {
   if (us < 1000) return `${us}μs`;
   if (us < 1_000_000) return `${(us / 1000).toFixed(2)}ms`;
   return `${(us / 1_000_000).toFixed(2)}s`;
-}
-function fmtAbsTime(usSinceEpoch: number): string {
-  if (!usSinceEpoch) return '';
-  return new Date(usSinceEpoch / 1000).toLocaleString();
 }
 function offsetPct(us: number): number {
   const total = bounds.value.totalUs || 1;
@@ -233,8 +263,9 @@ function copyTraceId(): void {
     <article class="zk-popout sw-card">
       <header class="zk-head">
         <span class="kicker">{{ t('Zipkin trace') }}</span>
-        <code class="zk-tid mono">{{ openTraceId }}</code>
-        <button class="sw-btn small" type="button" @click="copyTraceId">{{ t('Copy id') }}</button>
+        <code class="zk-tid mono" :title="openTraceId ?? ''">{{ openTraceId }}</code>
+        <button class="sw-btn small ghost" type="button" :title="t('Copy id')" @click="copyTraceId">⧉ {{ t('id') }}</button>
+        <button class="sw-btn small ghost" type="button" :title="t('Copy shareable URL')" @click="copyShareableUrl">⧉ {{ t('url') }}</button>
         <span v-if="isLoading" class="hint">{{ t('loading…') }}</span>
         <span v-if="error" class="hint err">{{ String(error) }}</span>
         <button class="sw-btn small ghost zk-close" type="button" @click="closeTrace">×</button>
@@ -244,10 +275,21 @@ function copyTraceId(): void {
         {{ t('No spans returned for this trace.') }}
       </div>
 
-      <div v-else class="zk-split">
-        <!-- Waterfall column -->
+      <template v-else>
+        <div class="tp-kpis">
+          <div><div class="kpi-label">{{ t('started') }}</div><div class="kpi-val">{{ fmtDateTime(rootStart) }}</div></div>
+          <div><div class="kpi-label">{{ t('duration') }}</div><div class="kpi-val">{{ fmtMs(bounds.totalUs) }}</div></div>
+          <div><div class="kpi-label">{{ t('spans') }}</div><div class="kpi-val">{{ waterfall.length }}</div></div>
+          <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ serviceColors.size }}</div></div>
+        </div>
+        <div v-if="serviceColors.size > 0" class="tp-svc-legend">
+          <span v-for="[code, color] in serviceColors" :key="code" class="svc-chip">
+            <span class="svc-swatch" :style="{ background: color }" />
+            <span class="mono">{{ code }}</span>
+          </span>
+        </div>
         <div class="zk-waterfall">
-          <div class="zk-time-axis">
+          <div class="tp-time-axis">
             <span class="t-tick first">0</span>
             <span class="t-tick">{{ fmtMs(bounds.totalUs * 0.25) }}</span>
             <span class="t-tick">{{ fmtMs(bounds.totalUs * 0.5) }}</span>
@@ -257,81 +299,96 @@ function copyTraceId(): void {
           <div
             v-for="row in waterfall"
             :key="row.span.id"
-            class="zk-row"
+            class="tp-row"
             :class="{ on: selectedSpanId === row.span.id, err: row.span.tags?.error != null }"
             @click="selectSpan(row.span)"
           >
-            <span class="zk-row-label mono" :style="{ paddingLeft: row.depth * 14 + 'px' }">
-              <span class="zk-row-svc" :style="{ color: serviceColor(row.span.localEndpoint?.serviceName) }">
-                {{ row.span.localEndpoint?.serviceName ?? '—' }}
-              </span>
-              <span class="zk-row-name">{{ row.span.name || t('(unnamed)') }}</span>
-            </span>
-            <div class="zk-track">
+            <div class="tp-track">
               <span class="t-grid q1" /><span class="t-grid q2" /><span class="t-grid q3" />
               <div
-                class="zk-bar"
+                class="tp-bar"
                 :style="{
                   left: offsetPct(row.startOffsetUs) + '%',
                   width: widthPct(row.durationUs) + '%',
                   background: serviceColor(row.span.localEndpoint?.serviceName),
                   borderColor: row.span.tags?.error != null ? 'var(--sw-err)' : 'transparent',
                 }"
-              />
-              <span class="zk-dur mono" :style="{ left: `calc(${offsetPct(row.startOffsetUs + row.durationUs)}% + 6px)` }">
-                {{ fmtMs(row.durationUs) }}
-              </span>
+              >
+                <span class="bar-inner">
+                  <span
+                    class="status-flag sm"
+                    :class="row.span.tags?.error != null ? 'flag-err' : 'flag-ok'"
+                    :title="row.span.tags?.error != null ? t('Span errored') : t('Span OK')"
+                  ><span class="flag-dot" /></span>
+                  <svg class="comp-icon comp-icon-generic" viewBox="0 0 18 18" :aria-label="t('generic span')">
+                    <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
+                    <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
+                  </svg>
+                  <span class="bar-text mono">
+                    <span class="bar-svc" :title="row.span.localEndpoint?.serviceName ?? ''">{{ row.span.localEndpoint?.serviceName ?? '—' }}</span>
+                    <span class="bar-name" :title="row.span.name || row.span.remoteEndpoint?.serviceName || '—'">{{ row.span.name || row.span.remoteEndpoint?.serviceName || '—' }}</span>
+                  </span>
+                  <span v-if="offsetPct(row.startOffsetUs + row.durationUs) > 85" class="bar-dur-inside mono">{{ fmtMs(row.durationUs) }}</span>
+                </span>
+              </div>
+              <span
+                v-if="offsetPct(row.startOffsetUs + row.durationUs) <= 85"
+                class="bar-dur-outside mono"
+                :style="{ left: `calc(${offsetPct(row.startOffsetUs + row.durationUs)}% + 6px)` }"
+              >{{ fmtMs(row.durationUs) }}</span>
             </div>
           </div>
         </div>
+      </template>
 
-        <!-- Span detail floats as a right-edge overlay; width caps at
-             min(640px, 60%) so long tag values render without
-             compressing the waterfall. Mirrors LayerZipkinTracesView. -->
-        <aside v-if="selectedSpan" ref="spanDetailRef" class="zk-detail">
-          <header class="zk-detail-head">
-            <h5>{{ t('Span detail') }}</h5>
-            <button class="sw-btn small ghost" type="button" @click="clearSpan">×</button>
+      <div v-if="selectedSpan" class="span-modal-backdrop">
+        <article ref="spanDetailRef" class="span-modal sw-card">
+          <header class="span-modal-head">
+            <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
+            <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
           </header>
-          <dl class="zk-kv">
-            <dt>{{ t('Service') }}</dt>
-            <dd class="mono" :style="{ color: serviceColor(selectedSpan.localEndpoint?.serviceName) }">
-              {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
-            </dd>
-            <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name ?? '—' }}</dd>
-            <dt>{{ t('Kind') }}</dt><dd>{{ selectedSpan.kind ?? '—' }}</dd>
-            <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
-            <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
-            <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
-            <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
-            <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-            <dt v-if="selectedSpan.remoteEndpoint?.serviceName">{{ t('Peer') }}</dt>
-            <dd v-if="selectedSpan.remoteEndpoint?.serviceName" class="mono wba">
-              {{ selectedSpan.remoteEndpoint.serviceName }}
-            </dd>
-          </dl>
-          <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="zk-tags">
-            <h6>{{ t('Tags') }}</h6>
-            <dl class="zk-kv">
-              <template v-for="(v, k) in selectedSpan.tags" :key="k">
-                <dt class="mono">{{ k }}</dt>
-                <dd class="mono wba">{{ v }}</dd>
-              </template>
-            </dl>
-          </section>
-          <section
-            v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0"
-            class="zk-annotations"
-          >
-            <h6>{{ t('Annotations') }}</h6>
-            <ul>
-              <li v-for="(a, i) in selectedSpan.annotations" :key="i" class="mono">
-                <span class="dim">{{ fmtAbsTime(a.timestamp) }}</span>
-                <span class="zk-ann-val">{{ a.value }}</span>
-              </li>
-            </ul>
-          </section>
-        </aside>
+          <div class="span-modal-body">
+            <section class="sd-section">
+              <h6>{{ t('Meta') }}</h6>
+              <dl class="kv">
+                <dt>{{ t('Service') }}</dt>
+                <dd class="mono" :style="{ color: serviceColor(selectedSpan.localEndpoint?.serviceName) }">
+                  <span class="svc-swatch inline" :style="{ background: serviceColor(selectedSpan.localEndpoint?.serviceName) }" />
+                  {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
+                </dd>
+                <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name || '—' }}</dd>
+                <dt>{{ t('Kind') }}</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.kind) }">{{ selectedSpan.kind ?? '—' }}</span></dd>
+                <dt>{{ t('Peer') }}</dt><dd class="mono wba">{{ selectedSpan.remoteEndpoint?.serviceName || '—' }}</dd>
+                <dt v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6">{{ t('Peer addr') }}</dt>
+                <dd v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6" class="mono wba">{{ selectedSpan.remoteEndpoint?.ipv4 ?? selectedSpan.remoteEndpoint?.ipv6 }}<template v-if="selectedSpan.remoteEndpoint?.port">:{{ selectedSpan.remoteEndpoint.port }}</template></dd>
+                <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
+                <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
+                <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
+                <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(selectedSpan.timestamp) }}</dd>
+                <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
+                <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="selectedSpan.tags?.error != null ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ selectedSpan.tags?.error != null ? t('true') : t('false') }}</span></dd>
+              </dl>
+            </section>
+            <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="sd-section">
+              <h6>{{ t('Tags') }}</h6>
+              <dl class="kv">
+                <template v-for="(v, k) in selectedSpan.tags" :key="k">
+                  <dt class="mono">{{ k }}</dt>
+                  <dd class="mono wba" :class="{ err: k === 'error' }">{{ v }}</dd>
+                </template>
+              </dl>
+            </section>
+            <section v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0" class="sd-section">
+              <h6>{{ t('Annotations') }}</h6>
+              <div v-for="(a, i) in selectedSpan.annotations" :key="i" class="span-event">
+                <div class="span-event-head">
+                  <span class="mono">{{ a.value }}<span v-if="annotationHint(a.value)" class="ann-hint" :title="annotationHint(a.value) ?? ''"> ({{ annotationHint(a.value) }})</span></span>
+                  <span class="dim mono">{{ fmtDateTime(a.timestamp) }}</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </article>
       </div>
     </article>
   </div>
@@ -373,78 +430,65 @@ function copyTraceId(): void {
   font-size: 12px;
 }
 
-.zk-split {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .zk-waterfall {
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding: 0;
+  padding: 4px 0;
 }
-.zk-time-axis {
+.tp-kpis {
+  display: flex;
+  gap: 24px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--sw-line);
+  flex: 0 0 auto;
+}
+.kpi-label { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3); }
+.kpi-val { font-family: var(--sw-mono); font-size: 13px; color: var(--sw-fg-0); font-weight: 700; }
+.tp-svc-legend {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--sw-line);
+  background: var(--sw-bg-1);
+  flex: 0 0 auto;
+}
+.svc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+  padding: 1px 6px 1px 4px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 10px;
+  background: var(--sw-bg-2);
+}
+.svc-swatch { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+.svc-swatch.inline { display: inline-block; margin-right: 4px; vertical-align: middle; }
+.tp-time-axis {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
   justify-content: space-between;
   padding: 6px 12px;
-  /* Solid background + shadow so the axis cleanly overlays the
-   * scrolling rows underneath rather than letting the first row's
-   * bar bleed through (sibling rendering on scroll). */
   background-color: var(--sw-bg-1);
   border-bottom: 1px solid var(--sw-line);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  font-family: var(--sw-mono);
   font-size: 10px;
   color: var(--sw-fg-3);
-  font-family: var(--sw-mono);
 }
-.zk-row {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 12px;
-  border-bottom: 1px solid var(--sw-line);
-  cursor: pointer;
-}
-.zk-row:hover { background: var(--sw-bg-2); }
-.zk-row.on { background: var(--sw-bg-3); }
-.zk-row.err { box-shadow: inset 3px 0 0 var(--sw-err); }
-.zk-row-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 10.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 0;
-}
-.zk-row-svc {
-  flex: 0 0 auto;
-  font-weight: 700;
-  max-width: 100px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.zk-row-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--sw-fg-1);
-}
-.zk-track {
-  position: relative;
-  height: 18px;
-  background: var(--sw-bg-1);
-  border-radius: 2px;
-  overflow: visible;
-}
+.t-tick { white-space: nowrap; }
+.t-tick.first { text-align: left; }
+.t-tick.last { text-align: right; }
+.tp-row { padding: 3px 12px; cursor: pointer; }
+.tp-row:hover { background: var(--sw-bg-2); }
+.tp-row.err { background: rgba(239, 68, 68, 0.06); }
+.tp-row.on { background: var(--sw-accent-soft); }
+.tp-track { position: relative; height: 22px; background: transparent; }
 .t-grid {
   position: absolute;
   top: 0;
@@ -457,81 +501,180 @@ function copyTraceId(): void {
 .t-grid.q1 { left: 25%; }
 .t-grid.q2 { left: 50%; }
 .t-grid.q3 { left: 75%; }
-.zk-bar {
+.tp-bar {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  border-radius: 2px;
+  border-radius: 3px;
   border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  cursor: pointer;
+  transition: filter 0.12s ease;
 }
-.zk-dur {
+.tp-bar:hover { filter: brightness(1.12); }
+.bar-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+}
+.bar-text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--sw-bg-0);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.25);
+}
+.bar-svc {
+  font-weight: 700;
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  max-width: 40%;
+  opacity: 0.9;
+}
+.bar-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
+}
+.comp-icon { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; background: transparent; }
+.comp-icon-generic { color: var(--sw-fg-2); }
+.bar-inner .comp-icon-generic { color: rgba(0, 0, 0, 0.72); }
+.bar-inner .status-flag.sm { background: rgba(255, 255, 255, 0.35); color: var(--sw-bg-0); }
+.bar-inner .status-flag.flag-err { background: var(--sw-err); color: #fff; }
+.bar-dur-outside {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   font-size: 10px;
   color: var(--sw-fg-2);
+  white-space: nowrap;
   pointer-events: none;
+}
+.bar-dur-inside {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  color: var(--sw-bg-0);
+  opacity: 0.82;
   white-space: nowrap;
 }
-
-.zk-detail {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(640px, 60%);
-  overflow-y: auto;
-  padding: 12px 14px;
-  background: var(--sw-bg-1);
-  border-left: 1px solid var(--sw-line);
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
-  z-index: 5;
-}
-.zk-detail-head {
-  display: flex;
+.status-flag {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.zk-detail-head h5 {
-  margin: 0;
-  font-size: 12px;
-  color: var(--sw-fg-0);
-}
-.zk-tags, .zk-annotations { margin-top: 12px; }
-.zk-tags h6, .zk-annotations h6 {
-  margin: 0 0 6px;
-  font-size: 10px;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  font-weight: 600;
+  flex: 0 0 auto;
 }
-.zk-kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
-  font-size: 11px;
+.status-flag.sm { height: 12px; width: 12px; padding: 0; border-radius: 50%; justify-content: center; }
+.status-flag.sm .flag-dot { margin: 0; }
+.flag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
+.status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
+.span-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
 }
-.zk-kv dt { color: var(--sw-fg-3); }
-.zk-kv dd { margin: 0; color: var(--sw-fg-1); }
-.zk-kv dd.wba { word-break: break-all; }
-.zk-annotations ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.span-modal {
+  width: 100%;
+  max-width: 920px;
+  max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
-.zk-annotations li {
+.span-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sw-line);
+  flex: 0 0 auto;
+}
+.span-modal-head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  gap: 10px;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+}
+.span-modal-head h4 .dim { color: var(--sw-fg-3); font-weight: 500; }
+.span-modal-head h4 .mono {
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.span-modal-body { padding: 12px 14px 16px; overflow-y: auto; }
+.sd-section { margin-bottom: 14px; }
+.sd-section h6 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-accent);
+  font-weight: 700;
+}
+.kv {
   display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 8px;
-  font-size: 10.5px;
+  grid-template-columns: 100px 1fr;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 11px;
 }
-.zk-annotations .dim { color: var(--sw-fg-3); }
-.zk-ann-val { color: var(--sw-fg-1); word-break: break-all; }
+.kv dt { color: var(--sw-fg-3); font-size: 10.5px; min-width: 0; overflow-wrap: anywhere; }
+.kv dd { margin: 0; color: var(--sw-fg-1); min-width: 0; }
+.kv dd.wba { word-break: break-all; }
+.kv dd.err { color: var(--sw-err); }
+.tp-kind { font-family: var(--sw-mono); font-size: 11px; font-weight: 600; }
+.span-event {
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: var(--sw-bg-0);
+}
+.span-event-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+.ann-hint { color: var(--sw-fg-3); }
+.dim { color: var(--sw-fg-3); }
+.wba { word-break: break-all; }
 .mono { font-family: var(--sw-mono); }
 .kicker {
   font-size: 10px;

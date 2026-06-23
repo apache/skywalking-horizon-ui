@@ -30,8 +30,8 @@ import type { ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
 const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import { useZipkinTracePopout } from '@/layer/traces/useZipkinTracePopout';
-import { readAccent } from '@/utils/cssVar';
 import { bffClient } from '@/api/client';
+import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
 // Zipkin trace data is keyed by its own service universe (the names
 // reported in span `localEndpoint.serviceName`), not by SkyWalking's
@@ -203,6 +203,18 @@ watch(layerKey, () => { void loadServiceOptions(); }, { immediate: true });
 // "all remotes" endpoint.
 const spanNameOptions = ref<string[]>([]);
 const remoteSvcOptions = ref<string[]>([]);
+const serviceSelectOptions = computed(() => [
+  { value: '', label: t('All') },
+  ...zipkinServiceOptions.value.map((s) => ({ value: s, label: s })),
+]);
+const remoteSelectOptions = computed(() => [
+  { value: '', label: t('any') },
+  ...remoteSvcOptions.value.map((s) => ({ value: s, label: s })),
+]);
+const spanNameSelectOptions = computed(() => [
+  { value: '', label: t('any') },
+  ...spanNameOptions.value.map((s) => ({ value: s, label: s })),
+]);
 async function loadAutocomplete(svc: string): Promise<void> {
   if (!svc) {
     spanNameOptions.value = [];
@@ -281,8 +293,8 @@ watch(layerKey, (k) => { if (k) void loadAnnotationKeys(); }, { immediate: true 
 // Mirrors `LayerTracesView`'s native pattern: a row click commits a
 // selection to local state instead of opening the global popout.
 // The selected trace's full spans render in the side rail. The
-// trace-id input + URL-driven `?openZipkinTraceId=` still fall back
-// to the popout for the "paste an id" / "share a link" flows.
+// trace-id input + URL-driven `?traceId=` still fall back to the
+// popout for the "paste an id" / "share a link" flows.
 const selectedTraceId = ref<string | null>(null);
 function selectRow(row: ZipkinTraceListRow): void {
   selectedTraceId.value = row.traceId;
@@ -290,14 +302,20 @@ function selectRow(row: ZipkinTraceListRow): void {
 function closeDetail(): void {
   selectedTraceId.value = null;
 }
+function copyDetailTraceId(): void {
+  if (!selectedTraceId.value) return;
+  navigator.clipboard?.writeText(selectedTraceId.value).catch(() => {});
+}
+function copyDetailUrl(): void {
+  if (!selectedTraceId.value || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('traceId', selectedTraceId.value);
+  navigator.clipboard?.writeText(url.toString()).catch(() => {});
+}
 /** Rail toggle — when a trace is selected, the result list collapses
  *  to a narrow rail with progress-bar-only entries (folder style).
  *  Click any bar to swap the inline detail without expanding back. */
 const railOpen = ref<boolean>(true);
-const selectedRow = computed<ZipkinTraceListRow | null>(() => {
-  if (!selectedTraceId.value) return null;
-  return traces.value.find((t) => t.traceId === selectedTraceId.value) ?? null;
-});
 // Reset when the query parameters change so a stale selection
 // doesn't outlive its result set.
 watch([cService, cLookback, cLimit, cSpan, cRemote, cAnno], () => {
@@ -356,27 +374,62 @@ const detailRows = computed<DetailRow[]>(() => {
   }
   return out;
 });
-/* Per-service color palette. First entry tracks `--sw-accent` so the
- * trace waterfall's brand color follows the active theme; the rest
- * stay constant because their job is "be distinct from each other"
- * across services, not "match brand". Rebuilt per call so theme
- * swaps land immediately on next render. */
+// Palette + hash match the native trace detail (TracePopout).
+const SERVICE_PALETTE = [
+  'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
+  'var(--sw-ok)', 'var(--sw-warn)', 'var(--sw-pink)',
+  '#a78bfa', '#fb7185', '#34d399', '#fbbf24', '#60a5fa',
+];
+function hashString(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 function detailColor(name: string | null | undefined): string {
-  if (!name) return 'var(--sw-fg-3)';
-  const palette = [readAccent('#f97316'), '#60a5fa', '#a78bfa', '#22d3ee', '#f472b6', '#34d399', '#fbbf24', '#fb7185'];
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
-  return palette[Math.abs(h) % palette.length]!;
+  if (!name) return 'var(--sw-fg-2)';
+  return SERVICE_PALETTE[hashString(name) % SERVICE_PALETTE.length]!;
+}
+const detailServiceColors = computed<Map<string, string>>(() => {
+  const m = new Map<string, string>();
+  for (const s of selectedSpans.value) {
+    const n = s.localEndpoint?.serviceName ?? '—';
+    if (!m.has(n)) m.set(n, detailColor(n));
+  }
+  return m;
+});
+const detailRootStart = computed<number | null>(() => {
+  const ts = selectedSpans.value.map((s) => s.timestamp ?? 0).filter(Boolean);
+  return ts.length ? Math.min(...ts) : null;
+});
+function kindColor(k: string | null | undefined): string {
+  const t = (k ?? '').toUpperCase();
+  if (t.includes('SERVER')) return 'var(--sw-accent)';
+  if (t.includes('CLIENT')) return 'var(--sw-info)';
+  if (t.includes('PRODUCER') || t.includes('CONSUMER')) return 'var(--sw-purple)';
+  return 'var(--sw-fg-2)';
+}
+// Zipkin/B3 timing codes → human label; unknown values render raw.
+const ANNOTATION_LABELS: Record<string, string> = {
+  cs: 'client send', cr: 'client receive',
+  sr: 'server receive', ss: 'server send',
+  ws: 'wire send', wr: 'wire receive',
+  error: 'error',
+};
+function annotationHint(value: string): string | null {
+  return ANNOTATION_LABELS[value.trim().toLowerCase()] ?? null;
+}
+function fmtDateTime(usSinceEpoch: number | null | undefined): string {
+  if (!usSinceEpoch || !Number.isFinite(usSinceEpoch)) return '—';
+  const d = new Date(usSinceEpoch / 1000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 function detailLeftPct(us: number): number {
   return Math.max(0, Math.min(100, (us / (detailBounds.value.totalUs || 1)) * 100));
 }
 function detailWidthPct(us: number): number {
-  if (us <= 0) return 0.6;
-  return Math.max(0.6, Math.min(100, (us / (detailBounds.value.totalUs || 1)) * 100));
-}
-function expandInPopout(): void {
-  if (selectedTraceId.value) openTrace(selectedTraceId.value);
+  if (us <= 0) return 0.8;
+  return Math.max(0.8, Math.min(100, (us / (detailBounds.value.totalUs || 1)) * 100));
 }
 
 // ── Span detail (Lens-style inline panel) ───────────────────────
@@ -425,12 +478,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onSpanDetailKey);
 });
 
-function fmtAbsTime(usSinceEpoch: number): string {
-  if (!usSinceEpoch) return '—';
-  const d = new Date(usSinceEpoch / 1000);
-  return `${d.toLocaleTimeString('en-US', { hour12: false })}.${String(d.getMilliseconds()).padStart(3, '0')}`;
-}
-
 // ── Rendering helpers ───────────────────────────────────────────
 function fmtMs(us: number | null): string {
   if (us == null) return '—';
@@ -441,7 +488,10 @@ function fmtMs(us: number | null): string {
 // `fmtTime` removed — absolute start moved to `fmtRelativeAgo` in
 // the row meta strip; the card layout drops the wall-clock column.
 const sortedTraces = computed<ZipkinTraceListRow[]>(() => {
-  return [...traces.value].sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+  const rows = pickedTraceIds.value.size > 0
+    ? traces.value.filter((r) => pickedTraceIds.value.has(r.traceId))
+    : traces.value;
+  return [...rows].sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
 });
 /** Largest duration in the visible set — drives the proportional
  *  fill of each row's duration bar. Matches the native trace tab's
@@ -475,10 +525,131 @@ function openByInput(): void {
   const v = traceIdInput.value.trim();
   if (v) openTrace(v);
 }
+
+// ── Duration scatter ──────────────────────────────────────────────
+// x = trace start (µs since epoch), y = duration (µs). Click a dot to
+// open the inline detail; drag a box to pick a set and filter the list.
+interface ScatterPoint { id: string; x: number; y: number; isError: boolean; label: string; row: ZipkinTraceListRow; }
+const scatterPoints = computed<ScatterPoint[]>(() =>
+  traces.value
+    .filter((r): r is ZipkinTraceListRow & { timestamp: number; duration: number } =>
+      r.timestamp != null && r.duration != null)
+    .map((r) => ({
+      id: r.traceId,
+      x: r.timestamp,
+      y: r.duration,
+      isError: r.errorCount > 0,
+      label: r.rootName ?? r.rootService ?? '—',
+      row: r,
+    })),
+);
+const scatterBounds = computed(() => {
+  const pts = scatterPoints.value.filter((p) => p.x > 0 && Number.isFinite(p.y));
+  if (pts.length === 0) return null;
+  const xs = pts.map((p) => p.x);
+  const ys = pts.map((p) => p.y);
+  return { xMin: Math.min(...xs), xMax: Math.max(...xs), yMin: 0, yMax: Math.max(...ys, 1) };
+});
+const scatterXTicks = computed(() => {
+  const b = scatterBounds.value;
+  if (!b) return [];
+  const xCount = 3;
+  const span = Math.max(1, b.xMax - b.xMin);
+  return Array.from({ length: xCount }, (_, i) => {
+    // x is µs since epoch — divide by 1000 for the JS Date.
+    const d = new Date((b.xMin + (span * i) / (xCount - 1)) / 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return { frac: i / (xCount - 1), label: `${pad(d.getHours())}:${pad(d.getMinutes())}` };
+  });
+});
+
+// Clicking a dot opens the inline detail; dragging a box picks every
+// dot inside it and the list narrows to the picked set — no extra
+// query fires. Reset clears it.
+const pickedTraceIds = ref<Set<string>>(new Set());
+const isPicking = computed(() => pickedTraceIds.value.size > 0);
+function resetPick(): void {
+  pickedTraceIds.value = new Set();
+}
+// Drop a stale pick when the result set changes.
+watch(traces, () => { pickedTraceIds.value = new Set(); });
+
+const scatterSvgRef = ref<SVGSVGElement | null>(null);
+const dragState = ref<{
+  active: boolean;
+  startVx: number; startVy: number; curVx: number; curVy: number;
+}>({ active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 });
+function clientToViewbox(ev: PointerEvent): { vx: number; vy: number } | null {
+  const svg = scatterSvgRef.value;
+  if (!svg) return null;
+  const rect = svg.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return null;
+  return {
+    vx: ((ev.clientX - rect.left) / rect.width) * 1000,
+    vy: ((ev.clientY - rect.top) / rect.height) * 1000,
+  };
+}
+function onScatterDown(ev: PointerEvent): void {
+  const pt = clientToViewbox(ev);
+  if (!pt) return;
+  const target = ev.target as Element | null;
+  // Dot clicks are handled by the circle's own handler; drag is for the
+  // empty plot area.
+  if (target?.classList.contains('scatter-dot')) return;
+  ev.preventDefault();
+  dragState.value = { active: true, startVx: pt.vx, startVy: pt.vy, curVx: pt.vx, curVy: pt.vy };
+  (ev.currentTarget as SVGSVGElement).setPointerCapture(ev.pointerId);
+}
+function onScatterMove(ev: PointerEvent): void {
+  if (!dragState.value.active) return;
+  const pt = clientToViewbox(ev);
+  if (!pt) return;
+  dragState.value = { ...dragState.value, curVx: pt.vx, curVy: pt.vy };
+}
+function onScatterUp(ev: PointerEvent): void {
+  if (!dragState.value.active) return;
+  const { startVx, startVy, curVx, curVy } = dragState.value;
+  dragState.value = { active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 };
+  try {
+    (ev.currentTarget as SVGSVGElement).releasePointerCapture(ev.pointerId);
+  } catch { /* noop */ }
+  // A click without movement leaves the selection untouched.
+  if (Math.abs(curVx - startVx) < 4 && Math.abs(curVy - startVy) < 4) return;
+  const b = scatterBounds.value;
+  if (!b) return;
+  const vxMin = Math.min(startVx, curVx);
+  const vxMax = Math.max(startVx, curVx);
+  const vyMin = Math.min(startVy, curVy);
+  const vyMax = Math.max(startVy, curVy);
+  const next = new Set(pickedTraceIds.value);
+  for (const p of scatterPoints.value) {
+    const cx = b.xMax === b.xMin ? 500 : ((p.x - b.xMin) / (b.xMax - b.xMin)) * 1000;
+    const cy = 1000 - ((p.y - b.yMin) / (b.yMax - b.yMin || 1)) * 990;
+    if (cx >= vxMin && cx <= vxMax && cy >= vyMin && cy <= vyMax) next.add(p.id);
+  }
+  pickedTraceIds.value = next;
+}
+const dragRect = computed(() => {
+  const s = dragState.value;
+  if (!s.active) return null;
+  return {
+    x: Math.min(s.startVx, s.curVx),
+    y: Math.min(s.startVy, s.curVy),
+    w: Math.abs(s.curVx - s.startVx),
+    h: Math.abs(s.curVy - s.startVy),
+  };
+});
+// Dot click opens the inline detail for that trace.
+function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
+  ev.stopPropagation();
+  selectRow(p.row);
+}
 </script>
 
 <template>
   <div class="ztr-tab">
+    <!-- Top strip: filter (80%) + duration distribution (20%). -->
+    <div class="ztr-top-strip">
     <header class="ztr-toolbar sw-card">
       <div class="ztr-head">
         <span class="kicker">{{ t('Traces · Zipkin') }}</span>
@@ -493,51 +664,36 @@ function openByInput(): void {
         <button class="sw-btn primary ztr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="ztr-conditions">
-        <!-- Service condition — free-text + datalist with All. Empty
+        <!-- Service condition — on-theme TypeaheadSelect. Empty value
              commits as `null` (= every service) to the Zipkin query. -->
         <label class="cf">
           <span>{{ t('Service') }}</span>
-          <input
+          <TypeaheadSelect
             v-model="zipkinServiceFilter"
-            class="cf-input"
-            type="text"
+            :options="serviceSelectOptions"
             :placeholder="t('All')"
-            list="ztr-svc-suggest"
-            @keyup.enter="runQuery"
+            class="cf-tas"
           />
-          <datalist id="ztr-svc-suggest">
-            <option v-for="s in zipkinServiceOptions" :key="s" :value="s" />
-          </datalist>
         </label>
         <label class="cf" :class="{ disabled: !hasService }">
           <span>{{ t('Remote service') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
-          <input
+          <TypeaheadSelect
             v-model="remoteServiceName"
-            class="cf-input"
-            type="text"
+            :options="remoteSelectOptions"
             :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
-            list="ztr-remote-svc-suggest"
-            @keyup.enter="runQuery"
+            class="cf-tas"
           />
-          <datalist id="ztr-remote-svc-suggest">
-            <option v-for="rs in remoteSvcOptions" :key="rs" :value="rs" />
-          </datalist>
         </label>
         <label class="cf cf-wide" :class="{ disabled: !hasService }">
           <span>{{ t('Span name') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
-          <input
+          <TypeaheadSelect
             v-model="spanName"
-            class="cf-input"
-            type="text"
+            :options="spanNameSelectOptions"
             :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
-            list="ztr-span-suggest"
-            @keyup.enter="runQuery"
+            class="cf-tas"
           />
-          <datalist id="ztr-span-suggest">
-            <option v-for="sp in spanNameOptions" :key="sp" :value="sp" />
-          </datalist>
         </label>
         <label class="cf">
           <span>{{ t('Min duration (ms)') }}</span>
@@ -606,6 +762,80 @@ function openByInput(): void {
         </label>
       </div>
     </header>
+
+      <!-- Distribution: dots only. Click a dot to open its trace; drag
+           a box to narrow the list. -->
+      <section class="ztr-scatter sw-card">
+        <header class="ztr-scatter-head">
+          <span v-if="!isPicking" class="kicker">{{ t('Distribution') }}</span>
+          <span v-else class="kicker pick-kicker">{{ t('{n} picked', { n: pickedTraceIds.size }) }}</span>
+          <span class="legend">
+            <span class="lg ok" /> {{ t('ok') }}
+            <span class="lg err" /> {{ t('err') }}
+          </span>
+          <button
+            v-if="isPicking"
+            class="sw-btn small ghost reset-btn"
+            type="button"
+            :title="t('Clear in-page filter')"
+            @click="resetPick"
+          >{{ t('Reset') }}</button>
+        </header>
+        <div v-if="scatterPoints.length > 0 && scatterBounds" class="scatter-wrap">
+          <svg
+            ref="scatterSvgRef"
+            class="scatter-svg"
+            viewBox="0 0 1000 1000"
+            preserveAspectRatio="none"
+            @pointerdown="onScatterDown"
+            @pointermove="onScatterMove"
+            @pointerup="onScatterUp"
+            @pointercancel="onScatterUp"
+          >
+            <line x1="0" y1="998" x2="1000" y2="998" stroke="var(--sw-line-2)" stroke-width="1" vector-effect="non-scaling-stroke" />
+            <circle
+              v-for="p in scatterPoints"
+              :key="p.id"
+              :cx="scatterBounds.xMax === scatterBounds.xMin ? 500 : ((p.x - scatterBounds.xMin) / (scatterBounds.xMax - scatterBounds.xMin)) * 1000"
+              :cy="1000 - ((p.y - scatterBounds.yMin) / (scatterBounds.yMax - scatterBounds.yMin || 1)) * 990"
+              :r="pickedTraceIds.has(p.id) ? 6 : 3.2"
+              :fill="p.isError ? 'var(--sw-err)' : 'var(--sw-accent)'"
+              :fill-opacity="pickedTraceIds.has(p.id) ? 1 : (isPicking ? 0.35 : 0.9)"
+              :stroke="pickedTraceIds.has(p.id) ? 'var(--sw-fg-0)' : (p.isError ? 'var(--sw-err)' : 'var(--sw-accent-2)')"
+              :stroke-width="pickedTraceIds.has(p.id) ? 1.8 : 0.8"
+              vector-effect="non-scaling-stroke"
+              class="scatter-dot"
+              @click="pickScatterDot(p, $event)"
+            >
+              <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ pickedTraceIds.has(p.id) ? ` · ${t('picked')}` : '' }}</title>
+            </circle>
+            <rect
+              v-if="dragRect"
+              :x="dragRect.x"
+              :y="dragRect.y"
+              :width="dragRect.w"
+              :height="dragRect.h"
+              fill="var(--sw-accent)"
+              fill-opacity="0.12"
+              stroke="var(--sw-accent)"
+              stroke-width="1"
+              stroke-dasharray="4 3"
+              vector-effect="non-scaling-stroke"
+              pointer-events="none"
+            />
+          </svg>
+          <div class="scatter-x-axis">
+            <span
+              v-for="(tick, i) in scatterXTicks"
+              :key="`x${i}`"
+              class="x-tick"
+              :class="{ first: i === 0, last: i === scatterXTicks.length - 1 }"
+            >{{ tick.label }}</span>
+          </div>
+        </div>
+        <div v-else class="scatter-empty">{{ t('no traces') }}</div>
+      </section>
+    </div>
 
     <!-- No selection — full-width list. Once an operator clicks a
          row, the section flips below to the rail+detail split. -->
@@ -740,108 +970,135 @@ function openByInput(): void {
       <article class="ztr-detail sw-card">
         <header class="ztr-detail-head">
           <span class="kicker">{{ t('Trace') }}</span>
-          <code class="ztr-tid mono">{{ selectedTraceId.slice(0, 18) }}…</code>
-          <span v-if="selectedRow" class="dim small">{{ fmtMs(selectedRow.duration) }} · {{ t('{n} spans', { n: selectedRow.spanCount }) }}</span>
-          <button class="sw-btn small" type="button" @click="expandInPopout">{{ t('Expand') }}</button>
-          <button class="sw-btn small ghost" type="button" @click="closeDetail">×</button>
+          <code class="ztr-tid mono" :title="selectedTraceId ?? ''">{{ selectedTraceId }}</code>
+          <button class="sw-btn small copy-btn" type="button" :title="t('Copy trace id')" @click="copyDetailTraceId">⧉ {{ t('id') }}</button>
+          <button class="sw-btn small copy-btn" type="button" :title="t('Copy shareable URL')" @click="copyDetailUrl">⧉ {{ t('url') }}</button>
+          <span v-if="selectedLoading" class="hint">{{ t('loading…') }}</span>
+          <button class="sw-btn small ghost ztr-detail-close" type="button" :title="t('Close')" @click="closeDetail">×</button>
         </header>
         <div v-if="selectedLoading" class="ztr-empty hint">{{ t('loading spans…') }}</div>
         <div v-else-if="detailRows.length === 0" class="ztr-empty">{{ t('No spans for this trace.') }}</div>
-        <div v-else class="ztr-detail-body">
-          <div class="ztr-waterfall">
-            <div
-              v-for="row in detailRows"
-              :key="row.span.id"
-              class="ztr-wf-row"
-              :class="{
-                err: row.span.tags?.error != null,
-                on: selectedSpanId === row.span.id,
-              }"
-              :title="row.span.name ?? ''"
-              @click="selectSpan(row.span)"
-            >
-              <span class="ztr-wf-label mono" :style="{ paddingLeft: row.depth * 12 + 'px' }">
-                <span class="ztr-wf-svc" :style="{ color: detailColor(row.span.localEndpoint?.serviceName) }">
-                  {{ row.span.localEndpoint?.serviceName ?? '—' }}
-                </span>
-                <span class="ztr-wf-name">{{ row.span.name || t('(unnamed)') }}</span>
-              </span>
-              <div class="ztr-wf-track">
-                <div
-                  class="ztr-wf-bar"
-                  :style="{
-                    left: detailLeftPct(row.offsetUs) + '%',
-                    width: detailWidthPct(row.durUs) + '%',
-                    background: detailColor(row.span.localEndpoint?.serviceName),
-                    borderColor: row.span.tags?.error != null ? 'var(--sw-err)' : 'transparent',
-                  }"
-                />
-              </div>
-              <span class="ztr-wf-dur mono">{{ fmtMs(row.durUs) }}</span>
-            </div>
+        <template v-else>
+          <div class="ztr-kpis">
+            <div><div class="kpi-label">{{ t('started') }}</div><div class="kpi-val">{{ fmtDateTime(detailRootStart) }}</div></div>
+            <div><div class="kpi-label">{{ t('duration') }}</div><div class="kpi-val">{{ fmtMs(detailBounds.totalUs) }}</div></div>
+            <div><div class="kpi-label">{{ t('spans') }}</div><div class="kpi-val">{{ detailRows.length }}</div></div>
+            <div><div class="kpi-label">{{ t('services') }}</div><div class="kpi-val">{{ detailServiceColors.size }}</div></div>
           </div>
+          <div v-if="detailServiceColors.size > 0" class="ztr-svc-legend">
+            <span v-for="[code, color] in detailServiceColors" :key="code" class="svc-chip">
+              <span class="svc-swatch" :style="{ background: color }" />
+              <span class="mono">{{ code }}</span>
+            </span>
+          </div>
+          <div class="ztr-detail-body">
+            <div class="ztr-waterfall">
+              <div class="tp-time-axis">
+                <span class="t-tick first">0</span>
+                <span class="t-tick">{{ fmtMs(detailBounds.totalUs * 0.25) }}</span>
+                <span class="t-tick">{{ fmtMs(detailBounds.totalUs * 0.5) }}</span>
+                <span class="t-tick">{{ fmtMs(detailBounds.totalUs * 0.75) }}</span>
+                <span class="t-tick last">{{ fmtMs(detailBounds.totalUs) }}</span>
+              </div>
+              <div
+                v-for="row in detailRows"
+                :key="row.span.id"
+                class="tp-row"
+                :class="{ err: row.span.tags?.error != null, on: selectedSpanId === row.span.id }"
+                @click="selectSpan(row.span)"
+              >
+                <div class="tp-track">
+                  <span class="t-grid q1" /><span class="t-grid q2" /><span class="t-grid q3" />
+                  <div
+                    class="tp-bar"
+                    :style="{
+                      left: detailLeftPct(row.offsetUs) + '%',
+                      width: detailWidthPct(row.durUs) + '%',
+                      background: detailColor(row.span.localEndpoint?.serviceName),
+                      borderColor: row.span.tags?.error != null ? 'var(--sw-err)' : 'transparent',
+                    }"
+                  >
+                    <span class="bar-inner">
+                      <span
+                        class="status-flag sm"
+                        :class="row.span.tags?.error != null ? 'flag-err' : 'flag-ok'"
+                        :title="row.span.tags?.error != null ? t('Span errored') : t('Span OK')"
+                      ><span class="flag-dot" /></span>
+                      <svg class="comp-icon comp-icon-generic" viewBox="0 0 18 18" :aria-label="t('generic span')">
+                        <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
+                        <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
+                      </svg>
+                      <span class="bar-text mono">
+                        <span class="bar-svc" :title="row.span.localEndpoint?.serviceName ?? ''">{{ row.span.localEndpoint?.serviceName ?? '—' }}</span>
+                        <span class="bar-name" :title="row.span.name || row.span.remoteEndpoint?.serviceName || '—'">{{ row.span.name || row.span.remoteEndpoint?.serviceName || '—' }}</span>
+                      </span>
+                      <span v-if="detailLeftPct(row.offsetUs + row.durUs) > 85" class="bar-dur-inside mono">{{ fmtMs(row.durUs) }}</span>
+                    </span>
+                  </div>
+                  <span
+                    v-if="detailLeftPct(row.offsetUs + row.durUs) <= 85"
+                    class="bar-dur-outside mono"
+                    :style="{ left: `calc(${detailLeftPct(row.offsetUs + row.durUs)}% + 6px)` }"
+                  >{{ fmtMs(row.durUs) }}</span>
+                </div>
+              </div>
+            </div>
 
           <!-- Span detail floats as a right-edge overlay (width capped
                at min(640px, 60%)) so it can render long tag values
                without compressing the waterfall bars. Click ×, click
                the same span, or pick another span to dismiss / swap. -->
-          <aside v-if="selectedSpan" ref="spanDetailRef" class="ztr-span-detail">
-            <header class="ztr-span-detail-head">
-              <h5>{{ t('Span detail') }}</h5>
+          <div v-if="selectedSpan" class="span-modal-backdrop">
+            <article ref="spanDetailRef" class="span-modal sw-card">
+            <header class="span-modal-head">
+              <h4><span class="dim">{{ t('Span detail') }}</span> <span class="mono">{{ selectedSpan.name || '—' }}</span></h4>
               <button class="sw-btn small ghost" type="button" :title="t('Close')" @click="clearSpan">×</button>
             </header>
-            <dl class="zk-kv">
-              <dt>{{ t('Service') }}</dt>
-              <dd
-                class="mono"
-                :style="{ color: detailColor(selectedSpan.localEndpoint?.serviceName) }"
-              >
-                {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
-              </dd>
-              <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name || t('(unnamed)') }}</dd>
-              <dt v-if="selectedSpan.kind">{{ t('Kind') }}</dt>
-              <dd v-if="selectedSpan.kind">{{ selectedSpan.kind }}</dd>
-              <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
-              <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
-              <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
-              <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtAbsTime(selectedSpan.timestamp ?? 0) }}</dd>
-              <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
-              <dt v-if="selectedSpan.remoteEndpoint?.serviceName">{{ t('Peer') }}</dt>
-              <dd v-if="selectedSpan.remoteEndpoint?.serviceName" class="mono wba">
-                {{ selectedSpan.remoteEndpoint.serviceName }}
-              </dd>
-              <dt v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6">{{ t('Peer addr') }}</dt>
-              <dd v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6" class="mono wba">
-                {{ selectedSpan.remoteEndpoint.ipv4 ?? selectedSpan.remoteEndpoint.ipv6
-                  }}<template v-if="selectedSpan.remoteEndpoint.port">:{{ selectedSpan.remoteEndpoint.port }}</template>
-              </dd>
-            </dl>
-            <section
-              v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0"
-              class="zk-tags"
-            >
+            <div class="span-modal-body">
+            <section class="sd-section">
+              <h6>{{ t('Meta') }}</h6>
+              <dl class="kv">
+                <dt>{{ t('Service') }}</dt>
+                <dd class="mono" :style="{ color: detailColor(selectedSpan.localEndpoint?.serviceName) }">
+                  <span class="svc-swatch inline" :style="{ background: detailColor(selectedSpan.localEndpoint?.serviceName) }" />
+                  {{ selectedSpan.localEndpoint?.serviceName ?? '—' }}
+                </dd>
+                <dt>{{ t('Name') }}</dt><dd class="mono wba">{{ selectedSpan.name || '—' }}</dd>
+                <dt>{{ t('Kind') }}</dt><dd><span class="tp-kind" :style="{ color: kindColor(selectedSpan.kind) }">{{ selectedSpan.kind ?? '—' }}</span></dd>
+                <dt>{{ t('Peer') }}</dt><dd class="mono wba">{{ selectedSpan.remoteEndpoint?.serviceName || '—' }}</dd>
+                <dt v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6">{{ t('Peer addr') }}</dt>
+                <dd v-if="selectedSpan.remoteEndpoint?.ipv4 || selectedSpan.remoteEndpoint?.ipv6" class="mono wba">{{ selectedSpan.remoteEndpoint?.ipv4 ?? selectedSpan.remoteEndpoint?.ipv6 }}<template v-if="selectedSpan.remoteEndpoint?.port">:{{ selectedSpan.remoteEndpoint.port }}</template></dd>
+                <dt>{{ t('Span id') }}</dt><dd class="mono wba">{{ selectedSpan.id }}</dd>
+                <dt v-if="selectedSpan.parentId">{{ t('Parent id') }}</dt>
+                <dd v-if="selectedSpan.parentId" class="mono wba">{{ selectedSpan.parentId }}</dd>
+                <dt>{{ t('Start') }}</dt><dd class="mono">{{ fmtDateTime(selectedSpan.timestamp) }}</dd>
+                <dt>{{ t('Duration') }}</dt><dd class="mono">{{ fmtMs(selectedSpan.duration ?? 0) }}</dd>
+                <dt>{{ t('Error') }}</dt><dd><span class="status-flag" :class="selectedSpan.tags?.error != null ? 'flag-err' : 'flag-ok'"><span class="flag-dot" />{{ selectedSpan.tags?.error != null ? t('true') : t('false') }}</span></dd>
+              </dl>
+            </section>
+            <section v-if="selectedSpan.tags && Object.keys(selectedSpan.tags).length > 0" class="sd-section">
               <h6>{{ t('Tags') }}</h6>
-              <dl class="zk-kv">
+              <dl class="kv">
                 <template v-for="(v, k) in selectedSpan.tags" :key="k">
                   <dt class="mono">{{ k }}</dt>
                   <dd class="mono wba" :class="{ err: k === 'error' }">{{ v }}</dd>
                 </template>
               </dl>
             </section>
-            <section
-              v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0"
-              class="zk-annotations"
-            >
+            <section v-if="selectedSpan.annotations && selectedSpan.annotations.length > 0" class="sd-section">
               <h6>{{ t('Annotations') }}</h6>
-              <ul>
-                <li v-for="(a, i) in selectedSpan.annotations" :key="i">
-                  <span class="mono dim">{{ fmtAbsTime(a.timestamp) }}</span>
-                  <span class="zk-ann-val mono">{{ a.value }}</span>
-                </li>
-              </ul>
+              <div v-for="(a, i) in selectedSpan.annotations" :key="i" class="span-event">
+                <div class="span-event-head">
+                  <span class="mono">{{ a.value }}<span v-if="annotationHint(a.value)" class="ann-hint" :title="annotationHint(a.value) ?? ''"> ({{ annotationHint(a.value) }})</span></span>
+                  <span class="dim mono">{{ fmtDateTime(a.timestamp) }}</span>
+                </div>
+              </div>
             </section>
-          </aside>
-        </div>
+            </div>
+            </article>
+          </div>
+          </div>
+        </template>
       </article>
     </section>
   </div>
@@ -849,6 +1106,15 @@ function openByInput(): void {
 
 <style scoped>
 .ztr-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
+.ztr-top-strip {
+  display: grid;
+  grid-template-columns: 4fr 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+@media (max-width: 1100px) { .ztr-top-strip { grid-template-columns: 1fr; } }
+.ztr-top-strip .ztr-toolbar,
+.ztr-top-strip .ztr-scatter { margin: 0; }
 .ztr-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .ztr-head { display: flex; align-items: baseline; gap: 10px; }
 .ztr-run-btn { margin-left: auto; }
@@ -901,6 +1167,17 @@ function openByInput(): void {
   cursor: not-allowed;
   background: var(--sw-bg-1);
 }
+.cf-tas { display: block; width: 100%; }
+.cf-tas :deep(.tas__trigger) {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  background: var(--sw-bg-2);
+  border-radius: 4px;
+}
 .cf.disabled > span { color: var(--sw-fg-3); opacity: 0.7; }
 .cf small { font-weight: 400; font-size: 9.5px; margin-left: 4px; font-style: italic; }
 .cf .dim { color: var(--sw-fg-3); }
@@ -918,6 +1195,68 @@ function openByInput(): void {
 }
 .sw-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .sw-btn.primary:hover:not(:disabled) { background: var(--sw-accent-2); }
+
+/* ── Duration distribution scatter ───────────────────────────────
+   Ported from `LayerTracesView`'s `.tr-scatter` so the native +
+   Zipkin trace tabs read identically. */
+.ztr-scatter {
+  padding: 6px 10px 8px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ztr-scatter-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; flex: 0 0 auto; }
+.ztr-scatter-head .legend { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); display: inline-flex; gap: 10px; align-items: center; }
+.ztr-scatter-head .lg {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.ztr-scatter-head .lg.ok { background: var(--sw-accent); }
+.ztr-scatter-head .lg.err { background: var(--sw-err); }
+.pick-kicker { color: var(--sw-accent-2); font-weight: 700; }
+.reset-btn { margin-left: 6px; }
+.scatter-wrap {
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.scatter-svg {
+  cursor: crosshair;
+  width: 100%;
+  flex: 1;
+  min-height: 140px;
+  display: block;
+}
+.scatter-dot { cursor: pointer; transition: r 0.12s ease; }
+.scatter-dot:hover { stroke: var(--sw-fg-0); stroke-width: 1.6; }
+.scatter-x-axis {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0 0;
+  font-size: 11px;
+  color: var(--sw-fg-2);
+  font-family: var(--sw-mono);
+  flex: 0 0 auto;
+}
+.x-tick { white-space: nowrap; }
+.x-tick.first { text-align: left; }
+.x-tick.last { text-align: right; }
+.scatter-empty {
+  flex: 1;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--sw-fg-3);
+}
+
 .ztr-list { display: flex; flex-direction: column; min-height: 240px; }
 .ztr-list-head {
   display: flex;
@@ -1065,7 +1404,8 @@ function openByInput(): void {
   padding: 10px 14px;
   border-bottom: 1px solid var(--sw-line);
 }
-.ztr-tid { flex: 1; color: var(--sw-fg-2); font-size: 11px; }
+.ztr-tid { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-fg-2); font-size: 11px; }
+.ztr-detail-close { margin-left: auto; }
 
 /* When a span is pinned, the detail panel floats over the right edge
    of the waterfall as an overlay so it can be wide enough for long tag
@@ -1079,66 +1419,88 @@ function openByInput(): void {
   min-height: 0;
   overflow: hidden;
 }
-.ztr-span-detail {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(640px, 60%);
-  overflow-y: auto;
-  padding: 12px 14px;
-  background: var(--sw-bg-1);
-  border-left: 1px solid var(--sw-line);
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.45);
-  z-index: 5;
-}
-.ztr-span-detail-head {
+.span-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 1000;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 20px;
+  overflow-y: auto;
 }
-.ztr-span-detail-head h5 {
-  margin: 0;
-  font-size: 12px;
-  color: var(--sw-fg-0);
-}
-.zk-tags, .zk-annotations { margin-top: 12px; }
-.zk-tags h6, .zk-annotations h6 {
-  margin: 0 0 6px;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  font-weight: 600;
-}
-.zk-kv {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 4px 12px;
-  font-size: 11px;
-  margin: 0;
-}
-.zk-kv dt { color: var(--sw-fg-3); }
-.zk-kv dd { margin: 0; color: var(--sw-fg-1); }
-.zk-kv dd.wba { word-break: break-all; }
-.zk-kv dd.err { color: var(--sw-err); }
-.zk-annotations ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.span-modal {
+  width: 100%;
+  max-width: 920px;
+  max-height: calc(100vh - 80px);
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
-.zk-annotations li {
+.span-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--sw-line);
+  flex: 0 0 auto;
+}
+.span-modal-head h4 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  gap: 10px;
+  align-items: baseline;
+  flex: 1;
+  min-width: 0;
+}
+.span-modal-head h4 .dim { color: var(--sw-fg-3); font-weight: 500; }
+.span-modal-head h4 .mono {
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.span-modal-body { padding: 12px 14px 16px; overflow-y: auto; }
+.sd-section { margin-bottom: 14px; }
+.sd-section h6 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sw-accent);
+  font-weight: 700;
+}
+.kv {
   display: grid;
   grid-template-columns: 100px 1fr;
-  gap: 8px;
-  font-size: 10.5px;
+  gap: 4px 10px;
+  margin: 0;
+  font-size: 11px;
 }
-.zk-annotations .dim { color: var(--sw-fg-3); }
-.zk-ann-val { color: var(--sw-fg-1); word-break: break-all; }
+.kv dt { color: var(--sw-fg-3); font-size: 10.5px; min-width: 0; overflow-wrap: anywhere; }
+.kv dd { margin: 0; color: var(--sw-fg-1); min-width: 0; }
+.kv dd.wba { word-break: break-all; }
+.kv dd.err { color: var(--sw-err); }
+.tp-kind { font-family: var(--sw-mono); font-size: 11px; font-weight: 600; }
+.span-event {
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  background: var(--sw-bg-0);
+}
+.span-event-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+.ann-hint { color: var(--sw-fg-3); }
+.dim { color: var(--sw-fg-3); }
+.wba { word-break: break-all; }
 
 /* Floating overlay scales with the container via min(640px, 60%) — no
    width breakpoints needed. */
@@ -1150,67 +1512,178 @@ function openByInput(): void {
 .ztr-waterfall {
   flex: 1 1 0;
   min-width: 0;
+  /* overflow-y:auto forces x:auto; clip x (full-width bar's duration renders inside). */
+  overflow-x: hidden;
   overflow-y: auto;
+  padding: 4px 0;
 }
-.ztr-wf-row {
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr) 64px;
-  gap: 8px;
-  padding: 3px 12px;
+.ztr-kpis {
+  display: flex;
+  gap: 24px;
+  padding: 8px 14px;
   border-bottom: 1px solid var(--sw-line);
+  flex: 0 0 auto;
+}
+.kpi-label {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--sw-fg-3);
+}
+.kpi-val {
+  font-family: var(--sw-mono);
+  font-size: 13px;
+  color: var(--sw-fg-0);
+  font-weight: 700;
+}
+.ztr-svc-legend {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--sw-line);
+  background: var(--sw-bg-1);
+  flex: 0 0 auto;
+}
+.svc-chip {
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--sw-fg-2);
+  padding: 1px 6px 1px 4px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 10px;
+  background: var(--sw-bg-2);
+}
+.svc-swatch { width: 8px; height: 8px; border-radius: 2px; flex: 0 0 auto; }
+.svc-swatch.inline { display: inline-block; margin-right: 4px; vertical-align: middle; }
+.tp-time-axis {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background-color: var(--sw-bg-1);
+  border-bottom: 1px solid var(--sw-line);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  font-family: var(--sw-mono);
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
+.t-tick { white-space: nowrap; }
+.t-tick.first { text-align: left; }
+.t-tick.last { text-align: right; }
+.tp-row { padding: 3px 12px; cursor: pointer; }
+.tp-row:hover { background: var(--sw-bg-2); }
+.tp-row.err { background: rgba(239, 68, 68, 0.06); }
+.tp-row.on { background: var(--sw-accent-soft); }
+.tp-track { position: relative; height: 22px; background: transparent; }
+.t-grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--sw-line);
+  opacity: 0.55;
+  pointer-events: none;
+}
+.t-grid.q1 { left: 25%; }
+.t-grid.q2 { left: 50%; }
+.t-grid.q3 { left: 75%; }
+.tp-bar {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
   cursor: pointer;
+  transition: filter 0.12s ease;
 }
-.ztr-wf-row:hover { background: var(--sw-bg-2); }
-.ztr-wf-row.on {
-  background: var(--sw-accent-soft);
-  box-shadow: inset 2px 0 0 var(--sw-accent);
+.tp-bar:hover { filter: brightness(1.12); }
+.bar-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  height: 100%;
+  width: 100%;
+  min-width: 0;
 }
-.ztr-wf-row.err { box-shadow: inset 3px 0 0 var(--sw-err); }
-.ztr-wf-row.on.err { box-shadow: inset 3px 0 0 var(--sw-err), inset 0 0 0 1px var(--sw-accent); }
-.ztr-wf-label {
+.bar-text {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 10.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--sw-bg-0);
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.25);
 }
-.ztr-wf-svc {
-  flex: 0 0 auto;
+.bar-svc {
   font-weight: 700;
-  max-width: 90px;
+  font-size: 10.5px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  max-width: 40%;
+  opacity: 0.9;
 }
-.ztr-wf-name {
+.bar-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--sw-fg-1);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 500;
 }
-.ztr-wf-track {
-  position: relative;
-  height: 14px;
-  background: var(--sw-bg-1);
-  border-radius: 2px;
-}
-.ztr-wf-bar {
+.comp-icon { width: 18px; height: 18px; flex: 0 0 auto; object-fit: contain; background: transparent; }
+.comp-icon-generic { color: var(--sw-fg-2); }
+.bar-inner .comp-icon-generic { color: rgba(0, 0, 0, 0.72); }
+.bar-inner .status-flag.sm { background: rgba(255, 255, 255, 0.35); color: var(--sw-bg-0); }
+.bar-inner .status-flag.flag-err { background: var(--sw-err); color: #fff; }
+.bar-dur-outside {
   position: absolute;
-  top: 1px;
-  bottom: 1px;
-  border-radius: 2px;
-  border: 1px solid transparent;
-}
-.ztr-wf-dur {
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 10px;
-  text-align: right;
   color: var(--sw-fg-2);
-  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
 }
+.bar-dur-inside {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 10px;
+  color: var(--sw-bg-0);
+  opacity: 0.82;
+  white-space: nowrap;
+}
+.status-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+.status-flag.sm { height: 12px; width: 12px; padding: 0; border-radius: 50%; justify-content: center; }
+.status-flag.sm .flag-dot { margin: 0; }
+.flag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
+.status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
 
 @media (max-width: 1100px) {
   /* On narrow screens, fall back to stacked layout — the detail rail
@@ -1354,4 +1827,5 @@ function openByInput(): void {
   font-size: 14px;
 }
 .sw-btn.small.ghost:hover { color: var(--sw-err); background: var(--sw-bg-2); }
+.sw-btn.small.copy-btn { background: transparent; color: var(--sw-fg-2); white-space: nowrap; }
 </style>

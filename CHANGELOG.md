@@ -13,6 +13,12 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Unified page-size pickers across the event lists.** Traces, Logs, and Browser Logs share a `20 / 30 / 50 / 100` page-size dropdown — and Browser Logs gains a picker it never had (it had a fixed 100). Each picker's max matches the server-side fetch cap in `performance.limits.maxPageSize`.
 - **Node memory sizing guidance.** The container image now sets a default `NODE_OPTIONS=--max-old-space-size`, and the docs cover sizing the Node heap to your container memory limit and the in-memory source-map budget.
 
+### Trace explorer
+
+- **Zipkin traces now render with the full native trace experience.** The Zipkin trace detail and popout gained the KPI strip, service legend, the duration-distribution scatter (drag to filter, click to open), time-positioned waterfall bars (service · operation inside the bar, kind/status affordances), and a centered span-detail modal — matching the SkyWalking-native trace view. Zipkin annotation codes (`cr` / `cs` / `sr` / `ss` …) show an inline plain-language hint.
+- **Shareable trace links are unified.** Native and Zipkin traces both open from a single `?traceId=` link under the layer's trace tab; the viewer auto-selects native vs Zipkin by the trace-ID shape, so `/layer/<layer>/trace?traceId=…` always opens the right one.
+- **Trace filters are searchable, on-theme dropdowns.** The native Service / Instance / Endpoint pickers and the Zipkin Service / Remote service / Span name pickers use a dark type-to-filter dropdown that reopens correctly after a pick.
+
 ## 0.7.0
 
 ### Browser errors & source maps

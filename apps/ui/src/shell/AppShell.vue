@@ -173,10 +173,8 @@ function startSidebarResize(e: PointerEvent): void {
     <!-- Global trace-id popout: any page can call useTracePopout().openTrace(id)
          and this modal renders the waterfall + span detail. -->
     <TracePopout />
-    <!-- Zipkin trace popout — separate URL key (`?openZipkinTraceId=`)
-         so the native + Zipkin popouts can be open in parallel without
-         collision (e.g. an operator drilling into a Zipkin trace from
-         a Logs row → trace link on a mesh layer). -->
+    <!-- Zipkin trace popout — shares `?traceId=`; native vs Zipkin
+         self-select by ID shape (see isZipkinTraceId). -->
     <ZipkinTracePopout />
     <!-- Per-session prompt: when local template edits diverge from OAP,
          ask once which version to render (local preview vs remote live). -->
