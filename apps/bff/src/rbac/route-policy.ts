@@ -96,6 +96,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/browser-errors/source-maps':           'browser-errors:read',
   'POST /api/browser-errors/resolve':              'browser-errors:read',
 
+  'POST /api/explore/query':                       'explore:read',
+
   'GET /api/layer/:key/topology':                  'topology:read',
   'GET /api/layer/:key/instance-topology':         'topology:read',
   'GET /api/layer/:key/deployment':                'topology:read',

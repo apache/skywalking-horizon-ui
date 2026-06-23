@@ -88,6 +88,7 @@ import { PprofApi } from './scopes/pprof';
 import { DslApi } from './scopes/dsl';
 import { LiveDebugApi } from './scopes/live-debug';
 import { InspectApi } from './scopes/inspect';
+import { ExploreApi } from './scopes/explore';
 import { OapOpsApi } from './scopes/oap-ops';
 import { AlarmsApi } from './scopes/alarms';
 import { Infra3dApi } from './scopes/infra-3d';
@@ -245,6 +246,14 @@ export type {
   PprofProgressResponse,
   PprofAnalyzeResponse,
   PprofTaskCreationResponse,
+  ExploreKind,
+  ExploreTraceSource,
+  ExploreLogSource,
+  ExploreEntity,
+  ExploreWindow,
+  ExploreRequest,
+  ExploreResolved,
+  ExploreResponse,
 } from '@skywalking-horizon-ui/api-client';
 
 /** Query shape for `/api/zipkin/traces`. Mirrors the Zipkin v2 REST
@@ -902,6 +911,7 @@ export class BffClient {
   readonly dsl = new DslApi(this);
   readonly liveDebug = new LiveDebugApi(this);
   readonly inspect = new InspectApi(this);
+  readonly explore = new ExploreApi(this);
   readonly oapOps = new OapOpsApi(this);
   readonly alarms = new AlarmsApi(this);
   readonly infra3d = new Infra3dApi(this);

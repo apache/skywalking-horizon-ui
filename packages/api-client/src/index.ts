@@ -293,6 +293,16 @@ export {
   type MqeOwner,
   type InspectExecRequest,
 } from './inspect.js';
+export type {
+  ExploreKind,
+  ExploreTraceSource,
+  ExploreLogSource,
+  ExploreEntity,
+  ExploreWindow,
+  ExploreRequest,
+  ExploreResolved,
+  ExploreResponse,
+} from './explore.js';
 export {
   DslDebuggingClient,
   DEBUG_CATALOGS,

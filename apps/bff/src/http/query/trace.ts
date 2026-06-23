@@ -107,7 +107,7 @@ function explicitWindow(
 
 // ── Wire request shape ─────────────────────────────────────────────
 
-interface TraceListBody {
+export interface TraceListBody {
   source?: TraceSource;
   service?: string;
   serviceId?: string;
@@ -295,7 +295,7 @@ function buildTraceCondition(
   };
 }
 
-async function fetchNativeList(
+export async function fetchNativeList(
   opts: GraphqlOptions,
   body: TraceListBody,
   layerKey: string,
@@ -382,7 +382,7 @@ async function fetchNativeList(
   }
 }
 
-async function fetchZipkinList(
+export async function fetchZipkinList(
   opts: GraphqlOptions,
   body: TraceListBody,
   maxPageSize: number,
