@@ -402,9 +402,7 @@ function copyTraceId(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Match the native TracePopout backdrop (999) so the nested
-     span-modal (z-index 1000) composites above the native popout. */
-  z-index: 999;
+  z-index: 999; /* match native TracePopout; the span-modal (1000) nests above */
   padding: 24px;
 }
 .zk-popout {

@@ -15,21 +15,15 @@
  * limitations under the License.
  */
 
-/**
- * URL-backed popout state for Zipkin traces. Shares the native popout's
- * `?traceId=<id>` param; native vs Zipkin is decided by the current
- * layer's trace source, NOT the ID shape (SkyWalking-native IDs can be
- * bare hex — same as Zipkin — so shape is not a reliable discriminator).
- */
+/** URL-backed popout state for Zipkin traces, sharing the native
+ *  popout's `?traceId=` param. */
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 
-/** True when the current route's layer serves Zipkin traces — the
- *  `/zipkin-trace` tab, or a layer whose template sets traces.source
- *  to `zipkin`. Mirrors LayerTracesEntry's dispatch so the global
- *  `?traceId=` popout opens the same viewer the route renders. */
+// Native vs Zipkin keys on the layer's trace source (route), not the
+// ID shape — native IDs can be bare hex, same as Zipkin.
 export function useTraceSourceIsZipkin() {
   const route = useRoute();
   const { layers } = useLayers();

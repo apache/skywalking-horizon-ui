@@ -1010,6 +1010,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             <span>{{ t('Instance') }}</span>
             <TypeaheadSelect
               v-model="instanceIdSel"
+              :aria-label="t('Instance')"
               :options="instanceSelectOptions"
               :placeholder="t('All')"
               :disabled="!serviceName"
@@ -1020,6 +1021,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             <span>{{ t('Endpoint') }}</span>
             <TypeaheadSelect
               v-model="endpointIdSel"
+              :aria-label="t('Endpoint')"
               :options="endpointSelectOptions"
               :placeholder="t('All')"
               :disabled="!serviceName"

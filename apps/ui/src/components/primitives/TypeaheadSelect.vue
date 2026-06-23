@@ -42,6 +42,7 @@ const props = defineProps<{
   options: Opt[];
   placeholder?: string;
   disabled?: boolean;
+  ariaLabel?: string;
   /** Minimum width of the dropdown panel. The trigger sizes to its own
    *  content; the dropdown is `max(triggerWidth, minPanelWidth)`. */
   minPanelWidth?: number;
@@ -119,7 +120,15 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
 
 <template>
   <div ref="root" class="tas" :class="{ 'is-open': open, 'is-disabled': disabled }">
-    <button type="button" class="tas__trigger" :disabled="disabled" @click="toggle">
+    <button
+      type="button"
+      class="tas__trigger"
+      :disabled="disabled"
+      :aria-label="ariaLabel"
+      aria-haspopup="listbox"
+      :aria-expanded="open"
+      @click="toggle"
+    >
       <span class="tas__label" :class="{ 'tas__label--ph': !selectedLabel }">
         {{ selectedLabel || placeholder || t('Select…') }}
       </span>
@@ -139,12 +148,14 @@ onBeforeUnmount(() => document.removeEventListener('click', onDocClick));
         :placeholder="t('Filter…')"
         @keydown="onKey"
       />
-      <ul class="tas__list">
+      <ul class="tas__list" role="listbox">
         <li v-if="filtered.length === 0" class="tas__empty">{{ t('No matches') }}</li>
         <li
           v-for="(o, i) in filtered"
           :key="String(o.value)"
           class="tas__row"
+          role="option"
+          :aria-selected="o.value === modelValue"
           :class="{ 'is-active': i === activeIdx, 'is-selected': o.value === modelValue }"
           @mouseenter="activeIdx = i"
           @click="pick(o)"

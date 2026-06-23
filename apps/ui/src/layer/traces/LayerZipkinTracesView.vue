@@ -124,9 +124,7 @@ const { traces, isFetching, error, refetch } = useLayerZipkinTraces({
 });
 const { openTrace } = useZipkinTracePopout();
 
-// Gate the cached `traces` behind `hasQueried` so the scatter + list
-// count don't keep painting the prior layer's set after a layer switch
-// (which resets `hasQueried` but leaves `traces` until the next fetch).
+// hasQueried gate: a layer switch leaves cached `traces` stale until refetch.
 const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? traces.value : []));
 
 function runQuery(): void {
@@ -162,20 +160,11 @@ function runQuery(): void {
   void refetch();
 }
 
-// URL `?traceId=<id>` (e.g. a log-row trace jump) opens the popout via
-// the globally-mounted ZipkinTracePopout, which reads the param itself
-// (route-gated by layer) — no page-local watch needed here.
+// Zipkin's service universe is independent of SkyWalking's per-page
+// picker; the input defaults to All-services and narrows via the
+// /api/v2/services dropdown.
 
-// Zipkin's service universe is INDEPENDENT of SkyWalking's per-page
-// service picker — different name index (no `<group>::` prefix, no
-// `normal` flag, different list endpoint). We don't seed from the URL
-// SkyWalking service; the input defaults to empty (= All services
-// known to Zipkin) and the operator narrows by picking from the
-// `/api/v2/services` dropdown.
-//
-// No auto-fire — traces are expensive, the operator runs explicitly.
-// Switching layer clears the prior result set back to the run prompt,
-// and drops any inline selection / scatter pick from the old layer.
+// No auto-fire (traces are expensive); a layer switch resets to the prompt.
 watch(layerKey, () => {
   hasQueried.value = false;
   selectedTraceId.value = null;
@@ -671,6 +660,7 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
           <span>{{ t('Service') }}</span>
           <TypeaheadSelect
             v-model="zipkinServiceFilter"
+            :aria-label="t('Service')"
             :options="serviceSelectOptions"
             :placeholder="t('All')"
             class="cf-tas"
@@ -680,6 +670,7 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
           <span>{{ t('Remote service') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
           <TypeaheadSelect
             v-model="remoteServiceName"
+            :aria-label="t('Remote service')"
             :options="remoteSelectOptions"
             :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
@@ -690,6 +681,7 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
           <span>{{ t('Span name') }} <small v-if="!hasService" class="dim">— {{ t('pick a service') }}</small></span>
           <TypeaheadSelect
             v-model="spanName"
+            :aria-label="t('Span name')"
             :options="spanNameSelectOptions"
             :placeholder="hasService ? t('any') : t('select a service first')"
             :disabled="!hasService"
