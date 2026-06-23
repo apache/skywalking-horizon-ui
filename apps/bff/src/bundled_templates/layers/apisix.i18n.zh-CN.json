@@ -36,8 +36,11 @@
         "expressionLabels": ["capacity", "free"]
       },
       {
-        "title": "etcd",
-        "expressionLabels": ["indexes", "reachable"]
+        "title": "etcd 可达"
+      },
+      {
+        "title": "etcd 索引",
+        "expressionLabels": ["indexes"]
       },
       {
         "title": "未匹配流量",

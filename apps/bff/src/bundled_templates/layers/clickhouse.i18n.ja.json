@@ -83,13 +83,17 @@
         ]
       },
       {
-        "title": "Zookeeper アクティビティ",
+        "title": "Zookeeper バイト (b/s)",
         "expressionLabels": [
-          "セッション",
-          "watch",
           "送信バイト",
           "受信バイト"
         ]
+      },
+      {
+        "title": "Zookeeper セッション"
+      },
+      {
+        "title": "Zookeeper Watch"
       },
       {
         "title": "Keeper Alive 接続"

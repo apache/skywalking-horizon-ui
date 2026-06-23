@@ -90,7 +90,7 @@
         "expressions": [
           "latest(meter_elasticsearch_cluster_primary_shards_total)"
         ],
-        "span": 3,
+        "span": 4,
         "rowSpan": 1
       },
       {
@@ -155,7 +155,7 @@
         "expressions": [
           "latest(meter_elasticsearch_cluster_breakers_tripped)"
         ],
-        "span": 3,
+        "span": 4,
         "rowSpan": 1
       },
       {
@@ -166,7 +166,7 @@
         "expressions": [
           "avg(meter_elasticsearch_cluster_cpu_usage_avg)"
         ],
-        "span": 3,
+        "span": 4,
         "rowSpan": 1
       },
       {
@@ -361,7 +361,7 @@
           "avg(meter_elasticsearch_node_open_file_count)"
         ],
         "span": 6,
-        "rowSpan": 1
+        "rowSpan": 2
       }
     ],
     "endpoint": [
@@ -402,7 +402,7 @@
         "expressions": [
           "latest(meter_elasticsearch_index_indices_store_size_bytes_total)/1024/1024/1024"
         ],
-        "span": 3,
+        "span": 4,
         "rowSpan": 1,
         "format": "decimal",
         "unit": "GB"
@@ -414,10 +414,20 @@
         "expressions": [
           "latest(meter_elasticsearch_index_indices_store_size_bytes_primary)/1024/1024/1024"
         ],
-        "span": 3,
+        "span": 4,
         "rowSpan": 1,
         "format": "decimal",
         "unit": "GB"
+      },
+      {
+        "id": "docs_total",
+        "title": "Deleted Documents",
+        "type": "card",
+        "expressions": [
+          "latest(meter_elasticsearch_index_indices_deleted_docs_primary)"
+        ],
+        "span": 4,
+        "rowSpan": 1
       },
       {
         "id": "docs",
@@ -425,15 +435,13 @@
         "type": "line",
         "expressions": [
           "meter_elasticsearch_index_indices_docs_total",
-          "meter_elasticsearch_index_indices_docs_primary",
-          "latest(meter_elasticsearch_index_indices_deleted_docs_primary)"
+          "meter_elasticsearch_index_indices_docs_primary"
         ],
         "expressionLabels": [
           "all",
-          "primary",
-          "deleted"
+          "primary"
         ],
-        "span": 6,
+        "span": 12,
         "rowSpan": 2
       },
       {

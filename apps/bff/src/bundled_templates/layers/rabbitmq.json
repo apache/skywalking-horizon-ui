@@ -200,7 +200,7 @@
         "expressions": [
           "latest(meter_rabbitmq_node_queue_messages_ready)"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 1
       },
       {
@@ -210,7 +210,7 @@
         "expressions": [
           "latest(meter_rabbitmq_node_incoming_messages)"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 1
       },
       {
@@ -220,7 +220,7 @@
         "expressions": [
           "latest(meter_rabbitmq_node_outgoing_messages_total)"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 1
       },
       {
@@ -230,40 +230,58 @@
         "expressions": [
           "latest(meter_rabbitmq_node_unacknowledged_messages)"
         ],
-        "span": 4,
+        "span": 3,
         "rowSpan": 1
       },
       {
         "id": "conns",
-        "title": "Connections / Publishers / Consumers",
-        "type": "line",
+        "title": "Connections",
+        "type": "card",
         "expressions": [
-          "latest(meter_rabbitmq_node_connections_total)",
-          "latest(meter_rabbitmq_node_publisher_total)",
+          "latest(meter_rabbitmq_node_connections_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "publishers",
+        "title": "Publishers",
+        "type": "card",
+        "expressions": [
+          "latest(meter_rabbitmq_node_publisher_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "consumers",
+        "title": "Consumers",
+        "type": "card",
+        "expressions": [
           "latest(meter_rabbitmq_node_consumer_total)"
         ],
-        "expressionLabels": [
-          "connections",
-          "publishers",
-          "consumers"
-        ],
-        "span": 4,
-        "rowSpan": 2
+        "span": 3,
+        "rowSpan": 1
       },
       {
         "id": "channels",
-        "title": "Channels + Queues",
-        "type": "line",
+        "title": "Channels",
+        "type": "card",
         "expressions": [
-          "latest(meter_rabbitmq_node_channel_total)",
+          "latest(meter_rabbitmq_node_channel_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1
+      },
+      {
+        "id": "queues",
+        "title": "Queues",
+        "type": "card",
+        "expressions": [
           "latest(meter_rabbitmq_node_queue_total)"
         ],
-        "expressionLabels": [
-          "channels",
-          "queues"
-        ],
         "span": 4,
-        "rowSpan": 2
+        "rowSpan": 1
       },
       {
         "id": "memory_pct",
@@ -277,6 +295,17 @@
         "rowSpan": 1
       },
       {
+        "id": "memory_bytes_total",
+        "title": "Allocated Total (MB)",
+        "type": "card",
+        "unit": "MB",
+        "expressions": [
+          "latest(meter_rabbitmq_node_allocated_total_bytes)/1024/1024"
+        ],
+        "span": 4,
+        "rowSpan": 1
+      },
+      {
         "id": "memory_bytes",
         "title": "Memory (MB)",
         "type": "line",
@@ -284,16 +313,14 @@
         "expressions": [
           "meter_rabbitmq_node_allocated_used_bytes/1024/1024",
           "meter_rabbitmq_node_allocated_unused_bytes/1024/1024",
-          "meter_rabbitmq_node_process_resident_memory_bytes/1024/1024",
-          "latest(meter_rabbitmq_node_allocated_total_bytes)/1024/1024"
+          "meter_rabbitmq_node_process_resident_memory_bytes/1024/1024"
         ],
         "expressionLabels": [
           "used",
           "unused",
-          "resident",
-          "total"
+          "resident"
         ],
-        "span": 8,
+        "span": 6,
         "rowSpan": 2
       },
       {
@@ -324,7 +351,7 @@
           "single used",
           "single unused"
         ],
-        "span": 6,
+        "span": 12,
         "rowSpan": 2
       }
     ]

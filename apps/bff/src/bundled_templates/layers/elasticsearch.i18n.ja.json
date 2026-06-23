@@ -154,11 +154,13 @@
         "title": "インデックスサイズ (primary)"
       },
       {
+        "title": "削除済みドキュメント"
+      },
+      {
         "title": "ドキュメント",
         "expressionLabels": [
           "全件",
-          "primary",
-          "削除"
+          "primary"
         ]
       },
       {

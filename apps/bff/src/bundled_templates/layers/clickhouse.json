@@ -55,7 +55,7 @@
           "latest(aggregate_labels(meter_clickhouse_file_open,sum))"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "qps",
@@ -203,22 +203,40 @@
       },
       {
         "id": "zk",
-        "title": "Zookeeper Activity",
+        "title": "Zookeeper Bytes (b/s)",
         "type": "line",
         "expressions": [
-          "latest(aggregate_labels(meter_clickhouse_zookeeper_session,sum))",
-          "latest(aggregate_labels(meter_clickhouse_zookeeper_watch,sum))",
           "aggregate_labels(meter_clickhouse_zookeeper_bytes_sent,sum)",
           "aggregate_labels(meter_clickhouse_zookeeper_bytes_received,sum)"
         ],
         "expressionLabels": [
-          "sessions",
-          "watches",
           "bytes sent",
           "bytes recv"
         ],
         "span": 6,
         "rowSpan": 2
+      },
+      {
+        "id": "zk_sessions",
+        "title": "Zookeeper Sessions",
+        "type": "card",
+        "expressions": [
+          "latest(aggregate_labels(meter_clickhouse_zookeeper_session,sum))"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
+        "id": "zk_watches",
+        "title": "Zookeeper Watches",
+        "type": "card",
+        "expressions": [
+          "latest(aggregate_labels(meter_clickhouse_zookeeper_watch,sum))"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
       },
       {
         "id": "keeper_alive",
@@ -252,7 +270,7 @@
           "latest(meter_clickhouse_instance_uptime)/3600/24"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "version",
@@ -262,7 +280,7 @@
           "latest(meter_clickhouse_instance_version)"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "cpu",
@@ -408,7 +426,7 @@
           "latest(meter_clickhouse_instance_file_open)"
         ],
         "span": 4,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "insert_io",

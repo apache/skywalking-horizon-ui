@@ -19,18 +19,12 @@
       { "title": "平均响应时间" },
       { "title": "成功率" },
       { "title": "延迟分位" },
-      {
-        "title": "输入 Token",
-        "expressionLabels": ["sum", "avg"]
-      },
-      {
-        "title": "输出 Token",
-        "expressionLabels": ["sum", "avg"]
-      },
-      {
-        "title": "预估成本",
-        "expressionLabels": ["total", "avg"]
-      }
+      { "title": "输入 Token" },
+      { "title": "输出 Token" },
+      { "title": "总预估成本" },
+      { "title": "平均输入 Token" },
+      { "title": "平均输出 Token" },
+      { "title": "平均预估成本" }
     ],
     "instance": [
       { "title": "调用 / 分钟" },
@@ -41,18 +35,12 @@
         "title": "TTFT",
         "expressionLabels": ["avg", "percentile"]
       },
-      {
-        "title": "输入 Token",
-        "expressionLabels": ["sum", "avg"]
-      },
-      {
-        "title": "输出 Token",
-        "expressionLabels": ["sum", "avg"]
-      },
-      {
-        "title": "预估成本",
-        "expressionLabels": ["total", "avg"]
-      }
+      { "title": "输入 Token" },
+      { "title": "输出 Token" },
+      { "title": "总预估成本" },
+      { "title": "平均输入 Token" },
+      { "title": "平均输出 Token" },
+      { "title": "平均预估成本" }
     ]
   }
 }

@@ -95,48 +95,63 @@
         "rowSpan": 2
       },
       {
-        "id": "input_tokens",
+        "id": "input_tokens_total",
         "title": "Input Tokens",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_provider_input_tokens_sum)"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "output_tokens_total",
+        "title": "Output Tokens",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_provider_output_tokens_sum)"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "cost_total",
+        "title": "Total Estimated Cost",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_provider_total_estimated_cost)/1000000"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "input_tokens",
+        "title": "Average Input Tokens",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_provider_input_tokens_sum)",
           "gen_ai_provider_input_tokens_avg"
         ],
-        "expressionLabels": [
-          "sum",
-          "avg"
-        ],
-        "span": 6,
+        "span": 4,
         "rowSpan": 2
       },
       {
         "id": "output_tokens",
-        "title": "Output Tokens",
+        "title": "Average Output Tokens",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_provider_output_tokens_sum)",
           "gen_ai_provider_output_tokens_avg"
         ],
-        "expressionLabels": [
-          "sum",
-          "avg"
-        ],
-        "span": 6,
+        "span": 4,
         "rowSpan": 2
       },
       {
         "id": "cost",
-        "title": "Estimated Cost",
+        "title": "Average Estimated Cost",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_provider_total_estimated_cost)/1000000",
           "gen_ai_provider_avg_estimated_cost/1000000"
         ],
-        "expressionLabels": [
-          "total",
-          "avg"
-        ],
-        "span": 12,
+        "span": 4,
         "rowSpan": 2
       }
     ],
@@ -202,48 +217,63 @@
         "rowSpan": 2
       },
       {
-        "id": "input_tokens",
+        "id": "input_tokens_total",
         "title": "Input Tokens",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_model_input_tokens_sum)"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "output_tokens_total",
+        "title": "Output Tokens",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_model_output_tokens_sum)"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "cost_total",
+        "title": "Total Estimated Cost",
+        "type": "card",
+        "expressions": [
+          "latest(gen_ai_model_total_estimated_cost)/1000000"
+        ],
+        "span": 4,
+        "rowSpan": 2
+      },
+      {
+        "id": "input_tokens",
+        "title": "Average Input Tokens",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_model_input_tokens_sum)",
           "gen_ai_model_input_tokens_avg"
         ],
-        "expressionLabels": [
-          "sum",
-          "avg"
-        ],
-        "span": 6,
+        "span": 4,
         "rowSpan": 2
       },
       {
         "id": "output_tokens",
-        "title": "Output Tokens",
+        "title": "Average Output Tokens",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_model_output_tokens_sum)",
           "gen_ai_model_output_tokens_avg"
         ],
-        "expressionLabels": [
-          "sum",
-          "avg"
-        ],
-        "span": 6,
+        "span": 4,
         "rowSpan": 2
       },
       {
         "id": "cost",
-        "title": "Estimated Cost",
+        "title": "Average Estimated Cost",
         "type": "line",
         "expressions": [
-          "latest(gen_ai_model_total_estimated_cost)/1000000",
           "gen_ai_model_avg_estimated_cost/1000000"
         ],
-        "expressionLabels": [
-          "total",
-          "avg"
-        ],
-        "span": 12,
+        "span": 4,
         "rowSpan": 2
       }
     ]

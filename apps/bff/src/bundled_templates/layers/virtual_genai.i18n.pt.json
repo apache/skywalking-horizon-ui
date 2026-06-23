@@ -36,25 +36,22 @@
         "title": "Percentil de latência"
       },
       {
-        "title": "Tokens de entrada",
-        "expressionLabels": [
-          "soma",
-          "média"
-        ]
+        "title": "Tokens de entrada"
       },
       {
-        "title": "Tokens de saída",
-        "expressionLabels": [
-          "soma",
-          "média"
-        ]
+        "title": "Tokens de saída"
       },
       {
-        "title": "Custo estimado",
-        "expressionLabels": [
-          "total",
-          "média"
-        ]
+        "title": "Custo estimado total"
+      },
+      {
+        "title": "Tokens de entrada médios"
+      },
+      {
+        "title": "Tokens de saída médios"
+      },
+      {
+        "title": "Custo estimado médio"
       }
     ],
     "instance": [
@@ -78,25 +75,22 @@
         ]
       },
       {
-        "title": "Tokens de entrada",
-        "expressionLabels": [
-          "soma",
-          "média"
-        ]
+        "title": "Tokens de entrada"
       },
       {
-        "title": "Tokens de saída",
-        "expressionLabels": [
-          "soma",
-          "média"
-        ]
+        "title": "Tokens de saída"
       },
       {
-        "title": "Custo estimado",
-        "expressionLabels": [
-          "total",
-          "média"
-        ]
+        "title": "Custo estimado total"
+      },
+      {
+        "title": "Tokens de entrada médios"
+      },
+      {
+        "title": "Tokens de saída médios"
+      },
+      {
+        "title": "Custo estimado médio"
       }
     ]
   }

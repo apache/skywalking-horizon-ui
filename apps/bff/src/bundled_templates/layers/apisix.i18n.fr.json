@@ -70,10 +70,12 @@
         ]
       },
       {
-        "title": "etcd",
+        "title": "etcd joignable"
+      },
+      {
+        "title": "etcd index",
         "expressionLabels": [
-          "index",
-          "joignable"
+          "index"
         ]
       },
       {

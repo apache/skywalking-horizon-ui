@@ -154,11 +154,13 @@
         "title": "Taille d'index (primaires)"
       },
       {
+        "title": "Documents supprimés"
+      },
+      {
         "title": "Documents",
         "expressionLabels": [
           "tous",
-          "primaire",
-          "supprimés"
+          "primaire"
         ]
       },
       {

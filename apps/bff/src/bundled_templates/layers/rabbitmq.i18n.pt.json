@@ -98,30 +98,32 @@
         "title": "Mensagens não reconhecidas"
       },
       {
-        "title": "Conexões / publishers / consumidores",
-        "expressionLabels": [
-          "conexões",
-          "publishers",
-          "consumidores"
-        ]
+        "title": "Conexões"
       },
       {
-        "title": "Channels + filas",
-        "expressionLabels": [
-          "channels",
-          "filas"
-        ]
+        "title": "Publishers"
+      },
+      {
+        "title": "Consumidores"
+      },
+      {
+        "title": "Channels"
+      },
+      {
+        "title": "Filas"
       },
       {
         "title": "% alocado em uso"
+      },
+      {
+        "title": "Total alocado (MB)"
       },
       {
         "title": "Memória (MB)",
         "expressionLabels": [
           "em uso",
           "sem uso",
-          "residente",
-          "total"
+          "residente"
         ]
       },
       {

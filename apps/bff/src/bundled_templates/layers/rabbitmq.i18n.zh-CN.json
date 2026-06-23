@@ -49,18 +49,16 @@
       { "title": "入站消息" },
       { "title": "出站消息" },
       { "title": "未确认消息" },
-      {
-        "title": "连接 / Publisher / Consumer",
-        "expressionLabels": ["connections", "publishers", "consumers"]
-      },
-      {
-        "title": "Channel + 队列",
-        "expressionLabels": ["channels", "queues"]
-      },
+      { "title": "连接" },
+      { "title": "Publisher" },
+      { "title": "Consumer" },
+      { "title": "Channel" },
+      { "title": "队列" },
       { "title": "已分配使用率 %" },
+      { "title": "已分配总量（MB）" },
       {
         "title": "内存（MB）",
-        "expressionLabels": ["used", "unused", "resident", "total"]
+        "expressionLabels": ["used", "unused", "resident"]
       },
       { "title": "按类型分配（MB）" },
       {

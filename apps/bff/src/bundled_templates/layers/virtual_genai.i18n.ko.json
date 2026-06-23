@@ -32,25 +32,22 @@
         "title": "지연 시간 백분위"
       },
       {
-        "title": "입력 토큰",
-        "expressionLabels": [
-          "합계",
-          "평균"
-        ]
+        "title": "입력 토큰"
       },
       {
-        "title": "출력 토큰",
-        "expressionLabels": [
-          "합계",
-          "평균"
-        ]
+        "title": "출력 토큰"
       },
       {
-        "title": "추정 비용",
-        "expressionLabels": [
-          "전체",
-          "평균"
-        ]
+        "title": "총 추정 비용"
+      },
+      {
+        "title": "평균 입력 토큰"
+      },
+      {
+        "title": "평균 출력 토큰"
+      },
+      {
+        "title": "평균 추정 비용"
       }
     ],
     "instance": [
@@ -74,25 +71,22 @@
         ]
       },
       {
-        "title": "입력 토큰",
-        "expressionLabels": [
-          "합계",
-          "평균"
-        ]
+        "title": "입력 토큰"
       },
       {
-        "title": "출력 토큰",
-        "expressionLabels": [
-          "합계",
-          "평균"
-        ]
+        "title": "출력 토큰"
       },
       {
-        "title": "추정 비용",
-        "expressionLabels": [
-          "전체",
-          "평균"
-        ]
+        "title": "총 추정 비용"
+      },
+      {
+        "title": "평균 입력 토큰"
+      },
+      {
+        "title": "평균 출력 토큰"
+      },
+      {
+        "title": "평균 추정 비용"
       }
     ]
   },

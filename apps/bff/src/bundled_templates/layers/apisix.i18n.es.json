@@ -75,10 +75,12 @@
         ]
       },
       {
-        "title": "etcd",
+        "title": "etcd accesible"
+      },
+      {
+        "title": "etcd índices",
         "expressionLabels": [
-          "índices",
-          "accesible"
+          "índices"
         ]
       },
       {

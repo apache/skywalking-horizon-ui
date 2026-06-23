@@ -159,11 +159,13 @@
         "title": "Tamanho do índice (primário)"
       },
       {
+        "title": "Documentos removidos"
+      },
+      {
         "title": "Documentos",
         "expressionLabels": [
           "todos",
-          "primário",
-          "removidos"
+          "primário"
         ]
       },
       {

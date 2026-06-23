@@ -29,16 +29,14 @@
         "expressionLabels": ["produced", "consumed"]
       },
       { "title": "最大消费延迟" },
-      {
-        "title": "CommitLog 磁盘占比（%）",
-        "expressionLabels": ["current", "max"]
-      },
+      { "title": "最大 CommitLog 磁盘占比（%）" },
+      { "title": "Topic" },
+      { "title": "Broker" },
+      { "title": "CommitLog 磁盘占比（%）" },
       {
         "title": "线程池队列头等待（ms）",
         "expressionLabels": ["pull", "send"]
-      },
-      { "title": "Topic" },
-      { "title": "Broker" }
+      }
     ],
     "instance": [
       { "title": "生产 TPS" },
@@ -47,6 +45,10 @@
       { "title": "Consumer 消息大小（MB）" }
     ],
     "endpoint": [
+      { "title": "最大生产者消息大小（MB）" },
+      { "title": "最大消费者消息大小（MB）" },
+      { "title": "Consumer Group 数量" },
+      { "title": "Broker 数量" },
       {
         "title": "Producer / Consumer Group TPS",
         "expressionLabels": ["producer", "consumer group"]
@@ -56,11 +58,6 @@
         "expressionLabels": ["produced", "consumed"]
       },
       {
-        "title": "最大消息大小（MB）",
-        "expressionLabels": ["producer", "consumer"]
-      },
-      { "title": "消费延迟（s）" },
-      {
         "title": "Producer / Consumer Offset",
         "expressionLabels": ["producer", "consumer group"]
       },
@@ -68,8 +65,7 @@
         "title": "积压消息",
         "tip": "Producer offset 减去 Consumer-group offset — 即 Topic 的 Lag。"
       },
-      { "title": "Consumer Group 数量" },
-      { "title": "Broker 数量" }
+      { "title": "消费延迟（s）" }
     ]
   }
 }
