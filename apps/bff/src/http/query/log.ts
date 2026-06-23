@@ -36,6 +36,7 @@ import type {
   LogKeyValue,
   LogQueryRequest,
   LogRow,
+  LogTagFilter,
   LogsResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
@@ -143,6 +144,79 @@ interface OapLogRow {
   tags?: LogKeyValue[] | null;
 }
 
+function mapLogRow(r: OapLogRow): LogRow {
+  return {
+    serviceName: r.serviceName ?? null,
+    serviceId: r.serviceId ?? null,
+    serviceInstanceName: r.serviceInstanceName ?? null,
+    serviceInstanceId: r.serviceInstanceId ?? null,
+    endpointName: r.endpointName ?? null,
+    endpointId: r.endpointId ?? null,
+    traceId: r.traceId ?? null,
+    timestamp: r.timestamp,
+    contentType: r.contentType,
+    content: r.content,
+    tags: r.tags ?? [],
+  };
+}
+
+/** Entity ids the log query scopes by — all PRE-RESOLVED by the caller
+ *  (no `listServices(layer)` lookup, no name → id resolution). The
+ *  per-layer route resolves a name first; explore forwards ids it
+ *  already minted. */
+export interface LogFetchScope {
+  serviceId?: string | null;
+  serviceInstanceId?: string | null;
+  endpointId?: string | null;
+  traceId?: string | null;
+  keywordsOfContent?: string[];
+  tags?: LogTagFilter[];
+}
+
+/** Run OAP's `queryLogs(LogQueryCondition)` for a pre-resolved scope +
+ *  SECOND-precision window + page, and map the rows to {@link LogRow}.
+ *  Shared by the per-layer Logs route and the cross-layer Log inspect
+ *  branch. Soft-fails to `reachable: false` on any OAP error. */
+export async function fetchLogs(
+  opts: GraphqlOptions,
+  scope: LogFetchScope,
+  window: { start: string; end: string },
+  paging: { pageNum: number; pageSize: number },
+  coldStage: boolean,
+): Promise<LogsResponse> {
+  const condition = {
+    ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
+    ...(scope.serviceInstanceId ? { serviceInstanceId: scope.serviceInstanceId } : {}),
+    ...(scope.endpointId ? { endpointId: scope.endpointId } : {}),
+    ...(scope.traceId ? { relatedTrace: { traceId: scope.traceId } } : {}),
+    ...(scope.keywordsOfContent && scope.keywordsOfContent.length > 0
+      ? { keywordsOfContent: scope.keywordsOfContent }
+      : {}),
+    ...(scope.tags && scope.tags.length > 0 ? { tags: scope.tags } : {}),
+    queryDuration: {
+      start: window.start,
+      end: window.end,
+      step: 'SECOND',
+      ...(coldStage ? { coldStage: true } : {}),
+    },
+    paging,
+  };
+  try {
+    const env = await graphqlPost<{ data: { logs: OapLogRow[] } }>(opts, QUERY_LOGS, { condition });
+    const logs = (env.data?.logs ?? []).map(mapLogRow);
+    return { generatedAt: Date.now(), query: {}, total: logs.length, logs, reachable: true };
+  } catch (err) {
+    return {
+      generatedAt: Date.now(),
+      query: {},
+      total: 0,
+      logs: [],
+      reachable: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 /**
  * Resolve a service argument to an OAP service id. The arg can be
  * either a name (`mesh-svr::songs.sample-services`) or an id
@@ -211,56 +285,26 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
           } satisfies LogsResponse);
         }
       }
-      const condition = {
-        ...(serviceId ? { serviceId } : {}),
-        ...(body.serviceInstanceId ? { serviceInstanceId: body.serviceInstanceId } : {}),
-        ...(body.endpointId ? { endpointId: body.endpointId } : {}),
-        ...(body.traceId ? { relatedTrace: { traceId: body.traceId } } : {}),
-        ...(body.keywordsOfContent && body.keywordsOfContent.length > 0
-          ? { keywordsOfContent: body.keywordsOfContent }
-          : {}),
-        ...(body.tags && body.tags.length > 0 ? { tags: body.tags } : {}),
-        queryDuration: withColdStage(req, { start: window.start, end: window.end, step: 'SECOND' }),
-        paging: {
+      const res = await fetchLogs(
+        opts,
+        {
+          serviceId,
+          serviceInstanceId: body.serviceInstanceId,
+          endpointId: body.endpointId,
+          traceId: body.traceId,
+          keywordsOfContent: body.keywordsOfContent,
+          tags: body.tags,
+        },
+        window,
+        {
           pageNum: Math.max(1, Math.round(body.page ?? 1)),
           pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.logs),
         },
-      };
-
-      try {
-        const env = await graphqlPost<{
-          data: { logs: OapLogRow[] };
-        }>(opts, QUERY_LOGS, { condition });
-        const logs: LogRow[] = (env.data?.logs ?? []).map((r) => ({
-          serviceName: r.serviceName ?? null,
-          serviceId: r.serviceId ?? null,
-          serviceInstanceName: r.serviceInstanceName ?? null,
-          serviceInstanceId: r.serviceInstanceId ?? null,
-          endpointName: r.endpointName ?? null,
-          endpointId: r.endpointId ?? null,
-          traceId: r.traceId ?? null,
-          timestamp: r.timestamp,
-          contentType: r.contentType,
-          content: r.content,
-          tags: r.tags ?? [],
-        }));
-        return reply.send({
-          generatedAt: Date.now(),
-          query: body,
-          total: logs.length,
-          logs,
-          reachable: true,
-        } satisfies LogsResponse);
-      } catch (err) {
-        return reply.send({
-          generatedAt: Date.now(),
-          query: body,
-          total: 0,
-          logs: [],
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies LogsResponse);
-      }
+        !!req.coldStage,
+      );
+      // Echo the operator's query (the shared helper returns an empty
+      // echo since it's entity-agnostic).
+      return reply.send({ ...res, query: body } satisfies LogsResponse);
     },
   );
 

@@ -136,8 +136,9 @@ const scatterXTicks = computed(() => {
 const scatterSvgRef = ref<SVGSVGElement | null>(null);
 const dragState = ref<{
   active: boolean;
+  pending: boolean;
   startVx: number; startVy: number; curVx: number; curVy: number;
-}>({ active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 });
+}>({ active: false, pending: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 });
 function clientToViewbox(ev: PointerEvent): { vx: number; vy: number } | null {
   const svg = scatterSvgRef.value;
   if (!svg) return null;
@@ -150,29 +151,36 @@ function clientToViewbox(ev: PointerEvent): { vx: number; vy: number } | null {
 function onScatterDown(ev: PointerEvent): void {
   const pt = clientToViewbox(ev);
   if (!pt) return;
-  const target = ev.target as Element | null;
-  // Click on a dot is handled by its own click handler; the drag is
-  // for the empty plot area.
-  if (target?.classList.contains('scatter-dot')) return;
-  ev.preventDefault();
-  dragState.value = { active: true, startVx: pt.vx, startVy: pt.vy, curVx: pt.vx, curVy: pt.vy };
-  (ev.currentTarget as SVGSVGElement).setPointerCapture(ev.pointerId);
+  // Record a potential drag; do NOT preventDefault yet, so a plain click on
+  // a dot still fires its @click. The brush activates only once the pointer
+  // actually moves (onScatterMove) — the fat hit-circles otherwise swallow
+  // the drag-start.
+  dragState.value = { active: false, pending: true, startVx: pt.vx, startVy: pt.vy, curVx: pt.vx, curVy: pt.vy };
 }
 function onScatterMove(ev: PointerEvent): void {
-  if (!dragState.value.active) return;
+  const s = dragState.value;
+  if (!s.pending && !s.active) return;
   const pt = clientToViewbox(ev);
   if (!pt) return;
-  dragState.value = { ...dragState.value, curVx: pt.vx, curVy: pt.vy };
+  if (!s.active) {
+    if (Math.abs(pt.vx - s.startVx) < 6 && Math.abs(pt.vy - s.startVy) < 6) {
+      dragState.value = { ...s, curVx: pt.vx, curVy: pt.vy };
+      return;
+    }
+    ev.preventDefault();
+    try { (ev.currentTarget as SVGSVGElement).setPointerCapture(ev.pointerId); } catch { /* noop */ }
+    dragState.value = { ...s, active: true, curVx: pt.vx, curVy: pt.vy };
+    return;
+  }
+  dragState.value = { ...s, curVx: pt.vx, curVy: pt.vy };
 }
 function onScatterUp(ev: PointerEvent): void {
-  if (!dragState.value.active) return;
-  const { startVx, startVy, curVx, curVy } = dragState.value;
-  dragState.value = { active: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 };
-  try {
-    (ev.currentTarget as SVGSVGElement).releasePointerCapture(ev.pointerId);
-  } catch { /* noop */ }
-  // No real drag (click without move) → don't change selection.
-  if (Math.abs(curVx - startVx) < 4 && Math.abs(curVy - startVy) < 4) return;
+  const s = dragState.value;
+  const wasActive = s.active;
+  dragState.value = { active: false, pending: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 };
+  if (!wasActive) return;
+  try { (ev.currentTarget as SVGSVGElement).releasePointerCapture(ev.pointerId); } catch { /* noop */ }
+  const { startVx, startVy, curVx, curVy } = s;
   const b = scatterBounds.value;
   if (!b) return;
   const vxMin = Math.min(startVx, curVx);
@@ -183,9 +191,7 @@ function onScatterUp(ev: PointerEvent): void {
   for (const p of scatterPoints.value) {
     const cx = b.xMax === b.xMin ? 500 : ((p.x - b.xMin) / (b.xMax - b.xMin)) * 1000;
     const cy = 1000 - ((p.y - b.yMin) / (b.yMax - b.yMin || 1)) * 990;
-    if (cx >= vxMin && cx <= vxMax && cy >= vyMin && cy <= vyMax) {
-      keys.push(p.rowKey);
-    }
+    if (cx >= vxMin && cx <= vxMax && cy >= vyMin && cy <= vyMax) keys.push(p.rowKey);
   }
   if (keys.length > 0) emit('brush', keys);
 }

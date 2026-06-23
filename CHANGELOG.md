@@ -19,6 +19,11 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Shareable trace links are unified.** Native and Zipkin traces both open from a single `?traceId=` link under the layer's trace tab; the viewer auto-selects native vs Zipkin by the trace-ID shape, so `/layer/<layer>/trace?traceId=…` always opens the right one.
 - **Trace filters are searchable, on-theme dropdowns.** The native Service / Instance / Endpoint pickers and the Zipkin Service / Remote service / Span name pickers use a dark type-to-filter dropdown that reopens correctly after a pick.
 
+### Logs
+
+- **Log inspect uses the full width.** The cross-layer Log inspect form (Target + Keywords / Tags / Trace ID / Time / Limit conditions) now spans the whole page instead of sharing a two-column strip with empty space.
+- **Clicking a log row opens a centered popout.** Both the cross-layer Log inspect and the per-layer Logs tab now open the same full-payload popout on row click — format-aware pretty-print (JSON pretty-printed by content type), the tags table, service / instance / endpoint / time meta, a copy button, and the trace link. Escape or the close button dismisses it.
+
 ## 0.7.0
 
 ### Browser errors & source maps

@@ -40,7 +40,8 @@ import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
-import { parseServiceName } from '@/utils/serviceName';
+import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
+import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -455,149 +456,12 @@ const levelFacet = computed<Record<Level, number>>(() => {
 // reflect it — no client-side narrowing needed.
 const filteredLogs = computed<LogRow[]>(() => logs.value);
 
-// Row keys for `<template v-for>`. Inline expand is gone — click
-// now opens the full-canvas popout via `onRowClick(r)`.
-function rowKey(r: LogRow, idx: number): string {
-  return `${r.timestamp}-${r.traceId ?? ''}-${idx}`;
-}
-
-function fmtTime(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, '0')}`;
-}
-function fmtDate(ts: number): string {
-  // Numeric MM-DD in the operator's browser-local TZ. Matches the
-  // topbar's compact date chip (`05-12 03h → 06h`) and stays
-  // locale-independent — `toLocaleDateString` without an explicit
-  // locale picks up the system locale (e.g. `5月08日` on zh-CN), which
-  // looked inconsistent next to the rest of the dense English UI.
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-/**
- * Render a one-line inline preview. Length is NOT capped here — the
- * row's CSS (`.lg-content-body { white-space: nowrap; overflow:
- * hidden; text-overflow: ellipsis }`) clips at the actual visible
- * width, so wider viewports surface more of the payload while narrow
- * ones still get a clean ellipsis. The slicing-at-220-chars heuristic
- * I had before always cut at the same offset regardless of width.
- *
- *   - JSON: re-serialize to the tightest single-line form so the row
- *     reads as `{"level":"error","msg":"…"}` and not the raw
- *     whitespace-laden source.
- *   - YAML: collapse newlines into a single space so the row still
- *     carries the keys (`apiVersion: v1 kind: Pod spec: containers:
- *     - name: nginx`). Indentation chars stay, which preserves a
- *     visual sense of the hierarchy even on one line. The popout is
- *     the right place to read the proper multi-line structure.
- *   - Text: whitespace collapsed, same as before.
- */
-function summariseContent(r: LogRow): string {
-  if (!r.content) return '';
-  const fmt = detectFormat(r);
-  if (fmt === 'json') {
-    try {
-      return JSON.stringify(JSON.parse(r.content));
-    } catch {
-      /* fall through to the plain compaction below */
-    }
-  }
-  if (fmt === 'yaml') {
-    // Replace newlines with a single space — keeps the indentation
-    // characters that sit at the start of each line, which gives the
-    // operator a visual cue of nesting depth even when flattened.
-    return r.content.replace(/\n+/g, ' ').trim();
-  }
-  // Plain text — collapse any runs of whitespace.
-  return r.content.replace(/\s+/g, ' ').trim();
-}
-/** With the new flattening rule above, every payload has a usable
- *  inline preview — JSON, YAML, and multi-line text all flatten to
- *  one line cleanly. We no longer need a hidden-payload affordance.
- *  Returns false unconditionally; kept so the template doesn't have
- *  to change. */
-function hasHiddenPayload(_r: LogRow): boolean {
-  return false;
-}
-function tryPrettyJson(content: string): string {
-  try {
-    return JSON.stringify(JSON.parse(content), null, 2);
-  } catch {
-    return content;
-  }
-}
-
-/**
- * Detect the rendered format of a log payload. OAP only labels
- * JSON / TEXT, so we sniff for YAML markers (leading `---`, top-level
- * `key:` mappings) and JSON-ness as a fallback so operators get the
- * right pretty-printer in the popout. The detection is best-effort —
- * an ambiguous payload falls back to TEXT.
- */
-type LogFormat = 'json' | 'yaml' | 'text';
-function detectFormat(r: LogRow): LogFormat {
-  if (r.contentType === 'application/json') return 'json';
-  const trimmed = r.content?.trim() ?? '';
-  if (!trimmed) return 'text';
-  // JSON sniff — content-type missing but body parses cleanly.
-  if ((trimmed.startsWith('{') && trimmed.endsWith('}')) ||
-      (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
-    try { JSON.parse(trimmed); return 'json'; } catch { /* fallthrough */ }
-  }
-  // YAML sniff — document marker or 2+ top-level `key:` mappings.
-  if (trimmed.startsWith('---') || trimmed.startsWith('apiVersion:')) return 'yaml';
-  const lines = trimmed.split('\n');
-  if (lines.length >= 2) {
-    const topLevelMaps = lines.filter((l) => /^[A-Za-z_][\w.-]*\s*:\s*(\S|$)/.test(l)).length;
-    if (topLevelMaps >= 2) return 'yaml';
-  }
-  return 'text';
-}
-function prettyForFormat(r: LogRow, fmt: LogFormat): string {
-  if (fmt === 'json') return tryPrettyJson(r.content);
-  return r.content;
-}
-
-// ── Log payload popout — operator-triggered modal for inspecting a
-// single row's full payload at maximum size, with format-aware
-// pretty-print + a copy button + key/value tag table. The inline
-// expand below the row stays as a quick peek; the popout is the
-// "give me the whole thing" view.
+// ── Log payload popout — a row click opens the shared LogDetailPopout
+// (format-aware pretty-print + copy + key/value tag table + trace link).
+// The popout owns its own Escape / close + format detection.
 const popoutRow = ref<LogRow | null>(null);
-function openPopout(r: LogRow): void { popoutRow.value = r; }
-function closePopout(): void { popoutRow.value = null; }
-async function copyPopout(): Promise<void> {
-  if (!popoutRow.value) return;
-  try {
-    await navigator.clipboard.writeText(popoutRow.value.content);
-  } catch {
-    /* clipboard may be blocked; silently no-op */
-  }
-}
-// ESC closes the popout. Bound on the window so it works whether or
-// not the popout has keyboard focus (clicking the modal sometimes
-// drops focus into the underlying row).
-function onGlobalKeydown(ev: KeyboardEvent): void {
-  if (ev.key === 'Escape' && popoutRow.value) {
-    ev.preventDefault();
-    closePopout();
-  }
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('keydown', onGlobalKeydown);
-}
-
-/**
- * Row click → open popout. The inline expand is intentionally gone —
- * for multi-line / YAML / JSON payloads it rendered as a cramped strip
- * inside the row band; the popout has the full canvas. Trace-id chip
- * and group decoder still propagate stop-events so their own clicks
- * don't bubble.
- */
 function onRowClick(r: LogRow): void {
-  openPopout(r);
+  popoutRow.value = r;
 }
 
 // Custom hover tooltip state for the density bar. Native browser
@@ -862,48 +726,16 @@ function jumpToTrace(traceId: string, ts?: number): void {
         <div v-if="filteredLogs.length === 0" class="lg-empty">
           {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
         </div>
-        <div v-else class="lg-stream">
-          <template v-for="(r, idx) in filteredLogs" :key="rowKey(r, idx)">
-            <!-- Row click → open the popout. Inline expand removed:
-                 YAML / JSON / multi-line text rendered cramped inside
-                 the row band and reads as truncated. The popout has
-                 the full canvas + format-aware pretty-print. -->
-            <div class="lg-row" :class="`lv-${levelOf(r)}`" @click="onRowClick(r)">
-              <span class="lg-time mono">{{ fmtTime(r.timestamp) }}</span>
-              <span class="lg-date mono dim">{{ fmtDate(r.timestamp) }}</span>
-              <span class="lg-lvl" :style="{ color: LEVEL_COLOR[levelOf(r)] }">{{ levelOf(r) }}</span>
-              <span class="lg-svc mono dim">
-                <span
-                  v-if="r.serviceName && parseServiceName(r.serviceName).group"
-                  class="lg-svc-group"
-                >{{ parseServiceName(r.serviceName).group }}</span>
-                {{ r.serviceName ? parseServiceName(r.serviceName).base : '—' }}
-              </span>
-              <!-- The trace-link slot is ALWAYS rendered, even when the
-                   row has no traceId — its 60px grid column is fixed,
-                   and skipping the slot collapses every subsequent
-                   column leftward (the 1fr content cell ends up sized
-                   at 60px, truncating the preview to two characters). -->
-              <span v-if="r.traceId" class="lg-trace mono" @click.stop="jumpToTrace(r.traceId!, r.timestamp)">↗ trace</span>
-              <span v-else class="lg-trace-spacer" aria-hidden="true"></span>
-              <!-- Format chip + flat content preview. Chip is always
-                   rendered so the operator can tell at-a-glance which
-                   rows are JSON / YAML / plain text. Preview is single
-                   line, length-capped, and trimmed-with-ellipsis via
-                   `.lg-content` CSS so even when JSON contains long
-                   strings the row stays one line. -->
-              <span class="lg-content mono">
-                <span class="lg-fmt-chip" :class="`fmt-${detectFormat(r)}`">{{ detectFormat(r).toUpperCase() }}</span>
-                <span class="lg-content-body">
-                  <template v-if="hasHiddenPayload(r)">
-                    <em class="lg-content-hint">click to view</em>
-                  </template>
-                  <template v-else>{{ summariseContent(r) }}</template>
-                </span>
-              </span>
-            </div>
-          </template>
-        </div>
+        <!-- Row click → open the full-payload popout. The dense row
+             rendering is the shared `LogStreamPanel` (same markup the
+             cross-layer Log inspect uses); the popout + density bar +
+             facets stay in this view. -->
+        <LogStreamPanel
+          v-else
+          :rows="filteredLogs"
+          @select="onRowClick($event.row)"
+          @jump-trace="jumpToTrace($event.traceId, $event.ts)"
+        />
         <div class="lg-pager">
           <span class="hint">page {{ page }} · showing {{ filteredLogs.length }} of {{ total }} total</span>
           <div class="lg-pager-ctrls">
@@ -919,58 +751,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
       </div>
     </section>
 
-    <!-- Full-payload popout. Triggered from a row's expanded panel.
-         Format-aware pretty-print + copy button + tag table. Escape
-         or backdrop click closes. -->
-    <div v-if="popoutRow" class="lg-popout-backdrop" @click.self="closePopout">
-      <article class="lg-popout sw-card">
-        <header class="lg-popout-head">
-          <div>
-            <span class="kicker">Log entry</span>
-            <span class="lg-popout-time mono">{{ fmtTime(popoutRow.timestamp) }} · {{ fmtDate(popoutRow.timestamp) }}</span>
-            <span class="lg-popout-fmt">{{ detectFormat(popoutRow).toUpperCase() }}</span>
-          </div>
-          <div class="lg-popout-ctrls">
-            <button class="sw-btn small" type="button" @click="copyPopout">Copy</button>
-            <button
-              v-if="popoutRow.traceId"
-              class="sw-btn small"
-              type="button"
-              @click="jumpToTrace(popoutRow.traceId!, popoutRow.timestamp)"
-            >↗ trace</button>
-            <button class="sw-btn small ghost" type="button" @click="closePopout">×</button>
-          </div>
-        </header>
-        <div class="lg-popout-meta">
-          <span v-if="popoutRow.serviceName" class="lg-meta">service <code>{{ popoutRow.serviceName }}</code></span>
-          <span v-if="popoutRow.serviceInstanceName" class="lg-meta">instance <code>{{ popoutRow.serviceInstanceName }}</code></span>
-          <span v-if="popoutRow.endpointName" class="lg-meta">endpoint <code>{{ popoutRow.endpointName }}</code></span>
-          <span v-if="popoutRow.traceId" class="lg-meta">trace <code class="mono">{{ popoutRow.traceId }}</code></span>
-        </div>
-        <div class="lg-popout-split">
-          <pre
-            v-if="detectFormat(popoutRow) === 'json'"
-            class="lg-popout-body json"
-          >{{ prettyForFormat(popoutRow, 'json') }}</pre>
-          <pre
-            v-else-if="detectFormat(popoutRow) === 'yaml'"
-            class="lg-popout-body yaml"
-          >{{ popoutRow.content }}</pre>
-          <pre v-else class="lg-popout-body text">{{ popoutRow.content }}</pre>
-          <aside v-if="popoutRow.tags.length > 0" class="lg-popout-tags">
-            <table class="lg-popout-tag-tbl">
-              <thead><tr><th>Key</th><th>Value</th></tr></thead>
-              <tbody>
-                <tr v-for="t in popoutRow.tags" :key="`${t.key}=${t.value}`">
-                  <td class="mono">{{ t.key }}</td>
-                  <td class="mono">{{ t.value }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </aside>
-        </div>
-      </article>
-    </div>
+    <!-- Full-payload popout. Format-aware pretty-print + copy button +
+         tag table + trace link. Escape or backdrop click closes. -->
+    <LogDetailPopout
+      :row="popoutRow"
+      @close="popoutRow = null"
+      @jump-trace="jumpToTrace($event.traceId, $event.ts)"
+    />
   </div>
 </template>
 
@@ -1119,21 +906,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
 .cf-combo-item.on { background: var(--sw-accent-soft); color: var(--sw-accent-2); font-weight: 600; }
 .cf-combo-empty { padding: 6px 8px; font-size: 10.5px; color: var(--sw-fg-3); }
 
-/* Group-prefix chip in a log row's service column. Decodes
-   `<group>::<base>` so the eye lands on the base name first. */
-.lg-svc-group {
-  display: inline-block;
-  padding: 0 5px;
-  margin-right: 4px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 3px;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--sw-fg-2);
-  text-transform: uppercase;
-}
 .f-field {
   display: inline-flex;
   align-items: baseline;
@@ -1299,149 +1071,12 @@ function jumpToTrace(traceId: string, ts?: number): void {
 .lg-density-axis .t-tick:first-child { text-align: left; }
 .lg-density-axis .t-tick:last-child { text-align: right; }
 
-/* Row-content hint when the inline preview is suppressed (multi-line,
-   YAML, JSON). Italic gray so it reads as "this is a placeholder, not
-   the actual content". */
-.lg-content-hint {
-  color: var(--sw-fg-3);
-  font-style: italic;
-  font-size: 10.5px;
-  letter-spacing: 0.04em;
-}
-.lg-row { cursor: pointer; }
 .lg-empty {
   padding: 32px;
   text-align: center;
   color: var(--sw-fg-3);
   font-size: 11.5px;
 }
-.lg-stream {
-  flex: 1;
-  overflow-y: auto;
-  font-size: 11.5px;
-}
-.lg-row {
-  display: grid;
-  grid-template-columns: 80px 60px 56px 140px 60px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--sw-line);
-  cursor: pointer;
-}
-.lg-row:hover { background: var(--sw-bg-2); }
-.lg-row.lv-error { box-shadow: inset 3px 0 0 var(--sw-err); }
-.lg-row.lv-warn { box-shadow: inset 3px 0 0 var(--sw-warn); }
-.lg-time { font-family: var(--sw-mono); color: var(--sw-fg-1); }
-.lg-date { font-size: 10px; }
-.lg-lvl {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 700;
-}
-.lg-svc { font-size: 10.5px; }
-.lg-trace {
-  font-size: 10px;
-  color: var(--sw-accent-2);
-  cursor: pointer;
-  padding: 1px 5px;
-  background: var(--sw-accent-soft);
-  border: 1px solid var(--sw-accent-line);
-  border-radius: 3px;
-}
-.lg-trace:hover { color: var(--sw-fg-0); }
-.lg-content {
-  font-family: var(--sw-mono);
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-/* Format chip — small uppercase tag rendered before the preview. Per-
-   format color keeps JSON / YAML / TEXT visually distinct without
-   adding chrome. Tabular-nums + monospace so the three chips align. */
-.lg-fmt-chip {
-  flex: 0 0 auto;
-  display: inline-block;
-  padding: 0 5px;
-  height: 14px;
-  line-height: 14px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  border-radius: 3px;
-  text-transform: uppercase;
-  font-family: var(--sw-mono);
-}
-.lg-fmt-chip.fmt-json { background: var(--sw-info-soft); color: var(--sw-info); }
-.lg-fmt-chip.fmt-yaml { background: rgba(251, 191, 36, 0.18); color: #fbbf24; }
-.lg-fmt-chip.fmt-text { background: var(--sw-bg-3); color: var(--sw-fg-2); }
-.lg-content-body {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.lg-expand {
-  padding: 10px 14px 14px 28px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-2);
-}
-.lg-payload {
-  margin: 0 0 8px;
-  padding: 8px 10px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  font-family: var(--sw-mono);
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 280px;
-  overflow: auto;
-}
-.lg-payload.json { color: var(--sw-cyan); }
-.lg-tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 6px;
-}
-.lg-tag {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  font-size: 10.5px;
-  padding: 1px 6px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 3px;
-}
-.lg-tag-k { color: var(--sw-fg-3); }
-.lg-tag-v { color: var(--sw-fg-1); }
-.lg-meta-row {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
-}
-.lg-meta code {
-  font-family: var(--sw-mono);
-  color: var(--sw-fg-2);
-  background: var(--sw-bg-1);
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
 .lg-pager {
   display: flex;
   align-items: center;
@@ -1466,32 +1101,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
   .lg-legend { padding: 8px 10px; gap: 4px; }
   .lg-legend-chip { padding: 2px 7px; font-size: 11px; }
 }
-
-/* Trace-ID + tag-key=value inputs on the conditions bar. */
-.lg-trace-input {
-  height: 26px;
-  width: 220px;
-  padding: 0 8px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 11px;
-}
-.lg-trace-input:focus { outline: none; border-color: var(--sw-accent-line); }
-.lg-tag-input {
-  height: 26px;
-  width: 220px;
-  padding: 0 8px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 11px;
-}
-.lg-tag-input:focus { outline: none; border-color: var(--sw-accent-line); }
 
 /* Active tag chips — markup + visuals lifted from `LayerTracesView`
    so the two pages read identically. */
@@ -1527,103 +1136,4 @@ function jumpToTrace(traceId: string, ts?: number): void {
 }
 .tag-x:hover { color: var(--sw-err); }
 
-/* YAML payload colour (cyan-leaning to distinguish from JSON which
-   is also cyan; warm-yellow scheme conveys "config / declarative"). */
-.lg-payload.yaml { color: #fbbf24; }
-
-/* Full-payload popout — fixed, centred, modal-like overlay. */
-.lg-popout-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 24px;
-}
-.lg-popout {
-  width: min(1100px, 92vw);
-  min-height: 70vh;
-  max-height: 92vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.lg-popout-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--sw-line);
-}
-.lg-popout-head .kicker { margin-right: 8px; }
-.lg-popout-time { font-size: 11px; color: var(--sw-fg-2); margin-right: 10px; }
-.lg-popout-fmt {
-  display: inline-block;
-  padding: 1px 8px;
-  border-radius: 10px;
-  background: var(--sw-accent-soft);
-  color: var(--sw-accent-2);
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-}
-.lg-popout-ctrls { display: inline-flex; gap: 6px; }
-.lg-popout-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px dashed var(--sw-line);
-  font-size: 11px;
-  color: var(--sw-fg-3);
-}
-.lg-popout-meta code {
-  font-family: var(--sw-mono);
-  color: var(--sw-fg-1);
-  padding: 0 4px;
-  background: var(--sw-bg-2);
-  border-radius: 3px;
-}
-.lg-popout-split { flex: 1; min-height: 0; display: flex; }
-.lg-popout-body {
-  flex: 1;
-  min-height: 0;
-  min-width: 0;
-  margin: 0;
-  padding: 12px 14px;
-  background: var(--sw-bg-0);
-  font-family: var(--sw-mono);
-  font-size: 12px;
-  line-height: 1.55;
-  color: var(--sw-fg-0);
-  white-space: pre-wrap;
-  word-break: break-all;
-  overflow: auto;
-}
-.lg-popout-body.json { color: var(--sw-cyan); }
-.lg-popout-body.yaml { color: #fbbf24; }
-.lg-popout-tags {
-  flex: 0 0 340px;
-  border-left: 1px solid var(--sw-line);
-  padding: 8px 14px 12px;
-  overflow: auto;
-  background: var(--sw-bg-1);
-}
-.lg-popout-tag-tbl {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: 11px;
-}
-.lg-popout-tag-tbl td { word-break: break-all; vertical-align: top; }
-.lg-popout-tag-tbl th, .lg-popout-tag-tbl td {
-  padding: 4px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--sw-line);
-}
-.lg-popout-tag-tbl th { color: var(--sw-fg-3); font-weight: 500; }
-.lg-popout-tag-tbl td { color: var(--sw-fg-1); font-family: var(--sw-mono); }
 </style>

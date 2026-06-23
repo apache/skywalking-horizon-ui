@@ -29,6 +29,8 @@ export const VERBS = {
   tracesRead: 'traces:read',
   logsRead: 'logs:read',
   browserErrorsRead: 'browser-errors:read',
+  /** Cross-layer Trace/Log inspect (the /api/explore/query route). */
+  exploreRead: 'explore:read',
   topologyRead: 'topology:read',
   profileRead: 'profile:read',
   infra3dRead: 'infra-3d:read',

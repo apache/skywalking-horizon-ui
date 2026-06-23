@@ -15,8 +15,8 @@
   limitations under the License.
 -->
 <!--
-  Trace inspect / Log inspect — cross-layer trace/log query power-tools
-  (the `kind` prop picks which; two sidebar menus, one component).
+  Trace inspect — cross-layer trace query power-tool. (Log inspect is the
+  sibling ExploreLogView; both share the same `.iq-*` spine.)
 
   Layer-less by design: the entity is OPTIONAL. Name a service by PICKING
   it (a layer-filtered dropdown), TYPING it (service name + the real/
@@ -25,8 +25,7 @@
   with the same waterfall the per-layer Traces tab uses; the resolved-
   query panel surfaces the exact condition the BFF ran.
 
-  This pass implements Trace · native. Trace · zipkin and the Log kinds
-  (raw / browser-error) land next on the same spine.
+  Source switches between SkyWalking-native and Zipkin traces.
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
@@ -53,13 +52,10 @@ import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
-const props = defineProps<{ kind: 'trace' | 'log' }>();
 const { t } = useI18n();
 const { availableLayers } = useLayers();
 
-const title = computed(() => (props.kind === 'trace' ? t('Trace inspect') : t('Log inspect')));
-
-// ── source (zipkin / log sources land in the next increments) ─────────
+// ── source (native / zipkin) ──────────────────────────────────────────
 type TraceSource = 'native' | 'zipkin';
 const traceSource = ref<TraceSource>('native');
 
@@ -113,6 +109,7 @@ async function loadInstances(): Promise<void> {
 }
 
 async function loadEndpoints(): Promise<void> {
+  pickEndpointId.value = '';
   const name = pickServiceName.value;
   if (!pickLayer.value || !name) {
     endpoints.value = [];
@@ -314,8 +311,6 @@ const zipkinRows = ref<ZipkinTraceListRow[]>([]);
 const resolved = ref<ExploreResolved | null>(null);
 const showResolved = ref(false);
 
-const canRun = computed(() => props.kind === 'trace');
-
 /** Build the window the request carries: explicit epoch-ms bounds in
  *  Custom mode (datetime-local strings are browser-local; `Date.parse`
  *  reads them as local), else the rolling minutes preset. */
@@ -376,6 +371,9 @@ async function runQuery(): Promise<void> {
   errorMsg.value = null;
   closeDetail();
   brushedKeys.value = [];
+  native.value = null;
+  zipkinRows.value = [];
+  resolved.value = null;
   const zipkin = traceSource.value === 'zipkin';
   const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
   try {
@@ -500,14 +498,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 <template>
   <div class="iq">
     <header class="iq-head">
-      <h1>{{ title }}</h1>
+      <h1>{{ t('Trace inspect') }}</h1>
       <p class="iq-sub">{{ t('Query any service across layers — pick it, type its name, or leave it blank.') }}</p>
     </header>
 
-    <div v-if="props.kind === 'log'" class="iq-coming">{{ t('Log inspect — coming in the next pass.') }}</div>
-
-    <template v-else>
-      <div class="iq-bar">
+    <div class="iq-bar">
         <span class="iq-bar-l">{{ t('Source') }}</span>
         <div class="seg">
           <button :class="{ on: traceSource === 'native' }" @click="traceSource = 'native'">{{ t('Native') }}</button>
@@ -595,12 +590,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
                 <span class="dim">{{ resolved.source }}{{ resolved.backend ? ` · ${resolved.backend}` : '' }}</span>
               </button>
-              <button class="iq-run" :disabled="!canRun || running" @click="runQuery">
+              <button class="iq-run" :disabled="running" @click="runQuery">
                 {{ running ? t('Running…') : t('Run query') }}
               </button>
             </div>
             <div class="iq-grid">
-              <label class="cf">
+              <label v-if="!isZipkin" class="cf">
                 <span>{{ t('Trace ID') }}</span>
                 <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
               </label>
@@ -693,6 +688,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 
       <div class="iq-result">
         <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — name a service or leave it blank.') }}</div>
+        <div v-else-if="running && rows.length === 0" class="iq-empty">{{ t('Reading data…') }}</div>
         <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
         <div v-else-if="rows.length === 0" class="iq-empty">{{ t('No traces in this window.') }}</div>
 
@@ -750,7 +746,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           </div>
         </section>
       </div>
-    </template>
   </div>
 </template>
 
@@ -764,7 +759,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .iq { display: flex; flex-direction: column; gap: 10px; min-height: calc(100vh - 52px); padding: 14px 16px; }
 .iq-head h1 { font-size: 16px; margin: 0; }
 .iq-sub { color: var(--sw-fg-3); font-size: 12px; margin: 2px 0 0; }
-.iq-coming { padding: 40px; text-align: center; color: var(--sw-fg-3); font-size: 13px; }
 .iq-bar { display: flex; align-items: center; gap: 10px; }
 .iq-bar-l { font-size: 11px; color: var(--sw-fg-3); font-weight: 500; }
 .seg { display: inline-flex; border: 1px solid var(--sw-line-2); border-radius: 5px; overflow: hidden; }

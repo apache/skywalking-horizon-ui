@@ -35,15 +35,17 @@ import type {
   ExploreResponse,
   ExploreWindow,
   FetchLike,
+  LogTagFilter,
   ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
-import { getServerOffsetMinutes } from '../../util/window.js';
+import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { buildEndpointId, buildInstanceId, buildServiceId } from '../../util/entityId.js';
 import { fetchNativeList, type TraceListBody } from './trace.js';
+import { fetchLogs } from './log.js';
 import { zipkinFetchTraces } from '../../client/zipkin.js';
 
 export interface ExploreRouteDeps {
@@ -86,6 +88,21 @@ function zipkinWindow(w: ExploreWindow): { endTs: number; lookback: number } {
     return { endTs: w.endMs, lookback: w.endMs - w.startMs };
   }
   return { endTs: Date.now(), lookback: Math.max(1, w.windowMinutes ?? 30) * 60_000 };
+}
+
+const DEFAULT_LOG_WINDOW_MIN = 30;
+const MAX_LOG_WINDOW_MIN = 60 * 24 * 7; // 1 week guard, mirrors the per-layer route
+/** Log queries are SECOND-precision RECORD reads (same as the per-layer
+ *  Logs tab) — MINUTE rounding would chop off the most recent lines.
+ *  Explicit epoch-ms bounds win; otherwise the rolling minutes preset
+ *  anchors at "now". Both formatted OAP-local via the cached offset. */
+function logWindowSecond(w: ExploreWindow, offsetMinutes: number): { start: string; end: string } {
+  if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
+    return { start: fmtSecond(w.startMs, offsetMinutes), end: fmtSecond(w.endMs, offsetMinutes) };
+  }
+  const m = Math.max(1, Math.min(MAX_LOG_WINDOW_MIN, Math.round(w.windowMinutes ?? DEFAULT_LOG_WINDOW_MIN)));
+  const endMs = Date.now();
+  return { start: fmtSecond(endMs - m * 60_000, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
 export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDeps): void {
@@ -138,6 +155,9 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
               ...(body.traceId ? { traceId: body.traceId } : {}),
               traceState: body.traceState ?? 'ALL',
               queryOrder: body.queryOrder ?? 'BY_START_TIME',
+              ...(typeof body.minTraceDuration === 'number' ? { minTraceDuration: body.minTraceDuration } : {}),
+              ...(typeof body.maxTraceDuration === 'number' ? { maxTraceDuration: body.maxTraceDuration } : {}),
+              ...(body.tags && body.tags.length ? { tags: body.tags } : {}),
               ...win,
             },
           };
@@ -206,8 +226,55 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         } satisfies ExploreResponse);
       }
 
-      // kind === 'log' — raw + browser, added in the log increment.
-      return reply.code(501).send({ error: 'log_not_implemented' });
+      // kind === 'log'. `browser` (BROWSER-layer JS errors) lands in the
+      // next increment; default + only supported source today is `raw`.
+      const logSource = body.logSource ?? 'raw';
+      if (logSource === 'raw') {
+        // Entity optional — no service means "all services in the window"
+        // (OAP's LogQueryCondition.serviceId is nullable).
+        const ids = body.entity ? resolveNativeEntity(body.entity) : {};
+        const win = logWindowSecond(body.window ?? {}, offset);
+        const keywords = (body.keywordsOfContent ?? []).filter((k) => k.length > 0);
+        const tags = (body.tags ?? []) as LogTagFilter[];
+        const maxLogs = deps.config.current.performance.limits.maxPageSize.logs;
+        const paging = {
+          pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
+          pageSize: Math.min(maxLogs, Math.max(1, Math.round(body.pageSize ?? 50))),
+        };
+        const scope = {
+          serviceId: ids.serviceId,
+          serviceInstanceId: ids.instanceId,
+          endpointId: ids.endpointId,
+          traceId: body.relatedTraceId,
+          keywordsOfContent: keywords,
+          tags,
+        };
+        const logs = await fetchLogs(opts, scope, win, paging, !!req.coldStage);
+        const resolved: ExploreResolved = {
+          kind: 'log',
+          source: 'raw',
+          entityId: ids.serviceId,
+          condition: {
+            ...(ids.serviceId ? { serviceId: ids.serviceId } : {}),
+            ...(ids.instanceId ? { serviceInstanceId: ids.instanceId } : {}),
+            ...(ids.endpointId ? { endpointId: ids.endpointId } : {}),
+            ...(body.relatedTraceId ? { traceId: body.relatedTraceId } : {}),
+            ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
+            ...(tags.length > 0 ? { tags } : {}),
+            ...win,
+          },
+        };
+        return reply.send({
+          kind: 'log',
+          logSource: 'raw',
+          generatedAt,
+          logs,
+          resolved,
+        } satisfies ExploreResponse);
+      }
+
+      // kind === 'log' && logSource === 'browser' — next increment.
+      return reply.code(501).send({ error: 'browser_log_not_implemented' });
     },
   );
 }
