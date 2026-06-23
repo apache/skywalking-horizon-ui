@@ -947,25 +947,27 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <span v-if="popoutRow.endpointName" class="lg-meta">endpoint <code>{{ popoutRow.endpointName }}</code></span>
           <span v-if="popoutRow.traceId" class="lg-meta">trace <code class="mono">{{ popoutRow.traceId }}</code></span>
         </div>
-        <pre
-          v-if="detectFormat(popoutRow) === 'json'"
-          class="lg-popout-body json"
-        >{{ prettyForFormat(popoutRow, 'json') }}</pre>
-        <pre
-          v-else-if="detectFormat(popoutRow) === 'yaml'"
-          class="lg-popout-body yaml"
-        >{{ popoutRow.content }}</pre>
-        <pre v-else class="lg-popout-body text">{{ popoutRow.content }}</pre>
-        <div v-if="popoutRow.tags.length > 0" class="lg-popout-tags">
-          <table class="lg-popout-tag-tbl">
-            <thead><tr><th>Key</th><th>Value</th></tr></thead>
-            <tbody>
-              <tr v-for="t in popoutRow.tags" :key="`${t.key}=${t.value}`">
-                <td class="mono">{{ t.key }}</td>
-                <td class="mono">{{ t.value }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="lg-popout-split">
+          <pre
+            v-if="detectFormat(popoutRow) === 'json'"
+            class="lg-popout-body json"
+          >{{ prettyForFormat(popoutRow, 'json') }}</pre>
+          <pre
+            v-else-if="detectFormat(popoutRow) === 'yaml'"
+            class="lg-popout-body yaml"
+          >{{ popoutRow.content }}</pre>
+          <pre v-else class="lg-popout-body text">{{ popoutRow.content }}</pre>
+          <aside v-if="popoutRow.tags.length > 0" class="lg-popout-tags">
+            <table class="lg-popout-tag-tbl">
+              <thead><tr><th>Key</th><th>Value</th></tr></thead>
+              <tbody>
+                <tr v-for="t in popoutRow.tags" :key="`${t.key}=${t.value}`">
+                  <td class="mono">{{ t.key }}</td>
+                  <td class="mono">{{ t.value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </aside>
         </div>
       </article>
     </div>
@@ -1585,8 +1587,11 @@ function jumpToTrace(traceId: string, ts?: number): void {
   background: var(--sw-bg-2);
   border-radius: 3px;
 }
+.lg-popout-split { flex: 1; min-height: 0; display: flex; }
 .lg-popout-body {
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   margin: 0;
   padding: 12px 14px;
   background: var(--sw-bg-0);
@@ -1601,16 +1606,19 @@ function jumpToTrace(traceId: string, ts?: number): void {
 .lg-popout-body.json { color: var(--sw-cyan); }
 .lg-popout-body.yaml { color: #fbbf24; }
 .lg-popout-tags {
-  border-top: 1px solid var(--sw-line);
-  padding: 8px 14px;
-  max-height: 200px;
+  flex: 0 0 340px;
+  border-left: 1px solid var(--sw-line);
+  padding: 8px 14px 12px;
   overflow: auto;
+  background: var(--sw-bg-1);
 }
 .lg-popout-tag-tbl {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 11px;
 }
+.lg-popout-tag-tbl td { word-break: break-all; vertical-align: top; }
 .lg-popout-tag-tbl th, .lg-popout-tag-tbl td {
   padding: 4px 10px;
   text-align: left;
