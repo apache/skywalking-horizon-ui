@@ -68,7 +68,6 @@ const pickEndpointId = ref<string>('');
 const services = ref<Array<{ id: string; name: string; normal: boolean | null }>>([]);
 const instances = ref<Array<{ id: string; name: string }>>([]);
 const endpoints = ref<Array<{ id: string; name: string }>>([]);
-const endpointQuery = ref<string>('');
 const servicesLoading = ref(false);
 
 const pickServiceName = computed(
@@ -114,7 +113,9 @@ async function loadEndpoints(): Promise<void> {
     return;
   }
   try {
-    const res = await bffClient.layer.endpoints(pickLayer.value, name, endpointQuery.value.trim());
+    // Preload the top endpoints (like the per-layer Traces picker); the
+    // dropdown filters them client-side.
+    const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
     endpoints.value = res.reachable ? res.endpoints : [];
   } catch {
     endpoints.value = [];
@@ -126,7 +127,6 @@ watch(pickServiceId, () => {
   void loadInstances();
   void loadEndpoints();
 });
-watch(endpointQuery, () => void loadEndpoints());
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 const serviceOptions = computed(() =>
@@ -324,7 +324,6 @@ function fmtTime(start: string): string {
           </label>
           <label class="cf">
             <span>{{ t('Endpoint') }}</span>
-            <input v-model="endpointQuery" class="cf-input" type="text" :disabled="!pickServiceId" :placeholder="t('search…')" />
             <TypeaheadSelect v-model="endpointSel" :aria-label="t('Endpoint')" :options="endpointOptions" :disabled="!pickServiceId" :placeholder="t('All endpoints')" class="cf-tas" />
           </label>
         </div>
