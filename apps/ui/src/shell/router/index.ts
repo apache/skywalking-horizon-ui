@@ -211,15 +211,24 @@ const shellRoutes: RouteRecordRaw[] = [
     component: () => import('@/features/operate/inspect/InspectView.vue'),
     meta: { verb: 'inspect:read' },
   },
-  // Explore — cross-layer trace/log power-tool. Layer-less: the entity is
-  // picked or typed (name + real flag); dispatches by source via
-  // /api/explore/query. Uses the standard query-protocol (always on),
-  // so it is NOT gated on the inspect module like Metrics inspect.
+  // Trace inspect / Log inspect — cross-layer trace/log query power-tools.
+  // Layer-less: the entity is picked or typed (name + real flag) or
+  // omitted; dispatched by source via /api/explore/query. They use the
+  // standard query-protocol (always on), so — unlike Metrics inspect —
+  // they are NOT gated on the OAP inspect module.
   {
-    path: 'operate/explore',
-    name: 'explore',
+    path: 'operate/trace-inspect',
+    name: 'trace-inspect',
     component: () => import('@/features/operate/explore/ExploreView.vue'),
-    meta: { verb: 'explore:read' },
+    props: { kind: 'trace' },
+    meta: { verb: 'traces:read' },
+  },
+  {
+    path: 'operate/log-inspect',
+    name: 'log-inspect',
+    component: () => import('@/features/operate/explore/ExploreView.vue'),
+    props: { kind: 'log' },
+    meta: { verb: 'logs:read' },
   },
   // Data retention (TTL) — query-port read of getRecordsTTL/getMetricsTTL.
   {

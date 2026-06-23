@@ -272,7 +272,8 @@ const sections = computed<NavSection[]>(() => [
       },
       { icon: 'event', label: t('Capture history'), to: '/operate/live-debug/history', verb: 'live-debug:read' },
       { icon: 'metric', label: t('Metrics inspect'), to: '/operate/inspect', verb: 'inspect:read' },
-      { icon: 'trace', label: t('Explore'), to: '/operate/explore', verb: 'explore:read' },
+      { icon: 'trace', label: t('Trace inspect'), to: '/operate/trace-inspect', verb: 'traces:read' },
+      { icon: 'log', label: t('Log inspect'), to: '/operate/log-inspect', verb: 'logs:read' },
     ],
   },
   {

@@ -74,7 +74,9 @@ export interface ExploreRequest {
   traceSource?: ExploreTraceSource;
   /** when kind === 'log' */
   logSource?: ExploreLogSource;
-  entity: ExploreEntity;
+  /** Optional — a trace/log query needs no entity (query all services in
+   *  the window, or filter by trace id / conditions only). */
+  entity?: ExploreEntity;
   window: ExploreWindow;
   pageNum?: number;
   pageSize?: number;

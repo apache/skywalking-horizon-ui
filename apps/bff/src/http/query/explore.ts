@@ -105,10 +105,9 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         };
 
         if (traceSource === 'native') {
-          const ids = resolveNativeEntity(body.entity);
-          if (!ids.serviceId && !body.traceId) {
-            return reply.code(400).send({ error: 'entity_required' });
-          }
+          // Entity is optional — no service means "all services in the
+          // window" (OAP's TraceQueryCondition.serviceId is nullable).
+          const ids = body.entity ? resolveNativeEntity(body.entity) : {};
           const native = await fetchNativeList(
             opts,
             { ...base, ...ids },
@@ -141,7 +140,7 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
 
         // zipkin: a raw service name (no OAP id). remoteService/span/
         // annotation enrichment lands with the zipkin form increment.
-        const service = body.entity.serviceName;
+        const service = body.entity?.serviceName;
         const zipkin = await fetchZipkinList(opts, { ...base, service }, maxTraces);
         const resolved: ExploreResolved = {
           kind: 'trace',
