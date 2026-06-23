@@ -124,6 +124,11 @@ const { traces, isFetching, error, refetch } = useLayerZipkinTraces({
 });
 const { openTrace } = useZipkinTracePopout();
 
+// Gate the cached `traces` behind `hasQueried` so the scatter + list
+// count don't keep painting the prior layer's set after a layer switch
+// (which resets `hasQueried` but leaves `traces` until the next fetch).
+const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? traces.value : []));
+
 function runQuery(): void {
   // Service filter is now operator-driven (free-text + datalist), not
   // bound to the URL service picker. Empty = "All services" in
@@ -157,16 +162,9 @@ function runQuery(): void {
   void refetch();
 }
 
-// URL `?traceId=<id>` opens the popout directly (e.g. log-row link
-// → trace jump). We just route those through the Zipkin popout state.
-watch(
-  () => route.query.traceId,
-  (raw) => {
-    const id = typeof raw === 'string' ? raw : null;
-    if (id) openTrace(id);
-  },
-  { immediate: true },
-);
+// URL `?traceId=<id>` (e.g. a log-row trace jump) opens the popout via
+// the globally-mounted ZipkinTracePopout, which reads the param itself
+// (route-gated by layer) — no page-local watch needed here.
 
 // Zipkin's service universe is INDEPENDENT of SkyWalking's per-page
 // service picker — different name index (no `<group>::` prefix, no
@@ -176,8 +174,13 @@ watch(
 // `/api/v2/services` dropdown.
 //
 // No auto-fire — traces are expensive, the operator runs explicitly.
-// Switching layer clears the prior result set back to the run prompt.
-watch(layerKey, () => { hasQueried.value = false; });
+// Switching layer clears the prior result set back to the run prompt,
+// and drops any inline selection / scatter pick from the old layer.
+watch(layerKey, () => {
+  hasQueried.value = false;
+  selectedTraceId.value = null;
+  pickedTraceIds.value = new Set();
+});
 
 // Load the full Zipkin service list once for the filter dropdown.
 // Best-effort: a failed fetch leaves the input as plain text.
@@ -324,8 +327,7 @@ watch([cService, cLookback, cLimit, cSpan, cRemote, cAnno], () => {
 // waterfall row list. Reused-but-simplified from `ZipkinTracePopout`:
 // same parent-id walk, fewer per-row affordances since the rail is
 // narrower than the popout.
-const selectedTraceIdRef = computed<string | null>(() => selectedTraceId.value);
-const { spans: selectedSpans, isLoading: selectedLoading } = useZipkinTrace(selectedTraceIdRef);
+const { spans: selectedSpans, isLoading: selectedLoading } = useZipkinTrace(selectedTraceId);
 interface DetailRow { span: import('@skywalking-horizon-ui/api-client').ZipkinSpan; depth: number; offsetUs: number; durUs: number; }
 const detailBounds = computed(() => {
   let t0 = Infinity;
@@ -352,8 +354,11 @@ const detailRows = computed<DetailRow[]>(() => {
   for (const arr of byParent.values()) arr.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
   const out: DetailRow[] = [];
   const { t0 } = detailBounds.value;
+  const visited = new Set<string>();
   function walk(parentId: string, depth: number): void {
     for (const s of (byParent.get(parentId) ?? [])) {
+      if (visited.has(s.id)) continue; // guard against cyclic parentId chains
+      visited.add(s.id);
       const start = s.timestamp ?? t0;
       out.push({ span: s, depth, offsetUs: start - t0, durUs: s.duration ?? 0 });
       walk(s.id, depth + 1);
@@ -413,7 +418,8 @@ const ANNOTATION_LABELS: Record<string, string> = {
   error: 'error',
 };
 function annotationHint(value: string): string | null {
-  return ANNOTATION_LABELS[value.trim().toLowerCase()] ?? null;
+  const label = ANNOTATION_LABELS[value.trim().toLowerCase()];
+  return label ? t(label) : null;
 }
 function fmtDateTime(usSinceEpoch: number | null | undefined): string {
   if (!usSinceEpoch || !Number.isFinite(usSinceEpoch)) return '—';
@@ -449,15 +455,12 @@ function clearSpan(): void {
 watch(selectedTraceId, () => { selectedSpanId.value = null; });
 
 // Dismiss the floating span-detail overlay on Escape or click-outside.
-// A click on another `.ztr-wf-row` is ignored here — the row's own
-// handler swaps to that span; if we closed first we'd lose the new pin.
 const spanDetailRef = ref<HTMLElement | null>(null);
 function onSpanDetailDocClick(e: MouseEvent): void {
   if (!selectedSpan.value) return;
   const t = e.target as Element | null;
   if (!t) return;
   if (spanDetailRef.value?.contains(t)) return;
-  if (t.closest?.('.ztr-wf-row')) return;
   clearSpan();
 }
 function onSpanDetailKey(e: KeyboardEvent): void {
@@ -473,6 +476,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onSpanDetailDocClick);
   document.removeEventListener('keydown', onSpanDetailKey);
+  if (autocompleteTimer) clearTimeout(autocompleteTimer);
 });
 
 // ── Rendering helpers ───────────────────────────────────────────
@@ -486,8 +490,8 @@ function fmtMs(us: number | null): string {
 // the row meta strip; the card layout drops the wall-clock column.
 const sortedTraces = computed<ZipkinTraceListRow[]>(() => {
   const rows = pickedTraceIds.value.size > 0
-    ? traces.value.filter((r) => pickedTraceIds.value.has(r.traceId))
-    : traces.value;
+    ? shownTraces.value.filter((r) => pickedTraceIds.value.has(r.traceId))
+    : shownTraces.value;
   return [...rows].sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
 });
 /** Largest duration in the visible set — drives the proportional
@@ -495,7 +499,7 @@ const sortedTraces = computed<ZipkinTraceListRow[]>(() => {
  *  "% of slowest" presentation. */
 const maxTraceDurationUs = computed<number>(() => {
   let m = 0;
-  for (const t of traces.value) {
+  for (const t of shownTraces.value) {
     if ((t.duration ?? 0) > m) m = t.duration ?? 0;
   }
   return m || 1;
@@ -528,9 +532,9 @@ function openByInput(): void {
 // open the inline detail; drag a box to pick a set and filter the list.
 interface ScatterPoint { id: string; x: number; y: number; isError: boolean; label: string; row: ZipkinTraceListRow; }
 const scatterPoints = computed<ScatterPoint[]>(() =>
-  traces.value
+  shownTraces.value
     .filter((r): r is ZipkinTraceListRow & { timestamp: number; duration: number } =>
-      r.timestamp != null && r.duration != null)
+      r.timestamp != null && r.timestamp > 0 && r.duration != null && r.duration >= 0)
     .map((r) => ({
       id: r.traceId,
       x: r.timestamp,
@@ -1029,11 +1033,11 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
                         <span class="bar-svc" :title="row.span.localEndpoint?.serviceName ?? ''">{{ row.span.localEndpoint?.serviceName ?? '—' }}</span>
                         <span class="bar-name" :title="row.span.name || row.span.remoteEndpoint?.serviceName || '—'">{{ row.span.name || row.span.remoteEndpoint?.serviceName || '—' }}</span>
                       </span>
-                      <span v-if="detailLeftPct(row.offsetUs + row.durUs) > 85" class="bar-dur-inside mono">{{ fmtMs(row.durUs) }}</span>
+                      <span v-if="detailWidthPct(row.durUs) > 12" class="bar-dur-inside mono">{{ fmtMs(row.durUs) }}</span>
                     </span>
                   </div>
                   <span
-                    v-if="detailLeftPct(row.offsetUs + row.durUs) <= 85"
+                    v-if="detailWidthPct(row.durUs) <= 12"
                     class="bar-dur-outside mono"
                     :style="{ left: `calc(${detailLeftPct(row.offsetUs + row.durUs)}% + 6px)` }"
                   >{{ fmtMs(row.durUs) }}</span>
@@ -1041,10 +1045,10 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
               </div>
             </div>
 
-          <!-- Span detail floats as a right-edge overlay (width capped
-               at min(640px, 60%)) so it can render long tag values
-               without compressing the waterfall bars. Click ×, click
-               the same span, or pick another span to dismiss / swap. -->
+          <!-- Span detail opens as a centered modal (max-width 920px) so
+               it can render long tag values without compressing the
+               waterfall bars. Click ×, click the same span, or pick
+               another span to dismiss / swap. -->
           <div v-if="selectedSpan" class="span-modal-backdrop">
             <article ref="spanDetailRef" class="span-modal sw-card">
             <header class="span-modal-head">
@@ -1378,9 +1382,6 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
   grid-template-columns: 1fr;
   gap: 12px;
 }
-.ztr-split.has-detail {
-  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr);
-}
 .ztr-detail {
   display: flex;
   flex-direction: column;
@@ -1404,11 +1405,6 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
 .ztr-tid { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--sw-fg-2); font-size: 11px; }
 .ztr-detail-close { margin-left: auto; }
 
-/* When a span is pinned, the detail panel floats over the right edge
-   of the waterfall as an overlay so it can be wide enough for long tag
-   values without compressing the waterfall bars. min(640px, 60%) caps
-   the panel at 640px on wide layouts but yields gracefully on narrow
-   ones. Pop-out has the same pattern (.zk-detail). */
 .ztr-detail-body {
   flex: 1;
   position: relative;
@@ -1498,9 +1494,6 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
 .ann-hint { color: var(--sw-fg-3); }
 .dim { color: var(--sw-fg-3); }
 .wba { word-break: break-all; }
-
-/* Floating overlay scales with the container via min(640px, 60%) — no
-   width breakpoints needed. */
 
 /* Inline waterfall — each span is a row with `<label> <track> <dur>`.
    Track width is dynamic; the bar inside left/width % positions the
@@ -1663,29 +1656,12 @@ function pickScatterDot(p: ScatterPoint, ev: MouseEvent): void {
   opacity: 0.82;
   white-space: nowrap;
 }
-.status-flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 18px;
-  padding: 0 6px;
-  border-radius: 9px;
-  font-size: 9.5px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  flex: 0 0 auto;
-}
 .status-flag.sm { height: 12px; width: 12px; padding: 0; border-radius: 50%; justify-content: center; }
 .status-flag.sm .flag-dot { margin: 0; }
-.flag-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
-.status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
 
 @media (max-width: 1100px) {
   /* On narrow screens, fall back to stacked layout — the detail rail
      would crowd the table otherwise. */
-  .ztr-split.has-detail { grid-template-columns: 1fr; }
   .ztr-detail-split { grid-template-columns: 1fr !important; }
 }
 

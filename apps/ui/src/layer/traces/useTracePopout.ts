@@ -32,7 +32,7 @@
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { isZipkinTraceId } from './useZipkinTracePopout';
+import { useTraceSourceIsZipkin } from './useZipkinTracePopout';
 
 /** Query-string keys. Any URL with TRACE_POPOUT_QUERY auto-opens the
  *  trace popout — shareable. TRACE_POPOUT_AT carries the trace's
@@ -49,9 +49,10 @@ export function useTracePopout() {
   const route = useRoute();
   const router = useRouter();
 
+  const sourceIsZipkin = useTraceSourceIsZipkin();
   const openTraceId = computed<string | null>(() => {
     const v = route.query[TRACE_POPOUT_QUERY];
-    return typeof v === 'string' && v.length > 0 && !isZipkinTraceId(v) ? v : null;
+    return typeof v === 'string' && v.length > 0 && !sourceIsZipkin.value ? v : null;
   });
   const openTraceAtMs = computed<number | null>(() => {
     const v = route.query[TRACE_POPOUT_AT];

@@ -206,9 +206,9 @@ function offsetPct(us: number): number {
   return Math.max(0, Math.min(100, (us / total) * 100));
 }
 function widthPct(us: number): number {
-  if (us <= 0) return 0.4; // give zero-duration spans a sliver so they render
+  if (us <= 0) return 0.8; // give zero-duration spans a sliver so they render
   const total = bounds.value.totalUs || 1;
-  return Math.max(0.4, Math.min(100, (us / total) * 100));
+  return Math.max(0.8, Math.min(100, (us / total) * 100));
 }
 
 // ── ESC + backdrop close ─────────────────────────────────────────
@@ -328,11 +328,11 @@ function copyTraceId(): void {
                     <span class="bar-svc" :title="row.span.localEndpoint?.serviceName ?? ''">{{ row.span.localEndpoint?.serviceName ?? '—' }}</span>
                     <span class="bar-name" :title="row.span.name || row.span.remoteEndpoint?.serviceName || '—'">{{ row.span.name || row.span.remoteEndpoint?.serviceName || '—' }}</span>
                   </span>
-                  <span v-if="offsetPct(row.startOffsetUs + row.durationUs) > 85" class="bar-dur-inside mono">{{ fmtMs(row.durationUs) }}</span>
+                  <span v-if="widthPct(row.durationUs) > 12" class="bar-dur-inside mono">{{ fmtMs(row.durationUs) }}</span>
                 </span>
               </div>
               <span
-                v-if="offsetPct(row.startOffsetUs + row.durationUs) <= 85"
+                v-if="widthPct(row.durationUs) <= 12"
                 class="bar-dur-outside mono"
                 :style="{ left: `calc(${offsetPct(row.startOffsetUs + row.durationUs)}% + 6px)` }"
               >{{ fmtMs(row.durationUs) }}</span>
@@ -402,7 +402,9 @@ function copyTraceId(): void {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  /* Match the native TracePopout backdrop (999) so the nested
+     span-modal (z-index 1000) composites above the native popout. */
+  z-index: 999;
   padding: 24px;
 }
 .zk-popout {
@@ -682,17 +684,6 @@ function copyTraceId(): void {
   letter-spacing: 0.1em;
   color: var(--sw-accent);
   font-weight: 600;
-}
-.sw-btn.primary {
-  background: var(--sw-accent);
-  color: var(--sw-bg-0);
-  border: none;
-  height: 26px;
-  padding: 0 14px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
 }
 .sw-btn.small { height: 24px; padding: 0 10px; font-size: 11px; }
 .sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); }

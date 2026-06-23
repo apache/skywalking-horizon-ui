@@ -17,25 +17,37 @@
 
 /**
  * URL-backed popout state for Zipkin traces. Shares the native popout's
- * `?traceId=<id>` param; the two self-select by ID shape (Zipkin IDs are
- * bare hex, SkyWalking-native IDs are dotted `x.y.z`), so a layer's
- * `/trace` URL works for either source without a separate param.
+ * `?traceId=<id>` param; native vs Zipkin is decided by the current
+ * layer's trace source, NOT the ID shape (SkyWalking-native IDs can be
+ * bare hex — same as Zipkin — so shape is not a reliable discriminator).
  */
 
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useLayers } from '@/shell/useLayers';
 
-export function isZipkinTraceId(id: string): boolean {
-  return /^[0-9a-f]{16}$|^[0-9a-f]{32}$/i.test(id);
+/** True when the current route's layer serves Zipkin traces — the
+ *  `/zipkin-trace` tab, or a layer whose template sets traces.source
+ *  to `zipkin`. Mirrors LayerTracesEntry's dispatch so the global
+ *  `?traceId=` popout opens the same viewer the route renders. */
+export function useTraceSourceIsZipkin() {
+  const route = useRoute();
+  const { layers } = useLayers();
+  return computed<boolean>(() => {
+    if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
+    const key = String(route.params.layerKey ?? '');
+    return (layers.value.find((l) => l.key === key)?.traces?.source ?? 'native') === 'zipkin';
+  });
 }
 
 export function useZipkinTracePopout() {
   const route = useRoute();
   const router = useRouter();
+  const sourceIsZipkin = useTraceSourceIsZipkin();
 
   const openTraceId = computed<string | null>(() => {
     const v = route.query.traceId;
-    return typeof v === 'string' && isZipkinTraceId(v) ? v : null;
+    return typeof v === 'string' && v.length > 0 && sourceIsZipkin.value ? v : null;
   });
 
   function openTrace(id: string): void {
@@ -47,6 +59,7 @@ export function useZipkinTracePopout() {
     if (!openTraceId.value) return;
     const next = { ...route.query };
     delete next.traceId;
+    delete next.traceAt;
     void router.replace({ path: route.path, query: next });
   }
 

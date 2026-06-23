@@ -1453,5 +1453,12 @@
   "Comparing {n} endpoints across services": "Comparing {n} endpoints across services",
   "Failed to load": "Failed to load",
   "{n} locked · lock 1 more to compare": "{n} locked · lock 1 more to compare",
-  "All": "All"
+  "All": "All",
+  "client send": "client send",
+  "client receive": "client receive",
+  "server receive": "server receive",
+  "server send": "server send",
+  "wire send": "wire send",
+  "wire receive": "wire receive",
+  "error": "error"
 }
