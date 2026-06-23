@@ -106,6 +106,18 @@ const scatterBounds = computed(() => {
   const yMax = rawYMax || 1;
   return { xMin: Math.min(...xs), xMax: Math.max(...xs), yMin: 0, yMax };
 });
+// Pre-place each point in viewBox space so the template (and its
+// transparent hit-target) share one cx/cy instead of recomputing it.
+const placedPoints = computed(() => {
+  const b = scatterBounds.value;
+  if (!b) return [];
+  const xSpan = b.xMax - b.xMin;
+  return scatterPoints.value.map((p) => ({
+    ...p,
+    cx: xSpan === 0 ? 500 : ((p.x - b.xMin) / xSpan) * 1000,
+    cy: 1000 - ((p.y - b.yMin) / (b.yMax - b.yMin || 1)) * 990,
+  }));
+});
 const scatterXTicks = computed(() => {
   const b = scatterBounds.value;
   if (!b) return [];
@@ -206,22 +218,24 @@ function onScatterDot(p: ScatterPoint, ev: MouseEvent): void {
       @pointercancel="onScatterUp"
     >
       <line x1="0" y1="998" x2="1000" y2="998" stroke="var(--sw-line-2)" stroke-width="1" vector-effect="non-scaling-stroke" />
-      <circle
-        v-for="p in scatterPoints"
-        :key="p.id"
-        :cx="scatterBounds.xMax === scatterBounds.xMin ? 500 : ((p.x - scatterBounds.xMin) / (scatterBounds.xMax - scatterBounds.xMin)) * 1000"
-        :cy="1000 - ((p.y - scatterBounds.yMin) / (scatterBounds.yMax - scatterBounds.yMin || 1)) * 990"
-        :r="isHot(p.rowKey) ? 6 : 3.2"
-        :fill="p.isError ? 'var(--sw-err)' : 'var(--sw-accent)'"
-        :fill-opacity="isHot(p.rowKey) ? 1 : (hasHot ? 0.35 : 0.9)"
-        :stroke="isHot(p.rowKey) ? 'var(--sw-fg-0)' : (p.isError ? 'var(--sw-err)' : 'var(--sw-accent-2)')"
-        :stroke-width="isHot(p.rowKey) ? 1.8 : 0.8"
-        vector-effect="non-scaling-stroke"
-        class="scatter-dot"
-        @click="onScatterDot(p, $event)"
-      >
-        <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ isHot(p.rowKey) ? ` · ${t('selected')}` : '' }}</title>
-      </circle>
+      <g v-for="p in placedPoints" :key="p.id">
+        <circle
+          :cx="p.cx"
+          :cy="p.cy"
+          :r="isHot(p.rowKey) ? 6 : 3.2"
+          :fill="p.isError ? 'var(--sw-err)' : 'var(--sw-accent)'"
+          :fill-opacity="isHot(p.rowKey) ? 1 : (hasHot ? 0.35 : 0.9)"
+          :stroke="isHot(p.rowKey) ? 'var(--sw-fg-0)' : (p.isError ? 'var(--sw-err)' : 'var(--sw-accent-2)')"
+          :stroke-width="isHot(p.rowKey) ? 1.8 : 0.8"
+          vector-effect="non-scaling-stroke"
+          pointer-events="none"
+        />
+        <!-- A fat transparent hit-target: the visible dot is ~1-2px once the
+             1000-unit viewBox is squashed to the card, far too small to click. -->
+        <circle :cx="p.cx" :cy="p.cy" r="18" fill="transparent" class="scatter-dot" @click="onScatterDot(p, $event)">
+          <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ isHot(p.rowKey) ? ` · ${t('selected')}` : '' }}</title>
+        </circle>
+      </g>
       <!-- Drag-select rectangle. -->
       <rect
         v-if="dragRect"

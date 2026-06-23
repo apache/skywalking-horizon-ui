@@ -624,7 +624,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 <span>{{ t('Annotation query') }}</span>
                 <input v-model="cond.annotationQuery" class="cf-input mono" type="text" :placeholder="t('error or key=value, AND-joined')" />
               </label>
-              <label class="cf" :class="{ 'cf-wide': isCustomRange }">
+              <label class="cf iq-time" :class="{ 'cf-wide': isCustomRange }">
                 <span>{{ t('Time') }}</span>
                 <template v-if="isCustomRange">
                   <span class="cf-range">
@@ -768,6 +768,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 @media (max-width: 560px) { .iq-grid { grid-template-columns: 1fr; } }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
+.cf.iq-time { grid-column-start: 1; }
+.cf.iq-time.cf-wide { grid-column: 1 / span 2; }
 .cf.cf-chk { justify-content: flex-end; }
 .cf.cf-disabled > span { color: var(--sw-fg-3); opacity: 0.7; }
 .cf small { font-weight: 400; font-size: 9.5px; margin-left: 4px; font-style: italic; }
