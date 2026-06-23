@@ -55,7 +55,7 @@
           "latest(aggregate_labels(meter_clickhouse_file_open,sum))"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "qps",
@@ -270,7 +270,7 @@
           "latest(meter_clickhouse_instance_uptime)/3600/24"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "version",
@@ -280,7 +280,7 @@
           "latest(meter_clickhouse_instance_version)"
         ],
         "span": 3,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "cpu",
@@ -426,7 +426,7 @@
           "latest(meter_clickhouse_instance_file_open)"
         ],
         "span": 4,
-        "rowSpan": 1
+        "rowSpan": 2
       },
       {
         "id": "insert_io",
