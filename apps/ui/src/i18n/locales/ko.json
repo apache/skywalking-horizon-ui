@@ -456,6 +456,8 @@
   "Min duration (ms)": "최소 기간 (ms)",
   "Max duration (ms)": "최대 기간 (ms)",
   "Annotations": "주석",
+  "Annotation query": "주석 쿼리",
+  "All services": "모든 서비스",
   "error or key=value, AND-joined": "error 또는 key=value, AND로 결합",
   "Open trace ID": "트레이스 ID 열기",
   "paste trace id…": "트레이스 ID를 붙여넣으세요…",

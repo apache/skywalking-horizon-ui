@@ -51,7 +51,10 @@ export interface ZipkinClientOpts {
 
 export interface ZipkinTracesQuery {
   serviceName?: string;
+  remoteServiceName?: string;
   spanName?: string;
+  /** Zipkin annotation query — `key` / `key=value`, AND-joined. */
+  annotationQuery?: string;
   /** Microseconds. */
   minDuration?: number;
   /** Microseconds. */
@@ -140,7 +143,9 @@ export async function zipkinFetchTraces(
 ): Promise<ZipkinTraceListRow[]> {
   const qs = new URLSearchParams();
   if (query.serviceName) qs.set('serviceName', query.serviceName);
+  if (query.remoteServiceName) qs.set('remoteServiceName', query.remoteServiceName);
   if (query.spanName) qs.set('spanName', query.spanName);
+  if (query.annotationQuery) qs.set('annotationQuery', query.annotationQuery);
   if (typeof query.minDuration === 'number') qs.set('minDuration', String(query.minDuration));
   if (typeof query.maxDuration === 'number') qs.set('maxDuration', String(query.maxDuration));
   const endTs = query.endTs ?? Date.now();

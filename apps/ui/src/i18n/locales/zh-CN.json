@@ -456,6 +456,8 @@
   "Min duration (ms)": "最小耗时（ms）",
   "Max duration (ms)": "最大耗时（ms）",
   "Annotations": "注解",
+  "Annotation query": "注解查询",
+  "All services": "全部服务",
   "error or key=value, AND-joined": "error 或 key=value，使用 AND 连接",
   "Open trace ID": "打开 Trace ID",
   "paste trace id…": "粘贴 trace id…",

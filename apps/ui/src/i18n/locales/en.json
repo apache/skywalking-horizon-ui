@@ -426,6 +426,8 @@
   "Min duration (ms)": "Min duration (ms)",
   "Max duration (ms)": "Max duration (ms)",
   "Annotations": "Annotations",
+  "Annotation query": "Annotation query",
+  "All services": "All services",
   "error or key=value, AND-joined": "error or key=value, AND-joined",
   "Open trace ID": "Open trace ID",
   "paste trace id…": "paste trace id…",

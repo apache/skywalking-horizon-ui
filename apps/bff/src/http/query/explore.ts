@@ -35,6 +35,7 @@ import type {
   ExploreResponse,
   ExploreWindow,
   FetchLike,
+  ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -42,7 +43,8 @@ import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts } from '../../client/graphql.js';
 import { getServerOffsetMinutes } from '../../util/window.js';
 import { buildEndpointId, buildInstanceId, buildServiceId } from '../../util/entityId.js';
-import { fetchNativeList, fetchZipkinList, type TraceListBody } from './trace.js';
+import { fetchNativeList, type TraceListBody } from './trace.js';
+import { zipkinFetchTraces } from '../../client/zipkin.js';
 
 export interface ExploreRouteDeps {
   config: ConfigSource;
@@ -74,6 +76,16 @@ function traceWindowFields(w: ExploreWindow): Pick<TraceListBody, 'windowMinutes
     return { start: new Date(w.startMs).toISOString(), end: new Date(w.endMs).toISOString() };
   }
   return { windowMinutes: w.windowMinutes };
+}
+
+/** Zipkin queries the window `[endTs - lookback, endTs]` (ms). Explicit
+ *  epoch-ms bounds map to `endTs = endMs`, `lookback = endMs - startMs`;
+ *  the rolling minutes preset maps to `endTs = now`, `lookback = mins`. */
+function zipkinWindow(w: ExploreWindow): { endTs: number; lookback: number } {
+  if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
+    return { endTs: w.endMs, lookback: w.endMs - w.startMs };
+  }
+  return { endTs: Date.now(), lookback: Math.max(1, w.windowMinutes ?? 30) * 60_000 };
 }
 
 export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDeps): void {
@@ -138,19 +150,51 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
           } satisfies ExploreResponse);
         }
 
-        // zipkin: a raw service name (no OAP id). remoteService/span/
-        // annotation enrichment lands with the zipkin form increment.
+        // zipkin: a raw service name (no OAP id) plus the rich query
+        // params Zipkin's REST API takes. Duration arrives in ms (the
+        // shared condition unit) — Zipkin wants µs.
         const service = body.entity?.serviceName;
-        const zipkin = await fetchZipkinList(opts, { ...base, service }, maxTraces);
+        const { endTs, lookback } = zipkinWindow(body.window ?? {});
+        const minUs = typeof body.minTraceDuration === 'number' ? Math.max(0, body.minTraceDuration * 1000) : undefined;
+        const maxUs = typeof body.maxTraceDuration === 'number' ? Math.max(0, body.maxTraceDuration * 1000) : undefined;
+        const limit = Math.min(maxTraces, Math.max(1, Math.round(body.pageSize ?? 20)));
+        const zipkinOpts = { ...opts, queryUrl: deps.config.current.oap.zipkinUrl };
+        let zipkin: ZipkinTraceListResponse;
+        try {
+          const traces = await zipkinFetchTraces(zipkinOpts, {
+            serviceName: service,
+            remoteServiceName: body.remoteServiceName || undefined,
+            spanName: body.spanName || undefined,
+            annotationQuery: body.annotationQuery || undefined,
+            minDuration: minUs,
+            maxDuration: maxUs,
+            endTs,
+            lookback,
+            limit,
+          });
+          zipkin = { source: 'zipkin', traces, reachable: true };
+        } catch (err) {
+          zipkin = {
+            source: 'zipkin',
+            traces: [],
+            reachable: false,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
         const resolved: ExploreResolved = {
           kind: 'trace',
           source: 'zipkin',
           entityId: service,
           condition: {
             ...(service ? { serviceName: service } : {}),
-            ...(typeof body.minTraceDuration === 'number' ? { minDuration: body.minTraceDuration } : {}),
-            ...(typeof body.maxTraceDuration === 'number' ? { maxDuration: body.maxTraceDuration } : {}),
-            ...win,
+            ...(body.remoteServiceName ? { remoteServiceName: body.remoteServiceName } : {}),
+            ...(body.spanName ? { spanName: body.spanName } : {}),
+            ...(body.annotationQuery ? { annotationQuery: body.annotationQuery } : {}),
+            ...(typeof minUs === 'number' ? { minDuration: minUs } : {}),
+            ...(typeof maxUs === 'number' ? { maxDuration: maxUs } : {}),
+            endTs,
+            lookback,
+            limit,
           },
         };
         return reply.send({

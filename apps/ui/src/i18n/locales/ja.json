@@ -456,6 +456,8 @@
   "Min duration (ms)": "最小所要時間（ms）",
   "Max duration (ms)": "最大所要時間（ms）",
   "Annotations": "アノテーション",
+  "Annotation query": "アノテーションクエリ",
+  "All services": "すべてのサービス",
   "error or key=value, AND-joined": "error または key=value（AND 結合）",
   "Open trace ID": "トレース ID を開く",
   "paste trace id…": "トレース ID を貼り付け…",

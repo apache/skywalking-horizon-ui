@@ -43,10 +43,13 @@ import type {
   TraceQueryOrder,
   TraceQueryState,
 } from '@/api/client';
+import type { ZipkinTraceListRow } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { useTraceDetail } from '@/layer/traces/useLayerTraces';
+import { useZipkinTrace } from '@/layer/traces/useZipkinTraces';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
+import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
@@ -183,6 +186,74 @@ function currentEntity(): ExploreEntity | null {
   };
 }
 
+// ── zipkin entity (raw service universe — no layer, no id) ────────────
+const zipkinService = ref<string>('');
+const zipkinRemote = ref<string>('');
+const zipkinSpan = ref<string>('');
+const zipkinServiceNames = ref<string[]>([]);
+const zipkinRemoteNames = ref<string[]>([]);
+const zipkinSpanNames = ref<string[]>([]);
+
+const zipkinServiceOptions = computed(() => [
+  { value: '', label: t('All services') },
+  ...zipkinServiceNames.value.map((s) => ({ value: s, label: s })),
+]);
+const zipkinRemoteOptions = computed(() => [
+  { value: '', label: t('any') },
+  ...zipkinRemoteNames.value.map((s) => ({ value: s, label: s })),
+]);
+const zipkinSpanOptions = computed(() => [
+  { value: '', label: t('any') },
+  ...zipkinSpanNames.value.map((s) => ({ value: s, label: s })),
+]);
+const zipkinHasService = computed(() => zipkinService.value.trim().length > 0);
+
+async function loadZipkinServices(): Promise<void> {
+  try {
+    const res = await bffClient.zipkin.services();
+    zipkinServiceNames.value = Array.from(new Set(Array.isArray(res) ? res : []));
+  } catch {
+    zipkinServiceNames.value = [];
+  }
+}
+async function loadZipkinAutocomplete(svc: string): Promise<void> {
+  if (!svc) {
+    zipkinRemoteNames.value = [];
+    zipkinSpanNames.value = [];
+    return;
+  }
+  try {
+    const sp = await bffClient.zipkin.spans(svc);
+    zipkinSpanNames.value = Array.isArray(sp) ? sp : [];
+  } catch { zipkinSpanNames.value = []; }
+  try {
+    const rs = await bffClient.zipkin.remoteServices(svc);
+    zipkinRemoteNames.value = Array.isArray(rs) ? rs : [];
+  } catch { zipkinRemoteNames.value = []; }
+}
+// Span / remote autocomplete is service-scoped in Zipkin; clearing the
+// service resets the dependent fields so a stale span/remote doesn't
+// silently filter out everything against "All services".
+watch(zipkinService, (svc) => {
+  const trimmed = svc.trim();
+  if (!trimmed) {
+    zipkinRemote.value = '';
+    zipkinSpan.value = '';
+  }
+  void loadZipkinAutocomplete(trimmed);
+});
+// Load the zipkin service list the first time the operator switches to
+// the Zipkin source (and reset the result + detail on every switch).
+watch(traceSource, (src) => {
+  closeDetail();
+  hasQueried.value = false;
+  native.value = null;
+  zipkinRows.value = [];
+  resolved.value = null;
+  errorMsg.value = null;
+  if (src === 'zipkin' && zipkinServiceNames.value.length === 0) void loadZipkinServices();
+});
+
 // ── trace conditions ──────────────────────────────────────────────────
 const cond = reactive({
   traceId: '',
@@ -191,6 +262,7 @@ const cond = reactive({
   minDuration: '' as string,
   maxDuration: '' as string,
   tags: '' as string,
+  annotationQuery: '' as string,
   windowMinutes: 30,
   limit: 30,
 });
@@ -238,10 +310,11 @@ const running = ref(false);
 const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
 const native = ref<NativeTraceListResponse | null>(null);
+const zipkinRows = ref<ZipkinTraceListRow[]>([]);
 const resolved = ref<ExploreResolved | null>(null);
 const showResolved = ref(false);
 
-const canRun = computed(() => props.kind === 'trace' && traceSource.value === 'native');
+const canRun = computed(() => props.kind === 'trace');
 
 /** Build the window the request carries: explicit epoch-ms bounds in
  *  Custom mode (datetime-local strings are browser-local; `Date.parse`
@@ -262,13 +335,9 @@ function resolveWindow(): ExploreWindow {
   return { windowMinutes: cond.windowMinutes };
 }
 
-async function runQuery(): Promise<void> {
-  running.value = true;
-  hasQueried.value = true;
-  errorMsg.value = null;
-  closeDetail();
+function buildNativeRequest(): ExploreRequest {
   const entity = currentEntity();
-  const req: ExploreRequest = {
+  return {
     kind: 'trace',
     traceSource: 'native',
     ...(entity ? { entity } : {}),
@@ -281,31 +350,87 @@ async function runQuery(): Promise<void> {
     maxTraceDuration: cond.maxDuration ? Number(cond.maxDuration) : undefined,
     tags: parseTags(cond.tags),
   };
+}
+
+/** Zipkin entity carries the raw service name (no layer, no id); the
+ *  remote-service / span / annotation conditions ride on the request. */
+function buildZipkinRequest(): ExploreRequest {
+  const svc = zipkinService.value.trim();
+  return {
+    kind: 'trace',
+    traceSource: 'zipkin',
+    ...(svc ? { entity: { mode: 'type', serviceName: svc } } : {}),
+    window: resolveWindow(),
+    pageSize: cond.limit,
+    remoteServiceName: zipkinRemote.value.trim() || undefined,
+    spanName: zipkinSpan.value.trim() || undefined,
+    annotationQuery: cond.annotationQuery.trim() || undefined,
+    minTraceDuration: cond.minDuration ? Number(cond.minDuration) : undefined,
+    maxTraceDuration: cond.maxDuration ? Number(cond.maxDuration) : undefined,
+  };
+}
+
+async function runQuery(): Promise<void> {
+  running.value = true;
+  hasQueried.value = true;
+  errorMsg.value = null;
+  closeDetail();
+  const zipkin = traceSource.value === 'zipkin';
+  const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
   try {
     const res = await bffClient.explore.query(req);
     if (res.kind === 'trace' && res.traceSource === 'native') {
       native.value = res.native;
+      zipkinRows.value = [];
       resolved.value = res.resolved;
       if (!res.native.reachable) errorMsg.value = res.native.error ?? t('OAP unreachable');
+    } else if (res.kind === 'trace' && res.traceSource === 'zipkin') {
+      zipkinRows.value = res.zipkin.traces;
+      native.value = null;
+      resolved.value = res.resolved;
+      if (!res.zipkin.reachable) errorMsg.value = res.zipkin.error ?? t('OAP unreachable');
     }
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e);
     native.value = null;
+    zipkinRows.value = [];
   } finally {
     running.value = false;
   }
 }
 
-const rows = computed<NativeTraceListRow[]>(() => (hasQueried.value ? native.value?.traces ?? [] : []));
+const isZipkin = computed(() => traceSource.value === 'zipkin');
+
+/** Adapt a Zipkin list row to the shared list/distribution row model.
+ *  Zipkin durations + timestamps are µs; the shared widgets read ms. */
+function zipkinToNativeRow(r: ZipkinTraceListRow): NativeTraceListRow {
+  return {
+    key: r.traceId,
+    segmentId: r.traceId,
+    endpointNames: [r.rootName ?? r.rootService ?? '—'],
+    duration: Math.round((r.duration ?? 0) / 1000),
+    start: String(Math.round((r.timestamp ?? 0) / 1000)),
+    isError: r.errorCount > 0,
+    traceIds: [r.traceId],
+  };
+}
+
+const rows = computed<NativeTraceListRow[]>(() => {
+  if (!hasQueried.value) return [];
+  return isZipkin.value
+    ? zipkinRows.value.map(zipkinToNativeRow)
+    : native.value?.traces ?? [];
+});
 const maxDuration = computed(() => (rows.value.length === 0 ? 0 : Math.max(...rows.value.map((r) => r.duration))));
 
 // Which OAP query answered. `queryBasicTraces` (Trace Query v1 API)
 // returns trace SEGMENTS; `queryTraces` (v2, BanyanDB only) returns whole
 // traces with spans inline. The banner states the API so operators always
 // know what a row represents — same wording as the per-layer Traces tab.
-const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
+// Zipkin always returns whole traces, so the banner is native-only.
+const isSegmentList = computed(() => !isZipkin.value && native.value?.api === 'queryBasicTraces');
 const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
-const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
+const showApiBanner = computed(() => hasQueried.value && !isZipkin.value && !!native.value?.reachable);
 
 // ── detail (reuses the shared trace-detail card + GET /api/trace/:id) ─
 const selectedTraceId = ref<string | null>(null);
@@ -314,8 +439,15 @@ const selectedRowKey = ref<string | null>(null);
 const embeddedSpans = ref<NativeSpan[] | null>(null);
 const railOpen = ref<boolean>(true);
 const sourceRef = ref<'native' | 'zipkin'>('native');
-const { nativeDetail, isFetching: detailFetching } = useTraceDetail(selectedTraceId, sourceRef);
+// Two detail hooks, each fed by a SOURCE-SCOPED trace-id ref so only the
+// active backend fetches (each hook gates on `!!traceId`). Native uses the
+// segment-id → queryTrace path; the zipkin detail is layer-less.
+const nativeDetailTraceId = computed<string | null>(() => (isZipkin.value ? null : selectedTraceId.value));
+const zipkinDetailTraceId = computed<string | null>(() => (isZipkin.value ? selectedTraceId.value : null));
+const { nativeDetail, isFetching: detailFetching } = useTraceDetail(nativeDetailTraceId, sourceRef);
+const { spans: zipkinSpans, isFetching: zipkinDetailFetching } = useZipkinTrace(zipkinDetailTraceId);
 const waterfallSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
+const detailLoading = computed(() => (isZipkin.value ? zipkinDetailFetching.value : detailFetching.value));
 
 function openRow(row: NativeTraceListRow): void {
   selectedRowKey.value = row.key;
@@ -334,7 +466,9 @@ function changeSelectedTraceId(id: string): void {
   embeddedSpans.value = null;
 }
 
-const detailCard = ref<InstanceType<typeof TraceDetailCard> | null>(null);
+// Both detail cards (native + zipkin) expose `closeSpanModal`; only one
+// mounts at a time, so a single ref drives the shared Esc cascade.
+const detailCard = ref<{ closeSpanModal: () => void } | null>(null);
 const spanModalOpen = ref<boolean>(false);
 function onPageKeyDown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return;
@@ -366,7 +500,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
         <span class="iq-bar-l">{{ t('Source') }}</span>
         <div class="seg">
           <button :class="{ on: traceSource === 'native' }" @click="traceSource = 'native'">{{ t('Native') }}</button>
-          <button class="muted" disabled :title="t('coming next')">Zipkin</button>
+          <button :class="{ on: traceSource === 'zipkin' }" @click="traceSource = 'zipkin'">Zipkin</button>
         </div>
       </div>
 
@@ -375,16 +509,33 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <div class="iq-target">
             <div class="iq-target-h">
               <span>{{ t('Target') }} <small class="dim">{{ t('optional — blank queries all services') }}</small></span>
-              <div class="seg sm">
+              <div v-if="!isZipkin" class="seg sm">
                 <button :class="{ on: entityMode === 'pick' }" @click="entityMode = 'pick'">{{ t('Pick') }}</button>
                 <button :class="{ on: entityMode === 'type' }" @click="entityMode = 'type'">{{ t('Type') }}</button>
               </div>
-              <button v-if="entityMode === 'pick'" class="iq-link" :disabled="!pickServiceId" @click="seedTypeFromPick">
+              <button v-if="!isZipkin && entityMode === 'pick'" class="iq-link" :disabled="!pickServiceId" @click="seedTypeFromPick">
                 {{ t('→ edit as text') }}
               </button>
             </div>
 
-            <div class="iq-grid" v-if="entityMode === 'pick'">
+            <!-- Zipkin entity — a raw service universe (no layer / no id).
+                 Remote service + span are service-scoped autocompletes. -->
+            <div class="iq-grid" v-if="isZipkin">
+              <label class="cf">
+                <span>{{ t('Service') }}</span>
+                <TypeaheadSelect v-model="zipkinService" :aria-label="t('Service')" :options="zipkinServiceOptions" :placeholder="t('All services')" class="cf-tas" />
+              </label>
+              <label class="cf" :class="{ 'cf-disabled': !zipkinHasService }">
+                <span>{{ t('Remote service') }} <small v-if="!zipkinHasService" class="dim">— {{ t('pick a service') }}</small></span>
+                <TypeaheadSelect v-model="zipkinRemote" :aria-label="t('Remote service')" :options="zipkinRemoteOptions" :disabled="!zipkinHasService" :placeholder="zipkinHasService ? t('any') : t('select a service first')" class="cf-tas" />
+              </label>
+              <label class="cf" :class="{ 'cf-disabled': !zipkinHasService }">
+                <span>{{ t('Span name') }} <small v-if="!zipkinHasService" class="dim">— {{ t('pick a service') }}</small></span>
+                <TypeaheadSelect v-model="zipkinSpan" :aria-label="t('Span name')" :options="zipkinSpanOptions" :disabled="!zipkinHasService" :placeholder="zipkinHasService ? t('any') : t('select a service first')" class="cf-tas" />
+              </label>
+            </div>
+
+            <div class="iq-grid" v-else-if="entityMode === 'pick'">
               <label class="cf">
                 <span>{{ t('Layer') }}</span>
                 <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="layerOptions" :placeholder="t('Any layer')" class="cf-tas" />
@@ -442,7 +593,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                 <span>{{ t('Trace ID') }}</span>
                 <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
               </label>
-              <label class="cf">
+              <label v-if="!isZipkin" class="cf">
                 <span>{{ t('Status') }}</span>
                 <select v-model="cond.traceState" class="cf-input">
                   <option value="ALL">{{ t('All') }}</option>
@@ -450,7 +601,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   <option value="ERROR">{{ t('Error') }}</option>
                 </select>
               </label>
-              <label class="cf">
+              <label v-if="!isZipkin" class="cf">
                 <span>{{ t('Order') }}</span>
                 <select v-model="cond.queryOrder" class="cf-input">
                   <option value="BY_START_TIME">{{ t('Newest') }}</option>
@@ -465,9 +616,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   <input v-model="cond.maxDuration" class="cf-input cf-range-num" type="number" min="0" :placeholder="t('max')" />
                 </span>
               </label>
-              <label class="cf cf-wide">
+              <label v-if="!isZipkin" class="cf cf-wide">
                 <span>{{ t('Tags') }}</span>
                 <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('http.status_code=500, …')" />
+              </label>
+              <label v-else class="cf cf-wide">
+                <span>{{ t('Annotation query') }}</span>
+                <input v-model="cond.annotationQuery" class="cf-input mono" type="text" :placeholder="t('error or key=value, AND-joined')" />
               </label>
               <label class="cf" :class="{ 'cf-wide': isCustomRange }">
                 <span>{{ t('Time') }}</span>
@@ -554,19 +709,30 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
             @toggle-rail="railOpen = !railOpen"
           />
           <div class="iq-detail">
-            <div v-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
-            <div v-else-if="waterfallSpans.length === 0" class="iq-empty sm">{{ t('No spans (older than the detail window).') }}</div>
-            <TraceDetailCard
-              v-else
+            <ZipkinTraceDetailCard
+              v-if="isZipkin"
               ref="detailCard"
-              :spans="waterfallSpans"
+              :spans="zipkinSpans"
               :trace-id="selectedTraceId"
-              :trace-ids="selectedTraceIds"
-              :loading="detailFetching"
+              :loading="detailLoading"
               @close="closeDetail"
-              @change-trace-id="changeSelectedTraceId"
               @update:modal-open="spanModalOpen = $event"
             />
+            <template v-else>
+              <div v-if="detailFetching && waterfallSpans.length === 0" class="iq-empty sm">{{ t('Reading trace…') }}</div>
+              <div v-else-if="waterfallSpans.length === 0" class="iq-empty sm">{{ t('No spans (older than the detail window).') }}</div>
+              <TraceDetailCard
+                v-else
+                ref="detailCard"
+                :spans="waterfallSpans"
+                :trace-id="selectedTraceId"
+                :trace-ids="selectedTraceIds"
+                :loading="detailFetching"
+                @close="closeDetail"
+                @change-trace-id="changeSelectedTraceId"
+                @update:modal-open="spanModalOpen = $event"
+              />
+            </template>
           </div>
         </section>
       </div>
@@ -592,7 +758,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .seg.sm button { padding: 3px 10px; }
 .seg button + button { border-left: 1px solid var(--sw-line-2); }
 .seg button.on { background: var(--sw-accent); color: #fff; }
-.seg button.muted { opacity: 0.45; cursor: not-allowed; }
 .iq-target { border: 1px solid var(--sw-line); border-radius: 6px; padding: 8px 10px; }
 .iq-target-h { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; font-size: 11px; color: var(--sw-fg-2); font-weight: 600; }
 .iq-target-h .dim { color: var(--sw-fg-4); font-weight: 400; }
@@ -604,6 +769,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
 .cf.cf-chk { justify-content: flex-end; }
+.cf.cf-disabled > span { color: var(--sw-fg-3); opacity: 0.7; }
+.cf small { font-weight: 400; font-size: 9.5px; margin-left: 4px; font-style: italic; }
 .iq-chk { display: inline-flex; align-items: center; gap: 6px; height: 28px; }
 .iq-chk .dim { color: var(--sw-fg-4); }
 .cf-input {
