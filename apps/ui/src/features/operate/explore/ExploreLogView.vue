@@ -758,7 +758,7 @@ watch(logSource, () => {
               </label>
             </template>
             <template v-else>
-              <label class="cf cf-wide">
+              <label class="cf">
                 <span>{{ t('Tags') }}</span>
                 <TagInput
                   v-model="cond.tags"
@@ -768,7 +768,7 @@ watch(logSource, () => {
                   @commit="onTagCommit"
                 />
               </label>
-              <label class="cf cf-wide">
+              <label class="cf">
                 <span>{{ t('Trace ID') }}</span>
                 <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
               </label>
