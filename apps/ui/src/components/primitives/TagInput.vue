@@ -27,7 +27,7 @@
   with a chip model uses it to add a chip; single-field hosts can ignore it.
 -->
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, reactive, ref, watch } from 'vue';
 
 import { bffClient } from '@/api/client';
 
@@ -73,7 +73,10 @@ const fragmentKey = computed<string>(() =>
 
 // ── Caches (best-effort; tolerate `error` envelopes) ─────────────
 const keyCache = ref<string[] | null>(null);
-const valueCache = new Map<string, string[]>();
+// Reactive so the suggestions computed re-runs when the FIRST async
+// value-fetch for a key lands — a plain Map wouldn't trigger it, so the
+// dropdown would only refresh on the next keystroke.
+const valueCache = reactive(new Map<string, string[]>());
 const loadingValuesFor = ref<string | null>(null);
 let valueDebounce: ReturnType<typeof setTimeout> | null = null;
 
