@@ -30,7 +30,6 @@
 import { computed, nextTick, ref, watch } from 'vue';
 
 import { bffClient } from '@/api/client';
-import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -200,7 +199,9 @@ function onKeydown(e: KeyboardEvent): void {
   }
 }
 
-function close(): void {
+// A row pick uses `mousedown.prevent`, which keeps the input focused, so
+// a real blur means focus left the field entirely — close the dropdown.
+function onBlur(): void {
   open.value = false;
 }
 </script>
@@ -209,7 +210,7 @@ function close(): void {
   <div class="tgi">
     <input
       ref="inputEl"
-      class="cf-input mono tgi__input"
+      class="tgi__input mono"
       type="text"
       :value="modelValue"
       :placeholder="placeholder"
@@ -217,14 +218,10 @@ function close(): void {
       spellcheck="false"
       @input="onInput"
       @focus="onFocus"
+      @blur="onBlur"
       @keydown="onKeydown"
     />
-    <FloatingPanel
-      :open="open && suggestions.length > 0"
-      :anchor="inputEl"
-      :width="(inputEl?.offsetWidth ?? 240)"
-      @close="close"
-    >
+    <div v-if="open && suggestions.length > 0" class="tgi__panel">
       <ul class="tgi__list" role="listbox">
         <li
           v-for="(s, i) in suggestions"
@@ -239,31 +236,35 @@ function close(): void {
           <span class="tgi__row-label">{{ s }}</span>
         </li>
       </ul>
-    </FloatingPanel>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .tgi { position: relative; display: block; width: 100%; }
-.tgi__input { width: 100%; }
 
-.tgi__list {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  max-height: 320px;
-  overflow-y: auto;
+/* The input must carry its own dark style — `.cf-input` is defined in each
+   host's scoped CSS and does not cross the component boundary. */
+.tgi__input {
+  height: 28px; padding: 0 8px; width: 100%; box-sizing: border-box;
+  background: var(--sw-bg-2); border: 1px solid var(--sw-line-2); border-radius: 4px;
+  color: var(--sw-fg-0); font: inherit; font-size: 11px;
 }
+.tgi__input.mono { font-family: var(--sw-mono); }
+.tgi__input::placeholder { color: var(--sw-fg-4); }
+.tgi__input:focus { outline: none; border-color: var(--sw-accent); }
+
+.tgi__panel {
+  position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 60;
+  background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  max-height: 300px; overflow-y: auto;
+}
+.tgi__list { list-style: none; margin: 0; padding: 5px; }
 .tgi__row {
-  display: flex;
-  align-items: baseline;
-  padding: 4px 6px;
-  border-radius: 3px;
-  font-family: var(--sw-mono);
-  font-size: 11.5px;
-  color: var(--sw-fg-1);
-  cursor: pointer;
+  display: flex; align-items: baseline; padding: 4px 7px; border-radius: 3px;
+  font-family: var(--sw-mono); font-size: 11.5px; color: var(--sw-fg-1); cursor: pointer;
 }
-.tgi__row.is-active { background: var(--sw-bg-2); }
+.tgi__row.is-active { background: var(--sw-bg-3); }
 .tgi__row-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
