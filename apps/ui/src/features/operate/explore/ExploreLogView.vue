@@ -34,7 +34,7 @@
   tails) — these logs are never persisted, so there is no cold-stage.
 -->
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff, bffClient, describeApiError } from '@/api/client';
 import type {
@@ -53,7 +53,7 @@ import type {
 import type { PodLogLine } from '@/api/scopes/log';
 import { useLayers } from '@/shell/useLayers';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
-import { WINDOW_OPTS as POD_WINDOW_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
+import { WINDOW_OPTS as POD_WINDOW_OPTS, INTERVAL_OPTS as POD_INTERVAL_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
@@ -353,7 +353,6 @@ function currentEntity(): ExploreEntity | null {
 
 // ── log conditions ────────────────────────────────────────────────────
 const cond = reactive({
-  keywords: '' as string,
   tags: '' as string,
   traceId: '' as string,
   windowMinutes: 30,
@@ -363,10 +362,75 @@ const WINDOWS = [15, 30, 60, 180, 360, 720, 1440];
 const LIMITS = [20, 50, 100, 200];
 
 // ── pods condition — a trailing SECOND-precision window (live tail), in
-// seconds. Reuses the per-layer Pod Logs window options. Keywords share
-// the `cond.keywords` field above (→ keywordsOfContent). No cold-stage:
-// pod logs are never persisted. ────────────────────────────────────────
+// seconds. Reuses the per-layer Pod Logs window + interval options. No
+// cold-stage: pod logs are never persisted. ─────────────────────────────
 const podWindowSeconds = ref<number>(60);
+const podIntervalSeconds = ref<number>(5);
+// Include / Exclude are RAW regex (no `.*…*` wrap — the operator types the
+// regex), passed verbatim as keywordsOfContent / excludingKeywordsOfContent,
+// exactly like the per-layer Pod Logs tab.
+const podIncludes = ref<string[]>([]);
+const podExcludes = ref<string[]>([]);
+const podIncludeInput = ref('');
+const podExcludeInput = ref('');
+function addPodInclude(): void {
+  const v = podIncludeInput.value.trim();
+  if (v && !podIncludes.value.includes(v)) podIncludes.value = [...podIncludes.value, v];
+  podIncludeInput.value = '';
+}
+function removePodInclude(i: number): void {
+  podIncludes.value = podIncludes.value.filter((_, idx) => idx !== i);
+}
+function addPodExclude(): void {
+  const v = podExcludeInput.value.trim();
+  if (v && !podExcludes.value.includes(v)) podExcludes.value = [...podExcludes.value, v];
+  podExcludeInput.value = '';
+}
+function removePodExclude(i: number): void {
+  podExcludes.value = podExcludes.value.filter((_, idx) => idx !== i);
+}
+
+// ── pods live-tail engine. Owns its own setInterval: Start polls
+// `runPodQuery` every interval (re-fetching the rolling Window), Pause
+// stops it, manual Refresh fetches now. The timer is torn down on unmount,
+// on switching away from pods, and on any entity / window / interval / filter
+// change (so a stale loop never keeps hitting OAP or stacks fetches). The
+// Run button still works as a one-shot — `runQuery` reuses `runPodQuery`. ─
+const podTailing = ref(false);
+let podTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopPodTail(): void {
+  podTailing.value = false;
+  if (podTimer !== null) {
+    clearInterval(podTimer);
+    podTimer = null;
+  }
+}
+function startPodTail(): void {
+  if (logSource.value !== 'pods' || !canRun.value) return;
+  stopPodTail();
+  podTailing.value = true;
+  void tickPodQuery();
+  podTimer = setInterval(() => void tickPodQuery(), podIntervalSeconds.value * 1000);
+}
+function togglePodTail(): void {
+  if (podTailing.value) stopPodTail();
+  else startPodTail();
+}
+
+// Re-targeting the pod (pod / container / layer / service change) tears the
+// tail down — a loop must never bleed across pods. Window / interval / filter
+// changes while tailing restart the loop so OAP re-runs with the new
+// condition (mirrors the per-layer Pod Logs tab); paused, they just take
+// effect on the next Start.
+watch([pickInstanceId, podContainer, pickLayer, podServiceArg], stopPodTail);
+watch([podWindowSeconds, podIntervalSeconds], () => {
+  if (podTailing.value) startPodTail();
+});
+watch([podIncludes, podExcludes], () => {
+  if (podTailing.value) startPodTail();
+}, { deep: true });
+onUnmounted(stopPodTail);
 
 // ── browser condition: error category (ALL = no filter; the rest mirror
 // OAP's ErrorCategory enum verbatim). Time + Limit are shared with raw. ─
@@ -394,14 +458,6 @@ watch(isCustomRange, (custom) => {
   }
 });
 
-/** Free-text keywords → OAP's content-keyword list. Split on whitespace
- *  and commas; each token is AND-joined server-side. */
-function parseKeywords(s: string): string[] {
-  return s
-    .split(/[\s,]+/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-}
 function parseTags(s: string): Array<{ key: string; value: string }> {
   return s
     .split(',')
@@ -496,20 +552,18 @@ function buildRequest(): ExploreRequest {
 }
 
 async function runPodQuery(): Promise<void> {
-  // OAP matches keywordsOfContent as a FULL-LINE regex, so a bare term
-  // never matches a longer line — escape each keyword and wrap it in
-  // `.*…*` so it means "line contains it" (AND-joined across terms).
-  const keywords = parseKeywords(cond.keywords).map(
-    (k) => `.*${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`,
-  );
-  // No Resolved-query echo for pods — it's a live tail, not a stored
-  // query, so the panel stays hidden (resolved is reset on source switch).
+  // Include / Exclude are RAW regex — the operator types the full-line
+  // pattern (OAP matches keywordsOfContent / excludingKeywordsOfContent as a
+  // full-line regex), so they go to the route VERBATIM, no `.*…*` wrap.
+  // No Resolved-query echo for pods — it's a live tail, not a stored query,
+  // so the panel stays hidden (resolved is reset on source switch).
   try {
     const r = await bff.log.podLogs(pickLayer.value, {
       serviceInstanceId: pickInstanceId.value,
       container: podContainer.value,
       windowSeconds: podWindowSeconds.value,
-      ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
+      ...(podIncludes.value.length > 0 ? { keywordsOfContent: [...podIncludes.value] } : {}),
+      ...(podExcludes.value.length > 0 ? { excludingKeywordsOfContent: [...podExcludes.value] } : {}),
     });
     if (r.errorReason) {
       podErrorReason.value = r.errorReason;
@@ -520,6 +574,25 @@ async function runPodQuery(): Promise<void> {
     }
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
+// One poll tick: a reentrancy-guarded `runPodQuery` so overlapping ticks
+// never stack (a slow OAP response can outlast the interval). Marks the
+// pane as queried + clears the prior soft-error before fetching, then
+// resolves; a hard error stops the loop so it doesn't spin on failures.
+let podTickInFlight = false;
+async function tickPodQuery(): Promise<void> {
+  if (podTickInFlight) return;
+  podTickInFlight = true;
+  hasQueried.value = true;
+  errorMsg.value = null;
+  podErrorReason.value = null;
+  try {
+    await runPodQuery();
+    if (errorMsg.value) stopPodTail();
+  } finally {
+    podTickInFlight = false;
   }
 }
 
@@ -536,6 +609,9 @@ async function runQuery(): Promise<void> {
   browserResp.value = null;
   podLines.value = [];
   if (logSource.value === 'pods') {
+    // A manual Run is a one-shot — pause any live tail first so the two
+    // never double-fetch; the operator re-arms Start when they want tailing.
+    stopPodTail();
     try {
       await runPodQuery();
     } finally {
@@ -703,6 +779,9 @@ function browserRowKey(r: BrowserErrorRow, idx: number): string {
 // layers and a browser service has no pod — so crossing the pods
 // boundary in either direction wipes the shared cascade clean.
 watch(logSource, (next, prev) => {
+  // Leaving (or re-entering) pods always kills the live tail — no orphan
+  // loop polling a source the operator has navigated off.
+  stopPodTail();
   hasQueried.value = false;
   errorMsg.value = null;
   logsResp.value = null;
@@ -875,11 +954,27 @@ watch(logSource, (next, prev) => {
               {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
               <span class="dim">{{ resolved.source }}</span>
             </button>
-            <button class="iq-run" :disabled="!canRun || running" @click="runQuery">
+            <!-- Pods auto-tail trio: Interval + Pause/Start + manual Refresh.
+                 Start polls runPodQuery on the chosen interval (re-fetching the
+                 rolling Window); Pause stops it; Refresh fetches once now. -->
+            <template v-if="logSource === 'pods'">
+              <label class="iq-tail-int">
+                <span>{{ t('Interval') }}</span>
+                <select v-model.number="podIntervalSeconds" class="cf-input">
+                  <option v-for="o in POD_INTERVAL_OPTS" :key="o.value" :value="o.value">{{ o.label }}</option>
+                </select>
+              </label>
+              <button class="iq-refresh" :disabled="!canRun || running" :title="t('Refresh')" @click="runQuery">{{ t('Refresh') }}</button>
+              <button class="iq-tail" :class="{ on: podTailing }" :disabled="!canRun" @click="togglePodTail">
+                <span class="dot" :class="{ live: podTailing }" />
+                {{ podTailing ? t('Pause') : t('Start') }}
+              </button>
+            </template>
+            <button v-else class="iq-run" :disabled="!canRun || running" @click="runQuery">
               {{ running ? t('Running…') : t('Run query') }}
             </button>
           </div>
-          <div :class="logSource === 'pods' ? 'iq-grid iq-grid--cond' : (logSource === 'browser' ? 'iq-cond--inline iq-cond--tlast' : 'iq-cond--inline')">
+          <div :class="logSource === 'browser' ? 'iq-cond--inline iq-cond--tlast' : 'iq-cond--inline'">
             <template v-if="logSource === 'browser'">
               <label class="cf cf-cat">
                 <span>{{ t('Category') }}</span>
@@ -889,9 +984,35 @@ watch(logSource, (next, prev) => {
               </label>
             </template>
             <template v-else-if="logSource === 'pods'">
-              <label class="cf cf-wide">
-                <span>{{ t('Keywords') }}</span>
-                <input v-model="cond.keywords" class="cf-input mono" type="text" :placeholder="t('space- or comma-separated, AND-joined')" />
+              <!-- Include / Exclude: RAW-regex chip fields (operator types the
+                   full-line pattern, no `.*…*` wrap), passed verbatim as
+                   keywordsOfContent / excludingKeywordsOfContent — same as the
+                   per-layer Pod Logs tab. -->
+              <label class="cf cf-incl">
+                <span>{{ t('Include') }}</span>
+                <div class="iq-kw">
+                  <span v-for="(k, i) in podIncludes" :key="`inc${i}`" class="iq-chip">
+                    {{ k }}<button class="iq-chip-x" type="button" @click="removePodInclude(i)">×</button>
+                  </span>
+                  <input
+                    v-model="podIncludeInput" class="iq-kw-inp mono" type="text"
+                    :placeholder="t('regex (e.g. .*error.*) + Enter')"
+                    @keydown.enter.prevent="addPodInclude"
+                  />
+                </div>
+              </label>
+              <label class="cf cf-incl">
+                <span>{{ t('Exclude') }}</span>
+                <div class="iq-kw">
+                  <span v-for="(k, i) in podExcludes" :key="`exc${i}`" class="iq-chip ex">
+                    {{ k }}<button class="iq-chip-x" type="button" @click="removePodExclude(i)">×</button>
+                  </span>
+                  <input
+                    v-model="podExcludeInput" class="iq-kw-inp mono" type="text"
+                    :placeholder="t('regex (e.g. .*error.*) + Enter')"
+                    @keydown.enter.prevent="addPodExclude"
+                  />
+                </div>
               </label>
             </template>
             <template v-else>
@@ -912,7 +1033,7 @@ watch(logSource, (next, prev) => {
             </template>
             <!-- Pods: a trailing SECOND-precision window (seconds) — the
                  logs are tailed live, never persisted, so no custom range. -->
-            <label v-if="logSource === 'pods'" class="cf cf-wide iq-time">
+            <label v-if="logSource === 'pods'" class="cf cf-podw">
               <span>{{ t('Window') }}</span>
               <select v-model.number="podWindowSeconds" class="cf-input">
                 <option v-for="o in POD_WINDOW_OPTS" :key="o.value" :value="o.value">{{ t(o.label) }}</option>
@@ -1097,6 +1218,10 @@ watch(logSource, (next, prev) => {
 .iq-cond--inline .cf-lim { flex: 0 0 110px; }
 .iq-cond--inline .iq-time { flex: 0 1 150px; }
 .iq-cond--inline .iq-time.cf-wide { flex: 0 1 420px; }
+/* Pods: Include + Exclude grow to share the row, Window stays compact at
+   its end — all three on one line. */
+.iq-cond--inline .cf-incl { flex: 1 1 0; min-width: 0; }
+.iq-cond--inline .cf-podw { flex: 0 0 160px; }
 /* Browser only: Time sits last so its custom range expands into the
    trailing space without shoving Category/Limit. */
 .iq-cond--tlast .iq-time { order: 9; }
@@ -1123,6 +1248,46 @@ watch(logSource, (next, prev) => {
 .iq-cond-kicker { margin-right: auto; }
 .iq-run { background: var(--sw-accent); color: #fff; border: none; border-radius: 4px; padding: 5px 18px; font: inherit; font-size: 12px; cursor: pointer; height: 28px; order: 2; }
 .iq-run:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Pods auto-tail trio in the conditions header — Interval / Refresh / Start
+   sit to the right of the kicker, matching the per-layer Pod Logs bar. */
+.iq-tail-int { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--sw-fg-3); }
+.iq-tail-int .cf-input { width: auto; height: 28px; }
+.iq-refresh {
+  background: var(--sw-bg-2); color: var(--sw-fg-1); border: 1px solid var(--sw-line-2);
+  border-radius: 4px; padding: 0 12px; font: inherit; font-size: 12px; cursor: pointer; height: 28px;
+}
+.iq-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+.iq-tail {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 14px;
+  border: 1px solid var(--sw-accent); border-radius: 4px; background: var(--sw-accent);
+  color: #1a1106; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.iq-tail.on { background: transparent; color: var(--sw-accent); }
+.iq-tail:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--sw-line-2); background: var(--sw-bg-2); color: var(--sw-fg-3); }
+.iq-tail .dot { background: currentColor; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sw-fg-3); }
+.dot.live { background: #4ade80; animation: iq-pulse 1.2s infinite ease-in-out; }
+.iq-tail .dot.live { background: #4ade80; }
+@keyframes iq-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Include / Exclude regex chip fields — same chip vocabulary as the
+   per-layer Pod Logs filters (include = cyan, exclude = red). */
+.iq-kw {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-height: 28px;
+  padding: 3px 6px; background: var(--sw-bg-2); border: 1px solid var(--sw-line-2); border-radius: 4px;
+}
+.iq-chip {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px 1px 7px;
+  border-radius: 10px; background: rgba(125, 211, 252, 0.16); color: #7dd3fc; font-size: 11px;
+}
+.iq-chip.ex { background: rgba(248, 113, 113, 0.16); color: #f87171; }
+.iq-chip-x { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 13px; line-height: 1; padding: 0 2px; }
+.iq-kw-inp {
+  flex: 1 1 180px; min-width: 140px; height: 22px; padding: 0 6px;
+  background: transparent; border: none; color: var(--sw-fg-0); font: inherit; font-size: 11px;
+}
+.iq-kw-inp:focus { outline: none; }
 .iq-resolved-tog { background: none; border: none; color: var(--sw-fg-3); font-size: 11px; cursor: pointer; }
 .iq-resolved-tog .dim { color: var(--sw-fg-4); margin-left: 6px; }
 .iq-resolved-body { margin: 0; padding: 8px 12px; font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-2); background: var(--sw-bg-0); overflow: auto; max-height: 160px; border: 1px solid var(--sw-line); border-radius: 5px; }
