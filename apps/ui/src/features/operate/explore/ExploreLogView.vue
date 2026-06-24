@@ -680,7 +680,7 @@ watch(logSource, () => {
             </button>
           </div>
 
-          <div class="iq-grid" v-if="entityMode === 'pick'">
+          <div class="iq-grid iq-grid--ent" v-if="entityMode === 'pick'">
             <label class="cf">
               <span>{{ t('Layer') }}</span>
               <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="layerOptions" :placeholder="t('Any layer')" class="cf-tas" />
@@ -693,16 +693,16 @@ watch(logSource, () => {
               />
             </label>
             <label class="cf">
-              <span>{{ t('Instance') }}</span>
-              <TypeaheadSelect v-model="instanceSel" :aria-label="t('Instance')" :options="instanceOptions" :disabled="!pickServiceId" :placeholder="t('All instances')" class="cf-tas" />
+              <span>{{ logSource === 'browser' ? t('Version') : t('Instance') }}</span>
+              <TypeaheadSelect v-model="instanceSel" :aria-label="logSource === 'browser' ? t('Version') : t('Instance')" :options="instanceOptions" :disabled="!pickServiceId" :placeholder="logSource === 'browser' ? t('All versions') : t('All instances')" class="cf-tas" />
             </label>
             <label class="cf">
-              <span>{{ t('Endpoint') }}</span>
-              <TypeaheadSelect v-model="endpointSel" :aria-label="t('Endpoint')" :options="endpointOptions" :disabled="!pickServiceId" :placeholder="t('All endpoints')" class="cf-tas" />
+              <span>{{ logSource === 'browser' ? t('Page') : t('Endpoint') }}</span>
+              <TypeaheadSelect v-model="endpointSel" :aria-label="logSource === 'browser' ? t('Page') : t('Endpoint')" :options="endpointOptions" :disabled="!pickServiceId" :placeholder="logSource === 'browser' ? t('All pages') : t('All endpoints')" class="cf-tas" />
             </label>
           </div>
 
-          <div class="iq-grid" v-else>
+          <div class="iq-grid iq-grid--ent" v-else>
             <label class="cf">
               <span>{{ t('Service name') }}</span>
               <input v-model="typeService" class="cf-input mono" type="text" :placeholder="t('e.g. agent::checkout')" />
@@ -712,11 +712,11 @@ watch(logSource, () => {
               <span class="iq-chk"><input v-model="typeReal" type="checkbox" /> <small class="dim">{{ t('off = virtual / peer') }}</small></span>
             </label>
             <label class="cf">
-              <span>{{ t('Instance') }}</span>
+              <span>{{ logSource === 'browser' ? t('Version') : t('Instance') }}</span>
               <input v-model="typeInstance" class="cf-input" type="text" :placeholder="t('optional')" />
             </label>
             <label class="cf">
-              <span>{{ t('Endpoint') }}</span>
+              <span>{{ logSource === 'browser' ? t('Page') : t('Endpoint') }}</span>
               <input v-model="typeEndpoint" class="cf-input" type="text" :placeholder="t('optional')" />
             </label>
           </div>
@@ -930,8 +930,13 @@ watch(logSource, () => {
    runs 2 columns: `.cf-wide` text fields fill the row and Time + Limit sit
    side by side — no blank trailing column the way 3 columns would leave. */
 .iq-grid--cond { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (max-width: 900px) { .iq-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .iq-grid { grid-template-columns: 1fr; } }
+/* The raw/browser entity (Layer/Service + Instance/Endpoint, or Service
+   name/Real + Version/Page for browser) sits in one 4-field row, so
+   Service name takes a quarter — not a third — and Version sits next to
+   Page rather than wrapping to its own line. */
+.iq-grid--ent { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 900px) { .iq-grid, .iq-grid--ent { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .iq-grid, .iq-grid--ent { grid-template-columns: 1fr; } }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
 .cf.iq-time { grid-column-start: 1; }

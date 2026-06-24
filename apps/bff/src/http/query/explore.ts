@@ -276,10 +276,10 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
 
       // kind === 'log' && logSource === 'browser' — BROWSER-layer JS error
       // logs. The entity is a browser SERVICE (Pick forwards an id; Type
-      // encodes base64(name).{1|0}). No instance/endpoint — browser errors
-      // scope by serviceVersionId/pagePathId, which Log inspect doesn't
-      // surface, so only the service narrows here. SECOND-precision window
-      // (error logs are event-style — MINUTE rounding chops the newest).
+      // encodes base64(name).{1|0}). BROWSER versions ARE instances and
+      // pages ARE endpoints, so the resolved instanceId/endpointId map onto
+      // serviceVersionId/pagePathId. SECOND-precision window (error logs are
+      // event-style — MINUTE rounding chops the newest).
       const ids = body.entity ? resolveNativeEntity(body.entity) : {};
       const win = logWindowSecond(body.window ?? {}, offset);
       const category = body.category ?? 'ALL';
@@ -290,7 +290,7 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
       };
       const browser = await fetchBrowserErrors(
         opts,
-        { serviceId: ids.serviceId, category },
+        { serviceId: ids.serviceId, serviceVersionId: ids.instanceId, pagePathId: ids.endpointId, category },
         win,
         paging,
         !!req.coldStage,
@@ -301,6 +301,8 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
         entityId: ids.serviceId,
         condition: {
           ...(ids.serviceId ? { serviceId: ids.serviceId } : {}),
+          ...(ids.instanceId ? { serviceVersionId: ids.instanceId } : {}),
+          ...(ids.endpointId ? { pagePathId: ids.endpointId } : {}),
           ...(category && category !== 'ALL' ? { category } : {}),
           ...win,
         },
