@@ -1498,6 +1498,7 @@
   "Real": "Real",
   "Resolved query": "Aufgelöste Abfrage",
   "Run a query — name a service or leave it blank.": "Abfrage ausführen — einen Service benennen oder leer lassen.",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "Abfrage ausführen — einen Service der BROWSER-Ebene wählen, einen Namen eingeben oder leer lassen.",
   "Running…": "Läuft…",
   "Service name": "Service-Name",
   "Time": "Zeit",

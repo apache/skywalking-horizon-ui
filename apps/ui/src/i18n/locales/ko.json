@@ -1498,6 +1498,7 @@
   "Real": "실제",
   "Resolved query": "해석된 쿼리",
   "Run a query — name a service or leave it blank.": "쿼리 실행 — Service를 지정하거나 비워 둡니다.",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "쿼리 실행 — BROWSER 레이어의 Service를 선택하거나, 이름을 입력하거나, 비워 둡니다.",
   "Running…": "실행 중…",
   "Service name": "Service 이름",
   "Time": "시간",

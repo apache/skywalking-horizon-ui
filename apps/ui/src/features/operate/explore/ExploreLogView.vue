@@ -36,7 +36,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { bff, bffClient } from '@/api/client';
+import { bff, bffClient, describeApiError } from '@/api/client';
 import type {
   BrowserErrorCategory,
   BrowserErrorRow,
@@ -48,6 +48,7 @@ import type {
   LogRow,
   LogsResponse,
   SourceMapDescriptor,
+  SourceMapUsage,
 } from '@/api/client';
 import type { PodLogLine } from '@/api/scopes/log';
 import { useLayers } from '@/shell/useLayers';
@@ -57,6 +58,7 @@ import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import BrowserErrorPopout from '@/render/widgets/BrowserErrorPopout.vue';
+import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
 import { logRowKey } from '@/utils/logRow';
 
 const { t } = useI18n();
@@ -69,38 +71,9 @@ const { openTrace } = useTracePopout();
 type LogSource = 'raw' | 'browser' | 'pods';
 const logSource = ref<LogSource>('raw');
 
-// ── browser entity — a BROWSER-layer service. Reuses the Pick metadata
-// feed (bffClient.layer.services) pinned to BROWSER; no instance/endpoint
-// (browser errors scope by version/page, which this view doesn't surface). ─
+// Browser errors scope to a BROWSER-layer service — used to default the
+// shared Pick layer on first switch into that source (see the watch below).
 const BROWSER_LAYER = 'BROWSER';
-const browserServiceId = ref<string>('');
-const browserServices = ref<Array<{ id: string; name: string; normal: boolean | null }>>([]);
-const browserServicesLoading = ref(false);
-const browserServicesReachable = ref(true);
-
-async function loadBrowserServices(): Promise<void> {
-  browserServicesLoading.value = true;
-  try {
-    const res = await bffClient.layer.services(BROWSER_LAYER);
-    browserServicesReachable.value = res.reachable;
-    browserServices.value = res.reachable ? res.services : [];
-  } catch {
-    browserServicesReachable.value = false;
-    browserServices.value = [];
-  } finally {
-    browserServicesLoading.value = false;
-  }
-}
-const browserServiceOptions = computed(() =>
-  browserServices.value.map((s) => ({ value: s.id, label: s.name })),
-);
-// Lazy-load the BROWSER catalog the first time the operator opens that
-// source — the BROWSER layer may not exist on every deployment.
-watch(logSource, (src) => {
-  if (src === 'browser' && browserServices.value.length === 0 && !browserServicesLoading.value) {
-    void loadBrowserServices();
-  }
-});
 
 // ── entity (OPTIONAL): pick (layer-filtered) vs type (name + real) ────
 type EntityMode = 'pick' | 'type';
@@ -169,6 +142,12 @@ watch(pickLayer, () => void loadServices());
 watch(pickServiceId, () => {
   void loadInstances();
   void loadEndpoints();
+});
+// Default the shared Pick layer to BROWSER the first time the operator opens
+// the browser source — its catalog is one click away. They can still change
+// the layer or switch to Type (or leave it blank to query every service).
+watch(logSource, (src) => {
+  if (src === 'browser' && !pickLayer.value) pickLayer.value = BROWSER_LAYER;
 });
 
 // ── pods entity — a specific pod (instance) + container. Reuses the Pick
@@ -353,9 +332,9 @@ const resolved = ref<ResolvedEcho | null>(null);
 const showResolved = ref(false);
 
 const canRun = computed(() => {
-  if (logSource.value === 'browser') return !!browserServiceId.value;
   // A pod log needs a specific pod + container — both required.
   if (logSource.value === 'pods') return !!pickInstanceId.value && !!podContainer.value;
+  // raw + browser: the entity is optional (blank queries every service).
   return true;
 });
 
@@ -377,18 +356,23 @@ function resolveWindow(): ExploreWindow {
 
 function buildRequest(): ExploreRequest {
   if (logSource.value === 'browser') {
-    // Pick forwards a pre-resolved BROWSER service id; no instance/endpoint.
+    // Shared Pick/Type entity, same as raw — the BFF browser branch resolves
+    // it via resolveNativeEntity and scopes by serviceId only (instance /
+    // endpoint are ignored). Blank queries every service (OAP: serviceId 0).
+    const entity = currentEntity();
     return {
       kind: 'log',
       logSource: 'browser',
-      entity: { mode: 'pick', serviceId: browserServiceId.value },
+      ...(entity ? { entity } : {}),
       window: resolveWindow(),
       pageSize: cond.limit,
       ...(browserCategory.value !== 'ALL' ? { category: browserCategory.value } : {}),
     };
   }
+  // Raw logs deliberately omit content-keyword search — it's opt-in per
+  // storage backend and off on the default (mirrors the per-layer Logs tab).
+  // Only the pods source carries Keywords → keywordsOfContent.
   const entity = currentEntity();
-  const keywords = parseKeywords(cond.keywords);
   const tags = parseTags(cond.tags);
   return {
     kind: 'log',
@@ -396,7 +380,6 @@ function buildRequest(): ExploreRequest {
     ...(entity ? { entity } : {}),
     window: resolveWindow(),
     pageSize: cond.limit,
-    ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
     ...(tags.length > 0 ? { tags } : {}),
     ...(cond.traceId.trim() ? { relatedTraceId: cond.traceId.trim() } : {}),
   };
@@ -527,18 +510,52 @@ watch(browserRows, () => {
   if (selectedBrowserRow.value) selectedBrowserRow.value = null;
 });
 
-// ── source-map cache — loaded once for the browser popout's resolve
-// control. The popout owns the per-row resolve; the host owns the list. ─
+// ── source-map cache — shared by the in-view SourceMapManager (upload /
+// remove / refresh) and the browser popout's per-row resolve. The host owns
+// the list + the API calls; the popout owns the per-row resolve. Same flow
+// as the per-layer Browser Logs tab. ───────────────────────────────────────
 const sourceMaps = ref<SourceMapDescriptor[]>([]);
-async function loadSourceMaps(): Promise<void> {
+const mapsUsage = ref<SourceMapUsage | null>(null);
+const mapsEnabled = ref(true);
+const mapsBusy = ref(false);
+const mapsError = ref<string | null>(null);
+
+async function loadMaps(): Promise<void> {
   try {
     const res = await bffClient.browserErrors.listSourceMaps();
-    sourceMaps.value = res.enabled ? res.maps : [];
-  } catch {
-    sourceMaps.value = [];
+    sourceMaps.value = res.maps;
+    mapsUsage.value = res.usage;
+    mapsEnabled.value = res.enabled;
+    mapsError.value = null;
+  } catch (err) {
+    mapsError.value = describeApiError(err);
   }
 }
-onMounted(loadSourceMaps);
+async function onUploadMap(file: File): Promise<void> {
+  mapsBusy.value = true;
+  mapsError.value = null;
+  try {
+    const res = await bffClient.browserErrors.uploadSourceMap(file);
+    if (!res.ok) mapsError.value = t('Upload rejected: {reason}', { reason: res.error ?? t('unknown') });
+    await loadMaps();
+  } catch (err) {
+    mapsError.value = describeApiError(err);
+  } finally {
+    mapsBusy.value = false;
+  }
+}
+async function onRemoveMap(id: string): Promise<void> {
+  mapsBusy.value = true;
+  try {
+    await bffClient.browserErrors.deleteSourceMap(id);
+    await loadMaps();
+  } catch (err) {
+    mapsError.value = describeApiError(err);
+  } finally {
+    mapsBusy.value = false;
+  }
+}
+onMounted(loadMaps);
 
 // ── presentation helpers (browser list rows) ──────────────────────────
 const CATEGORY_COLOR: Record<string, string> = {
@@ -604,31 +621,12 @@ watch(logSource, () => {
     <!-- Logs have no distribution square — the form spans the full width
          (a 3-column condition grid reads well across it). -->
     <div class="iq-form">
-      <!-- Browser source: a single BROWSER-layer service picker (required —
-           browser errors always scope by service). -->
-      <div v-if="logSource === 'browser'" class="iq-target">
-        <div class="iq-target-h">
-          <span>{{ t('Browser app') }} <small class="dim">{{ t('required — pick a BROWSER service') }}</small></span>
-        </div>
-        <div class="iq-grid">
-          <label class="cf cf-wide">
-            <span>{{ t('Service') }}</span>
-            <TypeaheadSelect
-              v-model="browserServiceId" :aria-label="t('Service')" :options="browserServiceOptions"
-              :disabled="browserServicesLoading"
-              :placeholder="browserServicesLoading ? t('Reading…') : (browserServicesReachable ? t('Pick a browser service') : t('No BROWSER layer'))"
-              class="cf-tas"
-            />
-          </label>
-        </div>
-      </div>
-
       <!-- Kubernetes Pod logs source: a specific pod (instance) + container,
            both required. Reuses the layer → service → instance Pick cascade
            (the instance IS the pod); the container list is lazy-loaded from
            the pod's id. No Type mode, no endpoint — a pod log scopes to one
            container. -->
-      <div v-else-if="logSource === 'pods'" class="iq-target">
+      <div v-if="logSource === 'pods'" class="iq-target">
         <div class="iq-target-h">
           <span>{{ t('Kubernetes Pod logs') }} <small class="dim">{{ t('required — pick a pod and a container') }}</small></span>
         </div>
@@ -734,7 +732,7 @@ watch(logSource, () => {
               {{ running ? t('Running…') : t('Run query') }}
             </button>
           </div>
-          <div class="iq-grid">
+          <div class="iq-grid iq-grid--cond">
             <template v-if="logSource === 'browser'">
               <label class="cf cf-wide">
                 <span>{{ t('Category') }}</span>
@@ -751,10 +749,6 @@ watch(logSource, () => {
             </template>
             <template v-else>
               <label class="cf cf-wide">
-                <span>{{ t('Keywords') }}</span>
-                <input v-model="cond.keywords" class="cf-input mono" type="text" :placeholder="t('space- or comma-separated, AND-joined')" />
-              </label>
-              <label class="cf cf-wide">
                 <span>{{ t('Tags') }}</span>
                 <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('level=ERROR, …')" />
               </label>
@@ -765,7 +759,7 @@ watch(logSource, () => {
             </template>
             <!-- Pods: a trailing SECOND-precision window (seconds) — the
                  logs are tailed live, never persisted, so no custom range. -->
-            <label v-if="logSource === 'pods'" class="cf iq-time">
+            <label v-if="logSource === 'pods'" class="cf cf-wide iq-time">
               <span>{{ t('Window') }}</span>
               <select v-model.number="podWindowSeconds" class="cf-input">
                 <option v-for="o in POD_WINDOW_OPTS" :key="o.value" :value="o.value">{{ t(o.label) }}</option>
@@ -797,10 +791,26 @@ watch(logSource, () => {
       </div>
     </div>
 
+    <!-- Browser source: source-map file management. The same in-memory cache
+         the row-click popout resolves stacks against — upload a .map here so
+         the de-obfuscation control has something to pick. -->
+    <div v-if="logSource === 'browser'" class="iq-maps">
+      <SourceMapManager
+        :maps="sourceMaps"
+        :usage="mapsUsage"
+        :enabled="mapsEnabled"
+        :busy="mapsBusy"
+        @upload="onUploadMap"
+        @remove="onRemoveMap"
+        @refresh="loadMaps"
+      />
+      <p v-if="mapsError" class="iq-maps-err">{{ mapsError }}</p>
+    </div>
+
     <!-- Browser source: a dense error list in the same dark vocabulary as
          the per-layer Browser Logs stream; row-click opens the popout. -->
     <div v-if="logSource === 'browser'" class="iq-result">
-      <div v-if="!hasQueried" class="iq-empty">{{ t('Pick a browser service and run a query.') }}</div>
+      <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — pick a BROWSER service, type a name, or leave it blank.') }}</div>
       <div v-else-if="running && browserRows.length === 0" class="iq-empty">{{ t('Reading data…') }}</div>
       <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
       <div v-else-if="browserRows.length === 0" class="iq-empty">{{ t('No browser logs in this window.') }}</div>
@@ -909,6 +919,11 @@ watch(logSource, () => {
 .iq-link { background: none; border: none; color: var(--sw-accent); font-size: 11px; cursor: pointer; padding: 0; margin-left: auto; }
 .iq-link:disabled { color: var(--sw-fg-4); cursor: not-allowed; }
 .iq-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 10px; }
+/* The conditions grid carries few fields (the log sources expose Tags /
+   Trace ID / Time / Limit, or just Category / Keywords + Window), so it
+   runs 2 columns: `.cf-wide` text fields fill the row and Time + Limit sit
+   side by side — no blank trailing column the way 3 columns would leave. */
+.iq-grid--cond { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (max-width: 900px) { .iq-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .iq-grid { grid-template-columns: 1fr; } }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
@@ -941,6 +956,8 @@ watch(logSource, () => {
 
 .iq-form { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .iq-conditions { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.iq-maps { display: flex; flex-direction: column; gap: 6px; }
+.iq-maps-err { margin: 0; font-size: 11.5px; color: var(--sw-err); }
 
 .iq-result { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .iq-result > .iq-list-card { flex: 1; }

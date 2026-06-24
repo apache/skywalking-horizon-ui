@@ -1498,6 +1498,7 @@
   "Real": "真实",
   "Resolved query": "解析后的查询",
   "Run a query — name a service or leave it blank.": "执行查询 —— 指定一个 Service 或留空。",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "执行查询 —— 选择一个 BROWSER 层的 Service、手动输入名称，或留空。",
   "Running…": "执行中…",
   "Service name": "Service 名称",
   "Time": "时间",

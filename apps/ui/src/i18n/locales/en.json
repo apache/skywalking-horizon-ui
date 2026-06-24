@@ -1498,6 +1498,7 @@
   "Real": "Real",
   "Resolved query": "Resolved query",
   "Run a query — name a service or leave it blank.": "Run a query — name a service or leave it blank.",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "Run a query — pick a BROWSER service, type a name, or leave it blank.",
   "Running…": "Running…",
   "Service name": "Service name",
   "Time": "Time",

@@ -1498,6 +1498,7 @@
   "Real": "Real",
   "Resolved query": "Consulta resuelta",
   "Run a query — name a service or leave it blank.": "Ejecuta una consulta: nombra un Service o déjalo en blanco.",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "Ejecuta una consulta: elige un Service de la capa BROWSER, escribe un nombre o déjalo en blanco.",
   "Running…": "Ejecutando…",
   "Service name": "Nombre del Service",
   "Time": "Tiempo",

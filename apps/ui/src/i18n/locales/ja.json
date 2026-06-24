@@ -1498,6 +1498,7 @@
   "Real": "実体",
   "Resolved query": "解決済みクエリ",
   "Run a query — name a service or leave it blank.": "クエリを実行 — Service を指定するか、空のままにします。",
+  "Run a query — pick a BROWSER service, type a name, or leave it blank.": "クエリを実行 — BROWSER レイヤーの Service を選択するか、名前を入力するか、空のままにします。",
   "Running…": "実行中…",
   "Service name": "Service 名",
   "Time": "時間",
