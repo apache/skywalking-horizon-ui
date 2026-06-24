@@ -33,7 +33,7 @@
 const BLANK_ENTITY_NAME = '_blank';
 
 function encode(name: string): string {
-  const n = name.length === 0 ? BLANK_ENTITY_NAME : name;
+  const n = name.trim().length === 0 ? BLANK_ENTITY_NAME : name;
   return Buffer.from(n, 'utf8').toString('base64');
 }
 

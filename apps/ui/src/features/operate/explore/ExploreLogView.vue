@@ -72,10 +72,6 @@ const { openTrace } = useTracePopout();
 type LogSource = 'raw' | 'browser' | 'pods';
 const logSource = ref<LogSource>('raw');
 
-// Browser errors scope to a BROWSER-layer service — used to default the
-// shared Pick layer on first switch into that source (see the watch below).
-const BROWSER_LAYER = 'BROWSER';
-
 // ── entity (OPTIONAL): pick (layer-filtered) vs type (name + real) ────
 type EntityMode = 'pick' | 'type';
 const entityMode = ref<EntityMode>('pick');
@@ -139,12 +135,9 @@ async function loadEndpoints(): Promise<void> {
   }
 }
 
-// Default the shared Pick layer to BROWSER the first time the operator opens
-// the browser source — its catalog is one click away. They can still change
-// the layer or switch to Type (or leave it blank to query every service).
-watch(logSource, (src) => {
-  if (src === 'browser' && !pickLayer.value) pickLayer.value = BROWSER_LAYER;
-});
+// No layer seed for the browser source: this is an inspect tool, so it
+// exposes every layer/service rather than pinning BROWSER (which left the
+// service list showing only the browser app under an "Any layer" label).
 
 // ── pods entity — a specific pod (instance) + container, scoped to a
 // `caps.podLogs` layer. The SERVICE field has its own Pick/Type toggle
@@ -249,10 +242,11 @@ async function loadContainers(): Promise<void> {
   podContainers.value = [];
   containersError.value = null;
   const id = pickInstanceId.value;
-  if (!pickLayer.value || !id) return;
+  const layer = podFetchLayer.value;
+  if (!layer || !id) return;
   containersLoading.value = true;
   try {
-    const r = await bff.log.podContainers(pickLayer.value, id);
+    const r = await bff.log.podContainers(layer, id);
     if (r.errorReason) {
       containersError.value = r.errorReason;
     } else if (!r.reachable) {
@@ -296,6 +290,14 @@ const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l
 // pick any); this narrower set only auto-defaults the Pick layer when exactly
 // one such layer exists.
 const podLayers = computed(() => availableLayers.value.filter((l) => l.caps?.podLogs));
+// The layer key for the pod-log fetches: the picked layer in Pick mode; in
+// Type mode the Layer field is hidden, so fall back to any caps.podLogs layer.
+// OAP resolves the pod by its instance id, not the layer (the BFF only checks
+// the key's shape), so any pod-log layer works — without this, Type mode
+// dead-ends whenever more than one caps.podLogs layer exists.
+const podFetchLayer = computed(() =>
+  podEntityMode.value === 'pick' ? pickLayer.value : (podLayers.value[0]?.key ?? ''),
+);
 const serviceOptions = computed(() =>
   services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
 );
@@ -558,7 +560,7 @@ async function runPodQuery(): Promise<void> {
   // No Resolved-query echo for pods — it's a live tail, not a stored query,
   // so the panel stays hidden (resolved is reset on source switch).
   try {
-    const r = await bff.log.podLogs(pickLayer.value, {
+    const r = await bff.log.podLogs(podFetchLayer.value, {
       serviceInstanceId: pickInstanceId.value,
       container: podContainer.value,
       windowSeconds: podWindowSeconds.value,

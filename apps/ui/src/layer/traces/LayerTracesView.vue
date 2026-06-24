@@ -356,6 +356,9 @@ const spanModalOpen = ref<boolean>(false);
  */
 function onPageKeyDown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return;
+  // Let an open tag-autocomplete dropdown consume Escape (close itself)
+  // rather than tearing down the trace detail behind it.
+  if (document.querySelector('.tgi__panel')) return;
   if (spanModalOpen.value) {
     detailCard.value?.closeSpanModal();
     e.preventDefault();

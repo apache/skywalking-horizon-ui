@@ -61,6 +61,13 @@ watch(
     if (row && !selectedMapId.value && props.maps.length > 0) selectedMapId.value = props.maps[0].id;
   },
 );
+// Maps may resolve AFTER a row is already open — seed the first one then too.
+watch(
+  () => props.maps,
+  (maps) => {
+    if (props.row && !selectedMapId.value && maps.length > 0) selectedMapId.value = maps[0].id;
+  },
+);
 
 async function resolveRow(): Promise<void> {
   const row = props.row;

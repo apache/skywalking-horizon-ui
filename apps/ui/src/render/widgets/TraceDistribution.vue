@@ -148,7 +148,12 @@ function clientToViewbox(ev: PointerEvent): { vx: number; vy: number } | null {
   const vy = ((ev.clientY - rect.top) / rect.height) * 1000;
   return { vx, vy };
 }
+// Set when a brush drag completes, so the click the browser synthesizes after
+// pointerup — landing on the same fat hit-circle — doesn't ALSO open a trace
+// detail. Cleared at the start of the next gesture.
+let justBrushed = false;
 function onScatterDown(ev: PointerEvent): void {
+  justBrushed = false;
   const pt = clientToViewbox(ev);
   if (!pt) return;
   // Record a potential drag; do NOT preventDefault yet, so a plain click on
@@ -179,6 +184,7 @@ function onScatterUp(ev: PointerEvent): void {
   const wasActive = s.active;
   dragState.value = { active: false, pending: false, startVx: 0, startVy: 0, curVx: 0, curVy: 0 };
   if (!wasActive) return;
+  justBrushed = true;
   try { (ev.currentTarget as SVGSVGElement).releasePointerCapture(ev.pointerId); } catch { /* noop */ }
   const { startVx, startVy, curVx, curVy } = s;
   const b = scatterBounds.value;
@@ -207,6 +213,7 @@ const dragRect = computed(() => {
 });
 function onScatterDot(p: ScatterPoint, ev: MouseEvent): void {
   ev.stopPropagation();
+  if (justBrushed) return;
   emit('select', p.row);
 }
 </script>

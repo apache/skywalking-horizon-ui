@@ -220,7 +220,6 @@ const shellRoutes: RouteRecordRaw[] = [
     path: 'operate/trace-inspect',
     name: 'trace-inspect',
     component: () => import('@/features/operate/explore/ExploreView.vue'),
-    props: { kind: 'trace' },
     meta: { verb: 'inspect:read' },
   },
   {

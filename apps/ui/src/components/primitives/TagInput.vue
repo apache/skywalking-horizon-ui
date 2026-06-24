@@ -27,7 +27,7 @@
   with a chip model uses it to add a chip; single-field hosts can ignore it.
 -->
 <script setup lang="ts">
-import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
 
 import { bffClient } from '@/api/client';
 
@@ -207,6 +207,11 @@ function onKeydown(e: KeyboardEvent): void {
 function onBlur(): void {
   open.value = false;
 }
+
+// Clear the in-flight value-fetch debounce if the field unmounts mid-wait.
+onBeforeUnmount(() => {
+  if (valueDebounce) clearTimeout(valueDebounce);
+});
 </script>
 
 <template>
