@@ -157,6 +157,9 @@ watch(logSource, (src) => {
 type PodEntityMode = 'pick' | 'type';
 const podEntityMode = ref<PodEntityMode>('pick');
 const podTypeService = ref<string>('');
+// Real flag for the typed service. Pod logs are real-only in practice
+// (a virtual/peer service has no pods), so this defaults to real.
+const podTypeReal = ref(true);
 const podContainer = ref<string>('');
 const podContainers = ref<string[]>([]);
 const containersLoading = ref(false);
@@ -170,14 +173,14 @@ const podServiceArg = computed(() =>
 );
 
 /** Encode a typed service name to an OAP service id (base64 of the UTF-8
- *  name + the real flag — k8s services are real). Type mode sends this so
- *  the instances route's id-passthrough resolves the pods without a
- *  per-layer name lookup, which is why Type needs no layer. */
-function encodePodServiceId(name: string): string {
+ *  name + the real flag). Type mode sends this so the instances route's
+ *  id-passthrough resolves the pods without a per-layer name lookup,
+ *  which is why Type needs no layer. */
+function encodePodServiceId(name: string, real: boolean): string {
   const bytes = new TextEncoder().encode(name);
   let bin = '';
   for (const b of bytes) bin += String.fromCharCode(b);
-  return `${btoa(bin)}.1`;
+  return `${btoa(bin)}.${real ? 1 : 0}`;
 }
 
 /** Load the pod (instance) list for the chosen/typed service of the pods
@@ -200,7 +203,7 @@ async function loadPodInstances(): Promise<void> {
   } else {
     const name = podTypeService.value.trim();
     layer = podLayers.value[0]?.key;
-    arg = name ? encodePodServiceId(name) : '';
+    arg = name ? encodePodServiceId(name, podTypeReal.value) : '';
   }
   if (!layer || !arg) return;
   podInstancesLoading.value = true;
@@ -236,8 +239,8 @@ watch(pickServiceId, () => {
   void loadInstances();
   void loadEndpoints();
 });
-// Type mode: the operator types a service name → resolve its pods per-layer.
-watch(podTypeService, () => {
+// Type mode: the typed name + real flag encode to a service id → resolve pods.
+watch([podTypeService, podTypeReal], () => {
   if (logSource.value === 'pods' && podEntityMode.value === 'type') void loadPodInstances();
 });
 
@@ -765,7 +768,7 @@ watch(logSource, (next, prev) => {
             <button :class="{ on: podEntityMode === 'type' }" @click="podEntityMode = 'type'">{{ t('Type') }}</button>
           </div>
         </div>
-        <div class="iq-grid">
+        <div class="iq-grid" :class="podEntityMode === 'pick' ? 'iq-grid--ent' : 'iq-grid--ent-type'">
           <label class="cf" v-if="podEntityMode === 'pick'">
             <span>{{ t('Layer') }}</span>
             <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="podLayerOptions" :placeholder="t('Any layer')" class="cf-tas" />
@@ -780,6 +783,10 @@ watch(logSource, (next, prev) => {
           <label class="cf" v-else>
             <span>{{ t('Service name') }}</span>
             <input v-model="podTypeService" class="cf-input mono" type="text" :placeholder="t('e.g. agent::checkout')" />
+          </label>
+          <label class="cf cf-chk" v-if="podEntityMode === 'type'">
+            <span>{{ t('Real') }}</span>
+            <span class="iq-chk"><input v-model="podTypeReal" type="checkbox" /> <small class="dim">{{ t('off = virtual / peer') }}</small></span>
           </label>
           <label class="cf">
             <span>{{ t('Pod') }}</span>
