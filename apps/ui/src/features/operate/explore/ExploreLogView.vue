@@ -805,6 +805,7 @@ watch(logSource, (next, prev) => {
             />
           </label>
         </div>
+        <p class="iq-pod-tip">{{ t('Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.') }}</p>
         <!-- Listing a pod's containers can itself return OAP's errorReason
              (feature disabled / stale pod) — surface it before Run. -->
         <div v-if="containersError" class="iq-pod-banner">
@@ -1189,6 +1190,7 @@ watch(logSource, (next, prev) => {
 
 /* On-demand pod logs return OAP's errorReason when the feature is disabled
    or the pod can't be resolved — surface it as a hint, not a blank pane. */
+.iq-pod-tip { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--sw-fg-3); }
 .iq-pod-banner {
   margin: 8px 0 0;
   padding: 8px 12px;

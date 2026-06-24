@@ -1512,5 +1512,6 @@
   "optional — blank queries all services": "任意 — 空の場合はすべての Service を検索",
   "paste a trace id": "Trace ID を貼り付け",
   "space- or comma-separated, AND-joined": "スペースまたはカンマ区切り、AND 結合",
-  "→ edit as text": "→ テキストで編集"
+  "→ edit as text": "→ テキストで編集",
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "各 Pod はサービスインスタンスであり、稼働中の Kubernetes Pod として表示されます。ログはクラスターから直接取得されるため、Pod は現在実行中である必要があります。"
 }

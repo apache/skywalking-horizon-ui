@@ -1512,5 +1512,6 @@
   "optional — blank queries all services": "opcional: en blanco consulta todos los Services",
   "paste a trace id": "pega un Trace ID",
   "space- or comma-separated, AND-joined": "separadas por espacio o coma, unidas con AND",
-  "→ edit as text": "→ editar como texto"
+  "→ edit as text": "→ editar como texto",
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "Cada pod es la instancia del servicio, mostrada como su pod de Kubernetes en vivo: los logs se leen directamente del clúster, por lo que el pod debe estar en ejecución."
 }
