@@ -30,7 +30,6 @@ import { useRoute } from 'vue-router';
 import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
-import { bffClient } from '@/api/client';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayers } from '@/shell/useLayers';
@@ -42,6 +41,7 @@ import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
@@ -267,44 +267,10 @@ const windowMinutesEffective = computed<number>(() =>
 );
 
 // ── Tag conditions (booster-style single `key=value` input) ──────
-// Mirrors the trace tab's ConditionTags pattern: one text input, the
-// datalist behind it swaps between known keys (before the operator
-// types `=`) and per-key values (after `=`). Enter commits the tag.
-// Tags accumulate in `customTags` and ride along on the OAP log query
-// as filters.
+// One text input; Enter commits the tag. Tags accumulate in `customTags`
+// and ride along on the OAP log query as filters. Key/value autocomplete
+// lives in TagInput.
 const tagInput = ref('');
-const tagKeyOptions = ref<string[]>([]);
-const tagValueOptions = ref<string[]>([]);
-const tagValueKey = ref<string>('');
-async function loadTagKeys(): Promise<void> {
-  try {
-    const res = await bffClient.log.tagKeys(30);
-    tagKeyOptions.value = res.keys ?? [];
-  } catch { /* autocomplete is best-effort */ }
-}
-async function loadTagValues(key: string): Promise<void> {
-  if (!key || key === tagValueKey.value) return;
-  tagValueKey.value = key;
-  try {
-    const res = await bffClient.log.tagValues(key, 30);
-    tagValueOptions.value = res.values ?? [];
-  } catch { /* noop */ }
-}
-function onTagInput(): void {
-  const eq = tagInput.value.indexOf('=');
-  if (eq === -1) return; // still typing key — keys datalist is active
-  const key = tagInput.value.slice(0, eq).trim();
-  if (key) void loadTagValues(key);
-}
-// Pre-load known keys once we know which layer the operator is on so
-// the suggestion list isn't empty on first keypress.
-watch(layerKey, (k) => { if (k) void loadTagKeys(); }, { immediate: true });
-const tagDatalistOptions = computed<string[]>(() => {
-  const eq = tagInput.value.indexOf('=');
-  if (eq === -1) return tagKeyOptions.value;
-  const key = tagInput.value.slice(0, eq).trim();
-  return tagValueOptions.value.map((v) => `${key}=${v}`);
-});
 function addTagFilter(): void {
   const raw = tagInput.value.trim();
   if (!raw || !raw.includes('=')) return;
@@ -577,21 +543,15 @@ function jumpToTrace(traceId: string, ts?: number): void {
             placeholder="paste trace id…"
           />
         </label>
-        <!-- Tags — single key=value input + datalist autocomplete. -->
+        <!-- Tags — single key=value input + custom autocomplete. -->
         <label class="cf cf-wide">
           <span>Tags</span>
-          <input
+          <TagInput
             v-model="tagInput"
-            type="text"
-            class="cf-input mono"
+            kind="log"
             placeholder="key=value, then Enter"
-            list="lg-tag-suggestions"
-            @input="onTagInput"
-            @keyup.enter="addTagFilter"
+            @commit="addTagFilter"
           />
-          <datalist id="lg-tag-suggestions">
-            <option v-for="opt in tagDatalistOptions" :key="opt" :value="opt" />
-          </datalist>
         </label>
         <!-- Time range — presets + Custom… that swaps to two
              datetime-local inputs (matches the trace tab). -->

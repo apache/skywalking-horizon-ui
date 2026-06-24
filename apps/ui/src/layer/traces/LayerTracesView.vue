@@ -54,8 +54,8 @@ import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { bffClient } from '@/api/client';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 
@@ -263,51 +263,6 @@ function removeTag(i: number): void {
   tagsList.value = tagsList.value.filter((_, idx) => idx !== i);
 }
 
-// Tag autocomplete (booster-style) — fetch known keys + per-key
-// values from the BFF, surfaced via a <datalist>. The list source
-// switches based on whether the operator has typed an `=` yet:
-//   before `=` → keys
-//   after `=`  → values of the entered key
-const tagKeyOptions = ref<string[]>([]);
-const tagValueOptions = ref<string[]>([]);
-const tagValueKey = ref<string>('');
-async function loadTagKeys(): Promise<void> {
-  try {
-    const res = await bffClient.trace.tagKeys(windowMinutes.value === -1 ? 30 : windowMinutes.value);
-    tagKeyOptions.value = res.keys ?? [];
-  } catch { /* noop — autocomplete is best-effort */ }
-}
-async function loadTagValues(key: string): Promise<void> {
-  if (!key || key === tagValueKey.value) return;
-  tagValueKey.value = key;
-  try {
-    const res = await bffClient.trace.tagValues(key, windowMinutes.value === -1 ? 30 : windowMinutes.value);
-    tagValueOptions.value = res.values ?? [];
-  } catch { /* noop */ }
-}
-function onTagInput(): void {
-  const raw = tagsInput.value;
-  const eq = raw.indexOf('=');
-  if (eq === -1) {
-    // Still typing the key — keep the keys datalist active.
-    return;
-  }
-  const key = raw.slice(0, eq).trim();
-  if (key) void loadTagValues(key);
-}
-// Pre-load keys once the operator has picked a service (so the
-// suggestions reflect what the upstream OAP actually has indexed).
-watch(serviceName, (v) => { if (v) void loadTagKeys(); }, { immediate: true });
-const tagDatalistOptions = computed<string[]>(() => {
-  const raw = tagsInput.value;
-  const eq = raw.indexOf('=');
-  if (eq === -1) return tagKeyOptions.value;
-  const key = raw.slice(0, eq).trim();
-  // Prefix each suggestion with the typed key so picking from the
-  // datalist replaces the *value* portion of the input.
-  return tagValueOptions.value.map((v) => `${key}=${v}`);
-});
-
 // ── Inline selection (click-driven, local state, no URL change) ───
 const selectedTraceId = ref<string | null>(null);
 const selectedTraceIds = ref<string[]>([]);
@@ -504,20 +459,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           </div>
           <label class="cf cf-wide">
             <span>{{ t('Tag') }}</span>
-            <input
+            <TagInput
               v-model="tagsInput"
-              type="text"
+              kind="trace"
+              :window-minutes="windowMinutes"
               :placeholder="t('key=value, then Enter')"
-              class="cf-input"
-              list="trace-tag-suggestions"
-              @input="onTagInput"
-              @keyup.enter="addTag"
+              @commit="addTag"
             />
-            <!-- Datalist content swaps between known tag keys (before
-                 `=`) and values for the typed key (after `=`). -->
-            <datalist id="trace-tag-suggestions">
-              <option v-for="opt in tagDatalistOptions" :key="opt" :value="opt" />
-            </datalist>
           </label>
         </div>
         <div v-if="tagsList.length > 0" class="tr-tag-row">

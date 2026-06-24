@@ -55,6 +55,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { WINDOW_OPTS as POD_WINDOW_OPTS } from '@/layer/pod-logs/useLayerPodLogs';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import BrowserErrorPopout from '@/render/widgets/BrowserErrorPopout.vue';
@@ -750,7 +751,12 @@ watch(logSource, () => {
             <template v-else>
               <label class="cf cf-wide">
                 <span>{{ t('Tags') }}</span>
-                <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('level=ERROR, …')" />
+                <TagInput
+                  v-model="cond.tags"
+                  kind="log"
+                  :window-minutes="cond.windowMinutes"
+                  :placeholder="t('level=ERROR, …')"
+                />
               </label>
               <label class="cf cf-wide">
                 <span>{{ t('Trace ID') }}</span>

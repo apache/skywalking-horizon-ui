@@ -51,6 +51,7 @@ import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import ZipkinTraceDetailCard from '@/render/widgets/ZipkinTraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
+import TagInput from '@/components/primitives/TagInput.vue';
 
 const { t } = useI18n();
 const { availableLayers } = useLayers();
@@ -624,7 +625,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
               </label>
               <label v-if="!isZipkin" class="cf cf-wide">
                 <span>{{ t('Tags') }}</span>
-                <input v-model="cond.tags" class="cf-input mono" type="text" :placeholder="t('http.status_code=500, …')" />
+                <TagInput
+                  v-model="cond.tags"
+                  kind="trace"
+                  :window-minutes="cond.windowMinutes"
+                  :placeholder="t('http.status_code=500, …')"
+                />
               </label>
               <label v-else class="cf cf-wide">
                 <span>{{ t('Annotation query') }}</span>
