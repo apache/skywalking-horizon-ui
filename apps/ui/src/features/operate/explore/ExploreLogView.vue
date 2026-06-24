@@ -290,12 +290,12 @@ watch(podEntityMode, () => {
 const podContainerOptions = computed(() => podContainers.value.map((c) => ({ value: c, label: c })));
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
-// Pods scope to K8s-deployed layers only — `caps.podLogs` is the same
-// wire flag that gates the per-layer Pod Logs tab (k8s_service / mesh
-// templates). A browser/general service has no pod to tail, so the pods
-// Layer field draws from THIS list, never the broad `layerOptions`.
+// `caps.podLogs` marks K8s-deployed layers (k8s_service / mesh — the same
+// flag that gates the per-layer Pod Logs tab). The pods Layer dropdown lists
+// EVERY layer (the layer is cosmetic on the pod-log wire, so operators may
+// pick any); this narrower set only auto-defaults the Pick layer when exactly
+// one such layer exists.
 const podLayers = computed(() => availableLayers.value.filter((l) => l.caps?.podLogs));
-const podLayerOptions = computed(() => podLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 const serviceOptions = computed(() =>
   services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
 );
@@ -771,7 +771,7 @@ watch(logSource, (next, prev) => {
         <div class="iq-grid" :class="podEntityMode === 'pick' ? 'iq-grid--ent' : 'iq-grid--ent-type'">
           <label class="cf" v-if="podEntityMode === 'pick'">
             <span>{{ t('Layer') }}</span>
-            <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="podLayerOptions" :placeholder="t('Any layer')" class="cf-tas" />
+            <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="layerOptions" :placeholder="t('Any layer')" class="cf-tas" />
           </label>
           <label class="cf" v-if="podEntityMode === 'pick'">
             <span>{{ t('Service') }}</span>
