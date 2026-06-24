@@ -169,6 +169,17 @@ const podServiceArg = computed(() =>
   podEntityMode.value === 'pick' ? pickServiceId.value : podTypeService.value.trim(),
 );
 
+/** Encode a typed service name to an OAP service id (base64 of the UTF-8
+ *  name + the real flag — k8s services are real). Type mode sends this so
+ *  the instances route's id-passthrough resolves the pods without a
+ *  per-layer name lookup, which is why Type needs no layer. */
+function encodePodServiceId(name: string): string {
+  const bytes = new TextEncoder().encode(name);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return `${btoa(bin)}.1`;
+}
+
 /** Load the pod (instance) list for the chosen/typed service of the pods
  *  source, scoped to its `caps.podLogs` layer. Cascade-clears the pod +
  *  container picks first so a stale pod never sits under the new list. */
@@ -178,11 +189,23 @@ async function loadPodInstances(): Promise<void> {
   podContainer.value = '';
   podContainers.value = [];
   containersError.value = null;
-  const arg = podServiceArg.value;
-  if (!pickLayer.value || !arg) return;
+  // Pick resolves the service within the chosen layer. Type needs no layer:
+  // the typed name is encoded to a service id, and the instances route
+  // ignores the layer key for an id, so any caps.podLogs layer works.
+  let layer: string | undefined;
+  let arg: string;
+  if (podEntityMode.value === 'pick') {
+    layer = pickLayer.value;
+    arg = pickServiceId.value;
+  } else {
+    const name = podTypeService.value.trim();
+    layer = podLayers.value[0]?.key;
+    arg = name ? encodePodServiceId(name) : '';
+  }
+  if (!layer || !arg) return;
   podInstancesLoading.value = true;
   try {
-    const res = await bff.layer.instances(pickLayer.value, arg);
+    const res = await bff.layer.instances(layer, arg);
     instances.value = res.reachable ? res.instances : [];
     // Single pod → auto-pin it (the common single-replica case); the
     // `pickInstanceId` watch then lists its containers.
@@ -201,13 +224,9 @@ async function loadPodInstances(): Promise<void> {
 // Each cascade gates on the active source so the wrong downstream never
 // fires (loading pod containers for a browser service, etc.).
 watch(pickLayer, () => {
+  // pods Pick reloads its service list here; pods Type ignores the layer
+  // (it encodes the name to an id), so no pods-specific branch is needed.
   void loadServices();
-  if (logSource.value === 'pods') {
-    // Layer switch resets the pods Service field in BOTH modes — a typed
-    // name resolves per-layer, so it can't carry across layers.
-    podTypeService.value = '';
-    if (podEntityMode.value === 'type') void loadPodInstances();
-  }
 });
 watch(pickServiceId, () => {
   if (logSource.value === 'pods') {
@@ -747,7 +766,7 @@ watch(logSource, (next, prev) => {
           </div>
         </div>
         <div class="iq-grid">
-          <label class="cf">
+          <label class="cf" v-if="podEntityMode === 'pick'">
             <span>{{ t('Layer') }}</span>
             <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="podLayerOptions" :placeholder="t('Any layer')" class="cf-tas" />
           </label>
@@ -760,7 +779,7 @@ watch(logSource, (next, prev) => {
           </label>
           <label class="cf" v-else>
             <span>{{ t('Service name') }}</span>
-            <input v-model="podTypeService" class="cf-input mono" type="text" :disabled="!pickLayer" :placeholder="t('e.g. agent::checkout')" />
+            <input v-model="podTypeService" class="cf-input mono" type="text" :placeholder="t('e.g. agent::checkout')" />
           </label>
           <label class="cf">
             <span>{{ t('Pod') }}</span>
