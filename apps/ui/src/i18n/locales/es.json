@@ -1513,5 +1513,19 @@
   "paste a trace id": "pega un Trace ID",
   "space- or comma-separated, AND-joined": "separadas por espacio o coma, unidas con AND",
   "→ edit as text": "→ editar como texto",
-  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "Cada pod es la instancia del servicio, mostrada como su pod de Kubernetes en vivo: los logs se leen directamente del clúster, por lo que el pod debe estar en ejecución."
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "Cada pod es la instancia del servicio, mostrada como su pod de Kubernetes en vivo: los logs se leen directamente del clúster, por lo que el pod debe estar en ejecución.",
+  "foreign": "externa",
+  "foreign metric": "métrica externa",
+  "metric name": "nombre de la métrica",
+  "e.g. meter_custom_pool": "p. ej. meter_custom_pool",
+  "value column": "columna de valor",
+  "value type": "tipo de valor",
+  "metric name is required": "el nombre de la métrica es obligatorio",
+  "{metric} is already on the board": "{metric} ya está en el tablero",
+  "foreign metric — not defined on this OAP": "métrica externa — no definida en este OAP",
+  "storage column · value type": "columna de almacenamiento · tipo de valor",
+  "from catalog": "del catálogo",
+  "+ add to list": "+ añadir a la lista",
+  "staged · {n}": "en cola · {n}",
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "Una métrica que este OAP no define — otro OAP la escribió en el almacenamiento compartido. Indica su columna y tipo de valor (del OAP que la define) y Horizon grafica los valores."
 }

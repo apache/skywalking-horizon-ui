@@ -375,6 +375,18 @@ export function describeApiError(err: unknown): string {
       if (typeof o.applyStatus === 'string') {
         return `${e.status} (${o.applyStatus})`;
       }
+      // OAP's inspect/admin envelope is `{ error: "<human text>" }` (no
+      // `message`), and BFF validation envelopes carry a code in `error` plus
+      // the human reason in `detail` (`{ error: 'invalid_foreign_metric',
+      // detail: 'valueColumn is invalid …' }`). Surface both rather than
+      // collapsing to a bare "HTTP <status>" or a lone code — for a foreign
+      // metric this is where OAP's / the BFF's "valueColumn is invalid …",
+      // "metric is defined locally …" reasons reach the operator.
+      if (typeof o.error === 'string' && o.error.length > 0) {
+        return typeof o.detail === 'string' && o.detail.length > 0
+          ? `${e.status} (${o.error}): ${o.detail}`
+          : `${e.status}: ${o.error}`;
+      }
     }
     if (typeof e.body === 'string' && e.body.length > 0) {
       return `${e.status}: ${e.body}`;

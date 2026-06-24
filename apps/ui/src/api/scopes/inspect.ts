@@ -19,7 +19,9 @@ import type {
   EntitiesResponse,
   ExpressionResult,
   InspectExecRequest,
+  InspectForeignValueType,
   InspectStep,
+  InspectValuesRequest,
 } from '@skywalking-horizon-ui/api-client';
 import type {
   BffClient,
@@ -42,6 +44,10 @@ export class InspectApi {
     end: string;
     step: InspectStep;
     limit?: number;
+    /** FOREIGN metric (not defined on the connected OAP): supply both to
+     *  enumerate its entities from shared storage. */
+    valueColumn?: string;
+    valueType?: InspectForeignValueType;
   }): Promise<EntitiesResponse> {
     const params = new URLSearchParams({
       metric: args.metric,
@@ -50,6 +56,8 @@ export class InspectApi {
       step: args.step,
     });
     if (args.limit !== undefined) params.set('limit', String(args.limit));
+    if (args.valueColumn !== undefined) params.set('valueColumn', args.valueColumn);
+    if (args.valueType !== undefined) params.set('valueType', args.valueType);
     return this.bff.request<EntitiesResponse>(
       'GET',
       `/api/inspect/entities?${params.toString()}`,
@@ -58,6 +66,12 @@ export class InspectApi {
 
   exec(req: InspectExecRequest): Promise<ExpressionResult> {
     return this.bff.request<ExpressionResult>('POST', '/api/inspect/exec', req);
+  }
+
+  /** Read values of a FOREIGN metric (one the connected OAP doesn't define)
+   *  via `/inspect/values`. Returns the same `ExpressionResult` as `exec`. */
+  values(req: InspectValuesRequest): Promise<ExpressionResult> {
+    return this.bff.request<ExpressionResult>('POST', '/api/inspect/values', req);
   }
 
   serverTime(refresh = false): Promise<InspectServerTimeResponse> {

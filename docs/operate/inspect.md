@@ -62,6 +62,27 @@ The page takes a browser-local time range and converts it; the strings are inter
 
 Horizon converts the page's chosen time range into the correct format automatically — operators just pick a window.
 
+## Foreign metrics — charting another OAP's data
+
+A metric appears in the catalog only if the OAP behind Horizon **defines** it — i.e. it carries the OAL / MAL analysis rule that produces it. When two OAPs share one storage backend (for example a newer OAP writing data that an older OAP, or a different distribution, reads), a metric written by one OAP is **foreign** to the other: present in shared storage, absent from its catalog. The catalog browser won't list a foreign metric, but you can still enumerate its entities and chart its values — you just have to tell Horizon how the metric is stored.
+
+Open **+ add metric** and switch to the **Foreign metric** tab (beside **From catalog**):
+
+| Field | What to enter |
+|---|---|
+| Metric name | The exact metric id, e.g. `meter_custom_pool`. |
+| Scope | The metric's entity scope — Service, ServiceInstance, Endpoint, or one of the three relations. |
+| Value column | The metric's storage value column. Usually `value`. |
+| Value type | How the value is stored: `LONG`, `INT`, `DOUBLE`, or `LABELED`. |
+
+Value column and value type are storage details that can't be inferred from the name. Read them from the catalog of the OAP that **does** define the metric — its catalog row reports the value column and the type — then enter them here.
+
+Use **+ add to list** to stage a metric, repeat for as many as you need, then **Add N to board** to add them together. The drawer footer counts what's pending and respects the board cap, the same as the catalog tab.
+
+The foreign widget then behaves like any other inspect widget: it enumerates the entities reporting data for the metric, defaults to the top one, and plots the value series. Step or multi-select entities, switch chart type, and refetch the same way. It's marked with a `FOREIGN` pill and its value type.
+
+The connected OAP can't evaluate a foreign metric through its normal query path — that needs the analysis rule. Horizon reads the values through the OAP's admin surface instead, using the value column and type you supplied, so a wrong column or type surfaces as an error on the widget rather than a misleading chart.
+
 ## Common workflows
 
 ### "I'm authoring a widget and I don't know which MQE expression to use."

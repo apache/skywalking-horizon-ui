@@ -69,6 +69,19 @@ export const INSPECT_STEPS: readonly InspectStep[] = ['MINUTE', 'HOUR', 'DAY'] a
 /** Server-side hard cap on `/inspect/entities?limit=`. */
 export const INSPECT_ENTITY_LIMIT_MAX = 300;
 
+/** Storage value-type a caller declares when inspecting a FOREIGN metric —
+ *  one this OAP does not define (no local registry entry to recover the
+ *  column type from). Mirrors OAP's accepted set in `InspectRestHandler`:
+ *  `LONG` / `INT` / `DOUBLE` are scalar; `LABELED` is a DataTable. HEATMAP
+ *  and SAMPLED_RECORD are out of scope for `/inspect/entities`. */
+export type InspectForeignValueType = 'LONG' | 'INT' | 'DOUBLE' | 'LABELED';
+export const INSPECT_FOREIGN_VALUE_TYPES: readonly InspectForeignValueType[] = [
+  'LONG',
+  'INT',
+  'DOUBLE',
+  'LABELED',
+] as const;
+
 export interface MetricRow {
   name: string;
   type: InspectMetricType;
@@ -117,12 +130,17 @@ export interface EntityRow {
    *  Omitted (Java `null` → field absent thanks to `NON_NULL`) when
    *  the service is missing from the metadata cache. */
   layer?: string;
-  mqeEntity: MqeEntity;
+  /** Re-queryable MQE entity. Present on the aware path (metric defined on
+   *  this OAP). Absent on the FOREIGN path — a metric this OAP doesn't define
+   *  can't be MQE-queried here, so the structural decode emits no entity. */
+  mqeEntity?: MqeEntity;
 }
 
 export interface EntitiesResponse {
   metric: string;
-  scope: InspectScope;
+  /** `null` on the FOREIGN path: a foreign metric's exact scope can't be
+   *  recovered, only its per-row structural shape (carried in `decoded`). */
+  scope: InspectScope | null;
   step: InspectStep;
   /** Echo of the `start` query param in the step-specific format. */
   start: string;
@@ -155,6 +173,12 @@ export interface ListEntitiesArgs {
   /** 1–300, default 300 server-side. Studio defaults to a smaller
    *  number per widget. */
   limit?: number;
+  /** FOREIGN-metric storage column, e.g. `value`. Required together with
+   *  `valueType` to inspect a metric this OAP does not define; omit both
+   *  for an aware metric (OAP reads the column from its own registry). */
+  valueColumn?: string;
+  /** FOREIGN-metric value type. Required together with `valueColumn`. */
+  valueType?: InspectForeignValueType;
 }
 
 // ── MQE result shape ───────────────────────────────────────────────
@@ -207,6 +231,28 @@ export interface ExpressionResult {
   type: ExpressionResultType;
   results: MqeValues[];
   error?: string | null;
+}
+
+/** Per-metric metadata supplied to `POST /inspect/values` for a metric this
+ *  OAP doesn't define (mirrors OAP's `ForeignMetricInput`). */
+export interface ForeignMetricInput {
+  name: string;
+  valueColumn: string;
+  valueType: InspectForeignValueType;
+}
+
+/** Wire shape for `POST /inspect/values` — evaluate an MQE expression over
+ *  one or more FOREIGN metrics (values read from shared storage with the
+ *  caller-supplied column/type). Returns the native `ExpressionResult`, same
+ *  shape as GraphQL `execExpression`. This is the admin-port counterpart to
+ *  `execExpression` for metrics the connected OAP can't evaluate itself. */
+export interface InspectValuesRequest {
+  expression: string;
+  entity: MqeEntity;
+  start: string;
+  end: string;
+  step: InspectStep;
+  foreignMetrics: ForeignMetricInput[];
 }
 
 /** Wire shape for Studio's `POST /api/inspect/exec`. The BFF will
@@ -318,7 +364,9 @@ export class InspectClient {
     return (await res.json()) as MetricsResponse;
   }
 
-  /** `GET /inspect/entities` — `metric` + time range + step + limit. */
+  /** `GET /inspect/entities` — `metric` + time range + step + limit. Pass
+   *  `valueColumn` + `valueType` to inspect a FOREIGN metric (one this OAP
+   *  doesn't define). */
   async listEntities(args: ListEntitiesArgs): Promise<EntitiesResponse> {
     const params = new URLSearchParams({
       metric: args.metric,
@@ -327,10 +375,26 @@ export class InspectClient {
       step: args.step,
     });
     if (args.limit !== undefined) params.set('limit', String(args.limit));
+    if (args.valueColumn !== undefined) params.set('valueColumn', args.valueColumn);
+    if (args.valueType !== undefined) params.set('valueType', args.valueType);
     const url = `${this.base}/inspect/entities?${params.toString()}`;
     const res = await this.send(url, { method: 'GET' });
     if (!res.ok) throw await this.toError(res, url);
     return (await res.json()) as EntitiesResponse;
+  }
+
+  /** `POST /inspect/values` — read the VALUES of FOREIGN metric(s) this OAP
+   *  doesn't define, supplying their storage column/type in `foreignMetrics`.
+   *  Returns the same `ExpressionResult` shape as GraphQL `execExpression`. */
+  async inspectValues(req: InspectValuesRequest): Promise<ExpressionResult> {
+    const url = `${this.base}/inspect/values`;
+    const res = await this.send(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) throw await this.toError(res, url);
+    return (await res.json()) as ExpressionResult;
   }
 
   // ── private helpers ─────────────────────────────────────────────

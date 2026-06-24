@@ -1513,5 +1513,19 @@
   "paste a trace id": "Trace ID を貼り付け",
   "space- or comma-separated, AND-joined": "スペースまたはカンマ区切り、AND 結合",
   "→ edit as text": "→ テキストで編集",
-  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "各 Pod はサービスインスタンスであり、稼働中の Kubernetes Pod として表示されます。ログはクラスターから直接取得されるため、Pod は現在実行中である必要があります。"
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "各 Pod はサービスインスタンスであり、稼働中の Kubernetes Pod として表示されます。ログはクラスターから直接取得されるため、Pod は現在実行中である必要があります。",
+  "foreign": "外部",
+  "foreign metric": "外部メトリクス",
+  "metric name": "メトリクス名",
+  "e.g. meter_custom_pool": "例: meter_custom_pool",
+  "value column": "値カラム",
+  "value type": "値タイプ",
+  "metric name is required": "メトリクス名は必須です",
+  "{metric} is already on the board": "{metric} は既にボードにあります",
+  "foreign metric — not defined on this OAP": "外部メトリクス — この OAP では未定義",
+  "storage column · value type": "ストレージカラム · 値タイプ",
+  "from catalog": "カタログから",
+  "+ add to list": "+ リストに追加",
+  "staged · {n}": "ステージ済み · {n}",
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "この OAP が定義していないメトリクス —— 別の OAP が共有ストレージに書き込んだものです。値カラムと型（定義元の OAP のカタログに記載）を指定すると、Horizon が値をグラフ化します。"
 }

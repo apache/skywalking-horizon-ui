@@ -1513,5 +1513,19 @@
   "paste a trace id": "Trace ID 붙여넣기",
   "space- or comma-separated, AND-joined": "공백 또는 쉼표로 구분, AND 결합",
   "→ edit as text": "→ 텍스트로 편집",
-  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "각 Pod는 서비스 인스턴스이며 실행 중인 Kubernetes Pod로 표시됩니다. 로그는 클러스터에서 직접 가져오므로 Pod가 현재 실행 중이어야 합니다."
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "각 Pod는 서비스 인스턴스이며 실행 중인 Kubernetes Pod로 표시됩니다. 로그는 클러스터에서 직접 가져오므로 Pod가 현재 실행 중이어야 합니다.",
+  "foreign": "외부",
+  "foreign metric": "외부 메트릭",
+  "metric name": "메트릭 이름",
+  "e.g. meter_custom_pool": "예: meter_custom_pool",
+  "value column": "값 컬럼",
+  "value type": "값 유형",
+  "metric name is required": "메트릭 이름은 필수입니다",
+  "{metric} is already on the board": "{metric}은(는) 이미 보드에 있습니다",
+  "foreign metric — not defined on this OAP": "외부 메트릭 — 이 OAP에 정의되지 않음",
+  "storage column · value type": "스토리지 컬럼 · 값 유형",
+  "from catalog": "카탈로그에서",
+  "+ add to list": "+ 목록에 추가",
+  "staged · {n}": "대기 · {n}",
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "이 OAP가 정의하지 않은 메트릭 —— 다른 OAP가 공유 스토리지에 기록한 것입니다. 값 컬럼과 유형(정의한 OAP의 카탈로그 참고)을 입력하면 Horizon이 값을 차트로 표시합니다."
 }

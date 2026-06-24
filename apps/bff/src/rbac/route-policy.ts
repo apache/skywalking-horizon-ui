@@ -145,6 +145,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/inspect/server-time':                  'inspect:read',
   'POST /api/inspect/exec':                        'inspect:read',
   'GET /api/inspect/entities':                     'inspect:read',
+  'POST /api/inspect/values':                      'inspect:read',
   'GET /api/oap/ttl':                              'ttl:read',
   'GET /api/oap/config':                           'config:read',
 

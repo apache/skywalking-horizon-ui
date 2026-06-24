@@ -42,12 +42,16 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
   InspectApiError,
   INSPECT_ENTITY_LIMIT_MAX,
+  INSPECT_FOREIGN_VALUE_TYPES,
   INSPECT_STEPS,
   isInspectDate,
   type FetchLike,
   type InspectCatalog,
+  type InspectForeignValueType,
   type InspectMetricType,
   type InspectStep,
+  type InspectValuesRequest,
+  type ForeignMetricInput,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { AuditLogger } from '../../audit/logger.js';
@@ -73,6 +77,13 @@ const VALID_METRIC_TYPES = new Set<InspectMetricType>([
   'HEATMAP',
   'SAMPLED_RECORD',
 ]);
+
+const VALID_FOREIGN_VALUE_TYPES = new Set<InspectForeignValueType>(INSPECT_FOREIGN_VALUE_TYPES);
+
+/** Mirrors OAP's `InspectRestHandler.VALUE_COLUMN_PATTERN` — a storage column
+ *  is a plain SQL identifier. Validating it here fails a typo'd column at the
+ *  edge instead of bouncing it off OAP. */
+const VALUE_COLUMN_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const TRUTHY = new Set(['true', '1', 'yes']);
 
@@ -268,6 +279,14 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
         limit = parsed;
       }
 
+      // Foreign-metric path: `valueColumn` + `valueType` let OAP inspect a
+      // metric it doesn't define (persisted by another OAP into shared
+      // storage). OAP requires BOTH; we mirror that with a crisp 400 rather
+      // than forwarding a half-specified pair and surfacing OAP's generic
+      // "unknown locally" error.
+      const foreign = parseForeign(q.valueColumn, q.valueType, reply);
+      if (foreign === null) return; // 400 already sent.
+
       try {
         const got = await clients()
           .inspect()
@@ -277,6 +296,7 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
             end: q.end,
             step,
             ...(limit !== undefined ? { limit } : {}),
+            ...foreign,
           });
         return reply.send(got);
       } catch (err) {
@@ -284,9 +304,137 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       }
     },
   );
+
+  // ── /api/inspect/values ──────────────────────────────────────────
+  // Reads VALUES of FOREIGN metric(s) the connected OAP doesn't define,
+  // via OAP's admin-port `POST /inspect/values` (returns the same
+  // ExpressionResult shape as execExpression). This is the value path
+  // for foreign metrics — execExpression can't evaluate a metric the
+  // OAP has no model for.
+
+  app.post(
+    '/api/inspect/values',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      if (!ensureVerb(req, reply, deps, 'inspect:read')) return;
+      const body = parseValuesBody(req.body, reply);
+      if (!body) return; // 400 already sent.
+      try {
+        const result = await clients().inspect().inspectValues(body);
+        return reply.send(result);
+      } catch (err) {
+        return passInspectError(err, reply, '/inspect/values');
+      }
+    },
+  );
 }
 
 // ── helpers ───────────────────────────────────────────────────────
+
+/** Parse the foreign-metric `valueColumn` / `valueType` pair. Returns an
+ *  empty object for an aware request (neither supplied), the validated pair
+ *  for a foreign request (both supplied), or `null` after sending a 400 when
+ *  the pair is half-specified or `valueType` is out of range. */
+function parseForeign(
+  valueColumn: string | undefined,
+  valueType: string | undefined,
+  reply: FastifyReply,
+): { valueColumn: string; valueType: InspectForeignValueType } | Record<string, never> | null {
+  const hasColumn = typeof valueColumn === 'string' && valueColumn.length > 0;
+  const hasType = typeof valueType === 'string' && valueType.length > 0;
+  if (!hasColumn && !hasType) return {};
+  if (!hasColumn || !hasType) {
+    reply.code(400).send({
+      error: 'foreign_requires_both',
+      message: 'valueColumn and valueType must be supplied together to inspect a foreign metric',
+    });
+    return null;
+  }
+  if (!VALUE_COLUMN_PATTERN.test(valueColumn as string)) {
+    reply.code(400).send({
+      error: 'invalid_value_column',
+      detail: `valueColumn is invalid: ${valueColumn}`,
+      value: valueColumn,
+    });
+    return null;
+  }
+  const upper = (valueType as string).toUpperCase();
+  if (!VALID_FOREIGN_VALUE_TYPES.has(upper as InspectForeignValueType)) {
+    reply.code(400).send({
+      error: 'invalid_value_type',
+      value: valueType,
+      allowed: INSPECT_FOREIGN_VALUE_TYPES,
+    });
+    return null;
+  }
+  return { valueColumn: valueColumn as string, valueType: upper as InspectForeignValueType };
+}
+
+/** Validate the `POST /api/inspect/values` body. Returns the typed request,
+ *  or `null` after sending a 400. Mirrors the essentials OAP enforces so a
+ *  malformed UI request fails crisply rather than as a generic upstream error;
+ *  OAP remains the final authority (e.g. a metric that's actually local). */
+function parseValuesBody(body: unknown, reply: FastifyReply): InspectValuesRequest | null {
+  if (typeof body !== 'object' || body === null) {
+    reply.code(400).send({ error: 'invalid_body' });
+    return null;
+  }
+  const b = body as Partial<InspectValuesRequest>;
+  if (typeof b.expression !== 'string' || b.expression.length === 0) {
+    reply.code(400).send({ error: 'missing_expression' });
+    return null;
+  }
+  if (typeof b.entity !== 'object' || b.entity === null || typeof b.entity.scope !== 'string') {
+    reply.code(400).send({ error: 'invalid_entity', detail: 'entity.scope is required' });
+    return null;
+  }
+  if (typeof b.step !== 'string' || !INSPECT_STEPS.includes(b.step.toUpperCase() as InspectStep)) {
+    reply.code(400).send({ error: 'invalid_step', allowed: INSPECT_STEPS });
+    return null;
+  }
+  const step = b.step.toUpperCase() as InspectStep;
+  if (typeof b.start !== 'string' || !isInspectDate(b.start, step)) {
+    reply.code(400).send({ error: 'invalid_start_format', step });
+    return null;
+  }
+  if (typeof b.end !== 'string' || !isInspectDate(b.end, step)) {
+    reply.code(400).send({ error: 'invalid_end_format', step });
+    return null;
+  }
+  if (!Array.isArray(b.foreignMetrics) || b.foreignMetrics.length === 0) {
+    reply.code(400).send({ error: 'missing_foreign_metrics' });
+    return null;
+  }
+  const foreignMetrics: ForeignMetricInput[] = [];
+  for (const fm of b.foreignMetrics) {
+    if (typeof fm?.name !== 'string' || fm.name.length === 0) {
+      reply.code(400).send({ error: 'invalid_foreign_metric', detail: 'name is required' });
+      return null;
+    }
+    if (typeof fm.valueColumn !== 'string' || fm.valueColumn.length === 0) {
+      reply.code(400).send({ error: 'invalid_foreign_metric', detail: 'valueColumn is required' });
+      return null;
+    }
+    if (!VALUE_COLUMN_PATTERN.test(fm.valueColumn)) {
+      reply.code(400).send({ error: 'invalid_foreign_metric', detail: `valueColumn is invalid: ${fm.valueColumn}` });
+      return null;
+    }
+    const vt = typeof fm.valueType === 'string' ? fm.valueType.toUpperCase() : '';
+    if (!VALID_FOREIGN_VALUE_TYPES.has(vt as InspectForeignValueType)) {
+      reply.code(400).send({ error: 'invalid_value_type', value: fm.valueType, allowed: INSPECT_FOREIGN_VALUE_TYPES });
+      return null;
+    }
+    foreignMetrics.push({ name: fm.name, valueColumn: fm.valueColumn, valueType: vt as InspectForeignValueType });
+  }
+  return {
+    expression: b.expression,
+    entity: b.entity,
+    start: b.start,
+    end: b.end,
+    step,
+    foreignMetrics,
+  };
+}
 
 function parseStep(raw: string, reply: FastifyReply): InspectStep | null {
   const upper = raw.toUpperCase();
@@ -364,6 +512,24 @@ function ensureVerb(
 function passInspectError(err: unknown, reply: FastifyReply, path: string): FastifyReply {
   if (err instanceof InspectApiError) {
     if (err.status === 404) {
+      // `POST /inspect/values` (and the foreign `/inspect/entities` params) are
+      // newer than the base inspect module, so a 404 there means a different
+      // thing than a 404 on the catalog: the inspect module IS enabled (the
+      // catalog loaded, or the page-level banner already covers a fully-off
+      // module), but THIS OAP build predates the foreign-values endpoint. A
+      // generic "Set SW_INSPECT=default" would misdirect the operator — point
+      // at the OAP version instead. This is the exact cross-version case the
+      // foreign-metric feature exists for, so the message has to be honest.
+      if (path === '/inspect/values') {
+        return reply.code(404).send({
+          error: 'inspect_values_unsupported',
+          message:
+            'OAP did not expose POST /inspect/values. Reading a foreign metric’s ' +
+            'values needs a newer OAP build (or, if the whole inspect module is off, ' +
+            'set SW_INSPECT=default on the admin-server).',
+          path,
+        });
+      }
       return reply.code(404).send({
         error: 'inspect_not_enabled',
         message: 'OAP did not bind the inspect routes. Set SW_INSPECT=default on the admin-server.',

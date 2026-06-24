@@ -1513,5 +1513,19 @@
   "paste a trace id": "Trace-ID einfügen",
   "space- or comma-separated, AND-joined": "durch Leerzeichen oder Komma getrennt, mit AND verknüpft",
   "→ edit as text": "→ als Text bearbeiten",
-  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "Jeder Pod ist die Service-Instanz, dargestellt als ihr aktiver Kubernetes-Pod – Logs werden direkt aus dem Cluster gelesen, der Pod muss also gerade laufen."
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "Jeder Pod ist die Service-Instanz, dargestellt als ihr aktiver Kubernetes-Pod – Logs werden direkt aus dem Cluster gelesen, der Pod muss also gerade laufen.",
+  "foreign": "fremd",
+  "foreign metric": "fremde Metrik",
+  "metric name": "Metrikname",
+  "e.g. meter_custom_pool": "z. B. meter_custom_pool",
+  "value column": "Wertspalte",
+  "value type": "Werttyp",
+  "metric name is required": "Metrikname ist erforderlich",
+  "{metric} is already on the board": "{metric} ist bereits auf dem Board",
+  "foreign metric — not defined on this OAP": "fremde Metrik — auf diesem OAP nicht definiert",
+  "storage column · value type": "Speicherspalte · Werttyp",
+  "from catalog": "aus dem Katalog",
+  "+ add to list": "+ zur Liste hinzufügen",
+  "staged · {n}": "vorgemerkt · {n}",
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "Eine Metrik, die dieses OAP nicht definiert — ein anderes OAP hat sie in den gemeinsamen Speicher geschrieben. Gib ihre Wertspalte und ihren Werttyp an (aus dem OAP, das sie definiert), und Horizon stellt die Werte dar."
 }

@@ -1513,5 +1513,19 @@
   "paste a trace id": "粘贴 Trace ID",
   "space- or comma-separated, AND-joined": "以空格或逗号分隔，按 AND 组合",
   "→ edit as text": "→ 改为文本编辑",
-  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "每个 Pod 即该服务实例，以其实时 Kubernetes Pod 的形式呈现——日志直接从集群拉取，因此该 Pod 必须正在运行。"
+  "Each pod is the service instance, surfaced as its live Kubernetes pod — logs are tailed straight from the cluster, so the pod must be currently running.": "每个 Pod 即该服务实例，以其实时 Kubernetes Pod 的形式呈现——日志直接从集群拉取，因此该 Pod 必须正在运行。",
+  "foreign": "外部",
+  "foreign metric": "外部指标",
+  "metric name": "指标名称",
+  "e.g. meter_custom_pool": "例如 meter_custom_pool",
+  "value column": "值列",
+  "value type": "值类型",
+  "metric name is required": "请填写指标名称",
+  "{metric} is already on the board": "{metric} 已在看板中",
+  "foreign metric — not defined on this OAP": "外部指标 — 当前 OAP 未定义",
+  "storage column · value type": "存储列 · 值类型",
+  "from catalog": "来自目录",
+  "+ add to list": "+ 加入列表",
+  "staged · {n}": "暂存 · {n}",
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "本 OAP 未定义的指标 —— 由另一个 OAP 写入共享存储。填写它的值列和类型（来自定义该指标的 OAP），Horizon 即可绘制其数值。"
 }

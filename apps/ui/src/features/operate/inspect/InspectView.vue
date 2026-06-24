@@ -38,9 +38,11 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import InspectMetricChart from './InspectMetricChart.vue';
 import {
   INSPECT_STEPS,
+  INSPECT_FOREIGN_VALUE_TYPES,
   type EntitiesResponse,
   type EntityRow,
   type ExpressionResult,
+  type InspectForeignValueType,
   type InspectScope,
   type InspectStep,
   type MqeEntity,
@@ -64,9 +66,23 @@ interface FileNode {
   metricCount: number;
 }
 
+/** Storage metadata for a FOREIGN metric — one the connected OAP doesn't
+ *  define. Absent from the catalog, so the operator supplies it by hand.
+ *  `/inspect/entities` uses it to enumerate the metric's entities from shared
+ *  storage, and `/inspect/values` uses it to read the value series (the
+ *  admin-port counterpart to `execExpression`, which can't evaluate a metric
+ *  the OAP has no model for). */
+interface ForeignSpec {
+  valueColumn: string;
+  valueType: InspectForeignValueType;
+}
+
 interface Widget {
   id: string;
   metric: InspectCatalogEntry;
+  /** Set when the metric is foreign (see {@link ForeignSpec}); `null` for a
+   *  normal catalog metric. */
+  foreign: ForeignSpec | null;
   /** Entities resolved by `/api/inspect/entities`. May be empty
    *  before the editor has ever been opened. */
   resolvedEntities: EntityRow[];
@@ -299,6 +315,47 @@ const drawerSourceFilter = ref<Set<Source>>(new Set<Source>(['OAL', 'MAL·OTEL',
 const drawerActiveFile = ref<string | null>(null);
 const drawerScopeNarrow = ref<InspectScope | null>(null);
 
+// ─── Foreign-metric add form (drawer section) ──────────────────────
+// Scopes the foreign /inspect/entities path accepts (mirrors OAP's
+// isSupportedScope). Process / All are out of scope on the OAP side.
+const FOREIGN_SCOPES: InspectScope[] = [
+  'Service',
+  'ServiceInstance',
+  'Endpoint',
+  'ServiceRelation',
+  'ServiceInstanceRelation',
+  'EndpointRelation',
+];
+interface ForeignForm {
+  name: string;
+  scope: InspectScope;
+  valueColumn: string;
+  valueType: InspectForeignValueType;
+}
+function emptyForeignForm(): ForeignForm {
+  return { name: '', scope: 'Service', valueColumn: 'value', valueType: 'LONG' };
+}
+const foreignForm = ref<ForeignForm>(emptyForeignForm());
+const foreignErr = ref('');
+/** Foreign metrics staged for bulk add (committed via the drawer footer). */
+const foreignStaged = ref<ForeignForm[]>([]);
+/** Which drawer tab is active — catalog browse vs foreign-metric entry. */
+const drawerTab = ref<'catalog' | 'foreign'>('catalog');
+
+/** Items pending add for the active tab — catalog checkboxes or staged
+ *  foreign metrics. Drives the shared footer count + commit. */
+const drawerPending = computed(() =>
+  drawerTab.value === 'catalog' ? drawerSelection.value.size : foreignStaged.value.length,
+);
+/** How many of the pending items actually fit under the board cap. */
+const drawerAddCount = computed(() =>
+  Math.min(drawerPending.value, Math.max(0, boardCap.value - widgets.value.length)),
+);
+function commitDrawerActive(): void {
+  if (drawerTab.value === 'catalog') commitDrawer();
+  else commitForeign();
+}
+
 const drawerRegex = computed(() => {
   if (!drawerQuery.value) return null;
   try {
@@ -372,6 +429,9 @@ function openDrawer() {
   drawerSelection.value = new Set();
   drawerQuery.value = '';
   drawerScopeNarrow.value = null;
+  foreignErr.value = '';
+  foreignStaged.value = [];
+  drawerTab.value = 'catalog';
   if (!drawerActiveFile.value || !drawerFiles.value.some((f) => `${f.source}::${f.file}` === drawerActiveFile.value)) {
     const first = drawerFiles.value[0];
     drawerActiveFile.value = first ? `${first.source}::${first.file}` : null;
@@ -444,6 +504,54 @@ function commitDrawer() {
   }
 }
 
+/** Stage the current foreign-metric form onto the pending list. Operators
+ *  batch several foreign metrics, then commit them all at once via the shared
+ *  drawer footer (same bulk-add + board-cap model as the catalog tab). */
+function stageForeignMetric(): void {
+  foreignErr.value = '';
+  const f = foreignForm.value;
+  const name = f.name.trim();
+  if (!name) {
+    foreignErr.value = t('metric name is required');
+    return;
+  }
+  if (
+    widgets.value.some((w) => w.metric.name === name) ||
+    foreignStaged.value.some((s) => s.name === name)
+  ) {
+    foreignErr.value = t('{metric} is already on the board', { metric: name });
+    return;
+  }
+  foreignStaged.value = [
+    ...foreignStaged.value,
+    { ...f, name, valueColumn: f.valueColumn.trim() || 'value' },
+  ];
+  /* Keep scope / valueType for the next add (operators batch similar
+   * metrics from the same source); clear only the name. */
+  foreignForm.value = { ...f, name: '' };
+}
+
+function unstageForeign(name: string): void {
+  foreignStaged.value = foreignStaged.value.filter((s) => s.name !== name);
+}
+
+/** Commit the staged foreign metrics to the board, clamped to the board cap —
+ *  identical bulk-add semantics to the catalog tab's commitDrawer. */
+function commitForeign(): void {
+  const added: Widget[] = [];
+  for (const f of foreignStaged.value) {
+    if (widgets.value.length >= boardCap.value) break;
+    if (widgets.value.some((w) => w.metric.name === f.name)) continue;
+    const metric = makeForeignMetric(f.name, f.scope, f.valueColumn, f.valueType);
+    const w = makeWidget(metric, { foreign: { valueColumn: f.valueColumn, valueType: f.valueType } });
+    widgets.value.push(w);
+    added.push(w);
+  }
+  foreignStaged.value = [];
+  drawerOpen.value = false;
+  for (const w of added) void resolveEntitiesFor(w);
+}
+
 // ─── Board / widgets ───────────────────────────────────────────────
 
 interface MakeWidgetOpts {
@@ -451,11 +559,13 @@ interface MakeWidgetOpts {
   customEntities?: EntityRow[];
   selectedIds?: Set<string>;
   chart?: ChartKind;
+  foreign?: ForeignSpec | null;
 }
 function makeWidget(metric: InspectCatalogEntry, opts: MakeWidgetOpts = {}): Widget {
   return reactive({
     id: opts.id ?? `${metric.name}-${Math.random().toString(36).slice(2, 7)}`,
     metric,
+    foreign: opts.foreign ?? null,
     resolvedEntities: [],
     customEntities: opts.customEntities ?? [],
     selectedIds: opts.selectedIds ?? new Set<string>(),
@@ -465,6 +575,28 @@ function makeWidget(metric: InspectCatalogEntry, opts: MakeWidgetOpts = {}): Wid
     result: null,
     chart: opts.chart ?? 'line',
   }) as Widget;
+}
+
+/** Synthesize a catalog-entry shell for a foreign metric the operator typed
+ *  by hand (it isn't in OAP's catalog). Only `name` + `scope` +
+ *  `valueColumnName` are load-bearing downstream; the rest is filler so the
+ *  widget code can treat foreign and catalog metrics uniformly. */
+function makeForeignMetric(
+  name: string,
+  scope: InspectScope,
+  valueColumn: string,
+  valueType: InspectForeignValueType,
+): InspectCatalogEntry {
+  return {
+    name,
+    type: valueType === 'LABELED' ? 'LABELED_VALUE' : 'REGULAR_VALUE',
+    catalog: '',
+    scopeId: 0,
+    scope,
+    valueColumnName: valueColumn,
+    downsamplings: ['MINUTE', 'HOUR', 'DAY'],
+    attribution: { source: 'unknown', file: null },
+  };
 }
 
 // ─── Local persistence ────────────────────────────────────────────
@@ -485,6 +617,13 @@ interface PersistedWidget {
   selectedIds: string[];
   customEntities: EntityRow[];
   chart: ChartKind;
+  /** Present only for foreign metrics — they aren't in the catalog, so a
+   *  name lookup can't reconstruct them on hydrate; carry the full spec. */
+  foreign?: {
+    scope: InspectScope;
+    valueColumn: string;
+    valueType: InspectForeignValueType;
+  };
 }
 
 interface PersistedBoard {
@@ -503,6 +642,15 @@ function serializeBoard(): PersistedBoard {
       selectedIds: [...w.selectedIds],
       customEntities: w.customEntities,
       chart: w.chart,
+      ...(w.foreign
+        ? {
+            foreign: {
+              scope: w.metric.scope,
+              valueColumn: w.foreign.valueColumn,
+              valueType: w.foreign.valueType,
+            },
+          }
+        : {}),
     })),
     density: density.value,
     boardCap: boardCap.value,
@@ -550,15 +698,19 @@ function onReset(): void {
 
 const widgets = ref<Widget[]>([]);
 
-/** Hydrate from localStorage as soon as the catalog query lands —
- *  before that we can't resolve a metric name to its catalog entry.
- *  Runs once per session: `hydrated` flips true after the first
- *  successful pass. */
+/** Hydrate from localStorage as soon as the catalog query SETTLES (success
+ *  or error), not when it first has rows. An empty catalog is a real state —
+ *  a minimal OAP, or one with no MQE-queryable metrics — and it's exactly the
+ *  OAP a foreign metric targets. Gating on `catalog.length > 0` there would
+ *  leave `hydrated` false forever, so the persistence watch never arms and
+ *  foreign widgets silently vanish on reload. Aware widgets whose catalog row
+ *  is absent are skipped gracefully below; foreign widgets reconstruct from
+ *  their saved spec without any catalog lookup. Runs once per session. */
 const hydrated = ref(false);
 
 function hydrateBoardIfReady(): void {
   if (hydrated.value) return;
-  if (catalog.value.length === 0) return;
+  if (catalogQuery.isPending.value) return;
   hydrated.value = true;
   const saved = loadBoard();
   if (!saved) return;
@@ -575,6 +727,26 @@ function hydrateBoardIfReady(): void {
   }
   const restored: Widget[] = [];
   for (const pw of saved.widgets) {
+    if (pw.foreign) {
+      /* Foreign metrics aren't in the catalog — reconstruct from the saved
+       * spec, never from a name lookup. */
+      const metric = makeForeignMetric(
+        pw.metricName,
+        pw.foreign.scope,
+        pw.foreign.valueColumn,
+        pw.foreign.valueType,
+      );
+      restored.push(
+        makeWidget(metric, {
+          id: pw.id,
+          selectedIds: new Set(pw.selectedIds),
+          customEntities: pw.customEntities ?? [],
+          chart: pw.chart ?? 'line',
+          foreign: { valueColumn: pw.foreign.valueColumn, valueType: pw.foreign.valueType },
+        }),
+      );
+      continue;
+    }
     const row = catalog.value.find((m) => m.name === pw.metricName);
     /* Skip widgets whose metric is no longer in the catalog — happens
      * after an OAP rule remove. The operator just sees a smaller
@@ -605,11 +777,11 @@ function hydrateBoardIfReady(): void {
 /* watchEffect runs synchronously once during setup AND re-runs
  * whenever its deps change. Crucial when vue-query returns a cached
  * catalog immediately: a plain `watch` with `immediate: false` would
- * never fire because `catalog.value` doesn't change from "cached" to
- * "cached" on mount, and `hydrateBoardIfReady` is a no-op while the
- * list is empty. */
+ * never fire because the query never transitions on mount. Gate on the
+ * query having SETTLED (not on row count) so an empty catalog still
+ * hydrates — see hydrateBoardIfReady. */
 watchEffect(() => {
-  if (catalog.value.length > 0) hydrateBoardIfReady();
+  if (!catalogQuery.isPending.value) hydrateBoardIfReady();
 });
 
 /* Persist on every meaningful change. The watch fires more than
@@ -677,17 +849,30 @@ function stepEntity(w: Widget, dir: 1 | -1) {
 
 function decodedLabel(e: EntityRow): string {
   const d = e.decoded as Record<string, unknown>;
-  const scope = e.mqeEntity.scope;
+  const scope = e.mqeEntity?.scope;
+  if (!scope) return e.entityId;
   const layer = e.layer ? ` · ${e.layer}` : '';
   if (scope === 'Service' && typeof d.serviceName === 'string') {
     return `${d.serviceName}${layer}`;
   }
   if (scope === 'ServiceInstance' && typeof d.serviceName === 'string') {
-    const inst = typeof d.serviceInstanceName === 'string' ? d.serviceInstanceName : '?';
+    // Foreign rows carry the 2nd-level leaf as a generic `name` (the foreign
+    // decoder can't tell instance from endpoint); aware rows use the exact key.
+    const inst =
+      typeof d.serviceInstanceName === 'string'
+        ? d.serviceInstanceName
+        : typeof d.name === 'string'
+          ? d.name
+          : '?';
     return `${d.serviceName} / ${inst}${layer}`;
   }
   if (scope === 'Endpoint' && typeof d.serviceName === 'string') {
-    const ep = typeof d.endpointName === 'string' ? d.endpointName : '?';
+    const ep =
+      typeof d.endpointName === 'string'
+        ? d.endpointName
+        : typeof d.name === 'string'
+          ? d.name
+          : '?';
     return `${d.serviceName} : ${ep}${layer}`;
   }
   if (scope.endsWith('Relation') && typeof d.source === 'object' && d.source !== null) {
@@ -701,6 +886,68 @@ function decodedLabel(e: EntityRow): string {
 }
 
 // ─── Per-widget entity resolution ──────────────────────────────────
+
+/** Reconstruct a re-queryable MQE entity for a FOREIGN row. The foreign
+ *  `/inspect/entities` path returns `scope:null` and no `mqeEntity` (the metric
+ *  isn't defined here), only structurally-decoded names — so we rebuild the
+ *  entity from the operator-chosen scope plus those names. `isReal` defaults to
+ *  true; the 2nd-level decode emits a generic `name` leaf (instance vs endpoint
+ *  is byte-identical), which the scope disambiguates. */
+function buildForeignMqeEntity(decoded: Record<string, unknown>, scope: InspectScope): MqeEntity {
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v.length > 0 ? v : undefined);
+  const real = (v: unknown): boolean => v !== false;
+  const side = (v: unknown): Record<string, unknown> =>
+    typeof v === 'object' && v !== null ? (v as Record<string, unknown>) : {};
+  const e: MqeEntity = { scope };
+  switch (scope) {
+    case 'Service':
+      e.serviceName = str(decoded.serviceName);
+      e.normal = real(decoded.isReal);
+      break;
+    case 'ServiceInstance':
+      e.serviceName = str(decoded.serviceName);
+      e.normal = real(decoded.isReal);
+      e.serviceInstanceName = str(decoded.name) ?? str(decoded.serviceInstanceName);
+      break;
+    case 'Endpoint':
+      e.serviceName = str(decoded.serviceName);
+      e.normal = real(decoded.isReal);
+      e.endpointName = str(decoded.name) ?? str(decoded.endpointName);
+      break;
+    case 'ServiceRelation': {
+      const s = side(decoded.source);
+      const d = side(decoded.destination);
+      e.serviceName = str(s.serviceName);
+      e.normal = real(s.isReal);
+      e.destServiceName = str(d.serviceName);
+      e.destNormal = real(d.isReal);
+      break;
+    }
+    case 'ServiceInstanceRelation': {
+      const s = side(decoded.source);
+      const d = side(decoded.destination);
+      e.serviceName = str(s.serviceName);
+      e.normal = real(s.isReal);
+      e.serviceInstanceName = str(s.name);
+      e.destServiceName = str(d.serviceName);
+      e.destNormal = real(d.isReal);
+      e.destServiceInstanceName = str(d.name);
+      break;
+    }
+    case 'EndpointRelation': {
+      const s = side(decoded.source);
+      const d = side(decoded.destination);
+      e.serviceName = str(s.serviceName);
+      e.normal = real(s.isReal);
+      e.endpointName = str(s.name);
+      e.destServiceName = str(d.serviceName);
+      e.destNormal = real(d.isReal);
+      e.destEndpointName = str(d.name);
+      break;
+    }
+  }
+  return e;
+}
 
 async function resolveEntitiesFor(w: Widget): Promise<void> {
   if (!rangeValid.value) return;
@@ -716,12 +963,23 @@ async function resolveEntitiesFor(w: Widget): Promise<void> {
       end: endForServer.value,
       step: step.value,
       limit: inspectorTopN.value,
+      ...(w.foreign
+        ? { valueColumn: w.foreign.valueColumn, valueType: w.foreign.valueType }
+        : {}),
     });
-    w.resolvedEntities = res.rows;
+    /* Foreign rows arrive without a re-queryable entity — rebuild one from the
+     * operator scope so they drive /inspect/values exactly like an aware row
+     * drives execExpression. */
+    w.resolvedEntities = w.foreign
+      ? res.rows.map((r) => ({
+          ...r,
+          mqeEntity: buildForeignMqeEntity(r.decoded as Record<string, unknown>, w.metric.scope),
+        }))
+      : res.rows;
     w.resolvedFetched = true;
     /* Single-entity default — first row is the most-recent per the
      * SWIP-14 sort order, so it's the most likely to have values. */
-    const first = res.rows[0];
+    const first = w.resolvedEntities[0];
     if (first && w.selectedIds.size === 0) {
       w.selectedIds = new Set([first.entityId]);
     }
@@ -748,15 +1006,31 @@ async function execWidget(w: Widget): Promise<void> {
   }
   w.loading = true;
   w.error = null;
-  const targets = widgetAllEntities(w).filter((e) => w.selectedIds.has(e.entityId));
+  const targets = widgetAllEntities(w).filter(
+    (e): e is EntityRow & { mqeEntity: MqeEntity } =>
+      w.selectedIds.has(e.entityId) && e.mqeEntity !== undefined,
+  );
+  const foreign = w.foreign;
   try {
-    const calls = targets.map((e) =>
-      bff.inspect.exec({
-        expression: w.metric.name,
-        entity: e.mqeEntity,
-        duration: { start: startForServer.value, end: endForServer.value, step: step.value },
-      }).then((r) => ({ entity: e, result: r })),
-    );
+    const calls = targets.map((e) => {
+      const duration = { start: startForServer.value, end: endForServer.value, step: step.value };
+      /* Foreign metrics route through /inspect/values (admin port) with their
+       * column/type; catalog metrics go through execExpression. Both return the
+       * same ExpressionResult, so the merge below is identical. */
+      const call = foreign
+        ? bff.inspect.values({
+            expression: w.metric.name,
+            entity: e.mqeEntity,
+            start: duration.start,
+            end: duration.end,
+            step: duration.step,
+            foreignMetrics: [
+              { name: w.metric.name, valueColumn: foreign.valueColumn, valueType: foreign.valueType },
+            ],
+          })
+        : bff.inspect.exec({ expression: w.metric.name, entity: e.mqeEntity, duration });
+      return call.then((r) => ({ entity: e, result: r }));
+    });
     const settled = await Promise.all(calls);
     /* Merge into one ExpressionResult by tagging each series with the
      * entity's decoded name as the metric label. Single-entity case
@@ -886,9 +1160,12 @@ function closeEditor() {
   editorForWidget.value = null;
 }
 function copyMqeEntity(w: Widget) {
-  const sel = widgetAllEntities(w).filter((e) => w.selectedIds.has(e.entityId));
+  const sel = widgetAllEntities(w)
+    .filter((e) => w.selectedIds.has(e.entityId))
+    .map((e) => e.mqeEntity)
+    .filter((m): m is MqeEntity => m !== undefined);
   if (sel.length === 0) return;
-  const payload = sel.length === 1 ? sel[0]!.mqeEntity : sel.map((e) => e.mqeEntity);
+  const payload = sel.length === 1 ? sel[0] : sel;
   navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
 }
 
@@ -1109,8 +1386,15 @@ function scopeShort(scope: InspectScope): string {
               <button class="iconbtn iconbtn--x" :title="t('remove from board')" @click="removeWidget(w.id)">×</button>
             </div>
             <div class="card__pills">
-              <Pill :tone="sourcePillTone(w.metric.attribution.source as Source)">{{ w.metric.attribution.source }}</Pill>
-              <Pill tone="ok" :title="t('entity type: {scope}', { scope: w.metric.scope })">{{ scopeShort(w.metric.scope) }}</Pill>
+              <template v-if="w.foreign">
+                <Pill tone="warn" :title="t('foreign metric — not defined on this OAP')">{{ t('foreign') }}</Pill>
+                <Pill tone="ok" :title="t('entity type: {scope}', { scope: w.metric.scope })">{{ scopeShort(w.metric.scope) }}</Pill>
+                <Pill tone="dim" :title="t('storage column · value type')">{{ w.foreign.valueType }}</Pill>
+              </template>
+              <template v-else>
+                <Pill :tone="sourcePillTone(w.metric.attribution.source as Source)">{{ w.metric.attribution.source }}</Pill>
+                <Pill tone="ok" :title="t('entity type: {scope}', { scope: w.metric.scope })">{{ scopeShort(w.metric.scope) }}</Pill>
+              </template>
             </div>
           </header>
 
@@ -1289,6 +1573,20 @@ function scopeShort(scope: InspectScope): string {
             <button class="iconbtn iconbtn--x" @click="drawerOpen = false">×</button>
           </header>
 
+          <nav class="drawer__tabs">
+            <button
+              class="drawer__tab"
+              :class="{ 'drawer__tab--on': drawerTab === 'catalog' }"
+              @click="drawerTab = 'catalog'"
+            >{{ t('from catalog') }}</button>
+            <button
+              class="drawer__tab"
+              :class="{ 'drawer__tab--on': drawerTab === 'foreign' }"
+              @click="drawerTab = 'foreign'"
+            >{{ t('foreign metric') }}</button>
+          </nav>
+
+          <template v-if="drawerTab === 'catalog'">
           <div class="drawer__sources">
             <span class="ins__lbl">{{ t('source') }}</span>
             <button
@@ -1389,18 +1687,74 @@ function scopeShort(scope: InspectScope): string {
             </div>
           </div>
 
+          </template>
+
+          <!-- Foreign metric: not in this OAP's catalog (persisted by another
+               OAP). Add by hand; charts values via /inspect/values. -->
+          <template v-else>
+          <section class="drawer__foreignTab">
+            <p class="drawer__foreignLede">
+              {{ t("A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.") }}
+            </p>
+            <label class="drawer__ff drawer__ff--full">
+              <span class="drawer__ffLabel">{{ t('metric name') }}</span>
+              <input
+                v-model="foreignForm.name"
+                class="ins__input"
+                :placeholder="t('e.g. meter_custom_pool')"
+                spellcheck="false"
+                @keyup.enter="stageForeignMetric"
+              />
+            </label>
+            <div class="drawer__foreignRow">
+              <label class="drawer__ff drawer__ff--block">
+                <span class="drawer__ffLabel">{{ t('scope') }}</span>
+                <select v-model="foreignForm.scope" class="ins__select">
+                  <option v-for="s in FOREIGN_SCOPES" :key="s" :value="s">{{ scopeShort(s) }}</option>
+                </select>
+              </label>
+              <label class="drawer__ff drawer__ff--block">
+                <span class="drawer__ffLabel">{{ t('value column') }}</span>
+                <input v-model="foreignForm.valueColumn" class="ins__input" placeholder="value" spellcheck="false" />
+              </label>
+              <label class="drawer__ff drawer__ff--block">
+                <span class="drawer__ffLabel">{{ t('value type') }}</span>
+                <select v-model="foreignForm.valueType" class="ins__select">
+                  <option v-for="vt in INSPECT_FOREIGN_VALUE_TYPES" :key="vt" :value="vt">{{ vt }}</option>
+                </select>
+              </label>
+            </div>
+            <div class="drawer__foreignActions">
+              <Btn :disabled="!foreignForm.name.trim()" @click="stageForeignMetric">{{ t('+ add to list') }}</Btn>
+              <span v-if="foreignErr" class="drawer__foreignErr">{{ foreignErr }}</span>
+            </div>
+
+            <div v-if="foreignStaged.length > 0" class="drawer__staged">
+              <div class="drawer__stagedHead">{{ t('staged · {n}', { n: foreignStaged.length }) }}</div>
+              <ul class="drawer__stagedList">
+                <li v-for="s in foreignStaged" :key="s.name" class="drawer__stagedRow">
+                  <span class="drawer__stagedName" :title="s.name">{{ s.name }}</span>
+                  <Pill tone="ok">{{ scopeShort(s.scope) }}</Pill>
+                  <Pill tone="dim">{{ s.valueColumn }} · {{ s.valueType }}</Pill>
+                  <button class="link drawer__stagedRemove" @click="unstageForeign(s.name)">{{ t('remove') }}</button>
+                </li>
+              </ul>
+            </div>
+          </section>
+          </template>
+
           <footer class="drawer__foot">
             <span class="drawer__count">
-              {{ t('{n} selected · {after} / {cap} after add', { n: drawerSelection.size, after: widgets.length + drawerSelection.size, cap: boardCap }) }}
+              {{ t('{n} selected · {after} / {cap} after add', { n: drawerPending, after: widgets.length + drawerPending, cap: boardCap }) }}
             </span>
             <div class="drawer__foot-btns">
               <Btn @click="drawerOpen = false">{{ t('Cancel') }}</Btn>
               <Btn
                 kind="primary"
-                :disabled="drawerSelection.size === 0 || widgets.length >= boardCap"
-                @click="commitDrawer"
+                :disabled="drawerPending === 0 || widgets.length >= boardCap"
+                @click="commitDrawerActive"
               >
-                {{ t('Add {n} to board', { n: Math.min(drawerSelection.size, Math.max(0, boardCap - widgets.length)) }) }}
+                {{ t('Add {n} to board', { n: drawerAddCount }) }}
               </Btn>
             </div>
           </footer>
@@ -1965,6 +2319,105 @@ function scopeShort(scope: InspectScope): string {
 .drawer__name { font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-heading); flex: 1; min-width: 200px; }
 .drawer__why { flex-basis: 100%; padding-left: 26px; font-family: var(--rr-font-mono); font-size: var(--sw-fs-sm); color: var(--rr-dim); }
 .drawer__listEmpty { padding: 20px; text-align: center; font-family: var(--rr-font-mono); font-size: var(--sw-fs-base); color: var(--rr-dim); }
+.drawer__tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--rr-border);
+}
+.drawer__tab {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-medium);
+  color: var(--rr-ink2);
+  background: var(--rr-bg2);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius-sm);
+  padding: 7px 18px;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+}
+.drawer__tab:hover { color: var(--rr-heading); border-color: var(--rr-ink2); }
+.drawer__tab--on {
+  color: var(--rr-heading);
+  background: color-mix(in oklab, var(--rr-accent) 22%, transparent);
+  border-color: var(--rr-accent);
+  font-weight: var(--sw-fw-semibold);
+}
+
+.drawer__foreignTab {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.drawer__foreignLede {
+  margin: 0;
+  max-width: 620px;
+  font-family: var(--rr-font-ui);
+  font-size: var(--sw-fs-sm);
+  line-height: 1.5;
+  color: var(--rr-dim);
+}
+.drawer__foreignRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 620px;
+}
+.drawer__ff { display: flex; flex-direction: column; gap: 4px; }
+.drawer__ff--full { width: 100%; max-width: 620px; }
+.drawer__ff--full .ins__input { width: 100%; }
+.drawer__ff--block { min-width: 0; }
+.drawer__ff--block .ins__input, .drawer__ff--block .ins__select { width: 100%; }
+.drawer__ffLabel {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
+}
+.drawer__foreignActions { display: flex; align-items: center; gap: 12px; }
+.drawer__foreignErr {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-sm);
+  color: var(--rr-err);
+}
+.drawer__staged { display: flex; flex-direction: column; gap: 6px; }
+.drawer__stagedHead {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  color: var(--sw-fg-3);
+}
+.drawer__stagedList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.drawer__stagedRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  background: var(--rr-bg2);
+  border: 1px solid var(--rr-border);
+  border-radius: var(--rr-radius-sm);
+}
+.drawer__stagedName {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-sm);
+  color: var(--rr-heading);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drawer__stagedRemove { flex: 0 0 auto; }
+
 .drawer__foot {
   padding: 12px 18px;
   border-top: 1px solid var(--rr-border);
