@@ -852,7 +852,7 @@ watch(logSource, (next, prev) => {
               {{ running ? t('Running…') : t('Run query') }}
             </button>
           </div>
-          <div :class="logSource === 'browser' ? 'iq-cond--inline' : 'iq-grid iq-grid--cond'">
+          <div :class="logSource === 'pods' ? 'iq-grid iq-grid--cond' : (logSource === 'browser' ? 'iq-cond--inline iq-cond--tlast' : 'iq-cond--inline')">
             <template v-if="logSource === 'browser'">
               <label class="cf cf-cat">
                 <span>{{ t('Category') }}</span>
@@ -868,7 +868,7 @@ watch(logSource, (next, prev) => {
               </label>
             </template>
             <template v-else>
-              <label class="cf">
+              <label class="cf cf-grow">
                 <span>{{ t('Tags') }}</span>
                 <TagInput
                   v-model="cond.tags"
@@ -878,7 +878,7 @@ watch(logSource, (next, prev) => {
                   @commit="onTagCommit"
                 />
               </label>
-              <label class="cf">
+              <label class="cf cf-grow">
                 <span>{{ t('Trace ID') }}</span>
                 <input v-model="cond.traceId" class="cf-input mono" type="text" :placeholder="t('paste a trace id')" />
               </label>
@@ -1063,10 +1063,16 @@ watch(logSource, (next, prev) => {
    compact, and Time sits last (order:9) so its custom-range mode expands
    into the trailing space without shoving the other two. */
 .iq-cond--inline { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-start; }
+/* Raw: Tags + Trace ID take ~half each (two per row); Time + Limit then
+   wrap to a compact second row where a custom range still fits inline. */
+.iq-cond--inline .cf-grow { flex: 1 1 calc(50% - 6px); }
 .iq-cond--inline .cf-cat { flex: 0 1 240px; }
 .iq-cond--inline .cf-lim { flex: 0 0 110px; }
-.iq-cond--inline .iq-time { flex: 0 1 150px; order: 9; }
+.iq-cond--inline .iq-time { flex: 0 1 150px; }
 .iq-cond--inline .iq-time.cf-wide { flex: 0 1 420px; }
+/* Browser only: Time sits last so its custom range expands into the
+   trailing space without shoving Category/Limit. */
+.iq-cond--tlast .iq-time { order: 9; }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
 .cf.iq-time { grid-column-start: 1; }
