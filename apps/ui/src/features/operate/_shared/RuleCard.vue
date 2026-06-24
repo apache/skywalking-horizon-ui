@@ -128,7 +128,7 @@ function jumpToDebug(ev: MouseEvent): void {
     @click="open"
     @keydown="onKey"
   >
-    <div class="card__row">
+    <div class="card__head">
       <button
         type="button"
         class="card__dbgbtn"
@@ -137,23 +137,25 @@ function jumpToDebug(ev: MouseEvent): void {
         @click="jumpToDebug"
       >▶</button>
       <div class="card__name" :title="rule.name">{{ rule.name }}</div>
-      <Pill class="card__status" :tone="statusTone">{{ statusLabel }}</Pill>
     </div>
 
-    <div class="card__row card__row--badges">
-      <Pill v-if="override === 'modified'" tone="warn">{{ t('modified') }}</Pill>
-      <Pill v-else-if="override === 'override'" tone="info">{{ t('override') }}</Pill>
-      <!-- 'bundled-only' is already conveyed by the BUNDLED status pill
-           in the header row above — don't duplicate it here. -->
-      <span v-if="isSuspended" class="card__suspending">
-        <StatusDot tone="warn" :size="6" />
-        {{ t('applying…') }}
+    <!-- Bottom row: hash/updated at the left, every status pill (BUNDLED /
+         modified / override / applying) grouped in the bottom-right corner
+         so the name above gets the full card width. -->
+    <div class="card__foot">
+      <span class="card__meta">
+        <span class="card__hash">{{ hashShort }}</span>
+        <span v-if="updateLabel" class="card__updated">· {{ updateLabel }}</span>
       </span>
-    </div>
-
-    <div class="card__meta">
-      <span class="card__hash">{{ hashShort }}</span>
-      <span v-if="updateLabel" class="card__updated">· {{ updateLabel }}</span>
+      <span class="card__badges">
+        <Pill v-if="override === 'modified'" tone="warn">{{ t('modified') }}</Pill>
+        <Pill v-else-if="override === 'override'" tone="info">{{ t('override') }}</Pill>
+        <span v-if="isSuspended" class="card__suspending">
+          <StatusDot tone="warn" :size="6" />
+          {{ t('applying…') }}
+        </span>
+        <Pill class="card__status" :tone="statusTone">{{ statusLabel }}</Pill>
+      </span>
     </div>
 
     <p v-if="errorMessage" class="card__error" :title="errorMessage">
@@ -210,22 +212,29 @@ function jumpToDebug(ev: MouseEvent): void {
   }
 }
 
-.card__row {
+.card__head {
   display: flex;
-  align-items: center;
-  /* No `space-between`: with 3 children (arrow + name + status pill) a
-   * short rule name like `default` / `mesh-dp` / `vm` would float
-   * mid-card with a big gap between the arrow and the name. The status
-   * pill alone is pushed right via `margin-left: auto` on
-   * `.card__status` so the arrow stays glued to the name. */
+  align-items: flex-start;
   gap: 8px;
   min-height: 18px;
 }
 
-.card__row--badges {
+/* margin-top: auto pins the foot to the card's bottom, so the badges line
+ * up across a stretched grid row no matter how many lines the name took. */
+.card__foot {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.card__badges {
+  margin-left: auto;
+  display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  justify-content: flex-start;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .card__name {
@@ -233,15 +242,19 @@ function jumpToDebug(ev: MouseEvent): void {
   font-size: var(--sw-fs-md);
   color: var(--rr-heading);
   font-weight: var(--sw-fw-medium);
+  /* Show the full rule name, wrapping onto a second line (clamped at two
+   * so an extreme path can't blow the card height). The status pills moved
+   * to the foot, so the name now gets the full card width. */
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-word;
 }
 
-/* Status pill (BUNDLED / SAVED / INACTIVE / …) is pushed to the right
- * edge of the row; the arrow + name pair stays grouped at the left. */
 .card__status {
-  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -258,6 +271,8 @@ function jumpToDebug(ev: MouseEvent): void {
 .card__meta {
   display: flex;
   gap: 6px;
+  align-items: baseline;
+  flex-shrink: 0;
   font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-sm);
   color: var(--rr-dim);
