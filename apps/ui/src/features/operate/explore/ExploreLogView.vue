@@ -396,18 +396,14 @@ function buildRequest(): ExploreRequest {
 }
 
 async function runPodQuery(): Promise<void> {
-  const keywords = parseKeywords(cond.keywords);
-  // Echo the exact pod-log condition into the Resolved-query panel —
-  // built UI-side because this source bypasses the explore.ts resolver.
-  resolved.value = {
-    source: 'pods',
-    condition: {
-      serviceInstanceId: pickInstanceId.value,
-      container: podContainer.value,
-      windowSeconds: podWindowSeconds.value,
-      ...(keywords.length > 0 ? { keywordsOfContent: keywords } : {}),
-    },
-  };
+  // OAP matches keywordsOfContent as a FULL-LINE regex, so a bare term
+  // never matches a longer line — escape each keyword and wrap it in
+  // `.*…*` so it means "line contains it" (AND-joined across terms).
+  const keywords = parseKeywords(cond.keywords).map(
+    (k) => `.*${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}.*`,
+  );
+  // No Resolved-query echo for pods — it's a live tail, not a stored
+  // query, so the panel stays hidden (resolved is reset on source switch).
   try {
     const r = await bff.log.podLogs(pickLayer.value, {
       serviceInstanceId: pickInstanceId.value,
