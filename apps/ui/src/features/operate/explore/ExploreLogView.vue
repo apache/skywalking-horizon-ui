@@ -314,6 +314,15 @@ function parseTags(s: string): Array<{ key: string; value: string }> {
     .filter((kv) => kv.key);
 }
 
+// Enter on the Tags field commits the current tag and primes a trailing
+// comma so the operator keeps typing the next one — the per-layer chip
+// muscle memory, minus the chips. The Run button still executes.
+function onTagCommit(): void {
+  const base = cond.tags.replace(/\s*,\s*$/, '').trimEnd();
+  if (!base) return;
+  cond.tags = `${base}, `;
+}
+
 // ── run + result ──────────────────────────────────────────────────────
 const running = ref(false);
 const hasQueried = ref(false);
@@ -756,6 +765,7 @@ watch(logSource, () => {
                   kind="log"
                   :window-minutes="cond.windowMinutes"
                   :placeholder="t('level=ERROR, …')"
+                  @commit="onTagCommit"
                 />
               </label>
               <label class="cf cf-wide">

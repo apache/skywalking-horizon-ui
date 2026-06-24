@@ -303,6 +303,15 @@ function parseTags(s: string): Array<{ key: string; value: string }> {
     .filter((kv) => kv.key);
 }
 
+// Enter on the Tags field commits the current tag and primes a trailing
+// comma so the operator keeps typing the next one — the per-layer chip
+// muscle memory, minus the chips. The Run button still executes.
+function onTagCommit(): void {
+  const base = cond.tags.replace(/\s*,\s*$/, '').trimEnd();
+  if (!base) return;
+  cond.tags = `${base}, `;
+}
+
 // ── run + result ──────────────────────────────────────────────────────
 const running = ref(false);
 const hasQueried = ref(false);
@@ -630,6 +639,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                   kind="trace"
                   :window-minutes="cond.windowMinutes"
                   :placeholder="t('http.status_code=500, …')"
+                  @commit="onTagCommit"
                 />
               </label>
               <label v-else class="cf cf-wide">
