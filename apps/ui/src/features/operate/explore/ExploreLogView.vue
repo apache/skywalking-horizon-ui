@@ -711,7 +711,7 @@ watch(logSource, () => {
             </label>
           </div>
 
-          <div class="iq-grid iq-grid--ent" v-else>
+          <div class="iq-grid iq-grid--ent-type" v-else>
             <label class="cf">
               <span>{{ t('Service name') }}</span>
               <input v-model="typeService" class="cf-input mono" type="text" :placeholder="t('e.g. agent::checkout')" />
@@ -742,9 +742,9 @@ watch(logSource, () => {
               {{ running ? t('Running…') : t('Run query') }}
             </button>
           </div>
-          <div class="iq-grid iq-grid--cond">
+          <div :class="logSource === 'browser' ? 'iq-cond--inline' : 'iq-grid iq-grid--cond'">
             <template v-if="logSource === 'browser'">
-              <label class="cf cf-wide">
+              <label class="cf cf-cat">
                 <span>{{ t('Category') }}</span>
                 <select v-model="browserCategory" class="cf-input">
                   <option v-for="c in BROWSER_CATEGORIES" :key="c" :value="c">{{ c === 'ALL' ? t('All categories') : c }}</option>
@@ -796,7 +796,7 @@ watch(logSource, () => {
                 <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
               </select>
             </label>
-            <label v-if="logSource !== 'pods'" class="cf">
+            <label v-if="logSource !== 'pods'" class="cf cf-lim">
               <span>{{ t('Limit') }}</span>
               <select v-model.number="cond.limit" class="cf-input">
                 <option v-for="l in LIMITS" :key="l" :value="l">{{ l }}</option>
@@ -940,13 +940,23 @@ watch(logSource, () => {
    runs 2 columns: `.cf-wide` text fields fill the row and Time + Limit sit
    side by side — no blank trailing column the way 3 columns would leave. */
 .iq-grid--cond { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-/* The raw/browser entity (Layer/Service + Instance/Endpoint, or Service
-   name/Real + Version/Page for browser) sits in one 4-field row, so
-   Service name takes a quarter — not a third — and Version sits next to
-   Page rather than wrapping to its own line. */
+/* The raw/browser entity sits in one 4-field row. Pick (4 selects:
+   Layer/Service + Instance/Endpoint) splits evenly; Type keeps the Real
+   checkbox at its content width so its column doesn't leave a blank gap,
+   handing the freed space to Service name / Instance / Endpoint. */
 .iq-grid--ent { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-@media (max-width: 900px) { .iq-grid, .iq-grid--ent { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 560px) { .iq-grid, .iq-grid--ent { grid-template-columns: 1fr; } }
+.iq-grid--ent-type { grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 900px) { .iq-grid, .iq-grid--ent, .iq-grid--ent-type { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .iq-grid, .iq-grid--ent, .iq-grid--ent-type { grid-template-columns: 1fr; } }
+
+/* Browser conditions run inline (not the grid): Category + Limit stay
+   compact, and Time sits last (order:9) so its custom-range mode expands
+   into the trailing space without shoving the other two. */
+.iq-cond--inline { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-start; }
+.iq-cond--inline .cf-cat { flex: 0 1 240px; }
+.iq-cond--inline .cf-lim { flex: 0 0 110px; }
+.iq-cond--inline .iq-time { flex: 0 1 150px; order: 9; }
+.iq-cond--inline .iq-time.cf-wide { flex: 0 1 420px; }
 .cf { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--sw-fg-3); font-weight: 500; min-width: 0; }
 .cf.cf-wide { grid-column: span 2; }
 .cf.iq-time { grid-column-start: 1; }
