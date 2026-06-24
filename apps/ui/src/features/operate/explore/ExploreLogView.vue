@@ -139,11 +139,6 @@ async function loadEndpoints(): Promise<void> {
   }
 }
 
-watch(pickLayer, () => void loadServices());
-watch(pickServiceId, () => {
-  void loadInstances();
-  void loadEndpoints();
-});
 // Default the shared Pick layer to BROWSER the first time the operator opens
 // the browser source — its catalog is one click away. They can still change
 // the layer or switch to Type (or leave it blank to query every service).
@@ -151,13 +146,81 @@ watch(logSource, (src) => {
   if (src === 'browser' && !pickLayer.value) pickLayer.value = BROWSER_LAYER;
 });
 
-// ── pods entity — a specific pod (instance) + container. Reuses the Pick
-// cascade above (layer → service → instance), where the instance IS the
-// pod; the container list is lazy-loaded on-demand from the pod's id. ───
+// ── pods entity — a specific pod (instance) + container, scoped to a
+// `caps.podLogs` layer. The SERVICE field has its own Pick/Type toggle
+// (Pod + Container stay dropdowns either way): in Pick mode the service
+// is chosen from the layer's catalog (→ `pickServiceId`); in Type mode
+// the operator types a service name (→ `podTypeService`), which the
+// instances route resolves per-layer (name → listServices → listInstances).
+// The instance IS the pod; the container list is lazy-loaded from the
+// pod's id. No endpoint — a pod log scopes to one container. ────────────
+type PodEntityMode = 'pick' | 'type';
+const podEntityMode = ref<PodEntityMode>('pick');
+const podTypeService = ref<string>('');
 const podContainer = ref<string>('');
 const podContainers = ref<string[]>([]);
 const containersLoading = ref(false);
 const containersError = ref<string | null>(null);
+
+const podInstancesLoading = ref(false);
+// Pods service identity for the instances route: a picked OAP service-id
+// (Pick) or the typed name (Type). Both resolve per-layer server-side.
+const podServiceArg = computed(() =>
+  podEntityMode.value === 'pick' ? pickServiceId.value : podTypeService.value.trim(),
+);
+
+/** Load the pod (instance) list for the chosen/typed service of the pods
+ *  source, scoped to its `caps.podLogs` layer. Cascade-clears the pod +
+ *  container picks first so a stale pod never sits under the new list. */
+async function loadPodInstances(): Promise<void> {
+  instances.value = [];
+  pickInstanceId.value = '';
+  podContainer.value = '';
+  podContainers.value = [];
+  containersError.value = null;
+  const arg = podServiceArg.value;
+  if (!pickLayer.value || !arg) return;
+  podInstancesLoading.value = true;
+  try {
+    const res = await bff.layer.instances(pickLayer.value, arg);
+    instances.value = res.reachable ? res.instances : [];
+    // Single pod → auto-pin it (the common single-replica case); the
+    // `pickInstanceId` watch then lists its containers.
+    if (instances.value.length === 1) pickInstanceId.value = instances.value[0]!.id;
+  } catch {
+    instances.value = [];
+  } finally {
+    podInstancesLoading.value = false;
+  }
+}
+
+// The shared cascade serves two sources with different downstreams:
+//  · raw/browser → service list, then instances + endpoints.
+//  · pods        → service list (Pick mode), then pods (instances), then
+//                  containers; no endpoints.
+// Each cascade gates on the active source so the wrong downstream never
+// fires (loading pod containers for a browser service, etc.).
+watch(pickLayer, () => {
+  void loadServices();
+  if (logSource.value === 'pods') {
+    // Layer switch resets the pods Service field in BOTH modes — a typed
+    // name resolves per-layer, so it can't carry across layers.
+    podTypeService.value = '';
+    if (podEntityMode.value === 'type') void loadPodInstances();
+  }
+});
+watch(pickServiceId, () => {
+  if (logSource.value === 'pods') {
+    if (podEntityMode.value === 'pick') void loadPodInstances();
+    return;
+  }
+  void loadInstances();
+  void loadEndpoints();
+});
+// Type mode: the operator types a service name → resolve its pods per-layer.
+watch(podTypeService, () => {
+  if (logSource.value === 'pods' && podEntityMode.value === 'type') void loadPodInstances();
+});
 
 async function loadContainers(): Promise<void> {
   podContainer.value = '';
@@ -183,19 +246,34 @@ async function loadContainers(): Promise<void> {
     containersLoading.value = false;
   }
 }
-// Only the pods source needs containers — fetch when its pinned pod changes.
+// Only the pods source needs containers — fetch when its pinned pod
+// changes (operator pick OR the single-pod auto-pin in loadPodInstances).
+// Entering pods always wipes the shared entity, so a pod can only ever be
+// set from within the pods cascade — no "carried-in pod" case to handle.
 watch(pickInstanceId, () => {
   if (logSource.value === 'pods') void loadContainers();
 });
-// Switching INTO pods with a pod already picked: list its containers now.
-watch(logSource, (src) => {
-  if (src === 'pods' && pickInstanceId.value && podContainers.value.length === 0) {
-    void loadContainers();
-  }
+// Pick↔Type for the pods service is a fresh start: drop the service in
+// both representations + the downstream pod / container so neither mode
+// inherits the other's pick. The layer stays (Type still needs one).
+watch(podEntityMode, () => {
+  pickServiceId.value = '';
+  podTypeService.value = '';
+  instances.value = [];
+  pickInstanceId.value = '';
+  podContainer.value = '';
+  podContainers.value = [];
+  containersError.value = null;
 });
 const podContainerOptions = computed(() => podContainers.value.map((c) => ({ value: c, label: c })));
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
+// Pods scope to K8s-deployed layers only — `caps.podLogs` is the same
+// wire flag that gates the per-layer Pod Logs tab (k8s_service / mesh
+// templates). A browser/general service has no pod to tail, so the pods
+// Layer field draws from THIS list, never the broad `layerOptions`.
+const podLayers = computed(() => availableLayers.value.filter((l) => l.caps?.podLogs));
+const podLayerOptions = computed(() => podLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 const serviceOptions = computed(() =>
   services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
 );
@@ -596,7 +674,13 @@ function browserRowKey(r: BrowserErrorRow, idx: number): string {
 // Cascade-clear on source switch: drop the prior result + resolved-query
 // echo so the new source starts on its own "run a query" empty state rather
 // than the other source's stale rows / wrong empty message.
-watch(logSource, () => {
+//
+// The entity is reset ONLY when pods is on either side of the switch.
+// Raw↔Browser share one entity scope (any-layer services), so that
+// transition keeps the picked service. Pods scopes to `caps.podLogs`
+// layers and a browser service has no pod — so crossing the pods
+// boundary in either direction wipes the shared cascade clean.
+watch(logSource, (next, prev) => {
   hasQueried.value = false;
   errorMsg.value = null;
   logsResp.value = null;
@@ -605,6 +689,25 @@ watch(logSource, () => {
   podErrorReason.value = null;
   resolved.value = null;
   closeDetail();
+  if (next === 'pods' || prev === 'pods') {
+    pickLayer.value = '';
+    pickServiceId.value = '';
+    pickInstanceId.value = '';
+    pickEndpointId.value = '';
+    services.value = [];
+    instances.value = [];
+    endpoints.value = [];
+    podTypeService.value = '';
+    podContainer.value = '';
+    podContainers.value = [];
+    containersError.value = null;
+    // Entering pods with exactly one K8s layer: auto-pin it so the
+    // single-cluster common case is one fewer click. More than one →
+    // leave blank with the "Any layer" placeholder for the operator.
+    if (next === 'pods' && podLayers.value.length === 1) {
+      pickLayer.value = podLayers.value[0]!.key;
+    }
+  }
 });
 </script>
 
@@ -628,31 +731,42 @@ watch(logSource, () => {
          (a 3-column condition grid reads well across it). -->
     <div class="iq-form">
       <!-- Kubernetes Pod logs source: a specific pod (instance) + container,
-           both required. Reuses the layer → service → instance Pick cascade
-           (the instance IS the pod); the container list is lazy-loaded from
-           the pod's id. No Type mode, no endpoint — a pod log scopes to one
-           container. -->
+           both required, scoped to a `caps.podLogs` layer. The SERVICE field
+           has its own Pick/Type toggle — Pick chooses from the layer's
+           catalog, Type takes a free-text service name the instances route
+           resolves per-layer. Pod + Container stay dropdowns either way; the
+           pod IS the instance and its containers lazy-load from the pod id.
+           Pod + Container auto-select when unambiguous. No endpoint — a pod
+           log scopes to one container. -->
       <div v-if="logSource === 'pods'" class="iq-target">
         <div class="iq-target-h">
-          <span>{{ t('Kubernetes Pod logs') }} <small class="dim">{{ t('required — pick a pod and a container') }}</small></span>
+          <span>{{ t('Kubernetes Pod logs') }} <small class="dim">{{ t('required — a pod and a container (pick or type a service)') }}</small></span>
+          <div class="seg sm">
+            <button :class="{ on: podEntityMode === 'pick' }" @click="podEntityMode = 'pick'">{{ t('Pick') }}</button>
+            <button :class="{ on: podEntityMode === 'type' }" @click="podEntityMode = 'type'">{{ t('Type') }}</button>
+          </div>
         </div>
         <div class="iq-grid">
           <label class="cf">
             <span>{{ t('Layer') }}</span>
-            <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="layerOptions" :placeholder="t('Any layer')" class="cf-tas" />
+            <TypeaheadSelect v-model="pickLayer" :aria-label="t('Layer')" :options="podLayerOptions" :placeholder="t('Any layer')" class="cf-tas" />
           </label>
-          <label class="cf">
+          <label class="cf" v-if="podEntityMode === 'pick'">
             <span>{{ t('Service') }}</span>
             <TypeaheadSelect
               v-model="pickServiceId" :aria-label="t('Service')" :options="serviceOptions" :disabled="!pickLayer || servicesLoading"
               :placeholder="servicesLoading ? t('Reading…') : t('Pick a service')" class="cf-tas"
             />
           </label>
+          <label class="cf" v-else>
+            <span>{{ t('Service name') }}</span>
+            <input v-model="podTypeService" class="cf-input mono" type="text" :disabled="!pickLayer" :placeholder="t('e.g. agent::checkout')" />
+          </label>
           <label class="cf">
             <span>{{ t('Pod') }}</span>
             <TypeaheadSelect
-              v-model="podInstanceSel" :aria-label="t('Pod')" :options="podInstanceOptions" :disabled="!pickServiceId"
-              :placeholder="t('Select a pod…')" class="cf-tas"
+              v-model="podInstanceSel" :aria-label="t('Pod')" :options="podInstanceOptions" :disabled="!podServiceArg || podInstancesLoading"
+              :placeholder="podInstancesLoading ? t('Reading…') : (instances.length ? t('Select a pod…') : t('No pods'))" class="cf-tas"
             />
           </label>
           <label class="cf">
