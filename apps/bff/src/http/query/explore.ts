@@ -28,6 +28,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import type {
   ExploreEntity,
   ExploreRequest,
@@ -106,6 +107,53 @@ function logWindowSecond(w: ExploreWindow, offsetMinutes: number): { start: stri
   return { start: fmtSecond(endMs - m * 60_000, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
+// Runtime validation for the explore body — a direct API caller gets a 400
+// rather than a silent mis-dispatch (an unknown `kind` would otherwise fall
+// into log handling, an unknown log source into browser handling). The k8s
+// pods source never reaches this route (it uses the per-layer pod-log routes),
+// so logSource here is raw|browser only.
+const exploreEntitySchema = z.object({
+  mode: z.enum(['pick', 'type']),
+  serviceId: z.string().optional(),
+  instanceId: z.string().optional(),
+  endpointId: z.string().optional(),
+  serviceName: z.string().optional(),
+  isReal: z.boolean().optional(),
+  instanceName: z.string().optional(),
+  endpointName: z.string().optional(),
+});
+const exploreWindowSchema = z.object({
+  windowMinutes: z.number().optional(),
+  startMs: z.number().optional(),
+  endMs: z.number().optional(),
+});
+const exploreBodySchema = z
+  .object({
+    kind: z.enum(['trace', 'log']),
+    traceSource: z.enum(['native', 'zipkin']).optional(),
+    logSource: z.enum(['raw', 'browser']).optional(),
+    entity: exploreEntitySchema.optional(),
+    window: exploreWindowSchema.optional(),
+    pageNum: z.number().optional(),
+    pageSize: z.number().optional(),
+    traceId: z.string().optional(),
+    traceState: z.string().optional(),
+    queryOrder: z.string().optional(),
+    minTraceDuration: z.number().optional(),
+    maxTraceDuration: z.number().optional(),
+    tags: z.array(z.object({ key: z.string(), value: z.string() })).optional(),
+    remoteServiceName: z.string().optional(),
+    spanName: z.string().optional(),
+    annotationQuery: z.string().optional(),
+    keywordsOfContent: z.array(z.string()).optional(),
+    relatedTraceId: z.string().optional(),
+    category: z.string().optional(),
+  })
+  .refine((b) => b.kind !== 'log' || b.logSource === 'raw' || b.logSource === 'browser', {
+    message: 'logSource must be "raw" or "browser" when kind is "log"',
+    path: ['logSource'],
+  });
+
 export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDeps): void {
   const auth = requireAuth(deps);
 
@@ -113,7 +161,11 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
     '/api/explore/query',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const body = (req.body ?? {}) as ExploreRequest;
+      const parsed = exploreBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
+      }
+      const body = parsed.data as ExploreRequest;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const generatedAt = Date.now();

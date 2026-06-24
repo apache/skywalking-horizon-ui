@@ -65,6 +65,9 @@ function copyShareableUrl(): void {
   if (!props.traceId || typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.set('traceId', props.traceId);
+  // Tag the source so Trace inspect (one route, two sources) reopens it as
+  // Zipkin rather than native — IDs alone can't disambiguate.
+  url.searchParams.set('source', 'zipkin');
   navigator.clipboard?.writeText(url.toString()).catch(() => {});
 }
 

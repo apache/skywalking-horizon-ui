@@ -99,6 +99,9 @@ function copyShareableUrl(): void {
   // the popout cold-load experience.
   const url = new URL(window.location.href);
   url.searchParams.set('traceId', props.traceId);
+  // Tag the source so Trace inspect (one route, two sources) reopens it as
+  // native rather than Zipkin.
+  url.searchParams.set('source', 'native');
   navigator.clipboard?.writeText(url.toString()).then(() => flashCopy('url'), () => {});
 }
 onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });

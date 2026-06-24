@@ -22,12 +22,17 @@ import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 
-// Native vs Zipkin keys on the layer's trace source (route), not the
-// ID shape — native IDs can be bare hex, same as Zipkin.
+// Native vs Zipkin keys on the trace source, not the ID shape — native IDs
+// can be bare hex, same as Zipkin. An explicit `?source=` (written by the
+// shareable-URL copy) wins; otherwise the layer's route decides. Trace
+// inspect serves both sources from one route, so it relies on `?source=`.
 export function useTraceSourceIsZipkin() {
   const route = useRoute();
   const { layers } = useLayers();
   return computed<boolean>(() => {
+    const src = route.query.source;
+    if (src === 'zipkin') return true;
+    if (src === 'native') return false;
     if (/\/zipkin-trace(\/|$|\?)/.test(route.path)) return true;
     const key = String(route.params.layerKey ?? '');
     return (layers.value.find((l) => l.key === key)?.traces?.source ?? 'native') === 'zipkin';
