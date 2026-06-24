@@ -251,7 +251,6 @@ function onBlur(): void {
   color: var(--sw-fg-0); font: inherit; font-size: 11px;
 }
 .tgi__input.mono { font-family: var(--sw-mono); }
-.tgi__input::placeholder { color: var(--sw-fg-4); }
 .tgi__input:focus { outline: none; border-color: var(--sw-accent); }
 
 .tgi__panel {
