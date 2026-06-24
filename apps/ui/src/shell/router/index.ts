@@ -221,13 +221,13 @@ const shellRoutes: RouteRecordRaw[] = [
     name: 'trace-inspect',
     component: () => import('@/features/operate/explore/ExploreView.vue'),
     props: { kind: 'trace' },
-    meta: { verb: 'explore:read' },
+    meta: { verb: 'inspect:read' },
   },
   {
     path: 'operate/log-inspect',
     name: 'log-inspect',
     component: () => import('@/features/operate/explore/ExploreLogView.vue'),
-    meta: { verb: 'explore:read' },
+    meta: { verb: 'inspect:read' },
   },
   // Data retention (TTL) — query-port read of getRecordsTTL/getMetricsTTL.
   {
