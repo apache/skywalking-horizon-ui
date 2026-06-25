@@ -46,7 +46,7 @@ import type {
   TemplateStatus,
 } from '@/api/scopes/configs';
 
-export type BannerSeverity = 'unreachable' | 'conflict' | 'diverged' | 'clean' | 'unknown';
+export type BannerSeverity = 'unreachable' | 'readonly' | 'conflict' | 'diverged' | 'clean' | 'unknown';
 
 export interface SyncBanner {
   severity: BannerSeverity;
@@ -101,7 +101,11 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return (s.conflicts ?? []).filter((c) => c.kind === opts.kind);
   });
 
-  const readOnly = computed<boolean>(() => status.value?.unreachable === true);
+  // Read-only when OAP admin is unreachable (live mode, transient) OR the BFF
+  // is deliberately in readonly template mode (rendering the local bundle).
+  const readOnly = computed<boolean>(
+    () => status.value?.unreachable === true || status.value?.mode === 'readonly',
+  );
 
   // Shown on diverged + clean banners so the operator always knows what
   // the two axes mean.
@@ -128,6 +132,18 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     const counts: Partial<Record<TemplateStatus, number>> = {};
     for (const b of ownBadges.value) counts[b.status] = (counts[b.status] ?? 0) + 1;
 
+    if (s.mode === 'readonly') {
+      return {
+        severity: 'readonly',
+        message:
+          'Read-only mode — templates are served from the local bundle. Editing and publishing are disabled.',
+        detail:
+          'Set templates.mode=live (HORIZON_TEMPLATES_MODE=live) with OAP’s ui_template store reachable to edit.',
+        counts,
+        localCount: localCount.value,
+        conflicts: [],
+      };
+    }
     if (s.unreachable) {
       const last = s.lastSuccessfulSyncAt
         ? new Date(s.lastSuccessfulSyncAt).toLocaleString()

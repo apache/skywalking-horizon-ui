@@ -461,10 +461,26 @@ const performanceSchema = z
   .strict()
   .default({});
 
+// Template source mode. `live` (default) seeds bundled templates into OAP's
+// ui_template store at boot and reads/writes them via the ui_template API.
+// `readonly` renders templates from the local disk bundle only — the
+// ui_template API is never called and the config surface is read-only; OAP's
+// query API (metrics/traces/logs) is still used + boot-checked. Env-overridable
+// (`HORIZON_TEMPLATES_MODE`) so a file-less container can pick the mode.
+const templatesModeDefault: 'live' | 'readonly' =
+  process.env.HORIZON_TEMPLATES_MODE === 'readonly' ? 'readonly' : 'live';
+const templatesSchema = z
+  .object({
+    mode: z.enum(['live', 'readonly']).default(templatesModeDefault),
+  })
+  .strict()
+  .default({ mode: templatesModeDefault });
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
     layers: layersSchema,
+    templates: templatesSchema,
     oap: oapSchema.default({}),
     auth: authSchema,
     rbac: rbacSchema,
@@ -485,6 +501,7 @@ export const configSchema = z
   .strict();
 
 export type HorizonConfig = z.infer<typeof configSchema>;
+export type TemplatesConfig = z.infer<typeof templatesSchema>;
 export type SourceMapsConfig = z.infer<typeof sourceMapsSchema>;
 export type LdapConfig = z.infer<typeof ldapSchema>;
 export type LocalUser = z.infer<typeof localUserSchema>;

@@ -28,9 +28,30 @@ import type { FastifyReply, FastifyRequest, RouteOptions } from 'fastify';
 import { sessionHasVerb } from './policy.js';
 import type { AuthDeps } from '../user/middleware.js';
 import { requireAuth } from '../user/middleware.js';
+import { isTemplateReadOnly } from '../logic/templates/sync.js';
 import { logger } from '../logger.js';
 
 export type RoutePolicy = 'public' | 'auth' | string;
+
+/** A config-template write — it pushes to OAP's ui_template store. In
+ *  `templates.mode=readonly` there is no store to write to, so these are denied
+ *  at the edge regardless of the verb grant (the UI hides them too, but a direct
+ *  request must still fail — the BFF is the authority). */
+function isTemplateWriteRoute(method: string, url: string): boolean {
+  if (method === 'GET' || method === 'HEAD') return false;
+  return url.startsWith('/api/admin/templates') || url.startsWith('/api/admin/overview-templates');
+}
+async function denyTemplateWriteWhenReadOnly(
+  _req: FastifyRequest,
+  reply: FastifyReply,
+): Promise<void> {
+  if (isTemplateReadOnly()) {
+    reply.code(409).send({
+      error: 'read_only',
+      reason: 'templates.mode=readonly — config templates are served from the local bundle and cannot be edited',
+    });
+  }
+}
 
 /**
  * Verb-only check. Assumes a prior pre-handler (`requireAuth`) has
@@ -293,6 +314,10 @@ export function makeRouteAuthHook(deps: AuthDeps) {
     const newHandlers = [];
     if (!hasAuth) newHandlers.push(requireAuth(deps));
     if (chosen !== 'auth') newHandlers.push(checkVerb(deps, chosen));
+    // readonly-mode backstop on the config-template write routes.
+    if (methods.some((m) => isTemplateWriteRoute(String(m).toUpperCase(), route.url))) {
+      newHandlers.push(denyTemplateWriteWhenReadOnly);
+    }
 
     route.preHandler = [...existing, ...newHandlers];
   };

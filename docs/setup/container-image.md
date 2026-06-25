@@ -29,7 +29,7 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 | `/app/node_modules/` | root | no | Production npm dependencies. |
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
 | `/app/horizon.example.yaml` | root | no | Example config — **read-only reference**, copy from it. |
-| `/app/horizon.yaml` | n/a | n/a | Where the BFF expects the **active** config. **Not present in the image** — provide via mount or `COPY` (see below). |
+| `/app/horizon.yaml` | root | no | The **active** config — a **baked, fully tokenized default** (every field is a `${HORIZON_…:default}` env token). The image runs with no mounted file; override any field via env (see [Run with env vars only](#run-with-env-vars-only-no-mounted-file)), or bind-mount your own to replace it. |
 | `/app/bundled_templates/` | **horizon** | **yes** | Layer + overview JSON templates. Owned by `horizon` because the admin **Layer-Templates** and **Overview-Templates** editors write into per-key files here. |
 | `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log, setup state, alarm state, and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
 | `/app/sourcemaps/` | **horizon** | (read) | Static source maps for the **Browser Logs** tab. Bind-mount or copy `.map` files here and they're loaded at boot — durable across restarts. Optional; runtime uploads work without it. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
@@ -53,6 +53,55 @@ The runtime stage runs as the non-root user `horizon`. Two locations are owned b
 The four `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/setup/alarms/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
 
 `server.host` and `server.port` come from the YAML when present. If they are omitted, the image supplies defaults via `HORIZON_SERVER_HOST=0.0.0.0` and `HORIZON_SERVER_PORT=8081`. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
+
+## Run with env vars only (no mounted file)
+
+The baked `/app/horizon.yaml` is **fully tokenized** — every config field is a `${HORIZON_…:default}` env var — so you can run the published image with **no mounted config** and set only the vars you need. Precedence is **env var > the baked file's default > built-in default**. The config file itself is the complete, self-documenting list; the table below mirrors it.
+
+Scalar vars take a plain value; **list / object vars take a JSON string** (injected into the YAML and parsed). A `null`/`[]` default means "use the built-in default".
+
+| Variable | Default | Type | Sets |
+|---|---|---|---|
+| `HORIZON_TEMPLATES_MODE` | `live` | `live` \| `readonly` | Template source: OAP ui_template store (`live`) vs. the local bundle, read-only (`readonly`). |
+| `HORIZON_OAP_QUERY_URL` | `http://127.0.0.1:12800` | url | OAP GraphQL / query host. |
+| `HORIZON_OAP_ADMIN_URL` | `http://127.0.0.1:17128` | url | OAP admin host (runtime-rule / inspect / status). |
+| `HORIZON_OAP_ZIPKIN_URL` | `http://127.0.0.1:9412/zipkin` | url | OAP Zipkin v2 host. |
+| `HORIZON_OAP_TIMEOUT_MS` | `15000` | int | Outbound OAP request timeout. |
+| `HORIZON_OAP_AUTH` | (none) | JSON | OAP basic-auth, e.g. `{"username":"sw","password":"sw"}`. |
+| `HORIZON_AUTH_BACKEND` | `local` | `local` \| `ldap` | Auth backend. |
+| `HORIZON_AUTH_LOCAL_USERS` | `[]` | JSON | Local users: `[{"username":"admin","passwordHash":"$argon2id$…","roles":["admin"]}]` (hash via `pnpm --filter bff cli:hash`). |
+| `HORIZON_AUTH_LDAP` | (none) | JSON | LDAP block: `{"url":"ldaps://…","userBaseDn":"…","groupMappings":[{"group":"*","role":"viewer"}]}`. |
+| `HORIZON_AUTH_BREAK_GLASS` | (none) | JSON | Break-glass admin (honored only when `ldap` + LDAP probe failing). |
+| `HORIZON_RBAC_ENABLED` | `true` | bool | When `false`, every session gets `*`. |
+| `HORIZON_RBAC_ROLES` | (built-in) | JSON | Role → verb-grants map. |
+| `HORIZON_RBAC_LANDING_BY_ROLE` | (built-in) | JSON | Post-login landing route per role. |
+| `HORIZON_LAYERS_EXCLUDED` | `FAAS`, `VIRTUAL_GATEWAY` | JSON | Layers hidden from the sidebar; `[]` shows all. |
+| `HORIZON_SESSION_TTL_MINUTES` | `60` | int | Session lifetime. |
+| `HORIZON_SESSION_COOKIE_NAME` | `horizon_sid` | string | Session cookie name. |
+| `HORIZON_SESSION_COOKIE_SECURE` | `false` | bool | Set `true` behind HTTPS. |
+| `HORIZON_QUERY_LANDING_SERVICE_CAP` | `100` | int | Max services a layer landing fetches metrics for per request. |
+| `HORIZON_SOURCEMAPS_ENABLED` | `true` | bool | Source-map upload / resolve capability. |
+| `HORIZON_SOURCEMAPS_MAX_FILE_BYTES` | `67108864` | int | Reject a `.map` larger than this (64 MiB). |
+| `HORIZON_SOURCEMAPS_MAX_TOTAL_BYTES` | `536870912` | int | In-memory map budget (512 MiB, LRU-evicted). |
+| `HORIZON_SOURCEMAPS_MAX_FILE_COUNT` | `128` | int | Max hosted maps. |
+| `HORIZON_DEBUG_LOG_ENABLED` | `false` | bool | OAP wire debug log. |
+| `HORIZON_DEBUG_LOG_MAX_BODY_CHARS` | `8192` | int | Wire-log body truncation. |
+| `HORIZON_DEBUG_LOG_REDACT_AUTH` | `true` | bool | Redact auth headers in the wire log. |
+| `HORIZON_PERFORMANCE` | (built-in) | JSON | BFF→OAP fan-out + caps, e.g. `{"bulk":{"dashboard":{"bulkSize":8}}}`. |
+
+Server bind, static dir, the `HORIZON_*_FILE` state paths, and `HORIZON_SOURCEMAPS_DIR` are in the table above this section (the image already sets them to container-appropriate values).
+
+A minimal env-only run against a real OAP with one admin user:
+
+```bash
+docker run --rm -p 8081:8081 \
+  -e HORIZON_OAP_QUERY_URL=http://oap:12800 \
+  -e HORIZON_OAP_ADMIN_URL=http://oap:17128 \
+  -e HORIZON_AUTH_LOCAL_USERS='[{"username":"admin","passwordHash":"'"$(…cli:hash…)"'","roles":["admin"]}]' \
+  ghcr.io/apache/skywalking-horizon-ui:<version>
+```
+
+To run standalone on the bundled templates (no ui_template admin API), add `-e HORIZON_TEMPLATES_MODE=readonly` — dashboards render from the local bundle and the config surface is read-only (the OAP query host is still required for metrics / traces / logs).
 
 ## Memory & sizing
 

@@ -13,274 +13,124 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Copy this file to `horizon.yaml` and edit. Hot-reload picks up changes.
+# ─────────────────────────────────────────────────────────────────────
+# This is the SHIPPED default config. EVERY field below is an env var:
+# `${HORIZON_X:default}` expands BEFORE YAML parsing. So you can run the
+# container with NO mounted file and set only the env vars you care about
+# (image-native), OR copy this to `horizon.yaml`, edit, and mount it.
 #
-# Env-var interpolation: `${VAR}` or `${VAR:default}` is expanded BEFORE
-# YAML parsing. Use the `:default` form for non-secret values; for
-# secrets prefer the bare `${VAR}` form so a missing env var fails loud
-# instead of silently falling back to a placeholder.
+#   • Scalars:        set `HORIZON_X` to override the `:default`.
+#   • Lists / objects (users, ldap, roles, excluded, performance, oap.auth):
+#     set the matching env var to a JSON STRING — it's injected inline and
+#     parsed. A `:null` default means "fall through to the built-in default".
+#   • Precedence: env var > this file's `:default` > built-in schema default.
+#   • Secrets (password hashes, ldap bind pw) are env-only — never bake them.
+#
+# Hot-reload picks up file edits; env vars are fixed at process start.
+# ─────────────────────────────────────────────────────────────────────
 
 server:
-  host: 127.0.0.1
-  port: 8081
+  # Bind host/port. The image sets HORIZON_SERVER_HOST=0.0.0.0 so the BFF
+  # is reachable from outside the container (the YAML default 127.0.0.1
+  # would bind container-loopback only).
+  host: ${HORIZON_SERVER_HOST:127.0.0.1}
+  port: ${HORIZON_SERVER_PORT:8081}
 
-# Layers hidden from the sidebar even when OAP reports them in listLayers.
-# Config-driven — there is no hard-coded hide list. Clear `excluded` to
-# surface every reported layer, or add keys for internal-only layers you
-# don't want on the menu. `reason` is a note for whoever reads this file;
-# it is NOT shown in the UI (an excluded layer simply doesn't appear).
-# Keys are OAP layer keys (UPPER_SNAKE), matched case-insensitively.
-# The defaults below are applied when this block is omitted entirely.
-layers:
-  excluded:
-    - key: FAAS
-      reason: Deprecated.
-    - key: VIRTUAL_GATEWAY
-      reason: Not planned to set up.
+templates:
+  # `live` (default): seed bundled dashboard templates into OAP's
+  # ui_template store at boot, then read/write them via that API.
+  # `readonly`: render templates from the local bundle only — the
+  # ui_template API is never called and the whole config surface is
+  # read-only. OAP's query API (metrics/traces/logs) is still used either
+  # way. Use `readonly` to run standalone against an OAP whose ui_template
+  # admin API is absent or disabled.
+  mode: ${HORIZON_TEMPLATES_MODE:live}
 
 oap:
-  # OAP query host (port 12800 by default; GraphQL + /status/*). One URL
-  # because query traffic is load-balanceable — any OAP node can answer.
-  queryUrl: http://127.0.0.1:12800
-  # OAP admin host (port 17128 by default; runtime-rule / dsl-debugging
-  # / inspect / status live here). Single URL — point it at a DNS name
-  # or VIP fronting your OAP cluster. Runtime-rule lists hit it once
-  # (OAP routes cluster-internal); per-node live-debug status uses a
-  # DNS lookup on the hostname to discover all node IPs and probes each.
-  adminUrl: http://127.0.0.1:17128
-  # OAP's Zipkin v2 REST host. Defaults to a standalone port (9412 +
-  # /zipkin) per the upstream Armeria binding. When OAP is configured
-  # to share the GraphQL port (typical for the demo / k8s deploys),
-  # use `<queryUrl>/zipkin` instead.
-  zipkinUrl: http://127.0.0.1:9412/zipkin
-  timeoutMs: 15000
-  # Optional basic-auth credentials for outbound OAP calls.
-  # auth:
-  #   username: skywalking
-  #   password: skywalking
+  # OAP query host (GraphQL + /status/*; default port 12800).
+  queryUrl: ${HORIZON_OAP_QUERY_URL:http://127.0.0.1:12800}
+  # OAP admin host (runtime-rule / dsl-debugging / inspect / status;
+  # default port 17128). Point at a DNS name / VIP fronting the cluster.
+  adminUrl: ${HORIZON_OAP_ADMIN_URL:http://127.0.0.1:17128}
+  # OAP Zipkin v2 REST host. Use `<queryUrl>/zipkin` when OAP shares the
+  # GraphQL port (typical for the demo / k8s deploys).
+  zipkinUrl: ${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}
+  timeoutMs: ${HORIZON_OAP_TIMEOUT_MS:15000}
+  # Optional basic-auth for outbound OAP calls. JSON env, e.g.
+  # HORIZON_OAP_AUTH='{"username":"skywalking","password":"skywalking"}'.
+  auth: ${HORIZON_OAP_AUTH:null}
 
-# ────────────────────────────────────────────────────────────────────
-# Authentication
-#
-# Pick ONE backend: `local` or `ldap`. The other block can stay
-# populated for break-glass / future use, but it's IGNORED. If you set
-# `backend: ldap` and leave `auth.local.users` populated, a warning is
-# logged at startup.
-#
-# Bootstrap rule: if `backend: local` and `auth.local.users` is empty,
-# OR `backend: ldap` and `auth.ldap` is missing / `groupMappings` empty,
-# the BFF boots but no login succeeds until auth is configured. There is
-# no "default admin/admin" password.
-# Generate hashes with:   pnpm --filter bff cli:hash
-# ────────────────────────────────────────────────────────────────────
+# Layers hidden from the sidebar even when OAP reports them. JSON array of
+# {key, reason}; `:null` keeps the built-in default (FAAS, VIRTUAL_GATEWAY).
+# HORIZON_LAYERS_EXCLUDED='[]' surfaces every reported layer.
+layers:
+  excluded: ${HORIZON_LAYERS_EXCLUDED:null}
+
+# ─────────────────────────────────────────────────────────────────────
+# Authentication. Pick ONE backend: `local` or `ldap`. With `local` and no
+# users (or `ldap` with no group mappings) the BFF boots but no login
+# succeeds until configured — there is no default admin/admin.
+# Generate password hashes with:  pnpm --filter bff cli:hash
+# ─────────────────────────────────────────────────────────────────────
 auth:
-  backend: local
-
+  backend: ${HORIZON_AUTH_BACKEND:local}
+  # Local users — JSON array, e.g.
+  # HORIZON_AUTH_LOCAL_USERS='[{"username":"admin","passwordHash":"$argon2id$v=19$...","roles":["admin"]}]'
   local:
-    users: []
-    # - username: admin
-    #   passwordHash: "$argon2id$v=19$..."
-    #   roles: [admin]
+    users: ${HORIZON_AUTH_LOCAL_USERS:[]}
+  # LDAP block (required when backend=ldap) — JSON object, e.g.
+  # HORIZON_AUTH_LDAP='{"url":"ldaps://ldap.corp:636","userBaseDn":"ou=people,dc=corp","groupMappings":[{"group":"*","role":"viewer"}]}'
+  ldap: ${HORIZON_AUTH_LDAP:null}
+  # Break-glass admin, honored ONLY when backend=ldap AND the LDAP probe is
+  # failing; every use is audited at WARN. JSON object or null.
+  breakGlass: ${HORIZON_AUTH_BREAK_GLASS:null}
 
-  # ── LDAP ──────────────────────────────────────────────────────────
-  # Required when `backend: ldap`. Passwords are never stored or read
-  # from the directory — login binds AS the user with their typed
-  # password, and group membership maps to a Horizon role via
-  # `groupMappings` (first match wins, multiple matches union).
-  # ldap:
-  #   url: ldaps://ldap.corp:636
-  #   bindDn: "cn=horizon,ou=services,dc=corp"
-  #   # `${VAR}` (required) or `${VAR:default}` (optional). Leave empty
-  #   # for anonymous service-bind (only works if the directory permits
-  #   # anonymous searches).
-  #   bindPassword: "${HORIZON_LDAP_BIND_PW}"
-  #   userBaseDn: "ou=people,dc=corp"
-  #   # `{username}` is substituted with the typed username (RFC 4515
-  #   # escaped). Use `(sAMAccountName={username})` for AD.
-  #   userFilter: "(uid={username})"
-  #   displayNameAttr: cn
-  #   # `memberOf` reads the attr off the user entry (AD-style);
-  #   # `search` searches `groupBaseDn` for the user's DN (OpenLDAP-style).
-  #   groupStrategy: memberOf
-  #   groupBaseDn: ""        # only used when groupStrategy: search
-  #   memberAttr: member     # only used when groupStrategy: search
-  #   timeoutMs: 5000
-  #   tlsInsecure: false     # set true only for dev with self-signed certs
-  #   groupMappings:
-  #     - group: "cn=horizon-admin,ou=groups,dc=corp"
-  #       role: admin
-  #     - group: "cn=sre,ou=groups,dc=corp"
-  #       role: operator
-  #     - group: "cn=platform,ou=groups,dc=corp"
-  #       role: maintainer
-  #     - group: "*"           # fallback for every authenticated user
-  #       role: viewer
-
-  # ── Break-glass ───────────────────────────────────────────────────
-  # Optional local admin credential honored ONLY when:
-  #   - backend: ldap, AND
-  #   - the LDAP probe is currently failing.
-  # Every successful break-glass login is audited at WARN level. Leave
-  # commented out to disable.
-  # breakGlass:
-  #   username: emergency-admin
-  #   passwordHash: "${HORIZON_BREAK_GLASS_HASH}"
-  #   roles: [admin]
-
-# ────────────────────────────────────────────────────────────────────
-# RBAC: four built-in roles. Verbs are dot-namespaced; `*:read` grants
-# every read across all areas, `area:*` grants every action in one area,
-# `*` grants everything. Routes are gated by a single policy table on
-# the BFF — see `apps/bff/src/rbac/route-policy.ts`.
-# ────────────────────────────────────────────────────────────────────
+# RBAC. `roles` maps a role → its verb grants; `landingByRole` is the
+# post-login landing route per role. `:null` keeps the built-in defaults
+# (viewer/maintainer/operator/admin). Override with a JSON object env var.
 rbac:
-  enabled: true
-  roles:
-    # Data catalog + read-only overview dashboards. Deliberately NOT
-    # `*:read` so a viewer can't accidentally see rule definitions,
-    # live-debug sessions, setup screens, or cluster / TTL / config internals.
-    viewer:
-      - metrics:read
-      - alarms:read
-      - traces:read
-      - logs:read
-      - browser-errors:read
-      - inspect:read
-      - topology:read
-      - profile:read
-      - overview:read
-      - infra-3d:read
-
-    # Viewer + platform monitoring (OAP cluster + module inspector).
-    maintainer:
-      - metrics:read
-      - alarms:read
-      - traces:read
-      - logs:read
-      - browser-errors:read
-      - topology:read
-      - profile:read
-      - overview:read
-      - cluster:read
-      - inspect:read
-      - ttl:read
-      - config:read
-      - infra-3d:read
-
-    # Configures observability: dashboards, alarm rules, DSL/OAL,
-    # diagnostics, profiling. Inherits viewer + platform reads so the
-    # operator can verify their edits against live data.
-    operator:
-      - metrics:read
-      - alarms:read
-      - traces:read
-      - logs:read
-      - browser-errors:read
-      - source-map:write
-      - topology:read
-      - profile:read
-      - cluster:read
-      - inspect:read
-      - ttl:read
-      - config:read
-      - overview:read
-      - overview:write
-      - setup:read
-      - setup:write
-      - dashboard:read
-      - dashboard:write
-      - alarm-setup:read
-      - alarm-setup:write
-      - alarm-rule:read
-      - alarm-rule:write
-      - infra-3d:read
-      - rule:read
-      - rule:write
-      - rule:write:structural
-      - rule:delete
-      - rule:debug
-      - live-debug:read
-      - live-debug:write
-      - profile:enable
-
-    admin:
-      - "*"
-  # Where each role lands after login. First role on the user wins.
-  # Cluster status lives under /operate/cluster (it's an operator tool
-  # against OAP, not an admin / RBAC surface); the prior `/admin/cluster`
-  # values 404'd because no route by that name exists.
-  landingByRole:
-    viewer: /
-    maintainer: /operate/cluster
-    operator: /
-    admin: /operate/cluster
+  enabled: ${HORIZON_RBAC_ENABLED:true}
+  roles: ${HORIZON_RBAC_ROLES:null}
+  landingByRole: ${HORIZON_RBAC_LANDING_BY_ROLE:null}
 
 session:
-  ttlMinutes: 60
-  cookieName: horizon_sid
-  cookieSecure: false           # set true behind HTTPS
+  ttlMinutes: ${HORIZON_SESSION_TTL_MINUTES:60}
+  cookieName: ${HORIZON_SESSION_COOKIE_NAME:horizon_sid}
+  cookieSecure: ${HORIZON_SESSION_COOKIE_SECURE:false}   # set true behind HTTPS
 
-# State files (audit log, setup state, alarm state, wire debug log).
-# Leave the `file:` paths unset and the right location is chosen for you:
-#   • published container image → /data/*    (its writable volume)
-#   • local binary run          → ./horizon-* (relative to the working dir)
-# Set an explicit `file:` under each block ONLY if you need a specific
-# location — and make sure the running process can write it (in the image
-# that means a path under /data, since the non-root `horizon` user cannot
-# write /app).
+# State files. The image sets HORIZON_*_FILE=/data/* (its writable volume);
+# a local run defaults to ./horizon-* in the working dir. Set an explicit
+# path only if you need one the running process can write.
+audit:
+  file: ${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}
+setup:
+  file: ${HORIZON_SETUP_FILE:./horizon-setup.json}
+alarms:
+  file: ${HORIZON_ALARMS_FILE:./horizon-alarms.json}
 
 debugLog:
-  enabled: false
-  maxBodyChars: 8192
-  redactAuthHeaders: true
+  enabled: ${HORIZON_DEBUG_LOG_ENABLED:false}
+  file: ${HORIZON_WIRE_LOG_FILE:./horizon-wire.jsonl}
+  maxBodyChars: ${HORIZON_DEBUG_LOG_MAX_BODY_CHARS:8192}
+  redactAuthHeaders: ${HORIZON_DEBUG_LOG_REDACT_AUTH:true}
 
-# JS source maps for the BROWSER-layer "Browser Errors" tab (#6784).
-# Maps de-obfuscate minified error stacks back to original source. They
-# are held in the BFF process memory ONLY — there is no OAP-side storage —
-# so this cache is per-instance and intentionally temporary: uploaded maps
-# are lost on restart and the least-recently-used are evicted once the
-# budget is hit. For durable provisioning, drop .map files into the static
-# `bootMountDir` (Docker/k8s mount) — those are reloaded on demand and
-# survive restarts.
+query:
+  # Max services a layer landing runs metric MQE for, per request.
+  landingServiceCap: ${HORIZON_QUERY_LANDING_SERVICE_CAP:100}
+
+# JS source maps for the BROWSER-layer "Browser Errors" tab (#6784). Held
+# in BFF process memory only (no OAP storage), per-instance + ephemeral.
+# Drop durable .map files into `bootMountDir` (the image sets it to
+# /app/sourcemaps).
 sourceMaps:
-  enabled: true
-  maxFileBytes: 67108864      # 64 MiB — reject any single .map larger
-  maxTotalBytes: 536870912    # 512 MiB — total in-memory budget (LRU-evicted)
-  maxFileCount: 128           # cap on number of hosted maps
-  # Directory scanned at boot for statically-provisioned .map files. The
-  # published image sets HORIZON_SOURCEMAPS_DIR=/app/sourcemaps; leave empty
-  # to disable the static mount.
+  enabled: ${HORIZON_SOURCEMAPS_ENABLED:true}
+  maxFileBytes: ${HORIZON_SOURCEMAPS_MAX_FILE_BYTES:67108864}      # 64 MiB
+  maxTotalBytes: ${HORIZON_SOURCEMAPS_MAX_TOTAL_BYTES:536870912}   # 512 MiB
+  maxFileCount: ${HORIZON_SOURCEMAPS_MAX_FILE_COUNT:128}
   bootMountDir: ${HORIZON_SOURCEMAPS_DIR:}
 
-# ────────────────────────────────────────────────────────────────────
-# Performance / behavior tuning — how hard the BFF fans queries out to
-# OAP, and the caps that protect storage. OPERATIONAL (per-deployment,
-# hot-reloaded, never published to OAP), unlike dashboard content, which
-# lives in templates. The whole block is optional — defaults equal the
-# built-in values, shown here for reference. Every value is clamped to a
-# hard ceiling; config can lower it, never raise it past that.
-#
-# Node heap: the BFF holds the source-map cache (above) in process memory,
-# so size the container memory limit and `NODE_OPTIONS=--max-old-space-size`
-# to your sourceMaps budget. (--max-old-space-size is a process flag, not a
-# config field — V8 reads it before this file loads.)
-performance:
-  bulk:
-    # Service-map family (topology / instance-topology / deployment /
-    # endpoint-dependency): bulkSize = aliased MQE fragments per OAP
-    # request; concurrency = parallel requests.
-    topology:   { nodeBulkSize: 150, edgeBulkSize: 200, concurrency: 4 }
-    # 3D infrastructure-map metric fan-out (was the 3D template `pipeline`).
-    infra3d:    { metricBulkSize: 6, metricConcurrency: 4, topologyConcurrency: 4, templateConcurrency: 8 }
-    # Per-layer landing metric-column batches.
-    landing:    { bulkSize: 6, concurrency: 8 }
-    # Dashboard widget metric fan-out.
-    dashboard:  { bulkSize: 6 }
-  limits:
-    # Service-map render valve — a larger graph is rejected with a
-    # "narrow the scope" notice rather than drawn unreadably.
-    topologyMaxNodes: 5000
-    topologyMaxEdges: 15000
-    # Max RECORDS per request for each event list (the OAP storage LIMIT)
-    # — not a page count; the UI picker maxes at the same value.
-    maxPageSize: { traces: 100, logs: 100, browserLogs: 100 }
+# Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
+# Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in
+# the docs); override the whole tree with a JSON object env var, e.g.
+# HORIZON_PERFORMANCE='{"bulk":{"dashboard":{"bulkSize":8}}}'.
+performance: ${HORIZON_PERFORMANCE:null}

@@ -86,6 +86,10 @@ type ScopeMap = Partial<Record<'service' | 'instance' | 'endpoint', DashboardWid
  *  omitted here (they'd bloat the bundle 5x); the admin pages fetch
  *  them on demand from `/api/admin/templates/sync-status`. */
 export interface BundleSyncStatus {
+  /** `live` = templates read/written via OAP's ui_template store. `readonly` =
+   *  rendered from the local disk bundle; the store is not used and the config
+   *  surface is read-only. Drives the SPA's read-only chrome + banner. */
+  mode: 'live' | 'readonly';
   unreachable: boolean;
   lastSuccessfulSyncAt: number | null;
   generatedAt: number;
@@ -225,6 +229,7 @@ async function buildBundle(
   }
 
   const syncStatus: BundleSyncStatus = {
+    mode: sync.mode,
     unreachable: sync.unreachable,
     lastSuccessfulSyncAt: sync.lastSuccessfulSyncAt,
     generatedAt: sync.generatedAt,

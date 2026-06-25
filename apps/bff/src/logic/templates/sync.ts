@@ -94,9 +94,15 @@ export interface ConflictRow {
 }
 
 export interface SyncStatus {
+  /** Template source mode. `live` = read/write via OAP's ui_template store
+   *  (default). `readonly` = the store is never consulted; `rows` are the local
+   *  disk bundle loaded into the same in-memory shape and presented as the
+   *  effective content, and the config surface is read-only. */
+  mode: 'live' | 'readonly';
   /** When true, OAP admin was unreachable at the time this status was
    *  computed. `rows` will be a bundled-only view (every bundled row marked
-   *  `bundled-fallback`, no remote info). */
+   *  `bundled-fallback`, no remote info). Always false in `readonly` mode —
+   *  the store is deliberately not used, not unreachable. */
   unreachable: boolean;
   /** Epoch ms of the most-recent successful OAP probe. `null` when we
    *  have never reached OAP since process start. */
@@ -144,6 +150,18 @@ interface CacheEntry {
 let cache: CacheEntry | null = null;
 let inFlight: Promise<SyncStatus> | null = null;
 let lastSuccessfulSyncAt: number | null = null;
+
+/** Boot-time template mode (`config.templates.mode`). In `readonly` the
+ *  orchestrator never touches the ui_template client — `runOnce` short-circuits
+ *  to the disk bundle. Set once at boot (and on config reload) by the server. */
+let readOnlyMode = false;
+export function setTemplateReadOnly(on: boolean): void {
+  readOnlyMode = on;
+  cache = null; // a mode flip must not serve a stale cross-mode status
+}
+export function isTemplateReadOnly(): boolean {
+  return readOnlyMode;
+}
 
 export function invalidateSyncCache(): void {
   cache = null;
@@ -261,6 +279,23 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
   const now = (deps.now ?? Date.now)();
   const bundledRows = buildBundledRows(deps.bundled());
 
+  // readonly mode: the disk bundle IS the source. Never call the ui_template
+  // client (no list, no seed); present every bundled source + translation
+  // overlay as the effective content so all render consumers resolve them
+  // exactly as they would a live remote row.
+  if (readOnlyMode) {
+    lastSuccessfulSyncAt = now;
+    const overlays = deps.bundledOverlays ? [...deps.bundledOverlays()] : [];
+    return {
+      mode: 'readonly',
+      unreachable: false,
+      lastSuccessfulSyncAt,
+      generatedAt: now,
+      rows: readonlyRows(bundledRows, overlays),
+      conflicts: [],
+    };
+  }
+
   let oapRows;
   try {
     oapRows = await deps.client.list();
@@ -270,6 +305,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       'OAP UI-template list failed — rendering bundled, admin read-only',
     );
     return {
+      mode: 'live',
       unreachable: true,
       lastSuccessfulSyncAt,
       generatedAt: now,
@@ -315,12 +351,50 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
 
   const rows = mergeRows(bundledRows, parsedRemote.byName);
   return {
+    mode: 'live',
     unreachable: false,
     lastSuccessfulSyncAt,
     generatedAt: now,
     rows,
     conflicts: parsedRemote.conflicts,
   };
+}
+
+/** readonly-mode rows: every bundled source template + translation overlay,
+ *  presented with the disk content as the effective (`remote`) configuration so
+ *  every render consumer resolves them uniformly (the ui_template store is never
+ *  consulted in this mode). `status: 'synced'` because the rendered config is,
+ *  by construction, exactly the bundled source; the synthetic `bundled:` id is
+ *  never used for a write (writes are denied in readonly). */
+function readonlyRows(bundled: Map<string, BundledRow>, overlays: BundledOverlay[]): TemplateRow[] {
+  const out: TemplateRow[] = [];
+  for (const b of bundled.values()) {
+    out.push({
+      name: b.name,
+      kind: b.kind,
+      key: b.key,
+      status: 'synced',
+      effective: 'remote',
+      remote: { id: `bundled:${b.name}`, configuration: b.configuration, disabled: false },
+      bundled: { configuration: b.configuration },
+    });
+  }
+  for (const ov of overlays) {
+    const env = buildOverlayEnvelope(ov.kind, ov.key, ov.locale, ov.content);
+    const configuration = serializeEnvelope(env);
+    out.push({
+      name: env.name,
+      kind: ov.kind,
+      key: ov.key,
+      locale: ov.locale,
+      status: 'synced',
+      effective: 'remote',
+      remote: { id: `bundled:${env.name}`, configuration, disabled: false },
+      bundled: { configuration },
+    });
+  }
+  out.sort((a, b) => a.name.localeCompare(b.name));
+  return out;
 }
 
 /** Thrown when a write to OAP succeeded but the resulting row state

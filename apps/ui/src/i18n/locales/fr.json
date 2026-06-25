@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "Aucun widget visible dans cet onglet.",
   "This tab has no widgets.": "Aucun widget dans cet onglet.",
   "Clear all": "Tout effacer",
-  "Clear all and exit comparison": "Tout effacer et quitter la comparaison"
+  "Clear all and exit comparison": "Tout effacer et quitter la comparaison",
+  "Dashboard templates": "Modèles de tableau de bord",
+  "read-only · bundled": "lecture seule · intégré",
+  "live · OAP ui_template": "en direct · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Rendu à partir du paquet local ; l’API ui_template n’est pas utilisée et l’édition est désactivée.",
+  "ui_template store reachable — editing enabled.": "Magasin ui_template accessible — édition activée.",
+  "ui_template store unreachable — editing disabled.": "Magasin ui_template inaccessible — édition désactivée."
 }

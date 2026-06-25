@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "No widgets visible in this tab.",
   "This tab has no widgets.": "This tab has no widgets.",
   "Clear all": "Clear all",
-  "Clear all and exit comparison": "Clear all and exit comparison"
+  "Clear all and exit comparison": "Clear all and exit comparison",
+  "Dashboard templates": "Dashboard templates",
+  "read-only · bundled": "read-only · bundled",
+  "live · OAP ui_template": "live · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Rendering from the local bundle; the ui_template API is not used and editing is disabled.",
+  "ui_template store reachable — editing enabled.": "ui_template store reachable — editing enabled.",
+  "ui_template store unreachable — editing disabled.": "ui_template store unreachable — editing disabled."
 }

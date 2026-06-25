@@ -169,6 +169,7 @@ export function ensureConfigBundle(): Promise<void> {
           layers: {},
           overviews: [],
           syncStatus: {
+            mode: 'live',
             unreachable: true,
             lastSuccessfulSyncAt: null,
             generatedAt: now,

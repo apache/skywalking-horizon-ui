@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "Keine Widgets in diesem Tab sichtbar.",
   "This tab has no widgets.": "Keine Widgets in diesem Tab.",
   "Clear all": "Alle löschen",
-  "Clear all and exit comparison": "Alle löschen und Vergleich beenden"
+  "Clear all and exit comparison": "Alle löschen und Vergleich beenden",
+  "Dashboard templates": "Dashboard-Vorlagen",
+  "read-only · bundled": "schreibgeschützt · gebündelt",
+  "live · OAP ui_template": "live · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Rendering aus dem lokalen Bundle; die ui_template-API wird nicht verwendet und die Bearbeitung ist deaktiviert.",
+  "ui_template store reachable — editing enabled.": "ui_template-Speicher erreichbar — Bearbeitung aktiviert.",
+  "ui_template store unreachable — editing disabled.": "ui_template-Speicher nicht erreichbar — Bearbeitung deaktiviert."
 }

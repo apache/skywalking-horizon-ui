@@ -6,6 +6,11 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ## 1.1.0
 
+### Deployment & configuration
+
+- **Run on the bundled templates, read-only — no OAP ui_template API needed.** A new `templates.mode` setting (`HORIZON_TEMPLATES_MODE`) adds a `readonly` mode: Horizon renders every dashboard / overview / alert-page / 3D-map / translation from the **local bundle** and never calls OAP's ui_template admin API. The whole config surface goes **read-only** — the admin pages still open and show the bundled config, but editing and publishing are disabled (and the BFF rejects a write even if it's fired directly). OAP's **query** API is still used and health-checked, so metrics / traces / logs / topology work exactly as before; only the config-template store is local. Default stays `live` (seed-to-OAP, editable). The Cluster Status page shows the active mode and ui_template availability.
+- **The container image runs with environment variables only — no mounted config file.** The image now bakes a **fully tokenized** `horizon.yaml` where every field is a `${HORIZON_…:default}` env var, so `docker run -e HORIZON_OAP_QUERY_URL=… -e HORIZON_AUTH_LOCAL_USERS='[…]' …` is enough — no `-v` mount, no repackaging. Previously `oap.*`, `auth.*`, users, LDAP, RBAC, and performance tuning were YAML-only. Lists and secrets (users, LDAP, OAP auth) are set as JSON-string env vars; precedence is env > file > built-in default. The config file itself is the complete, self-documenting env-var reference, mirrored in the [container-image docs](docs/setup/container-image.md). Mounting your own `horizon.yaml` still works and overrides the baked one.
+
 ### General Service — PHP runtime (PHM)
 
 - **Six instance dashboard line widgets for PHP Health Metrics** — process CPU utilization, memory used/peak, virtual memory, thread count, and open file descriptors (`meter_instance_php_*`). Each line widget uses `visibleWhen` so widgets render only when the PHP agent reports PHM data (Linux `/proc` sampling of the parent PHP process via `getppid()`).

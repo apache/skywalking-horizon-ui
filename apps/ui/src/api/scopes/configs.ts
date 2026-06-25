@@ -76,6 +76,9 @@ export interface TemplateConflict {
 /** Bundle-level sync envelope. When `unreachable`, all rows fall back to
  *  bundled and the admin pages render the global read-only banner. */
 export interface BundleSyncStatus {
+  /** `live` = OAP ui_template store is the source. `readonly` = local bundle
+   *  only; the config surface is read-only. */
+  mode: 'live' | 'readonly';
   unreachable: boolean;
   lastSuccessfulSyncAt: number | null;
   generatedAt: number;

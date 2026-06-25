@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "此标签页中没有可见的组件。",
   "This tab has no widgets.": "此标签页中暂无组件。",
   "Clear all": "全部清除",
-  "Clear all and exit comparison": "清除全部并退出对比"
+  "Clear all and exit comparison": "清除全部并退出对比",
+  "Dashboard templates": "仪表板模板",
+  "read-only · bundled": "只读 · 内置",
+  "live · OAP ui_template": "在线 · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "从本地内置模板渲染；不使用 ui_template API，编辑已禁用。",
+  "ui_template store reachable — editing enabled.": "ui_template 存储可达 —— 编辑已启用。",
+  "ui_template store unreachable — editing disabled.": "ui_template 存储不可达 —— 编辑已禁用。"
 }

@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "このタブに表示できるウィジェットはありません。",
   "This tab has no widgets.": "このタブにはウィジェットがありません。",
   "Clear all": "すべてクリア",
-  "Clear all and exit comparison": "すべてクリアして比較を終了"
+  "Clear all and exit comparison": "すべてクリアして比較を終了",
+  "Dashboard templates": "ダッシュボードテンプレート",
+  "read-only · bundled": "読み取り専用 · バンドル",
+  "live · OAP ui_template": "ライブ · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "ローカルバンドルからレンダリングしています。ui_template API は使用されず、編集は無効です。",
+  "ui_template store reachable — editing enabled.": "ui_template ストアに到達可能 —— 編集が有効です。",
+  "ui_template store unreachable — editing disabled.": "ui_template ストアに到達不可 —— 編集が無効です。"
 }

@@ -59,6 +59,11 @@ COPY --from=build /src/dist/package.json           ./package.json
 COPY --from=build /src/dist/node_modules           ./node_modules
 COPY --from=build /src/dist/static                 ./static
 COPY --from=build /src/dist/horizon.example.yaml   ./horizon.example.yaml
+# Bake the (fully tokenized) example AS the active config so the image runs
+# with NO mounted file: every field is a `${HORIZON_…:default}` token, so
+# `docker run -e HORIZON_OAP_QUERY_URL=… -e HORIZON_AUTH_LOCAL_USERS='[…]' …`
+# is enough. A bind-mount at /app/horizon.yaml still overrides it.
+COPY --from=build /src/dist/horizon.example.yaml   ./horizon.yaml
 
 COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled_templates
 

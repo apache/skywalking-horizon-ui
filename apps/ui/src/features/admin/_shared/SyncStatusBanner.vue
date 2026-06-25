@@ -79,6 +79,8 @@ function chipLabel(s: SyncBanner['severity']): string {
   switch (s) {
     case 'unreachable':
       return 'READ-ONLY';
+    case 'readonly':
+      return 'READ-ONLY';
     case 'conflict':
       return 'CONFLICT';
     case 'diverged':
@@ -122,6 +124,13 @@ export default { chipLabel };
   border-color: var(--sw-muted, #4a525c);
   background: var(--sw-bg-elev, #161a20);
 }
+/* Deliberate read-only (templates.mode=readonly) — informational, not an
+ * error, so muted rather than the danger red of `unreachable`. */
+.sbb--readonly {
+  border-color: var(--sw-muted, #4a525c);
+  background: rgba(255, 255, 255, 0.03);
+}
+.sbb--readonly .sbb__chip { background: var(--sw-muted, #4a525c); color: #fff; }
 .sbb__row {
   display: flex;
   gap: 12px;

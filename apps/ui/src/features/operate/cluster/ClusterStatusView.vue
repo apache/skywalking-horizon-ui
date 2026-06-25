@@ -19,6 +19,7 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
+import { useConfigBundle } from '@/controls/configBundle';
 
 // Two-pane Cluster Status:
 //   - Pane A (graphql / :12800): version, server clock, timezone,
@@ -42,6 +43,15 @@ const {
   healthScore,
   refetch: refetchInfo,
 } = useOapInfo();
+
+// Dashboard-template source mode (the ui_template store vs the local bundle)
+// rides on the config bundle the shell preloads.
+const { bundle } = useConfigBundle();
+const templateMode = computed<'live' | 'readonly'>(() => bundle.value?.syncStatus?.mode ?? 'live');
+// ui_template API availability — N/A (null) in readonly (the store isn't used).
+const uiTemplateAvailable = computed<boolean | null>(() =>
+  templateMode.value === 'readonly' ? null : bundle.value?.syncStatus?.unreachable === false,
+);
 
 const {
   result: preflight,
@@ -224,6 +234,25 @@ function refreshAll(): void {
           </tr>
         </tbody>
       </table>
+
+      <!-- Dashboard-template source: live (OAP ui_template) vs readonly (bundle). -->
+      <div class="tpl-source">
+        <span class="tpl-label">{{ t('Dashboard templates') }}</span>
+        <span class="sw-badge" :class="templateMode === 'readonly' ? 'is-warn' : 'is-ok'">
+          <span class="state-dot" />{{ templateMode === 'readonly' ? t('read-only · bundled') : t('live · OAP ui_template') }}
+        </span>
+        <span class="tpl-hint">
+          <template v-if="templateMode === 'readonly'">
+            {{ t('Rendering from the local bundle; the ui_template API is not used and editing is disabled.') }}
+          </template>
+          <template v-else-if="uiTemplateAvailable">
+            {{ t('ui_template store reachable — editing enabled.') }}
+          </template>
+          <template v-else>
+            {{ t('ui_template store unreachable — editing disabled.') }}
+          </template>
+        </span>
+      </div>
     </section>
 
     <!-- ── Pane C · Zipkin / OTLP trace endpoint ─────────────────── -->
@@ -441,6 +470,26 @@ function refreshAll(): void {
   border-radius: 6px;
 }
 
+.tpl-source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 8px;
+  font-size: var(--sw-fs-base);
+}
+.tpl-label {
+  font-weight: var(--sw-fw-bold);
+  color: var(--sw-fg-1);
+}
+.tpl-hint {
+  color: var(--sw-fg-3);
+  font-size: var(--sw-fs-xs);
+}
 .mod-table {
   width: 100%;
   border-collapse: collapse;

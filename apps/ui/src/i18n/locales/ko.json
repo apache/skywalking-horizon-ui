@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "이 탭에 표시할 위젯이 없습니다.",
   "This tab has no widgets.": "이 탭에는 위젯이 없습니다.",
   "Clear all": "모두 지우기",
-  "Clear all and exit comparison": "모두 지우고 비교 종료"
+  "Clear all and exit comparison": "모두 지우고 비교 종료",
+  "Dashboard templates": "대시보드 템플릿",
+  "read-only · bundled": "읽기 전용 · 번들",
+  "live · OAP ui_template": "라이브 · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "로컬 번들에서 렌더링합니다. ui_template API는 사용되지 않으며 편집이 비활성화됩니다.",
+  "ui_template store reachable — editing enabled.": "ui_template 저장소에 연결됨 — 편집이 활성화됩니다.",
+  "ui_template store unreachable — editing disabled.": "ui_template 저장소에 연결할 수 없음 — 편집이 비활성화됩니다."
 }

@@ -15,9 +15,13 @@
  * limitations under the License.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import YAML from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { configSchema } from './schema.js';
-import { interpolateEnv, isAuthConfigured, validateBootstrap } from './loader.js';
+import { interpolateEnv, stripNullish, isAuthConfigured, validateBootstrap } from './loader.js';
 
 describe('interpolateEnv', () => {
   it('substitutes a defined variable', () => {
@@ -44,6 +48,59 @@ describe('interpolateEnv', () => {
   it('matches lowercase env-var names too (regex is case-insensitive)', () => {
     expect(interpolateEnv('${lowercase}', { lowercase: 'ok' })).toBe('ok');
     expect(interpolateEnv('${lowercase:fallback}', {})).toBe('fallback');
+  });
+});
+
+describe('stripNullish', () => {
+  it('drops null-valued keys (a ${VAR:null} that resolved to null = use default)', () => {
+    expect(stripNullish({ a: 1, b: null, c: { d: null, e: 2 } })).toEqual({ a: 1, c: { e: 2 } });
+  });
+  it('keeps empty arrays + empty strings (those are real values, not "unset")', () => {
+    expect(stripNullish({ a: [], b: '', c: 0, d: false })).toEqual({ a: [], b: '', c: 0, d: false });
+  });
+});
+
+// The env-native contract: the tokenized horizon.example.yaml, interpolated +
+// stripped + parsed, must accept env overrides for every kind of field.
+describe('env-native config (horizon.example.yaml + env)', () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const raw = readFileSync(resolve(here, '../../../../horizon.example.yaml'), 'utf8');
+  const load = (env: NodeJS.ProcessEnv): ReturnType<typeof configSchema.parse> =>
+    configSchema.parse(stripNullish(YAML.parse(interpolateEnv(raw, env)) ?? {}));
+
+  it('scalar env overrides (oap url, templates mode, boolean)', () => {
+    const cfg = load({
+      HORIZON_OAP_QUERY_URL: 'http://oap.prod:12800',
+      HORIZON_TEMPLATES_MODE: 'readonly',
+      HORIZON_RBAC_ENABLED: 'false',
+    });
+    expect(cfg.oap.queryUrl).toBe('http://oap.prod:12800');
+    expect(cfg.templates.mode).toBe('readonly');
+    expect(cfg.rbac.enabled).toBe(false);
+  });
+
+  it('JSON-array env override seeds local users (incl. an argon2 $ hash)', () => {
+    const hash = '$argon2id$v=19$m=65536,t=3,p=4$abc$def';
+    const cfg = load({
+      HORIZON_AUTH_LOCAL_USERS: JSON.stringify([{ username: 'admin', passwordHash: hash, roles: ['admin'] }]),
+    });
+    expect(cfg.auth.local.users).toEqual([{ username: 'admin', passwordHash: hash, roles: ['admin'] }]);
+  });
+
+  it('JSON-object env override sets the optional oap.auth block', () => {
+    const cfg = load({ HORIZON_OAP_AUTH: '{"username":"sw","password":"sw"}' });
+    expect(cfg.oap.auth).toEqual({ username: 'sw', password: 'sw' });
+  });
+
+  it('unset optional/structured blocks fall through to the schema default', () => {
+    const cfg = load({});
+    expect(cfg.oap.auth).toBeUndefined();
+    expect(cfg.performance.bulk.dashboard.bulkSize).toBe(6);
+    expect(cfg.layers.excluded.map((e) => e.key)).toEqual(['FAAS', 'VIRTUAL_GATEWAY']);
+  });
+
+  it('malformed JSON env throws at parse (fail loud, not silently default)', () => {
+    expect(() => load({ HORIZON_AUTH_LOCAL_USERS: '[{bad json' })).toThrow();
   });
 
   it('survives newlines and YAML formatting', () => {

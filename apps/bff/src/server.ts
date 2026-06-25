@@ -66,7 +66,7 @@ import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
 import { buildOapClients } from './client/index.js';
-import { bootSeed, waitForOapAdminReady } from './logic/templates/sync.js';
+import { bootSeed, waitForOapAdminReady, setTemplateReadOnly } from './logic/templates/sync.js';
 import { iterateBundledTemplates, iterateBundledOverlays } from './logic/templates/aggregator.js';
 // Admin (operational tools)
 import { registerDslCatalogRoutes } from './http/admin/dsl/catalog.js';
@@ -107,16 +107,25 @@ try {
   throw err;
 }
 logger.info(
-  { configPath: source.path, backend: source.current.auth.backend },
+  {
+    configPath: source.path,
+    backend: source.current.auth.backend,
+    templatesMode: source.current.templates.mode,
+  },
   'config loaded',
 );
+// Template source mode is a boot-time global the sync orchestrator reads.
+setTemplateReadOnly(source.current.templates.mode === 'readonly');
 if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.length > 0) {
   logger.warn(
     { users: source.current.auth.local.users.length },
     'auth.local.users is populated but auth.backend is "ldap"; local users are ignored',
   );
 }
-source.onChange((cfg) => logger.info({ backend: cfg.auth.backend }, 'config reloaded'));
+source.onChange((cfg) => {
+  logger.info({ backend: cfg.auth.backend, templatesMode: cfg.templates.mode }, 'config reloaded');
+  setTemplateReadOnly(cfg.templates.mode === 'readonly');
+});
 
 const app = Fastify({ logger: loggerOptions });
 
@@ -356,6 +365,14 @@ app.listen({ host, port }).then(
     // admin action triggers a fresh sync. The seed itself is
     // absent-only (`seedMissing` skips templates already present), so
     // a successful previous boot leaves nothing to re-push.
+    // readonly mode renders from the disk bundle and never touches the
+    // ui_template store — skip the readiness wait + seed entirely (otherwise
+    // the backoff loop warn-spams forever against an absent/disabled admin
+    // surface). The OAP *query* reachability check is independent and stays.
+    if (source.current.templates.mode === 'readonly') {
+      logger.info('templates.mode=readonly — rendering bundled templates, ui_template store not used');
+      return;
+    }
     void (async (): Promise<void> => {
       const deps = {
         client: buildOapClients(source.current).uiTemplate(),

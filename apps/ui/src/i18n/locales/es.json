@@ -1533,5 +1533,11 @@
   "No widgets visible in this tab.": "No hay widgets visibles en esta pestaña.",
   "This tab has no widgets.": "Esta pestaña no contiene widgets.",
   "Clear all": "Borrar todo",
-  "Clear all and exit comparison": "Borrar todo y salir de la comparación"
+  "Clear all and exit comparison": "Borrar todo y salir de la comparación",
+  "Dashboard templates": "Plantillas de panel",
+  "read-only · bundled": "solo lectura · incluido",
+  "live · OAP ui_template": "en vivo · OAP ui_template",
+  "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Renderizado desde el paquete local; la API ui_template no se usa y la edición está deshabilitada.",
+  "ui_template store reachable — editing enabled.": "Almacén ui_template accesible — edición habilitada.",
+  "ui_template store unreachable — editing disabled.": "Almacén ui_template inaccesible — edición deshabilitada."
 }
