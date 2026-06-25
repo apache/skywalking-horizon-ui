@@ -1531,5 +1531,7 @@
   "no data": "sin datos",
   "Pop out — full list": "Expandir — lista completa",
   "No widgets visible in this tab.": "No hay widgets visibles en esta pestaña.",
-  "This tab has no widgets.": "Esta pestaña no contiene widgets."
+  "This tab has no widgets.": "Esta pestaña no contiene widgets.",
+  "Clear all": "Borrar todo",
+  "Clear all and exit comparison": "Borrar todo y salir de la comparación"
 }

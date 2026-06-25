@@ -1531,5 +1531,7 @@
   "no data": "データなし",
   "Pop out — full list": "ポップアウト — 全リスト",
   "No widgets visible in this tab.": "このタブに表示できるウィジェットはありません。",
-  "This tab has no widgets.": "このタブにはウィジェットがありません。"
+  "This tab has no widgets.": "このタブにはウィジェットがありません。",
+  "Clear all": "すべてクリア",
+  "Clear all and exit comparison": "すべてクリアして比較を終了"
 }

@@ -163,6 +163,9 @@ export const scopeSchema = z.enum([
   'ebpfProfiling',
   'asyncProfiling',
 ]);
+/** Per-request queryable-widget cap (mirrors the SPA's chunk size). Enforced on
+ *  the body pre-expansion (zod) AND on the leaf count after tab flattening. */
+const MAX_REQUEST_WIDGETS = 40;
 const bodySchema = z.object({
   service: z.string().optional(),
   /** Selected instance name. Honored only when `scope === 'instance'`
@@ -179,8 +182,10 @@ const bodySchema = z.object({
   // (CLAUDE.md warns about backend-specific thresholds). The UI is
   // responsible for chunking widget sets larger than this across
   // multiple requests; the BFF refuses oversized bodies up-front so
-  // an accidentally-huge template never reaches OAP.
-  widgets: z.array(widgetSchema).max(40).optional(),
+  // an accidentally-huge template never reaches OAP. The cap is
+  // re-checked AFTER tab expansion (a container counts as 1 here but
+  // flattens to many leaves) — see the handler.
+  widgets: z.array(widgetSchema).max(MAX_REQUEST_WIDGETS).optional(),
   scope: scopeSchema.optional(),
   /** Global time-range, forwarded by the SPA's time picker. When all
    *  three are present the BFF queries OAP at the requested precision
@@ -618,6 +623,16 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
               ? widgetsForScope(eff.template, scope)
               : defaultWidgetsFor(eff.template, layerKey)),
       );
+      // Re-apply the cap AFTER expansion for a body-PROVIDED set: a tab counts
+      // as 1 in the zod cap but flattens to many leaves, so a hand-built body
+      // could fan past it. The SPA pre-flattens + chunks, so this never trips
+      // it; the template fallback is trusted (and the OAP batch is bulk-chunked).
+      if (parsed.data.widgets && widgets.length > MAX_REQUEST_WIDGETS) {
+        return reply.code(400).send({
+          error: 'too_many_widgets',
+          detail: `${widgets.length} widgets after tab expansion exceeds ${MAX_REQUEST_WIDGETS}`,
+        });
+      }
       let serviceName = parsed.data.service ?? '';
       let serviceId = '';
       let normal = true;

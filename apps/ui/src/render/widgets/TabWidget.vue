@@ -132,8 +132,10 @@ function loadingOrEmpty(w: DashboardWidget): string {
             <span class="tw-cell-title">{{ w.title }}</span>
             <span class="tw-cell-right">
               <span v-if="w.unit && w.type !== 'card'" class="tw-cell-unit">{{ w.unit }}</span>
+              <!-- record only pops out in compare mode (its single-entity body is
+                   a RecordList, which has no expandable list to pop). -->
               <button
-                v-if="(w.type === 'top' || w.type === 'record') && hasTopData(w)"
+                v-if="(w.type === 'top' || (w.type === 'record' && compare)) && hasTopData(w)"
                 type="button"
                 class="tw-popout"
                 :title="t('Pop out — full list')"

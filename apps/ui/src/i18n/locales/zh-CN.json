@@ -1531,5 +1531,7 @@
   "no data": "无数据",
   "Pop out — full list": "弹出 — 完整列表",
   "No widgets visible in this tab.": "此标签页中没有可见的组件。",
-  "This tab has no widgets.": "此标签页中暂无组件。"
+  "This tab has no widgets.": "此标签页中暂无组件。",
+  "Clear all": "全部清除",
+  "Clear all and exit comparison": "清除全部并退出对比"
 }

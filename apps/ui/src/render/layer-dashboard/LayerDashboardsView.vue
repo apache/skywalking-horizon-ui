@@ -624,6 +624,11 @@ function unlockChip(key: string): void {
   // belong to a service other than the current primary.
   if (compareScope.value) selectionStore.removeKey(compareScope.value, key);
 }
+// Exit compare: drop every lock for the scope (incl. the non-removable CURRENT
+// chip) → the bar hides and the page returns to the single-entity view.
+function clearCohort(): void {
+  if (compareScope.value) selectionStore.clearLocks(compareScope.value);
+}
 
 // --- Multi-entity INLINE rendering -------------------------------------
 // In compare mode every widget keeps its normal tile and renders all N
@@ -775,7 +780,13 @@ const resultsById = computed(() => {
   for (const r of data.value?.widgets ?? []) out.set(r.id, r);
   return out;
 });
-const reachable = computed(() => data.value?.reachable !== false);
+const reachable = computed(() => {
+  const primaryOk = data.value?.reachable !== false;
+  if (!compareMode.value || primaryOk) return primaryOk;
+  // Compare: a failed primary must not flag "unreachable" over a cohort grid
+  // still rendering pinned-entity data (or still arriving).
+  return compareLoading.value || compareEntities.value.some((e) => resultByEntity.value.get(e) !== undefined);
+});
 const errorText = computed(() => data.value?.error ?? (error.value ? String(error.value) : null));
 
 /** Map a widget's grid footprint into the new 12-col flow grid. Honors
@@ -904,8 +915,8 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
 
 <template>
   <div class="dash-tab">
-    <header v-if="isFetching || !reachable" class="dash-head">
-      <span v-if="isFetching" class="badge fetch">refreshing</span>
+    <header v-if="isFetching || compareLoading || !reachable" class="dash-head">
+      <span v-if="isFetching || compareLoading" class="badge fetch">refreshing</span>
       <span v-else-if="!reachable" class="badge err">OAP unreachable</span>
     </header>
 
@@ -1149,6 +1160,12 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
           >×</button>
         </div>
       </div>
+      <button
+        type="button"
+        class="cohort-clear"
+        :title="t('Clear all and exit comparison')"
+        @click="clearCohort"
+      >{{ t('Clear all') }}</button>
     </div>
     <!-- Tile grid keeps its normal layout in compare mode; each widget
          renders all N entities inline (card rows / overlaid lines /
@@ -1177,7 +1194,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
                  their bodies don't reprint it. -->
             <span v-if="w.unit && w.type !== 'card'" class="unit">{{ w.unit }}</span>
             <button
-              v-if="(w.type === 'top' || w.type === 'record') && hasTopData(w)"
+              v-if="(w.type === 'top' || (w.type === 'record' && compareMode)) && hasTopData(w)"
               type="button"
               class="w-popout"
               title="Pop out — full list"
@@ -1545,6 +1562,23 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
   cursor: pointer;
 }
 .cohort-x:hover {
+  color: var(--sw-err);
+}
+.cohort-clear {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--sw-fg-2);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cohort-clear:hover {
+  border-color: var(--sw-err);
   color: var(--sw-err);
 }
 .ib-row:last-child { border-bottom: none; }

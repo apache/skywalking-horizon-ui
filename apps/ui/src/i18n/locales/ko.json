@@ -1531,5 +1531,7 @@
   "no data": "데이터 없음",
   "Pop out — full list": "팝아웃 — 전체 목록",
   "No widgets visible in this tab.": "이 탭에 표시할 위젯이 없습니다.",
-  "This tab has no widgets.": "이 탭에는 위젯이 없습니다."
+  "This tab has no widgets.": "이 탭에는 위젯이 없습니다.",
+  "Clear all": "모두 지우기",
+  "Clear all and exit comparison": "모두 지우고 비교 종료"
 }

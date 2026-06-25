@@ -1531,5 +1531,7 @@
   "no data": "aucune donnée",
   "Pop out — full list": "Détacher — liste complète",
   "No widgets visible in this tab.": "Aucun widget visible dans cet onglet.",
-  "This tab has no widgets.": "Aucun widget dans cet onglet."
+  "This tab has no widgets.": "Aucun widget dans cet onglet.",
+  "Clear all": "Tout effacer",
+  "Clear all and exit comparison": "Tout effacer et quitter la comparaison"
 }
