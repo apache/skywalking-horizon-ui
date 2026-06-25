@@ -5873,14 +5873,20 @@ const namingTest = computed<NamingTestResult>(() => {
  * brackets, no full left/right side, so the inner widgets keep full width.
  * The ::before/::after are short "caps" (top + bottom) that draw the corner
  * brackets and leave the middle of the sides open. */
-/* Tab container tile: no outer frame and no title — the tab bar (with its
- * underline) is the only chrome; inner widgets sit flush so they align. */
+/* Tab container tile (editor): a real frame so its extent is clear and the
+ * resize handle is grabbable; the tab bar sits in the header with an underline,
+ * and the bordered body below is the tab's internal content area. */
 .canvas-widget.is-tab {
-  background: transparent;
-  border: none;
-  overflow: visible;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line);
+  border-radius: 7px;
+  overflow: hidden;
 }
-.canvas-widget.is-tab.selected { box-shadow: none; }
+.canvas-widget.is-tab:hover { border-color: var(--sw-line-2); }
+.canvas-widget.is-tab.selected {
+  border-color: var(--sw-accent);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
 /* The tab bar IS the header. Its bottom rule is the ONLY frame — the line under
  * the tab names. The grip (drag handle), tabs, and the `tab` chip share the row. */
 .canvas-widget.is-tab > .cw-head {
@@ -5894,7 +5900,12 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 .canvas-widget.is-tab > .cw-head .cw-grip { align-self: center; cursor: grab; }
 .canvas-widget.is-tab > .cw-head .cw-type { align-self: center; }
-.canvas-widget.is-tab > .cw-body { padding: 8px 0 0; }
+/* Internal content area — a slightly inset panel so the tab's own widgets read
+ * as a group distinct from the surrounding canvas. */
+.canvas-widget.is-tab > .cw-body {
+  padding: 8px;
+  background: var(--sw-bg-0);
+}
 .cw-segbar {
   display: flex;
   align-items: stretch;

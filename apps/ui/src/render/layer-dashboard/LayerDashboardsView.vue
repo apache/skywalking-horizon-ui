@@ -1669,14 +1669,18 @@ function isHidden(id: string): boolean {
   min-width: 0;
   overflow: hidden;
 }
-/* Tab container: no outer frame and no title — the tab bar (with its underline)
- * is the only chrome, and the inner widgets sit flush to the slot edges so they
- * align with the widgets above/around them. */
+/* Tab container (runtime): no title (the tab bar is the header). The boundary is
+ * drawn as an INSET box-shadow + outline — it marks the tab's extent without
+ * occupying layout width, so the inner widgets stay flush-aligned. */
 .widget.is-tab {
   background: transparent;
   border: none;
-  overflow: visible;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--sw-line);
+  overflow: hidden;
 }
+/* Flush so the boundary takes no layout width; the tab strip / grid own their
+ * own small vertical breathing room. */
 .widget.is-tab > .w-body { padding: 0; }
 .w-head {
   display: flex;
