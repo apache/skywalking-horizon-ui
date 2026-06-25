@@ -398,6 +398,10 @@ interface PanelState {
 const panel = ref<PanelState>({ open: false, anchor: null, point: null, fields: [], label: '' });
 
 function openPanel(fields: TranslatableField[], label: string, el: HTMLElement, point: { x: number; y: number }): void {
+  // Read-only mode (templates.mode=readonly or admin unreachable): the canvas
+  // stays viewable but the editor never opens — no edit can start that could
+  // only end in a server 409. Sibling admin pages gate the same way.
+  if (readOnly.value) return;
   // Widgets with no translatable text (e.g. a topology widget that
   // only carries `layer`) shouldn't open an empty panel.
   if (fields.length === 0) return;
@@ -600,7 +604,7 @@ async function pushToOap(): Promise<void> {
   const name = selectedName.value;
   const loc = target.value;
   const overlay = draftOverlayForTarget.value;
-  if (!name || saving.value) return;
+  if (!name || saving.value || readOnly.value) return; // BFF denies it anyway
   saving.value = true;
   saveMsg.value = t('Saving to OAP…');
   let elapsed = 0;

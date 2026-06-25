@@ -103,6 +103,14 @@ describe('env-native config (horizon.example.yaml + env)', () => {
     expect(() => load({ HORIZON_AUTH_LOCAL_USERS: '[{bad json' })).toThrow();
   });
 
+  it('quoted string scalars survive a value with YAML metacharacters (: and #)', () => {
+    // The string tokens are quoted (`"${X:default}"`), so a metachar value
+    // lands safely inside a YAML string instead of breaking the parse.
+    const cfg = load({ HORIZON_SESSION_COOKIE_NAME: 'weird: name #x', HORIZON_OAP_QUERY_URL: 'http://oap:12800' });
+    expect(cfg.session.cookieName).toBe('weird: name #x');
+    expect(cfg.oap.queryUrl).toBe('http://oap:12800');
+  });
+
   it('survives newlines and YAML formatting', () => {
     const raw = `auth:\n  ldap:\n    bindPassword: "\${HORIZON_LDAP_BIND_PW:dev-only}"\n`;
     const out = interpolateEnv(raw, {});

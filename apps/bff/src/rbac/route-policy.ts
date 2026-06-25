@@ -37,11 +37,11 @@ export type RoutePolicy = 'public' | 'auth' | string;
  *  `templates.mode=readonly` there is no store to write to, so these are denied
  *  at the edge regardless of the verb grant (the UI hides them too, but a direct
  *  request must still fail — the BFF is the authority). */
-function isTemplateWriteRoute(method: string, url: string): boolean {
+export function isTemplateWriteRoute(method: string, url: string): boolean {
   if (method === 'GET' || method === 'HEAD') return false;
   return url.startsWith('/api/admin/templates') || url.startsWith('/api/admin/overview-templates');
 }
-async function denyTemplateWriteWhenReadOnly(
+export async function denyTemplateWriteWhenReadOnly(
   _req: FastifyRequest,
   reply: FastifyReply,
 ): Promise<void> {

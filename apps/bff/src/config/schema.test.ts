@@ -41,11 +41,19 @@ describe('horizon.example.yaml — tokenized default + parity', () => {
   const raw = readFileSync(examplePath, 'utf8');
 
   it('parses to exactly the schema defaults (token defaults match the schema)', () => {
-    // Use process.env on BOTH sides: the schema's inline env defaults
-    // (serverHostDefault, the *_FILE paths, sourcemaps dir, templatesMode) read
-    // process.env at module load, so the example's tokens must resolve against
-    // the same env or a stray HORIZON_* in CI would read as drift.
-    const parsed = stripNullish(YAML.parse(interpolateEnv(raw, process.env)) ?? {});
+    // configSchema.parse({}) reads a FIXED set of HORIZON_* env vars inline for
+    // its defaults (server host/port, the *_FILE paths, sourcemaps dir,
+    // templates mode). Interpolate the example with ONLY those — so the two
+    // sides agree on the env-derived defaults, while every OTHER stray HORIZON_*
+    // in a dev/CI env is ignored (it would otherwise read as drift, since the
+    // schema default for e.g. oap.queryUrl is a literal, not env-read).
+    const SCHEMA_ENV = [
+      'HORIZON_SERVER_HOST', 'HORIZON_SERVER_PORT', 'HORIZON_AUDIT_FILE', 'HORIZON_SETUP_FILE',
+      'HORIZON_ALARMS_FILE', 'HORIZON_WIRE_LOG_FILE', 'HORIZON_SOURCEMAPS_DIR', 'HORIZON_TEMPLATES_MODE',
+    ];
+    const env: NodeJS.ProcessEnv = {};
+    for (const k of SCHEMA_ENV) if (process.env[k] !== undefined) env[k] = process.env[k];
+    const parsed = stripNullish(YAML.parse(interpolateEnv(raw, env)) ?? {});
     expect(configSchema.parse(parsed)).toEqual(configSchema.parse({}));
   });
 

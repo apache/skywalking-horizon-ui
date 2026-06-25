@@ -17,6 +17,7 @@
 
 import { existsSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
+import { ZodError } from 'zod';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
@@ -102,6 +103,17 @@ try {
     // Fail loud — a misconfigured deployment must not silently start
     // with no auth backend wired.
     logger.fatal({ err: err.message, configPath }, 'BFF refusing to start: bootstrap validation failed');
+    process.exit(1);
+  }
+  if (err instanceof ZodError) {
+    // A bad value (often a HORIZON_* env override): surface the field path +
+    // reason instead of a raw zod dump. Booleans accept only true/false,
+    // numbers must be numeric, and JSON env vars must be valid JSON.
+    const issues = err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ');
+    logger.fatal(
+      { issues, configPath },
+      'BFF refusing to start: config validation failed — check the value (and any HORIZON_* env override) at each path. Booleans must be true/false; numbers must be numeric; JSON env vars must be valid JSON',
+    );
     process.exit(1);
   }
   throw err;
