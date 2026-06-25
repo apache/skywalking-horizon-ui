@@ -564,7 +564,7 @@ function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
  *  `widgets[]` in the body), which would otherwise reach `collapse` as a tab
  *  and return blank. Every leaf keeps its own id, so results stay id-addressable
  *  and the SPA re-groups by tab. One level deep (a tab's child is never a tab). */
-function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
+export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
   const out: DashboardWidget[] = [];
   for (const w of widgets) {
     if (w.type === 'tab') {
