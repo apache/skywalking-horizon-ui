@@ -601,28 +601,63 @@ watch(
 watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
 function onWinResizeScope(): void { updateScopeScroll(); }
 
-// ── Editor drawer height. The drawer is a sticky sidebar that sits below the
-// card header, so a fixed `100vh - 52px` overshoots (the header offsets the
-// drawer's top) and pushes its pinned footer — Up / Down / Delete — below the
-// fold; worst on a short board you can't scroll far enough to pin. Size it to
-// the live space from wherever it currently sits down to the viewport bottom
-// instead, so the footer is always visible. Scroll listens in the capture
-// phase so the inner content pane's scroll (not just window) re-syncs it.
+// ── Editor drawer position. The drawer edits the selected widget. A sticky
+// drawer gets clipped once you scroll past the bottom of the tall widget canvas
+// (its containing block), so a bottom-row widget opens with the editor's top
+// off-screen. Pin it to the viewport with `position: fixed` instead, overlaying
+// the grid column the layout already reserves for it — so it's always fully
+// visible IN PLACE wherever you click in the canvas, without scrolling the page.
+// JS owns top/left/width/height because the column's x-position tracks the
+// canvas width (re-measured on layout change), while the y-extent is the
+// viewport below the topbar.
 const drawerEl = ref<HTMLElement | null>(null);
-function syncDrawerHeight(): void {
+const editorCardEl = ref<HTMLElement | null>(null);
+const DRAWER_COL = 360;
+function positionDrawer(): void {
   const el = drawerEl.value;
-  if (!el) return;
-  el.style.height = `${Math.max(220, window.innerHeight - el.getBoundingClientRect().top - 8)}px`;
+  const card = editorCardEl.value;
+  const split = el?.closest('.editor-split') as HTMLElement | null;
+  const main = document.querySelector('.sw-main');
+  if (!el || !card || !split || !main) return;
+  // Hide the fixed drawer when the editor card is scrolled out of view, so it
+  // doesn't float over the scope-config cards above it.
+  const cr = card.getBoundingClientRect();
+  if (cr.bottom < 80 || cr.top > window.innerHeight) {
+    el.style.display = 'none';
+    return;
+  }
+  el.style.display = 'flex';
+  const top = Math.max(0, Math.round(main.getBoundingClientRect().top));
+  el.style.top = `${top}px`;
+  el.style.right = 'auto';
+  el.style.left = `${Math.round(split.getBoundingClientRect().right - DRAWER_COL)}px`;
+  el.style.width = `${DRAWER_COL}px`;
+  el.style.height = `${window.innerHeight - top}px`;
 }
+// Re-place the drawer when the editor card resizes (window resize, sidebar
+// collapse, scope switch) — its right column moves with the canvas width.
+let drawerLayoutObs: ResizeObserver | null = null;
+watch(editorCardEl, (el) => {
+  drawerLayoutObs?.disconnect();
+  drawerLayoutObs = null;
+  if (el && typeof ResizeObserver !== 'undefined') {
+    drawerLayoutObs = new ResizeObserver(() => positionDrawer());
+    drawerLayoutObs.observe(el);
+  }
+});
 onMounted(() => {
   window.addEventListener('resize', onWinResizeScope);
-  window.addEventListener('scroll', syncDrawerHeight, { capture: true, passive: true });
-  window.addEventListener('resize', syncDrawerHeight, { passive: true });
+  window.addEventListener('resize', positionDrawer, { passive: true });
+  // Scroll only toggles the drawer's visibility (its x/width are fixed); capture
+  // so the inner content pane's scroll fires it too.
+  window.addEventListener('scroll', positionDrawer, { capture: true, passive: true });
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWinResizeScope);
-  window.removeEventListener('scroll', syncDrawerHeight, { capture: true });
-  window.removeEventListener('resize', syncDrawerHeight);
+  window.removeEventListener('resize', positionDrawer);
+  window.removeEventListener('scroll', positionDrawer, { capture: true });
+  drawerLayoutObs?.disconnect();
+  drawerLayoutObs = null;
   scopeResizeObs?.disconnect();
   scopeResizeObs = null;
 });
@@ -710,7 +745,7 @@ function moveWidget(i: number, dir: -1 | 1): void {
 const selectedIdx = ref<number | null>(null);
 /* Re-fit the drawer to the viewport when it opens / the target widget changes
  * (content height differs); the scroll + resize listeners keep it fitted after. */
-watch(selectedIdx, () => void nextTick(syncDrawerHeight));
+watch(selectedIdx, () => void nextTick(positionDrawer));
 
 /** When the user switches scope or layer we drop the selection so the
  *  drawer doesn't refer to a widget that no longer exists. */
@@ -3675,7 +3710,7 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <section v-else class="sw-card editor-card">
+        <section v-else ref="editorCardEl" class="sw-card editor-card">
           <div class="card-head">
             <h4>{{ scopeLabel(activeScope) }} widgets</h4>
             <span class="sub">
@@ -5530,19 +5565,18 @@ const namingTest = computed<NamingTestResult>(() => {
   flex-direction: column;
   background: var(--sw-bg-1);
   border-left: 1px solid var(--sw-line);
-  /* Sticky within the scrolling main pane (topbar is fixed above it, so
-   * top: 0 pins just below it) and full-height, so the editor uses the
-   * whole viewport and follows the canvas scroll instead of being a short
-   * box stranded at the top of a tall grid cell. `align-self: start`
-   * stops the grid from stretching it (which would defeat sticky). */
-  position: sticky;
-  top: 0;
-  align-self: start;
-  /* Height is set in JS (syncDrawerHeight) to the live space from the drawer's
-   * top to the viewport bottom, so the pinned footer never falls below the
-   * fold. This calc is just the pre-JS / no-JS fallback. */
-  height: calc(100vh - 96px);
-  max-height: calc(100vh - 52px);
+  /* Pinned to the viewport (positionDrawer sets top/left/width/height) so the
+   * editor is always fully visible IN PLACE wherever you click in the canvas,
+   * overlaying the reserved grid column — a sticky drawer clips past the bottom
+   * of the tall canvas. The values below are a pre-JS fallback, refined on the
+   * next tick. */
+  position: fixed;
+  z-index: 5;
+  top: 44px;
+  right: 28px;
+  width: 360px;
+  height: calc(100vh - 44px);
+  box-shadow: -8px 0 24px -12px rgba(0, 0, 0, 0.5);
 }
 .drawer-head {
   display: flex;
