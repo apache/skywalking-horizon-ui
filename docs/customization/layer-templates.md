@@ -233,7 +233,7 @@ A `tab` widget is a sized grid slot that holds several **named tab panels**, eac
 
 A tab is just a `name` plus its own `widgets`. Switching a tab swaps the whole sub-grid; the widgets inside lay out in a 12-column grid within the slot. Only the **active** tab is queried — switching to a tab loads its widgets on demand and then keeps them warm, so an unopened tab costs nothing and flipping back is instant. A tab's widgets are ordinary widgets (`card` / `line` / `top` / `table`); a tab cannot contain another tab (one level deep).
 
-To author one in the admin: add a widget, set its **Type** to `tab`, and size its slot (span / row span). In the drawer's **Tabs** list, add / rename / reorder / delete tabs; click **Open** on a tab (or a tab on the canvas tile) to drill into it — the canvas then shows that tab's widgets with a tab bar to switch between tabs, and **+ Add widget** drops into the active tab. **‹ Back** returns to the top-level grid.
+To author one in the admin: add a widget, set its **Type** to `tab`, and size its slot (span / row span). The tile shows a **segmented tab bar** — click a tab to make it active, **+ tab** to add one — and the active tab's widgets are edited **inline, right on the tile**: a per-tab **+ widget** drops a widget into the active tab, and clicking a widget opens its config in the drawer. Manage the tabs themselves (rename / reorder / delete) from the drawer's **Tabs** list when the tab widget is selected. The tab slot is framed by an open top/bottom rule so its inner widgets keep full width.
 
 The stored shape — a container with empty `expressions` and a `tabs[]` array of `{ name, widgets }` panels:
 

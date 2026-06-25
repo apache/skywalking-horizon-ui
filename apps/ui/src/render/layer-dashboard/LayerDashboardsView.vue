@@ -1112,6 +1112,7 @@ function isHidden(id: string): boolean {
         v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
         class="widget sw-card"
+        :class="{ 'is-tab': w.type === 'tab' }"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"
       >
         <div class="w-head">
@@ -1666,6 +1667,19 @@ function isHidden(id: string): boolean {
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
+}
+/* Tab container: an OPEN frame — top/bottom rules + rounded corners, no
+ * left/right side, so its inner widgets keep full width. */
+.widget.is-tab {
+  background: transparent;
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 9px;
+}
+.widget.is-tab > .w-head {
+  border-left: none;
+  border-bottom: none;
+  background: transparent;
 }
 .w-head {
   display: flex;

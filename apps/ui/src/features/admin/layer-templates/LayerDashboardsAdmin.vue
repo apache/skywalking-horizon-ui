@@ -35,6 +35,7 @@ import type {
   ClusterByRule,
   DashboardScope,
   DashboardWidget,
+  DashboardTab,
   EndpointDependencyConfig,
   ProcessTopologyConfig,
   DeploymentConfig,
@@ -616,10 +617,9 @@ const DRAWER_COL = 360;
 function positionDrawer(): void {
   const el = drawerEl.value;
   const card = editorCardEl.value;
-  const split = el?.closest('.editor-split') as HTMLElement | null;
   const main = document.querySelector('.sw-main');
-  if (!el || !card || !split || !main) return;
-  // Hide the fixed drawer when the editor card is scrolled out of view, so it
+  if (!el || !card || !main) return;
+  // Hide the floating drawer when the editor card is scrolled out of view, so it
   // doesn't float over the scope-config cards above it.
   const cr = card.getBoundingClientRect();
   if (cr.bottom < 80 || cr.top > window.innerHeight) {
@@ -628,9 +628,22 @@ function positionDrawer(): void {
   }
   el.style.display = 'flex';
   const top = Math.max(0, Math.round(main.getBoundingClientRect().top));
+  const margin = 12;
+  // The drawer floats OVER the canvas (the canvas keeps its full width). It
+  // sits on the right by default, but flips to the left when the selected
+  // widget's tile would sit under the right band — so the editor never covers
+  // the thing you're editing.
+  const rightBandLeft = cr.right - DRAWER_COL - margin;
+  const leftBandRight = cr.left + DRAWER_COL + margin;
+  let useLeft = false;
+  const sel = canvasEl.value?.querySelector('.canvas-widget.selected') as HTMLElement | null;
+  if (sel) {
+    const sr = sel.getBoundingClientRect();
+    if (sr.right > rightBandLeft && sr.left >= leftBandRight) useLeft = true;
+  }
   el.style.top = `${top}px`;
   el.style.right = 'auto';
-  el.style.left = `${Math.round(split.getBoundingClientRect().right - DRAWER_COL)}px`;
+  el.style.left = `${Math.round(useLeft ? cr.left + margin : rightBandLeft)}px`;
   el.style.width = `${DRAWER_COL}px`;
   el.style.height = `${window.innerHeight - top}px`;
 }
@@ -704,9 +717,9 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
 }
 
 function addWidget(type: DashboardWidget['type'] = 'card'): void {
-  const widgets = [...curList()];
+  const widgets = [...widgetsFor(activeScope.value)];
   const idx = widgets.length;
-  const id = drillWidgetId.value ? `${drillWidgetId.value}_t${activeTabIdx.value}_w${idx + 1}` : `widget_${idx + 1}`;
+  const id = `widget_${idx + 1}`;
   if (type === 'tab') {
     // A tab container carries no MQE; it seeds one empty named tab. Wider/taller
     // default slot since it hosts a sub-grid of widgets.
@@ -717,21 +730,21 @@ function addWidget(type: DashboardWidget['type'] = 'card'): void {
   } else {
     widgets.push({ id, title: `Widget ${idx + 1}`, type, expressions: [''], span: 4, rowSpan: 1 });
   }
-  commitList(widgets);
+  setWidgetsFor(activeScope.value, widgets);
 }
 
 function deleteWidget(i: number): void {
-  const widgets = [...curList()];
+  const widgets = [...widgetsFor(activeScope.value)];
   widgets.splice(i, 1);
-  commitList(widgets);
+  setWidgetsFor(activeScope.value, widgets);
 }
 
 function moveWidget(i: number, dir: -1 | 1): void {
-  const widgets = [...curList()];
+  const widgets = [...widgetsFor(activeScope.value)];
   const j = i + dir;
   if (j < 0 || j >= widgets.length) return;
   [widgets[i], widgets[j]] = [widgets[j], widgets[i]];
-  commitList(widgets);
+  setWidgetsFor(activeScope.value, widgets);
 }
 
 /* ------------------------------------------------------------------- *
@@ -747,77 +760,69 @@ function moveWidget(i: number, dir: -1 | 1): void {
 
 const selectedIdx = ref<number | null>(null);
 /* ----------------------------------------------------------------------- *
- * Tab drill-in. A `tab` widget holds named tabs, each with its OWN widgets.
- * When `drillWidgetId` is set the canvas edits that tab widget's ACTIVE tab's
- * widgets (`activeTabIdx`) instead of the scope's top-level widgets — so all
- * the add / select / drag / resize machinery is reused on a tab's sub-grid by
- * just swapping the list `curList()` reads. Both reset when scope / layer
- * changes.
+ * Tab widgets edit INLINE. A `tab` widget holds named tabs, each with its own
+ * widgets; the canvas tile renders a segmented bar + the active tab's widgets
+ * as editable sub-tiles in place. Selecting a sub-tile (`subSel`) opens it in
+ * the same drawer as a top-level widget (`selectedIdx`). No drilling / separate
+ * canvas — the tab's slot IS its layout area.
  * ----------------------------------------------------------------------- */
-const drillWidgetId = ref<string | null>(null);
-const activeTabIdx = ref<number>(0);
-/* Re-fit the drawer to the viewport when it opens / the target widget changes
- * (content height differs); the scroll + resize listeners keep it fitted after. */
-watch(selectedIdx, () => void nextTick(positionDrawer));
+/** Which tab is shown inline per `tab` widget (by widget id; default first). */
+const activeTabByWidget = ref<Record<string, number>>({});
+function activeTabOf(id: string): number {
+  return activeTabByWidget.value[id] ?? 0;
+}
+/** Selection of a widget INSIDE a tab panel — vs `selectedIdx` for a top-level
+ *  widget. Exactly one of the two is set; both null = nothing selected. */
+const subSel = ref<{ widgetId: string; tabIdx: number; subIdx: number } | null>(null);
+function setActiveTabOf(id: string, ti: number): void {
+  activeTabByWidget.value = { ...activeTabByWidget.value, [id]: ti };
+  if (subSel.value?.widgetId === id) subSel.value = null;
+}
+/* Re-fit the drawer to the viewport when the selection (top-level or in-tab)
+ * changes; the scroll + resize listeners keep it fitted after. */
+watch([selectedIdx, subSel], () => void nextTick(positionDrawer));
 
-/** When the user switches scope or layer we drop the selection + drill so the
- *  drawer / canvas don't refer to a widget that no longer exists. */
+/** When the user switches scope or layer we drop the selection so the drawer
+ *  doesn't refer to a widget that no longer exists. */
 watch([activeScope, selectedKey], () => {
   selectedIdx.value = null;
-  drillWidgetId.value = null;
-  activeTabIdx.value = 0;
+  subSel.value = null;
 });
 
-/** The scope's top-level tab widget we're drilled into, if any. */
-function drilledTabWidget(): DashboardWidget | null {
-  if (!drillWidgetId.value) return null;
-  return widgetsFor(activeScope.value).find((w) => w.id === drillWidgetId.value && w.type === 'tab') ?? null;
+/** Resolve a `tab` widget by id within the active scope. */
+function tabWidgetById(id: string): DashboardWidget | null {
+  return widgetsFor(activeScope.value).find((w) => w.id === id && w.type === 'tab') ?? null;
 }
-/** The widget list the canvas currently edits: the active tab's widgets when
- *  drilled into a tab, else the scope's top-level widgets. */
-function curList(): DashboardWidget[] {
-  const tw = drilledTabWidget();
-  if (tw) {
-    const tabs = tw.tabs ?? [];
-    return (tabs[activeTabIdx.value] ?? tabs[0])?.widgets ?? [];
+/** Widgets of a tab widget's panel `tabIdx`. */
+function subWidgetsOf(id: string, tabIdx: number): DashboardWidget[] {
+  return tabWidgetById(id)?.tabs?.[tabIdx]?.widgets ?? [];
+}
+/** Write a tab panel's widget list back to the draft (preserving the others). */
+function commitSubWidgets(id: string, tabIdx: number, widgets: DashboardWidget[]): void {
+  const scope = [...widgetsFor(activeScope.value)];
+  const i = scope.findIndex((w) => w.id === id && w.type === 'tab');
+  const tw = i >= 0 ? scope[i] : null;
+  if (tw?.tabs && tw.tabs[tabIdx]) {
+    const tabs = [...tw.tabs];
+    tabs[tabIdx] = { ...tabs[tabIdx], widgets };
+    scope[i] = { ...tw, tabs };
+    setWidgetsFor(activeScope.value, scope);
   }
-  return widgetsFor(activeScope.value);
 }
-/** Write the current context's widget list back to the draft — into the active
- *  tab when drilled (preserving the other tabs), else the scope list. */
-function commitList(widgets: DashboardWidget[]): void {
-  if (drillWidgetId.value) {
-    const scopeWidgets = [...widgetsFor(activeScope.value)];
-    const idx = scopeWidgets.findIndex((w) => w.id === drillWidgetId.value && w.type === 'tab');
-    const tw = idx >= 0 ? scopeWidgets[idx] : null;
-    if (tw?.tabs) {
-      const ti = tw.tabs[activeTabIdx.value] ? activeTabIdx.value : 0;
-      const tabs = [...tw.tabs];
-      tabs[ti] = { ...tabs[ti], widgets };
-      scopeWidgets[idx] = { ...tw, tabs };
-      setWidgetsFor(activeScope.value, scopeWidgets);
-      return;
-    }
-  }
-  setWidgetsFor(activeScope.value, widgets);
-}
-/** Drill into a tab widget's tab `ti` — the canvas now edits that tab's widgets. */
-function openTab(widgetId: string, ti: number): void {
-  drillWidgetId.value = widgetId;
-  activeTabIdx.value = ti;
+/** Select a widget inside a tab panel (opens its config in the drawer). */
+function selectSub(widgetId: string, tabIdx: number, subIdx: number): void {
   selectedIdx.value = null;
+  subSel.value = { widgetId, tabIdx, subIdx };
 }
-function drillOut(): void {
-  drillWidgetId.value = null;
-  activeTabIdx.value = 0;
-  selectedIdx.value = null;
+/** Add a leaf widget into a tab's active panel. */
+function addToTab(widgetId: string, type: DashboardWidget['type']): void {
+  const ti = activeTabOf(widgetId);
+  const widgets = [...subWidgetsOf(widgetId, ti)];
+  const n = widgets.length + 1;
+  widgets.push({ id: `${widgetId}_t${ti}_w${n}`, title: `Widget ${n}`, type, expressions: [''], span: 6, rowSpan: 2 });
+  commitSubWidgets(widgetId, ti, widgets);
+  subSel.value = { widgetId, tabIdx: ti, subIdx: widgets.length - 1 };
 }
-function switchDrillTab(ti: number): void {
-  activeTabIdx.value = ti;
-  selectedIdx.value = null;
-}
-/** Title of the tab widget we're drilled into (for the breadcrumb). */
-const drillTitle = computed<string>(() => drilledTabWidget()?.title || drillWidgetId.value || '');
 
 const canvasEl = ref<HTMLDivElement | null>(null);
 
@@ -894,7 +899,7 @@ function onResizeMove(e: MouseEvent): void {
   if (!w) return;
   if (w.span !== newSpan || w.rowSpan !== newRowSpan) {
     widgets[resize.idx] = { ...w, span: newSpan, rowSpan: newRowSpan };
-    commitList(widgets);
+    setWidgetsFor(activeScope.value, widgets);
   }
 }
 function onResizeEnd(): void {
@@ -945,21 +950,22 @@ function onReorderDrop(e: DragEvent, i: number): void {
     const target = widgets[to];
     const dragged = widgets[from];
     if (target && dragged && target.type === 'tab' && dragged.type !== 'tab') {
-      // Dropped a leaf onto a tab container → MOVE it into the tab's FIRST
-      // panel (it leaves the grid; open the tab to reorder it among the rest).
+      // Dropped a leaf onto a tab container → MOVE it into that tab's ACTIVE
+      // panel (it leaves the top-level grid).
       widgets.splice(from, 1);
       const tabs = [...(target.tabs ?? [])];
       if (tabs.length === 0) tabs.push({ name: 'Tab 1', widgets: [] });
-      tabs[0] = { ...tabs[0], widgets: [...tabs[0].widgets, dragged] };
+      const ti = Math.min(activeTabOf(target.id), tabs.length - 1);
+      tabs[ti] = { ...tabs[ti], widgets: [...tabs[ti].widgets, dragged] };
       const tIdx = widgets.indexOf(target);
       widgets[tIdx] = { ...target, tabs };
-      commitList(widgets);
+      setWidgetsFor(activeScope.value, widgets);
       selectedIdx.value = tIdx;
     } else {
       // Plain reorder.
       widgets.splice(from, 1);
       widgets.splice(to, 0, dragged);
-      commitList(widgets);
+      setWidgetsFor(activeScope.value, widgets);
       selectedIdx.value = to;
     }
   }
@@ -978,20 +984,35 @@ onBeforeUnmount(() => {
   window.removeEventListener('mouseup', onResizeEnd);
 });
 
-/** Convenience: the currently-selected widget. Used by the drawer. */
+/** Convenience: the currently-selected widget — a top-level widget
+ *  (`selectedIdx`) OR a widget inside a tab panel (`subSel`). Used by the
+ *  drawer; the same form edits either with no indirection. */
 const selectedWidget = computed<DashboardWidget | null>(() => {
+  if (subSel.value) {
+    return subWidgetsOf(subSel.value.widgetId, subSel.value.tabIdx)[subSel.value.subIdx] ?? null;
+  }
   if (selectedIdx.value === null) return null;
-  return currentWidgets.value[selectedIdx.value] ?? null;
+  return widgetsFor(activeScope.value)[selectedIdx.value] ?? null;
 });
 
 function selectWidget(i: number): void {
+  subSel.value = null;
   selectedIdx.value = i;
 }
 
-/** The widget the content form edits — always the selected widget. (When
- *  drilled into a tab, `selectedWidget` already resolves to the sub-widget,
- *  so the same form edits it with no indirection.) */
 const editingWidget = computed<DashboardWidget | null>(() => selectedWidget.value);
+
+/** Move-up / move-down bounds for the drawer footer — handles a top-level
+ *  widget (`selectedIdx`) or a widget inside a tab panel (`subSel`). */
+const selCanMoveUp = computed<boolean>(() =>
+  subSel.value ? subSel.value.subIdx > 0 : (selectedIdx.value !== null && selectedIdx.value > 0),
+);
+const selCanMoveDown = computed<boolean>(() => {
+  if (subSel.value) {
+    return subSel.value.subIdx < subWidgetsOf(subSel.value.widgetId, subSel.value.tabIdx).length - 1;
+  }
+  return selectedIdx.value !== null && selectedIdx.value < currentWidgets.value.length - 1;
+});
 
 /** Type changes seed a `tab` widget's first (empty) named panel + clear its
  *  own (meaningless) expressions, and restore an expression slot when leaving
@@ -1008,59 +1029,44 @@ function onWidgetTypeChange(value: string): void {
   }
 }
 
-/* ---- Tab-panel management. Targets the tab widget being managed: the one
- *      we're drilled into, or a selected top-level tab widget. Each tab is a
- *      { name, widgets[] } panel. ---- */
-function currentTabWidget(): DashboardWidget | null {
-  const d = drilledTabWidget();
-  if (d) return d;
-  const s = selectedWidget.value;
-  return s?.type === 'tab' ? s : null;
+/* ---- Tab-panel management (by tab widget id). Each tab is a { name, widgets[] }
+ *      panel; these run from the inline segmented tab bar on the canvas tile. ---- */
+function tabWidgetMut(widgetId: string): { tw: DashboardWidget; tabs: DashboardTab[] } | null {
+  const tw = tabWidgetById(widgetId);
+  if (!tw) return null;
+  return { tw, tabs: [...(tw.tabs ?? [])] };
 }
-function addTabRow(): void {
-  const w = currentTabWidget();
-  if (!w) return;
-  const tabs = [...(w.tabs ?? [])];
-  tabs.push({ name: `Tab ${tabs.length + 1}`, widgets: [] });
-  w.tabs = tabs;
+function addTabToWidget(widgetId: string): void {
+  const m = tabWidgetMut(widgetId);
+  if (!m) return;
+  m.tabs.push({ name: `Tab ${m.tabs.length + 1}`, widgets: [] });
+  m.tw.tabs = m.tabs;
+  setActiveTabOf(widgetId, m.tabs.length - 1);
 }
-function renameTab(ti: number, name: string): void {
-  const w = currentTabWidget();
-  if (!w?.tabs || !w.tabs[ti]) return;
-  const tabs = [...w.tabs];
-  tabs[ti] = { ...tabs[ti], name };
-  w.tabs = tabs;
+function renameTabOf(widgetId: string, ti: number, name: string): void {
+  const m = tabWidgetMut(widgetId);
+  if (!m || !m.tabs[ti]) return;
+  m.tabs[ti] = { ...m.tabs[ti], name };
+  m.tw.tabs = m.tabs;
 }
-function deleteTabAt(ti: number): void {
-  const w = currentTabWidget();
-  if (!w?.tabs) return;
-  const tabs = [...w.tabs];
-  tabs.splice(ti, 1);
-  w.tabs = tabs;
-  if (drillWidgetId.value === w.id && activeTabIdx.value >= tabs.length) {
-    activeTabIdx.value = Math.max(0, tabs.length - 1);
-  }
+function deleteTabOf(widgetId: string, ti: number): void {
+  const m = tabWidgetMut(widgetId);
+  if (!m) return;
+  m.tabs.splice(ti, 1);
+  m.tw.tabs = m.tabs;
+  if (subSel.value?.widgetId === widgetId) subSel.value = null;
+  if (activeTabOf(widgetId) >= m.tabs.length) setActiveTabOf(widgetId, Math.max(0, m.tabs.length - 1));
 }
-function moveTabAt(ti: number, dir: -1 | 1): void {
-  const w = currentTabWidget();
-  if (!w?.tabs) return;
-  const tabs = [...w.tabs];
+function moveTabOf(widgetId: string, ti: number, dir: -1 | 1): void {
+  const m = tabWidgetMut(widgetId);
+  if (!m) return;
   const tj = ti + dir;
-  if (tj < 0 || tj >= tabs.length) return;
-  [tabs[ti], tabs[tj]] = [tabs[tj], tabs[ti]];
-  w.tabs = tabs;
-  if (drillWidgetId.value === w.id) {
-    if (activeTabIdx.value === ti) activeTabIdx.value = tj;
-    else if (activeTabIdx.value === tj) activeTabIdx.value = ti;
-  }
-}
-/** Tabs of the widget we're drilled into (for the drill tab bar). */
-const drilledTabs = computed(() => drilledTabWidget()?.tabs ?? []);
-/** Add a tab from a tab widget's canvas tile (select it first so the tab op
- *  targets it). */
-function addTabFromTile(i: number): void {
-  selectedIdx.value = i;
-  addTabRow();
+  if (tj < 0 || tj >= m.tabs.length) return;
+  [m.tabs[ti], m.tabs[tj]] = [m.tabs[tj], m.tabs[ti]];
+  m.tw.tabs = m.tabs;
+  const a = activeTabOf(widgetId);
+  if (a === ti) setActiveTabOf(widgetId, tj);
+  else if (a === tj) setActiveTabOf(widgetId, ti);
 }
 
 function setWidgetFormat(v: string): void {
@@ -1105,13 +1111,32 @@ function removeValueMapRow(key: string): void {
 }
 
 /** Drawer commits edits in place on the live draft via v-model — no
- *  separate apply step. The button row offers a delete shortcut. */
+ *  separate apply step. The button row offers a delete shortcut. Works on a
+ *  top-level widget or a widget inside a tab panel. */
 function deleteSelected(): void {
+  if (subSel.value) {
+    const { widgetId, tabIdx, subIdx } = subSel.value;
+    const ws = [...subWidgetsOf(widgetId, tabIdx)];
+    ws.splice(subIdx, 1);
+    commitSubWidgets(widgetId, tabIdx, ws);
+    subSel.value = null;
+    return;
+  }
   if (selectedIdx.value === null) return;
   deleteWidget(selectedIdx.value);
   selectedIdx.value = null;
 }
 function moveSelected(dir: -1 | 1): void {
+  if (subSel.value) {
+    const { widgetId, tabIdx, subIdx } = subSel.value;
+    const ws = [...subWidgetsOf(widgetId, tabIdx)];
+    const j = subIdx + dir;
+    if (j < 0 || j >= ws.length) return;
+    [ws[subIdx], ws[j]] = [ws[j], ws[subIdx]];
+    commitSubWidgets(widgetId, tabIdx, ws);
+    subSel.value = { widgetId, tabIdx, subIdx: j };
+    return;
+  }
   if (selectedIdx.value === null) return;
   const i = selectedIdx.value;
   moveWidget(i, dir);
@@ -1135,15 +1160,14 @@ async function addAndSelectWidget(type: DashboardWidget['type'] = 'card'): Promi
     ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/** Widget kinds offered by the rich "+ Add widget" picker (and shown as the
- *  canvas type chips). `tab` groups several of the others into one slot. */
+/** The five leaf widget kinds offered by the "+ Add widget" picker. The `tab`
+ *  group is a container offered separately (first, above a divider). */
 const WIDGET_KINDS: ReadonlyArray<{ type: DashboardWidget['type']; label: string; hint: string }> = [
   { type: 'card', label: 'Card', hint: 'A single scalar number' },
   { type: 'line', label: 'Line', hint: 'A time-series chart' },
   { type: 'top', label: 'Top list', hint: 'A sorted top-N list' },
   { type: 'record', label: 'Record', hint: 'Tabular records (slow SQL, statements)' },
   { type: 'table', label: 'Table', hint: 'A labeled key → value table' },
-  { type: 'tab', label: 'Tab group', hint: 'Several widgets in one slot, as tabs' },
 ];
 const addMenuOpen = ref(false);
 function pickAddKind(type: DashboardWidget['type']): void {
@@ -1457,7 +1481,7 @@ async function doReactivateLayer(): Promise<void> {
 }
 
 const selectedTpl = computed(() => draft.template);
-const currentWidgets = computed(() => curList());
+const currentWidgets = computed(() => widgetsFor(activeScope.value));
 
 /* ------------------------------------------------------------------- *
  * Topology / Endpoint-dependency config editor.
@@ -3884,16 +3908,12 @@ const namingTest = computed<NamingTestResult>(() => {
         </section>
 
         <section v-else ref="editorCardEl" class="sw-card editor-card">
-          <div class="card-head">
-            <button v-if="drillWidgetId" class="sw-btn ghost dr-back" type="button" title="Back to all widgets" @click="drillOut">‹ Back</button>
-            <h4>
-              <template v-if="drillWidgetId">{{ scopeLabel(activeScope) }} <span class="dr-sep">/</span> {{ drillTitle }}</template>
-              <template v-else>{{ scopeLabel(activeScope) }} widgets</template>
-            </h4>
+          <!-- Sticky header: pins to the top while the canvas scrolls, so
+               + Add widget stays reachable. -->
+          <div class="card-head sticky-head">
+            <h4>{{ scopeLabel(activeScope) }} widgets</h4>
             <span class="sub">
-              {{ drillWidgetId
-                ? "this tab’s widgets — switch tabs below; + Add widget drops into the active tab"
-                : 'click a widget to edit · drag corner to resize · drag header to reorder' }}
+              click a widget to edit · drag corner to resize · drag header to reorder
             </span>
             <div class="add-widget-wrap">
               <button
@@ -3904,48 +3924,31 @@ const namingTest = computed<NamingTestResult>(() => {
               >＋ Add widget ▾</button>
               <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
               <div v-if="addMenuOpen" class="add-menu" role="menu">
-                <template v-for="k in WIDGET_KINDS" :key="k.type">
-                  <!-- no nested tabs: a tab kind isn't offered while drilled inside a tab -->
-                  <button
-                    v-if="k.type !== 'tab' || !drillWidgetId"
-                    type="button"
-                    class="add-menu-item"
-                    role="menuitem"
-                    @click="pickAddKind(k.type)"
-                  >
-                    <span class="ami-type" :class="`t-${k.type}`">{{ k.type }}</span>
-                    <span class="ami-text">
-                      <span class="ami-label">{{ k.label }}</span>
-                      <span class="ami-hint">{{ k.hint }}</span>
-                    </span>
-                  </button>
-                </template>
+                <!-- Container first, then a divider, then the five leaf kinds. -->
+                <button type="button" class="add-menu-item" role="menuitem" @click="pickAddKind('tab')">
+                  <span class="ami-type t-tab">tab</span>
+                  <span class="ami-text">
+                    <span class="ami-label">Tab group</span>
+                    <span class="ami-hint">Several widgets in one slot, as tabs</span>
+                  </span>
+                </button>
+                <div class="add-menu-div" />
+                <button
+                  v-for="k in WIDGET_KINDS"
+                  :key="k.type"
+                  type="button"
+                  class="add-menu-item"
+                  role="menuitem"
+                  @click="pickAddKind(k.type)"
+                >
+                  <span class="ami-type" :class="`t-${k.type}`">{{ k.type }}</span>
+                  <span class="ami-text">
+                    <span class="ami-label">{{ k.label }}</span>
+                    <span class="ami-hint">{{ k.hint }}</span>
+                  </span>
+                </button>
               </div>
             </div>
-          </div>
-
-          <!-- Drill tab bar: switch / rename / reorder / delete / add the tabs of
-               the tab widget we're inside. -->
-          <div v-if="drillWidgetId" class="drill-tabbar">
-            <div
-              v-for="(tab, ti) in drilledTabs"
-              :key="ti"
-              class="drill-tab"
-              :class="{ on: ti === activeTabIdx }"
-            >
-              <input
-                v-if="ti === activeTabIdx"
-                class="dt-name"
-                :value="tab.name"
-                placeholder="Tab name"
-                @input="renameTab(ti, ($event.target as HTMLInputElement).value)"
-              />
-              <button v-else type="button" class="dt-switch" @click="switchDrillTab(ti)">{{ tab.name || `Tab ${ti + 1}` }}</button>
-              <button type="button" class="dt-ctl" title="Move left" @click="moveTabAt(ti, -1)">‹</button>
-              <button type="button" class="dt-ctl" title="Move right" @click="moveTabAt(ti, 1)">›</button>
-              <button type="button" class="dt-ctl del" title="Delete tab" @click="deleteTabAt(ti)">×</button>
-            </div>
-            <button type="button" class="sw-btn ghost small dt-add" @click="addTabRow">+ tab</button>
           </div>
 
           <div class="editor-split" :class="{ 'has-drawer': !!selectedWidget }">
@@ -3964,6 +3967,7 @@ const namingTest = computed<NamingTestResult>(() => {
                 class="canvas-widget"
                 :class="{
                   selected: selectedIdx === i,
+                  'is-tab': w.type === 'tab',
                   dragging: reorder.active && reorder.from === i,
                   'drop-target': reorder.active && reorder.over === i && reorder.from !== i && !(w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab'),
                   'drop-into-tab': reorder.active && reorder.over === i && reorder.from !== i && w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab',
@@ -3989,7 +3993,8 @@ const namingTest = computed<NamingTestResult>(() => {
                       <circle cx="8" cy="12" r="1" fill="currentColor"/>
                     </svg>
                   </span>
-                  <h5>{{ w.title || w.id || 'untitled' }}</h5>
+                  <h5 v-if="w.type !== 'tab'">{{ w.title || w.id || 'untitled' }}</h5>
+                  <h5 v-else class="cw-tab-title">Tabs</h5>
                   <span class="cw-type" :class="`t-${w.type}`">{{ w.type }}</span>
                 </header>
                 <div class="cw-body">
@@ -4030,28 +4035,51 @@ const namingTest = computed<NamingTestResult>(() => {
                     </ul>
                   </template>
                   <template v-else-if="w.type === 'tab'">
-                    <!-- Tab container: a strip of its panels. Click a panel to
-                         open it and edit its widgets; the panels' widgets render
-                         live on the dashboard. -->
-                    <div class="cw-tabs">
-                      <button
-                        v-for="(tab, ti) in w.tabs ?? []"
-                        :key="ti"
-                        type="button"
-                        class="cw-tab cw-tab-open"
-                        :title="`Open “${tab.name || 'Tab ' + (ti + 1)}” (${tab.widgets.length} widget${tab.widgets.length === 1 ? '' : 's'})`"
-                        @click.stop="openTab(w.id, ti)"
-                      >{{ tab.name || `Tab ${ti + 1}` }} <span class="cw-tab-n">{{ tab.widgets.length }}</span></button>
-                      <button
-                        type="button"
-                        class="cw-tab cw-tab-add"
-                        title="Add a tab"
-                        @click.stop="addTabFromTile(i)"
-                      >+ tab</button>
+                    <!-- Inline tab editing: a segmented bar switches the active
+                         panel; its widgets are edited in place (click to select →
+                         drawer). Manage the panels (rename / reorder / delete) in
+                         the drawer when the tab widget is selected. -->
+                    <div class="cw-segbar" @click.stop>
+                      <div class="seg">
+                        <button
+                          v-for="(tab, ti) in w.tabs ?? []"
+                          :key="ti"
+                          type="button"
+                          class="seg-pill"
+                          :class="{ on: ti === activeTabOf(w.id) }"
+                          @click.stop="setActiveTabOf(w.id, ti)"
+                        >{{ tab.name || `Tab ${ti + 1}` }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
+                      </div>
+                      <button type="button" class="seg-add" title="Add a tab" @click.stop="addTabToWidget(w.id)">+ tab</button>
                     </div>
-                    <p class="cw-tab-hint">
-                      {{ (w.tabs ?? []).length }} tab{{ (w.tabs ?? []).length === 1 ? '' : 's' }} — click a tab to add / edit its widgets · drag a widget here to move it in
-                    </p>
+                    <div class="cw-subgrid" @click.stop>
+                      <div
+                        v-for="(sw, j) in subWidgetsOf(w.id, activeTabOf(w.id))"
+                        :key="`${sw.id}-${j}`"
+                        class="canvas-widget sub"
+                        :class="{ selected: subSel && subSel.widgetId === w.id && subSel.tabIdx === activeTabOf(w.id) && subSel.subIdx === j }"
+                        :style="widgetGridStyle(sw)"
+                        @click.stop="selectSub(w.id, activeTabOf(w.id), j)"
+                      >
+                        <header class="cw-head sub-head">
+                          <h5>{{ sw.title || sw.id || 'untitled' }}</h5>
+                          <span class="cw-type" :class="`t-${sw.type}`">{{ sw.type }}</span>
+                        </header>
+                        <div class="cw-body sub-body">
+                          <template v-if="sw.type === 'card'">
+                            <div class="cw-card-value"><span class="num">{{ fmtMetric(mockCardValue(sw)) }}</span><span v-if="sw.unit" class="unit">{{ sw.unit }}</span></div>
+                          </template>
+                          <template v-else-if="sw.type === 'line' && sw.expressions.length > 0">
+                            <TimeChart :series="mockLineSeries(sw)" :unit="sw.unit" :height="Math.max(48, widgetRowSpan(sw) * 100 - 44)" />
+                          </template>
+                          <template v-else-if="sw.type === 'top' && sw.expressions.length > 0">
+                            <TopList :groups="mockTopGroups(sw, Math.max(3, widgetRowSpan(sw) * 3))" :unit="sw.unit" />
+                          </template>
+                          <p v-else class="cw-empty">{{ sw.expressions.length ? sw.type : 'add an MQE in the drawer' }}</p>
+                        </div>
+                      </div>
+                      <button type="button" class="cw-subadd" title="Add a widget to this tab" @click.stop="addToTab(w.id, 'card')">＋ widget</button>
+                    </div>
                   </template>
                   <p v-else class="cw-empty">
                     Add an MQE expression in the drawer to preview.
@@ -4083,21 +4111,22 @@ const namingTest = computed<NamingTestResult>(() => {
             <aside v-if="selectedWidget" ref="drawerEl" class="drawer">
               <div class="drawer-head">
                 <h4>Edit widget</h4>
-                <span class="sub">{{ drillWidgetId ? `${drillTitle} › ` : '' }}{{ scopeLabel(activeScope) }} · #{{ (selectedIdx ?? 0) + 1 }}<template v-if="selectedWidget.type === 'tab'"> · tab group</template></span>
-                <button class="sw-btn ghost close" type="button" title="Close" @click="selectedIdx = null">✕</button>
+                <span class="sub">{{ scopeLabel(activeScope) }}<template v-if="subSel"> · in tab</template><template v-if="selectedWidget.type === 'tab'"> · tab group</template></span>
+                <button class="sw-btn ghost close" type="button" title="Close" @click="selectedIdx = null; subSel = null">✕</button>
               </div>
               <div class="drawer-body">
                 <div class="d-row">
-                  <label>
+                  <label :class="{ grow: selectedWidget.type === 'tab' }">
                     <span>id</span>
                     <input class="mono" v-model="selectedWidget.id" />
                   </label>
-                  <label class="grow">
+                  <!-- A tab group has no title of its own — the tabs are the labels. -->
+                  <label v-if="selectedWidget.type !== 'tab'" class="grow">
                     <span>Title</span>
                     <input v-model="selectedWidget.title" />
                   </label>
                 </div>
-                <div class="d-row">
+                <div v-if="selectedWidget.type !== 'tab'" class="d-row">
                   <label class="grow">
                     <span>Tip (hover hint)</span>
                     <input v-model="selectedWidget.tip" placeholder="—" />
@@ -4112,8 +4141,8 @@ const namingTest = computed<NamingTestResult>(() => {
                       <option value="top">top</option>
                       <option value="record">record</option>
                       <option value="table">table</option>
-                      <!-- A tab can't nest a tab — only offered for top-level widgets. -->
-                      <option v-if="!drillWidgetId" value="tab">tab</option>
+                      <!-- A tab can't nest a tab — not offered for a widget inside a tab. -->
+                      <option v-if="!subSel" value="tab">tab</option>
                     </select>
                   </label>
                   <template v-if="selectedWidget.type !== 'tab'">
@@ -4143,8 +4172,8 @@ const namingTest = computed<NamingTestResult>(() => {
                   </label>
                 </div>
 
-                <!-- TAB widget: manage its named panels. Each panel holds its own
-                     widgets — Open a panel to add / edit them on the canvas. -->
+                <!-- TAB widget: manage its named panels. Switching / editing each
+                     panel's widgets happens inline on the canvas tile. -->
                 <template v-if="selectedWidget.type === 'tab'">
                   <div class="d-section">
                     <span class="d-label">Tabs</span>
@@ -4154,17 +4183,17 @@ const namingTest = computed<NamingTestResult>(() => {
                           class="tm-name"
                           :value="tab.name"
                           placeholder="Tab name"
-                          @input="renameTab(ti, ($event.target as HTMLInputElement).value)"
+                          @input="renameTabOf(selectedWidget.id, ti, ($event.target as HTMLInputElement).value)"
                         />
                         <span class="tm-count">{{ tab.widgets.length }}w</span>
-                        <button type="button" class="sw-btn ghost small tm-open" @click="openTab(selectedWidget.id, ti)">Open ›</button>
-                        <button type="button" class="tm-ctl" title="Move up" @click="moveTabAt(ti, -1)">↑</button>
-                        <button type="button" class="tm-ctl" title="Move down" @click="moveTabAt(ti, 1)">↓</button>
-                        <button type="button" class="tm-ctl del" title="Delete tab" @click="deleteTabAt(ti)">×</button>
+                        <button type="button" class="tm-ctl" title="Show on canvas" @click="setActiveTabOf(selectedWidget.id, ti)">show</button>
+                        <button type="button" class="tm-ctl" title="Move up" @click="moveTabOf(selectedWidget.id, ti, -1)">↑</button>
+                        <button type="button" class="tm-ctl" title="Move down" @click="moveTabOf(selectedWidget.id, ti, 1)">↓</button>
+                        <button type="button" class="tm-ctl del" title="Delete tab" @click="deleteTabOf(selectedWidget.id, ti)">×</button>
                       </div>
                     </div>
-                    <button type="button" class="sw-btn ghost small" @click="addTabRow">+ tab</button>
-                    <p class="d-hint">Each tab holds its own widgets. <b>Open</b> a tab to add / edit its widgets on the canvas; only the active tab is queried at runtime.</p>
+                    <button type="button" class="sw-btn ghost small" @click="addTabToWidget(selectedWidget.id)">+ tab</button>
+                    <p class="d-hint">Each tab holds its own widgets — switch tabs and add / edit their widgets right on the canvas tile. Only the active tab is queried at runtime.</p>
                   </div>
                 </template>
 
@@ -4310,14 +4339,14 @@ const namingTest = computed<NamingTestResult>(() => {
                   <button
                     class="sw-btn"
                     type="button"
-                    :disabled="(selectedIdx ?? 0) === 0"
+                    :disabled="!selCanMoveUp"
                     title="Move up"
                     @click="moveSelected(-1)"
                   >↑ Up</button>
                   <button
                     class="sw-btn"
                     type="button"
-                    :disabled="(selectedIdx ?? 0) >= currentWidgets.length - 1"
+                    :disabled="!selCanMoveDown"
                     title="Move down"
                     @click="moveSelected(1)"
                   >↓ Down</button>
@@ -5603,6 +5632,14 @@ const namingTest = computed<NamingTestResult>(() => {
   padding: 12px 16px;
   border-bottom: 1px solid var(--sw-line);
 }
+/* Editor header pins to the top while the canvas scrolls, so + Add widget
+ * stays reachable (the canvas can be far taller than the viewport). */
+.editor-card .card-head.sticky-head {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: var(--sw-bg-1);
+}
 .card-head h4 {
   margin: 0;
   font-size: 12px;
@@ -5632,14 +5669,13 @@ const namingTest = computed<NamingTestResult>(() => {
 /* Editor split: canvas (left, flex 1) + drawer (right, 360px when
  * a widget is selected). When nothing is selected, the canvas takes
  * the full width so the operator sees the layout as it would render. */
+/* Single column — the drawer floats OVER the canvas (position: fixed), so the
+ * canvas keeps its full width whether or not a widget is selected. */
 .editor-split {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0;
   min-height: 480px;
-}
-.editor-split.has-drawer {
-  grid-template-columns: 1fr 360px;
 }
 
 /* Canvas — 12-col grid with dotted-line background to evoke the
@@ -5657,9 +5693,7 @@ const namingTest = computed<NamingTestResult>(() => {
   grid-auto-rows: 120px;
   gap: 8px;
   min-height: 480px;
-  border-right: 1px solid var(--sw-line);
 }
-.editor-split:not(.has-drawer) .canvas { border-right: none; }
 .canvas.resizing {
   cursor: nwse-resize;
   user-select: none;
@@ -5722,6 +5756,120 @@ const namingTest = computed<NamingTestResult>(() => {
   padding: 2px 0;
   pointer-events: none;
 }
+/* Tab container tile: an OPEN frame — top/bottom rules + four rounded corners,
+ * no left/right side, so the inner widgets keep full width (no horizontal inset). */
+.canvas-widget.is-tab {
+  background: transparent;
+  border: 1px solid var(--sw-line);
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-radius: 9px;
+}
+.canvas-widget.is-tab:hover { border-top-color: var(--sw-line-2); border-bottom-color: var(--sw-line-2); }
+.canvas-widget.is-tab.selected {
+  border-left-color: transparent;
+  border-right-color: transparent;
+  border-top-color: var(--sw-accent);
+  border-bottom-color: var(--sw-accent);
+  box-shadow: none;
+}
+.canvas-widget.is-tab > .cw-head {
+  background: transparent;
+  border-bottom: none;
+}
+.canvas-widget.is-tab .cw-tab-title { color: var(--sw-fg-3); font-weight: 600; }
+/* Segmented tab bar (switch the active panel) — pill group like the Inspect tabs. */
+.cw-segbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 8px;
+}
+.cw-segbar .seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-radius: 7px;
+  flex-wrap: wrap;
+}
+.seg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: transparent;
+  color: var(--sw-fg-2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 11px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.seg-pill:hover { color: var(--sw-fg-0); }
+.seg-pill.on { background: var(--sw-bg-0); color: var(--sw-fg-0); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+.seg-pill .seg-n {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--sw-fg-3);
+  background: var(--sw-bg-3);
+  border-radius: 6px;
+  padding: 0 4px;
+}
+.seg-add {
+  border: 1px dashed var(--sw-line-2);
+  background: transparent;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 6px;
+}
+.seg-add:hover { border-color: var(--sw-accent); color: var(--sw-accent); }
+/* The active tab's widgets — a 12-col sub-grid of editable tiles, full width. */
+.cw-subgrid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: 84px;
+  gap: 6px;
+  padding: 0 6px 8px;
+  align-content: start;
+}
+.canvas-widget.sub {
+  min-height: 0;
+  background: var(--sw-bg-1);
+  border-radius: 5px;
+}
+.canvas-widget.sub.selected {
+  border-color: var(--sw-accent);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
+.canvas-widget.sub .sub-head {
+  cursor: pointer;
+  padding: 3px 8px;
+}
+.canvas-widget.sub .sub-head h5 { font-size: 10px; }
+.canvas-widget.sub .sub-body { padding: 4px 8px; }
+.cw-subadd {
+  grid-column: span 3;
+  border: 1.5px dashed var(--sw-line-2);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  display: grid;
+  place-items: center;
+  min-height: 60px;
+}
+.cw-subadd:hover { border-color: var(--sw-accent); color: var(--sw-accent); }
 .cw-head {
   display: flex;
   align-items: center;
@@ -5946,6 +6094,11 @@ const namingTest = computed<NamingTestResult>(() => {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.add-menu-div {
+  height: 1px;
+  background: var(--sw-line);
+  margin: 3px 6px;
 }
 .add-menu-item {
   display: flex;
