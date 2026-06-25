@@ -1527,5 +1527,11 @@
   "from catalog": "카탈로그에서",
   "+ add to list": "+ 목록에 추가",
   "staged · {n}": "대기 · {n}",
-  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "이 OAP가 정의하지 않은 메트릭 —— 다른 OAP가 공유 스토리지에 기록한 것입니다. 값 컬럼과 유형(정의한 OAP의 카탈로그 참고)을 입력하면 Horizon이 값을 차트로 표시합니다."
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "이 OAP가 정의하지 않은 메트릭 —— 다른 OAP가 공유 스토리지에 기록한 것입니다. 값 컬럼과 유형(정의한 OAP의 카탈로그 참고)을 입력하면 Horizon이 값을 차트로 표시합니다.",
+  "no data": "데이터 없음",
+  "Pop out — full list": "팝아웃 — 전체 목록",
+  "No widgets visible in this tab.": "이 탭에 표시할 위젯이 없습니다.",
+  "This tab has no widgets.": "이 탭에는 위젯이 없습니다.",
+  "Clear all": "모두 지우기",
+  "Clear all and exit comparison": "모두 지우고 비교 종료"
 }

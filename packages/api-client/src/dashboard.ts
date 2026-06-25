@@ -49,8 +49,11 @@
  *            graph for label-dimensioned meters (pod phase per service,
  *            node condition, deployment replicas, …) that a scalar card
  *            or a time-series line cannot represent.
+ *   tab    — a container: one grid slot holding several full widgets (any
+ *            of the above) shown as switchable tabs. It carries no MQE of
+ *            its own (see `tabs`); only the active tab's child is queried.
  */
-export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table';
+export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table' | 'tab';
 
 /**
  * Structured widget visibility predicate. When set on a widget, the BFF
@@ -122,8 +125,21 @@ export interface DashboardWidget {
   type: DashboardWidgetType;
   /** One or more MQE expressions. `card` collapses to a scalar (avg);
    *  `line` renders one labeled series per expression; `top` treats
-   *  every expression as a switchable view (see `expressionLabels`). */
+   *  every expression as a switchable view (see `expressionLabels`). A
+   *  `tab` container has none of its own — it carries an empty array and
+   *  defers to the widgets inside its `tabs`. */
   expressions: string[];
+  /**
+   * `tab` container ONLY: the named tab panels. Each {@link DashboardTab} is
+   * just a `name` plus its own set of `widgets` — its own little dashboard.
+   * Switching the active tab swaps the whole sub-grid; only the active tab's
+   * widgets are queried (lazy). The widgets inside a tab are ordinary
+   * widgets (card / line / top / table / record) and must NOT themselves be
+   * `tab` (one level deep). The container occupies one grid slot
+   * (`span` / `rowSpan`); each tab's widgets lay out in a 12-col sub-grid
+   * inside it.
+   */
+  tabs?: DashboardTab[];
   /**
    * Optional human-readable label per entry in `expressions`. For
    * `top` widgets these drive the in-widget switcher tabs (e.g.
@@ -218,6 +234,55 @@ export interface DashboardWidget {
   y?: number;
   w?: number;
   h?: number;
+}
+
+/**
+ * One tab panel inside a `tab` widget: a `name` plus its own set of widgets.
+ * A tab carries no MQE of its own — its content is entirely the `widgets` it
+ * holds, which lay out in a 12-col sub-grid when the tab is active. Switching
+ * the active tab swaps the whole set; only the active tab's widgets are queried.
+ */
+export interface DashboardTab {
+  /** Tab label shown in the tab bar. */
+  name: string;
+  /** The widgets shown while this tab is active. Ordinary widgets — never `tab`. */
+  widgets: DashboardWidget[];
+}
+
+// Widget-tree traversal — the one place that descends a `tab` container's
+// panels (one level; tabs don't nest). Use instead of re-writing the descent.
+
+/** Walk every widget: each top-level widget, then any tab's children. Tab
+ *  containers are yielded too — filter `type !== 'tab'` for queryable leaves. */
+export function* walkWidgets(
+  widgets: readonly DashboardWidget[] | undefined,
+): Generator<DashboardWidget> {
+  for (const w of widgets ?? []) {
+    yield w;
+    if (w.type === 'tab') {
+      for (const tab of w.tabs ?? []) {
+        for (const child of tab.widgets) yield child;
+      }
+    }
+  }
+}
+
+/** Find a widget by id anywhere in the tree (top-level or in a tab panel). */
+export function findWidgetById(
+  widgets: readonly DashboardWidget[] | undefined,
+  id: string,
+): DashboardWidget | undefined {
+  for (const w of walkWidgets(widgets)) if (w.id === id) return w;
+  return undefined;
+}
+
+/** Collect every widget id; pass `into` to accumulate across lists (scopes). */
+export function collectWidgetIds(
+  widgets: readonly DashboardWidget[] | undefined,
+  into: Set<string> = new Set<string>(),
+): Set<string> {
+  for (const w of walkWidgets(widgets)) into.add(w.id);
+  return into;
 }
 
 export interface DashboardConfig {

@@ -28,7 +28,7 @@
  */
 
 import { computed, ref, type Ref } from 'vue';
-import { useQueries, useQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import {
@@ -113,13 +113,9 @@ export function useLayerDashboard(
    *  time-picker change refires the widget batch the same way a
    *  service/instance pick does. */
   range?: Ref<DashboardRange | null>,
-  /** Optional widget list. When supplied the SPA chunks it into
-   *  groups (matching booster-ui's DashboardMaxQueryWidgets = 6)
-   *  and fires N parallel BFF calls instead of one — exposes the
-   *  per-chunk completion as `widgetsArrived` so the loading
-   *  indicator can tick "x fired / y all". When omitted, falls
-   *  back to a single BFF call that resolves widgets server-side
-   *  (used by callers that don't have the config bundle handy). */
+  /** Optional widget list, sent as the BFF batch (`LayerApi.dashboard` splits a
+   *  >cap set into parallel requests + merges). When omitted the BFF resolves
+   *  widgets server-side — for callers without the config bundle. */
   widgetsList?: Ref<DashboardWidget[]>,
   /** Optional config-bundle readiness gate. When supplied, the metrics
    *  query waits until it is true, so the dashboard fires ONCE with the
@@ -167,14 +163,9 @@ export function useLayerDashboard(
     if (!r) return null;
     return `${r.step}:${Math.floor(r.startMs / 60_000)}:${Math.floor(r.endMs / 60_000)}`;
   });
-  // Total widget count for the loading indicator — only used to
-  // surface "N metrics loading" while the BFF batch is in flight.
-  // We don't chunk on the SPA side (each BFF call would re-run
-  // `listServices` to resolve the entity, doubling the latency for
-  // no real win — the BFF already chunks the OAP GraphQL trips
-  // internally via Promise.all, see http/query/dashboard.ts step 2).
-  // Single BFF call → one entity resolution + chunked MQE batches
-  // server-side → one merged response.
+  // Widget count for the "N metrics loading" hint. Chunking is NOT done here:
+  // `LayerApi.dashboard` splits an oversized widget set into parallel requests,
+  // and the BFF bulk-chunks the OAP trips per batch (http/query/dashboard.ts).
   const progress = ref<{ arrived: number; total: number }>({ arrived: 0, total: 0 });
 
   const q = useQuery({
@@ -246,6 +237,13 @@ export function useLayerDashboard(
     refetchInterval: refetchIntervalRef,
     refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),
     retry: 1,
+    // A tab switch changes the queryKey (only the active tab's widgets are in
+    // the batch — lazy), which would otherwise drop `data` to undefined while
+    // the new panel fetches and blank EVERY sibling widget on the page. Keep
+    // the prior response so siblings hold their values; the newly-activated
+    // tab's own cells fall through to their per-cell "loading…" state (the
+    // cascade-clear indicator lives inside the tab, not over the whole grid).
+    placeholderData: keepPreviousData,
   });
 
   // --- Multi-entity fan-out (Option B) -------------------------------
@@ -332,6 +330,11 @@ export function useLayerDashboard(
           refetchInterval: refetchIntervalRef,
           refetchOnWindowFocus: false,
           retry: 1,
+          // A tab switch changes this entity's queryKey (widgetsJson) too — keep
+          // the prior response so compare siblings hold their values, same as the
+          // primary query above. Without it, switching a tab blanks every locked
+          // entity's cells until the fan-out re-resolves.
+          placeholderData: keepPreviousData,
         };
       });
     },
@@ -397,10 +400,9 @@ export function useLayerDashboard(
     isFetching: q.isFetching,
     error: q.error,
     refetch: q.refetch,
-    /** Per-chunk progress for the loading indicator. While a fetch
-     *  is in flight, `arrived` ticks from 0 → total as each parallel
-     *  chunk's BFF call resolves. `total` is 0 when the legacy
-     *  no-widgetsList path is in use. */
+    /** Widget-count progress for the loading hint: `arrived` is 0 while the
+     *  (single, internally-chunked) BFF call is in flight, then total on
+     *  resolve. `total` is 0 on the legacy no-widgetsList path. */
     progress,
     // --- Multi-entity compare (Option B). Inert (single-entity) until a
     // cohort is locked; consumed by the compare grid in a later phase.

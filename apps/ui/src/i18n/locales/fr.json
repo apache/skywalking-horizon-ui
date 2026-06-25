@@ -1527,5 +1527,11 @@
   "from catalog": "depuis le catalogue",
   "+ add to list": "+ ajouter à la liste",
   "staged · {n}": "en attente · {n}",
-  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "Une métrique que cet OAP ne définit pas — un autre OAP l'a écrite dans le stockage partagé. Indiquez sa colonne et son type de valeur (depuis l'OAP qui la définit) et Horizon trace les valeurs."
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "Une métrique que cet OAP ne définit pas — un autre OAP l'a écrite dans le stockage partagé. Indiquez sa colonne et son type de valeur (depuis l'OAP qui la définit) et Horizon trace les valeurs.",
+  "no data": "aucune donnée",
+  "Pop out — full list": "Détacher — liste complète",
+  "No widgets visible in this tab.": "Aucun widget visible dans cet onglet.",
+  "This tab has no widgets.": "Aucun widget dans cet onglet.",
+  "Clear all": "Tout effacer",
+  "Clear all and exit comparison": "Tout effacer et quitter la comparaison"
 }

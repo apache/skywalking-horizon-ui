@@ -1527,5 +1527,11 @@
   "from catalog": "来自目录",
   "+ add to list": "+ 加入列表",
   "staged · {n}": "暂存 · {n}",
-  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "本 OAP 未定义的指标 —— 由另一个 OAP 写入共享存储。填写它的值列和类型（来自定义该指标的 OAP），Horizon 即可绘制其数值。"
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "本 OAP 未定义的指标 —— 由另一个 OAP 写入共享存储。填写它的值列和类型（来自定义该指标的 OAP），Horizon 即可绘制其数值。",
+  "no data": "无数据",
+  "Pop out — full list": "弹出 — 完整列表",
+  "No widgets visible in this tab.": "此标签页中没有可见的组件。",
+  "This tab has no widgets.": "此标签页中暂无组件。",
+  "Clear all": "全部清除",
+  "Clear all and exit comparison": "清除全部并退出对比"
 }

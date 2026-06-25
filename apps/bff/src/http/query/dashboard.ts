@@ -68,10 +68,10 @@ export interface DashboardRouteDeps {
   uiTemplateClient?: () => UITemplateClient;
 }
 
-/** Shared with config/layer-template.ts — kept here because the
- *  runtime POST handler is the canonical user; the admin-template
- *  schema reuses widgetSchema for nested validation. */
-export const widgetSchema = z.object({
+/** A leaf widget — the five queryable kinds, used both at the top level and
+ *  inside a tab panel. `widgetSchema` below extends it to add the `tab`
+ *  container (one level deep: a tab's children are leaves). */
+const leafWidgetSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
   tip: z.string().optional(),
@@ -121,6 +121,32 @@ export const widgetSchema = z.object({
   w: z.number().int().positive().optional(),
   h: z.number().int().positive().optional(),
 });
+
+/** Full widget schema: a leaf, plus the `tab` container. A `tab` carries no MQE
+ *  of its own (so `expressions` may be empty) and holds named panels of leaf
+ *  widgets in `tabs`. The SPA flattens to the active tab before posting; the
+ *  BFF also flattens (see `flattenTabWidgets`) so the pipeline only sees leaves. */
+export const widgetSchema = leafWidgetSchema
+  .extend({
+    type: z.enum(['card', 'line', 'top', 'record', 'table', 'tab']),
+    // Relaxed to allow the empty array a `tab` container carries; the refine
+    // below keeps every NON-tab leaf at ≥1 expression (an empty-MQE leaf would
+    // otherwise pass here and render blank).
+    expressions: z.array(z.string().min(1)).max(16),
+    tabs: z
+      .array(z.object({ name: z.string(), widgets: z.array(leafWidgetSchema).max(40) }))
+      .max(20)
+      .optional(),
+  })
+  .superRefine((w, ctx) => {
+    if (w.type !== 'tab' && w.expressions.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expressions'],
+        message: 'a non-tab widget requires at least one expression',
+      });
+    }
+  });
 /** Shared with config/dashboard.ts (GET-config handler). */
 export const scopeSchema = z.enum([
   'service',
@@ -134,6 +160,9 @@ export const scopeSchema = z.enum([
   'ebpfProfiling',
   'asyncProfiling',
 ]);
+/** Per-request queryable-widget cap (mirrors the SPA's chunk size). Enforced on
+ *  the body pre-expansion (zod) AND on the leaf count after tab flattening. */
+const MAX_REQUEST_WIDGETS = 40;
 const bodySchema = z.object({
   service: z.string().optional(),
   /** Selected instance name. Honored only when `scope === 'instance'`
@@ -150,8 +179,10 @@ const bodySchema = z.object({
   // (CLAUDE.md warns about backend-specific thresholds). The UI is
   // responsible for chunking widget sets larger than this across
   // multiple requests; the BFF refuses oversized bodies up-front so
-  // an accidentally-huge template never reaches OAP.
-  widgets: z.array(widgetSchema).max(40).optional(),
+  // an accidentally-huge template never reaches OAP. The cap is
+  // re-checked AFTER tab expansion (a container counts as 1 here but
+  // flattens to many leaves) — see the handler.
+  widgets: z.array(widgetSchema).max(MAX_REQUEST_WIDGETS).optional(),
   scope: scopeSchema.optional(),
   /** Global time-range, forwarded by the SPA's time picker. When all
    *  three are present the BFF queries OAP at the requested precision
@@ -541,6 +572,26 @@ function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
   return vw.kind === 'mqe' && w.expressions.includes(vw.expression);
 }
 
+/** Expand `tab` containers to their leaf children so the pipeline only sees
+ *  queryable leaves (a tab carries no MQE). Covers the template-resolved
+ *  fallback + direct API callers; the SPA already flattens to the active tab.
+ *  Emits only the FIRST (default-active) panel — matching the lazy contract,
+ *  so a tab group never fans into a larger OAP request than the UI issues. */
+export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
+  const out: DashboardWidget[] = [];
+  for (const w of widgets) {
+    if (w.type === 'tab') {
+      const firstPanel = (w.tabs ?? [])[0];
+      for (const child of firstPanel?.widgets ?? []) {
+        if (child.type !== 'tab') out.push(child);
+      }
+    } else {
+      out.push(w);
+    }
+  }
+  return out;
+}
+
 export function registerDashboardQueryRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
   const auth = requireAuth(deps);
   app.post(
@@ -561,13 +612,24 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // Blocked (template store unreachable / layer disabled) → no
       // BFF-derived widgets and no in-code defaults; the grid stays empty.
       // An explicit `widgets[]` in the body still runs — the caller owns it.
-      const widgets: DashboardWidget[] =
+      const widgets: DashboardWidget[] = flattenTabWidgets(
         parsed.data.widgets ??
-        (eff.blocked
-          ? []
-          : eff.template
-            ? widgetsForScope(eff.template, scope)
-            : defaultWidgetsFor(eff.template, layerKey));
+          (eff.blocked
+            ? []
+            : eff.template
+              ? widgetsForScope(eff.template, scope)
+              : defaultWidgetsFor(eff.template, layerKey)),
+      );
+      // Re-apply the cap AFTER expansion for a body-PROVIDED set: a tab counts
+      // as 1 in the zod cap but flattens to many leaves, so a hand-built body
+      // could fan past it. The SPA pre-flattens + chunks, so this never trips
+      // it; the template fallback is trusted (and the OAP batch is bulk-chunked).
+      if (parsed.data.widgets && widgets.length > MAX_REQUEST_WIDGETS) {
+        return reply.code(400).send({
+          error: 'too_many_widgets',
+          detail: `${widgets.length} widgets after tab expansion exceeds ${MAX_REQUEST_WIDGETS}`,
+        });
+      }
       let serviceName = parsed.data.service ?? '';
       let serviceId = '';
       let normal = true;

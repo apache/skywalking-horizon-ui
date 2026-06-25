@@ -132,6 +132,61 @@ describe('LayerApi.dashboard', () => {
   });
 });
 
+describe('LayerApi.dashboard — chunking oversize widget sets', () => {
+  const widgetStub = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `w${i}`,
+      title: `W${i}`,
+      type: 'card' as const,
+      expressions: [`m${i}`],
+    }));
+  function respStub() {
+    const calls: Array<{ widgets: { id: string }[] }> = [];
+    const bff = {
+      request: vi.fn(async (_m: string, _p: string, body?: { widgets?: { id: string }[] }) => {
+        const ws = body?.widgets ?? [];
+        calls.push({ widgets: ws });
+        return {
+          layer: 'g', service: 's', generatedAt: 0, step: 'MINUTE',
+          durationStart: '', durationEnd: '', reachable: true,
+          widgets: ws.map((w) => ({ id: w.id })),
+        } as unknown;
+      }),
+    } as unknown as BffClient;
+    return { bff, calls };
+  }
+
+  it('sends a single request at exactly the cap (40)', async () => {
+    const { bff, calls } = respStub();
+    await new LayerApi(bff).dashboard('g', { widgets: widgetStub(40) });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('splits >40 into ceil(n/40) chunks of ≤40 and merges widgets in order', async () => {
+    const { bff, calls } = respStub();
+    const resp = await new LayerApi(bff).dashboard('g', { widgets: widgetStub(95) });
+    expect(calls.map((c) => c.widgets.length)).toEqual([40, 40, 15]);
+    expect(resp.widgets.map((w) => w.id)).toEqual(widgetStub(95).map((w) => w.id));
+  });
+
+  it('AND-folds reachable and surfaces the first chunk error', async () => {
+    let n = 0;
+    const bff = {
+      request: vi.fn(async (_m: string, _p: string, body?: { widgets?: { id: string }[] }) => {
+        const bad = n++ === 1;
+        return {
+          layer: 'g', service: 's', generatedAt: 0, step: 'MINUTE', durationStart: '', durationEnd: '',
+          widgets: (body?.widgets ?? []).map((w) => ({ id: w.id })),
+          reachable: !bad, ...(bad ? { error: 'chunk-1-failed' } : {}),
+        } as unknown;
+      }),
+    } as unknown as BffClient;
+    const resp = await new LayerApi(bff).dashboard('g', { widgets: widgetStub(85) });
+    expect(resp.reachable).toBe(false);
+    expect(resp.error).toBe('chunk-1-failed');
+  });
+});
+
 describe('LayerApi.dashboardConfig', () => {
   it('GETs without query when scope omitted', async () => {
     const { bff, calls } = makeStub();

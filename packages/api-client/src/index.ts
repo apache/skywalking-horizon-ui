@@ -45,6 +45,7 @@ export type {
   DashboardResponse,
   DashboardScope,
   DashboardSeries,
+  DashboardTab,
   DashboardTopItem,
   DashboardTableRow,
   DashboardWidget,
@@ -52,6 +53,7 @@ export type {
   DashboardWidgetType,
   VisibleWhen,
 } from './dashboard.js';
+export { walkWidgets, findWidgetById, collectWidgetIds } from './dashboard.js';
 export type {
   TopologyMetricDef,
   TopologyConfig,
