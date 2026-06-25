@@ -1049,7 +1049,7 @@ function isHidden(id: string): boolean {
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
     <div
-      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0))"
+      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0 && widgetsForQuery.length > 0))"
       class="empty reading"
     >
       <span class="reading-dot" />
@@ -1246,6 +1246,7 @@ function isHidden(id: string): boolean {
               :active-index="activeTabIndex(w.id)"
               :results="resultsById"
               :is-fetching="isFetching"
+              :compare-mode="compareMode"
               @switch="setActiveTab(w.id, $event)"
             />
           </template>

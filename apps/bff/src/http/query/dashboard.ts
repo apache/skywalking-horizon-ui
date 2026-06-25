@@ -71,7 +71,10 @@ export interface DashboardRouteDeps {
 /** Shared with config/layer-template.ts — kept here because the
  *  runtime POST handler is the canonical user; the admin-template
  *  schema reuses widgetSchema for nested validation. */
-export const widgetSchema = z.object({
+/** A leaf widget — the five queryable kinds, used both at the top level and
+ *  inside a tab panel. `widgetSchema` below extends it to add the `tab`
+ *  container (one level deep: a tab's children are leaves). */
+const leafWidgetSchema = z.object({
   id: z.string().min(1),
   title: z.string(),
   tip: z.string().optional(),
@@ -120,6 +123,19 @@ export const widgetSchema = z.object({
   y: z.number().int().min(0).optional(),
   w: z.number().int().positive().optional(),
   h: z.number().int().positive().optional(),
+});
+
+/** Full widget schema: a leaf, plus the `tab` container. A `tab` carries no MQE
+ *  of its own (so `expressions` may be empty) and holds named panels of leaf
+ *  widgets in `tabs`. The SPA flattens to the active tab before posting; the
+ *  BFF also flattens (see `flattenTabWidgets`) so the pipeline only sees leaves. */
+export const widgetSchema = leafWidgetSchema.extend({
+  type: z.enum(['card', 'line', 'top', 'record', 'table', 'tab']),
+  expressions: z.array(z.string().min(1)).max(16),
+  tabs: z
+    .array(z.object({ name: z.string(), widgets: z.array(leafWidgetSchema).max(40) }))
+    .max(20)
+    .optional(),
 });
 /** Shared with config/dashboard.ts (GET-config handler). */
 export const scopeSchema = z.enum([
@@ -541,6 +557,29 @@ function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
   return vw.kind === 'mqe' && w.expressions.includes(vw.expression);
 }
 
+/** Expand `tab` container widgets to their leaf children so the metrics
+ *  pipeline (gate / batch / collapse) only ever sees queryable leaves — a tab
+ *  carries no MQE of its own. The SPA normally flattens to the ACTIVE tab
+ *  before posting; this also covers the template-resolved fallback (no
+ *  `widgets[]` in the body), which would otherwise reach `collapse` as a tab
+ *  and return blank. Every leaf keeps its own id, so results stay id-addressable
+ *  and the SPA re-groups by tab. One level deep (a tab's child is never a tab). */
+function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
+  const out: DashboardWidget[] = [];
+  for (const w of widgets) {
+    if (w.type === 'tab') {
+      for (const tab of w.tabs ?? []) {
+        for (const child of tab.widgets ?? []) {
+          if (child.type !== 'tab') out.push(child);
+        }
+      }
+    } else {
+      out.push(w);
+    }
+  }
+  return out;
+}
+
 export function registerDashboardQueryRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
   const auth = requireAuth(deps);
   app.post(
@@ -561,13 +600,14 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // Blocked (template store unreachable / layer disabled) → no
       // BFF-derived widgets and no in-code defaults; the grid stays empty.
       // An explicit `widgets[]` in the body still runs — the caller owns it.
-      const widgets: DashboardWidget[] =
+      const widgets: DashboardWidget[] = flattenTabWidgets(
         parsed.data.widgets ??
-        (eff.blocked
-          ? []
-          : eff.template
-            ? widgetsForScope(eff.template, scope)
-            : defaultWidgetsFor(eff.template, layerKey));
+          (eff.blocked
+            ? []
+            : eff.template
+              ? widgetsForScope(eff.template, scope)
+              : defaultWidgetsFor(eff.template, layerKey)),
+      );
       let serviceName = parsed.data.service ?? '';
       let serviceId = '';
       let normal = true;

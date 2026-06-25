@@ -42,6 +42,10 @@ const props = defineProps<{
    *  widgets resolve their own result from here. */
   results: Map<string, DashboardWidgetResult>;
   isFetching: boolean;
+  /** True when the dashboard is comparing a locked cohort. Tab panels render
+   *  the PRIMARY entity only (compare isn't reflected inside a tab), so we
+   *  surface a note rather than silently showing single-entity data. */
+  compareMode?: boolean;
 }>();
 const emit = defineEmits<{ (e: 'switch', index: number): void }>();
 
@@ -50,6 +54,13 @@ const timeRange = useTimeRangeStore();
 const tabs = computed<DashboardTab[]>(() => props.widget.tabs ?? []);
 const activeTab = computed<DashboardTab | null>(() => tabs.value[props.activeIndex] ?? tabs.value[0] ?? null);
 const activeWidgets = computed<DashboardWidget[]>(() => activeTab.value?.widgets ?? []);
+// `visibleWhen`-gated children come back flagged `hidden: true` from the BFF —
+// drop them from the sub-grid (same as the top-level grid's isHidden filter).
+// This affects only the widgets INSIDE the tab; the tab container's slot is
+// unchanged. A widget with no result yet (still loading) is NOT hidden.
+const visibleWidgets = computed<DashboardWidget[]>(() =>
+  activeWidgets.value.filter((w) => props.results.get(w.id)?.hidden !== true),
+);
 
 function resultOf(w: DashboardWidget): DashboardWidgetResult | undefined {
   return props.results.get(w.id);
@@ -111,8 +122,9 @@ function loadingOrEmpty(w: DashboardWidget): string {
       >{{ tab.name || `Tab ${i + 1}` }}</button>
     </div>
     <div class="tw-panel">
-      <div v-if="activeWidgets.length" class="tw-grid">
-        <div v-for="w in activeWidgets" :key="w.id" class="tw-cell" :style="cellStyle(w)">
+      <p v-if="compareMode" class="tw-compare-note">Comparing locked entities — tab panels show the primary entity.</p>
+      <div v-if="visibleWidgets.length" class="tw-grid">
+        <div v-for="w in visibleWidgets" :key="w.id" class="tw-cell" :style="cellStyle(w)">
           <div class="tw-cell-head">
             <span class="tw-cell-title">{{ w.title }}</span>
             <span v-if="w.unit && w.type !== 'card'" class="tw-cell-unit">{{ w.unit }}</span>
@@ -182,7 +194,7 @@ function loadingOrEmpty(w: DashboardWidget): string {
           </div>
         </div>
       </div>
-      <div v-else class="tw-empty">This tab has no widgets.</div>
+      <div v-else class="tw-empty">{{ activeWidgets.length ? 'No widgets visible in this tab.' : 'This tab has no widgets.' }}</div>
     </div>
   </div>
 </template>
@@ -302,6 +314,12 @@ function loadingOrEmpty(w: DashboardWidget): string {
 .muted {
   color: var(--sw-fg-3);
   font-size: 11px;
+}
+.tw-compare-note {
+  margin: 0 0 6px;
+  font-size: 10.5px;
+  color: var(--sw-warn);
+  flex: 0 0 auto;
 }
 .tw-empty {
   margin: auto;
