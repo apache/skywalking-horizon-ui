@@ -37,7 +37,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ### Layer dashboard editor
 
-- **The widget editor's move / delete controls stay reachable.** On the Layer dashboards admin, the per-widget editor's `Up` / `Down` / `Delete` row is now a pinned footer instead of the last thing in a scrolling panel, and the panel sizes itself to the visible area — so Delete no longer slips below the fold on a long form or a short board. Adding a widget also scrolls the new widget into view, next to the editor that opens for it, instead of leaving it off-screen at the bottom of the canvas.
+- **The widget editor pins in place beside the canvas and always opens complete.** On the Layer dashboards admin, clicking a widget — anywhere on the board, including the bottom rows — now opens the per-widget editor pinned next to the canvas and fully visible, without scrolling the page (a sticky panel used to get clipped past the bottom of a tall board, hiding the editor's top or its `Up` / `Down` / `Delete` row). The move / delete controls sit in a pinned footer, and the editor tucks away when you scroll up to the scope config above. Adding a widget scrolls the new widget into view, next to the editor that opens for it.
 
 ## 0.7.0
 
