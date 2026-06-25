@@ -35,6 +35,7 @@ import RecordList from '@/render/widgets/RecordList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import TabWidget from '@/render/widgets/TabWidget.vue';
+import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
 import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
@@ -413,21 +414,34 @@ const activeTabByWidget = ref<Record<string, number>>({});
 function activeTabIndex(widgetId: string): number {
   return activeTabByWidget.value[widgetId] ?? 0;
 }
+/** Clamp a stored active-tab index to the widget's current tab count. The index
+ *  persists by widget id and a different scope template may reuse the same id
+ *  with fewer tabs, leaving it out of range — clamp so the query, the rendered
+ *  panel, and TabWidget's highlight all agree on the same tab. */
+function clampedTabIndex(w: DashboardWidget): number {
+  const n = w.tabs?.length ?? 0;
+  if (n === 0) return 0;
+  return Math.min(Math.max(activeTabIndex(w.id), 0), n - 1);
+}
 function activeTabWidgets(w: DashboardWidget): DashboardWidget[] {
   if (w.type !== 'tab') return [];
-  const tabs = w.tabs ?? [];
-  const tab = tabs[activeTabIndex(w.id)] ?? tabs[0];
-  return tab?.widgets ?? [];
+  return w.tabs?.[clampedTabIndex(w)]?.widgets ?? [];
 }
 function setActiveTab(widgetId: string, index: number): void {
   activeTabByWidget.value = { ...activeTabByWidget.value, [widgetId]: index };
 }
 // Lazy flatten: a `tab` widget contributes ONLY its active tab's widgets to
 // the metrics request, so inactive tabs never hit OAP. Switching a tab changes
-// this list → the query refires for the newly-active tab's widgets (and
-// vue-query keeps the prior tab's response warm, so switching back is instant).
+// this list → the query refires for the newly-active tab's widgets (vue-query
+// keeps the prior response via keepPreviousData, so siblings don't blink and
+// switching back is instant). A half-authored leaf (blank MQE) is dropped from
+// the batch — the BFF rejects an empty expression and would 400 the whole
+// scope; the widget still renders (as "no data"), it just isn't queried.
 const widgetsForQuery = computed<DashboardWidget[]>(() =>
-  (config.value?.widgets ?? []).flatMap((w) => (w.type === 'tab' ? activeTabWidgets(w) : [w])),
+  (config.value?.widgets ?? [])
+    .flatMap((w) => (w.type === 'tab' ? activeTabWidgets(w) : [w]))
+    .map((w) => ({ ...w, expressions: (w.expressions ?? []).filter((e) => e.trim().length > 0) }))
+    .filter((w) => w.expressions.length > 0),
 );
 // Hold the metrics fetch until the config bundle has resolved WITH widgets.
 // A resolved-but-empty config means "no dashboard for this layer/scope",
@@ -854,6 +868,33 @@ function isHidden(id: string): boolean {
   // otherwise keep it visible while results are still arriving.
   return allLoaded && compareEntities.value.length > 0;
 }
+
+// Render context handed to TabWidget so a widget inside a tab renders exactly
+// like a top-level one — same color, same compare fan-out, same pop-out. The
+// helpers below are the very ones the top-level grid uses; `compare` is null
+// unless a cohort is locked. (See tabHostCtx.ts.)
+const tabHostCtx = computed<TabHostCtx>(() => ({
+  widgetColor,
+  setTopListRef,
+  popOutTopList,
+  hasTopData,
+  compare: compareMode.value
+    ? {
+        entities: compareEntities.value,
+        tableEntities: compareTableEntities.value,
+        loading: compareLoading.value,
+        hue: compareHue,
+        label: entityLabel,
+        cardText: cardTextFor,
+        cardValue: cardValueFor,
+        lineSeries: multiLineSeries,
+        lineLen,
+        topGroups: multiTopGroups,
+        hasTop: hasMultiTopData,
+        tableRows: compareTableRows,
+      }
+    : null,
+}));
 </script>
 
 <template>
@@ -1064,8 +1105,8 @@ function isHidden(id: string): boolean {
             / <b>{{ selectedEndpoint }}</b>
           </template>
         </template>
-        <span v-if="widgets.length > 0" class="reading-progress">
-          · loading {{ widgets.length }} metric{{ widgets.length === 1 ? '' : 's' }}
+        <span v-if="widgetsForQuery.length > 0" class="reading-progress">
+          · loading {{ widgetsForQuery.length }} metric{{ widgetsForQuery.length === 1 ? '' : 's' }}
         </span>
       </span>
     </div>
@@ -1243,10 +1284,11 @@ function isHidden(id: string): boolean {
           <template v-else-if="w.type === 'tab'">
             <TabWidget
               :widget="w"
-              :active-index="activeTabIndex(w.id)"
+              :active-index="clampedTabIndex(w)"
               :results="resultsById"
               :is-fetching="isFetching"
               :compare-mode="compareMode"
+              :host="tabHostCtx"
               @switch="setActiveTab(w.id, $event)"
             />
           </template>

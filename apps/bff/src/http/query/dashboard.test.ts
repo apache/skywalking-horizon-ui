@@ -411,7 +411,7 @@ describe('flattenTabWidgets — tab containers expand to their leaf children', (
     expect(flattenTabWidgets(ws)).toEqual(ws);
   });
 
-  it('expands a tab to every panel’s widgets, dropping the container', () => {
+  it('expands a tab to ONLY the first (default-active) panel’s widgets — lazy, not every panel', () => {
     const ws: DashboardWidget[] = [
       leaf('top1'),
       { id: 'grp', title: '', type: 'tab', expressions: [], tabs: [
@@ -420,7 +420,8 @@ describe('flattenTabWidgets — tab containers expand to their leaf children', (
       ] },
       leaf('top2'),
     ];
-    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['top1', 'a', 'b', 'c', 'top2']);
+    // 'c' (in the non-active second panel) is NOT queried — bounds the OAP request.
+    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['top1', 'a', 'b', 'top2']);
     expect(flattenTabWidgets(ws).some((w) => w.type === 'tab')).toBe(false);
   });
 

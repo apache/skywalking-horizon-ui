@@ -21,11 +21,13 @@
   widgets are queried — the host flattens them into the metrics request, so
   inactive tabs cost nothing until opened. The active index is owned by the
   host (it drives that flatten); this component is presentational and emits
-  `switch` on a tab click. The boundary is drawn with a top rule + corner
-  brackets rather than a full box, so the inner widgets stay grid-aligned.
+  `switch` on a tab click. Children render through the SAME host helpers as
+  top-level widgets (`host`: color, pop-out, the multi-entity compare fan-out),
+  so a widget dragged into a tab behaves exactly as it did outside.
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { DashboardWidget, DashboardTab, DashboardWidgetResult } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
@@ -33,7 +35,7 @@ import RecordList from '@/render/widgets/RecordList.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { bucketTimeLabel, fmtMetricAs, type MetricFormat } from '@/utils/formatters';
-import { colorForMetric } from '@/utils/metricColor';
+import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
 
 const props = defineProps<{
   widget: DashboardWidget;
@@ -42,17 +44,25 @@ const props = defineProps<{
    *  widgets resolve their own result from here. */
   results: Map<string, DashboardWidgetResult>;
   isFetching: boolean;
-  /** True when the dashboard is comparing a locked cohort. Tab panels render
-   *  the PRIMARY entity only (compare isn't reflected inside a tab), so we
-   *  surface a note rather than silently showing single-entity data. */
+  /** True when the dashboard is comparing a locked cohort. */
   compareMode?: boolean;
+  /** Host render helpers (color / pop-out / compare fan-out). */
+  host: TabHostCtx;
 }>();
 const emit = defineEmits<{ (e: 'switch', index: number): void }>();
 
+const { t } = useI18n({ useScope: 'global' });
 const timeRange = useTimeRangeStore();
 
 const tabs = computed<DashboardTab[]>(() => props.widget.tabs ?? []);
-const activeTab = computed<DashboardTab | null>(() => tabs.value[props.activeIndex] ?? tabs.value[0] ?? null);
+// Clamp a stale / out-of-range active index so the highlighted tab and the
+// rendered panel always agree (a different scope template may reuse this
+// widget id with fewer tabs than the persisted index assumes).
+const effectiveIndex = computed<number>(() => {
+  const n = tabs.value.length;
+  return n === 0 ? 0 : Math.min(Math.max(props.activeIndex, 0), n - 1);
+});
+const activeTab = computed<DashboardTab | null>(() => tabs.value[effectiveIndex.value] ?? null);
 const activeWidgets = computed<DashboardWidget[]>(() => activeTab.value?.widgets ?? []);
 // `visibleWhen`-gated children come back flagged `hidden: true` from the BFF —
 // drop them from the sub-grid (same as the top-level grid's isHidden filter).
@@ -61,6 +71,8 @@ const activeWidgets = computed<DashboardWidget[]>(() => activeTab.value?.widgets
 const visibleWidgets = computed<DashboardWidget[]>(() =>
   activeWidgets.value.filter((w) => props.results.get(w.id)?.hidden !== true),
 );
+/** Compare helpers when a cohort is locked, else null (single-entity view). */
+const compare = computed(() => (props.compareMode ? props.host.compare : null));
 
 function resultOf(w: DashboardWidget): DashboardWidgetResult | undefined {
   return props.results.get(w.id);
@@ -72,20 +84,6 @@ function cellStyle(w: DashboardWidget): Record<string, string> {
 }
 function chartHeight(w: DashboardWidget): number {
   return Math.max(60, (w.rowSpan ?? 2) * 110 - 46);
-}
-
-// Mirror LayerDashboardsView.widgetColor band matching.
-function accentFor(w: DashboardWidget): string {
-  const candidates = [w.id, w.title, w.expressions?.[0]].filter((c): c is string => !!c);
-  for (const c of candidates) {
-    const c2 = c.toLowerCase();
-    if (/(^|[^a-z])cpm([^a-z]|$)/.test(c2) || c2.includes('traffic') || c2.includes('rpm')) return 'var(--sw-accent)';
-    if (c2.includes('apdex')) return 'var(--sw-purple)';
-    if (c2.includes('sla') || c2.includes('success')) return 'var(--sw-purple)';
-    if (/p\d{2,3}/.test(c2) || c2.includes('percentile') || c2.includes('resp_time') || c2.includes('response time') || c2.includes('latency')) return 'var(--sw-warn)';
-    if (c2.includes('err') || c2.includes('error') || c2.includes('failure')) return 'var(--sw-err)';
-  }
-  return colorForMetric(w.id || w.title || w.expressions?.[0] || '');
 }
 function xLabelsForLen(len: number): string[] {
   if (len <= 0) return [];
@@ -102,8 +100,16 @@ function cardText(w: DashboardWidget): string {
   }
   return fmtMetricAs(v, w.format as MetricFormat | undefined);
 }
+function lineDataLen(w: DashboardWidget): number {
+  return compare.value ? compare.value.lineLen(w.id) : (resultOf(w)?.series?.[0]?.data.length ?? 0);
+}
+/** Whether a top/record child has a list worth a pop-out (single or compare). */
+function hasTopData(w: DashboardWidget): boolean {
+  return props.host.hasTopData(w);
+}
 function loadingOrEmpty(w: DashboardWidget): string {
-  return props.isFetching && !props.results.has(w.id) ? 'loading…' : 'no data';
+  const loading = compare.value ? compare.value.loading : props.isFetching && !props.results.has(w.id);
+  return loading ? t('loading…') : t('no data');
 }
 </script>
 
@@ -115,26 +121,42 @@ function loadingOrEmpty(w: DashboardWidget): string {
         :key="i"
         type="button"
         class="tw-tab"
-        :class="{ on: i === activeIndex }"
+        :class="{ on: i === effectiveIndex }"
         role="tab"
-        :aria-selected="i === activeIndex"
+        :aria-selected="i === effectiveIndex"
         @click="emit('switch', i)"
       >{{ tab.name || `Tab ${i + 1}` }}</button>
     </div>
     <div class="tw-panel">
-      <p v-if="compareMode" class="tw-compare-note">Comparing locked entities — tab panels show the primary entity.</p>
       <div v-if="visibleWidgets.length" class="tw-grid">
         <div v-for="w in visibleWidgets" :key="w.id" class="tw-cell" :style="cellStyle(w)">
           <div class="tw-cell-head">
             <span class="tw-cell-title">{{ w.title }}</span>
-            <span v-if="w.unit && w.type !== 'card'" class="tw-cell-unit">{{ w.unit }}</span>
+            <span class="tw-cell-right">
+              <span v-if="w.unit && w.type !== 'card'" class="tw-cell-unit">{{ w.unit }}</span>
+              <button
+                v-if="(w.type === 'top' || w.type === 'record') && hasTopData(w)"
+                type="button"
+                class="tw-popout"
+                :title="t('Pop out — full list')"
+                :aria-label="t('Pop out — full list')"
+                @click="host.popOutTopList(w.id)"
+              >⤢</button>
+            </span>
           </div>
           <div class="tw-cell-body" :class="`type-${w.type}`">
-            <template v-if="resultOf(w)?.error">
+            <template v-if="!compare && resultOf(w)?.error">
               <span class="muted">{{ resultOf(w)!.error }}</span>
             </template>
             <template v-else-if="w.type === 'card'">
-              <div class="card-value">
+              <div v-if="compare" class="tw-card-compare">
+                <div v-for="e in compare.entities" :key="e" class="tw-cc-row">
+                  <span class="tw-cc-dot" :style="{ background: compare.hue(e) }" />
+                  <span class="tw-cc-name" :title="compare.label(e)">{{ compare.label(e) }}</span>
+                  <span class="tw-cc-val" :class="{ muted: compare.cardValue(w.id, e) == null }">{{ compare.cardText(w, e) }}</span>
+                </div>
+              </div>
+              <div v-else class="card-value">
                 <span class="num" :class="{ muted: resultOf(w)?.value == null }">
                   {{ results.has(w.id) ? cardText(w) : (isFetching ? '…' : fmtMetricAs(null, w.format)) }}
                 </span>
@@ -143,46 +165,65 @@ function loadingOrEmpty(w: DashboardWidget): string {
             </template>
             <template v-else-if="w.type === 'line'">
               <TimeChart
-                v-if="resultOf(w)?.series?.length"
-                :series="resultOf(w)!.series!"
+                v-if="compare ? compare.lineSeries(w.id).length : resultOf(w)?.series?.length"
+                :series="compare ? compare.lineSeries(w.id) : resultOf(w)!.series!"
                 :unit="w.unit"
                 :height="chartHeight(w)"
-                :accent="accentFor(w)"
+                :accent="host.widgetColor(w)"
                 :format="w.format"
-                :x-labels="xLabelsForLen(resultOf(w)!.series![0]?.data.length ?? 0)"
+                :x-labels="xLabelsForLen(lineDataLen(w))"
               />
               <span v-else class="muted">{{ loadingOrEmpty(w) }}</span>
             </template>
             <template v-else-if="w.type === 'top'">
               <TopList
-                v-if="resultOf(w)?.topGroups?.length"
-                :groups="resultOf(w)!.topGroups!"
+                v-if="compare && compare.hasTop(w.id)"
+                :ref="(el) => host.setTopListRef(w.id, el)"
+                :groups="compare.topGroups(w.id)"
                 :unit="w.unit"
-                :color="accentFor(w)"
+                :color="host.widgetColor(w)"
                 :title="w.title"
               />
               <TopList
-                v-else-if="resultOf(w)?.topList?.length"
+                v-else-if="!compare && resultOf(w)?.topGroups?.length"
+                :ref="(el) => host.setTopListRef(w.id, el)"
+                :groups="resultOf(w)!.topGroups!"
+                :unit="w.unit"
+                :color="host.widgetColor(w)"
+                :title="w.title"
+              />
+              <TopList
+                v-else-if="!compare && resultOf(w)?.topList?.length"
+                :ref="(el) => host.setTopListRef(w.id, el)"
                 :items="resultOf(w)!.topList!"
                 :unit="w.unit"
-                :color="accentFor(w)"
+                :color="host.widgetColor(w)"
                 :title="w.title"
               />
               <span v-else class="muted">{{ loadingOrEmpty(w) }}</span>
             </template>
             <template v-else-if="w.type === 'record'">
+              <TopList
+                v-if="compare && compare.hasTop(w.id)"
+                :ref="(el) => host.setTopListRef(w.id, el)"
+                :groups="compare.topGroups(w.id)"
+                :unit="w.unit"
+                :color="host.widgetColor(w)"
+                :title="w.title"
+              />
               <RecordList
-                v-if="resultOf(w)?.records?.length"
+                v-else-if="!compare && resultOf(w)?.records?.length"
                 :items="resultOf(w)!.records!"
                 :unit="w.unit"
-                :color="accentFor(w)"
+                :color="host.widgetColor(w)"
               />
               <span v-else class="muted">{{ loadingOrEmpty(w) }}</span>
             </template>
             <template v-else-if="w.type === 'table'">
               <TableWidget
-                v-if="resultOf(w)?.table?.length"
-                :rows="resultOf(w)!.table!"
+                v-if="compare ? compare.tableRows(w.id).length : resultOf(w)?.table?.length"
+                :rows="compare ? compare.tableRows(w.id) : resultOf(w)!.table!"
+                :entities="compare ? compare.tableEntities : undefined"
                 :label-top-n="w.labelTopN"
                 :headers="w.tableHeaders"
                 :show-values="w.showTableValues !== false"
@@ -194,7 +235,7 @@ function loadingOrEmpty(w: DashboardWidget): string {
           </div>
         </div>
       </div>
-      <div v-else class="tw-empty">{{ activeWidgets.length ? 'No widgets visible in this tab.' : 'This tab has no widgets.' }}</div>
+      <div v-else class="tw-empty">{{ activeWidgets.length ? t('No widgets visible in this tab.') : t('This tab has no widgets.') }}</div>
     </div>
   </div>
 </template>
@@ -272,11 +313,26 @@ function loadingOrEmpty(w: DashboardWidget): string {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.tw-cell-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
 .tw-cell-unit {
   font-size: 9.5px;
   color: var(--sw-fg-3);
-  margin-left: auto;
 }
+.tw-popout {
+  border: none;
+  background: transparent;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.tw-popout:hover { color: var(--sw-accent); }
 .tw-cell-body {
   flex: 1;
   display: flex;
@@ -311,15 +367,43 @@ function loadingOrEmpty(w: DashboardWidget): string {
   font-size: 10px;
   color: var(--sw-fg-3);
 }
+/* Per-entity compare rows for a card child (mirrors the top-level card-compare). */
+.tw-card-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 0 2px;
+}
+.tw-cc-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+.tw-cc-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  align-self: center;
+}
+.tw-cc-name {
+  color: var(--sw-fg-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tw-cc-val {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--sw-fg-0);
+  font-variant-numeric: tabular-nums;
+}
+.tw-cc-val.muted { color: var(--sw-fg-3); font-weight: 400; }
 .muted {
   color: var(--sw-fg-3);
   font-size: 11px;
-}
-.tw-compare-note {
-  margin: 0 0 6px;
-  font-size: 10.5px;
-  color: var(--sw-warn);
-  flex: 0 0 auto;
 }
 .tw-empty {
   margin: auto;

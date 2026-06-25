@@ -709,10 +709,41 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
   }
 }
 
+/** Every widget id currently in the draft — across ALL scopes and inside every
+ *  tab panel. Widget ids are the wire key the runtime results are addressed by
+ *  (`resultsById.set(r.id, r)`), so a collision makes two tiles render the same
+ *  data. Count-based ids (`widget_${length+1}`) collide after a delete + re-add
+ *  (the freed suffix is reused), so generators below scan this set instead. */
+function allWidgetIds(): Set<string> {
+  const ids = new Set<string>();
+  const tpl = draft.template;
+  if (!tpl) return ids;
+  const lists: DashboardWidget[][] = [];
+  const dashboards = (tpl as unknown as { dashboards?: Record<string, DashboardWidget[]> }).dashboards;
+  if (dashboards) for (const ws of Object.values(dashboards)) lists.push(ws);
+  if (tpl.widgets) lists.push(tpl.widgets);
+  for (const ws of lists) {
+    for (const w of ws) {
+      ids.add(w.id);
+      if (w.tabs) for (const tab of w.tabs) for (const c of tab.widgets) ids.add(c.id);
+    }
+  }
+  return ids;
+}
+/** Smallest `${prefix}${k}` (k≥1) not already used as a widget id anywhere in
+ *  the draft — collision-proof regardless of delete/move/re-add history. */
+function nextFreeId(prefix: string): string {
+  const used = allWidgetIds();
+  for (let k = 1; ; k++) {
+    const cand = `${prefix}${k}`;
+    if (!used.has(cand)) return cand;
+  }
+}
+
 function addWidget(type: DashboardWidget['type'] = 'card'): void {
   const widgets = [...widgetsFor(activeScope.value)];
   const idx = widgets.length;
-  const id = `widget_${idx + 1}`;
+  const id = nextFreeId('widget_');
   if (type === 'tab') {
     // A tab container carries no MQE; it seeds one empty named tab. Wider/taller
     // default slot since it hosts a sub-grid of widgets.
@@ -780,6 +811,9 @@ watch([selectedIdx, subSel], () => void nextTick(positionDrawer));
 watch([activeScope, selectedKey], () => {
   selectedIdx.value = null;
   subSel.value = null;
+  // A different scope/layer has its own tab widgets; a stale per-id active-tab
+  // index could point past the new scope's tab count.
+  activeTabByWidget.value = {};
 });
 
 /** Resolve a `tab` widget by id within the active scope. */
@@ -812,7 +846,7 @@ function addToTab(widgetId: string, type: DashboardWidget['type']): void {
   const ti = activeTabOf(widgetId);
   const widgets = [...subWidgetsOf(widgetId, ti)];
   const n = widgets.length + 1;
-  widgets.push({ id: `${widgetId}_t${ti}_w${n}`, title: `Widget ${n}`, type, expressions: [''], span: 6, rowSpan: 2 });
+  widgets.push({ id: nextFreeId(`${widgetId}_t${ti}_w`), title: `Widget ${n}`, type, expressions: [''], span: 6, rowSpan: 2 });
   commitSubWidgets(widgetId, ti, widgets);
   subSel.value = { widgetId, tabIdx: ti, subIdx: widgets.length - 1 };
 }
@@ -1111,8 +1145,19 @@ function onWidgetTypeChange(value: string): void {
   if (w.type === 'tab') {
     if (!w.tabs || w.tabs.length === 0) w.tabs = [{ name: 'Tab 1', widgets: [] }];
     w.expressions = [];
-  } else if (!w.expressions || w.expressions.length === 0) {
-    w.expressions = [''];
+  } else {
+    if (!w.expressions || w.expressions.length === 0) w.expressions = [''];
+    // Leaving 'tab' — drop the now-orphaned panels (a non-tab widget must never
+    // carry `tabs`, or flattenTabWidgets would still expand them) and forget its
+    // inline active-tab index.
+    if (w.tabs) {
+      w.tabs = undefined;
+      if (w.id in activeTabByWidget.value) {
+        const next = { ...activeTabByWidget.value };
+        delete next[w.id];
+        activeTabByWidget.value = next;
+      }
+    }
   }
 }
 
@@ -1142,7 +1187,11 @@ function deleteTabOf(widgetId: string, ti: number): void {
   m.tabs.splice(ti, 1);
   m.tw.tabs = m.tabs;
   if (subSel.value?.widgetId === widgetId) subSel.value = null;
-  if (activeTabOf(widgetId) >= m.tabs.length) setActiveTabOf(widgetId, Math.max(0, m.tabs.length - 1));
+  // Keep the active panel pointing at the SAME tab: deleting one before it
+  // shifts every later index down by one; deleting at/after only needs a clamp.
+  const active = activeTabOf(widgetId);
+  if (ti < active) setActiveTabOf(widgetId, active - 1);
+  else if (active >= m.tabs.length) setActiveTabOf(widgetId, Math.max(0, m.tabs.length - 1));
 }
 function moveTabOf(widgetId: string, ti: number, dir: -1 | 1): void {
   const m = tabWidgetMut(widgetId);
@@ -4058,8 +4107,8 @@ const namingTest = computed<NamingTestResult>(() => {
                   selected: selectedIdx === i,
                   'is-tab': w.type === 'tab',
                   dragging: reorder.active && reorder.from === i,
-                  'drop-target': reorder.active && reorder.over === i && reorder.from !== i && !(w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab'),
-                  'drop-into-tab': reorder.active && reorder.over === i && reorder.from !== i && w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab',
+                  'drop-target': reorder.active && reorder.over === i && reorder.from !== i && !(!reorder.sub && w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab'),
+                  'drop-into-tab': reorder.active && !reorder.sub && reorder.over === i && reorder.from !== i && w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab',
                 }"
                 :style="widgetGridStyle(w)"
                 @click="selectWidget(i)"
@@ -6045,129 +6094,6 @@ const namingTest = computed<NamingTestResult>(() => {
 .cw-type.t-card   { color: var(--sw-accent-2); background: var(--sw-accent-soft); }
 .cw-type.t-record { color: #22d3ee; background: rgba(34, 211, 238, 0.12); }
 .cw-type.t-tab    { color: #34d399; background: rgba(52, 211, 153, 0.12); }
-.cw-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  padding: 2px 0 6px;
-  border-bottom: 1px solid var(--sw-line);
-}
-.cw-tab {
-  font-size: 10px;
-  padding: 2px 7px;
-  border-radius: 3px;
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-2);
-  white-space: nowrap;
-}
-.cw-tab.on {
-  background: var(--sw-bg-3);
-  color: var(--sw-fg-0);
-  font-weight: 600;
-}
-.cw-tab-add {
-  border: 1px dashed var(--sw-line-2);
-  background: transparent;
-  color: var(--sw-fg-3);
-  cursor: pointer;
-  font: inherit;
-  font-size: 10px;
-  padding: 1px 7px;
-}
-.cw-tab-add:hover {
-  border-color: #34d399;
-  color: #34d399;
-}
-.cw-tab-open {
-  border: 1px solid var(--sw-line);
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-1);
-  cursor: pointer;
-  font: inherit;
-  font-size: 10px;
-  padding: 1px 7px;
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-}
-.cw-tab-open:hover {
-  border-color: var(--sw-accent);
-  color: var(--sw-fg-0);
-}
-.cw-tab-open .cw-tab-n {
-  font-size: 9px;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-0);
-  border-radius: 6px;
-  padding: 0 4px;
-}
-.cw-tab-hint {
-  margin: 6px 0 0;
-  font-size: 10px;
-  color: var(--sw-fg-3);
-}
-/* Drill breadcrumb + tab bar (editing a tab widget's panels). */
-.card-head .dr-back {
-  font-size: 11px;
-  padding: 2px 8px;
-}
-.card-head .dr-sep { color: var(--sw-fg-3); margin: 0 2px; }
-.drill-tabbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
-}
-.drill-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-0);
-  padding: 1px 2px 1px 4px;
-}
-.drill-tab.on {
-  border-color: var(--sw-accent);
-  background: var(--sw-bg-3);
-}
-.drill-tab .dt-switch {
-  border: none;
-  background: transparent;
-  color: var(--sw-fg-2);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  padding: 2px 4px;
-}
-.drill-tab .dt-switch:hover { color: var(--sw-fg-0); }
-.drill-tab .dt-name {
-  border: none;
-  background: transparent;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  width: 92px;
-  padding: 2px 4px;
-}
-.drill-tab .dt-name:focus { outline: 1px solid var(--sw-accent); border-radius: 2px; }
-.drill-tab .dt-ctl {
-  border: none;
-  background: transparent;
-  color: var(--sw-fg-3);
-  cursor: pointer;
-  font-size: 11px;
-  line-height: 1;
-  padding: 0 2px;
-  border-radius: 2px;
-}
-.drill-tab .dt-ctl:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
-.drill-tab .dt-ctl.del:hover { color: var(--sw-err); }
-.drill-tabbar .dt-add { font-size: 11px; }
 /* Tabs manager in the drawer (rename / reorder / delete / open each panel). */
 .tab-mgr {
   display: flex;
@@ -6572,61 +6498,6 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-3);
   margin: 2px 0 0;
   line-height: 1.4;
-}
-/* Tab-container editor: chip strip selecting the container or a child tab. */
-.tab-editor .tab-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-}
-.tab-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  font-size: 11px;
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-1);
-  color: var(--sw-fg-2);
-  cursor: pointer;
-}
-.tab-chip:hover {
-  border-color: var(--sw-line-2);
-  color: var(--sw-fg-1);
-}
-.tab-chip.on {
-  background: var(--sw-bg-3);
-  border-color: var(--sw-accent);
-  color: var(--sw-fg-0);
-  font-weight: 600;
-}
-.tab-chip.cfg {
-  color: var(--sw-fg-3);
-}
-.tab-chip .tc-acts {
-  display: inline-flex;
-  gap: 3px;
-  opacity: 0.6;
-}
-.tab-chip:hover .tc-acts {
-  opacity: 1;
-}
-.tab-chip .tc-mv,
-.tab-chip .tc-del {
-  font-size: 12px;
-  line-height: 1;
-  padding: 0 1px;
-  border-radius: 2px;
-}
-.tab-chip .tc-mv:hover {
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-0);
-}
-.tab-chip .tc-del:hover {
-  background: var(--sw-err-soft, rgba(239, 68, 68, 0.15));
-  color: var(--sw-err);
 }
 .d-hint code {
   font-family: var(--sw-mono);

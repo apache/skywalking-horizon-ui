@@ -28,7 +28,7 @@
  */
 
 import { computed, ref, type Ref } from 'vue';
-import { useQueries, useQuery } from '@tanstack/vue-query';
+import { keepPreviousData, useQueries, useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import {
@@ -246,6 +246,13 @@ export function useLayerDashboard(
     refetchInterval: refetchIntervalRef,
     refetchOnWindowFocus: computed(() => METRIC_SCOPES.has(scope?.value ?? 'service')),
     retry: 1,
+    // A tab switch changes the queryKey (only the active tab's widgets are in
+    // the batch — lazy), which would otherwise drop `data` to undefined while
+    // the new panel fetches and blank EVERY sibling widget on the page. Keep
+    // the prior response so siblings hold their values; the newly-activated
+    // tab's own cells fall through to their per-cell "loading…" state (the
+    // cascade-clear indicator lives inside the tab, not over the whole grid).
+    placeholderData: keepPreviousData,
   });
 
   // --- Multi-entity fan-out (Option B) -------------------------------

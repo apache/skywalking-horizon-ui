@@ -129,14 +129,27 @@ const leafWidgetSchema = z.object({
  *  of its own (so `expressions` may be empty) and holds named panels of leaf
  *  widgets in `tabs`. The SPA flattens to the active tab before posting; the
  *  BFF also flattens (see `flattenTabWidgets`) so the pipeline only sees leaves. */
-export const widgetSchema = leafWidgetSchema.extend({
-  type: z.enum(['card', 'line', 'top', 'record', 'table', 'tab']),
-  expressions: z.array(z.string().min(1)).max(16),
-  tabs: z
-    .array(z.object({ name: z.string(), widgets: z.array(leafWidgetSchema).max(40) }))
-    .max(20)
-    .optional(),
-});
+export const widgetSchema = leafWidgetSchema
+  .extend({
+    type: z.enum(['card', 'line', 'top', 'record', 'table', 'tab']),
+    // Relaxed to allow the empty array a `tab` container carries; the refine
+    // below keeps every NON-tab leaf at ≥1 expression (an empty-MQE leaf would
+    // otherwise pass here and render blank).
+    expressions: z.array(z.string().min(1)).max(16),
+    tabs: z
+      .array(z.object({ name: z.string(), widgets: z.array(leafWidgetSchema).max(40) }))
+      .max(20)
+      .optional(),
+  })
+  .superRefine((w, ctx) => {
+    if (w.type !== 'tab' && w.expressions.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['expressions'],
+        message: 'a non-tab widget requires at least one expression',
+      });
+    }
+  });
 /** Shared with config/dashboard.ts (GET-config handler). */
 export const scopeSchema = z.enum([
   'service',
@@ -561,17 +574,22 @@ function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
  *  pipeline (gate / batch / collapse) only ever sees queryable leaves — a tab
  *  carries no MQE of its own. The SPA normally flattens to the ACTIVE tab
  *  before posting; this also covers the template-resolved fallback (no
- *  `widgets[]` in the body), which would otherwise reach `collapse` as a tab
- *  and return blank. Every leaf keeps its own id, so results stay id-addressable
- *  and the SPA re-groups by tab. One level deep (a tab's child is never a tab). */
+ *  `widgets[]` in the body) and direct API callers, which would otherwise reach
+ *  `collapse` as a tab and return blank.
+ *
+ *  Only the FIRST (default-active) tab's widgets are emitted — matching the
+ *  SPA's lazy "active tab only" contract. Flattening EVERY panel here would
+ *  bypass the top-level widget cap and fan a tab group into a much larger OAP
+ *  request than the lazy UI ever issues. Every leaf keeps its own id, so results
+ *  stay id-addressable and the SPA re-groups by tab. One level deep (a tab's
+ *  child is never a tab). */
 export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
   const out: DashboardWidget[] = [];
   for (const w of widgets) {
     if (w.type === 'tab') {
-      for (const tab of w.tabs ?? []) {
-        for (const child of tab.widgets ?? []) {
-          if (child.type !== 'tab') out.push(child);
-        }
+      const firstPanel = (w.tabs ?? [])[0];
+      for (const child of firstPanel?.widgets ?? []) {
+        if (child.type !== 'tab') out.push(child);
       }
     } else {
       out.push(w);

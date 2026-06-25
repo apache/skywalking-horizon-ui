@@ -60,7 +60,7 @@ interface Finding {
   message: string;
 }
 
-const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group']);
+const STRING_FIELDS = new Set(['alias', 'title', 'description', 'tip', 'label', 'group', 'name']);
 const STRING_VALUE_OBJECTS = new Set(['aliases', 'slots', 'valueMap']);
 const STRING_ARRAYS = new Set(['expressionLabels', 'tableHeaders']);
 
