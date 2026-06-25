@@ -4,6 +4,12 @@ Notable changes to Apache SkyWalking Horizon UI, written from the operator's poi
 
 The version line is shared by every package in the monorepo (apps + shared packages) plus the BFF's `HORIZON_VERSION` default.
 
+## 1.1.0
+
+### General Service — PHP runtime (PHM)
+
+- **Six instance dashboard line widgets for PHP Health Metrics** — process CPU utilization, memory used/peak, virtual memory, thread count, and open file descriptors (`meter_instance_php_*`). Each line widget uses `visibleWhen` so widgets render only when the PHP agent reports PHM data (Linux `/proc` sampling of the parent PHP process via `getppid()`).
+
 ## 1.0.0
 
 ### Performance & behavior tuning

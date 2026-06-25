@@ -358,6 +358,30 @@
           "ライブ",
           "利用可能"
         ]
+      },
+      {
+        "title": "PHP CPU 使用率",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) の CPU 使用率 (%)。/proc からサンプリング。"
+      },
+      {
+        "title": "PHP メモリ使用量",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) の実メモリ (MB, /proc の VmRSS)。"
+      },
+      {
+        "title": "PHP メモリピーク",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) のピーク実メモリ (MB, /proc の VmHWM)。"
+      },
+      {
+        "title": "PHP 仮想メモリ",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) の仮想メモリ (MB, /proc の VmSize)。"
+      },
+      {
+        "title": "PHP スレッド数",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) の OS スレッド数 (/proc の Threads)。"
+      },
+      {
+        "title": "PHP オープン FD 数",
+        "tip": "PHP エージェント：親 PHP プロセス (getppid()) のオープン file descriptor 数 (/proc/pid/fd)。"
       }
     ],
     "endpoint": [

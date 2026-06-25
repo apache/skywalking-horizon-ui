@@ -621,6 +621,48 @@
           "live",
           "verfügbar"
         ]
+      },
+      {
+        "title": "PHP-CPU-Auslastung",
+        "tip": "PHP-Agent: CPU-Auslastung (%) des übergeordneten PHP-Prozesses (getppid()), via /proc gesampelt.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PHP-Speicher belegt",
+        "tip": "PHP-Agent: Resident Memory (MB) des übergeordneten PHP-Prozesses (getppid()) (/proc VmRSS).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PHP-Speicher-Peak",
+        "tip": "PHP-Agent: Peak Resident Memory (MB) des übergeordneten PHP-Prozesses (getppid()) (/proc VmHWM).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PHP-Virtueller Speicher",
+        "tip": "PHP-Agent: Virtueller Speicher (MB) des übergeordneten PHP-Prozesses (getppid()) (/proc VmSize).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PHP-Thread-Anzahl",
+        "tip": "PHP-Agent: OS-Thread-Anzahl des übergeordneten PHP-Prozesses (getppid()) (/proc Threads).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "PHP-Offene FDs",
+        "tip": "PHP-Agent: Anzahl offener File Descriptors des übergeordneten PHP-Prozesses (getppid()) (/proc/pid/fd).",
+        "expressions": [
+          null
+        ]
       }
     ],
     "endpoint": [

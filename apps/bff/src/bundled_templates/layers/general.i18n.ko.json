@@ -358,6 +358,30 @@
           "활성",
           "사용 가능"
         ]
+      },
+      {
+        "title": "PHP CPU 사용률",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) CPU 사용률 (%), /proc에서 샘플링."
+      },
+      {
+        "title": "PHP 메모리 사용량",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) 상주 메모리 (MB, /proc VmRSS)."
+      },
+      {
+        "title": "PHP 메모리 피크",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) 피크 상주 메모리 (MB, /proc VmHWM)."
+      },
+      {
+        "title": "PHP 가상 메모리",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) 가상 메모리 (MB, /proc VmSize)."
+      },
+      {
+        "title": "PHP 스레드 수",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) OS 스레드 수 (/proc Threads)."
+      },
+      {
+        "title": "PHP 열린 FD 수",
+        "tip": "PHP 에이전트: 부모 PHP 프로세스 (getppid()) 열린 file descriptor 수 (/proc/pid/fd)."
       }
     ],
     "endpoint": [
