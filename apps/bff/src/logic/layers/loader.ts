@@ -583,10 +583,8 @@ export function topNOrderOf(
  *  Enriches `top` / `record` widgets with the resolved `topNOrder` (from
  *  their first `top_n(…)`) so the multi-entity compare grid merges the
  *  per-entity "All" list in the MQE's own direction — without the UI parsing
- *  MQE or inferring asc/des from one entity's (possibly flat) values. Tab
- *  panels carry top / record widgets too, so the enrichment recurses into a
- *  `tab` container's children (else a `top_n(…, asc)` inside a tab loses its
- *  declared direction and the compare "All" group sorts descending). */
+ *  MQE or inferring asc/des from one entity's (possibly flat) values. Recurses
+ *  into `tab` panels, which carry top / record widgets too. */
 export function widgetsForScope(
   template: LayerTemplate,
   scope: DashboardScope,

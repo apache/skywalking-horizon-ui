@@ -570,19 +570,11 @@ function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
   return vw.kind === 'mqe' && w.expressions.includes(vw.expression);
 }
 
-/** Expand `tab` container widgets to their leaf children so the metrics
- *  pipeline (gate / batch / collapse) only ever sees queryable leaves — a tab
- *  carries no MQE of its own. The SPA normally flattens to the ACTIVE tab
- *  before posting; this also covers the template-resolved fallback (no
- *  `widgets[]` in the body) and direct API callers, which would otherwise reach
- *  `collapse` as a tab and return blank.
- *
- *  Only the FIRST (default-active) tab's widgets are emitted — matching the
- *  SPA's lazy "active tab only" contract. Flattening EVERY panel here would
- *  bypass the top-level widget cap and fan a tab group into a much larger OAP
- *  request than the lazy UI ever issues. Every leaf keeps its own id, so results
- *  stay id-addressable and the SPA re-groups by tab. One level deep (a tab's
- *  child is never a tab). */
+/** Expand `tab` containers to their leaf children so the pipeline only sees
+ *  queryable leaves (a tab carries no MQE). Covers the template-resolved
+ *  fallback + direct API callers; the SPA already flattens to the active tab.
+ *  Emits only the FIRST (default-active) panel — matching the lazy contract,
+ *  so a tab group never fans into a larger OAP request than the UI issues. */
 export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
   const out: DashboardWidget[] = [];
   for (const w of widgets) {

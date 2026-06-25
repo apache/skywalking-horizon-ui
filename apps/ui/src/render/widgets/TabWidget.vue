@@ -64,11 +64,8 @@ const effectiveIndex = computed<number>(() => {
 });
 const activeTab = computed<DashboardTab | null>(() => tabs.value[effectiveIndex.value] ?? null);
 const activeWidgets = computed<DashboardWidget[]>(() => activeTab.value?.widgets ?? []);
-// `visibleWhen`-gated children are filtered by the HOST's canonical rule
-// (`host.isHidden`) — NOT a local primary-only check. That rule is single-
-// entity in normal mode and a per-entity UNION in compare mode (a child hidden
-// for the primary but valid for another locked entity stays visible). This
-// affects only the widgets INSIDE the tab; the tab container's slot is unchanged.
+// Gate children by the host's canonical `visibleWhen` rule (compare-aware
+// union), not a local primary-only check. Only the children — never the slot.
 const visibleWidgets = computed<DashboardWidget[]>(() =>
   activeWidgets.value.filter((w) => !props.host.isHidden(w.id)),
 );

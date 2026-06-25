@@ -710,12 +710,9 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
   }
 }
 
-/** Every widget id currently in the draft — across ALL scopes and inside every
- *  tab panel (via the shared `collectWidgetIds` tree-walk). Widget ids are the
- *  wire key the runtime results are addressed by (`resultsById.set(r.id, r)`),
- *  so a collision makes two tiles render the same data. Count-based ids
- *  (`widget_${length+1}`) collide after a delete + re-add (the freed suffix is
- *  reused), so generators below scan this set instead. */
+/** Every widget id in the draft — all scopes + tab children. Ids are the wire
+ *  key results are addressed by, so generators below scan this to avoid the
+ *  collisions a count-based id hits after a delete + re-add. */
 function allWidgetIds(): Set<string> {
   const ids = new Set<string>();
   const tpl = draft.template;

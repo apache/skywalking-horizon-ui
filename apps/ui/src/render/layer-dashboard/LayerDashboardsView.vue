@@ -702,9 +702,7 @@ interface TopGroup {
 // without an explicit order.
 function multiTopGroups(wid: string): TopGroup[] {
   const ents = compareEntities.value;
-  // Resolve across the WHOLE tree — a `top_n(…, asc|des)` top/record widget can
-  // live inside a tab panel, and its `topNOrder` (enriched BFF-side) drives the
-  // compare "All" sort. A top-level-only lookup defaults a tab child to des.
+  // Whole-tree lookup — a top/record widget (carrying topNOrder) can live in a tab.
   const desc = findWidgetById(widgets.value, wid)?.topNOrder !== 'asc';
   const all: TopItem[] = ents.flatMap((e) =>
     topItemsFor(wid, e).map((it) => ({ name: `${entityLabel(e)} · ${it.name}`, value: it.value })),
@@ -834,6 +832,8 @@ function popOutTopList(id: string): void {
   topListRefs.get(id)?.openExpanded();
 }
 function hasTopData(w: { id: string; type: string }): boolean {
+  // Compare mode renders from the per-entity fan-out — the primary may be empty.
+  if (compareMode.value) return hasMultiTopData(w.id);
   const r = resultsById.value.get(w.id);
   if (!r) return false;
   if (w.type === 'top') return !!(r.topGroups?.length || r.topList?.length);

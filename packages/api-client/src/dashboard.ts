@@ -249,18 +249,11 @@ export interface DashboardTab {
   widgets: DashboardWidget[];
 }
 
-/* ---------------------------------------------------------------------------
- * Widget-tree traversal — the ONE place that knows how to descend into a `tab`
- * container's panels. Tabs hold widgets one level deep (a tab's child is never
- * a tab), so "walk all widgets" means: each top-level widget, plus the children
- * of any tab. Use these everywhere instead of re-writing the descent inline —
- * a missed tab descent is exactly how find-by-id / id-uniqueness / enrichment
- * bugs slip in (a tab child becomes invisible to the caller).
- * ------------------------------------------------------------------------- */
+// Widget-tree traversal — the one place that descends a `tab` container's
+// panels (one level; tabs don't nest). Use instead of re-writing the descent.
 
-/** Walk EVERY widget: each top-level widget, then (one level deep) the children
- *  of any `tab` container. Tab containers themselves ARE yielded — filter by
- *  `type !== 'tab'` if you only want queryable leaves. */
+/** Walk every widget: each top-level widget, then any tab's children. Tab
+ *  containers are yielded too — filter `type !== 'tab'` for queryable leaves. */
 export function* walkWidgets(
   widgets: readonly DashboardWidget[] | undefined,
 ): Generator<DashboardWidget> {
@@ -274,7 +267,7 @@ export function* walkWidgets(
   }
 }
 
-/** Find a widget by id anywhere in the tree — top-level OR inside a tab panel. */
+/** Find a widget by id anywhere in the tree (top-level or in a tab panel). */
 export function findWidgetById(
   widgets: readonly DashboardWidget[] | undefined,
   id: string,
@@ -283,8 +276,7 @@ export function findWidgetById(
   return undefined;
 }
 
-/** Collect every widget id in the tree (top-level + tab children). Pass an
- *  existing `into` set to accumulate across several lists (e.g. all scopes). */
+/** Collect every widget id; pass `into` to accumulate across lists (scopes). */
 export function collectWidgetIds(
   widgets: readonly DashboardWidget[] | undefined,
   into: Set<string> = new Set<string>(),
