@@ -627,7 +627,10 @@ function positionDrawer(): void {
     return;
   }
   el.style.display = 'flex';
-  const top = Math.max(0, Math.round(main.getBoundingClientRect().top));
+  // Start the drawer BELOW the sticky header so it doesn't cover + Add widget.
+  const headEl = card.querySelector('.card-head') as HTMLElement | null;
+  const mainTop = Math.round(main.getBoundingClientRect().top);
+  const top = Math.max(0, headEl ? Math.round(headEl.getBoundingClientRect().bottom) : mainTop, mainTop);
   const margin = 12;
   // The drawer floats OVER the canvas (the canvas keeps its full width). It
   // sits on the right by default, but flips to the left when the selected
@@ -831,6 +834,7 @@ const canvasEl = ref<HTMLDivElement | null>(null);
 const resize = reactive<{
   active: boolean;
   idx: number;
+  sub: { widgetId: string; tabIdx: number; subIdx: number } | null;
   startX: number;
   startY: number;
   startSpan: number;
@@ -840,6 +844,7 @@ const resize = reactive<{
 }>({
   active: false,
   idx: -1,
+  sub: null,
   startX: 0,
   startY: 0,
   startSpan: 1,
@@ -888,12 +893,47 @@ function onResizeStart(e: MouseEvent, i: number): void {
   window.addEventListener('mousemove', onResizeMove);
   window.addEventListener('mouseup', onResizeEnd);
 }
+const SUBGRID_ROW_PX = 84;
+const SUBGRID_GAP_PX = 6;
+/** Resize a widget INSIDE a tab — same drag as the top level, but snapped to
+ *  the tab's own 12-col sub-grid pitch (measured from the .cw-subgrid). */
+function onSubResizeStart(e: MouseEvent, widgetId: string, tabIdx: number, subIdx: number): void {
+  e.preventDefault();
+  e.stopPropagation();
+  const sw = subWidgetsOf(widgetId, tabIdx)[subIdx];
+  const grid = (e.target as HTMLElement).closest('.cw-subgrid') as HTMLElement | null;
+  if (!sw || !grid) return;
+  const rect = grid.getBoundingClientRect();
+  const cellW = (rect.width - SUBGRID_GAP_PX * (CANVAS_COLS - 1)) / CANVAS_COLS;
+  resize.active = true;
+  resize.idx = -1;
+  resize.sub = { widgetId, tabIdx, subIdx };
+  resize.startX = e.clientX;
+  resize.startY = e.clientY;
+  resize.startSpan = widgetSpan(sw);
+  resize.startRowSpan = widgetRowSpan(sw);
+  resize.cellW = cellW + SUBGRID_GAP_PX;
+  resize.cellH = SUBGRID_ROW_PX + SUBGRID_GAP_PX;
+  selectSub(widgetId, tabIdx, subIdx);
+  window.addEventListener('mousemove', onResizeMove);
+  window.addEventListener('mouseup', onResizeEnd);
+}
 function onResizeMove(e: MouseEvent): void {
   if (!resize.active) return;
   const dx = e.clientX - resize.startX;
   const dy = e.clientY - resize.startY;
   const newSpan = Math.max(1, Math.min(CANVAS_COLS, resize.startSpan + Math.round(dx / resize.cellW)));
   const newRowSpan = Math.max(1, Math.min(8, resize.startRowSpan + Math.round(dy / resize.cellH)));
+  if (resize.sub) {
+    const { widgetId, tabIdx, subIdx } = resize.sub;
+    const ws = [...subWidgetsOf(widgetId, tabIdx)];
+    const w = ws[subIdx];
+    if (w && (w.span !== newSpan || w.rowSpan !== newRowSpan)) {
+      ws[subIdx] = { ...w, span: newSpan, rowSpan: newRowSpan };
+      commitSubWidgets(widgetId, tabIdx, ws);
+    }
+    return;
+  }
   const widgets = [...currentWidgets.value];
   const w = widgets[resize.idx];
   if (!w) return;
@@ -904,6 +944,7 @@ function onResizeMove(e: MouseEvent): void {
 }
 function onResizeEnd(): void {
   resize.active = false;
+  resize.sub = null;
   window.removeEventListener('mousemove', onResizeMove);
   window.removeEventListener('mouseup', onResizeEnd);
 }
@@ -916,10 +957,12 @@ const reorder = reactive<{
   active: boolean;
   from: number;
   over: number;
+  sub: { widgetId: string; tabIdx: number; subIdx: number } | null;
 }>({
   active: false,
   from: -1,
   over: -1,
+  sub: null,
 });
 
 function onReorderStart(e: DragEvent, i: number): void {
@@ -928,11 +971,54 @@ function onReorderStart(e: DragEvent, i: number): void {
   reorder.active = true;
   reorder.from = i;
   reorder.over = i;
+  reorder.sub = null;
   selectedIdx.value = i;
   if (e.dataTransfer) {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(i));
   }
+}
+/** Start dragging a widget that lives INSIDE a tab — dropping it on the
+ *  top-level canvas (or a top-level widget) moves it OUT of the tab. */
+function onSubReorderStart(e: DragEvent, widgetId: string, tabIdx: number, subIdx: number): void {
+  reorder.active = true;
+  reorder.from = -1;
+  reorder.over = -1;
+  reorder.sub = { widgetId, tabIdx, subIdx };
+  selectSub(widgetId, tabIdx, subIdx);
+  if (e.dataTransfer) {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', 'sub');
+  }
+}
+/** Move the dragged in-tab widget out to the scope's top-level grid. */
+function moveSubToScope(insertAt: number | null): void {
+  if (!reorder.sub) return;
+  const { widgetId, tabIdx, subIdx } = reorder.sub;
+  const scope = [...widgetsFor(activeScope.value)];
+  const twIdx = scope.findIndex((w) => w.id === widgetId && w.type === 'tab');
+  const tw = twIdx >= 0 ? scope[twIdx] : null;
+  const sub = tw?.tabs?.[tabIdx]?.widgets[subIdx];
+  if (!tw?.tabs || !sub) return;
+  const tabs = [...tw.tabs];
+  tabs[tabIdx] = { ...tabs[tabIdx], widgets: tabs[tabIdx].widgets.filter((_, j) => j !== subIdx) };
+  scope[twIdx] = { ...tw, tabs };
+  const at = insertAt == null ? scope.length : Math.min(insertAt, scope.length);
+  scope.splice(at, 0, sub);
+  setWidgetsFor(activeScope.value, scope);
+  subSel.value = null;
+  selectedIdx.value = scope.indexOf(sub);
+}
+/** Drop on the canvas background (not on a widget) — moves a dragged in-tab
+ *  widget OUT to the end of the top-level grid. */
+function onCanvasDrop(e: DragEvent): void {
+  if (!reorder.active || !reorder.sub) return;
+  e.preventDefault();
+  moveSubToScope(null);
+  reorder.active = false;
+  reorder.from = -1;
+  reorder.over = -1;
+  reorder.sub = null;
 }
 function onReorderOver(e: DragEvent, i: number): void {
   if (!reorder.active) return;
@@ -943,6 +1029,16 @@ function onReorderOver(e: DragEvent, i: number): void {
 function onReorderDrop(e: DragEvent, i: number): void {
   if (!reorder.active) return;
   e.preventDefault();
+  // Dragging a widget OUT of a tab, dropped over a top-level widget → insert
+  // it into the scope at that position.
+  if (reorder.sub) {
+    moveSubToScope(i);
+    reorder.active = false;
+    reorder.from = -1;
+    reorder.over = -1;
+    reorder.sub = null;
+    return;
+  }
   const from = reorder.from;
   const to = i;
   if (from !== to) {
@@ -977,6 +1073,7 @@ function onReorderEnd(): void {
   reorder.active = false;
   reorder.from = -1;
   reorder.over = -1;
+  reorder.sub = null;
 }
 
 onBeforeUnmount(() => {
@@ -3956,6 +4053,8 @@ const namingTest = computed<NamingTestResult>(() => {
               ref="canvasEl"
               class="canvas"
               :class="{ resizing: resize.active }"
+              @dragover.prevent
+              @drop="onCanvasDrop"
             >
               <div v-if="currentWidgets.length === 0" class="canvas-empty">
                 No widgets yet. Click "+ Add widget" or drag here later — the canvas
@@ -4061,7 +4160,13 @@ const namingTest = computed<NamingTestResult>(() => {
                         :style="widgetGridStyle(sw)"
                         @click.stop="selectSub(w.id, activeTabOf(w.id), j)"
                       >
-                        <header class="cw-head sub-head">
+                        <header
+                          class="cw-head sub-head"
+                          :draggable="true"
+                          title="Drag out of the tab to move to the top level"
+                          @dragstart.stop="onSubReorderStart($event, w.id, activeTabOf(w.id), j)"
+                          @dragend="onReorderEnd"
+                        >
                           <h5>{{ sw.title || sw.id || 'untitled' }}</h5>
                           <span class="cw-type" :class="`t-${sw.type}`">{{ sw.type }}</span>
                         </header>
@@ -4077,6 +4182,12 @@ const namingTest = computed<NamingTestResult>(() => {
                           </template>
                           <p v-else class="cw-empty">{{ sw.expressions.length ? sw.type : 'add an MQE in the drawer' }}</p>
                         </div>
+                        <span class="cw-resize" title="Drag to resize" @mousedown.stop="onSubResizeStart($event, w.id, activeTabOf(w.id), j)">
+                          <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor">
+                            <circle cx="3" cy="9" r="0.8"/><circle cx="6" cy="9" r="0.8"/><circle cx="9" cy="9" r="0.8"/>
+                            <circle cx="6" cy="6" r="0.8"/><circle cx="9" cy="6" r="0.8"/><circle cx="9" cy="3" r="0.8"/>
+                          </svg>
+                        </span>
                       </div>
                       <button type="button" class="cw-subadd" title="Add a widget to this tab" @click.stop="addToTab(w.id, 'card')">＋ widget</button>
                     </div>
@@ -5399,7 +5510,9 @@ const namingTest = computed<NamingTestResult>(() => {
 }
 .alias-input.sm { height: 28px; font-size: 12px; max-width: none; }
 
-.editor-card { padding: 0; }
+/* overflow: visible overrides .sw-card's `overflow: hidden`, which would
+ * otherwise clip the sticky header inside the card (so it wouldn't pin). */
+.editor-card { padding: 0; overflow: visible; }
 /* Topology / endpoint-dep config preview — read-only JSON view. */
 .topo-cfg-body { padding: 12px 14px 16px; }
 .topo-cfg-help {
@@ -5756,26 +5869,38 @@ const namingTest = computed<NamingTestResult>(() => {
   padding: 2px 0;
   pointer-events: none;
 }
-/* Tab container tile: an OPEN frame — top/bottom rules + four rounded corners,
- * no left/right side, so the inner widgets keep full width (no horizontal inset). */
+/* Tab container tile: an OPEN frame — top/bottom rules with rounded corner
+ * brackets, no full left/right side, so the inner widgets keep full width.
+ * The ::before/::after are short "caps" (top + bottom) that draw the corner
+ * brackets and leave the middle of the sides open. */
 .canvas-widget.is-tab {
+  position: relative;
   background: transparent;
-  border: 1px solid var(--sw-line);
-  border-left-color: transparent;
-  border-right-color: transparent;
+  border: none;
   border-radius: 9px;
+  overflow: visible;
 }
-.canvas-widget.is-tab:hover { border-top-color: var(--sw-line-2); border-bottom-color: var(--sw-line-2); }
-.canvas-widget.is-tab.selected {
-  border-left-color: transparent;
-  border-right-color: transparent;
-  border-top-color: var(--sw-accent);
-  border-bottom-color: var(--sw-accent);
-  box-shadow: none;
+.canvas-widget.is-tab::before,
+.canvas-widget.is-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 13px;
+  border: 1px solid var(--sw-line);
+  pointer-events: none;
 }
+.canvas-widget.is-tab::before { top: 0; border-bottom: none; border-radius: 9px 9px 0 0; }
+.canvas-widget.is-tab::after { bottom: 0; border-top: none; border-radius: 0 0 9px 9px; }
+.canvas-widget.is-tab:hover::before,
+.canvas-widget.is-tab:hover::after { border-color: var(--sw-line-2); }
+.canvas-widget.is-tab.selected::before,
+.canvas-widget.is-tab.selected::after { border-color: var(--sw-accent); }
+.canvas-widget.is-tab.selected { box-shadow: none; }
 .canvas-widget.is-tab > .cw-head {
   background: transparent;
   border-bottom: none;
+  border-left: none;
 }
 .canvas-widget.is-tab .cw-tab-title { color: var(--sw-fg-3); font-weight: 600; }
 /* Segmented tab bar (switch the active panel) — pill group like the Inspect tabs. */
@@ -6255,7 +6380,11 @@ const namingTest = computed<NamingTestResult>(() => {
   display: flex;
   flex-direction: column;
   background: var(--sw-bg-1);
-  border-left: 1px solid var(--sw-line);
+  /* Butts flush UNDER the sticky header (positionDrawer starts it at the
+   * header's bottom) and carries borders on every edge so the header + drawer
+   * read as one connected editor surface, not two floating pieces. */
+  border: 1px solid var(--sw-line);
+  border-top: none;
   /* Pinned to the viewport (positionDrawer sets top/left/width/height) so the
    * editor is always fully visible IN PLACE wherever you click in the canvas,
    * overlaying the reserved grid column — a sticky drawer clips past the bottom
