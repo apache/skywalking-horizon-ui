@@ -127,18 +127,19 @@ export interface DashboardWidget {
    *  `line` renders one labeled series per expression; `top` treats
    *  every expression as a switchable view (see `expressionLabels`). A
    *  `tab` container has none of its own — it carries an empty array and
-   *  defers to its `tabs` children. */
+   *  defers to the widgets inside its `tabs`. */
   expressions: string[];
   /**
-   * `tab` container ONLY: the child widgets, one per tab. Each child is a
-   * full {@link DashboardWidget} (card / line / top / table / record) with
-   * its own `type` / `expressions` / `unit` / `visibleWhen`; the tab label
-   * is the child's `title`. One level deep — a child must NOT itself be a
-   * `tab`. A child's `span` / `rowSpan` are ignored: the container owns the
-   * grid slot and the active child fills it. Only the active tab's child is
-   * queried (lazy); switching tabs fetches the newly-active child.
+   * `tab` container ONLY: the named tab panels. Each {@link DashboardTab} is
+   * just a `name` plus its own set of `widgets` — its own little dashboard.
+   * Switching the active tab swaps the whole sub-grid; only the active tab's
+   * widgets are queried (lazy). The widgets inside a tab are ordinary
+   * widgets (card / line / top / table / record) and must NOT themselves be
+   * `tab` (one level deep). The container occupies one grid slot
+   * (`span` / `rowSpan`); each tab's widgets lay out in a 12-col sub-grid
+   * inside it.
    */
-  tabs?: DashboardWidget[];
+  tabs?: DashboardTab[];
   /**
    * Optional human-readable label per entry in `expressions`. For
    * `top` widgets these drive the in-widget switcher tabs (e.g.
@@ -233,6 +234,19 @@ export interface DashboardWidget {
   y?: number;
   w?: number;
   h?: number;
+}
+
+/**
+ * One tab panel inside a `tab` widget: a `name` plus its own set of widgets.
+ * A tab carries no MQE of its own — its content is entirely the `widgets` it
+ * holds, which lay out in a 12-col sub-grid when the tab is active. Switching
+ * the active tab swaps the whole set; only the active tab's widgets are queried.
+ */
+export interface DashboardTab {
+  /** Tab label shown in the tab bar. */
+  name: string;
+  /** The widgets shown while this tab is active. Ordinary widgets — never `tab`. */
+  widgets: DashboardWidget[];
 }
 
 export interface DashboardConfig {

@@ -45,6 +45,7 @@ export type {
   DashboardResponse,
   DashboardScope,
   DashboardSeries,
+  DashboardTab,
   DashboardTopItem,
   DashboardTableRow,
   DashboardWidget,

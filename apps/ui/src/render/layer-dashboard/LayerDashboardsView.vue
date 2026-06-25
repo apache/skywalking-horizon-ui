@@ -406,30 +406,28 @@ const noEntityToChart = computed<boolean>(() => {
   return false;
 });
 // Active tab per `tab`-type widget (by widget id; default first tab). Owned
-// here because it drives the lazy flatten below — only the active child is
-// queried. Declared above its consumer (widgetsForQuery) per the TDZ rule.
+// here because it drives the lazy flatten below — only the active tab's
+// widgets are queried. Declared above its consumer (widgetsForQuery) per the
+// TDZ rule.
 const activeTabByWidget = ref<Record<string, number>>({});
 function activeTabIndex(widgetId: string): number {
   return activeTabByWidget.value[widgetId] ?? 0;
 }
-function activeTabChild(w: DashboardWidget): DashboardWidget | null {
-  if (w.type !== 'tab') return null;
-  const list = w.tabs ?? [];
-  return list[activeTabIndex(w.id)] ?? list[0] ?? null;
+function activeTabWidgets(w: DashboardWidget): DashboardWidget[] {
+  if (w.type !== 'tab') return [];
+  const tabs = w.tabs ?? [];
+  const tab = tabs[activeTabIndex(w.id)] ?? tabs[0];
+  return tab?.widgets ?? [];
 }
 function setActiveTab(widgetId: string, index: number): void {
   activeTabByWidget.value = { ...activeTabByWidget.value, [widgetId]: index };
 }
-// Lazy flatten: a `tab` widget contributes ONLY its active child to the
-// metrics request, so inactive tabs never hit OAP. Switching a tab changes
-// this list → the query refires for the newly-active child (and vue-query
-// keeps the prior child's response warm, so switching back is instant).
+// Lazy flatten: a `tab` widget contributes ONLY its active tab's widgets to
+// the metrics request, so inactive tabs never hit OAP. Switching a tab changes
+// this list → the query refires for the newly-active tab's widgets (and
+// vue-query keeps the prior tab's response warm, so switching back is instant).
 const widgetsForQuery = computed<DashboardWidget[]>(() =>
-  (config.value?.widgets ?? []).flatMap((w) => {
-    if (w.type !== 'tab') return [w];
-    const child = activeTabChild(w);
-    return child ? [child] : [];
-  }),
+  (config.value?.widgets ?? []).flatMap((w) => (w.type === 'tab' ? activeTabWidgets(w) : [w])),
 );
 // Hold the metrics fetch until the config bundle has resolved WITH widgets.
 // A resolved-but-empty config means "no dashboard for this layer/scope",
@@ -1244,8 +1242,8 @@ function isHidden(id: string): boolean {
             <TabWidget
               :widget="w"
               :active-index="activeTabIndex(w.id)"
-              :result="resultsById.get(activeTabChild(w)?.id ?? '')"
-              :is-fetching="isFetching && !resultsById.has(activeTabChild(w)?.id ?? '')"
+              :results="resultsById"
+              :is-fetching="isFetching"
               @switch="setActiveTab(w.id, $event)"
             />
           </template>
