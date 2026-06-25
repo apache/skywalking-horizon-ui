@@ -1670,17 +1670,27 @@ function isHidden(id: string): boolean {
   overflow: hidden;
 }
 /* Tab container (runtime): no title (the tab bar is the header). The boundary is
- * drawn as an INSET box-shadow + outline — it marks the tab's extent without
- * occupying layout width, so the inner widgets stay flush-aligned. */
+ * top + bottom rules with four rounded corner brackets and NO left/right side —
+ * drawn as absolute caps so it takes no layout width and the inner widgets stay
+ * flush-aligned. */
 .widget.is-tab {
+  position: relative;
   background: transparent;
   border: none;
-  border-radius: 8px;
-  box-shadow: inset 0 0 0 1px var(--sw-line);
-  overflow: hidden;
+  overflow: visible;
 }
-/* Flush so the boundary takes no layout width; the tab strip / grid own their
- * own small vertical breathing room. */
+.widget.is-tab::before,
+.widget.is-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  border: 1px solid var(--sw-line);
+  pointer-events: none;
+}
+.widget.is-tab::before { top: 0; border-bottom: none; border-radius: 8px 8px 0 0; }
+.widget.is-tab::after { bottom: 0; border-top: none; border-radius: 0 0 8px 8px; }
 .widget.is-tab > .w-body { padding: 0; }
 .w-head {
   display: flex;
