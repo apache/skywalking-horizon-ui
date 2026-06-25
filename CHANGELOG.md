@@ -37,6 +37,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ### Layer dashboard editor
 
+- **New `tab` widget — several widgets in one grid slot, shown as switchable tabs.** A layer dashboard widget can now be a `tab` container that holds any number of full widgets (card / line / top / table) as tabs in a single slot, with only the active tab queried — switching a tab loads its data on demand and keeps it warm, so flipping back is instant. Author it in the Layer dashboards admin: set a widget's type to `tab`, then add / rename / reorder / delete its tabs from a chip strip, editing each tab as its own full widget (its own type, MQE expressions, unit, format, visibility); a tab can't nest another tab. Useful for packing related views — traffic / latency / Apdex, or success-rate / error-count — into one dense slot instead of spending three.
 - **The widget editor pins in place beside the canvas and always opens complete.** On the Layer dashboards admin, clicking a widget — anywhere on the board, including the bottom rows — now opens the per-widget editor pinned next to the canvas and fully visible, without scrolling the page (a sticky panel used to get clipped past the bottom of a tall board, hiding the editor's top or its `Up` / `Down` / `Delete` row). The move / delete controls sit in a pinned footer, and the editor tucks away when you scroll up to the scope config above. Adding a widget scrolls the new widget into view, next to the editor that opens for it.
 
 ## 0.7.0

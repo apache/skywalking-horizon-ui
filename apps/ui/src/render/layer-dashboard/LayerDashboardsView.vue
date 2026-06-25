@@ -28,12 +28,13 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { LayerDef, DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
+import TabWidget from '@/render/widgets/TabWidget.vue';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
 import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
@@ -404,7 +405,32 @@ const noEntityToChart = computed<boolean>(() => {
   if (scope.value === 'endpoint') return !endpointResolvable.value;
   return false;
 });
-const widgetsForQuery = computed(() => config.value?.widgets ?? []);
+// Active tab per `tab`-type widget (by widget id; default first tab). Owned
+// here because it drives the lazy flatten below — only the active child is
+// queried. Declared above its consumer (widgetsForQuery) per the TDZ rule.
+const activeTabByWidget = ref<Record<string, number>>({});
+function activeTabIndex(widgetId: string): number {
+  return activeTabByWidget.value[widgetId] ?? 0;
+}
+function activeTabChild(w: DashboardWidget): DashboardWidget | null {
+  if (w.type !== 'tab') return null;
+  const list = w.tabs ?? [];
+  return list[activeTabIndex(w.id)] ?? list[0] ?? null;
+}
+function setActiveTab(widgetId: string, index: number): void {
+  activeTabByWidget.value = { ...activeTabByWidget.value, [widgetId]: index };
+}
+// Lazy flatten: a `tab` widget contributes ONLY its active child to the
+// metrics request, so inactive tabs never hit OAP. Switching a tab changes
+// this list → the query refires for the newly-active child (and vue-query
+// keeps the prior child's response warm, so switching back is instant).
+const widgetsForQuery = computed<DashboardWidget[]>(() =>
+  (config.value?.widgets ?? []).flatMap((w) => {
+    if (w.type !== 'tab') return [w];
+    const child = activeTabChild(w);
+    return child ? [child] : [];
+  }),
+);
 // Hold the metrics fetch until the config bundle has resolved WITH widgets.
 // A resolved-but-empty config means "no dashboard for this layer/scope",
 // so we don't fire (which would otherwise make the BFF substitute its own
@@ -1213,6 +1239,15 @@ function isHidden(id: string): boolean {
               :format="w.format"
             />
             <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
+          </template>
+          <template v-else-if="w.type === 'tab'">
+            <TabWidget
+              :widget="w"
+              :active-index="activeTabIndex(w.id)"
+              :result="resultsById.get(activeTabChild(w)?.id ?? '')"
+              :is-fetching="isFetching && !resultsById.has(activeTabChild(w)?.id ?? '')"
+              @switch="setActiveTab(w.id, $event)"
+            />
           </template>
         </div>
       </div>

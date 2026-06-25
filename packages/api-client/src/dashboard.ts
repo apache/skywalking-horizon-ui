@@ -49,8 +49,11 @@
  *            graph for label-dimensioned meters (pod phase per service,
  *            node condition, deployment replicas, …) that a scalar card
  *            or a time-series line cannot represent.
+ *   tab    — a container: one grid slot holding several full widgets (any
+ *            of the above) shown as switchable tabs. It carries no MQE of
+ *            its own (see `tabs`); only the active tab's child is queried.
  */
-export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table';
+export type DashboardWidgetType = 'card' | 'line' | 'top' | 'record' | 'table' | 'tab';
 
 /**
  * Structured widget visibility predicate. When set on a widget, the BFF
@@ -122,8 +125,20 @@ export interface DashboardWidget {
   type: DashboardWidgetType;
   /** One or more MQE expressions. `card` collapses to a scalar (avg);
    *  `line` renders one labeled series per expression; `top` treats
-   *  every expression as a switchable view (see `expressionLabels`). */
+   *  every expression as a switchable view (see `expressionLabels`). A
+   *  `tab` container has none of its own — it carries an empty array and
+   *  defers to its `tabs` children. */
   expressions: string[];
+  /**
+   * `tab` container ONLY: the child widgets, one per tab. Each child is a
+   * full {@link DashboardWidget} (card / line / top / table / record) with
+   * its own `type` / `expressions` / `unit` / `visibleWhen`; the tab label
+   * is the child's `title`. One level deep — a child must NOT itself be a
+   * `tab`. A child's `span` / `rowSpan` are ignored: the container owns the
+   * grid slot and the active child fills it. Only the active tab's child is
+   * queried (lazy); switching tabs fetches the newly-active child.
+   */
+  tabs?: DashboardWidget[];
   /**
    * Optional human-readable label per entry in `expressions`. For
    * `top` widgets these drive the in-widget switcher tabs (e.g.

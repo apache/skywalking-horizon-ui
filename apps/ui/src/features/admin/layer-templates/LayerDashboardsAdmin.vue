@@ -743,14 +743,22 @@ function moveWidget(i: number, dir: -1 | 1): void {
  * ------------------------------------------------------------------- */
 
 const selectedIdx = ref<number | null>(null);
+/** Which tab of a `tab`-type widget the drawer is editing. `null` = the
+ *  tab container itself (its id / title / layout); a number = that child
+ *  widget. Reset whenever the selected widget / scope changes. */
+const activeTabIdx = ref<number | null>(null);
 /* Re-fit the drawer to the viewport when it opens / the target widget changes
  * (content height differs); the scroll + resize listeners keep it fitted after. */
-watch(selectedIdx, () => void nextTick(positionDrawer));
+watch(selectedIdx, () => {
+  activeTabIdx.value = null;
+  void nextTick(positionDrawer);
+});
 
 /** When the user switches scope or layer we drop the selection so the
  *  drawer doesn't refer to a widget that no longer exists. */
 watch([activeScope, selectedKey], () => {
   selectedIdx.value = null;
+  activeTabIdx.value = null;
 });
 
 const canvasEl = ref<HTMLDivElement | null>(null);
@@ -906,8 +914,72 @@ function selectWidget(i: number): void {
   selectedIdx.value = i;
 }
 
-function setWidgetFormat(v: string): void {
+/** The widget the content form actually edits: the selected widget, OR —
+ *  when it's a `tab` container with a child tab picked — that child. Every
+ *  per-widget content control (id / title / type / expressions / unit /
+ *  format / visibleWhen) binds here, so the SAME form edits a child with
+ *  no duplication. Parent-only controls (span / rowSpan, move / delete)
+ *  stay on `selectedWidget`. Falls back to the container if the child
+ *  index is stale so the form target is never null while a widget is open. */
+const editingWidget = computed<DashboardWidget | null>(() => {
   const w = selectedWidget.value;
+  if (!w) return null;
+  if (w.type === 'tab' && activeTabIdx.value !== null) return w.tabs?.[activeTabIdx.value] ?? w;
+  return w;
+});
+
+/** Type changes run through here so switching a widget TO `tab` seeds its
+ *  first child + clears its own (now meaningless) expressions, and leaving
+ *  `tab` restores an expression slot. A child select never offers `tab`. */
+function onWidgetTypeChange(value: string): void {
+  const w = editingWidget.value;
+  if (!w) return;
+  w.type = value as DashboardWidget['type'];
+  if (w.type === 'tab') {
+    if (!w.tabs || w.tabs.length === 0) {
+      w.tabs = [{ id: `${w.id}_tab_1`, title: 'Tab 1', type: 'card', expressions: [''] }];
+    }
+    w.expressions = [];
+    activeTabIdx.value = null;
+  } else if (!w.expressions || w.expressions.length === 0) {
+    w.expressions = [''];
+  }
+}
+
+/** Nested tab list ops — mirror addWidget / moveWidget / deleteWidget but
+ *  operate on the selected tab container's `tabs` array. */
+function addTab(): void {
+  const w = editingWidget.value;
+  if (!w || w.type !== 'tab') return;
+  const tabs = [...(w.tabs ?? [])];
+  const n = tabs.length + 1;
+  tabs.push({ id: `${w.id}_tab_${n}`, title: `Tab ${n}`, type: 'card', expressions: [''] });
+  w.tabs = tabs;
+  activeTabIdx.value = tabs.length - 1;
+}
+function deleteTab(i: number): void {
+  const w = editingWidget.value;
+  if (!w || !w.tabs) return;
+  const tabs = [...w.tabs];
+  tabs.splice(i, 1);
+  w.tabs = tabs;
+  if (activeTabIdx.value === i) activeTabIdx.value = null;
+  else if (activeTabIdx.value !== null && activeTabIdx.value > i) activeTabIdx.value -= 1;
+}
+function moveTab(i: number, dir: -1 | 1): void {
+  const w = editingWidget.value;
+  if (!w || !w.tabs) return;
+  const tabs = [...w.tabs];
+  const j = i + dir;
+  if (j < 0 || j >= tabs.length) return;
+  [tabs[i], tabs[j]] = [tabs[j], tabs[i]];
+  w.tabs = tabs;
+  if (activeTabIdx.value === i) activeTabIdx.value = j;
+  else if (activeTabIdx.value === j) activeTabIdx.value = i;
+}
+
+function setWidgetFormat(v: string): void {
+  const w = editingWidget.value;
   if (!w) return;
   if (v === 'int' || v === 'decimal' || v === 'compact' || v === 'duration' || v === 'enum') w.format = v;
   else delete w.format;
@@ -916,24 +988,24 @@ function setWidgetFormat(v: string): void {
 // `format: 'enum'` value→label editor — the valueMap is a coded-value → label
 // table (e.g. 1 → OK). Keys are renamed on blur to avoid focus loss mid-edit.
 const valueMapEntries = computed<Array<[string, string]>>(() => {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   return w?.valueMap ? Object.entries(w.valueMap) : [];
 });
 function setValueMapLabel(key: string, label: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   if (!w.valueMap) w.valueMap = {};
   w.valueMap[key] = label;
 }
 function setValueMapKey(oldKey: string, newKey: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w || !w.valueMap || newKey === oldKey || newKey in w.valueMap) return;
   const label = w.valueMap[oldKey];
   delete w.valueMap[oldKey];
   w.valueMap[newKey] = label;
 }
 function addValueMapRow(): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   if (!w.valueMap) w.valueMap = {};
   let k = 0;
@@ -941,7 +1013,7 @@ function addValueMapRow(): void {
   w.valueMap[String(k)] = '';
 }
 function removeValueMapRow(key: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w || !w.valueMap) return;
   delete w.valueMap[key];
   if (Object.keys(w.valueMap).length === 0) delete w.valueMap;
@@ -989,7 +1061,7 @@ async function addAndSelectWidget(): Promise<void> {
  *  multi-series `line` widgets; a single-expression card/line hides
  *  them to keep the row compact. */
 const showExprMeta = computed(() => {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   return !!w && (w.type === 'top' || (w.expressions?.length ?? 0) > 1);
 });
 function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
@@ -998,40 +1070,40 @@ function padTo<T>(arr: T[] | undefined, len: number, fill: T): T[] {
   return a;
 }
 function updateExpr(i: number, v: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   const a = [...w.expressions];
   a[i] = v;
   w.expressions = a;
 }
 function updateExprLabel(i: number, v: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionLabels, w.expressions.length, '');
   a[i] = v;
   w.expressionLabels = a;
 }
 function updateExprUnit(i: number, v: string): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionUnits, w.expressions.length, '');
   a[i] = v;
   w.expressionUnits = a;
 }
 function updateExprAxis(i: number, v: number): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   const a = padTo(w.expressionAxes, w.expressions.length, 0);
   a[i] = v === 1 ? 1 : 0;
   w.expressionAxes = a;
 }
 function addExpr(): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w) return;
   w.expressions = [...w.expressions, ''];
 }
 function removeExpr(i: number): void {
-  const w = selectedWidget.value;
+  const w = editingWidget.value;
   if (!w || w.expressions.length <= 1) return;
   const drop = <T>(arr: T[] | undefined): T[] | undefined =>
     arr ? arr.filter((_, j) => j !== i) : arr;
@@ -1828,12 +1900,12 @@ function visibleWhenHint(scope: DashboardScope): string {
 
 const vwKindModel = computed<VwKind>({
   get() {
-    const vw = selectedWidget.value?.visibleWhen;
+    const vw = editingWidget.value?.visibleWhen;
     if (!vw) return 'none';
     return vw.kind === 'entity' ? 'entity' : 'mqe';
   },
   set(k) {
-    const w = selectedWidget.value;
+    const w = editingWidget.value;
     if (!w) return;
     if (k === 'none') w.visibleWhen = undefined;
     else if (k === 'mqe') w.visibleWhen = { kind: 'mqe', expression: w.expressions?.[0] ?? '', op: 'exists' };
@@ -1842,12 +1914,12 @@ const vwKindModel = computed<VwKind>({
 });
 const vwTarget = computed<string>({
   get() {
-    const vw = selectedWidget.value?.visibleWhen;
+    const vw = editingWidget.value?.visibleWhen;
     if (!vw) return '';
     return vw.kind === 'mqe' ? vw.expression : vw.attribute;
   },
   set(v) {
-    const vw = selectedWidget.value?.visibleWhen;
+    const vw = editingWidget.value?.visibleWhen;
     if (!vw) return;
     if (vw.kind === 'mqe') vw.expression = v;
     else vw.attribute = v;
@@ -1855,10 +1927,10 @@ const vwTarget = computed<string>({
 });
 const vwOp = computed<string>({
   get() {
-    return selectedWidget.value?.visibleWhen?.op ?? 'exists';
+    return editingWidget.value?.visibleWhen?.op ?? 'exists';
   },
   set(op) {
-    const w = selectedWidget.value;
+    const w = editingWidget.value;
     const vw = w?.visibleWhen;
     if (!w || !vw) return;
     if (vw.kind === 'mqe') {
@@ -1875,16 +1947,16 @@ const vwOp = computed<string>({
   },
 });
 const vwNeedsValue = computed(() => {
-  const op = selectedWidget.value?.visibleWhen?.op;
+  const op = editingWidget.value?.visibleWhen?.op;
   return op === 'gt' || op === 'lt' || op === 'eq';
 });
 const vwValue = computed<string>({
   get() {
-    const vw = selectedWidget.value?.visibleWhen;
+    const vw = editingWidget.value?.visibleWhen;
     return vw && 'value' in vw ? String(vw.value) : '';
   },
   set(v) {
-    const vw = selectedWidget.value?.visibleWhen;
+    const vw = editingWidget.value?.visibleWhen;
     if (!vw || !('value' in vw)) return;
     if (vw.kind === 'mqe') vw.value = Number(v) || 0;
     else vw.value = v;
@@ -3800,6 +3872,21 @@ const namingTest = computed<NamingTestResult>(() => {
                       </li>
                     </ul>
                   </template>
+                  <template v-else-if="w.type === 'tab'">
+                    <!-- Container preview: the tab strip. Children render live
+                         on the dashboard; the canvas only shows the structure. -->
+                    <div class="cw-tabs">
+                      <span
+                        v-for="(tab, ti) in w.tabs ?? []"
+                        :key="tab.id"
+                        class="cw-tab"
+                        :class="{ on: ti === 0 }"
+                      >{{ tab.title || tab.id }}</span>
+                    </div>
+                    <p class="cw-tab-hint">
+                      {{ (w.tabs ?? []).length }} tab{{ (w.tabs ?? []).length === 1 ? '' : 's' }} — only the active one is queried
+                    </p>
+                  </template>
                   <p v-else class="cw-empty">
                     Add an MQE expression in the drawer to preview.
                   </p>
@@ -3830,189 +3917,237 @@ const namingTest = computed<NamingTestResult>(() => {
             <aside v-if="selectedWidget" ref="drawerEl" class="drawer">
               <div class="drawer-head">
                 <h4>Edit widget</h4>
-                <span class="sub">{{ scopeLabel(activeScope) }} · #{{ (selectedIdx ?? 0) + 1 }}</span>
+                <span class="sub">{{ scopeLabel(activeScope) }} · #{{ (selectedIdx ?? 0) + 1 }}<template v-if="selectedWidget.type === 'tab'"> · {{ activeTabIdx === null ? 'container' : (editingWidget?.title || `tab ${activeTabIdx + 1}`) }}</template></span>
                 <button class="sw-btn ghost close" type="button" title="Close" @click="selectedIdx = null">✕</button>
               </div>
               <div class="drawer-body">
-                <div class="d-row">
-                  <label>
-                    <span>id</span>
-                    <input class="mono" v-model="selectedWidget.id" />
-                  </label>
-                  <label class="grow">
-                    <span>Title</span>
-                    <input v-model="selectedWidget.title" />
-                  </label>
-                </div>
-                <div class="d-row">
-                  <label class="grow">
-                    <span>Tip (hover hint)</span>
-                    <input v-model="selectedWidget.tip" placeholder="—" />
-                  </label>
-                </div>
-                <div class="d-row">
-                  <label>
-                    <span>Type</span>
-                    <select v-model="selectedWidget.type">
-                      <option value="card">card</option>
-                      <option value="line">line</option>
-                      <option value="top">top</option>
-                      <option value="record">record</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Unit</span>
-                    <input v-model="selectedWidget.unit" placeholder="—" />
-                  </label>
-                  <label>
-                    <span>Format</span>
-                    <select :value="selectedWidget.format ?? ''" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
-                      <option value="">auto</option>
-                      <option value="int">int</option>
-                      <option value="decimal">decimal</option>
-                      <option value="compact">compact</option>
-                      <option value="duration">duration</option>
-                      <option v-if="selectedWidget.type === 'card'" value="enum">enum</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Span</span>
-                    <input type="number" min="1" max="12" v-model.number="selectedWidget.span" />
-                  </label>
-                  <label>
-                    <span>Row span</span>
-                    <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" />
-                  </label>
-                </div>
-                <div v-if="selectedWidget.format === 'enum'" class="d-section">
-                  <span class="d-label">Value map (enum → label)</span>
-                  <div class="vm-rows">
-                    <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
-                      <input
-                        class="mono vm-key"
-                        :value="row[0]"
-                        @change="setValueMapKey(row[0], ($event.target as HTMLInputElement).value)"
-                        placeholder="0"
-                      />
-                      <span class="vm-arrow">→</span>
-                      <input
-                        class="vm-label"
-                        :value="row[1]"
-                        @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
-                        placeholder="Failed"
-                      />
-                      <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
-                    </div>
+                <!-- Tab container: a chip strip switches the form below between
+                     the container itself (⚙) and each child tab. Editing a chip
+                     re-points `editingWidget`, so the same form edits the child. -->
+                <div v-if="selectedWidget.type === 'tab'" class="d-section tab-editor">
+                  <span class="d-label">Tabs</span>
+                  <div class="tab-chips">
+                    <button
+                      type="button"
+                      class="tab-chip cfg"
+                      :class="{ on: activeTabIdx === null }"
+                      title="Edit the container (title, layout)"
+                      @click="activeTabIdx = null"
+                    >⚙ Container</button>
+                    <button
+                      v-for="(tab, i) in selectedWidget.tabs ?? []"
+                      :key="tab.id"
+                      type="button"
+                      class="tab-chip"
+                      :class="{ on: activeTabIdx === i }"
+                      @click="activeTabIdx = i"
+                    >
+                      <span class="tc-name">{{ tab.title || tab.id }}</span>
+                      <span class="tc-acts">
+                        <span class="tc-mv" title="Move left" @click.stop="moveTab(i, -1)">‹</span>
+                        <span class="tc-mv" title="Move right" @click.stop="moveTab(i, 1)">›</span>
+                        <span class="tc-del" title="Delete tab" @click.stop="deleteTab(i)">×</span>
+                      </span>
+                    </button>
+                    <button type="button" class="sw-btn ghost small" @click="addTab">+ tab</button>
                   </div>
-                  <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
-                  <p class="d-hint">Map a coded value to a label (e.g. 1 → OK). Card widgets only; labels are translatable per locale.</p>
+                  <p class="d-hint">Each tab is a full widget. Only the active tab is queried — switching loads it on demand.</p>
                 </div>
-                <div class="d-section">
-                  <span class="d-label">MQE expressions</span>
-                  <div v-if="showExprMeta" class="expr-cols">
-                    <span class="expr-col-mqe">expression</span>
-                    <span class="expr-col-label">{{ selectedWidget.type === 'top' ? 'tab label' : 'series label' }}</span>
-                    <span class="expr-col-unit">unit</span>
-                    <span v-if="selectedWidget.type === 'line'" class="expr-col-axis">axis</span>
-                    <span class="expr-col-del"></span>
+
+                <template v-if="editingWidget">
+                  <div class="d-row">
+                    <label>
+                      <span>id</span>
+                      <input class="mono" v-model="editingWidget.id" />
+                    </label>
+                    <label class="grow">
+                      <span>Title</span>
+                      <input v-model="editingWidget.title" />
+                    </label>
                   </div>
-                  <div class="expr-rows">
-                    <div v-for="(expr, i) in selectedWidget.expressions" :key="i" class="expr-row">
-                      <MqeExpressionInput
-                        class="expr-mqe"
-                        :model-value="expr"
-                        placeholder="instance_jvm_cpu"
-                        :title="`Expression ${i + 1}`"
-                        @update:model-value="updateExpr(i, $event)"
-                      />
-                      <input
-                        v-if="showExprMeta"
-                        class="expr-label"
-                        :value="selectedWidget.expressionLabels?.[i] ?? ''"
-                        @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
-                        :placeholder="selectedWidget.type === 'top' ? 'Traffic' : 'p99'"
-                      />
-                      <input
-                        v-if="showExprMeta"
-                        class="mono expr-unit"
-                        :value="selectedWidget.expressionUnits?.[i] ?? ''"
-                        @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
-                        :placeholder="selectedWidget.unit || 'ms'"
-                      />
-                      <select
-                        v-if="showExprMeta && selectedWidget.type === 'line'"
-                        class="mono expr-axis"
-                        :value="String(selectedWidget.expressionAxes?.[i] ?? 0)"
-                        @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
-                        title="Y-axis (Left / Right) — for dual-axis line widgets"
-                      >
-                        <option value="0">L</option>
-                        <option value="1">R</option>
+                  <div class="d-row">
+                    <label class="grow">
+                      <span>Tip (hover hint)</span>
+                      <input v-model="editingWidget.tip" placeholder="—" />
+                    </label>
+                  </div>
+                  <div class="d-row">
+                    <label>
+                      <span>Type</span>
+                      <select :value="editingWidget.type" @change="onWidgetTypeChange(($event.target as HTMLSelectElement).value)">
+                        <option value="card">card</option>
+                        <option value="line">line</option>
+                        <option value="top">top</option>
+                        <option value="record">record</option>
+                        <!-- A tab can't nest a tab — offer the container type at top level only. -->
+                        <option v-if="activeTabIdx === null" value="tab">tab</option>
                       </select>
-                      <button
-                        type="button"
-                        class="expr-del"
-                        title="Remove expression"
-                        :disabled="selectedWidget.expressions.length <= 1"
-                        @click="removeExpr(i)"
-                      >×</button>
-                    </div>
-                  </div>
-                  <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">+ expression</button>
-                  <p class="d-hint">
-                    For <code>top</code> widgets each expression is a switchable tab; for
-                    <code>line</code> each is a series. Label / unit / axis apply per expression.
-                  </p>
-                </div>
-                <div class="d-section">
-                  <span class="d-label" :title="visibleWhenHint(activeScope)">
-                    Visible when (optional)
-                  </span>
-                  <div class="vw-row">
-                    <select class="mono" v-model="vwKindModel">
-                      <option value="none">Always visible</option>
-                      <option value="mqe">MQE metric…</option>
-                      <option value="entity">Entity attribute…</option>
-                    </select>
-                    <template v-if="vwKindModel === 'mqe'">
-                      <MqeExpressionInput
-                        class="vw-target"
-                        v-model="vwTarget"
-                        placeholder="instance_jvm_cpu"
-                        title="Gate expression"
-                      />
-                      <select class="mono" v-model="vwOp">
-                        <option value="exists">has value</option>
-                        <option value="gt">&gt;</option>
-                        <option value="lt">&lt;</option>
-                      </select>
+                    </label>
+                    <template v-if="editingWidget.type !== 'tab'">
+                      <label>
+                        <span>Unit</span>
+                        <input v-model="editingWidget.unit" placeholder="—" />
+                      </label>
+                      <label>
+                        <span>Format</span>
+                        <select :value="editingWidget.format ?? ''" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
+                          <option value="">auto</option>
+                          <option value="int">int</option>
+                          <option value="decimal">decimal</option>
+                          <option value="compact">compact</option>
+                          <option value="duration">duration</option>
+                          <option v-if="editingWidget.type === 'card'" value="enum">enum</option>
+                        </select>
+                      </label>
                     </template>
-                    <template v-else-if="vwKindModel === 'entity'">
-                      <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
-                      <select class="mono" v-model="vwOp">
-                        <option value="exists">exists</option>
-                        <option value="eq">equals</option>
-                      </select>
+                    <!-- Span / row span size the grid SLOT — owned by the container,
+                         never a child tab; only shown when editing the top widget. -->
+                    <template v-if="activeTabIdx === null">
+                      <label>
+                        <span>Span</span>
+                        <input type="number" min="1" max="12" v-model.number="selectedWidget.span" />
+                      </label>
+                      <label>
+                        <span>Row span</span>
+                        <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" />
+                      </label>
                     </template>
-                    <input
-                      v-if="vwNeedsValue"
-                      class="mono vw-val"
-                      v-model="vwValue"
-                      :type="vwKindModel === 'mqe' ? 'number' : 'text'"
-                      :placeholder="vwKindModel === 'entity' ? 'JAVA' : '0'"
-                    />
                   </div>
-                  <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
-                    Set a metric expression — an empty gate is ignored and the widget always shows.
-                  </p>
-                  <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
-                </div>
-                <div class="d-section">
-                  <label class="d-check">
-                    <input type="checkbox" v-model="selectedWidget.layerScope" />
-                    <span>Layer-scoped (run MQE across the whole layer, ignore selected service)</span>
-                  </label>
-                </div>
+
+                  <!-- A tab CONTAINER carries no MQE / format / gate of its own —
+                       those belong to its children. Everything below is per-leaf. -->
+                  <template v-if="editingWidget.type !== 'tab'">
+                    <div v-if="editingWidget.format === 'enum'" class="d-section">
+                      <span class="d-label">Value map (enum → label)</span>
+                      <div class="vm-rows">
+                        <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
+                          <input
+                            class="mono vm-key"
+                            :value="row[0]"
+                            @change="setValueMapKey(row[0], ($event.target as HTMLInputElement).value)"
+                            placeholder="0"
+                          />
+                          <span class="vm-arrow">→</span>
+                          <input
+                            class="vm-label"
+                            :value="row[1]"
+                            @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
+                            placeholder="Failed"
+                          />
+                          <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
+                        </div>
+                      </div>
+                      <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
+                      <p class="d-hint">Map a coded value to a label (e.g. 1 → OK). Card widgets only; labels are translatable per locale.</p>
+                    </div>
+                    <div class="d-section">
+                      <span class="d-label">MQE expressions</span>
+                      <div v-if="showExprMeta" class="expr-cols">
+                        <span class="expr-col-mqe">expression</span>
+                        <span class="expr-col-label">{{ editingWidget.type === 'top' ? 'tab label' : 'series label' }}</span>
+                        <span class="expr-col-unit">unit</span>
+                        <span v-if="editingWidget.type === 'line'" class="expr-col-axis">axis</span>
+                        <span class="expr-col-del"></span>
+                      </div>
+                      <div class="expr-rows">
+                        <div v-for="(expr, i) in editingWidget.expressions" :key="i" class="expr-row">
+                          <MqeExpressionInput
+                            class="expr-mqe"
+                            :model-value="expr"
+                            placeholder="instance_jvm_cpu"
+                            :title="`Expression ${i + 1}`"
+                            @update:model-value="updateExpr(i, $event)"
+                          />
+                          <input
+                            v-if="showExprMeta"
+                            class="expr-label"
+                            :value="editingWidget.expressionLabels?.[i] ?? ''"
+                            @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
+                            :placeholder="editingWidget.type === 'top' ? 'Traffic' : 'p99'"
+                          />
+                          <input
+                            v-if="showExprMeta"
+                            class="mono expr-unit"
+                            :value="editingWidget.expressionUnits?.[i] ?? ''"
+                            @input="updateExprUnit(i, ($event.target as HTMLInputElement).value)"
+                            :placeholder="editingWidget.unit || 'ms'"
+                          />
+                          <select
+                            v-if="showExprMeta && editingWidget.type === 'line'"
+                            class="mono expr-axis"
+                            :value="String(editingWidget.expressionAxes?.[i] ?? 0)"
+                            @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
+                            title="Y-axis (Left / Right) — for dual-axis line widgets"
+                          >
+                            <option value="0">L</option>
+                            <option value="1">R</option>
+                          </select>
+                          <button
+                            type="button"
+                            class="expr-del"
+                            title="Remove expression"
+                            :disabled="editingWidget.expressions.length <= 1"
+                            @click="removeExpr(i)"
+                          >×</button>
+                        </div>
+                      </div>
+                      <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">+ expression</button>
+                      <p class="d-hint">
+                        For <code>top</code> widgets each expression is a switchable tab; for
+                        <code>line</code> each is a series. Label / unit / axis apply per expression.
+                      </p>
+                    </div>
+                    <div class="d-section">
+                      <span class="d-label" :title="visibleWhenHint(activeScope)">
+                        Visible when (optional)
+                      </span>
+                      <div class="vw-row">
+                        <select class="mono" v-model="vwKindModel">
+                          <option value="none">Always visible</option>
+                          <option value="mqe">MQE metric…</option>
+                          <option value="entity">Entity attribute…</option>
+                        </select>
+                        <template v-if="vwKindModel === 'mqe'">
+                          <MqeExpressionInput
+                            class="vw-target"
+                            v-model="vwTarget"
+                            placeholder="instance_jvm_cpu"
+                            title="Gate expression"
+                          />
+                          <select class="mono" v-model="vwOp">
+                            <option value="exists">has value</option>
+                            <option value="gt">&gt;</option>
+                            <option value="lt">&lt;</option>
+                          </select>
+                        </template>
+                        <template v-else-if="vwKindModel === 'entity'">
+                          <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
+                          <select class="mono" v-model="vwOp">
+                            <option value="exists">exists</option>
+                            <option value="eq">equals</option>
+                          </select>
+                        </template>
+                        <input
+                          v-if="vwNeedsValue"
+                          class="mono vw-val"
+                          v-model="vwValue"
+                          :type="vwKindModel === 'mqe' ? 'number' : 'text'"
+                          :placeholder="vwKindModel === 'entity' ? 'JAVA' : '0'"
+                        />
+                      </div>
+                      <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
+                        Set a metric expression — an empty gate is ignored and the widget always shows.
+                      </p>
+                      <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
+                    </div>
+                    <div class="d-section">
+                      <label class="d-check">
+                        <input type="checkbox" v-model="editingWidget.layerScope" />
+                        <span>Layer-scoped (run MQE across the whole layer, ignore selected service)</span>
+                      </label>
+                    </div>
+                  </template>
+                </template>
               </div>
               <!-- Pinned footer: move/delete stay visible no matter how long
                    the form scrolls (the body above owns the overflow). -->
@@ -5458,6 +5593,32 @@ const namingTest = computed<NamingTestResult>(() => {
 .cw-type.t-top    { color: #a78bfa; background: rgba(167, 139, 250, 0.12); }
 .cw-type.t-card   { color: var(--sw-accent-2); background: var(--sw-accent-soft); }
 .cw-type.t-record { color: #22d3ee; background: rgba(34, 211, 238, 0.12); }
+.cw-type.t-tab    { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+.cw-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 2px 0 6px;
+  border-bottom: 1px solid var(--sw-line);
+}
+.cw-tab {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+  white-space: nowrap;
+}
+.cw-tab.on {
+  background: var(--sw-bg-3);
+  color: var(--sw-fg-0);
+  font-weight: 600;
+}
+.cw-tab-hint {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
 .cw-body {
   flex: 1;
   min-height: 0;
@@ -5746,6 +5907,61 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-3);
   margin: 2px 0 0;
   line-height: 1.4;
+}
+/* Tab-container editor: chip strip selecting the container or a child tab. */
+.tab-editor .tab-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+.tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  font-size: 11px;
+  border: 1px solid var(--sw-line);
+  border-radius: 4px;
+  background: var(--sw-bg-1);
+  color: var(--sw-fg-2);
+  cursor: pointer;
+}
+.tab-chip:hover {
+  border-color: var(--sw-line-2);
+  color: var(--sw-fg-1);
+}
+.tab-chip.on {
+  background: var(--sw-bg-3);
+  border-color: var(--sw-accent);
+  color: var(--sw-fg-0);
+  font-weight: 600;
+}
+.tab-chip.cfg {
+  color: var(--sw-fg-3);
+}
+.tab-chip .tc-acts {
+  display: inline-flex;
+  gap: 3px;
+  opacity: 0.6;
+}
+.tab-chip:hover .tc-acts {
+  opacity: 1;
+}
+.tab-chip .tc-mv,
+.tab-chip .tc-del {
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+.tab-chip .tc-mv:hover {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-0);
+}
+.tab-chip .tc-del:hover {
+  background: var(--sw-err-soft, rgba(239, 68, 68, 0.15));
+  color: var(--sw-err);
 }
 .d-hint code {
   font-family: var(--sw-mono);

@@ -191,8 +191,9 @@ A layer without an explicit `instance` widget set will reuse `service` widgets o
 | `id` | Unique widget id within the dashboard. |
 | `title` | Widget title shown in the card header. |
 | `tip` | Optional hover hint. |
-| `type` | Widget kind, usually `card`, `line`, `top`, `record`, or `table`. |
-| `expressions[]` | MQE expressions to run. |
+| `type` | Widget kind, usually `card`, `line`, `top`, `record`, `table`, or `tab` (a container holding several widgets as switchable tabs — see [Tab widgets](#tab-widgets)). |
+| `tabs[]` | `tab` widgets only: the child widgets, one per tab. Each child is a full widget object. |
+| `expressions[]` | MQE expressions to run. A `tab` container has none of its own. |
 | `expressionLabels[]` | Tab labels for `top`, legend labels for `line`. |
 | `expressionUnits[]` | Per-expression unit override. |
 | `expressionAxes[]` | `0` for left axis, `1` for right axis on dual-axis line charts. |
@@ -225,6 +226,31 @@ The widget type **must match the MQE shape**:
 - Database-shaped record returns → `type: record`.
 
 A `line` widget with a scalar-collapsed MQE renders a one-point chart and confuses operators. The widget editor warns; the schema does not enforce.
+
+### Tab widgets
+
+A `tab` widget packs several widgets into one grid slot, shown as switchable tabs. Use it when several related views — traffic / latency / Apdex, or success-rate / error-count — belong together but you don't want to spend three slots on them.
+
+Each tab is a **full widget** with its own type (`card` / `line` / `top` / `table`), MQE expressions, unit, format, and visibility. The tab's label is its `title`. Only the **active** tab is queried — switching to a tab loads its data on demand and then keeps it warm, so an unopened tab costs nothing and flipping back is instant. A tab cannot contain another tab (one level deep).
+
+To author one in the admin: add a widget, set its **Type** to `tab`, then use the **Tabs** chip strip to add, rename, reorder, or remove tabs — selecting a chip edits that tab as its own widget; the **⚙ Container** chip edits the container's title and grid size (the container owns the slot; a child's own `span` / `rowSpan` are ignored).
+
+The stored shape — a container with empty `expressions` and a `tabs[]` array of child widgets:
+
+```json
+{
+  "id": "svc_signals",
+  "title": "Service signals",
+  "type": "tab",
+  "span": 6,
+  "rowSpan": 3,
+  "tabs": [
+    { "id": "sig_traffic", "title": "Traffic", "type": "line", "unit": "rpm", "expressions": ["service_cpm"] },
+    { "id": "sig_latency", "title": "Latency", "type": "line", "unit": "ms", "expressions": ["service_resp_time"] },
+    { "id": "sig_apdex", "title": "Apdex", "type": "card", "format": "decimal", "expressions": ["service_apdex/10000"] }
+  ]
+}
+```
 
 ## `topology`
 
