@@ -64,12 +64,13 @@ const effectiveIndex = computed<number>(() => {
 });
 const activeTab = computed<DashboardTab | null>(() => tabs.value[effectiveIndex.value] ?? null);
 const activeWidgets = computed<DashboardWidget[]>(() => activeTab.value?.widgets ?? []);
-// `visibleWhen`-gated children come back flagged `hidden: true` from the BFF —
-// drop them from the sub-grid (same as the top-level grid's isHidden filter).
-// This affects only the widgets INSIDE the tab; the tab container's slot is
-// unchanged. A widget with no result yet (still loading) is NOT hidden.
+// `visibleWhen`-gated children are filtered by the HOST's canonical rule
+// (`host.isHidden`) — NOT a local primary-only check. That rule is single-
+// entity in normal mode and a per-entity UNION in compare mode (a child hidden
+// for the primary but valid for another locked entity stays visible). This
+// affects only the widgets INSIDE the tab; the tab container's slot is unchanged.
 const visibleWidgets = computed<DashboardWidget[]>(() =>
-  activeWidgets.value.filter((w) => props.results.get(w.id)?.hidden !== true),
+  activeWidgets.value.filter((w) => !props.host.isHidden(w.id)),
 );
 /** Compare helpers when a cohort is locked, else null (single-entity view). */
 const compare = computed(() => (props.compareMode ? props.host.compare : null));

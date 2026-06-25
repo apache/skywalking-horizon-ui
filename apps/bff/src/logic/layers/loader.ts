@@ -583,21 +583,33 @@ export function topNOrderOf(
  *  Enriches `top` / `record` widgets with the resolved `topNOrder` (from
  *  their first `top_n(…)`) so the multi-entity compare grid merges the
  *  per-entity "All" list in the MQE's own direction — without the UI parsing
- *  MQE or inferring asc/des from one entity's (possibly flat) values. */
+ *  MQE or inferring asc/des from one entity's (possibly flat) values. Tab
+ *  panels carry top / record widgets too, so the enrichment recurses into a
+ *  `tab` container's children (else a `top_n(…, asc)` inside a tab loses its
+ *  declared direction and the compare "All" group sorts descending). */
 export function widgetsForScope(
   template: LayerTemplate,
   scope: DashboardScope,
 ): DashboardWidget[] {
   const d = template.dashboards;
   const raw = !d ? (template.widgets ?? []) : (d[scope] ?? d.service ?? template.widgets ?? []);
-  // Pass the resolved array straight through unless a top / record widget
-  // needs its sort direction resolved — keeps the common case allocation-free
-  // (and reference-stable) and only copies the widgets that gain `topNOrder`.
-  if (!raw.some((w) => w.type === 'top' || w.type === 'record')) return raw;
-  return raw.map((w) => {
+  const enrichLeaf = (w: DashboardWidget): DashboardWidget => {
     if (w.type !== 'top' && w.type !== 'record') return w;
     const order = topNOrderOf(w.expressions);
     return order ? { ...w, topNOrder: order } : w;
+  };
+  const tabHasTopRecord = (w: DashboardWidget): boolean =>
+    w.type === 'tab' && (w.tabs ?? []).some((t) => t.widgets.some((c) => c.type === 'top' || c.type === 'record'));
+  // Pass the resolved array straight through unless some top / record widget
+  // (top-level OR inside a tab) needs its sort direction resolved — keeps the
+  // common case allocation-free (and reference-stable).
+  if (!raw.some((w) => w.type === 'top' || w.type === 'record' || tabHasTopRecord(w))) return raw;
+  return raw.map((w) => {
+    if (w.type === 'tab') {
+      if (!tabHasTopRecord(w)) return w;
+      return { ...w, tabs: (w.tabs ?? []).map((t) => ({ ...t, widgets: t.widgets.map(enrichLeaf) })) };
+    }
+    return enrichLeaf(w);
   });
 }
 

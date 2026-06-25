@@ -29,6 +29,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import type { LayerDef, DashboardWidget } from '@skywalking-horizon-ui/api-client';
+import { findWidgetById } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
@@ -701,7 +702,10 @@ interface TopGroup {
 // without an explicit order.
 function multiTopGroups(wid: string): TopGroup[] {
   const ents = compareEntities.value;
-  const desc = widgets.value.find((w) => w.id === wid)?.topNOrder !== 'asc';
+  // Resolve across the WHOLE tree — a `top_n(…, asc|des)` top/record widget can
+  // live inside a tab panel, and its `topNOrder` (enriched BFF-side) drives the
+  // compare "All" sort. A top-level-only lookup defaults a tab child to des.
+  const desc = findWidgetById(widgets.value, wid)?.topNOrder !== 'asc';
   const all: TopItem[] = ents.flatMap((e) =>
     topItemsFor(wid, e).map((it) => ({ name: `${entityLabel(e)} · ${it.name}`, value: it.value })),
   );
@@ -878,6 +882,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
   setTopListRef,
   popOutTopList,
   hasTopData,
+  isHidden,
   compare: compareMode.value
     ? {
         entities: compareEntities.value,

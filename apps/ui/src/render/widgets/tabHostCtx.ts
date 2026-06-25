@@ -72,5 +72,10 @@ export interface TabHostCtx {
   setTopListRef: (id: string, el: unknown) => void;
   popOutTopList: (id: string) => void;
   hasTopData: (w: DashboardWidget) => boolean;
+  /** The host's canonical `visibleWhen` filter — single-entity: hidden when the
+   *  primary result is flagged; compare: hidden only when EVERY locked entity
+   *  reports hidden (union). A tab child must use this exact rule, not a
+   *  primary-only check, or a child valid for a non-primary entity vanishes. */
+  isHidden: (id: string) => boolean;
   compare: TabCompareCtx | null;
 }

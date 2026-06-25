@@ -45,6 +45,7 @@ import type {
   TopologyConfig,
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
+import { collectWidgetIds } from '@skywalking-horizon-ui/api-client';
 
 /** Admin-only scopes that aren't dashboard-widget scopes. `networkProfiling`
  *  is the process-topology edge editor; `deployment` is the
@@ -710,24 +711,18 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
 }
 
 /** Every widget id currently in the draft — across ALL scopes and inside every
- *  tab panel. Widget ids are the wire key the runtime results are addressed by
- *  (`resultsById.set(r.id, r)`), so a collision makes two tiles render the same
- *  data. Count-based ids (`widget_${length+1}`) collide after a delete + re-add
- *  (the freed suffix is reused), so generators below scan this set instead. */
+ *  tab panel (via the shared `collectWidgetIds` tree-walk). Widget ids are the
+ *  wire key the runtime results are addressed by (`resultsById.set(r.id, r)`),
+ *  so a collision makes two tiles render the same data. Count-based ids
+ *  (`widget_${length+1}`) collide after a delete + re-add (the freed suffix is
+ *  reused), so generators below scan this set instead. */
 function allWidgetIds(): Set<string> {
   const ids = new Set<string>();
   const tpl = draft.template;
   if (!tpl) return ids;
-  const lists: DashboardWidget[][] = [];
   const dashboards = (tpl as unknown as { dashboards?: Record<string, DashboardWidget[]> }).dashboards;
-  if (dashboards) for (const ws of Object.values(dashboards)) lists.push(ws);
-  if (tpl.widgets) lists.push(tpl.widgets);
-  for (const ws of lists) {
-    for (const w of ws) {
-      ids.add(w.id);
-      if (w.tabs) for (const tab of w.tabs) for (const c of tab.widgets) ids.add(c.id);
-    }
-  }
+  if (dashboards) for (const ws of Object.values(dashboards)) collectWidgetIds(ws, ids);
+  if (tpl.widgets) collectWidgetIds(tpl.widgets, ids);
   return ids;
 }
 /** Smallest `${prefix}${k}` (k≥1) not already used as a widget id anywhere in
