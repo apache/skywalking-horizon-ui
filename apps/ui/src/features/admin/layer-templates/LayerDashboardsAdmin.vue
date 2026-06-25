@@ -600,9 +600,29 @@ watch(
 // without resizing the nav, so refresh on those too.
 watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
 function onWinResizeScope(): void { updateScopeScroll(); }
-onMounted(() => window.addEventListener('resize', onWinResizeScope));
+
+// ── Editor drawer height. The drawer is a sticky sidebar that sits below the
+// card header, so a fixed `100vh - 52px` overshoots (the header offsets the
+// drawer's top) and pushes its pinned footer — Up / Down / Delete — below the
+// fold; worst on a short board you can't scroll far enough to pin. Size it to
+// the live space from wherever it currently sits down to the viewport bottom
+// instead, so the footer is always visible. Scroll listens in the capture
+// phase so the inner content pane's scroll (not just window) re-syncs it.
+const drawerEl = ref<HTMLElement | null>(null);
+function syncDrawerHeight(): void {
+  const el = drawerEl.value;
+  if (!el) return;
+  el.style.height = `${Math.max(220, window.innerHeight - el.getBoundingClientRect().top - 8)}px`;
+}
+onMounted(() => {
+  window.addEventListener('resize', onWinResizeScope);
+  window.addEventListener('scroll', syncDrawerHeight, { capture: true, passive: true });
+  window.addEventListener('resize', syncDrawerHeight, { passive: true });
+});
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWinResizeScope);
+  window.removeEventListener('scroll', syncDrawerHeight, { capture: true });
+  window.removeEventListener('resize', syncDrawerHeight);
   scopeResizeObs?.disconnect();
   scopeResizeObs = null;
 });
@@ -688,6 +708,9 @@ function moveWidget(i: number, dir: -1 | 1): void {
  * ------------------------------------------------------------------- */
 
 const selectedIdx = ref<number | null>(null);
+/* Re-fit the drawer to the viewport when it opens / the target widget changes
+ * (content height differs); the scroll + resize listeners keep it fitted after. */
+watch(selectedIdx, () => void nextTick(syncDrawerHeight));
 
 /** When the user switches scope or layer we drop the selection so the
  *  drawer doesn't refer to a widget that no longer exists. */
@@ -910,6 +933,14 @@ async function addAndSelectWidget(): Promise<void> {
   addWidget();
   await nextTick();
   selectedIdx.value = currentWidgets.value.length - 1;
+  await nextTick();
+  /* The new widget is appended at the canvas bottom — on a tall board it lands
+   * below the fold. Scroll it into view so the operator sees the widget next to
+   * the editor that just opened, instead of an empty drawer over off-screen
+   * canvas. block:'center' keeps the editor header + footer in frame too. */
+  canvasEl.value
+    ?.querySelector('.canvas-widget.selected')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 /* ------------------------------------------------------------------- *
@@ -3761,7 +3792,7 @@ const namingTest = computed<NamingTestResult>(() => {
               </div>
             </div>
 
-            <aside v-if="selectedWidget" class="drawer">
+            <aside v-if="selectedWidget" ref="drawerEl" class="drawer">
               <div class="drawer-head">
                 <h4>Edit widget</h4>
                 <span class="sub">{{ scopeLabel(activeScope) }} · #{{ (selectedIdx ?? 0) + 1 }}</span>
@@ -3947,6 +3978,10 @@ const namingTest = computed<NamingTestResult>(() => {
                     <span>Layer-scoped (run MQE across the whole layer, ignore selected service)</span>
                   </label>
                 </div>
+              </div>
+              <!-- Pinned footer: move/delete stay visible no matter how long
+                   the form scrolls (the body above owns the overflow). -->
+              <div class="drawer-foot">
                 <div class="d-actions">
                   <button
                     class="sw-btn"
@@ -5503,7 +5538,10 @@ const namingTest = computed<NamingTestResult>(() => {
   position: sticky;
   top: 0;
   align-self: start;
-  height: calc(100vh - 52px);
+  /* Height is set in JS (syncDrawerHeight) to the live space from the drawer's
+   * top to the viewport bottom, so the pinned footer never falls below the
+   * fold. This calc is just the pre-JS / no-JS fallback. */
+  height: calc(100vh - 96px);
   max-height: calc(100vh - 52px);
 }
 .drawer-head {
@@ -5696,12 +5734,15 @@ const namingTest = computed<NamingTestResult>(() => {
   margin-top: 2px;
   accent-color: var(--sw-accent);
 }
+.drawer-foot {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--sw-line);
+  background: var(--sw-bg-1);
+}
 .d-actions {
   display: flex;
   gap: 6px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--sw-line);
-  margin-top: 4px;
 }
 .d-actions .sw-btn { font-size: 11px; }
 .d-actions .sw-btn.danger { margin-left: auto; }
