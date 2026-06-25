@@ -35,6 +35,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Single-value metrics now render as cards, not flat lines, on several layer dashboards.** Widgets whose expression collapses the window to one number (a `latest(...)` total) had been mis-ported as line charts — drawn as a lone dot that misreads as a time series and shares one axis with an unrelated average trend. Each is now split into a proper single-value **card** (the total) plus a trend **line** (the average), matching the metric's shape, the way booster-ui rendered them. Affects the **Virtual GenAI** (Input / Output Tokens, Estimated Cost — provider and model scopes), **Elasticsearch** (deleted documents), **ClickHouse** (Zookeeper sessions / watches), **RabbitMQ** (connection / publisher / consumer / channel / queue totals, allocated memory), **RocketMQ** (max CommitLog disk ratio, max producer / consumer message size), and **APISIX** (etcd reachability) dashboards; every changed dashboard row still tiles to full width.
 
+### Layer dashboard editor
+
+- **The widget editor's move / delete controls stay reachable.** On the Layer dashboards admin, the per-widget editor's `Up` / `Down` / `Delete` row is now a pinned footer instead of the last thing in a scrolling panel, and the panel sizes itself to the visible area — so Delete no longer slips below the fold on a long form or a short board. Adding a widget also scrolls the new widget into view, next to the editor that opens for it, instead of leaving it off-screen at the bottom of the canvas.
+
 ## 0.7.0
 
 ### Browser errors & source maps
