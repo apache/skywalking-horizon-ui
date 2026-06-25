@@ -219,7 +219,9 @@ function loadingOrEmpty(w: DashboardWidget): string {
 .tw-tab:hover { color: var(--sw-fg-0); }
 .tw-tab.on {
   color: var(--sw-fg-0);
+  background: var(--sw-accent-soft);
   border-bottom-color: var(--sw-accent);
+  border-radius: 6px 6px 0 0;
 }
 /* Content sits flush under the tab line — no side frame, so its widgets align. */
 .tw-panel {

@@ -5936,7 +5936,12 @@ const namingTest = computed<NamingTestResult>(() => {
   white-space: nowrap;
 }
 .seg-pill:hover { color: var(--sw-fg-0); }
-.seg-pill.on { color: var(--sw-fg-0); border-bottom-color: var(--sw-accent); }
+.seg-pill.on {
+  color: var(--sw-fg-0);
+  background: var(--sw-accent-soft);
+  border-bottom-color: var(--sw-accent);
+  border-radius: 6px 6px 0 0;
+}
 .seg-pill .seg-n {
   font-size: 9px;
   font-weight: 500;
