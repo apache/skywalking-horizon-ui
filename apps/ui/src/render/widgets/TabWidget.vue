@@ -204,8 +204,8 @@ function loadingOrEmpty(w: DashboardWidget): string {
   overflow-x: auto;
 }
 .tw-tab {
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 8px 15px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--sw-fg-2);
   background: transparent;

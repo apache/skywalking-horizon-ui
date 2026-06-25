@@ -5930,9 +5930,9 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-2);
   cursor: pointer;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
-  padding: 5px 11px;
+  padding: 8px 14px;
   white-space: nowrap;
 }
 .seg-pill:hover { color: var(--sw-fg-0); }
