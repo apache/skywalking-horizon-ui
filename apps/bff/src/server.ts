@@ -114,8 +114,13 @@ logger.info(
   },
   'config loaded',
 );
-// Template source mode is a boot-time global the sync orchestrator reads.
-setTemplateReadOnly(source.current.templates.mode === 'readonly');
+// Template source mode is fixed at BOOT — it selects the boot-seed/source
+// path (live seeds + reads OAP; readonly skips the seed + renders bundled).
+// A hot-reload flip can't safely take effect (readonly→live would need the
+// boot seed that already ran/was-skipped), so we capture it once and only
+// warn if the file later changes it.
+const bootTemplatesMode = source.current.templates.mode;
+setTemplateReadOnly(bootTemplatesMode === 'readonly');
 if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.length > 0) {
   logger.warn(
     { users: source.current.auth.local.users.length },
@@ -124,7 +129,12 @@ if (source.current.auth.backend === 'ldap' && source.current.auth.local.users.le
 }
 source.onChange((cfg) => {
   logger.info({ backend: cfg.auth.backend, templatesMode: cfg.templates.mode }, 'config reloaded');
-  setTemplateReadOnly(cfg.templates.mode === 'readonly');
+  if (cfg.templates.mode !== bootTemplatesMode) {
+    logger.warn(
+      { from: bootTemplatesMode, to: cfg.templates.mode },
+      'templates.mode change needs a BFF restart to take effect (boot-time seed + source selection); keeping the boot mode',
+    );
+  }
 });
 
 const app = Fastify({ logger: loggerOptions });

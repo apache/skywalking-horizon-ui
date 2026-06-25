@@ -40,8 +40,12 @@ describe('horizon.example.yaml — tokenized default + parity', () => {
   const examplePath = resolve(here, '../../../../horizon.example.yaml');
   const raw = readFileSync(examplePath, 'utf8');
 
-  it('with NO env set, parses to exactly the schema defaults', () => {
-    const parsed = stripNullish(YAML.parse(interpolateEnv(raw, {})) ?? {});
+  it('parses to exactly the schema defaults (token defaults match the schema)', () => {
+    // Use process.env on BOTH sides: the schema's inline env defaults
+    // (serverHostDefault, the *_FILE paths, sourcemaps dir, templatesMode) read
+    // process.env at module load, so the example's tokens must resolve against
+    // the same env or a stray HORIZON_* in CI would read as drift.
+    const parsed = stripNullish(YAML.parse(interpolateEnv(raw, process.env)) ?? {});
     expect(configSchema.parse(parsed)).toEqual(configSchema.parse({}));
   });
 

@@ -41,6 +41,8 @@ export interface TemplateSyncRow {
 }
 
 export interface TemplateSyncStatus {
+  /** `live` = OAP ui_template store; `readonly` = local bundle, read-only. */
+  mode: 'live' | 'readonly';
   unreachable: boolean;
   lastSuccessfulSyncAt: number | null;
   generatedAt: number;

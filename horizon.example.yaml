@@ -19,10 +19,12 @@
 # container with NO mounted file and set only the env vars you care about
 # (image-native), OR copy this to `horizon.yaml`, edit, and mount it.
 #
-#   • Scalars:        set `HORIZON_X` to override the `:default`.
-#   • Lists / objects (users, ldap, roles, excluded, performance, oap.auth):
-#     set the matching env var to a JSON STRING — it's injected inline and
-#     parsed. A `:null` default means "fall through to the built-in default".
+#   • String scalars are quoted (`"${X:default}"`) so a value with YAML
+#     metacharacters (`:`, `#`, …) can't break parsing.
+#   • Numbers / booleans are unquoted so they keep their type.
+#   • Lists / objects (users, ldap, roles, excluded, performance, oap.auth)
+#     are UNQUOTED and take a JSON STRING env var — injected inline + parsed.
+#     A `:null` default means "fall through to the built-in default".
 #   • Precedence: env var > this file's `:default` > built-in schema default.
 #   • Secrets (password hashes, ldap bind pw) are env-only — never bake them.
 #
@@ -33,7 +35,7 @@ server:
   # Bind host/port. The image sets HORIZON_SERVER_HOST=0.0.0.0 so the BFF
   # is reachable from outside the container (the YAML default 127.0.0.1
   # would bind container-loopback only).
-  host: ${HORIZON_SERVER_HOST:127.0.0.1}
+  host: "${HORIZON_SERVER_HOST:127.0.0.1}"
   port: ${HORIZON_SERVER_PORT:8081}
 
 templates:
@@ -43,18 +45,18 @@ templates:
   # ui_template API is never called and the whole config surface is
   # read-only. OAP's query API (metrics/traces/logs) is still used either
   # way. Use `readonly` to run standalone against an OAP whose ui_template
-  # admin API is absent or disabled.
-  mode: ${HORIZON_TEMPLATES_MODE:live}
+  # admin API is absent or disabled. (Change needs a BFF restart.)
+  mode: "${HORIZON_TEMPLATES_MODE:live}"
 
 oap:
   # OAP query host (GraphQL + /status/*; default port 12800).
-  queryUrl: ${HORIZON_OAP_QUERY_URL:http://127.0.0.1:12800}
+  queryUrl: "${HORIZON_OAP_QUERY_URL:http://127.0.0.1:12800}"
   # OAP admin host (runtime-rule / dsl-debugging / inspect / status;
   # default port 17128). Point at a DNS name / VIP fronting the cluster.
-  adminUrl: ${HORIZON_OAP_ADMIN_URL:http://127.0.0.1:17128}
+  adminUrl: "${HORIZON_OAP_ADMIN_URL:http://127.0.0.1:17128}"
   # OAP Zipkin v2 REST host. Use `<queryUrl>/zipkin` when OAP shares the
   # GraphQL port (typical for the demo / k8s deploys).
-  zipkinUrl: ${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}
+  zipkinUrl: "${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}"
   timeoutMs: ${HORIZON_OAP_TIMEOUT_MS:15000}
   # Optional basic-auth for outbound OAP calls. JSON env, e.g.
   # HORIZON_OAP_AUTH='{"username":"skywalking","password":"skywalking"}'.
@@ -73,7 +75,7 @@ layers:
 # Generate password hashes with:  pnpm --filter bff cli:hash
 # ─────────────────────────────────────────────────────────────────────
 auth:
-  backend: ${HORIZON_AUTH_BACKEND:local}
+  backend: "${HORIZON_AUTH_BACKEND:local}"
   # Local users — JSON array, e.g.
   # HORIZON_AUTH_LOCAL_USERS='[{"username":"admin","passwordHash":"$argon2id$v=19$...","roles":["admin"]}]'
   local:
@@ -95,22 +97,22 @@ rbac:
 
 session:
   ttlMinutes: ${HORIZON_SESSION_TTL_MINUTES:60}
-  cookieName: ${HORIZON_SESSION_COOKIE_NAME:horizon_sid}
+  cookieName: "${HORIZON_SESSION_COOKIE_NAME:horizon_sid}"
   cookieSecure: ${HORIZON_SESSION_COOKIE_SECURE:false}   # set true behind HTTPS
 
 # State files. The image sets HORIZON_*_FILE=/data/* (its writable volume);
 # a local run defaults to ./horizon-* in the working dir. Set an explicit
 # path only if you need one the running process can write.
 audit:
-  file: ${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}
+  file: "${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}"
 setup:
-  file: ${HORIZON_SETUP_FILE:./horizon-setup.json}
+  file: "${HORIZON_SETUP_FILE:./horizon-setup.json}"
 alarms:
-  file: ${HORIZON_ALARMS_FILE:./horizon-alarms.json}
+  file: "${HORIZON_ALARMS_FILE:./horizon-alarms.json}"
 
 debugLog:
   enabled: ${HORIZON_DEBUG_LOG_ENABLED:false}
-  file: ${HORIZON_WIRE_LOG_FILE:./horizon-wire.jsonl}
+  file: "${HORIZON_WIRE_LOG_FILE:./horizon-wire.jsonl}"
   maxBodyChars: ${HORIZON_DEBUG_LOG_MAX_BODY_CHARS:8192}
   redactAuthHeaders: ${HORIZON_DEBUG_LOG_REDACT_AUTH:true}
 
@@ -127,7 +129,7 @@ sourceMaps:
   maxFileBytes: ${HORIZON_SOURCEMAPS_MAX_FILE_BYTES:67108864}      # 64 MiB
   maxTotalBytes: ${HORIZON_SOURCEMAPS_MAX_TOTAL_BYTES:536870912}   # 512 MiB
   maxFileCount: ${HORIZON_SOURCEMAPS_MAX_FILE_COUNT:128}
-  bootMountDir: ${HORIZON_SOURCEMAPS_DIR:}
+  bootMountDir: "${HORIZON_SOURCEMAPS_DIR:}"
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in

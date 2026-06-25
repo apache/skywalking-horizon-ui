@@ -86,10 +86,11 @@ function preferParam(): 'local' | 'remote' {
   }
 }
 
-// Bumped to v2 in 2026-05 when the bundle gained `syncStatus` (OAP
-// UI-template overlay). v1 cached bundles lack the field; loading them
-// would crash the admin pages reading badges.
-const STORAGE_KEY = 'horizon:configBundle:v2';
+// v2 (2026-05) added `syncStatus`; v3 added `syncStatus.mode` (live/readonly).
+// A returning operator's stale cache lacking `mode` would read as live even
+// when the BFF is in readonly — bump the key so older shapes are discarded and
+// the next fetch repopulates.
+const STORAGE_KEY = 'horizon:configBundle:v3';
 const state = ref<ConfigBundle | null>(null);
 let loadPromise: Promise<void> | null = null;
 
@@ -99,9 +100,9 @@ function readStorage(): ConfigBundle | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as ConfigBundle;
-    // Strict shape check: a v2 bundle MUST carry syncStatus. Older v1
+    // Strict shape check: a v3 bundle MUST carry syncStatus with a mode. Older
     // shapes are silently discarded — the next bundle fetch repopulates.
-    if (!parsed?.etag || !parsed?.layers || !parsed?.syncStatus) return null;
+    if (!parsed?.etag || !parsed?.layers || !parsed?.syncStatus?.mode) return null;
     return parsed;
   } catch {
     return null;

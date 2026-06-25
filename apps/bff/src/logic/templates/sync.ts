@@ -46,6 +46,7 @@ import {
   serializeEnvelope,
   type TemplateKind,
 } from './names.js';
+import { iterateBundledOverlays } from './aggregator.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
@@ -157,7 +158,11 @@ let lastSuccessfulSyncAt: number | null = null;
 let readOnlyMode = false;
 export function setTemplateReadOnly(on: boolean): void {
   readOnlyMode = on;
-  cache = null; // a mode flip must not serve a stale cross-mode status
+  // A mode flip must not serve a stale cross-mode status: drop the cache AND
+  // orphan any in-flight probe (it still resolves its awaiters, but won't
+  // backfill the cache with a result computed under the old mode).
+  cache = null;
+  inFlight = null;
 }
 export function isTemplateReadOnly(): boolean {
   return readOnlyMode;
@@ -285,7 +290,11 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
   // exactly as they would a live remote row.
   if (readOnlyMode) {
     lastSuccessfulSyncAt = now;
-    const overlays = deps.bundledOverlays ? [...deps.bundledOverlays()] : [];
+    // Source overlays from the canonical disk iterator — the on-demand render
+    // callers (bundle / menu / overlay / effective) don't pass `bundledOverlays`
+    // (only the boot seed does, and that's skipped in readonly), so without this
+    // every non-English locale would silently render in English.
+    const overlays = deps.bundledOverlays ? [...deps.bundledOverlays()] : [...iterateBundledOverlays()];
     return {
       mode: 'readonly',
       unreachable: false,
