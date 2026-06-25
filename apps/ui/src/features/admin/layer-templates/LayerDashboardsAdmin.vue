@@ -609,10 +609,30 @@ function onWinResizeScope(): void { updateScopeScroll(); }
 // instead, so the footer is always visible. Scroll listens in the capture
 // phase so the inner content pane's scroll (not just window) re-syncs it.
 const drawerEl = ref<HTMLElement | null>(null);
+const editorCardEl = ref<HTMLElement | null>(null);
 function syncDrawerHeight(): void {
   const el = drawerEl.value;
   if (!el) return;
   el.style.height = `${Math.max(220, window.innerHeight - el.getBoundingClientRect().top - 8)}px`;
+}
+/** Flow the editor into view so it shows complete on select. The widget canvas
+ *  sits far below the scope config, so clicking a widget without first
+ *  scrolling leaves the sticky drawer at its natural (off-screen) position,
+ *  clamped to its min height. Only scroll when it isn't already fully usable —
+ *  so clicking through widgets while the editor is pinned at the top doesn't
+ *  yank the page around. */
+function flowEditorIntoView(): void {
+  const el = drawerEl.value;
+  const card = editorCardEl.value;
+  if (!el || !card) return;
+  const body = el.querySelector('.drawer-body');
+  const lowOnScreen = el.getBoundingClientRect().top > 120;
+  const cramped = body ? body.scrollHeight > body.clientHeight + 1 : false;
+  if (lowOnScreen || cramped) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // The smooth scroll changes the drawer's top; re-fit once it settles.
+    window.setTimeout(syncDrawerHeight, 400);
+  }
 }
 onMounted(() => {
   window.addEventListener('resize', onWinResizeScope);
@@ -708,9 +728,15 @@ function moveWidget(i: number, dir: -1 | 1): void {
  * ------------------------------------------------------------------- */
 
 const selectedIdx = ref<number | null>(null);
-/* Re-fit the drawer to the viewport when it opens / the target widget changes
- * (content height differs); the scroll + resize listeners keep it fitted after. */
-watch(selectedIdx, () => void nextTick(syncDrawerHeight));
+/* When a widget is selected: re-fit the drawer, then (if it isn't already fully
+ * usable) flow the editor into view so it shows complete. The scroll + resize
+ * listeners keep it fitted afterwards. */
+watch(selectedIdx, (idx) => {
+  void nextTick(() => {
+    syncDrawerHeight();
+    if (idx !== null) void nextTick(flowEditorIntoView);
+  });
+});
 
 /** When the user switches scope or layer we drop the selection so the
  *  drawer doesn't refer to a widget that no longer exists. */
@@ -3675,7 +3701,7 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <section v-else class="sw-card editor-card">
+        <section v-else ref="editorCardEl" class="sw-card editor-card">
           <div class="card-head">
             <h4>{{ scopeLabel(activeScope) }} widgets</h4>
             <span class="sub">
