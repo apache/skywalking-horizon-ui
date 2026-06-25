@@ -191,8 +191,9 @@ A layer without an explicit `instance` widget set will reuse `service` widgets o
 | `id` | Unique widget id within the dashboard. |
 | `title` | Widget title shown in the card header. |
 | `tip` | Optional hover hint. |
-| `type` | Widget kind, usually `card`, `line`, `top`, `record`, or `table`. |
-| `expressions[]` | MQE expressions to run. |
+| `type` | Widget kind, usually `card`, `line`, `top`, `record`, `table`, or `tab` (a container of named tab panels, each holding its own widgets — see [Tab widgets](#tab-widgets)). |
+| `tabs[]` | `tab` widgets only: the tab panels. Each is `{ "name": "…", "widgets": [ … ] }` — a label plus its own set of widgets. |
+| `expressions[]` | MQE expressions to run. A `tab` container has none of its own. |
 | `expressionLabels[]` | Tab labels for `top`, legend labels for `line`. |
 | `expressionUnits[]` | Per-expression unit override. |
 | `expressionAxes[]` | `0` for left axis, `1` for right axis on dual-axis line charts. |
@@ -225,6 +226,43 @@ The widget type **must match the MQE shape**:
 - Database-shaped record returns → `type: record`.
 
 A `line` widget with a scalar-collapsed MQE renders a one-point chart and confuses operators. The widget editor warns; the schema does not enforce.
+
+### Tab widgets
+
+A `tab` widget is a sized grid slot that holds several **named tab panels**, each with its own set of widgets — its own little dashboard. Use it when several groups of widgets belong in one place — one tab per subsystem, or traffic vs. errors vs. saturation — without spending a slot on each.
+
+A tab is just a `name` plus its own `widgets`. Switching a tab swaps the whole sub-grid; the widgets inside lay out in a 12-column grid within the slot. Only the **active** tab is queried — switching to a tab loads its widgets on demand and then keeps them warm, so an unopened tab costs nothing and flipping back is instant. A tab's widgets are ordinary widgets (`card` / `line` / `top` / `record` / `table`); a tab cannot contain another tab (one level deep).
+
+To author one in the admin: add a widget, set its **Type** to `tab`, and size its slot (span / row span). The tile shows a **segmented tab bar** — click a tab to make it active, **+ tab** to add one — and the active tab's widgets are edited **inline, right on the tile**: a per-tab **+ widget** drops a widget into the active tab, and clicking a widget opens its config in the drawer. Manage the tabs themselves (rename / reorder / delete) from the drawer's **Tabs** list when the tab widget is selected. The tab slot is framed by an open top/bottom rule so its inner widgets keep full width.
+
+The stored shape — a container with empty `expressions` and a `tabs[]` array of `{ name, widgets }` panels:
+
+```json
+{
+  "id": "svc_signals",
+  "title": "Service signals",
+  "type": "tab",
+  "span": 6,
+  "rowSpan": 4,
+  "expressions": [],
+  "tabs": [
+    {
+      "name": "Golden signals",
+      "widgets": [
+        { "id": "sig_traffic", "title": "Traffic", "type": "line", "unit": "rpm", "span": 6, "rowSpan": 2, "expressions": ["service_cpm"] },
+        { "id": "sig_latency", "title": "Latency", "type": "line", "unit": "ms", "span": 6, "rowSpan": 2, "expressions": ["service_resp_time"] },
+        { "id": "sig_apdex", "title": "Apdex", "type": "card", "format": "decimal", "span": 4, "rowSpan": 2, "expressions": ["service_apdex/10000"] }
+      ]
+    },
+    {
+      "name": "Endpoints",
+      "widgets": [
+        { "id": "sig_top_api", "title": "Top APIs", "type": "top", "span": 12, "rowSpan": 3, "expressions": ["top_n(endpoint_cpm,20,des)"] }
+      ]
+    }
+  ]
+}
+```
 
 ## `topology`
 

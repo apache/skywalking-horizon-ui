@@ -107,6 +107,39 @@ describe('widgetsForScope — scope-resolution + fallback chain', () => {
     expect(out.find((w) => w.id === 'sla')?.topNOrder).toBe('asc');
     expect(out.find((w) => w.id === 'cpm-line')).toBe(line); // unchanged reference
   });
+
+  it('resolves topNOrder on a top / record widget INSIDE a tab panel', () => {
+    const tabbed: DashboardWidget = {
+      id: 'grp',
+      title: '',
+      type: 'tab',
+      expressions: [],
+      tabs: [
+        {
+          name: 'Lists',
+          widgets: [
+            { id: 'asc-top', title: 'asc', type: 'top', expressions: ['top_n(service_instance_sla,10,asc)/100'] },
+            { id: 'plain-card', title: 'c', type: 'card', expressions: ['latest(service_cpm)'] },
+          ],
+        },
+      ],
+    };
+    const out = widgetsForScope(tpl({ dashboards: { service: [tabbed] } }), 'service');
+    const child = out[0].tabs?.[0].widgets.find((w) => w.id === 'asc-top');
+    expect(child?.topNOrder).toBe('asc'); // a tab child keeps its declared direction
+  });
+
+  it('leaves a tab with no top / record children reference-unchanged', () => {
+    const tabbed: DashboardWidget = {
+      id: 'grp',
+      title: '',
+      type: 'tab',
+      expressions: [],
+      tabs: [{ name: 'Cards', widgets: [{ id: 'c', title: 'c', type: 'card', expressions: ['latest(service_cpm)'] }] }],
+    };
+    const out = widgetsForScope(tpl({ dashboards: { service: [tabbed] } }), 'service');
+    expect(out[0]).toBe(tabbed); // no top/record anywhere → allocation-free pass-through
+  });
 });
 
 describe('topologyConfigFor / endpointDependencyConfigFor / tracesConfigFor — defaults', () => {

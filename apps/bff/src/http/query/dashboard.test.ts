@@ -22,9 +22,12 @@ import {
   avgOf,
   parseLabeledSeries,
   parseTopList,
+  flattenTabWidgets,
+  widgetSchema,
   type Window,
   type MqeResultShape,
 } from './dashboard.js';
+import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 
 const W: Window = { start: '2026-05-17 1000', end: '2026-05-17 1100', step: 'MINUTE' };
 
@@ -392,5 +395,67 @@ describe('parseTopList — owner-scope priority for display names', () => {
     expect(parseTopList(undefined)).toBeNull();
     expect(parseTopList({ type: 'X', error: 'boom' })).toBeNull();
     expect(parseTopList({ type: 'X', results: [{ values: [] }] })).toBeNull();
+  });
+});
+
+const leaf = (id: string, type: DashboardWidget['type'] = 'card'): DashboardWidget => ({
+  id,
+  title: id,
+  type,
+  expressions: [`${id}_mqe`],
+});
+
+describe('flattenTabWidgets — tab containers expand to their leaf children', () => {
+  it('leaves a tab-free list untouched', () => {
+    const ws = [leaf('a'), leaf('b', 'line')];
+    expect(flattenTabWidgets(ws)).toEqual(ws);
+  });
+
+  it('expands a tab to ONLY the first (default-active) panel’s widgets — lazy, not every panel', () => {
+    const ws: DashboardWidget[] = [
+      leaf('top1'),
+      { id: 'grp', title: '', type: 'tab', expressions: [], tabs: [
+        { name: 'T1', widgets: [leaf('a'), leaf('b')] },
+        { name: 'T2', widgets: [leaf('c')] },
+      ] },
+      leaf('top2'),
+    ];
+    // 'c' (in the non-active second panel) is NOT queried — bounds the OAP request.
+    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['top1', 'a', 'b', 'top2']);
+    expect(flattenTabWidgets(ws).some((w) => w.type === 'tab')).toBe(false);
+  });
+
+  it('tolerates empty / missing tabs (no children → nothing emitted for the container)', () => {
+    const ws: DashboardWidget[] = [
+      { id: 'g1', title: '', type: 'tab', expressions: [], tabs: [{ name: 'T', widgets: [] }] },
+      { id: 'g2', title: '', type: 'tab', expressions: [] },
+    ];
+    expect(flattenTabWidgets(ws)).toEqual([]);
+  });
+
+  it('never recurses a nested tab into the leaf stream (one level deep)', () => {
+    const nested: DashboardWidget = { id: 'inner', title: '', type: 'tab', expressions: [], tabs: [] };
+    const ws: DashboardWidget[] = [
+      { id: 'outer', title: '', type: 'tab', expressions: [], tabs: [{ name: 'T', widgets: [leaf('a'), nested] }] },
+    ];
+    expect(flattenTabWidgets(ws).map((w) => w.id)).toEqual(['a']);
+  });
+});
+
+describe('widgetSchema — accepts the tab container', () => {
+  it('parses a tab widget with empty expressions + a tabs array', () => {
+    const r = widgetSchema.safeParse({
+      id: 'grp', title: 'Group', type: 'tab', expressions: [],
+      tabs: [{ name: 'Traffic', widgets: [{ id: 'c', title: 'C', type: 'card', expressions: ['m'] }] }],
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('still rejects a non-tab widget that is malformed (no expressions on a leaf inside a tab)', () => {
+    const r = widgetSchema.safeParse({
+      id: 'grp', title: 'Group', type: 'tab', expressions: [],
+      tabs: [{ name: 'T', widgets: [{ id: 'c', title: 'C', type: 'card', expressions: [] }] }],
+    });
+    expect(r.success).toBe(false);
   });
 });

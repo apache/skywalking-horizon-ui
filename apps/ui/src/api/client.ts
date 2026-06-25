@@ -330,6 +330,9 @@ export interface AdminLayerTemplate {
    *  round-trip save preserves it. */
   overview?: LayerOverviewConfig;
   widgets: DashboardWidget[];
+  /** Per-scope widget sets (keyed by AdminScope); `widgets` is the legacy
+   *  service-scope fallback. */
+  dashboards?: Record<string, DashboardWidget[]>;
   topology?: TopologyConfig;
   deployment?: DeploymentConfig;
   endpointDependency?: EndpointDependencyConfig;

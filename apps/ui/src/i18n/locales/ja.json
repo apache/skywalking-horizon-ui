@@ -1527,5 +1527,11 @@
   "from catalog": "カタログから",
   "+ add to list": "+ リストに追加",
   "staged · {n}": "ステージ済み · {n}",
-  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "この OAP が定義していないメトリクス —— 別の OAP が共有ストレージに書き込んだものです。値カラムと型（定義元の OAP のカタログに記載）を指定すると、Horizon が値をグラフ化します。"
+  "A metric this OAP doesn't define — another OAP wrote it to the shared storage. Supply its value column and type (from the OAP that defines it) and Horizon charts the values.": "この OAP が定義していないメトリクス —— 別の OAP が共有ストレージに書き込んだものです。値カラムと型（定義元の OAP のカタログに記載）を指定すると、Horizon が値をグラフ化します。",
+  "no data": "データなし",
+  "Pop out — full list": "ポップアウト — 全リスト",
+  "No widgets visible in this tab.": "このタブに表示できるウィジェットはありません。",
+  "This tab has no widgets.": "このタブにはウィジェットがありません。",
+  "Clear all": "すべてクリア",
+  "Clear all and exit comparison": "すべてクリアして比較を終了"
 }

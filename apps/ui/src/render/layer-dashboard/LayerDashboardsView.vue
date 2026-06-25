@@ -28,12 +28,15 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef } from '@skywalking-horizon-ui/api-client';
+import type { LayerDef, DashboardWidget } from '@skywalking-horizon-ui/api-client';
+import { findWidgetById } from '@skywalking-horizon-ui/api-client';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import TopList from '@/components/charts/TopList.vue';
 import RecordList from '@/render/widgets/RecordList.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import TableWidget from '@/render/widgets/TableWidget.vue';
+import TabWidget from '@/render/widgets/TabWidget.vue';
+import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
 import { colorForMetric } from '@/utils/metricColor';
 import { useLayerDashboard, useLayerDashboardConfig } from '@/render/layer-dashboard/useLayerDashboard';
 import { useLayerPageOrchestrator } from '@/render/layer-dashboard/useLayerPageOrchestrator';
@@ -404,7 +407,43 @@ const noEntityToChart = computed<boolean>(() => {
   if (scope.value === 'endpoint') return !endpointResolvable.value;
   return false;
 });
-const widgetsForQuery = computed(() => config.value?.widgets ?? []);
+// Active tab per `tab`-type widget (by widget id; default first tab). Owned
+// here because it drives the lazy flatten below — only the active tab's
+// widgets are queried. Declared above its consumer (widgetsForQuery) per the
+// TDZ rule.
+const activeTabByWidget = ref<Record<string, number>>({});
+function activeTabIndex(widgetId: string): number {
+  return activeTabByWidget.value[widgetId] ?? 0;
+}
+/** Clamp a stored active-tab index to the widget's current tab count. The index
+ *  persists by widget id and a different scope template may reuse the same id
+ *  with fewer tabs, leaving it out of range — clamp so the query, the rendered
+ *  panel, and TabWidget's highlight all agree on the same tab. */
+function clampedTabIndex(w: DashboardWidget): number {
+  const n = w.tabs?.length ?? 0;
+  if (n === 0) return 0;
+  return Math.min(Math.max(activeTabIndex(w.id), 0), n - 1);
+}
+function activeTabWidgets(w: DashboardWidget): DashboardWidget[] {
+  if (w.type !== 'tab') return [];
+  return w.tabs?.[clampedTabIndex(w)]?.widgets ?? [];
+}
+function setActiveTab(widgetId: string, index: number): void {
+  activeTabByWidget.value = { ...activeTabByWidget.value, [widgetId]: index };
+}
+// Lazy flatten: a `tab` widget contributes ONLY its active tab's widgets to
+// the metrics request, so inactive tabs never hit OAP. Switching a tab changes
+// this list → the query refires for the newly-active tab's widgets (vue-query
+// keeps the prior response via keepPreviousData, so siblings don't blink and
+// switching back is instant). A half-authored leaf (blank MQE) is dropped from
+// the batch — the BFF rejects an empty expression and would 400 the whole
+// scope; the widget still renders (as "no data"), it just isn't queried.
+const widgetsForQuery = computed<DashboardWidget[]>(() =>
+  (config.value?.widgets ?? [])
+    .flatMap((w) => (w.type === 'tab' ? activeTabWidgets(w) : [w]))
+    .map((w) => ({ ...w, expressions: (w.expressions ?? []).filter((e) => e.trim().length > 0) }))
+    .filter((w) => w.expressions.length > 0),
+);
 // Hold the metrics fetch until the config bundle has resolved WITH widgets.
 // A resolved-but-empty config means "no dashboard for this layer/scope",
 // so we don't fire (which would otherwise make the BFF substitute its own
@@ -516,10 +555,20 @@ function resultFor(widgetId: string, entityKey: string) {
 const compareTableEntities = computed(() =>
   compareEntities.value.map((e) => ({ key: e, name: entityLabel(e), hue: compareHue(e) })),
 );
-function compareTableRows(widgetId: string) {
+function buildTableRows(widgetId: string) {
   return compareEntities.value.flatMap((e) =>
     (resultFor(widgetId, e)?.table ?? []).map((r) => ({ ...r, entityKey: e })),
   );
+}
+const compareTableByWidget = computed(() => {
+  const m = new Map<string, ReturnType<typeof buildTableRows>>();
+  if (compareMode.value) {
+    for (const w of widgetsForQuery.value) if (w.type === 'table') m.set(w.id, buildTableRows(w.id));
+  }
+  return m;
+});
+function compareTableRows(widgetId: string): ReturnType<typeof buildTableRows> {
+  return compareTableByWidget.value.get(widgetId) ?? [];
 }
 
 // --- Unified compare cohort bar (scope-aware) ---------------------------
@@ -585,6 +634,11 @@ function unlockChip(key: string): void {
   // belong to a service other than the current primary.
   if (compareScope.value) selectionStore.removeKey(compareScope.value, key);
 }
+// Exit compare: drop every lock for the scope (incl. the non-removable CURRENT
+// chip) → the bar hides and the page returns to the single-entity view.
+function clearCohort(): void {
+  if (compareScope.value) selectionStore.clearLocks(compareScope.value);
+}
 
 // --- Multi-entity INLINE rendering -------------------------------------
 // In compare mode every widget keeps its normal tile and renders all N
@@ -608,18 +662,15 @@ interface CompareSeries {
   unit?: string;
   color: string;
 }
-function multiLineSeries(wid: string): CompareSeries[] {
+function buildLineSeries(wid: string): CompareSeries[] {
   const out: CompareSeries[] = [];
   for (const e of compareEntities.value) {
     const series = resultFor(wid, e)?.series ?? [];
     const multi = series.length > 1;
     for (const s of series) {
       out.push({
-        // Label FIRST, then the entity (`service · instance/endpoint`): the
-        // per-series label (e.g. a JVM thread state) is the valuable tag and
-        // must survive truncation, whereas a long instance/endpoint name can
-        // ellipsize at the tail. Entities stay distinguishable by hue + the
-        // (differing) start of the name.
+        // Label FIRST, then entity: the per-series tag must survive truncation;
+        // a long entity name can ellipsize.
         label: multi ? `${s.label} · ${entityLabel(e)}` : entityLabel(e),
         data: s.data,
         ...(s.yAxisIndex !== undefined ? { yAxisIndex: s.yAxisIndex } : {}),
@@ -630,12 +681,21 @@ function multiLineSeries(wid: string): CompareSeries[] {
   }
   return out;
 }
-function lineLen(wid: string): number {
-  for (const e of compareEntities.value) {
-    const d = resultFor(wid, e)?.series?.[0]?.data;
-    if (d && d.length) return d.length;
+// Memoize the compare render data per widget: the template calls these in both
+// the v-if and the bind, and a fresh array each render makes TimeChart's deep
+// series watch re-push to ECharts every tick. Recomputes only on data changes.
+const compareLineByWidget = computed<Map<string, CompareSeries[]>>(() => {
+  const m = new Map<string, CompareSeries[]>();
+  if (compareMode.value) {
+    for (const w of widgetsForQuery.value) if (w.type === 'line') m.set(w.id, buildLineSeries(w.id));
   }
-  return 0;
+  return m;
+});
+function multiLineSeries(wid: string): CompareSeries[] {
+  return compareLineByWidget.value.get(wid) ?? [];
+}
+function lineLen(wid: string): number {
+  return multiLineSeries(wid)[0]?.data.length ?? 0;
 }
 interface TopItem {
   name: string;
@@ -654,16 +714,13 @@ interface TopGroup {
   expression: string;
   items: TopItem[];
 }
-// "All" merges every entity's rows and re-sorts them in the widget's OWN
-// MQE direction; per-entity groups keep each entity's native order. The
-// direction is resolved BFF-side at template time (`topNOrder`), NOT inferred
-// from the data — inferring from one probe entity flips the sort when that
-// entity's values are flat/equal (e.g. instances all at 100% success rate) or
-// when no entity has ≥2 rows. Default `des` for record widgets / expressions
-// without an explicit order.
-function multiTopGroups(wid: string): TopGroup[] {
+// "All" merges every entity's rows and re-sorts in the widget's OWN MQE
+// direction (`topNOrder`, resolved BFF-side — inferring asc/des from one probe
+// entity flips when its values are flat); per-entity groups keep native order.
+function buildTopGroups(wid: string): TopGroup[] {
   const ents = compareEntities.value;
-  const desc = widgets.value.find((w) => w.id === wid)?.topNOrder !== 'asc';
+  // Whole-tree lookup — a top/record widget (carrying topNOrder) can live in a tab.
+  const desc = findWidgetById(widgets.value, wid)?.topNOrder !== 'asc';
   const all: TopItem[] = ents.flatMap((e) =>
     topItemsFor(wid, e).map((it) => ({ name: `${entityLabel(e)} · ${it.name}`, value: it.value })),
   );
@@ -676,8 +733,20 @@ function multiTopGroups(wid: string): TopGroup[] {
   for (const e of ents) groups.push({ label: entityLabel(e), expression: '', items: topItemsFor(wid, e) });
   return groups;
 }
+const compareTopByWidget = computed<Map<string, TopGroup[]>>(() => {
+  const m = new Map<string, TopGroup[]>();
+  if (compareMode.value) {
+    for (const w of widgetsForQuery.value) {
+      if (w.type === 'top' || w.type === 'record') m.set(w.id, buildTopGroups(w.id));
+    }
+  }
+  return m;
+});
+function multiTopGroups(wid: string): TopGroup[] {
+  return compareTopByWidget.value.get(wid) ?? [];
+}
 function hasMultiTopData(wid: string): boolean {
-  return compareEntities.value.some((e) => topItemsFor(wid, e).length > 0);
+  return (multiTopGroups(wid)[0]?.items.length ?? 0) > 0;
 }
 // Instance/endpoint row lock pins (service-scope locking lives in the
 // shell). Cap-guarded per scope.
@@ -735,7 +804,13 @@ const resultsById = computed(() => {
   for (const r of data.value?.widgets ?? []) out.set(r.id, r);
   return out;
 });
-const reachable = computed(() => data.value?.reachable !== false);
+const reachable = computed(() => {
+  const primaryOk = data.value?.reachable !== false;
+  if (!compareMode.value || primaryOk) return primaryOk;
+  // Compare: a failed primary must not flag "unreachable" over a cohort grid
+  // still rendering pinned-entity data (or still arriving).
+  return compareLoading.value || compareEntities.value.some((e) => resultByEntity.value.get(e) !== undefined);
+});
 const errorText = computed(() => data.value?.error ?? (error.value ? String(error.value) : null));
 
 /** Map a widget's grid footprint into the new 12-col flow grid. Honors
@@ -792,6 +867,8 @@ function popOutTopList(id: string): void {
   topListRefs.get(id)?.openExpanded();
 }
 function hasTopData(w: { id: string; type: string }): boolean {
+  // Compare mode renders from the per-entity fan-out — the primary may be empty.
+  if (compareMode.value) return hasMultiTopData(w.id);
   const r = resultsById.value.get(w.id);
   if (!r) return false;
   if (w.type === 'top') return !!(r.topGroups?.length || r.topList?.length);
@@ -830,12 +907,40 @@ function isHidden(id: string): boolean {
   // otherwise keep it visible while results are still arriving.
   return allLoaded && compareEntities.value.length > 0;
 }
+
+// Render context handed to TabWidget so a widget inside a tab renders exactly
+// like a top-level one — same color, same compare fan-out, same pop-out. The
+// helpers below are the very ones the top-level grid uses; `compare` is null
+// unless a cohort is locked. (See tabHostCtx.ts.)
+const tabHostCtx = computed<TabHostCtx>(() => ({
+  widgetColor,
+  setTopListRef,
+  popOutTopList,
+  hasTopData,
+  isHidden,
+  compare: compareMode.value
+    ? {
+        entities: compareEntities.value,
+        tableEntities: compareTableEntities.value,
+        loading: compareLoading.value,
+        hue: compareHue,
+        label: entityLabel,
+        cardText: cardTextFor,
+        cardValue: cardValueFor,
+        lineSeries: multiLineSeries,
+        lineLen,
+        topGroups: multiTopGroups,
+        hasTop: hasMultiTopData,
+        tableRows: compareTableRows,
+      }
+    : null,
+}));
 </script>
 
 <template>
   <div class="dash-tab">
-    <header v-if="isFetching || !reachable" class="dash-head">
-      <span v-if="isFetching" class="badge fetch">refreshing</span>
+    <header v-if="isFetching || compareLoading || !reachable" class="dash-head">
+      <span v-if="isFetching || compareLoading" class="badge fetch">refreshing</span>
       <span v-else-if="!reachable" class="badge err">OAP unreachable</span>
     </header>
 
@@ -1025,7 +1130,7 @@ function isHidden(id: string): boolean {
          branch below only shows once config has actually loaded and the
          layer genuinely defines none. -->
     <div
-      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0))"
+      v-if="reachable && !noEntityToChart && (configLoading || (!dataIsFresh && widgets.length > 0 && widgetsForQuery.length > 0))"
       class="empty reading"
     >
       <span class="reading-dot" />
@@ -1040,8 +1145,8 @@ function isHidden(id: string): boolean {
             / <b>{{ selectedEndpoint }}</b>
           </template>
         </template>
-        <span v-if="widgets.length > 0" class="reading-progress">
-          · loading {{ widgets.length }} metric{{ widgets.length === 1 ? '' : 's' }}
+        <span v-if="widgetsForQuery.length > 0" class="reading-progress">
+          · loading {{ widgetsForQuery.length }} metric{{ widgetsForQuery.length === 1 ? '' : 's' }}
         </span>
       </span>
     </div>
@@ -1079,6 +1184,12 @@ function isHidden(id: string): boolean {
           >×</button>
         </div>
       </div>
+      <button
+        type="button"
+        class="cohort-clear"
+        :title="t('Clear all and exit comparison')"
+        @click="clearCohort"
+      >{{ t('Clear all') }}</button>
     </div>
     <!-- Tile grid keeps its normal layout in compare mode; each widget
          renders all N entities inline (card rows / overlaid lines /
@@ -1088,9 +1199,11 @@ function isHidden(id: string): boolean {
         v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
         class="widget sw-card"
+        :class="{ 'is-tab': w.type === 'tab' }"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"
       >
-        <div class="w-head">
+        <!-- Tab widgets carry no title — the tab bar is their header. -->
+        <div v-if="w.type !== 'tab'" class="w-head">
           <!-- Title + tip group, kept adjacent so the tip chip sits
                next to the title text rather than floating away when
                the right-side affordances exist. -->
@@ -1105,11 +1218,11 @@ function isHidden(id: string): boolean {
                  their bodies don't reprint it. -->
             <span v-if="w.unit && w.type !== 'card'" class="unit">{{ w.unit }}</span>
             <button
-              v-if="(w.type === 'top' || w.type === 'record') && hasTopData(w)"
+              v-if="(w.type === 'top' || (w.type === 'record' && compareMode)) && hasTopData(w)"
               type="button"
               class="w-popout"
-              title="Pop out — full list"
-              aria-label="Pop out full list"
+              :title="t('Pop out — full list')"
+              :aria-label="t('Pop out — full list')"
               @click="popOutTopList(w.id)"
             >⤢</button>
           </div>
@@ -1150,7 +1263,7 @@ function isHidden(id: string): boolean {
               :format="w.format"
               :x-labels="xLabelsForLen(compareMode ? lineLen(w.id) : (resultsById.get(w.id)!.series![0]?.data.length ?? 0))"
             />
-            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? t('loading…') : t('no data') }}</span>
           </template>
           <template v-else-if="w.type === 'top'">
             <TopList
@@ -1177,7 +1290,7 @@ function isHidden(id: string): boolean {
               :color="widgetColor(w)"
               :title="w.title"
             />
-            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? t('loading…') : t('no data') }}</span>
           </template>
           <template v-else-if="w.type === 'record'">
             <!-- Slow-statement / record list. Compare mode falls back to
@@ -1199,7 +1312,7 @@ function isHidden(id: string): boolean {
               :unit="w.unit"
               :color="widgetColor(w)"
             />
-            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? t('loading…') : t('no data') }}</span>
           </template>
           <template v-else-if="w.type === 'table'">
             <TableWidget
@@ -1212,7 +1325,18 @@ function isHidden(id: string): boolean {
               :unit="w.unit"
               :format="w.format"
             />
-            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? 'loading…' : 'no data' }}</span>
+            <span v-else class="muted">{{ (compareMode ? compareLoading : (isFetching && !resultsById.has(w.id))) ? t('loading…') : t('no data') }}</span>
+          </template>
+          <template v-else-if="w.type === 'tab'">
+            <TabWidget
+              :widget="w"
+              :active-index="clampedTabIndex(w)"
+              :results="resultsById"
+              :is-fetching="isFetching"
+              :compare-mode="compareMode"
+              :host="tabHostCtx"
+              @switch="setActiveTab(w.id, $event)"
+            />
           </template>
         </div>
       </div>
@@ -1464,6 +1588,23 @@ function isHidden(id: string): boolean {
 .cohort-x:hover {
   color: var(--sw-err);
 }
+.cohort-clear {
+  margin-left: auto;
+  padding: 3px 10px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--sw-fg-2);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cohort-clear:hover {
+  border-color: var(--sw-err);
+  color: var(--sw-err);
+}
 .ib-row:last-child { border-bottom: none; }
 .ib-row.on {
   background: var(--sw-accent-soft);
@@ -1634,6 +1775,29 @@ function isHidden(id: string): boolean {
   min-width: 0;
   overflow: hidden;
 }
+/* Tab container (runtime): no title (the tab bar is the header). The boundary is
+ * top + bottom rules with four rounded corner brackets and NO left/right side —
+ * drawn as absolute caps so it takes no layout width and the inner widgets stay
+ * flush-aligned. */
+.widget.is-tab {
+  position: relative;
+  background: transparent;
+  border: none;
+  overflow: visible;
+}
+.widget.is-tab::before,
+.widget.is-tab::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12px;
+  border: 2px solid var(--sw-line-2);
+  pointer-events: none;
+}
+.widget.is-tab::before { top: 0; border-bottom: none; border-radius: 8px 8px 0 0; }
+.widget.is-tab::after { bottom: 0; border-top: none; border-radius: 0 0 8px 8px; }
+.widget.is-tab > .w-body { padding: 0; }
 .w-head {
   display: flex;
   align-items: center;
