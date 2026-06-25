@@ -617,8 +617,9 @@ const DRAWER_COL = 360;
 function positionDrawer(): void {
   const el = drawerEl.value;
   const card = editorCardEl.value;
+  const split = el?.closest('.editor-split') as HTMLElement | null;
   const main = document.querySelector('.sw-main');
-  if (!el || !card || !main) return;
+  if (!el || !card || !split || !main) return;
   // Hide the floating drawer when the editor card is scrolled out of view, so it
   // doesn't float over the scope-config cards above it.
   const cr = card.getBoundingClientRect();
@@ -627,26 +628,15 @@ function positionDrawer(): void {
     return;
   }
   el.style.display = 'flex';
-  // Start the drawer BELOW the sticky header so it doesn't cover + Add widget.
+  // The canvas shrinks to reserve a 360px column on the right (so widget
+  // proportions read at their real size); the drawer overlays that column,
+  // pinned BELOW the sticky header so it doesn't cover + Add widget.
   const headEl = card.querySelector('.card-head') as HTMLElement | null;
   const mainTop = Math.round(main.getBoundingClientRect().top);
   const top = Math.max(0, headEl ? Math.round(headEl.getBoundingClientRect().bottom) : mainTop, mainTop);
-  const margin = 12;
-  // The drawer floats OVER the canvas (the canvas keeps its full width). It
-  // sits on the right by default, but flips to the left when the selected
-  // widget's tile would sit under the right band — so the editor never covers
-  // the thing you're editing.
-  const rightBandLeft = cr.right - DRAWER_COL - margin;
-  const leftBandRight = cr.left + DRAWER_COL + margin;
-  let useLeft = false;
-  const sel = canvasEl.value?.querySelector('.canvas-widget.selected') as HTMLElement | null;
-  if (sel) {
-    const sr = sel.getBoundingClientRect();
-    if (sr.right > rightBandLeft && sr.left >= leftBandRight) useLeft = true;
-  }
   el.style.top = `${top}px`;
   el.style.right = 'auto';
-  el.style.left = `${Math.round(useLeft ? cr.left + margin : rightBandLeft)}px`;
+  el.style.left = `${Math.round(split.getBoundingClientRect().right - DRAWER_COL)}px`;
   el.style.width = `${DRAWER_COL}px`;
   el.style.height = `${window.innerHeight - top}px`;
 }
@@ -4078,11 +4068,18 @@ const namingTest = computed<NamingTestResult>(() => {
               >
                 <header
                   class="cw-head"
-                  :draggable="true"
-                  @dragstart="onReorderStart($event, i)"
+                  :class="{ 'tab-head': w.type === 'tab' }"
+                  :draggable="w.type !== 'tab'"
+                  @dragstart="w.type !== 'tab' && onReorderStart($event, i)"
                   @dragend="onReorderEnd"
                 >
-                  <span class="cw-grip" aria-hidden="true">
+                  <span
+                    class="cw-grip"
+                    :draggable="w.type === 'tab' ? true : undefined"
+                    aria-hidden="true"
+                    @dragstart="w.type === 'tab' && onReorderStart($event, i)"
+                    @dragend="onReorderEnd"
+                  >
                     <svg viewBox="0 0 10 14" width="6" height="10">
                       <circle cx="2" cy="2" r="1" fill="currentColor"/>
                       <circle cx="8" cy="2" r="1" fill="currentColor"/>
@@ -4092,8 +4089,22 @@ const namingTest = computed<NamingTestResult>(() => {
                       <circle cx="8" cy="12" r="1" fill="currentColor"/>
                     </svg>
                   </span>
-                  <h5 v-if="w.type !== 'tab'">{{ w.title || w.id || 'untitled' }}</h5>
-                  <h5 v-else class="cw-tab-title">Tabs</h5>
+                  <!-- Tab widget: the tab bar IS the header — tabs + the type chip
+                       sit in the head row, with the boundary line under them. -->
+                  <div v-if="w.type === 'tab'" class="cw-segbar" @click.stop @mousedown.stop>
+                    <div class="seg">
+                      <button
+                        v-for="(tab, ti) in w.tabs ?? []"
+                        :key="ti"
+                        type="button"
+                        class="seg-pill"
+                        :class="{ on: ti === activeTabOf(w.id) }"
+                        @click.stop="setActiveTabOf(w.id, ti)"
+                      >{{ tab.name || `Tab ${ti + 1}` }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
+                    </div>
+                    <button type="button" class="seg-add" title="Add a tab" @click.stop="addTabToWidget(w.id)">+ tab</button>
+                  </div>
+                  <h5 v-else>{{ w.title || w.id || 'untitled' }}</h5>
                   <span class="cw-type" :class="`t-${w.type}`">{{ w.type }}</span>
                 </header>
                 <div class="cw-body">
@@ -4134,23 +4145,9 @@ const namingTest = computed<NamingTestResult>(() => {
                     </ul>
                   </template>
                   <template v-else-if="w.type === 'tab'">
-                    <!-- Inline tab editing: a segmented bar switches the active
-                         panel; its widgets are edited in place (click to select →
-                         drawer). Manage the panels (rename / reorder / delete) in
-                         the drawer when the tab widget is selected. -->
-                    <div class="cw-segbar" @click.stop>
-                      <div class="seg">
-                        <button
-                          v-for="(tab, ti) in w.tabs ?? []"
-                          :key="ti"
-                          type="button"
-                          class="seg-pill"
-                          :class="{ on: ti === activeTabOf(w.id) }"
-                          @click.stop="setActiveTabOf(w.id, ti)"
-                        >{{ tab.name || `Tab ${ti + 1}` }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
-                      </div>
-                      <button type="button" class="seg-add" title="Add a tab" @click.stop="addTabToWidget(w.id)">+ tab</button>
-                    </div>
+                    <!-- Inline tab editing: the segmented bar lives in the header;
+                         here we render the active panel's widgets, edited in place
+                         (click to select → drawer). -->
                     <div class="cw-subgrid" @click.stop>
                       <div
                         v-for="(sw, j) in subWidgetsOf(w.id, activeTabOf(w.id))"
@@ -5782,13 +5779,16 @@ const namingTest = computed<NamingTestResult>(() => {
 /* Editor split: canvas (left, flex 1) + drawer (right, 360px when
  * a widget is selected). When nothing is selected, the canvas takes
  * the full width so the operator sees the layout as it would render. */
-/* Single column — the drawer floats OVER the canvas (position: fixed), so the
- * canvas keeps its full width whether or not a widget is selected. */
 .editor-split {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0;
   min-height: 480px;
+}
+/* When a widget is selected the canvas shrinks to reserve the drawer column,
+ * so widgets render at their true proportions next to the editor. */
+.editor-split.has-drawer {
+  grid-template-columns: 1fr 360px;
 }
 
 /* Canvas — 12-col grid with dotted-line background to evoke the
@@ -5873,69 +5873,59 @@ const namingTest = computed<NamingTestResult>(() => {
  * brackets, no full left/right side, so the inner widgets keep full width.
  * The ::before/::after are short "caps" (top + bottom) that draw the corner
  * brackets and leave the middle of the sides open. */
+/* Tab container tile: no outer frame and no title — the tab bar (with its
+ * underline) is the only chrome; inner widgets sit flush so they align. */
 .canvas-widget.is-tab {
-  position: relative;
   background: transparent;
   border: none;
-  border-radius: 9px;
   overflow: visible;
 }
-.canvas-widget.is-tab::before,
-.canvas-widget.is-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 13px;
-  border: 1px solid var(--sw-line);
-  pointer-events: none;
-}
-.canvas-widget.is-tab::before { top: 0; border-bottom: none; border-radius: 9px 9px 0 0; }
-.canvas-widget.is-tab::after { bottom: 0; border-top: none; border-radius: 0 0 9px 9px; }
-.canvas-widget.is-tab:hover::before,
-.canvas-widget.is-tab:hover::after { border-color: var(--sw-line-2); }
-.canvas-widget.is-tab.selected::before,
-.canvas-widget.is-tab.selected::after { border-color: var(--sw-accent); }
 .canvas-widget.is-tab.selected { box-shadow: none; }
+/* The tab bar IS the header. Its bottom rule is the ONLY frame — the line under
+ * the tab names. The grip (drag handle), tabs, and the `tab` chip share the row. */
 .canvas-widget.is-tab > .cw-head {
   background: transparent;
-  border-bottom: none;
   border-left: none;
+  border-bottom: 1px solid var(--sw-line);
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 6px 0 4px;
+  cursor: default;
 }
-.canvas-widget.is-tab .cw-tab-title { color: var(--sw-fg-3); font-weight: 600; }
-/* Segmented tab bar (switch the active panel) — pill group like the Inspect tabs. */
+.canvas-widget.is-tab > .cw-head .cw-grip { align-self: center; cursor: grab; }
+.canvas-widget.is-tab > .cw-head .cw-type { align-self: center; }
+.canvas-widget.is-tab > .cw-body { padding: 8px 0 0; }
 .cw-segbar {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 2px 8px 8px;
+  align-items: stretch;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
 }
 .cw-segbar .seg {
   display: inline-flex;
   gap: 2px;
-  padding: 2px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  border-radius: 7px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 .seg-pill {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   background: transparent;
   color: var(--sw-fg-2);
   cursor: pointer;
-  font: inherit;
-  font-size: 11px;
+  font-family: inherit;
+  font-size: 12px;
   font-weight: 600;
-  padding: 3px 11px;
-  border-radius: 5px;
+  padding: 5px 11px;
   white-space: nowrap;
 }
 .seg-pill:hover { color: var(--sw-fg-0); }
-.seg-pill.on { background: var(--sw-bg-0); color: var(--sw-fg-0); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+.seg-pill.on { color: var(--sw-fg-0); border-bottom-color: var(--sw-accent); }
 .seg-pill .seg-n {
   font-size: 9px;
   font-weight: 500;
@@ -5945,16 +5935,16 @@ const namingTest = computed<NamingTestResult>(() => {
   padding: 0 4px;
 }
 .seg-add {
-  border: 1px dashed var(--sw-line-2);
+  border: none;
   background: transparent;
   color: var(--sw-fg-3);
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   font-size: 11px;
-  padding: 3px 9px;
-  border-radius: 6px;
+  padding: 5px 9px;
+  margin-left: 2px;
 }
-.seg-add:hover { border-color: var(--sw-accent); color: var(--sw-accent); }
+.seg-add:hover { color: var(--sw-accent); }
 /* The active tab's widgets — a 12-col sub-grid of editable tiles, full width. */
 .cw-subgrid {
   flex: 1;
@@ -5963,7 +5953,7 @@ const namingTest = computed<NamingTestResult>(() => {
   grid-template-columns: repeat(12, 1fr);
   grid-auto-rows: 84px;
   gap: 6px;
-  padding: 0 6px 8px;
+  padding: 0 0 8px;
   align-content: start;
 }
 .canvas-widget.sub {

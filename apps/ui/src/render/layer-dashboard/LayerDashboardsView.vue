@@ -1115,7 +1115,8 @@ function isHidden(id: string): boolean {
         :class="{ 'is-tab': w.type === 'tab' }"
         :style="{ ...gridStyle(w), '--widget-accent': widgetColor(w) }"
       >
-        <div class="w-head">
+        <!-- Tab widgets carry no title — the tab bar is their header. -->
+        <div v-if="w.type !== 'tab'" class="w-head">
           <!-- Title + tip group, kept adjacent so the tip chip sits
                next to the title text rather than floating away when
                the right-side affordances exist. -->
@@ -1668,32 +1669,15 @@ function isHidden(id: string): boolean {
   min-width: 0;
   overflow: hidden;
 }
-/* Tab container: an OPEN frame — top/bottom rules with rounded corner brackets,
- * no full left/right side, so its inner widgets keep full width. */
+/* Tab container: no outer frame and no title — the tab bar (with its underline)
+ * is the only chrome, and the inner widgets sit flush to the slot edges so they
+ * align with the widgets above/around them. */
 .widget.is-tab {
-  position: relative;
   background: transparent;
   border: none;
-  border-radius: 9px;
   overflow: visible;
 }
-.widget.is-tab::before,
-.widget.is-tab::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 12px;
-  border: 1px solid var(--sw-line);
-  pointer-events: none;
-}
-.widget.is-tab::before { top: 0; border-bottom: none; border-radius: 9px 9px 0 0; }
-.widget.is-tab::after { bottom: 0; border-top: none; border-radius: 0 0 9px 9px; }
-.widget.is-tab > .w-head {
-  border-left: none;
-  border-bottom: none;
-  background: transparent;
-}
+.widget.is-tab > .w-body { padding: 0; }
 .w-head {
   display: flex;
   align-items: center;

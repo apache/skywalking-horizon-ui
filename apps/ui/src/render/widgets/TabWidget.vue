@@ -197,53 +197,37 @@ function loadingOrEmpty(w: DashboardWidget): string {
 .tw-strip {
   display: flex;
   gap: 2px;
-  padding: 0 0 4px;
+  padding: 0;
+  /* The ONE frame: a line under the tab names. */
   border-bottom: 1px solid var(--sw-line);
   flex: 0 0 auto;
   overflow-x: auto;
 }
 .tw-tab {
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: 500;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--sw-fg-2);
   background: transparent;
   border: none;
-  border-radius: 3px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   cursor: pointer;
-  font: inherit;
+  font-family: inherit;
   white-space: nowrap;
 }
-.tw-tab:hover {
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-1);
-}
+.tw-tab:hover { color: var(--sw-fg-0); }
 .tw-tab.on {
-  background: var(--sw-bg-3);
   color: var(--sw-fg-0);
-  font-weight: 600;
+  border-bottom-color: var(--sw-accent);
 }
-/* Content area: marked by a top rule (the strip border) + bottom rule + corner
- * brackets, NOT a full box border — so the inner widgets stay grid-aligned. */
+/* Content sits flush under the tab line — no side frame, so its widgets align. */
 .tw-panel {
-  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 2px 4px;
+  padding: 8px 0 2px;
 }
-.tw-panel::before,
-.tw-panel::after {
-  content: '';
-  position: absolute;
-  width: 9px;
-  height: 9px;
-  bottom: 0;
-  border-bottom: 1px solid var(--sw-line);
-  pointer-events: none;
-}
-.tw-panel::before { left: 0; border-left: 1px solid var(--sw-line); border-bottom-left-radius: 5px; }
-.tw-panel::after { right: 0; border-right: 1px solid var(--sw-line); border-bottom-right-radius: 5px; }
 .tw-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
