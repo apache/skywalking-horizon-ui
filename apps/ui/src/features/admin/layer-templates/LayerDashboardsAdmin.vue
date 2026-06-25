@@ -703,17 +703,20 @@ function setWidgetsFor(scope: AdminScope, widgets: DashboardWidget[]): void {
   }
 }
 
-function addWidget(): void {
+function addWidget(type: DashboardWidget['type'] = 'card'): void {
   const widgets = [...widgetsFor(activeScope.value)];
   const idx = widgets.length;
-  widgets.push({
-    id: `widget_${idx + 1}`,
-    title: `Widget ${idx + 1}`,
-    type: 'card',
-    expressions: [''],
-    span: 4,
-    rowSpan: 1,
-  });
+  const id = `widget_${idx + 1}`;
+  if (type === 'tab') {
+    // A tab container seeds one child + carries no MQE of its own; a wider/
+    // taller default slot since it hosts a full child widget.
+    widgets.push({
+      id, title: `Widget ${idx + 1}`, type, expressions: [], span: 6, rowSpan: 3,
+      tabs: [{ id: `${id}_tab_1`, title: 'Tab 1', type: 'card', expressions: [''] }],
+    });
+  } else {
+    widgets.push({ id, title: `Widget ${idx + 1}`, type, expressions: [''], span: 4, rowSpan: 1 });
+  }
   setWidgetsFor(activeScope.value, widgets);
 }
 
@@ -884,10 +887,22 @@ function onReorderDrop(e: DragEvent, i: number): void {
   const to = i;
   if (from !== to) {
     const widgets = [...currentWidgets.value];
-    const [moved] = widgets.splice(from, 1);
-    widgets.splice(to, 0, moved);
-    setWidgetsFor(activeScope.value, widgets);
-    selectedIdx.value = to;
+    const target = widgets[to];
+    const dragged = widgets[from];
+    if (target && dragged && target.type === 'tab' && dragged.type !== 'tab') {
+      // Dropped a leaf widget onto a tab container → MOVE it in as a new tab
+      // (it leaves the grid; its own span/rowSpan are ignored inside the tab).
+      widgets.splice(from, 1);
+      target.tabs = [...(target.tabs ?? []), dragged];
+      setWidgetsFor(activeScope.value, widgets);
+      selectedIdx.value = widgets.indexOf(target);
+    } else {
+      // Plain reorder.
+      widgets.splice(from, 1);
+      widgets.splice(to, 0, dragged);
+      setWidgetsFor(activeScope.value, widgets);
+      selectedIdx.value = to;
+    }
   }
   reorder.active = false;
   reorder.from = -1;
@@ -949,7 +964,7 @@ function onWidgetTypeChange(value: string): void {
 /** Nested tab list ops — mirror addWidget / moveWidget / deleteWidget but
  *  operate on the selected tab container's `tabs` array. */
 function addTab(): void {
-  const w = editingWidget.value;
+  const w = selectedWidget.value;
   if (!w || w.type !== 'tab') return;
   const tabs = [...(w.tabs ?? [])];
   const n = tabs.length + 1;
@@ -958,7 +973,7 @@ function addTab(): void {
   activeTabIdx.value = tabs.length - 1;
 }
 function deleteTab(i: number): void {
-  const w = editingWidget.value;
+  const w = selectedWidget.value;
   if (!w || !w.tabs) return;
   const tabs = [...w.tabs];
   tabs.splice(i, 1);
@@ -967,7 +982,7 @@ function deleteTab(i: number): void {
   else if (activeTabIdx.value !== null && activeTabIdx.value > i) activeTabIdx.value -= 1;
 }
 function moveTab(i: number, dir: -1 | 1): void {
-  const w = editingWidget.value;
+  const w = selectedWidget.value;
   if (!w || !w.tabs) return;
   const tabs = [...w.tabs];
   const j = i + dir;
@@ -976,6 +991,16 @@ function moveTab(i: number, dir: -1 | 1): void {
   w.tabs = tabs;
   if (activeTabIdx.value === i) activeTabIdx.value = j;
   else if (activeTabIdx.value === j) activeTabIdx.value = i;
+}
+/** Add a tab straight from a tab widget's canvas tile: select the widget,
+ *  append a tab, focus it. The nextTick lets the `selectedIdx` watch (which
+ *  resets `activeTabIdx`) run first so the new tab stays focused. */
+async function addTabFromCanvas(i: number): Promise<void> {
+  if (selectedIdx.value !== i) {
+    selectedIdx.value = i;
+    await nextTick();
+  }
+  addTab();
 }
 
 function setWidgetFormat(v: string): void {
@@ -1036,8 +1061,8 @@ function moveSelected(dir: -1 | 1): void {
 
 /** When a new widget is added, immediately select it so the drawer
  *  opens with empty fields ready for input. */
-async function addAndSelectWidget(): Promise<void> {
-  addWidget();
+async function addAndSelectWidget(type: DashboardWidget['type'] = 'card'): Promise<void> {
+  addWidget(type);
   await nextTick();
   selectedIdx.value = currentWidgets.value.length - 1;
   await nextTick();
@@ -1048,6 +1073,22 @@ async function addAndSelectWidget(): Promise<void> {
   canvasEl.value
     ?.querySelector('.canvas-widget.selected')
     ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/** Widget kinds offered by the rich "+ Add widget" picker (and shown as the
+ *  canvas type chips). `tab` groups several of the others into one slot. */
+const WIDGET_KINDS: ReadonlyArray<{ type: DashboardWidget['type']; label: string; hint: string }> = [
+  { type: 'card', label: 'Card', hint: 'A single scalar number' },
+  { type: 'line', label: 'Line', hint: 'A time-series chart' },
+  { type: 'top', label: 'Top list', hint: 'A sorted top-N list' },
+  { type: 'record', label: 'Record', hint: 'Tabular records (slow SQL, statements)' },
+  { type: 'table', label: 'Table', hint: 'A labeled key → value table' },
+  { type: 'tab', label: 'Tab group', hint: 'Several widgets in one slot, as tabs' },
+];
+const addMenuOpen = ref(false);
+function pickAddKind(type: DashboardWidget['type']): void {
+  addMenuOpen.value = false;
+  void addAndSelectWidget(type);
 }
 
 /* ------------------------------------------------------------------- *
@@ -3788,7 +3829,31 @@ const namingTest = computed<NamingTestResult>(() => {
             <span class="sub">
               click a widget to edit · drag corner to resize · drag header to reorder
             </span>
-            <button class="sw-btn add" type="button" @click="addAndSelectWidget">＋ Add widget</button>
+            <div class="add-widget-wrap">
+              <button
+                class="sw-btn add"
+                type="button"
+                :aria-expanded="addMenuOpen"
+                @click="addMenuOpen = !addMenuOpen"
+              >＋ Add widget ▾</button>
+              <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
+              <div v-if="addMenuOpen" class="add-menu" role="menu">
+                <button
+                  v-for="k in WIDGET_KINDS"
+                  :key="k.type"
+                  type="button"
+                  class="add-menu-item"
+                  role="menuitem"
+                  @click="pickAddKind(k.type)"
+                >
+                  <span class="ami-type" :class="`t-${k.type}`">{{ k.type }}</span>
+                  <span class="ami-text">
+                    <span class="ami-label">{{ k.label }}</span>
+                    <span class="ami-hint">{{ k.hint }}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div class="editor-split" :class="{ 'has-drawer': !!selectedWidget }">
@@ -3808,7 +3873,8 @@ const namingTest = computed<NamingTestResult>(() => {
                 :class="{
                   selected: selectedIdx === i,
                   dragging: reorder.active && reorder.from === i,
-                  'drop-target': reorder.active && reorder.over === i && reorder.from !== i,
+                  'drop-target': reorder.active && reorder.over === i && reorder.from !== i && !(w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab'),
+                  'drop-into-tab': reorder.active && reorder.over === i && reorder.from !== i && w.type === 'tab' && currentWidgets[reorder.from]?.type !== 'tab',
                 }"
                 :style="widgetGridStyle(w)"
                 @click="selectWidget(i)"
@@ -3854,11 +3920,10 @@ const namingTest = computed<NamingTestResult>(() => {
                       <span v-if="w.unit" class="unit">{{ w.unit }}</span>
                     </div>
                   </template>
-                  <template v-else-if="w.type === 'record' && w.expressions.length > 0">
-                    <!-- Record preview — mock slow-statement-like rows.
-                         The real runtime renderer will surface trace
-                         id / segment id columns; for the admin canvas
-                         we show the statement + latency only. -->
+                  <template v-else-if="(w.type === 'record' || w.type === 'table') && w.expressions.length > 0">
+                    <!-- Record / table preview — mock name → value rows. The
+                         real record renderer surfaces trace / segment id
+                         columns; the canvas shows the name + value only. -->
                     <ul class="cw-records">
                       <li
                         v-for="(r, ri) in mockRecordRows(w, Math.max(3, widgetRowSpan(w) * 2))"
@@ -3882,9 +3947,15 @@ const namingTest = computed<NamingTestResult>(() => {
                         class="cw-tab"
                         :class="{ on: ti === 0 }"
                       >{{ tab.title || tab.id }}</span>
+                      <button
+                        type="button"
+                        class="cw-tab cw-tab-add"
+                        title="Add a tab to this widget"
+                        @click.stop="addTabFromCanvas(i)"
+                      >+ tab</button>
                     </div>
                     <p class="cw-tab-hint">
-                      {{ (w.tabs ?? []).length }} tab{{ (w.tabs ?? []).length === 1 ? '' : 's' }} — only the active one is queried
+                      {{ (w.tabs ?? []).length }} tab{{ (w.tabs ?? []).length === 1 ? '' : 's' }} — only the active one is queried · drag a widget here to move it in
                     </p>
                   </template>
                   <p v-else class="cw-empty">
@@ -5550,6 +5621,24 @@ const namingTest = computed<NamingTestResult>(() => {
   border-color: var(--sw-accent-line);
   box-shadow: inset 0 0 0 1px var(--sw-accent-line);
 }
+/* Dropping a leaf widget onto a tab container moves it IN as a tab — a
+ * distinct green target so the gesture reads differently from a reorder. */
+.canvas-widget.drop-into-tab {
+  border-color: #34d399;
+  box-shadow: inset 0 0 0 2px #34d399, 0 0 0 4px rgba(52, 211, 153, 0.18);
+}
+.canvas-widget.drop-into-tab::after {
+  content: 'drop to add as a tab';
+  position: absolute;
+  inset: auto 0 0 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+  padding: 2px 0;
+  pointer-events: none;
+}
 .cw-head {
   display: flex;
   align-items: center;
@@ -5614,8 +5703,94 @@ const namingTest = computed<NamingTestResult>(() => {
   color: var(--sw-fg-0);
   font-weight: 600;
 }
+.cw-tab-add {
+  border: 1px dashed var(--sw-line-2);
+  background: transparent;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  padding: 1px 7px;
+}
+.cw-tab-add:hover {
+  border-color: #34d399;
+  color: #34d399;
+}
 .cw-tab-hint {
   margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--sw-fg-3);
+}
+/* Rich "+ Add widget" picker. */
+.add-widget-wrap {
+  position: relative;
+}
+.add-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+}
+.add-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 31;
+  min-width: 230px;
+  background: var(--sw-bg-1);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.6);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.add-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--sw-fg-1);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.add-menu-item:hover {
+  background: var(--sw-bg-2);
+}
+.add-menu-item .ami-type {
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  font-family: var(--sw-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--sw-bg-3);
+  color: var(--sw-fg-2);
+  min-width: 46px;
+  text-align: center;
+}
+.add-menu-item .ami-type.t-line   { color: #60a5fa; background: rgba(96, 165, 250, 0.12); }
+.add-menu-item .ami-type.t-top    { color: #a78bfa; background: rgba(167, 139, 250, 0.12); }
+.add-menu-item .ami-type.t-card   { color: var(--sw-accent-2); background: var(--sw-accent-soft); }
+.add-menu-item .ami-type.t-record { color: #22d3ee; background: rgba(34, 211, 238, 0.12); }
+.add-menu-item .ami-type.t-table  { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
+.add-menu-item .ami-type.t-tab    { color: #34d399; background: rgba(52, 211, 153, 0.12); }
+.add-menu-item .ami-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.add-menu-item .ami-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+}
+.add-menu-item .ami-hint {
   font-size: 10px;
   color: var(--sw-fg-3);
 }
