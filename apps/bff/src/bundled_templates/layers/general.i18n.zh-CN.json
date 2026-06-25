@@ -201,6 +201,30 @@
       {
         "title": "Ruby Heap Slots",
         "expressionLabels": ["live", "available"]
+      },
+      {
+        "title": "PHP CPU 使用率",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) CPU 使用率 (%)，经 /proc 采样。"
+      },
+      {
+        "title": "PHP 内存使用",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) 常驻内存 (MB, /proc VmRSS)。"
+      },
+      {
+        "title": "PHP 内存峰值",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) 峰值常驻内存 (MB, /proc VmHWM)。"
+      },
+      {
+        "title": "PHP 虚拟内存",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) 虚拟内存 (MB, /proc VmSize)。"
+      },
+      {
+        "title": "PHP 线程数",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) OS 线程数 (/proc Threads)。"
+      },
+      {
+        "title": "PHP 打开 FD 数",
+        "tip": "PHP agent：父 PHP 进程 (getppid()) 打开的文件描述符数 (/proc/pid/fd)。"
       }
     ],
     "endpoint": [

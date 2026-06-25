@@ -364,6 +364,30 @@
           "vivos",
           "disponíveis"
         ]
+      },
+      {
+        "title": "Utilização de CPU PHP",
+        "tip": "Agente PHP: utilização de CPU (%) do processo PHP pai (getppid()), amostrada via /proc."
+      },
+      {
+        "title": "Memória PHP usada",
+        "tip": "Agente PHP: memória residente (MB) do processo PHP pai (getppid()) (/proc VmRSS)."
+      },
+      {
+        "title": "Pico de memória PHP",
+        "tip": "Agente PHP: pico de memória residente (MB) do processo PHP pai (getppid()) (/proc VmHWM)."
+      },
+      {
+        "title": "Memória virtual PHP",
+        "tip": "Agente PHP: memória virtual (MB) do processo PHP pai (getppid()) (/proc VmSize)."
+      },
+      {
+        "title": "Contagem de threads PHP",
+        "tip": "Agente PHP: contagem de threads OS do processo PHP pai (getppid()) (/proc Threads)."
+      },
+      {
+        "title": "FDs abertos PHP",
+        "tip": "Agente PHP: contagem de file descriptors abertos do processo PHP pai (getppid()) (/proc/pid/fd)."
       }
     ],
     "endpoint": [

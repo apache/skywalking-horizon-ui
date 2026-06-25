@@ -821,6 +821,70 @@
         "visibleWhen": { "kind": "mqe", "expression": "meter_instance_ruby_heap_live_slots_count", "op": "exists" },
         "span": 3,
         "rowSpan": 2
+      },
+      {
+        "id": "php_cpu",
+        "title": "PHP CPU Utilization",
+        "tip": "PHP agent: parent PHP process (getppid()) CPU utilization (%), sampled from /proc.",
+        "type": "line",
+        "unit": "%",
+        "expressions": ["meter_instance_php_process_cpu_utilization"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_process_cpu_utilization", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "php_mem",
+        "title": "PHP Memory Used",
+        "tip": "PHP agent: parent PHP process (getppid()) resident memory in MB (VmRSS from /proc).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_php_memory_used_mb"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_memory_used_mb", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "php_mem_peak",
+        "title": "PHP Memory Peak",
+        "tip": "PHP agent: parent PHP process (getppid()) peak resident memory in MB (VmHWM from /proc).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_php_memory_peak_mb"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_memory_peak_mb", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "php_vmsize",
+        "title": "PHP Virtual Memory",
+        "tip": "PHP agent: parent PHP process (getppid()) virtual memory in MB (VmSize from /proc).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_php_virtual_memory_mb"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_virtual_memory_mb", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "php_threads",
+        "title": "PHP Thread Count",
+        "tip": "PHP agent: OS thread count of the parent PHP process (getppid()) (Threads from /proc).",
+        "type": "line",
+        "expressions": ["meter_instance_php_thread_count"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_thread_count", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "php_open_fds",
+        "title": "PHP Open FDs",
+        "tip": "PHP agent: open file descriptor count of the parent PHP process (getppid()) (/proc/pid/fd).",
+        "type": "line",
+        "expressions": ["meter_instance_php_open_fd_count"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_php_open_fd_count", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
       }
     ],
     "endpoint": [
