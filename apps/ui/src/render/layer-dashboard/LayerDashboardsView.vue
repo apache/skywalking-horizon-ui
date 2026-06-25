@@ -1686,7 +1686,7 @@ function isHidden(id: string): boolean {
   left: 0;
   right: 0;
   height: 12px;
-  border: 1px solid var(--sw-line);
+  border: 2px solid var(--sw-line-2);
   pointer-events: none;
 }
 .widget.is-tab::before { top: 0; border-bottom: none; border-radius: 8px 8px 0 0; }
