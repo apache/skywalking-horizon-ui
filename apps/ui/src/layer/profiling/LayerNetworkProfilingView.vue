@@ -32,6 +32,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -289,6 +290,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEdgeKeydown));
 
 // ── New task modal ────────────────────────────────────────────────
 const showNewTask = ref(false);
+useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTaskError = ref<string | null>(null);
 const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
 // OAP's `EBPFNetworkDataCollectingSettings.requireCompleteRequest` and
