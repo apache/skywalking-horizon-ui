@@ -257,6 +257,7 @@ const {
   toggleRow,
   resolveRow,
 } = useSourceMapResolution(t);
+watch(serviceName, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
 // reports several errors at the identical timestamp+page+version (a
@@ -364,7 +365,7 @@ function loc(row: BrowserErrorRow): string {
           <span class="lg-legend-sample">{{ t('{count} in window', { count: logs.length }) }}</span>
         </div>
 
-        <DensityHistogram :data="histogram" :keys="CATEGORY_ORDER" :colors="CATEGORY_COLOR">
+        <DensityHistogram :data="histogram" :keys="CATEGORY_ORDER" :colors="CATEGORY_COLOR" :label-case="'uppercase'">
           <template #tipTotal="{ total }">{{ t('{count} logs', { count: total }) }}</template>
         </DensityHistogram>
 

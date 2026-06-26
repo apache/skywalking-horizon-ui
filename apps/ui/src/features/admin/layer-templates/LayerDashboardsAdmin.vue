@@ -16,15 +16,18 @@
 -->
 <!--
   Admin / Layer dashboards. List every loaded layer template, pick one
-  on the left, edit its per-scope widget set on the right. Saves write
-  the JSON file back via POST /api/admin/layer-templates/:key so the
-  BFF refreshes its in-memory cache.
+  on the left, edit its per-scope widget set on the right. Saves go
+  through the template-sync store (bff.templateSync.save) which persists
+  to OAP and refreshes the BFF's in-memory cache.
 
   Widget editor presents the new span-based fields (12-col flow
   layout): operator picks a column span, optional row span, MQE
   expressions, type, title, unit, and an optional visibility predicate.
   Legacy x/y/w/h are NOT shown — they're kept on the wire for
   back-compat with older JSONs but operators don't edit them.
+
+  XL file; decomposition is staged — geometry helpers are extracted
+  (layer-dashboards.geometry.ts); MetricDefinitionRow + composables pending.
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';

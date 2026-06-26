@@ -34,6 +34,7 @@ const props = defineProps<{
   data: DensityBins<K>;
   keys: readonly K[];
   colors: Record<K, string>;
+  labelCase?: 'capitalize' | 'uppercase';
 }>();
 
 const hoveredBin = ref<number | null>(null);
@@ -97,7 +98,7 @@ function fmtAxisTime(ts: number): string {
         <div class="lg-density-tip-rows">
           <span v-for="k in keys" :key="k" v-show="data.bins[hoveredBin][k] > 0" class="lg-density-tip-row">
             <span class="lvl-dot" :style="{ background: colors[k] }" />
-            <span class="lg-density-tip-name">{{ k }}</span>
+            <span class="lg-density-tip-name" :class="{ upper: props.labelCase === 'uppercase' }">{{ k }}</span>
             <span class="lg-density-tip-val mono">{{ data.bins[hoveredBin][k] }}</span>
           </span>
         </div>
@@ -161,6 +162,7 @@ function fmtAxisTime(ts: number): string {
 .lg-density-tip-row { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; }
 .lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 .lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: capitalize; }
+.lg-density-tip-name.upper { text-transform: uppercase; letter-spacing: 0.04em; }
 .lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
 .lg-density-axis {
   display: flex;

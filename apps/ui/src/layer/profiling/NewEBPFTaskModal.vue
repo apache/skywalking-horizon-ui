@@ -50,10 +50,17 @@ const newTask = reactive({
   monitorMinutes: 10,
 });
 
+function resetForm(): void {
+  newTask.labels = [];
+  newTask.targetType = 'ON_CPU';
+  newTask.monitorTime = 'now';
+  newTask.monitorTimeAt = new Date();
+  newTask.monitorMinutes = 10;
+}
 watch(
   () => props.show,
   (open) => {
-    if (open) newTask.labels = [];
+    if (open) resetForm();
   },
 );
 

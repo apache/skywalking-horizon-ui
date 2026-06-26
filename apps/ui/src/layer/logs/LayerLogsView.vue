@@ -236,6 +236,7 @@ watch(serviceName, () => {
   hasQueried.value = false;
   selectedLevel.value = null;
   customTags.value = [];
+  page.value = 1;
   applyConditions();
 });
 const aService = computed(() => applied.value.service);
