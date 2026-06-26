@@ -106,8 +106,9 @@ const healthLabel = computed<string>(() => {
 const adminBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
   if (!preflight.value) return 'unknown';
   if (!adminReachable.value) return 'err';
-  // Admin port replied but a required feature's path doesn't respond.
-  if (preflight.value.modules.some((m) => m.required && m.reachable === false)) return 'warn';
+  // Anything not fully live-reachable — a path that 404s, or a bundled /
+  // not-probed feature (ui_template in readonly) — is a partial state.
+  if (preflight.value.modules.some((m) => m.reachable !== true)) return 'warn';
   return 'ok';
 });
 
@@ -115,15 +116,11 @@ const adminBadgeLabel = computed<string>(() => {
   if (!preflight.value) return t('loading…');
   if (!adminReachable.value) return t('unreachable');
   const mods = preflight.value.modules;
-  const down = mods.filter((m) => m.reachable === false).length;
-  if (down > 0) return t('{n} unreachable', { n: down });
-  // reachable === null = not probed (ui_template in readonly: bundled). It's
-  // healthy, but it isn't "reachable" — don't fold it into "all reachable".
-  const bundled = mods.filter((m) => m.reachable === null).length;
-  if (bundled > 0) {
-    return t('{n} reachable · {b} bundled', { n: mods.length - bundled, b: bundled });
-  }
-  return t('all reachable');
+  const reachable = mods.filter((m) => m.reachable === true).length;
+  if (reachable === mods.length) return t('all reachable');
+  // X/Y — covers both an unreachable path and a bundled (readonly) feature;
+  // the per-row chip says which.
+  return t('{n}/{total} reachable', { n: reachable, total: mods.length });
 });
 
 const adminGeneratedAt = computed<string>(() => agoLabel(preflight.value?.generatedAt));

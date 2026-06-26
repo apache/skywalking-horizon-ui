@@ -1549,5 +1549,5 @@
   "{n} unreachable": "{n} 个不可达",
   "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "每个管理功能的可达性 —— BFF 会向该功能实际调用的相对 REST 路径发起 GET，并报告其是否响应。健康状态取决于实时探测，而非配置存在性：返回 404 的路径（selector 关闭、被重命名或在 fork 版本中缺失）将被视为不可达。下方的“检测到 selector”仅为上游发行版的提示，并非最终判定。",
   "Enable on OAP:": "在 OAP 上启用：",
-  "{n} reachable · {b} bundled": "{n} 个可达 · {b} 个内置"
+  "{n}/{total} reachable": "{n}/{total} 个可达"
 }

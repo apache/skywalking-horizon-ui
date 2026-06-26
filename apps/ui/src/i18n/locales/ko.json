@@ -1549,5 +1549,5 @@
   "{n} unreachable": "{n}개 도달 불가",
   "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "각 관리 기능의 도달 가능성 — BFF가 해당 기능이 실제로 호출하는 상대 REST 경로로 GET 요청을 보내 응답 여부를 보고합니다. 상태는 설정 존재 여부가 아니라 실시간 프로브로 판단합니다. 404를 반환하는 경로(selector 꺼짐, 이름 변경 또는 fork에서 누락)는 도달 불가로 표시됩니다. 아래의 ‘selector 감지됨’은 업스트림 릴리스 힌트일 뿐 판정이 아닙니다.",
   "Enable on OAP:": "OAP에서 활성화:",
-  "{n} reachable · {b} bundled": "{n}개 도달 가능 · {b}개 번들"
+  "{n}/{total} reachable": "{n}/{total}개 도달 가능"
 }
