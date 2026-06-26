@@ -23,6 +23,7 @@
 -->
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { EBPFTargetType } from '@/api/client';
 import type { NewEBPFTaskPayload } from '@/layer/profiling/useEBPFProfiling';
 
@@ -61,6 +62,11 @@ function toggleNewTaskLabel(l: string): void {
 function close(): void {
   emit('update:show', false);
 }
+
+useEscapeToClose(
+  () => props.show,
+  close,
+);
 
 function submit(): void {
   const start =

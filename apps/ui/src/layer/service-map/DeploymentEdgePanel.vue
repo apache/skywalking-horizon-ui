@@ -25,6 +25,7 @@ import { ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { DeploymentCall, DeploymentMetricDef, DeploymentNode } from '@/api/client';
 import Sparkline from '@/components/charts/Sparkline.vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
 export interface EdgeRow { id: string; label: string; unit: string; serverDef: DeploymentMetricDef | null; clientDef: DeploymentMetricDef | null }
 type EdgeRowKind = 'both' | 'client-only' | 'server-only' | 'none';
@@ -41,6 +42,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ (e: 'close'): void }>();
 const { t } = useI18n({ useScope: 'global' });
+
+useEscapeToClose(() => true, () => emit('close'));
 
 const hoveredEdgeRowId = ref<string | null>(null);
 const hoveredEdgeBucket = ref<number | null>(null);

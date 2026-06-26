@@ -24,6 +24,7 @@
 -->
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
 export interface EndpointPick {
   id: string;
@@ -82,6 +83,11 @@ watch(
 function close(): void {
   emit('update:show', false);
 }
+
+useEscapeToClose(
+  () => props.show,
+  close,
+);
 
 function submit(): void {
   const startTime =

@@ -23,8 +23,9 @@
 -->
 <script setup lang="ts">
 import type { ProfileTask, ProfileTaskLog } from '@/api/client';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
-defineProps<{
+const props = defineProps<{
   task: ProfileTask | null;
   serviceName: string | null;
   logs: ProfileTaskLog[];
@@ -33,6 +34,11 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
 }>();
+
+useEscapeToClose(
+  () => props.task != null,
+  () => emit('close'),
+);
 </script>
 
 <template>

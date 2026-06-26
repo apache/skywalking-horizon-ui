@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { DeploymentNode, DeploymentMetricDef } from '@/api/client';
 
 const props = defineProps<{
@@ -33,6 +34,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ (e: 'close'): void; (e: 'open-dashboard', n: DeploymentNode): void }>();
 const { t } = useI18n({ useScope: 'global' });
+
+useEscapeToClose(() => true, () => emit('close'));
 
 // Attribute search — the FODC proxy stamps many labels onto each instance
 // (k8s_*, net_*, …), so the list is long; filter + scroll it. Reset on node swap.

@@ -53,7 +53,7 @@ const combo = useEndpointCombo();
 watch(combo.query, (q) => emit('update:query', q));
 
 function pick(name: string): void {
-  combo.searchInput.value = name;
+  combo.setDisplay(name);
   combo.open.value = false;
   emit('pick', name);
 }
@@ -68,6 +68,8 @@ function clear(): void {
     <input
       v-model="combo.searchInput.value"
       type="text"
+      name="endpoint-search"
+      autocomplete="off"
       class="cf-input"
       :placeholder="selected ?? placeholder"
       @focus="combo.open.value = true"

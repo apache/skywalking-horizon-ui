@@ -52,6 +52,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import type {
   LayerDef,
@@ -560,6 +561,14 @@ function selectCall(id: string | null): void {
   if (embedded.value) return;
   selectedCallId.value = selectedCallId.value === id ? null : id;
 }
+// Escape closes whichever detail panel (node or edge) is open.
+useEscapeToClose(
+  () => Boolean(selectedNodeId.value || selectedCallId.value),
+  () => {
+    selectedNodeId.value = null;
+    selectedCallId.value = null;
+  },
+);
 const selectedNode = computed<LayoutNode | null>(() => {
   const id = selectedNodeId.value;
   if (!id) return null;

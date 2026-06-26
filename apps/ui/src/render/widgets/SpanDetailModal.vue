@@ -34,6 +34,7 @@
 import { useI18n } from 'vue-i18n';
 import type { NativeSpan, TraceAttachedEvent, TraceLogEntry } from '@/api/client';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import {
   serviceColorFrom, kindColor, fmtMs, fmtDateTime, fmtAttachedTs,
 } from './traceDetailShared';
@@ -45,9 +46,11 @@ const props = defineProps<{
   traceId: string | null;
   serviceColors: Map<string, string>;
 }>();
-defineEmits<{ (e: 'close'): void }>();
+const emit = defineEmits<{ (e: 'close'): void }>();
 
 const { openTrace } = useTracePopout();
+
+useEscapeToClose(() => true, () => emit('close'));
 
 function serviceColor(c: string): string { return serviceColorFrom(props.serviceColors, c); }
 function nativeSpanError(s: NativeSpan): boolean { return s.isError; }

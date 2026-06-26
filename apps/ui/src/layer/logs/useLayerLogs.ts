@@ -17,7 +17,6 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { bffClient } from '@/api/client';
 import type { LogFacetsResponse, LogsResponse, LogTagFilter } from '@/api/client';
 
@@ -33,6 +32,9 @@ export interface LogListParams {
   windowMinutes?: Ref<number>;
   startTime?: Ref<string | null>;
   endTime?: Ref<string | null>;
+  /** Gate the query — when false it never runs. Manual-fire pages hold it
+   *  until the operator presses Run query. Defaults to always-on. */
+  enabled?: Ref<boolean>;
 }
 
 export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
@@ -67,10 +69,9 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
         page: params.page.value,
         pageSize: params.pageSize.value,
       }),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: computed(() => layerKey.value.length > 0 && (params.enabled ? params.enabled.value : true)),
     staleTime: 15_000,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
 
   return {
     data: computed(() => q.data.value ?? null),
@@ -98,6 +99,7 @@ export interface LogFacetParams {
   windowMinutes?: Ref<number>;
   startTime?: Ref<string | null>;
   endTime?: Ref<string | null>;
+  enabled?: Ref<boolean>;
 }
 
 export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams) {
@@ -127,7 +129,7 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
           : {}),
         sampleSize: 200,
       }),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: computed(() => layerKey.value.length > 0 && (params.enabled ? params.enabled.value : true)),
     staleTime: 30_000,
   });
   return {

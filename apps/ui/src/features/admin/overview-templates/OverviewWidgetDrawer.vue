@@ -29,6 +29,7 @@
 <script setup lang="ts">
 import type { OverviewDashboard, OverviewKpi, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { META_SEL } from './constants';
 
 defineProps<{
@@ -45,6 +46,8 @@ const emit = defineEmits<{
   'update:title': [v: string];
   'update:description': [v: string];
 }>();
+
+useEscapeToClose(() => true, () => emit('close'));
 
 function widgetKindLabel(type: OverviewWidget['type']): string {
   switch (type) {

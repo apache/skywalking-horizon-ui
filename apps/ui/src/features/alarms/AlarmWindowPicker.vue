@@ -26,11 +26,14 @@
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { PRESETS, MAX_CUSTOM_MS, type AlarmWindow } from './useAlarmWindow';
 
 const { t } = useI18n();
 const props = defineProps<{ window: AlarmWindow; part: 'buttons' | 'editor' }>();
 const w = props.window;
+
+useEscapeToClose(() => w.customOpen.value, () => w.closeCustom());
 </script>
 
 <template>

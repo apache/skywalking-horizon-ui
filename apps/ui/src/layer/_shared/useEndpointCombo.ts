@@ -33,6 +33,11 @@ export interface EndpointCombo {
   open: Ref<boolean>;
   el: Ref<HTMLElement | null>;
   reset: () => void;
+  /** Set the input's displayed text WITHOUT re-running the debounced
+   *  search. Picking an endpoint writes its name into the input as a
+   *  label; routing that back through `query` would re-narrow the OAP
+   *  list to just the picked row instead of preserving the prior search. */
+  setDisplay: (value: string) => void;
 }
 
 export function useEndpointCombo(opts: { debounceMs?: number } = {}): EndpointCombo {
@@ -43,8 +48,15 @@ export function useEndpointCombo(opts: { debounceMs?: number } = {}): EndpointCo
   const el = ref<HTMLElement | null>(null);
 
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let skipDebounce = false;
   watch(searchInput, (v) => {
     if (timer) clearTimeout(timer);
+    // `setDisplay` (a pick writing its label back into the input) sets this
+    // so the search query is left untouched — see the interface doc.
+    if (skipDebounce) {
+      skipDebounce = false;
+      return;
+    }
     timer = setTimeout(() => {
       query.value = v.trim();
     }, debounceMs);
@@ -63,10 +75,18 @@ export function useEndpointCombo(opts: { debounceMs?: number } = {}): EndpointCo
   });
 
   function reset(): void {
+    if (timer) clearTimeout(timer);
+    skipDebounce = false;
     searchInput.value = '';
     query.value = '';
     open.value = false;
   }
 
-  return { searchInput, query, open, el, reset };
+  function setDisplay(value: string): void {
+    if (timer) clearTimeout(timer);
+    skipDebounce = searchInput.value !== value;
+    searchInput.value = value;
+  }
+
+  return { searchInput, query, open, el, reset, setDisplay };
 }

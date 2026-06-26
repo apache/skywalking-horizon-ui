@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { ZipkinSpan } from '@/api/client';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -200,6 +201,7 @@ function selectSpan(s: ZipkinSpan): void {
 function clearSpan(): void { selectedSpanId.value = null; }
 watch(() => props.traceId, () => { selectedSpanId.value = null; });
 watch(selectedSpan, (s) => emit('update:modalOpen', !!s));
+useEscapeToClose(() => selectedSpanId.value !== null, closeSpanModal);
 </script>
 
 <template>

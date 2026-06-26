@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { DeepReadonly } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { PipelineStageId, StageState } from './composables/useInfra3dPipeline';
 
 // The pipeline composable exposes `readonly()` wrapped state; we
@@ -69,6 +70,8 @@ const emit = defineEmits<{
 }>();
 
 const openStage = ref<PipelineStageId | null>(null);
+
+useEscapeToClose(() => openStage.value !== null, () => { openStage.value = null; });
 
 function toggleStage(id: PipelineStageId): void {
   openStage.value = openStage.value === id ? null : id;

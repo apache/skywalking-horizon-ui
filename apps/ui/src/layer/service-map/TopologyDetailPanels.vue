@@ -589,7 +589,10 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
   flex: 0 0 auto;
 }
 .sp-edge-row {
-  display: inline-flex;
+  /* Block-level (not inline-flex) so it fills `.sp-id`'s column and wraps
+     WITHIN it — inline-flex shrink-to-fit let long source→target names
+     overflow rightward under the header action buttons. */
+  display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;

@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef, LogRow } from '@/api/client';
+import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
@@ -38,7 +38,7 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
 import { useLogTimeRange, TIME_RANGE_PRESETS, CUSTOM_RANGE_SENTINEL } from '@/layer/logs/useLogTimeRange';
 import { useLogTagConditions } from '@/layer/logs/useLogTagConditions';
@@ -167,7 +167,7 @@ const endpointIdForQuery = computed<string | null>(() => selectedEndpointObj.val
 // explicit input on the conditions bar. The URL takes precedence so
 // shared / bookmarked URLs always restore the same view.
 const traceIdParam = computed(() => {
-  const v = route.query.traceId;
+  const v = route.query[TRACE_POPOUT_QUERY];
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
 // Trace ID — bound directly to the input. Each keystroke updates the
@@ -207,29 +207,87 @@ const {
 const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFilter, toggleLevel } =
   useLogTagConditions(page);
 
+// ── Manual-fire (applied snapshot) ─────────────────────────────────
+// The log stream + facet queries read these APPLIED conditions, not the
+// live draft refs, so editing instance / endpoint / trace-id / tags /
+// time stages the query without firing it. `applyConditions()` commits
+// the current draft; it runs on the initial service load, on each
+// "Run query", and on a service switch (a context change, not a filter
+// edit). `page`/`pageSize` stay live; there is no periodic refresh.
+interface AppliedLogConditions {
+  service: string | null;
+  instanceId: string | null;
+  endpointId: string | null;
+  traceId: string | null;
+  keywords: string[];
+  tags: LogTagFilter[];
+  windowMinutes: number;
+  startTime: string | null;
+  endTime: string | null;
+}
+function snapshotConditions(): AppliedLogConditions {
+  return {
+    service: serviceName.value,
+    instanceId: instanceIdRef.value,
+    endpointId: endpointIdRef.value,
+    traceId: traceIdRef.value,
+    keywords: keywordsRef.value,
+    tags: allTags.value,
+    windowMinutes: windowMinutesEffective.value,
+    startTime: startTimeRef.value,
+    endTime: endTimeRef.value,
+  };
+}
+const applied = ref<AppliedLogConditions>(snapshotConditions());
+// Manual-fire gate: the log + facet queries stay disabled until the
+// operator presses Run query (or pages), so a freshly-opened tab shows a
+// "Run query" prompt rather than a misleading "no logs" empty state.
+const hasQueried = ref(false);
+function applyConditions(): void {
+  applied.value = snapshotConditions();
+}
+// A service switch is a context change → clear back to the Run-query
+// prompt (cascade-clear: never show the prior service's logs under the
+// new one). Filter edits just stage; they wait for Run query.
+watch(serviceName, () => {
+  hasQueried.value = false;
+  applyConditions();
+});
+const aService = computed(() => applied.value.service);
+const aInstanceId = computed(() => applied.value.instanceId);
+const aEndpointId = computed(() => applied.value.endpointId);
+const aTraceId = computed(() => applied.value.traceId);
+const aKeywords = computed(() => applied.value.keywords);
+const aTags = computed(() => applied.value.tags);
+const aWindowMinutes = computed(() => applied.value.windowMinutes);
+const aStartTime = computed(() => applied.value.startTime);
+const aEndTime = computed(() => applied.value.endTime);
+
 const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
-  service: serviceName,
-  instanceId: instanceIdRef,
-  endpointId: endpointIdRef,
-  traceId: traceIdRef,
-  keywords: keywordsRef,
-  tags: allTags,
+  service: aService,
+  instanceId: aInstanceId,
+  endpointId: aEndpointId,
+  traceId: aTraceId,
+  keywords: aKeywords,
+  tags: aTags,
   page,
   pageSize,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  windowMinutes: aWindowMinutes,
+  startTime: aStartTime,
+  endTime: aEndTime,
+  enabled: hasQueried,
 });
 
 const { facets } = useLayerLogFacets(layerKey, {
-  service: serviceName,
-  instanceId: instanceIdRef,
-  endpointId: endpointIdRef,
-  traceId: traceIdRef,
-  keywords: keywordsRef,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  service: aService,
+  instanceId: aInstanceId,
+  endpointId: aEndpointId,
+  traceId: aTraceId,
+  keywords: aKeywords,
+  windowMinutes: aWindowMinutes,
+  startTime: aStartTime,
+  endTime: aEndTime,
+  enabled: hasQueried,
 });
 
 // Run-query handler mirrors the trace tab: refetch both the log
@@ -238,6 +296,8 @@ const { facets } = useLayerLogFacets(layerKey, {
 // now" affordance, identical voice to `LayerTracesView#runQuery`.
 function runQuery(): void {
   page.value = 1;
+  hasQueried.value = true;
+  applyConditions();
   void refetch();
 }
 
@@ -298,16 +358,35 @@ function onRowClick(r: LogRow): void {
   popoutRow.value = r;
 }
 
-/** Open the trace in the global popout overlay rather than navigating
- *  to the Traces tab — keeps the operator in the log stream, lets them
- *  scan the waterfall + close it back to where they were without
- *  losing the keyword filter / pagination state. The row's timestamp
- *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
- *  window — without this, OAP searches only the last 1 day and any
- *  trace older than that (cold-tier, etc.) silently fails to load. */
+/** Drill from a log entry into its trace via the global trace popout. The
+ *  row's timestamp is passed so BanyanDB's `queryTrace` looks in the right
+ *  window — without it OAP only searches the last 1 day and older
+ *  (cold-tier) traces silently fail to load.
+ *
+ *  UX: one overlay at a time. Rather than stacking the trace popout on top
+ *  of the log popout, or just dropping the log popout (jarring), we
+ *  remember the entry, hide it, and reopen it when the trace popout closes
+ *  (Escape / × / back) — a drill-in / back flow. A bare row → trace jump
+ *  (no log popout open) leaves nothing to return to. */
+const logReturnRow = ref<LogRow | null>(null);
+watch([layerKey, serviceName], () => { logReturnRow.value = null; });
 function jumpToTrace(traceId: string, ts?: number): void {
+  if (popoutRow.value) {
+    logReturnRow.value = popoutRow.value;
+    popoutRow.value = null;
+  }
   openTrace(traceId, ts);
 }
+watch(
+  () => route.query[TRACE_POPOUT_QUERY],
+  (id, prev) => {
+    // Trace popout just closed → return to the log entry we drilled in from.
+    if (prev && !id && logReturnRow.value) {
+      popoutRow.value = logReturnRow.value;
+      logReturnRow.value = null;
+    }
+  },
+);
 </script>
 
 <template>
@@ -328,6 +407,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <span>{{ logScope === 'instance' ? 'Sidecar' : 'Instance' }}</span>
           <select
             class="cf-input"
+            name="log-instance"
             :value="selectedInstance ?? ''"
             @change="setSelectedInstance(($event.target as HTMLSelectElement).value || null)"
           >
@@ -357,6 +437,8 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <input
             v-model="traceIdInput"
             type="text"
+            name="log-trace-id"
+            autocomplete="off"
             class="cf-input mono"
             placeholder="paste trace id…"
           />
@@ -377,20 +459,20 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <span>Time range</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <input v-model="customStart" type="datetime-local" name="log-start" class="cf-input cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <input v-model="customEnd" type="datetime-local" name="log-end" class="cf-input cf-range-num" />
               <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
             </div>
           </template>
-          <select v-else v-model.number="windowMinutes" class="cf-input">
+          <select v-else v-model.number="windowMinutes" name="log-window" class="cf-input">
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
             <option :value="CUSTOM_RANGE_SENTINEL">Custom…</option>
           </select>
         </label>
         <label class="cf">
           <span>Page size</span>
-          <select v-model.number="pageSize" class="cf-input">
+          <select v-model.number="pageSize" name="log-page-size" class="cf-input">
             <option :value="20">20</option>
             <option :value="30">30</option>
             <option :value="50">50</option>
@@ -418,6 +500,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
     <!-- Histogram + main stream -->
     <section class="lg-body sw-card">
       <div class="lg-main">
+        <!-- Manual-fire: until the operator runs a query, hide the whole
+             results stack and show the same "pick conditions" prompt the
+             Traces tab uses (see `hasQueried`). -->
+        <div v-if="!hasQueried" class="lg-empty">
+          Pick your conditions, then click Run query.
+        </div>
+        <template v-else>
         <!-- Top-of-table legend strip — one chip per level with the
              in-window count when data exists. Clickable: toggles the
              level filter. The service axis is intentionally absent
@@ -474,6 +563,7 @@ function jumpToTrace(traceId: string, ts?: number): void {
             >Next</button>
           </div>
         </div>
+        </template>
       </div>
     </section>
 

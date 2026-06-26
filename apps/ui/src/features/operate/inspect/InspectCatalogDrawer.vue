@@ -36,6 +36,7 @@ import {
 import type { InspectCatalogEntry } from '@/api/client';
 import Btn from '@/components/primitives/Btn.vue';
 import Pill from '@/components/primitives/Pill.vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import {
   FOREIGN_SCOPES,
   INSPECT_SOURCES,
@@ -59,6 +60,11 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
+
+useEscapeToClose(
+  () => true,
+  () => emit('close'),
+);
 
 interface FileNode {
   source: Source;
