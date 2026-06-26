@@ -187,6 +187,8 @@ export type {
   ProcessNode,
   ProcessCall,
   ProcessTopologyResponse,
+  NetworkProcess,
+  NetworkProcessesResponse,
   NetworkProfilingSampling,
   NetworkProfilingCreateRequest,
   NetworkProfilingCreateResponse,

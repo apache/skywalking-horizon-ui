@@ -17,6 +17,7 @@
 
 import type {
   EBPFTaskListResponse,
+  NetworkProcessesResponse,
   NetworkProfilingCreateRequest,
   NetworkProfilingCreateResponse,
   NetworkProfilingKeepAliveResponse,
@@ -62,6 +63,16 @@ export class NetworkProfileApi {
     return this.bff.request<ProcessTopologyResponse>(
       'GET',
       `/api/ebpf/network/topology?${qs.toString()}`,
+    );
+  }
+
+  /** Rover-monitored processes on an instance — the create modal confirms
+   *  the instance has profilable processes before Create. */
+  processes(serviceInstance: string, windowMinutes = 30): Promise<NetworkProcessesResponse> {
+    const qs = new URLSearchParams({ serviceInstance, windowMinutes: String(windowMinutes) });
+    return this.bff.request<NetworkProcessesResponse>(
+      'GET',
+      `/api/ebpf/network/processes?${qs.toString()}`,
     );
   }
 

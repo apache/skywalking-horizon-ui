@@ -159,6 +159,19 @@ export interface ProcessTopologyResponse {
   error?: string;
 }
 
+/** A rover-monitored process on a service instance. Network profiling
+ *  targets the whole instance; this list confirms it has profilable
+ *  processes (OAP rejects a network task on an instance with none). */
+export interface NetworkProcess {
+  id: string;
+  name: string;
+}
+export interface NetworkProcessesResponse {
+  processes: NetworkProcess[];
+  reachable: boolean;
+  error?: string;
+}
+
 export interface NetworkProfilingSampling {
   uriRegex?: string;
   when4xx?: boolean;

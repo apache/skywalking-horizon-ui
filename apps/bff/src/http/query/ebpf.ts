@@ -39,6 +39,7 @@ import type {
   EBPFTaskCreationResponse,
   EBPFTaskListResponse,
   FetchLike,
+  NetworkProcessesResponse,
   NetworkProfilingCreateRequest,
   NetworkProfilingCreateResponse,
   NetworkProfilingKeepAliveResponse,
@@ -359,6 +360,15 @@ function relationSeries(env: MqeEnv | undefined): Array<number | null> {
   });
 }
 
+const LIST_PROCESSES = /* GraphQL */ `
+  query listNetworkProcesses($instanceId: ID!, $duration: Duration!) {
+    listProcesses(instanceId: $instanceId, duration: $duration) {
+      id
+      name
+    }
+  }
+`;
+
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
   const auth = requireAuth(deps);
 
@@ -567,6 +577,39 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         });
         payload.nodes = data.topology?.nodes ?? [];
         payload.calls = data.topology?.calls ?? [];
+        return reply.send(payload);
+      } catch (err) {
+        return reply.send(softErr(payload, err));
+      }
+    },
+  );
+
+  /** Processes reporting on a service instance — the network task-creation
+   *  modal confirms the instance has profilable processes before Create
+   *  (OAP rejects a network task on an instance with none). */
+  app.get(
+    '/api/ebpf/network/processes',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = req.query as { serviceInstance?: string; windowMinutes?: string };
+      const instance = (q.serviceInstance ?? '').trim();
+      const payload: NetworkProcessesResponse = { processes: [], reachable: true };
+      if (!instance) return reply.send(payload);
+      const minutes = Math.max(5, Math.min(180, Number(q.windowMinutes) || 30));
+      const endMs = Date.now();
+      const startMs = endMs - minutes * 60_000;
+      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      try {
+        const data = await graphqlPost<{ listProcesses: NetworkProcessesResponse['processes'] }>(
+          opts,
+          LIST_PROCESSES,
+          {
+            instanceId: instance,
+            duration: { start: fmtMinute(startMs, offset), end: fmtMinute(endMs, offset), step: 'MINUTE' },
+          },
+        );
+        payload.processes = data.listProcesses ?? [];
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));

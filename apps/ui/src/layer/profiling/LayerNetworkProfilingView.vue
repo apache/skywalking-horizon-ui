@@ -47,6 +47,7 @@ import type {
   ProcessRelationMetricsResponse,
 } from '@/api/client';
 import ProcessTopologyGraph from '@/layer/profiling/ProcessTopologyGraph.vue';
+import { useNetworkProcesses } from '@/layer/profiling/useNetworkProcesses';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
@@ -58,9 +59,7 @@ const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology');
 const { selectedId: serviceId } = useSelectedService();
 
-// Instance picker (binds to ?serviceInstance= via plain ref state — the
-// network view needs an *instance* to be useful, so we don't reuse the
-// generic `useSelectedInstance` composable's URL contract).
+// Instance picker — plain ref state (not the URL-bound useSelectedInstance).
 const instances = useLayerInstances(layerKey, serviceId);
 const selectedInstanceId = ref<string | null>(null);
 watch(
@@ -79,12 +78,8 @@ const tasksError = ref<string | null>(null);
 const tasksLoading = ref(false);
 const currentTask = ref<EBPFTask | null>(null);
 
-// Tasks are listed per SERVICE, not per selected instance. A network
-// task runs against the instance that was live when it was created; if
-// that pod has since been replaced (new pod name), AND-ing the task
-// query with the currently-selected instance hides the task entirely.
-// The task object carries its own serviceInstanceId, so the list stays
-// correct and selecting a task can still drive the right topology.
+// Tasks are listed per SERVICE, not the selected instance — a task's pod
+// may have been replaced; the task carries its own serviceInstanceId.
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
   () => void refreshTasks(),
@@ -122,11 +117,8 @@ const topologyLoading = ref(false);
 const topologyError = ref<string | null>(null);
 const windowMinutes = ref(30);
 
-// Topology follows the SELECTED TASK: a finished FIXED_TIME task only
-// captured process relations on its own instance during its own window
-// (and that pod may since have been replaced). When a task is selected
-// we query its instance + [taskStartTime, taskStartTime+duration]; with
-// no task we fall back to the picker instance + rolling window.
+// Topology follows the selected task (its instance + capture window); with
+// no task, the picker instance + a rolling window.
 watch([currentTask, selectedInstanceId], () => void loadTopology());
 
 async function loadTopology(): Promise<void> {
@@ -187,9 +179,7 @@ function endpointRef(n: ProcessNode): ProcessRelationEndpointRef {
   };
 }
 
-// Refire when the operator clicks a different edge. The detail area
-// resets first (cascade-clear), then resolves async — never leaves a
-// stale conversation's numbers under the new edge's header.
+// Refire on a new edge: reset first (cascade-clear), then resolve async.
 watch(selectedCall, async (call) => {
   relationMetrics.value = null;
   relationError.value = null;
@@ -292,11 +282,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEdgeKeydown));
 const showNewTask = ref(false);
 useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTaskError = ref<string | null>(null);
+const { processes: networkProcesses, loading: processesLoading } =
+  useNetworkProcesses(selectedInstanceId, showNewTask);
 const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
-// OAP's `EBPFNetworkDataCollectingSettings.requireCompleteRequest` and
-// `requireCompleteResponse` are `Boolean!` — non-null. Every sampling
-// row MUST carry the settings block, otherwise
-// `createEBPFNetworkProfiling` 400s with a schema validation error.
+// requireComplete{Request,Response} are Boolean! — every sampling row must
+// carry the settings block or create 400s.
 const DEFAULT_SETTINGS = (): NetworkProfilingSampling['settings'] => ({
   requireCompleteRequest: true,
   requireCompleteResponse: true,
@@ -497,6 +487,16 @@ function fmtTime(ms: number): string {
         <div v-if="!instances.instances.value.length" class="banner err">
           No instances available for this service — a network profile task cannot be created.
         </div>
+        <template v-else-if="selectedInstanceId">
+          <div v-if="processesLoading" class="hint">Checking processes on this instance…</div>
+          <div v-else-if="!networkProcesses.length" class="banner err">
+            This instance has no profilable processes — a network task cannot be created (network profiling needs a rover-monitored process).
+          </div>
+          <div v-else class="proc-list">
+            <span class="proc-list-label">Processes ({{ networkProcesses.length }})</span>
+            <span v-for="p in networkProcesses" :key="p.id" class="proc-chip">{{ p.name }}</span>
+          </div>
+        </template>
         <p class="hint">
           OAP captures one connection sample per matching rule. Leave URI
           empty to match any request; toggle 4xx/5xx to scope by status.
@@ -535,8 +535,8 @@ function fmtTime(ms: number): string {
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
         <button
           class="btn-primary"
-          :disabled="!selectedInstanceId"
-          :title="selectedInstanceId ? 'Create the network profile task' : 'No instances available for this service'"
+          :disabled="!selectedInstanceId || processesLoading || !networkProcesses.length"
+          :title="!selectedInstanceId ? 'No instances available for this service' : processesLoading ? 'Checking processes…' : !networkProcesses.length ? 'This instance has no profilable processes' : 'Create the network profile task'"
           @click="submitNewTask"
         >Create task</button>
       </div>
@@ -993,4 +993,7 @@ function fmtTime(ms: number): string {
   color: var(--sw-err);
   font-size: 11px;
 }
+.proc-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.proc-list-label { font-size: 11px; color: var(--sw-fg-3); }
+.proc-chip { font-family: var(--sw-mono); font-size: 10.5px; color: var(--sw-fg-1); background: var(--sw-bg-2); border: 1px solid var(--sw-line); padding: 1px 6px; border-radius: 3px; }
 </style>
