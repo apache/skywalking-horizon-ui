@@ -177,14 +177,8 @@ function onPickTask(t: EBPFTask): void {
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
-            :disabled="!selectedId || !couldProfiling"
-            :title="
-              !selectedId
-                ? 'Pick a service'
-                : couldProfiling
-                  ? 'Create a new eBPF task'
-                  : 'OAP reports no profilable processes for this service'
-            "
+            :disabled="!selectedId"
+            :title="!selectedId ? 'Pick a service' : 'Create a new eBPF task'"
             @click="showNewTask = true"
           >+ New Task</button>
         </div>
@@ -305,6 +299,7 @@ function onPickTask(t: EBPFTask): void {
     v-model:show="showNewTask"
     :service-name="serviceName"
     :process-labels="allProcessLabels"
+    :could-profiling="couldProfiling"
     :error="newTaskError"
     @submit="onSubmitNewTask"
   />

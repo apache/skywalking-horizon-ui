@@ -378,6 +378,7 @@ function fmtTime(ms: number): string {
           <button
             class="btn-new"
             :disabled="!selectedInstanceId"
+            :title="!selectedInstanceId ? 'Pick an instance first' : 'Create a new network profile task'"
             @click="showNewTask = true"
           >+ New Task</button>
         </div>

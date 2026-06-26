@@ -31,6 +31,7 @@ const props = defineProps<{
   show: boolean;
   serviceName: string | null;
   processLabels: string[];
+  couldProfiling: boolean;
   error: string | null;
 }>();
 const emit = defineEmits<{
@@ -91,6 +92,15 @@ function submit(): void {
         <button class="x" @click="close">×</button>
       </div>
       <div class="dlg-body">
+        <div v-if="!couldProfiling" class="dlg-warn">
+          <strong>OAP reports no profilable processes for this service.</strong>
+          <span>A new task can't run until OAP sees an eBPF-profilable process. Check that:</span>
+          <ul>
+            <li>instances are running and instrumented;</li>
+            <li>eBPF collection is enabled in OAP;</li>
+            <li>the processes support eBPF profiling.</li>
+          </ul>
+        </div>
         <div class="field">
           <label>Process labels (filter; leave empty = all)</label>
           <div class="chip-row">
@@ -142,7 +152,12 @@ function submit(): void {
       </div>
       <div class="dlg-foot">
         <button class="btn-secondary" @click="close">Cancel</button>
-        <button class="btn-primary" @click="submit">Create task</button>
+        <button
+          class="btn-primary"
+          :disabled="!couldProfiling"
+          :title="couldProfiling ? '' : 'OAP reports no profilable processes for this service'"
+          @click="submit"
+        >Create task</button>
       </div>
     </div>
   </div>
@@ -306,5 +321,26 @@ function submit(): void {
 .dlg-err {
   color: var(--sw-err);
   font-size: 11px;
+}
+.dlg-warn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  font-size: 11.5px;
+  color: var(--sw-fg-1);
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line);
+  border-left: 3px solid var(--sw-err);
+  border-radius: 4px;
+}
+.dlg-warn strong {
+  color: var(--sw-err);
+  font-weight: 600;
+}
+.dlg-warn ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--sw-fg-2);
 }
 </style>

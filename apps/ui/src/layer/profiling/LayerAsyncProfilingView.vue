@@ -27,15 +27,18 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { bffClient } from '@/api/client';
 import type {
   AsyncProfilingEvent,
+  AsyncProfilingProgressLog,
   AsyncProfilingTask,
   AsyncProfilingTree,
   ProfileAnalyzationTree,
 } from '@/api/client';
 import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
+import AsyncProfilingTaskDetailModal from '@/layer/profiling/AsyncProfilingTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
@@ -43,11 +46,21 @@ const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId: serviceId } = useSelectedService();
 const instances = useLayerInstances(layerKey, serviceId);
+const { services: roster } = useLayerServices(layerKey);
+const serviceName = computed<string | null>(
+  () => roster.value.find((s) => s.id === serviceId.value)?.name ?? null,
+);
 
 const tasks = ref<AsyncProfilingTask[]>([]);
 const tasksError = ref<string | null>(null);
 const currentTask = ref<AsyncProfilingTask | null>(null);
 const tasksLoading = ref(false);
+
+// Track the operator's open task-detail modal independently of the
+// "current selected task" — opening the detail icon mustn't swap the
+// instance filter / flame graph out.
+const taskDetailFor = ref<AsyncProfilingTask | null>(null);
+const taskDetailLogs = ref<AsyncProfilingProgressLog[]>([]);
 
 const selectedInstances = ref<string[]>([]);
 const eventType = ref<string>('EXECUTION_SAMPLE');
@@ -76,7 +89,10 @@ const EVENTS: AsyncProfilingEvent[] = ['CPU', 'ALLOC', 'LOCK', 'WALL', 'CTIMER',
 
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
-  () => void refreshTasks(),
+  () => {
+    taskDetailFor.value = null; // drop the detail modal on context change
+    void refreshTasks();
+  },
   { immediate: true },
 );
 
@@ -105,6 +121,19 @@ function syncInstancesFromTask(t: AsyncProfilingTask): void {
   if (ev === 'LOCK') eventType.value = 'LOCK';
   else if (ev === 'ALLOC') eventType.value = 'OBJECT_ALLOCATION_IN_NEW_TLAB';
   else eventType.value = 'EXECUTION_SAMPLE';
+}
+
+async function openTaskDetail(t: AsyncProfilingTask, ev: Event): Promise<void> {
+  ev.stopPropagation();
+  taskDetailFor.value = t;
+  taskDetailLogs.value = [];
+  try {
+    const resp = await bffClient.asyncProfile.progress(t.id);
+    if (taskDetailFor.value?.id !== t.id) return; // stale: another task opened mid-fetch
+    taskDetailLogs.value = resp.progress?.logs ?? [];
+  } catch {
+    if (taskDetailFor.value?.id === t.id) taskDetailLogs.value = [];
+  }
 }
 
 async function runAnalyze(): Promise<void> {
@@ -225,6 +254,7 @@ function instanceName(id: string): string {
           <button
             class="btn-new"
             :disabled="!serviceId"
+            :title="serviceId ? 'Create a new async profiling task' : 'Pick a service first'"
             @click="showNewTask = true"
           >+ New Task</button>
         </div>
@@ -245,6 +275,12 @@ function instanceName(id: string): string {
           <div class="row1">
             <span class="t-tag">{{ t.events?.join(',') }}</span>
             <span class="ep">{{ t.serviceInstanceIds?.length ?? 0 }} instance{{ (t.serviceInstanceIds?.length ?? 0) === 1 ? '' : 's' }}</span>
+            <button
+              type="button"
+              class="row-eye"
+              title="View task detail"
+              @click.stop="openTaskDetail(t, $event)"
+            >i</button>
           </div>
           <div class="row2">
             <span>{{ fmtTime(t.createTime) }}</span>
@@ -319,7 +355,7 @@ function instanceName(id: string): string {
               :class="{ on: newTask.instances.includes(i.id) }"
               @click="toggleInstance(i.id, 'new')"
             >{{ i.name }}</button>
-            <span v-if="!instances.instances.value.length" class="muted">No instances available.</span>
+            <span v-if="!instances.instances.value.length" class="muted">No instances available for this service — an async profiling task cannot be created.</span>
           </div>
         </div>
         <div class="field-row">
@@ -351,10 +387,23 @@ function instanceName(id: string): string {
       </div>
       <div class="dlg-foot">
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
-        <button class="btn-primary" @click="submitNewTask">Create task</button>
+        <button
+          class="btn-primary"
+          :disabled="!newTask.instances.length || !newTask.events.length"
+          :title="!newTask.instances.length ? 'Select at least one instance' : !newTask.events.length ? 'Pick at least one event' : 'Create the async profiling task'"
+          @click="submitNewTask"
+        >Create task</button>
       </div>
     </div>
   </div>
+
+  <AsyncProfilingTaskDetailModal
+    :task="taskDetailFor"
+    :service-name="serviceName"
+    :logs="taskDetailLogs"
+    :fmt-time="fmtTime"
+    @close="taskDetailFor = null"
+  />
 </template>
 
 <style scoped>
@@ -486,6 +535,20 @@ function instanceName(id: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.row-eye {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  padding: 0;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1;
+}
+.row-eye:hover {
+  color: var(--sw-accent);
 }
 .muted {
   color: var(--sw-fg-3);
