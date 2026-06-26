@@ -29,7 +29,7 @@ export class MenuApi {
   oapInfo(): Promise<OapInfo> {
     return this.bff.request<OapInfo>('GET', '/api/oap/info');
   }
-  preflight(): Promise<PreflightResult> {
-    return this.bff.request<PreflightResult>('GET', '/api/preflight');
+  preflight(force = false): Promise<PreflightResult> {
+    return this.bff.request<PreflightResult>('GET', force ? '/api/preflight?refresh=1' : '/api/preflight');
   }
 }

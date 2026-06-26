@@ -15,11 +15,11 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
+import type { PreflightModule } from '@skywalking-horizon-ui/api-client';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAdminFeatures } from '@/shell/useAdminFeatures';
-import { useConfigBundle } from '@/controls/configBundle';
 
 // Two-pane Cluster Status:
 //   - Pane A (graphql / :12800): version, server clock, timezone,
@@ -44,22 +44,41 @@ const {
   refetch: refetchInfo,
 } = useOapInfo();
 
-// Dashboard-template source mode (the ui_template store vs the local bundle)
-// rides on the config bundle the shell preloads.
-const { bundle } = useConfigBundle();
-const templateMode = computed<'live' | 'readonly'>(() => bundle.value?.syncStatus?.mode ?? 'live');
-// ui_template API availability — N/A (null) in readonly (the store isn't used).
-const uiTemplateAvailable = computed<boolean | null>(() =>
-  templateMode.value === 'readonly' ? null : bundle.value?.syncStatus?.unreachable === false,
-);
-
 const {
   result: preflight,
   adminUrl,
   adminReachable,
   adminError,
-  refetch: refetchPreflight,
+  recheck: refetchPreflight,
 } = useAdminFeatures();
+
+// "Checked Ns ago" advances against a slow ticker, anchored to the BFF's
+// generatedAt (so it reflects the real probe time incl. cache age, not the
+// render moment). 5s granularity is plenty for a 30s-cached / 60s-polled check.
+const now = ref(Date.now());
+let nowTimer: ReturnType<typeof setInterval> | null = null;
+onMounted(() => {
+  nowTimer = setInterval(() => (now.value = Date.now()), 5_000);
+});
+onUnmounted(() => {
+  if (nowTimer) clearInterval(nowTimer);
+});
+
+function agoLabel(ts: number | undefined): string {
+  if (!ts) return '—';
+  const sec = Math.max(0, Math.round((now.value - ts) / 1000));
+  if (sec < 60) return t('{n}s ago', { n: sec });
+  return t('{n}m ago', { n: Math.round(sec / 60) });
+}
+
+// Health = reachability of the feature's probed REST path, NOT config-presence.
+// reachable === null = not probed (ui_template in readonly: bundled, never called).
+function featureState(m: PreflightModule): { cls: string; label: string } {
+  if (m.reachable === null) return { cls: 'is-warn', label: t('readonly · bundled') };
+  return m.reachable
+    ? { cls: 'is-ok', label: t('reachable') }
+    : { cls: 'is-err', label: t('unreachable') };
+}
 
 const serverClockLocal = computed<string>(() => {
   const ts = info.value?.currentTimestamp;
@@ -87,24 +106,20 @@ const healthLabel = computed<string>(() => {
 const adminBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
   if (!preflight.value) return 'unknown';
   if (!adminReachable.value) return 'err';
-  // Admin port replied but some required selectors are off.
-  if (preflight.value.modules.some((m) => m.required && !m.enabled)) return 'warn';
+  // Admin port replied but a required feature's path doesn't respond.
+  if (preflight.value.modules.some((m) => m.required && m.reachable === false)) return 'warn';
   return 'ok';
 });
 
 const adminBadgeLabel = computed<string>(() => {
   if (!preflight.value) return t('loading…');
   if (!adminReachable.value) return t('unreachable');
-  const off = preflight.value.modules.filter((m) => m.required && !m.enabled);
-  if (off.length === 0) return t('all selectors on');
-  return t('{n} selectors off', { n: off.length });
+  const down = preflight.value.modules.filter((m) => m.required && m.reachable === false);
+  if (down.length === 0) return t('all reachable');
+  return t('{n} unreachable', { n: down.length });
 });
 
-const adminGeneratedAt = computed<string>(() => {
-  const ts = preflight.value?.generatedAt;
-  if (!ts) return '—';
-  return new Date(ts).toLocaleTimeString();
-});
+const adminGeneratedAt = computed<string>(() => agoLabel(preflight.value?.generatedAt));
 
 // Zipkin / OTLP trace endpoint. Probed on the same poll as Pane A but
 // independently — it only feeds the Zipkin/OTLP trace menu, so a red
@@ -199,7 +214,7 @@ function refreshAll(): void {
       </header>
 
       <p class="pane-lede">
-        {{ t("Per-module enablement on the admin port. Each row gates a slice of horizon's UI — flip the corresponding env var on OAP and restart to enable, or remove the corresponding page from your operator menu if you don't need it.") }}
+        {{ t("Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.") }}
       </p>
 
       <div v-if="!preflight" class="empty">{{ t('loading preflight…') }}</div>
@@ -215,44 +230,33 @@ function refreshAll(): void {
       <table v-else class="mod-table">
         <thead>
           <tr>
-            <th>{{ t('Module') }}</th>
+            <th>{{ t('Feature') }}</th>
             <th>{{ t('State') }}</th>
+            <th>{{ t('Probe path') }}</th>
             <th>{{ t('Env var') }}</th>
             <th>{{ t('Gates') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="m in preflight.modules" :key="m.name" :class="{ off: !m.enabled }">
+          <tr v-for="m in preflight.modules" :key="m.name" :class="{ off: m.reachable === false }">
             <td class="modname"><code>{{ m.name }}</code></td>
             <td>
-              <span class="sw-badge" :class="m.enabled ? 'is-ok' : 'is-err'">
-                <span class="state-dot" />{{ m.enabled ? t('enabled') : t('missing') }}
+              <span class="sw-badge" :class="featureState(m).cls">
+                <span class="state-dot" />{{ featureState(m).label }}
               </span>
+              <div class="state-foot">
+                <span class="checked">{{ t('checked {at}', { at: agoLabel(preflight.generatedAt) }) }}</span>
+                <span class="sel" :class="{ 'sel-off': !m.enabled }">{{
+                  m.enabled ? t('selector detected') : t('selector not detected')
+                }}</span>
+              </div>
             </td>
+            <td class="modpath"><code>{{ m.probePath }}</code></td>
             <td class="modenv"><code>{{ m.envVar }}</code></td>
             <td class="modaffects">{{ t(m.affects) }}</td>
           </tr>
         </tbody>
       </table>
-
-      <!-- Dashboard-template source: live (OAP ui_template) vs readonly (bundle). -->
-      <div class="tpl-source">
-        <span class="tpl-label">{{ t('Dashboard templates') }}</span>
-        <span class="sw-badge" :class="templateMode === 'readonly' ? 'is-warn' : 'is-ok'">
-          <span class="state-dot" />{{ templateMode === 'readonly' ? t('read-only · bundled') : t('live · OAP ui_template') }}
-        </span>
-        <span class="tpl-hint">
-          <template v-if="templateMode === 'readonly'">
-            {{ t('Rendering from the local bundle; the ui_template API is not used and editing is disabled.') }}
-          </template>
-          <template v-else-if="uiTemplateAvailable">
-            {{ t('ui_template store reachable — editing enabled.') }}
-          </template>
-          <template v-else>
-            {{ t('ui_template store unreachable — editing disabled.') }}
-          </template>
-        </span>
-      </div>
     </section>
 
     <!-- ── Pane C · Zipkin / OTLP trace endpoint ─────────────────── -->
@@ -470,25 +474,22 @@ function refreshAll(): void {
   border-radius: 6px;
 }
 
-.tpl-source {
+.state-foot {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 10px 12px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 8px;
-  font-size: var(--sw-fs-base);
-}
-.tpl-label {
-  font-weight: var(--sw-fw-bold);
-  color: var(--sw-fg-1);
-}
-.tpl-hint {
-  color: var(--sw-fg-3);
+  gap: 4px 10px;
+  margin-top: 4px;
   font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-3);
+}
+.state-foot .sel-off {
+  color: var(--sw-fg-4);
+  text-decoration: line-through;
+}
+.modpath code {
+  font-family: var(--sw-mono);
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-2);
 }
 .mod-table {
   width: 100%;

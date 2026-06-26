@@ -1539,5 +1539,13 @@
   "live · OAP ui_template": "live · OAP ui_template",
   "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Rendering aus dem lokalen Bundle; die ui_template-API wird nicht verwendet und die Bearbeitung ist deaktiviert.",
   "ui_template store reachable — editing enabled.": "ui_template-Speicher erreichbar — Bearbeitung aktiviert.",
-  "ui_template store unreachable — editing disabled.": "ui_template-Speicher nicht erreichbar — Bearbeitung deaktiviert."
+  "ui_template store unreachable — editing disabled.": "ui_template-Speicher nicht erreichbar — Bearbeitung deaktiviert.",
+  "Feature": "Funktion",
+  "Probe path": "Prüfpfad",
+  "readonly · bundled": "schreibgeschützt · gebündelt",
+  "selector detected": "Selektor erkannt",
+  "selector not detected": "Selektor nicht erkannt",
+  "all reachable": "alle erreichbar",
+  "{n} unreachable": "{n} nicht erreichbar",
+  "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "Erreichbarkeit jeder Admin-Funktion — der BFF sendet ein GET an den relativen REST-Pfad, den die Funktion tatsächlich aufruft, und meldet, ob er antwortet. Der Zustand ergibt sich aus der Live-Prüfung, nicht aus der Konfigurationspräsenz: Ein Pfad, der 404 zurückgibt (Selektor aus, umbenannt oder in einem Fork nicht vorhanden), gilt als nicht erreichbar. Das «selector detected» unten ist nur ein Hinweis auf die Upstream-Version, kein Urteil."
 }

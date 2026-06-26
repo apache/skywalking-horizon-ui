@@ -1539,5 +1539,13 @@
   "live · OAP ui_template": "en vivo · OAP ui_template",
   "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "Renderizado desde el paquete local; la API ui_template no se usa y la edición está deshabilitada.",
   "ui_template store reachable — editing enabled.": "Almacén ui_template accesible — edición habilitada.",
-  "ui_template store unreachable — editing disabled.": "Almacén ui_template inaccesible — edición deshabilitada."
+  "ui_template store unreachable — editing disabled.": "Almacén ui_template inaccesible — edición deshabilitada.",
+  "Feature": "Función",
+  "Probe path": "Ruta de sondeo",
+  "readonly · bundled": "solo lectura · incluido",
+  "selector detected": "selector detectado",
+  "selector not detected": "selector no detectado",
+  "all reachable": "todos accesibles",
+  "{n} unreachable": "{n} inaccesible(s)",
+  "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "Accesibilidad de cada función de administración: el BFF hace un GET a la ruta REST relativa que la función realmente llama e informa si responde. El estado depende del sondeo en vivo, no de la presencia en la configuración: una ruta que devuelve 404 (selector desactivado, renombrado o ausente en un fork) se considera inaccesible. El «selector detected» de abajo es solo una pista de la versión upstream, no el veredicto."
 }

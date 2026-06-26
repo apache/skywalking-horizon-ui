@@ -53,15 +53,17 @@ const { result, adminReachable, adminError, adminUrl, moduleByName, refetch } =
   useAdminFeatures();
 
 const mod = moduleByName(props.module);
-const moduleEnabled = computed<boolean>(() => mod.value?.enabled ?? false);
+// Health is the feature's path probe, not config-presence. `reachable`
+// is a boolean for these three (null is only ui_template/readonly).
+const moduleReachable = computed<boolean>(() => mod.value?.reachable !== false);
 
-/** Hide when everything is fine — admin reachable AND target module
- *  on. Loading state also hides (page renders normally; banner pops
- *  in if/when preflight returns a failure). */
+/** Hide when everything is fine — admin reachable AND this feature's
+ *  path responds. Loading state also hides (page renders normally;
+ *  banner pops in if/when the probe comes back unreachable). */
 const visible = computed<boolean>(() => {
   if (!result.value) return false;
   if (!adminReachable.value) return true;
-  return !moduleEnabled.value;
+  return !moduleReachable.value;
 });
 
 const kind = computed<'host' | 'module'>(() =>

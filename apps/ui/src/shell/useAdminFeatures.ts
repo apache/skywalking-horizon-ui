@@ -16,14 +16,15 @@
  */
 
 import { computed } from 'vue';
-import { useQuery } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import type { PreflightResult } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 
 /**
- * Admin-port preflight — interrogates OAP's `/debugging/config/dump`
- * (port 17128 by default) and exposes per-module enablement plus a
- * shorthand `adminReachable` flag. Drives:
+ * Admin-port preflight — a REACHABILITY check of each OAP admin feature
+ * Horizon depends on (the BFF GETs the feature's real REST path).
+ * Exposes per-feature reachability plus a shorthand `adminReachable`.
+ * Drives:
  *   - the admin section of `/operate/cluster`
  *   - the per-page warning header on admin-host routes (DSL Mgmt,
  *     Live Debugger, Dump, OAL viewer, Inspect)
@@ -32,10 +33,13 @@ import { bffClient } from '@/api/client';
  * keeping the two checks split lets the cluster page show "graphql
  * fine, admin down" without false negatives on either side.
  *
- * Polled every 60s; the cluster page can call `refetch()` to poke
- * it on demand after the operator fixes the network / selectors.
+ * Polled every 60s (the BFF single-flights the underlying probes for
+ * 30s). `recheck()` forces a fresh round on the BFF — for the cluster
+ * page's "re-check now" after the operator fixes the network / a
+ * selector — and seeds it into the shared cache.
  */
 export function useAdminFeatures() {
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['oap-preflight'],
     queryFn: () => bffClient.menu.preflight(),
@@ -48,21 +52,12 @@ export function useAdminFeatures() {
   const adminReachable = computed<boolean>(() => result.value?.adminReachable ?? false);
   const adminUrl = computed<string | undefined>(() => result.value?.adminUrl);
   const adminError = computed<string | undefined>(() => result.value?.adminError);
+  const templatesMode = computed<'live' | 'readonly'>(() => result.value?.templatesMode ?? 'live');
 
   /** Look up a single module by OAP name (e.g. `receiver-runtime-rule`). */
   function moduleByName(name: string) {
     return computed(() => result.value?.modules.find((m) => m.name === name));
   }
-
-  const runtimeRuleEnabled = computed<boolean>(
-    () => moduleByName('receiver-runtime-rule').value?.enabled ?? false,
-  );
-  const dslDebuggingEnabled = computed<boolean>(
-    () => moduleByName('dsl-debugging').value?.enabled ?? false,
-  );
-  const inspectEnabled = computed<boolean>(
-    () => moduleByName('inspect').value?.enabled ?? false,
-  );
 
   /** Convenience for the per-page warning header — true when nothing
    *  on the admin port works (port itself down OR admin-server module
@@ -72,6 +67,14 @@ export function useAdminFeatures() {
     () => !result.value || !adminReachable.value,
   );
 
+  /** Force a fresh probe round on the BFF (bypasses its 30s cache) and
+   *  push the result into the shared query cache. */
+  async function recheck(): Promise<PreflightResult> {
+    const fresh = await bffClient.menu.preflight(true);
+    qc.setQueryData(['oap-preflight'], fresh);
+    return fresh;
+  }
+
   return {
     isLoading: q.isLoading,
     result,
@@ -79,10 +82,9 @@ export function useAdminFeatures() {
     adminReachable,
     adminUnavailable,
     adminError,
-    runtimeRuleEnabled,
-    dslDebuggingEnabled,
-    inspectEnabled,
+    templatesMode,
     moduleByName,
     refetch: q.refetch,
+    recheck,
   };
 }

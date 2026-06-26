@@ -20,7 +20,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { SessionStore } from '../../user/sessions.js';
-import { runPreflight } from '../../logic/preflight/preflight.js';
+import { getPreflight } from '../../logic/preflight/preflight.js';
 
 export interface PreflightRouteDeps {
   config: ConfigSource;
@@ -28,17 +28,19 @@ export interface PreflightRouteDeps {
   fetch?: FetchLike;
 }
 
-/** `GET /api/preflight` — interrogates OAP's config-dump and returns
- *  per-module enablement. Authenticated but ungated by verb — every
- *  logged-in user can see whether OAP is correctly set up. */
+/** `GET /api/preflight` — probes each admin feature's REST path and
+ *  returns per-feature reachability (30s single-flight cache; pass
+ *  `?refresh=1` to force a fresh round). Authenticated but ungated by
+ *  verb — every logged-in user can see whether OAP is correctly set up. */
 export function registerPreflightRoutes(app: FastifyInstance, deps: PreflightRouteDeps): void {
   const auth = requireAuth(deps);
   app.get(
     '/api/preflight',
     { preHandler: auth },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
+    async (req: FastifyRequest, reply: FastifyReply) => {
       const fetchImpl = deps.fetch ?? globalThis.fetch.bind(globalThis);
-      const result = await runPreflight(deps.config.current, fetchImpl);
+      const force = (req.query as { refresh?: string }).refresh === '1';
+      const result = await getPreflight(deps.config.current, fetchImpl, { force });
       return reply.send(result);
     },
   );

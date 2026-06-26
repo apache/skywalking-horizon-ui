@@ -1539,5 +1539,13 @@
   "live · OAP ui_template": "在线 · OAP ui_template",
   "Rendering from the local bundle; the ui_template API is not used and editing is disabled.": "从本地内置模板渲染；不使用 ui_template API，编辑已禁用。",
   "ui_template store reachable — editing enabled.": "ui_template 存储可达 —— 编辑已启用。",
-  "ui_template store unreachable — editing disabled.": "ui_template 存储不可达 —— 编辑已禁用。"
+  "ui_template store unreachable — editing disabled.": "ui_template 存储不可达 —— 编辑已禁用。",
+  "Feature": "功能",
+  "Probe path": "探测路径",
+  "readonly · bundled": "只读 · 内置",
+  "selector detected": "检测到 selector",
+  "selector not detected": "未检测到 selector",
+  "all reachable": "全部可达",
+  "{n} unreachable": "{n} 个不可达",
+  "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "每个管理功能的可达性 —— BFF 会向该功能实际调用的相对 REST 路径发起 GET，并报告其是否响应。健康状态取决于实时探测，而非配置存在性：返回 404 的路径（selector 关闭、被重命名或在 fork 版本中缺失）将被视为不可达。下方的“检测到 selector”仅为上游发行版的提示，并非最终判定。"
 }
