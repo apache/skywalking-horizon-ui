@@ -16,6 +16,30 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Six instance dashboard line widgets for PHP Health Metrics** — process CPU utilization, memory used/peak, virtual memory, thread count, and open file descriptors (`meter_instance_php_*`). Each line widget uses `visibleWhen` so widgets render only when the PHP agent reports PHM data (Linux `/proc` sampling of the parent PHP process via `getppid()`).
 
+### Profiling
+
+- **Profiling task creation is consistent and tells you upfront what it needs.** Across all five task types (Trace / eBPF / Network / pprof / Async) the **New Task** button enables as soon as the basic entity is chosen and always carries a tooltip, and inside the create box a missing target — no profilable processes, or no instances on the service — is shown as a clear message next to a disabled **Create** rather than a silently greyed-out button.
+
+- **Network profiling picks its target instance in the create box and checks it has processes before you submit.** The create modal selects the instance inline and lists that instance's rover-monitored processes; if it has none, **Create** is blocked with a clear reason (OAP rejects a network task on a process-less instance) instead of failing after submit.
+
+- **pprof and async-profiling tasks open a detail modal with their captured logs.**
+
+### Logs
+
+- **Logs query on demand, not on every edit.** The per-layer Logs tab and cross-layer Log inspect now stage condition changes and fetch only when you press **Run query** — a fresh tab shows a "Pick your conditions, then click Run query" prompt, and switching service resets to that prompt and clears the level / tag filters, so the previous service's logs never linger under the new one.
+
+### Alarms
+
+- **The alarm timeline reads more clearly** — a clearer selection band and legend, and the detail sidebar reflows cleanly on narrow windows.
+
+### User experience
+
+- **Escape closes any dismissible panel** — modals, row popouts, and the topology focus / node-filter dropdowns all dismiss on Esc.
+
+- **Switching service clears the dependent filters** (log level / tags, browser-error category) back to a clean state, so a stale filter never silently hides the new service's data.
+
+- **Denser Kubernetes dashboard tables** — the K8s layer's table widgets show more rows without scrolling.
+
 ## 1.0.0
 
 ### Performance & behavior tuning
