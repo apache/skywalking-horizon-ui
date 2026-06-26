@@ -233,7 +233,6 @@ function refreshAll(): void {
             <th>{{ t('Feature') }}</th>
             <th>{{ t('State') }}</th>
             <th>{{ t('Probe path') }}</th>
-            <th>{{ t('Env var') }}</th>
             <th>{{ t('Gates') }}</th>
           </tr>
         </thead>
@@ -252,8 +251,10 @@ function refreshAll(): void {
               </div>
             </td>
             <td class="modpath"><code>{{ m.probePath }}</code></td>
-            <td class="modenv"><code>{{ m.envVar }}</code></td>
-            <td class="modaffects">{{ t(m.affects) }}</td>
+            <td class="modaffects">
+              {{ t(m.affects) }}
+              <span class="env-ref">{{ t('Enable on OAP:') }} <code>{{ m.envVar }}=default</code></span>
+            </td>
           </tr>
         </tbody>
       </table>
@@ -520,15 +521,23 @@ function refreshAll(): void {
 .mod-table tbody tr:last-child td {
   border-bottom: none;
 }
-.mod-table tr.off .modname code,
-.mod-table tr.off .modenv code {
+.mod-table tr.off .modname code {
   color: var(--sw-fg-2);
 }
-.modname code,
-.modenv code {
+.modname code {
   font-family: var(--sw-mono);
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-0);
+}
+.env-ref {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-3);
+}
+.env-ref code {
+  font-family: var(--sw-mono);
+  color: var(--sw-fg-2);
 }
 .modaffects {
   line-height: var(--sw-lh-relaxed);

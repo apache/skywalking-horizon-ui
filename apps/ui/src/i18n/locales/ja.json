@@ -1547,5 +1547,6 @@
   "selector not detected": "selector を検出せず",
   "all reachable": "すべて到達可能",
   "{n} unreachable": "{n} 件が到達不可",
-  "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "各管理機能の到達可能性 —— BFF は機能が実際に呼び出す相対 REST パスへ GET し、応答するかどうかを報告します。健全性は設定の有無ではなくライブプローブで判定されます。404 を返すパス（selector が無効、リネーム、またはフォークで欠落）は到達不可とみなされます。下の「selector を検出」は上流リリースのヒントにすぎず、判定ではありません。"
+  "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "各管理機能の到達可能性 —— BFF は機能が実際に呼び出す相対 REST パスへ GET し、応答するかどうかを報告します。健全性は設定の有無ではなくライブプローブで判定されます。404 を返すパス（selector が無効、リネーム、またはフォークで欠落）は到達不可とみなされます。下の「selector を検出」は上流リリースのヒントにすぎず、判定ではありません。",
+  "Enable on OAP:": "OAP で有効化："
 }
