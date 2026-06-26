@@ -528,6 +528,10 @@ const FOCUS_SNAP_EPS = 0.04;
 let sceneElapsed = 0;
 const FLASH_SECONDS = 4;
 const flashState = shallowRef<{ keys: Set<string>; start: number } | null>(null);
+// Frame loop: animate packets + glide the orbit target toward the focus
+// goal, and recompute label-overflow / detail-card side. Everything writes
+// the live THREE objects directly (not Vue reactivity) so mouse-driven and
+// programmatic camera/label changes stay in sync.
 function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   sceneElapsed = ctx.elapsed;
   for (const p of packets.value) {
@@ -854,7 +858,9 @@ const openDashboardHref = computed<string>(() => {
 });
 
 // Detail-card side: flip to whichever side of the canvas has more room,
-// recomputed in the render loop so it tracks orbit / pan / zoom.
+// recomputed in the render loop alongside the label-hide pass so it tracks
+// orbit / pan / zoom. The card is portaled by cientos <Html> at the cube's
+// projected position; `selectedSide` just picks which way it translates.
 //
 // Hysteresis on the flip: near the canvas centerline a naive `x < 0`
 // rule oscillates on every sub-pixel camera move and the card flashes

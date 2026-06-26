@@ -234,9 +234,10 @@ const QUERY_TRACE_DETAIL = /* GraphQL */ `
   }
 `;
 
-// OAP service-id shape: `<base64>.<digits>`. Match strictly so we
-// don't mis-classify names containing `.` (e.g. `*.sample-services`)
-// as ids.
+// OAP service-id shape: `<base64>.<digits>`. Match strictly, not
+// "contains `.` and no whitespace": the loose form mis-classifies
+// mesh-layer names containing `.` (e.g. `*.sample-services`) as ids
+// and breaks their trace queries.
 const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
 async function resolveServiceId(
   opts: GraphqlOptions,

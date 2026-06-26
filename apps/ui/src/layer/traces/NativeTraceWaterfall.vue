@@ -312,7 +312,8 @@ function onPick(span: WaterfallSpan): void {
   /* Browser-level virtualization: off-screen rows skip render/layout/paint.
    * Big traces (5k+ spans) used to freeze the main thread for seconds on
    * open because every row's SVG glyph + icon + name-band mounted upfront.
-   * `contain-intrinsic-size` hints the ~32px row height; unsupported
+   * `contain-intrinsic-size` needs a hint for the collapsed height — rows
+   * are near-fixed at ~32px (24 band + 8 vertical padding). Unsupported
    * browsers degrade to normal rendering. */
   content-visibility: auto;
   contain-intrinsic-size: auto 32px;

@@ -49,7 +49,11 @@ export function invalidateAlertBundleCache(): void {
 }
 
 function locateAlertBundle(): string {
-  // Probe order matches the sibling layer/overview loaders:
+  // Probe order matches the sibling layer/overview loaders. Entry 1
+  // must come first: after `pnpm package`, dist/server.js sits next to
+  // dist/bundled_templates, so HERE = dist/. Drop it and the remaining
+  // probes climb above WORKDIR — node:path.resolve clamps at `/` and
+  // every candidate collapses to the same wrong path.
   //   1. <HERE>/bundled_templates/...      — packaged dist (HERE = dist/).
   //   2. <HERE>/../../bundled_templates/... — dev source tree (tsx).
   //   3. <cwd>/bundled_templates/...        — relocated dist/.

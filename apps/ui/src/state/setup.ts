@@ -264,6 +264,10 @@ export const useSetupStore = defineStore('setup', () => {
     }
   }
 
+  // Form bindings mutate `configs[layer]…` through the Vue proxy, and we
+  // can't tell a user edit from a programmatic write on that proxy — so
+  // dirty tracking needs an explicit signal: callers (LayerSetupCard on
+  // input) must call markDirty from the form handler.
   function markDirty(): void {
     if (!dirty.value) dirty.value = true;
   }

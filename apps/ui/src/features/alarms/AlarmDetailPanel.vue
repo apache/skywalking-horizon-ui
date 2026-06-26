@@ -236,7 +236,10 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
       </div>
     </section>
 
-    <!-- One snapshot chart per metric (see AlarmSnapshotChart). -->
+    <!-- One snapshot chart per metric. X-axis is real time, reconstructed
+         from the trigger minute + bucket count; the trigger time is marked
+         with a vertical line and the rule's evaluation window is shaded when
+         the admin-server supplied the rule's `period`. -->
     <section v-for="m in snapshotMetrics" :key="m.name" class="ad__sec">
       <div class="ad__kicker">{{ m.name }}</div>
       <AlarmSnapshotChart
