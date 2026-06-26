@@ -26,6 +26,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { LayerDef, TopologyNode } from '@/api/client';
 import { isUserNode } from '@/layer/service-map/useTopologyIcons';
 import Icon from '@/components/icons/Icon.vue';
@@ -45,6 +46,7 @@ const emit = defineEmits<{
 
 const OTHERS_TOKEN = 'UNDEFINED'; // OAP's no-layer fallback, shown as "Others"
 const filterOpen = ref(false);
+useEscapeToClose(() => filterOpen.value, () => { filterOpen.value = false; });
 
 function layerTokens(n: TopologyNode): string[] {
   const ls = (n.layers ?? []).filter((l) => l && l.length > 0);

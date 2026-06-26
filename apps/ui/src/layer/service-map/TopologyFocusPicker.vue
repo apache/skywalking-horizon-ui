@@ -24,6 +24,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import {
   resolveServiceIdentity,
   type ServiceIdentity,
@@ -40,6 +41,7 @@ const emit = defineEmits<{ 'update:selected': [string[]] }>();
 
 const open = ref(false);
 const search = ref('');
+useEscapeToClose(() => open.value, () => { open.value = false; });
 function toggleOpen(): void { open.value = !open.value; }
 function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, props.namingRule);

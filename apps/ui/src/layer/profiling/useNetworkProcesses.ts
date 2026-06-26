@@ -30,6 +30,7 @@ export function useNetworkProcesses(instanceId: Ref<string | null>, enabled: Ref
   watch([enabled, instanceId], async ([on, id]) => {
     if (!on || !id) {
       processes.value = [];
+      loading.value = false;
       return;
     }
     loading.value = true;

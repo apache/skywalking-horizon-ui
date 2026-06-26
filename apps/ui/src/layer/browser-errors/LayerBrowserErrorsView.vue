@@ -205,6 +205,7 @@ function catOf(r: BrowserErrorRow): Cat {
 }
 
 const selectedCat = ref<Cat | null>(null);
+watch(serviceName, () => { selectedCat.value = null; });
 function toggleCat(c: Cat): void {
   selectedCat.value = selectedCat.value === c ? null : c;
   // `expanded` indexes into filteredLogs, which just changed — drop it.

@@ -286,9 +286,10 @@ const DEFAULT_SETTINGS = (): NetworkProfilingSampling['settings'] => ({
   requireCompleteRequest: true,
   requireCompleteResponse: true,
 });
-const samplings = ref<NetworkProfilingSampling[]>([
+const DEFAULT_SAMPLINGS = (): NetworkProfilingSampling[] => [
   { uriRegex: '', minDuration: 0, when4xx: true, when5xx: true, settings: DEFAULT_SETTINGS() },
-]);
+];
+const samplings = ref<NetworkProfilingSampling[]>(DEFAULT_SAMPLINGS());
 function addSampling(): void {
   samplings.value.push({ minDuration: 0, when4xx: false, when5xx: false, settings: DEFAULT_SETTINGS() });
 }
@@ -316,6 +317,7 @@ async function submitNewTask(): Promise<void> {
       return;
     }
     showNewTask.value = false;
+    samplings.value = DEFAULT_SAMPLINGS();
     await refreshTasks();
     await pollForNewTask({
       idsBefore,

@@ -234,6 +234,8 @@ function applyConditions(): void {
 // new one). Filter edits just stage; they wait for Run query.
 watch(serviceName, () => {
   hasQueried.value = false;
+  selectedLevel.value = null;
+  customTags.value = [];
   applyConditions();
 });
 const aService = computed(() => applied.value.service);
