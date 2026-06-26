@@ -46,6 +46,17 @@ import type {
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
 import { collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import {
+  CANVAS_COLS,
+  CANVAS_ROW_PX,
+  CANVAS_GAP_PX,
+  SUBGRID_ROW_PX,
+  SUBGRID_GAP_PX,
+  DRAWER_COL,
+  widgetSpan,
+  widgetRowSpan,
+  widgetGridStyle,
+} from '@/features/admin/layer-templates/layer-dashboards.geometry';
 
 /** Admin-only scopes that aren't dashboard-widget scopes. `networkProfiling`
  *  is the process-topology edge editor; `deployment` is the
@@ -614,7 +625,6 @@ function onWinResizeScope(): void { updateScopeScroll(); }
 // viewport below the topbar.
 const drawerEl = ref<HTMLElement | null>(null);
 const editorCardEl = ref<HTMLElement | null>(null);
-const DRAWER_COL = 360;
 function positionDrawer(): void {
   const el = drawerEl.value;
   const card = editorCardEl.value;
@@ -867,23 +877,6 @@ const resize = reactive<{
   cellH: 1,
 });
 
-const CANVAS_COLS = 12;
-const CANVAS_ROW_PX = 120;
-const CANVAS_GAP_PX = 8;
-
-function widgetSpan(w: DashboardWidget): number {
-  return Math.min(CANVAS_COLS, Math.max(1, w.span ?? 4));
-}
-function widgetRowSpan(w: DashboardWidget): number {
-  return Math.max(1, w.rowSpan ?? 2);
-}
-function widgetGridStyle(w: DashboardWidget): Record<string, string> {
-  return {
-    gridColumn: `span ${widgetSpan(w)}`,
-    gridRow: `span ${widgetRowSpan(w)}`,
-  };
-}
-
 function onResizeStart(e: MouseEvent, i: number): void {
   e.preventDefault();
   e.stopPropagation();
@@ -907,8 +900,6 @@ function onResizeStart(e: MouseEvent, i: number): void {
   window.addEventListener('mousemove', onResizeMove);
   window.addEventListener('mouseup', onResizeEnd);
 }
-const SUBGRID_ROW_PX = 84;
-const SUBGRID_GAP_PX = 6;
 /** Resize a widget INSIDE a tab — same drag as the top level, but snapped to
  *  the tab's own 12-col sub-grid pitch (measured from the .cw-subgrid). */
 function onSubResizeStart(e: MouseEvent, widgetId: string, tabIdx: number, subIdx: number): void {
