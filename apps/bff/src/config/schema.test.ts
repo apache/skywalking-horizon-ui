@@ -29,15 +29,15 @@ describe('configSchema defaults', () => {
   });
 });
 
-// horizon.example.yaml is the SHIPPED default + the env-var reference: every
+// horizon.yaml is the SHIPPED default + the env-var reference: every
 // field is a `${HORIZON_…:default}` token. Two contracts guarded here:
 //   1. With NO env set, the tokens' defaults parse to EXACTLY the schema
 //      defaults — so the file is a faithful "this is what you get" reference.
 //   2. Every top-level config section appears in the example, so a new
 //      section can't be added to the schema without an env-overridable token.
-describe('horizon.example.yaml — tokenized default + parity', () => {
+describe('horizon.yaml — tokenized default + parity', () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const examplePath = resolve(here, '../../../../horizon.example.yaml');
+  const examplePath = resolve(here, '../../../../horizon.yaml');
   const raw = readFileSync(examplePath, 'utf8');
 
   it('parses to exactly the schema defaults (token defaults match the schema)', () => {
@@ -63,7 +63,7 @@ describe('horizon.example.yaml — tokenized default + parity', () => {
     for (const s of sections) {
       // `infra3d` is the deprecated/ignored passthrough — never tokenized.
       if (s === 'infra3d') continue;
-      expect(exampleKeys, `config section "${s}" is missing from horizon.example.yaml`).toContain(s);
+      expect(exampleKeys, `config section "${s}" is missing from horizon.yaml`).toContain(s);
     }
   });
 
@@ -107,6 +107,6 @@ describe('horizon.example.yaml — tokenized default + parity', () => {
       uncovered.push(`${path} (leaf not tokenized)`);
     };
     walk(defaults, example, '');
-    expect(uncovered, `fields lacking an env token in horizon.example.yaml:\n  ${uncovered.join('\n  ')}`).toEqual([]);
+    expect(uncovered, `fields lacking an env token in horizon.yaml:\n  ${uncovered.join('\n  ')}`).toEqual([]);
   });
 });

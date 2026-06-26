@@ -30,7 +30,7 @@
  *       node_modules/          — production deps (npm + workspace dists)
  *       bundled_templates/     — layer + overview JSON templates
  *       static/                — built UI (Vite dist)
- *       horizon.example.yaml   — copy-and-edit starting point
+ *       horizon.yaml           — env-driven config (override fields via HORIZON_… env vars)
  *
  * The build:
  *   1. Builds each workspace package under `packages/*` (tsc → dist/).
@@ -102,7 +102,7 @@ cpSync(
   { recursive: true },
 );
 cpSync(resolve(root, 'apps/ui/dist'), resolve(dist, 'static'), { recursive: true });
-cpSync(resolve(root, 'horizon.example.yaml'), resolve(dist, 'horizon.example.yaml'));
+cpSync(resolve(root, 'horizon.yaml'), resolve(dist, 'horizon.yaml'));
 
 step('Done');
 console.log(`
@@ -110,8 +110,8 @@ Target binary: ${resolve(dist, 'server.js')}
 
 Boot it:
 
-    cp horizon.example.yaml horizon.yaml         # configure once
-    HORIZON_CONFIG=./horizon.yaml \\
+    HORIZON_CONFIG=./horizon.yaml \\             # every field is a \${HORIZON_…} env var
+      HORIZON_OAP_QUERY_URL=http://oap:12800 \\  # override only what you need
       HORIZON_STATIC_DIR=./dist/static \\
       node dist/server.js
 

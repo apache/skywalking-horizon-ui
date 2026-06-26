@@ -38,7 +38,7 @@ The OAP defaults. Each module binds its own port:
 - `:17128` for admin
 - `:9412` for Zipkin
 
-This is what `horizon.example.yaml` shows.
+This is what `horizon.yaml` shows.
 
 ### Shared port (Docker / Kubernetes presets)
 

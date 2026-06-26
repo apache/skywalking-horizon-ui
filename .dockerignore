@@ -16,8 +16,8 @@
 # Denylist style: the image builds FROM SOURCE (see Dockerfile), so the
 # context is the source tree. Exclude only what must NOT enter the build —
 # host-built artifacts (arch-specific node_modules + dist), VCS, CI config,
-# local secrets, and scratch dirs. Everything else (source, lockfile,
-# horizon.example.yaml) is needed by `pnpm install` + `pnpm package`.
+# local secrets, and scratch dirs. Everything else (source, lockfile, the
+# committed horizon.yaml) is needed by `pnpm install` + `pnpm package`.
 
 **/node_modules
 **/dist
@@ -29,6 +29,10 @@ scripts/.release-work
 scripts/.finalize-work
 .claude
 
-# Local runtime config may carry secrets — never ship it. The committed
-# horizon.example.yaml stays (package.mjs reads it into dist/).
-horizon.yaml
+# horizon.yaml is the committed, env-driven config (package.mjs reads it into
+# dist/, the Dockerfile bakes it as /app/horizon.yaml) — keep it in the context.
+# Runtime state files carry local data; never ship them.
+horizon-audit.jsonl
+horizon-wire.jsonl
+horizon-setup.json
+horizon-alarms.json

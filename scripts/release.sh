@@ -504,7 +504,7 @@ Guide to build the release from source:
  * cd into the extracted directory
  * pnpm install --frozen-lockfile
  * pnpm package
- * node dist/server.js (after copying horizon.example.yaml → horizon.yaml)
+ * node dist/server.js (after copying horizon.yaml → horizon.yaml)
 
 Voting will start now (${VOTE_DATE}) and will remain open for at least
 72 hours. PMC members, please cast your vote.

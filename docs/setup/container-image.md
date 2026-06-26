@@ -28,7 +28,6 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 | `/app/server.js` | root | no | Compiled BFF entry point. `CMD` runs `node server.js`. |
 | `/app/node_modules/` | root | no | Production npm dependencies. |
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
-| `/app/horizon.example.yaml` | root | no | Example config — **read-only reference**, copy from it. |
 | `/app/horizon.yaml` | root | no | The **active** config — a **baked, fully tokenized default** (every field is a `${HORIZON_…:default}` env token). The image runs with no mounted file; override any field via env (see [Run with env vars only](#run-with-env-vars-only-no-mounted-file)), or bind-mount your own to replace it. |
 | `/app/bundled_templates/` | **horizon** | **yes** | Layer + overview JSON templates. Owned by `horizon` because the admin **Layer-Templates** and **Overview-Templates** editors write into per-key files here. |
 | `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log, setup state, alarm state, and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |

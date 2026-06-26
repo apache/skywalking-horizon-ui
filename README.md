@@ -127,7 +127,7 @@ See [`docs/setup/container-image.md`](docs/setup/container-image.md) for image t
 
 ## Configuration
 
-Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}` environment-variable interpolation) — see `horizon.example.yaml`. Key sections:
+Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}` environment-variable interpolation) — see `horizon.yaml`. Key sections:
 
 - `server` — host / port.
 - `oap` — `queryUrl`, `adminUrl`, `zipkinUrl`, `timeoutMs`, and optional outbound basic-auth.

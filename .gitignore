@@ -40,11 +40,11 @@ coverage
 # OS
 Thumbs.db
 
-# BFF runtime files
-horizon.yaml
+# BFF runtime files (horizon.yaml itself is committed — the env-driven config)
 horizon-audit.jsonl
 horizon-wire.jsonl
 horizon-setup.json
+horizon-alarms.json
 
 # Release
 scripts/.release-work

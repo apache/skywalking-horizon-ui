@@ -60,11 +60,11 @@ describe('stripNullish', () => {
   });
 });
 
-// The env-native contract: the tokenized horizon.example.yaml, interpolated +
+// The env-native contract: the tokenized horizon.yaml, interpolated +
 // stripped + parsed, must accept env overrides for every kind of field.
-describe('env-native config (horizon.example.yaml + env)', () => {
+describe('env-native config (horizon.yaml + env)', () => {
   const here = dirname(fileURLToPath(import.meta.url));
-  const raw = readFileSync(resolve(here, '../../../../horizon.example.yaml'), 'utf8');
+  const raw = readFileSync(resolve(here, '../../../../horizon.yaml'), 'utf8');
   const load = (env: NodeJS.ProcessEnv): ReturnType<typeof configSchema.parse> =>
     configSchema.parse(stripNullish(YAML.parse(interpolateEnv(raw, env)) ?? {}));
 

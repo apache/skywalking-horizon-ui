@@ -12,15 +12,14 @@ This page is the shortest path from "no Horizon" to "Horizon in front of a runni
 
 ### 1. Unpack Horizon
 
-Unpack the binary tarball (substitute the release version you downloaded for `<version>`) and copy the example config:
+Unpack the binary tarball (substitute the release version you downloaded for `<version>`):
 
 ```sh
 tar -xzf apache-skywalking-horizon-ui-<version>-bin.tar.gz
 cd apache-skywalking-horizon-ui-<version>-bin
-cp horizon.example.yaml horizon.yaml
 ```
 
-The binary is self-contained: `server.js`, `node_modules/`, `static/`, and bundled templates are already present. There is no `pnpm install` step.
+The binary is self-contained: `server.js`, `node_modules/`, `static/`, bundled templates, and the config `horizon.yaml` are already present. There is no `pnpm install` step. `horizon.yaml` is **env-driven** — every field is a `${HORIZON_…:default}` variable, so you can leave the file as-is and set only the environment variables you need (starting with your OAP address), or edit the file directly.
 
 ### 2. Point Horizon at OAP
 

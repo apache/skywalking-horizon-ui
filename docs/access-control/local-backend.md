@@ -60,10 +60,10 @@ The session captures the role list at authentication time, not on every request.
 
 ## File permissions
 
-`horizon.yaml` contains password hashes. Treat it as a secret-bearing file:
+The `horizon.yaml` shipped in the repo and image is **env-driven and holds no secrets** — `local.users` defaults to the `HORIZON_AUTH_LOCAL_USERS` variable. Supply your users (with their Argon2id hashes) through that environment variable so hashes never land in a version-controlled file. If you instead write hashes directly into a `horizon.yaml` you deploy, treat that copy as a secret-bearing file:
 
 - Filesystem perms `0600` (BFF user only).
-- Not in version control. The repo's `.gitignore` excludes `horizon.yaml`; only `horizon.example.yaml` is committed.
+- Keep it out of version control — the committed `horizon.yaml` holds only `${HORIZON_…}` tokens, never real hashes.
 - If you store the file in configuration management (Ansible, Helm secret, etc.), encrypt at rest.
 
 ## Mixing with LDAP
