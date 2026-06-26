@@ -31,8 +31,7 @@
   service map's vocabulary.
 -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import * as d3 from 'd3';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import type {
@@ -45,11 +44,27 @@ import type {
   RolePairMetrics,
 } from '@/api/client';
 import { useDeployment } from '@/layer/service-map/useDeployment';
+import {
+  MAIN_R,
+  BOX_HEAD_BAND,
+  BOX_PAD_TOP,
+  BOX_PAD_BOTTOM,
+  clusterBoxX,
+  computeLayout,
+  type Pos,
+  type ClusterRect,
+  type Layout,
+  type Pod,
+  type ClusterBucket,
+} from '@/layer/service-map/useDeploymentLayout';
+import { useDeploymentPanZoom } from '@/layer/service-map/useDeploymentPanZoom';
+import DeploymentFlowsTable, { type FlowGroup } from '@/layer/service-map/DeploymentFlowsTable.vue';
+import DeploymentEdgePanel, { type EdgeRow } from '@/layer/service-map/DeploymentEdgePanel.vue';
+import DeploymentNodePopover from '@/layer/service-map/DeploymentNodePopover.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayers } from '@/shell/useLayers';
 import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
-import Sparkline from '@/components/charts/Sparkline.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -214,13 +229,6 @@ const clusterKeyOf = (n: DeploymentNode): string | null => keyFromRule(clusterBy
 const siblingKeyOf = (n: DeploymentNode): string => keyFromRule(siblingBy.value, n) ?? n.id;
 const isMainRole = (n: DeploymentNode): boolean => !!roleConfigFor(n)?.main;
 
-interface Pod {
-  clusterKey: string | null;
-  siblingKey: string;
-  main: DeploymentNode;
-  siblings: DeploymentNode[];
-}
-interface ClusterBucket { key: string | null; label: string; pods: Pod[] }
 const clusters = computed<ClusterBucket[]>(() => {
   const UNGROUPED = '__ungrouped__';
   const byCluster = new Map<string, Map<string, DeploymentNode[]>>();
@@ -252,99 +260,10 @@ const clusters = computed<ClusterBucket[]>(() => {
   });
 });
 
-// ── Layout: pods tile in a near-square grid per cluster box; each pod = a
-// main hex with up to 6 siblings attached at its edge midpoints (order:
-// lower-right, lower-left, upper-right, upper-left, bottom, top — extras
-// hidden). `pos` carries a per-node radius so edges trim correctly and the
-// renderer sizes each hex.
-// Sizing tracks the service map (NODE_R 32 / COL_GAP 220 / ROW_GAP 185) so the
-// two topologies read at the same scale + zoom. Siblings are half the main hex.
-const MAIN_R = 32;
-const SIB_R = 16;
-const SIB_DIST = 48; // main centre -> sibling centre
-// Edge-midpoint directions (SVG y-down), in attach order.
-const SIB_ANGLES = [30, 150, 330, 210, 90, 270].map((d) => (d * Math.PI) / 180);
-const POD_DX = 210;
-const POD_DY = 190;
-const CLUSTER_GAP_X = 60;
-const CLUSTER_PAD = 24;
-const HEAD_H = 30;
-interface Pos { cx: number; cy: number; r: number }
-interface ClusterRect { key: string | null; label: string; x: number; y: number; w: number; h: number; boxed: boolean }
-interface Layout { pos: Map<string, Pos>; w: number; h: number; nodeToPod: Map<string, string> }
-
-const podIdOf = (clusterKey: string | null, siblingKey: string): string => `${clusterKey ?? ''}␟${siblingKey}`;
-
-/** Rank each node by its longest path from a source (no incoming edge) along
- *  the call graph — rank 0 = source. Used twice: on the intra-cluster pod
- *  graph (rank ⇒ the tier column a pod sits in) and on the inter-cluster graph
- *  (rank ⇒ a box's left→right slot). Cycles are handled by condensing each
- *  strongly-connected component to one super-node before ranking, so a
- *  mutually-calling pair (a liaison↔liaison pair, or a bidirectional
- *  cross-cluster RPC) shares a rank instead of STARVING a plain Kahn pass —
- *  which, with no in-degree-0 seed, would leave every node at rank 0 and
- *  collapse the whole axis to alphabetical order. Ranks are densified so there
- *  are no gaps. For acyclic input this is identical to a longest-path BFS. */
-function rankPods(podIds: string[], edges: Array<[string, string]>): Map<string, number> {
-  const idSet = new Set(podIds);
-  const succ = new Map<string, string[]>(podIds.map((id) => [id, []]));
-  for (const [s, t] of edges) {
-    if (!idSet.has(s) || !idSet.has(t) || s === t) continue;
-    succ.get(s)!.push(t);
-  }
-  // Tarjan SCC → comp id per node (numbered in reverse-topological order).
-  const index = new Map<string, number>();
-  const low = new Map<string, number>();
-  const comp = new Map<string, number>();
-  const onStack = new Set<string>();
-  const stack: string[] = [];
-  let idx = 0;
-  let nComp = 0;
-  const strongConnect = (v: string): void => {
-    index.set(v, idx); low.set(v, idx); idx++;
-    stack.push(v); onStack.add(v);
-    for (const w of succ.get(v)!) {
-      if (!index.has(w)) { strongConnect(w); low.set(v, Math.min(low.get(v)!, low.get(w)!)); }
-      else if (onStack.has(w)) { low.set(v, Math.min(low.get(v)!, index.get(w)!)); }
-    }
-    if (low.get(v) === index.get(v)) {
-      for (;;) { const w = stack.pop()!; onStack.delete(w); comp.set(w, nComp); if (w === v) break; }
-      nComp++;
-    }
-  };
-  for (const v of podIds) if (!index.has(v)) strongConnect(v);
-  // Longest-path rank on the condensation DAG (acyclic ⇒ Kahn never starves).
-  const compSucc = new Map<number, Set<number>>();
-  const compInDeg = new Map<number, number>();
-  for (let c = 0; c < nComp; c++) { compSucc.set(c, new Set()); compInDeg.set(c, 0); }
-  for (const [s, ts] of succ) {
-    for (const t of ts) {
-      const cs = comp.get(s)!, ct = comp.get(t)!;
-      if (cs !== ct && !compSucc.get(cs)!.has(ct)) {
-        compSucc.get(cs)!.add(ct);
-        compInDeg.set(ct, (compInDeg.get(ct) ?? 0) + 1);
-      }
-    }
-  }
-  const compRank = new Map<number, number>();
-  for (let c = 0; c < nComp; c++) compRank.set(c, 0);
-  const queue: number[] = [];
-  for (let c = 0; c < nComp; c++) if ((compInDeg.get(c) ?? 0) === 0) queue.push(c);
-  while (queue.length) {
-    const c = queue.shift()!;
-    for (const d of compSucc.get(c)!) {
-      compRank.set(d, Math.max(compRank.get(d) ?? 0, (compRank.get(c) ?? 0) + 1));
-      compInDeg.set(d, (compInDeg.get(d) ?? 0) - 1);
-      if ((compInDeg.get(d) ?? 0) <= 0) queue.push(d);
-    }
-  }
-  const rank = new Map<string, number>(podIds.map((id) => [id, compRank.get(comp.get(id)!) ?? 0]));
-  // Densify ranks → no gaps.
-  const used = [...new Set(rank.values())].sort((a, b) => a - b);
-  const dense = new Map(used.map((r, i) => [r, i]));
-  for (const [id, r] of rank) rank.set(id, dense.get(r) ?? 0);
-  return rank;
-}
+// ── Layout: the pure packer lives in useDeploymentLayout (rankPods Tarjan-SCC
+// + Kahn ranking, clusterBoxX, computeLayout). Here we only supply the live
+// header-width measurement (depends on the reactive cluster alias + instance
+// word) and thread the reactive cluster/call data through.
 
 // A cluster box must be wide enough to hold its header
 // ("<name>  <ALIAS · INSTANCES>"); the dashed box is otherwise sized from the
@@ -357,156 +276,9 @@ function clusterHeaderMinW(label: string): number {
   return 16 + (label?.length ?? 0) * 7.3 + 8 + alias.length * 6.5 + 16;
 }
 
-// Cluster boxes are derived from the LIVE node positions (which include drag
-// deltas), not the base grid — so a box always wraps its content and grows /
-// moves when a pod inside it is dragged. Padding leaves room for the header
-// band (top) and the sibling labels (bottom).
-const BOX_HEAD_BAND = 34;
-const BOX_PAD_X = 22;
-const BOX_PAD_TOP = 10;
-const BOX_PAD_BOTTOM = 28;
-/** Horizontal box geometry shared by the layout packer and the live rect
- *  renderer (they MUST agree, or packing gaps drift): node extents + side
- *  padding, grown — centred — to the header width so a narrow cluster
- *  neither hangs its title off the right edge nor huddles its pods left.
- *  `label === null` ⇒ unboxed layer (no clusterBy): plain padded extents. */
-function clusterBoxX(minX: number, maxX: number, label: string | null): { x: number; w: number } {
-  const contentW = maxX - minX + BOX_PAD_X * 2;
-  const w = label === null ? contentW : Math.max(contentW, clusterHeaderMinW(label));
-  return { x: minX - BOX_PAD_X - (w - contentW) / 2, w };
-}
-
-const layout = computed<Layout>(() => {
-  const pos = new Map<string, Pos>();
-  const nodeToPod = new Map<string, string>();
-  const showBoxes = !!clusterBy.value;
-
-  // node → podId, podId → clusterKey
-  const podCluster = new Map<string, string | null>();
-  for (const cl of clusters.value) {
-    for (const pod of cl.pods) {
-      const pid = podIdOf(cl.key, pod.siblingKey);
-      podCluster.set(pid, cl.key);
-      for (const node of [pod.main, ...pod.siblings]) nodeToPod.set(node.id, pid);
-    }
-  }
-  // Directed pod edges (deduped). Intra-cluster ones drive pod flow order
-  // WITHIN a box; inter-cluster ones (deduped at cluster granularity) drive the
-  // left→right order of the boxes themselves.
-  const intraByCluster = new Map<string, Array<[string, string]>>();
-  const interEdges: Array<[string, string]> = [];
-  const interSeen = new Set<string>();
-  const seen = new Set<string>();
-  for (const c of calls.value) {
-    const sp = nodeToPod.get(c.source);
-    const tp = nodeToPod.get(c.target);
-    if (!sp || !tp || sp === tp) continue;
-    const sig = `${sp}>${tp}`;
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    const sc = podCluster.get(sp) ?? '';
-    const tc = podCluster.get(tp) ?? '';
-    if (sc === tc) {
-      if (!intraByCluster.has(sc)) intraByCluster.set(sc, []);
-      intraByCluster.get(sc)!.push([sp, tp]);
-    } else {
-      const isig = `${sc}>${tc}`;
-      if (!interSeen.has(isig)) { interSeen.add(isig); interEdges.push([sc, tc]); }
-    }
-  }
-  // Cluster order: rank the boxes along the inter-cluster call DAG (longest
-  // path from sources, same ranker as the pods) so an upstream→downstream
-  // chain — liaison → hot data → warm → cold — reads left→right. Raw in-degree
-  // doesn't: with composite clustering, warm and cold receive a similar number
-  // of edges and would order arbitrarily. Ties break by key.
-  const clusterRank = rankPods(clusters.value.map((cl) => cl.key ?? ''), interEdges);
-  const orderedClusters = [...clusters.value].sort((a, b) => {
-    const ra = clusterRank.get(a.key ?? '') ?? 0;
-    const rb = clusterRank.get(b.key ?? '') ?? 0;
-    if (ra !== rb) return ra - rb;
-    if (a.key === null) return 1;
-    if (b.key === null) return -1;
-    return a.key.localeCompare(b.key);
-  });
-
-  // All clusters flow in ONE left→right row (call-flow order). The canvas
-  // pans/zooms and a service has only a handful of groupings, so there is no
-  // row-wrap — every cluster box stays on the same line. Clusters are packed
-  // by their VISIBLE box (node extents → same `clusterBoxX` math the rect
-  // renderer uses), NOT by sub-column slot arithmetic: a slot is up to a full
-  // POD_DX wider than the drawn box, which read as dead corridors between
-  // boxes and a blank leading strip before the first one.
-  let cursorX = 0;
-  let maxW = 0;
-  let clusterIdx = -1;
-  for (const cl of orderedClusters) {
-    clusterIdx++;
-    const podById = new Map(cl.pods.map((p) => [podIdOf(cl.key, p.siblingKey), p]));
-    const ids = [...podById.keys()];
-    const rank = rankPods(ids, intraByCluster.get(cl.key ?? '') ?? []);
-    // Group pods into COLUMNS by rank (rank = tier: hot→warm→cold left→right);
-    // within a column order by main name and stack VERTICALLY, centred — so a
-    // tier's nodes (e.g. 4 hot) form a vertical column and the chain flows
-    // left→right. Mirrors the service map's BFS column layout.
-    const maxRank = Math.max(0, ...ids.map((id) => rank.get(id) ?? 0));
-    const rankCols: string[][] = Array.from({ length: maxRank + 1 }, () => []);
-    for (const id of ids) rankCols[rank.get(id) ?? 0].push(id);
-    for (const col of rankCols) col.sort((a, b) => podById.get(a)!.main.name.localeCompare(podById.get(b)!.main.name));
-    // A tier column holds at most COL_CAP pods; overflow wraps into extra
-    // sub-columns (so 9 hot pods → 3 sub-columns of 4/4/1). Each rank reserves
-    // as many sub-columns as it needs; later ranks shift right accordingly.
-    const COL_CAP = 4;
-    const subColsPerRank = rankCols.map((c) => Math.max(1, Math.ceil(c.length / COL_CAP)));
-    const headH = showBoxes ? HEAD_H : 0;
-    // Pods are TOP-aligned (row 0 just under the header) so tiers line up; the
-    // canvas pans/zooms to fit. Staggered: drop every other sub-column by half a
-    // row so adjacent columns interleave — keeps long pod labels and cross-tier
-    // edges from colliding on a rigid grid.
-    // Cluster start rows zigzag (low-high-low) so adjacent clusters don't line
-    // up flat; offset alternates by half the default height diff (50% of POD_DY).
-    const rowTop = headH + CLUSTER_PAD + MAIN_R + (clusterIdx % 2 === 0 ? 1 : -1) * POD_DY * 0.25;
-    const clusterNodeIds: string[] = [];
-    let subColBase = 0;
-    rankCols.forEach((col, r) => {
-      col.forEach((pid, k) => {
-        const pod = podById.get(pid)!;
-        const subCol = Math.floor(k / COL_CAP);
-        const rowInCol = k % COL_CAP;
-        const cx = CLUSTER_PAD + (subColBase + subCol) * POD_DX + POD_DX / 2;
-        const cy = rowTop + rowInCol * POD_DY + (subCol % 2) * (POD_DY / 2);
-        pos.set(pod.main.id, { cx, cy, r: MAIN_R });
-        clusterNodeIds.push(pod.main.id);
-        pod.siblings.slice(0, SIB_ANGLES.length).forEach((sib, j) => {
-          const a = SIB_ANGLES[j];
-          pos.set(sib.id, { cx: cx + Math.cos(a) * SIB_DIST, cy: cy + Math.sin(a) * SIB_DIST, r: SIB_R });
-          clusterNodeIds.push(sib.id);
-        });
-      });
-      subColBase += subColsPerRank[r];
-    });
-    if (clusterNodeIds.length === 0) continue;
-    // Shift the whole cluster so its visible box's left edge lands at cursorX.
-    let minX = Infinity;
-    let maxX = -Infinity;
-    for (const id of clusterNodeIds) {
-      const p = pos.get(id)!;
-      minX = Math.min(minX, p.cx - p.r);
-      maxX = Math.max(maxX, p.cx + p.r);
-    }
-    const box = clusterBoxX(minX, maxX, showBoxes ? cl.label : null);
-    const shift = cursorX - box.x;
-    for (const id of clusterNodeIds) pos.get(id)!.cx += shift;
-    cursorX += box.w + CLUSTER_GAP_X;
-    maxW = cursorX - CLUSTER_GAP_X;
-  }
-  // Canvas height from the ACTUAL node extents — a per-row reservation would
-  // float the graph high with dead space below. Add room for the sibling
-  // labels hanging beneath the lowest node.
-  let contentBottom = 0;
-  for (const p of pos.values()) contentBottom = Math.max(contentBottom, p.cy + p.r);
-  const h = contentBottom > 0 ? contentBottom + 46 : 240;
-  return { pos, w: Math.max(320, maxW), h: Math.max(240, h), nodeToPod };
-});
+const layout = computed<Layout>(() =>
+  computeLayout(clusters.value, calls.value, !!clusterBy.value, clusterHeaderMinW),
+);
 const basePos = computed(() => layout.value.pos);
 const nodeToPod = computed(() => layout.value.nodeToPod);
 // Per-pod drag offsets (move a whole pod — main + its siblings — as a unit).
@@ -552,7 +324,7 @@ const clusterRects = computed<ClusterRect[]>(() => {
       }
     }
     if (!any) continue;
-    const box = clusterBoxX(minX, maxX, cl.label);
+    const box = clusterBoxX(minX, maxX, cl.label, clusterHeaderMinW);
     out.push({
       key: cl.key,
       label: cl.label,
@@ -638,102 +410,26 @@ function edgePathD(c: DeploymentCall): string {
   return `M ${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`;
 }
 
-// ── Pan + zoom (same lifecycle as the instance map).
+// ── Pan + zoom (same lifecycle as the instance map) — owned by the composable.
+// The dataset-identity signal folds in selectedId so a service switch that
+// lands on cached data with identical counts still re-keys every v-for node
+// element (which kills the per-element d3 drag listeners) → rebind + refit.
 const svgEl = ref<SVGSVGElement | null>(null);
 const zoomLayerEl = ref<SVGGElement | null>(null);
 const containerEl = ref<HTMLDivElement | null>(null);
-let zoomBehaviour: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
-const zoomT = ref<{ k: number; x: number; y: number }>({ k: 1, x: 0, y: 0 });
-function viewportSize(): { width: number; height: number } {
-  const el = containerEl.value;
-  if (!el) return { width: W.value, height: H.value };
-  const r = el.getBoundingClientRect();
-  return { width: r.width || W.value, height: r.height || H.value };
-}
-function fitToScreen(animate = true): void {
-  if (!svgEl.value || !zoomBehaviour) return;
-  const vp = viewportSize();
-  const pad = 24;
-  const fit = Math.min((vp.width - pad * 2) / W.value, (vp.height - pad * 2) / H.value);
-  // Same readable cap as the service map (0.79) so the hexes + fonts render at
-  // the SAME on-screen scale across the two topologies. The canvas now has a
-  // concrete height, so the fit actually reaches this cap instead of starving.
-  const k = Math.max(0.15, Math.min(fit, 0.79));
-  const tx = (vp.width - W.value * k) / 2;
-  const ty = (vp.height - H.value * k) / 2;
-  const transform = d3.zoomIdentity.translate(tx, ty).scale(k);
-  const sel = d3.select(svgEl.value);
-  if (animate) sel.transition().duration(200).call(zoomBehaviour.transform, transform);
-  else sel.call(zoomBehaviour.transform, transform);
-}
-function zoomBy(factor: number): void {
-  if (!svgEl.value || !zoomBehaviour) return;
-  d3.select(svgEl.value).transition().duration(150).call(zoomBehaviour.scaleBy, factor);
-}
-function installZoom(): void {
-  if (!svgEl.value || !zoomLayerEl.value) return;
-  const sel = d3.select(svgEl.value);
-  zoomBehaviour = d3
-    .zoom<SVGSVGElement, unknown>()
-    .scaleExtent([0.15, 5])
-    .filter((event) => {
-      if (event.type === 'mousedown' && (event as MouseEvent).button !== 0) return false;
-      const target = event.target as Element | null;
-      if (target?.closest?.('[data-node-id], [data-edge-id]')) return false;
-      return !(event as MouseEvent).button;
-    })
-    .on('zoom', (ev) => {
-      zoomT.value = { k: ev.transform.k, x: ev.transform.x, y: ev.transform.y };
-      d3.select(zoomLayerEl.value).attr('transform', ev.transform.toString());
-    });
-  sel.call(zoomBehaviour);
-  sel.on('dblclick.zoom', null);
-  sel.on('dblclick', () => fitToScreen(true));
-}
-// Drag a pod (any hex in it) to reposition the whole pod — main + its
-// siblings move together. The zoom filter bows out for `[data-node-id]`
-// targets, so dragging never pans. d3.drag's event.dx/dy are post-transform
-// (zoom-aware), so they apply straight to the pod delta. Re-bound on every
-// (re)render since Vue recreates the node `<g>` elements.
-function installNodeDrag(): void {
-  if (!zoomLayerEl.value) return;
-  const sel = d3.select(zoomLayerEl.value).selectAll<SVGGElement, unknown>('g.sit-node');
-  sel.on('.drag', null);
-  sel.call(
-    d3
-      .drag<SVGGElement, unknown>()
-      .clickDistance(4)
-      .on('start', (event) => { (event.sourceEvent as MouseEvent).stopPropagation(); })
-      .on('drag', function (event) {
-        const id = (this as SVGGElement).getAttribute('data-node-id');
-        if (!id) return;
-        const pid = nodeToPod.value.get(id);
-        if (!pid) return;
-        const cur = podDelta.value.get(pid) ?? { dx: 0, dy: 0 };
-        const m = new Map(podDelta.value);
-        m.set(pid, { dx: cur.dx + event.dx, dy: cur.dy + event.dy });
-        podDelta.value = m;
-      }),
-  );
-}
-function installZoomAndFit(): void {
-  if (!svgEl.value || !zoomLayerEl.value) return;
-  installZoom();
-  void nextTick(() => { installNodeDrag(); fitToScreen(false); });
-}
-// The <svg> lives behind a v-else and unmounts whenever a new service's
-// data is in flight, then remounts when it lands — so re-bind zoom on every
-// (re)mount (a one-shot latch would leave pan/zoom dead after the first
-// service switch).
-watch(svgEl, (el) => { if (el && zoomLayerEl.value) installZoomAndFit(); }, { flush: 'post' });
-// selectedId is part of the key: a service switch that lands on cached data
-// with identical counts still re-keys every v-for node element, which kills
-// the per-element d3 drag listeners — rebind + refit on dataset identity,
-// not just shape.
-watch(
+const datasetKey = computed(
   () => `${selectedId.value}|${nodes.value.length}|${visibleCalls.value.length}|${clusters.value.length}`,
-  () => { if (svgEl.value && zoomBehaviour) void nextTick(() => { installNodeDrag(); fitToScreen(false); }); },
 );
+const { zoomT, fitToScreen, zoomBy } = useDeploymentPanZoom({
+  svgEl,
+  zoomLayerEl,
+  containerEl,
+  W,
+  H,
+  nodeToPod,
+  podDelta,
+  datasetKey,
+});
 
 // ── Selection (edge → sidebar, node → popover). Reset on service change.
 const selectedCallId = ref<string | null>(null);
@@ -756,19 +452,6 @@ const popoverNode = computed<DeploymentNode | null>(
 function instById(id: string): DeploymentNode | null {
   return nodes.value.find((n) => n.id === id) ?? null;
 }
-// Popover attribute search — the FODC proxy stamps many labels onto each
-// instance (k8s_*, net_*, …), so the list is long; filter + scroll it.
-const attrFilter = ref('');
-watch(popoverNodeId, () => { attrFilter.value = ''; });
-const filteredAttrs = computed(() => {
-  const n = popoverNode.value;
-  if (!n) return [];
-  const query = attrFilter.value.trim().toLowerCase();
-  if (!query) return n.attributes;
-  return n.attributes.filter(
-    (a) => a.name.toLowerCase().includes(query) || a.value.toLowerCase().includes(query),
-  );
-});
 const POP_W = 320;
 const popoverStyle = computed<Record<string, string>>(() => {
   const n = popoverNode.value;
@@ -898,7 +581,8 @@ const edgeLabels = computed<Array<{ id: string; x: number; y: number; lines: Edg
 });
 
 // ── Edge detail rows (aligned client | server) — same as the instance map.
-interface EdgeRow { id: string; label: string; unit: string; serverDef: DeploymentMetricDef | null; clientDef: DeploymentMetricDef | null }
+// The rows + their value/series accessors are built here (config-aware) and
+// handed to DeploymentEdgePanel, which owns the crosshair-hover state.
 function buildEdgeRows(srv: DeploymentMetricDef[], cli: DeploymentMetricDef[]): EdgeRow[] {
   const map = new Map<string, EdgeRow>();
   for (const m of srv) {
@@ -951,11 +635,6 @@ function edgeRowValues(c: DeploymentCall, row: EdgeRow): { kind: EdgeRowKind; cl
   if (serverV !== null) return { kind: 'server-only', clientV, serverV };
   return { kind: 'none', clientV, serverV };
 }
-const hoveredEdgeRowId = ref<string | null>(null);
-const hoveredEdgeBucket = ref<number | null>(null);
-function onEdgeBucketHover(rowId: string, bucket: number): void { hoveredEdgeRowId.value = rowId; hoveredEdgeBucket.value = bucket; }
-function onEdgeBucketLeave(): void { hoveredEdgeRowId.value = null; hoveredEdgeBucket.value = null; }
-function rowCrosshair(rowId: string): number | null { return hoveredEdgeRowId.value === rowId ? hoveredEdgeBucket.value : null; }
 
 // ── Edge midpoint for the inline primary label — mirrors edgePathD's control
 // point (quadratic Bézier at t=0.5). Self-loops sit above the node; bidirectional
@@ -985,8 +664,7 @@ const hasFlows = computed(() => roleToRole.value.length > 0);
 // its OWN metric columns, so heterogeneous pairs (liaison→data's write/query/
 // sync set vs lifecycle→data's migration set) never collapse into one sparse
 // 20-column grid. Group order follows the roleToRole config; every edge matches
-// at least the '*' fallback.
-interface FlowGroup { key: string; label: string; pair: RolePairMetrics; calls: DeploymentCall[] }
+// at least the '*' fallback. The grid itself lives in DeploymentFlowsTable.
 function pairLabel(p: RolePairMetrics): string {
   const f = p.from === '*' ? '·' : p.from;
   const tt = p.to === '*' ? '·' : p.to;
@@ -1122,48 +800,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
             </g>
           </svg>
 
-          <div v-if="popoverNode" class="sit-node-pop sw-card" :style="popoverStyle">
-            <header class="np-head">
-              <span class="np-name mono">{{ popoverNode.name }}</span>
-              <button class="sw-btn small ghost" type="button" @click="popoverNodeId = null">×</button>
-            </header>
-            <section v-if="metricDefsFor(popoverNode).length > 0" class="np-metrics">
-              <div class="np-section-label">{{ t('Key metrics') }}</div>
-              <dl class="np-kv">
-                <template v-for="def in metricDefsFor(popoverNode)" :key="def.id">
-                  <dt>{{ def.label }}</dt>
-                  <dd class="mono">{{ fmtVal(nodeVal(popoverNode, def), def.unit, def.format) }}</dd>
-                </template>
-              </dl>
-            </section>
-
-            <section v-if="popoverNode.attributes.length > 0" class="np-props">
-              <div class="np-section-label">
-                {{ t('Properties') }}
-                <span class="np-count">{{ popoverNode.attributes.length }}</span>
-              </div>
-              <input
-                v-if="popoverNode.attributes.length > 6"
-                v-model="attrFilter"
-                class="np-search"
-                type="text"
-                :placeholder="t('Filter attributes…')"
-              />
-              <div class="np-attrs-scroll">
-                <dl class="np-attrs">
-                  <template v-for="a in filteredAttrs" :key="a.name">
-                    <dt>{{ a.name }}</dt>
-                    <dd class="mono">{{ a.value }}</dd>
-                  </template>
-                </dl>
-                <div v-if="filteredAttrs.length === 0" class="np-empty">{{ t('No matching attributes') }}</div>
-              </div>
-            </section>
-
-            <button class="sw-btn small np-open" type="button" @click="openInstanceDashboard(popoverNode)">
-              {{ t('Open instance dashboard') }} ↗
-            </button>
-          </div>
+          <DeploymentNodePopover
+            v-if="popoverNode"
+            :node="popoverNode"
+            :popover-style="popoverStyle"
+            :metric-defs-for="metricDefsFor"
+            :node-val="nodeVal"
+            :fmt-val="fmtVal"
+            @close="popoverNodeId = null"
+            @open-dashboard="openInstanceDashboard"
+          />
 
           <div class="sit-zoom">
             <button class="sw-btn small" type="button" :title="t('Zoom in')" @click="zoomBy(1.25)">+</button>
@@ -1191,93 +837,29 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
         </template>
       </div>
 
-      <div v-if="mapTab === 'flows'" class="sit-flows" :style="{ minHeight: canvasHeightPx + 'px' }">
-        <div v-if="showPickPrompt" class="sit-state-inline">{{ t('Pick a service to see its deployment topology.') }}</div>
-        <div v-else-if="flowGroups.length === 0" class="sit-state-inline">{{ t('No flows in this window.') }}</div>
-        <div v-else class="sit-flow-groups">
-          <section v-for="g in flowGroups" :key="g.key" class="sit-flow-group">
-            <header class="sit-flow-group-head">
-              <span class="fg-pair mono">{{ g.label }}</span>
-              <span class="fg-count">{{ g.calls.length }} {{ g.calls.length === 1 ? t('edge') : t('edges') }}</span>
-            </header>
-            <div class="sit-flow-scroll">
-              <table class="sit-flow-table">
-                <thead>
-                  <tr>
-                    <th>{{ t('Source') }}</th>
-                    <th>{{ t('Target') }}</th>
-                    <th v-for="col in g.pair.metrics" :key="col.id" class="fl-num">
-                      {{ col.label }}<span v-if="col.unit" class="fl-unit"> ({{ col.unit }})</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="c in g.calls" :key="c.id" @click="selectEdgeFromFlows(c.id)">
-                    <td class="mono fl-ep" :title="instById(c.source)?.name">{{ instById(c.source)?.name }}</td>
-                    <td class="mono fl-ep" :title="instById(c.target)?.name">{{ instById(c.target)?.name }}</td>
-                    <td v-for="col in g.pair.metrics" :key="col.id" class="mono fl-num" :class="{ 'fl-primary': primaryIds(g.pair).includes(col.id) }">{{ flowCell(c, col) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </div>
-      </div>
+      <DeploymentFlowsTable
+        v-if="mapTab === 'flows'"
+        :show-pick-prompt="showPickPrompt"
+        :flow-groups="flowGroups"
+        :min-height-px="canvasHeightPx"
+        :inst-by-id="instById"
+        :flow-cell="flowCell"
+        :primary-ids="primaryIds"
+        @select-edge="selectEdgeFromFlows"
+      />
 
-      <aside v-if="selectedCall && mapTab === 'topology'" class="sit-panel">
-        <header class="sit-panel-head">
-          <div class="ip-edge mono">
-            <span>{{ instById(selectedCall.source)?.name }}</span>
-            <span class="sit-arrow">→</span>
-            <span>{{ instById(selectedCall.target)?.name }}</span>
-          </div>
-          <button class="sw-btn small ghost" type="button" @click="selectedCallId = null">×</button>
-        </header>
-        <div class="ip-tags">
-          <span class="sw-tag">{{ selectedCall.detectPoints.join(' · ') || t('relation') }}</span>
-        </div>
-        <div class="sit-panel-body">
-          <div v-if="edgeRows.length > 0" class="ip-edge-rows">
-            <div v-for="row in edgeRows" :key="row.id" class="ip-edge-row">
-              <div class="ip-edge-row-head">
-                <span class="ip-edge-row-label">{{ row.label }}<span v-if="row.unit" class="ru"> ({{ row.unit }})</span><span v-if="selectedPrimaryIds.has(row.id)" class="ip-edge-prim" :title="t('Shown on the edge (primary)')">{{ t('★ on edge') }}</span></span>
-                <span v-if="hoveredEdgeRowId === row.id && hoveredEdgeBucket !== null" class="ip-edge-tip">
-                  <template v-if="row.clientDef"><span class="tip-tag" style="color: var(--sw-info)">C</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'client', row.clientDef), hoveredEdgeBucket), row.clientDef) }}</span></template>
-                  <template v-if="row.serverDef"><span class="tip-sep">·</span><span class="tip-tag" style="color: var(--sw-accent)">S</span><span class="tip-val">{{ fmtEdge(seriesAt(edgeSeries(selectedCall, 'server', row.serverDef), hoveredEdgeBucket), row.serverDef) }}</span></template>
-                </span>
-              </div>
-              <template v-if="edgeRowValues(selectedCall, row).kind === 'both'">
-                <div class="ip-edge-pair">
-                  <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span></div>
-                    <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
-                  </div>
-                  <div class="ip-edge-cell">
-                    <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span></div>
-                    <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="edgeRowValues(selectedCall, row).kind === 'client-only'">
-                <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag c">{{ t('Client') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).clientV, row.clientDef) }}</span></div>
-                  <Sparkline :values="edgeSeries(selectedCall, 'client', row.clientDef)" color="var(--sw-info)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
-                </div>
-              </template>
-              <template v-else-if="edgeRowValues(selectedCall, row).kind === 'server-only'">
-                <div class="ip-edge-cell">
-                  <div class="ip-edge-cell-head"><span class="tag s">{{ t('Server') }}</span><span class="num">{{ fmtEdge(edgeRowValues(selectedCall, row).serverV, row.serverDef) }}</span></div>
-                  <Sparkline :values="edgeSeries(selectedCall, 'server', row.serverDef)" color="var(--sw-accent)" :height="36" :stroke="1.4" fluid :crosshair-bucket="rowCrosshair(row.id)" @bucket-hover="(b: number) => onEdgeBucketHover(row.id, b)" @bucket-leave="onEdgeBucketLeave" />
-                </div>
-              </template>
-              <template v-else>
-                <div class="ip-edge-none">{{ t('no value') }}</div>
-              </template>
-            </div>
-          </div>
-          <div v-else class="ip-empty">{{ t('no line metrics configured') }}</div>
-        </div>
-      </aside>
+      <DeploymentEdgePanel
+        v-if="selectedCall && mapTab === 'topology'"
+        :selected-call="selectedCall"
+        :edge-rows="edgeRows"
+        :selected-primary-ids="selectedPrimaryIds"
+        :inst-by-id="instById"
+        :edge-row-values="edgeRowValues"
+        :edge-series="edgeSeries"
+        :fmt-edge="fmtEdge"
+        :series-at="seriesAt"
+        @close="selectedCallId = null"
+      />
     </div>
   </div>
 </template>
@@ -1296,7 +878,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
   font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sw-fg-2);
   padding: 2px 7px; border-radius: 4px; border: 1px solid var(--sw-line-2); background: var(--sw-bg-2);
 }
-.sit-arrow { color: var(--sw-accent); font-weight: 700; }
 .sit-hint { font-size: 10.5px; color: var(--sw-fg-3); }
 .sit-spacer { flex: 1; }
 .sit-legend { display: flex; gap: 14px; align-items: center; }
@@ -1340,39 +921,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 .has-pop .sit-edge { opacity: 0.16; transition: opacity 0.12s ease; }
 .has-pop .sit-node:not(.sel) { opacity: 0.3; transition: opacity 0.12s ease; }
 
-/* width + max-height come from `popoverStyle` (inline) so the height bound
-   can account for the toolbar header; here we only set the flex column so the
-   attr list (`.np-attrs-scroll`) is the one scrollable region. */
-.sit-node-pop { position: absolute; z-index: 5; display: flex; flex-direction: column; padding: 8px 10px 10px; box-shadow: 0 6px 22px rgba(0,0,0,0.4); }
-.np-head { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-.np-name { font-size: 11.5px; color: var(--sw-fg-0); flex: 1; word-break: break-all; }
-/* Section label shared by Key metrics + Properties — small uppercase kicker. */
-.np-section-label { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; margin: 9px 1px 4px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3); }
-.np-count { letter-spacing: 0; font-size: 9px; color: var(--sw-fg-2); background: var(--sw-bg-1); border-radius: 7px; padding: 0 6px; }
-/* Key metrics — a distinct inset card so it reads apart from the properties. */
-.np-metrics { flex: 0 0 auto; }
-.np-kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0; padding: 7px 9px; font-size: 11px; background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 6px; }
-.np-kv dt { color: var(--sw-fg-2); }
-.np-kv dd { margin: 0; color: var(--sw-fg-0); font-weight: 600; text-align: right; }
-/* Properties — the scrollable region; only this grows + scrolls. */
-.np-props { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
-.np-search { flex: 0 0 auto; width: 100%; box-sizing: border-box; margin: 0 0 4px; padding: 3px 7px; font-size: 10.5px; color: var(--sw-fg-1); background: var(--sw-bg-1); border: 1px solid var(--sw-line-2); border-radius: 4px; }
-.np-search:focus { outline: none; border-color: var(--sw-accent); }
-/* Right padding + stable gutter so the scrollbar never overlaps the
-   right-aligned attribute values. */
-.np-attrs-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 12px; scrollbar-gutter: stable; }
-.np-attrs-scroll::-webkit-scrollbar { width: 8px; }
-.np-attrs-scroll::-webkit-scrollbar-thumb { background: var(--sw-line-2); border-radius: 4px; }
-.np-empty { font-size: 10.5px; color: var(--sw-fg-3); padding: 6px 2px; }
-.np-attrs { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); gap: 2px 10px; margin: 0; font-size: 10.5px; }
-.np-attrs dt { color: var(--sw-fg-3); overflow-wrap: anywhere; }
-.np-attrs dd { margin: 0; color: var(--sw-fg-1); text-align: right; overflow-wrap: anywhere; }
-/* Primary action — accent (orange in the default theme), matching the app's
-   accent-button convention. */
-.np-open { flex: 0 0 auto; width: 100%; justify-content: center; margin-top: 9px; }
-.sit-node-pop .np-open { background: var(--sw-accent); border-color: var(--sw-accent); color: #1a1106; }
-.sit-node-pop .np-open:hover { filter: brightness(1.07); }
-
 .sit-zoom {
   position: absolute; top: 12px; right: 12px;
   display: inline-flex; align-items: center; gap: 6px;
@@ -1415,60 +963,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 .sit-edge-sep { fill: var(--sw-fg-3); font-weight: 600; }
 .sit-edge-alias { fill: var(--sw-info); font-weight: 700; }
 
-/* Flows — one aligned sub-table PER role-pair (a "liaison → data" group, a
-   "lifecycle → data" group, …), each with its own metric columns. Rows click
-   through to the topology edge. Outer scrolls vertically across groups; each
-   group scrolls horizontally if its columns overflow. */
-.sit-flows { min-width: 0; border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1); overflow-y: auto; padding: 10px; }
-.sit-state-inline { display: flex; align-items: center; justify-content: center; min-height: 240px; color: var(--sw-fg-3); font-size: 12px; padding: 24px; text-align: center; }
-.sit-flow-groups { display: flex; flex-direction: column; gap: 14px; }
-.sit-flow-group { border: 1px solid var(--sw-line); border-radius: 6px; overflow: hidden; background: var(--sw-bg-0); }
-.sit-flow-group-head { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; background: var(--sw-bg-2); border-bottom: 1px solid var(--sw-line); }
-.fg-pair { font-size: 11px; font-weight: 700; color: var(--sw-accent); }
-.fg-count { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sw-fg-3); }
-.sit-flow-scroll { overflow-x: auto; }
-.sit-flow-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-.sit-flow-table th, .sit-flow-table td { padding: 5px 10px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--sw-line); }
-.sit-flow-table tbody tr:last-child td { border-bottom: none; }
-.sit-flow-table th { background: var(--sw-bg-1); color: var(--sw-fg-2); font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.04em; }
-.sit-flow-table th.fl-num, .sit-flow-table td.fl-num { text-align: right; }
-.sit-flow-table .fl-unit { color: var(--sw-fg-3); text-transform: none; letter-spacing: 0; }
-.sit-flow-table tbody tr { cursor: pointer; }
-.sit-flow-table tbody tr:hover { background: var(--sw-bg-2); }
-.sit-flow-table td.fl-ep { color: var(--sw-fg-0); max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
-.sit-flow-table td.fl-num { color: var(--sw-fg-1); }
-.sit-flow-table td.fl-primary { color: var(--sw-fg-0); font-weight: 700; }
-
-.sit-panel { border: 1px solid var(--sw-line); border-radius: 6px; background: var(--sw-bg-1); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.sit-panel-head { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--sw-line); flex: 0 0 auto; }
-.ip-edge { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; font-size: 11px; color: var(--sw-fg-0); word-break: break-all; }
-.ip-tags { padding: 6px 12px 0; }
-.sit-panel-body { flex: 1; overflow-y: auto; padding: 10px 12px 16px; }
-.ip-edge-rows { display: flex; flex-direction: column; gap: 10px; }
-.ip-edge-row { border: 1px solid var(--sw-line); border-radius: 4px; padding: 6px 8px; background: var(--sw-bg-0); }
-.ip-edge-row-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
-.ip-edge-row-label { font-size: 10.5px; color: var(--sw-fg-2); }
-.ip-edge-row-label .ru { color: var(--sw-fg-3); }
-.ip-edge-prim {
-  margin-left: 6px;
-  padding: 0 5px;
-  border-radius: 3px;
-  font-size: 9px;
-  color: var(--sw-accent);
-  background: color-mix(in srgb, var(--sw-accent) 14%, transparent);
-}
-.ip-edge-tip { display: inline-flex; align-items: baseline; gap: 4px; font-size: 10px; font-family: var(--sw-mono); }
-.ip-edge-tip .tip-tag { font-weight: 700; }
-.ip-edge-tip .tip-val { color: var(--sw-fg-1); }
-.ip-edge-tip .tip-sep { color: var(--sw-fg-3); }
-.ip-edge-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ip-edge-cell { min-width: 0; }
-.ip-edge-cell-head { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
-.ip-edge-cell-head .tag { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
-.ip-edge-cell-head .tag.c { color: var(--sw-info); }
-.ip-edge-cell-head .tag.s { color: var(--sw-accent); }
-.ip-edge-cell-head .num { font-family: var(--sw-mono); font-size: 11px; color: var(--sw-fg-0); }
-.ip-edge-none, .ip-empty { color: var(--sw-fg-3); font-size: 11px; padding: 6px 0; }
 .mono { font-family: var(--sw-mono); }
 .sw-btn.small { height: 24px; padding: 0 10px; font-size: 11px; }
 .sw-btn.ghost { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-2); cursor: pointer; }

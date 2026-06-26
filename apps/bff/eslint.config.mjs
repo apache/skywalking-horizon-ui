@@ -38,4 +38,12 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-object-type': 'off',
     },
   },
+  {
+    // File-size guardrail. No NEW file may exceed 1000 lines — split it
+    // instead. The grandfather list below is the decomposition backlog: remove
+    // a file when its split lands; never add to it.
+    files: ['src/**/*.ts'],
+    ignores: ['**/*.test.ts'],
+    rules: { 'max-lines': ['error', 1000] },
+  },
 );

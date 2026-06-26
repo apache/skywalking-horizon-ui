@@ -37,23 +37,28 @@ import { useQuery } from '@tanstack/vue-query';
 import type {
   BundledEntry,
   Granularity,
-  LalLogBuilderOutput,
-  LalLogBuilderTag,
-  LalLogDataInput,
-  LalSamplePayload,
   ListEnvelope,
-  NodeSlice,
-  SampleType,
-  SessionRecord,
   SessionResponse,
-  SessionSample,
 } from '@skywalking-horizon-ui/api-client';
 import { bff } from '@/api/client';
 import { useDebugSession } from '@/features/operate/live-debug/useDebugSession';
 import { useDebugHistory, type HistoryEntry } from '@/features/operate/live-debug/useDebugHistory';
 import Btn from '@/components/primitives/Btn.vue';
 import DebugView from './DebugView.vue';
+import LalCell from './LalCell.vue';
 import { isLalSamplePayload } from './payload.js';
+import {
+  cellAt,
+  cssEscape,
+  formatTime,
+  nodeKey,
+  recordMatches,
+  stepKeyOf,
+  type LalCellData,
+  type LalNodeView,
+  type LalRecordView,
+  type LalStep,
+} from './lalPayload.js';
 import {
   DEFAULT_RETENTION_MINUTES,
   MS_PER_MINUTE,
@@ -179,49 +184,6 @@ async function startSampling(): Promise<void> {
   });
 }
 
-interface LalCell {
-  rec: SessionRecord;
-  recIdx: number;
-  sample: SessionSample;
-  payload: LalSamplePayload | null;
-}
-
-/** A row in the per-record × per-block grid. `key` uniquely identifies
- *  the row across statement-mode (where multiple `function` samples
- *  fire per record at distinct DSL lines). */
-interface LalStep {
-  key: string;
-  type: SampleType;
-  /** 1-based DSL line in statement mode; 0 for block-level samples. */
-  sourceLine: number;
-  /** Sample-type kicker — `input` / `function` / `output`, used as
-   *  the row's small uppercase header. */
-  kindLabel: string;
-  /** Optional secondary line: in statement-mode this carries the
-   *  verbatim DSL slice for function samples (`tag stage: 'extractor'`,
-   *  …) so each row reads as the operation it actually performs. Empty
-   *  for input/output and for block-mode functions where the
-   *  recorder doesn't supply a per-statement fragment. */
-  nameLabel: string;
-}
-
-interface LalRecordView {
-  rec: SessionRecord;
-  recIdx: number;
-}
-
-interface LalNodeView extends NodeSlice {
-  records: SessionRecord[];
-  recordViews: LalRecordView[];
-  steps: LalStep[];
-  /** stepKey → recIdx → cell. Lookup with `cellAt(view, step, recIdx)`. */
-  cells: Map<string, Map<number, LalCell>>;
-}
-
-function stepKeyOf(s: SessionSample): string {
-  return `${s.type}@${s.sourceLine ?? 0}`;
-}
-
 // ── Historical replay ──────────────────────────────────────────────
 
 const historicalEntry = shallowRef<HistoryEntry | null>(null);
@@ -236,7 +198,7 @@ const displaySession = computed<SessionResponse | null>(
  * synchronously during setup. With the ref declared below those
  * functions, an `?historyId=` deep-link would throw a TDZ
  * ReferenceError and blank the page. */
-const selectedCell = ref<LalCell | null>(null);
+const selectedCell = ref<LalCellData | null>(null);
 
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
@@ -339,7 +301,7 @@ const nodeViews = computed<LalNodeView[]>(() => {
     const recordViews: LalRecordView[] = records.map((rec, recIdx) => ({ rec, recIdx }));
     const steps: LalStep[] = [];
     const seen = new Set<string>();
-    const cells = new Map<string, Map<number, LalCell>>();
+    const cells = new Map<string, Map<number, LalCellData>>();
     for (let recIdx = 0; recIdx < records.length; recIdx++) {
       const rec = records[recIdx]!;
       for (const sample of rec.samples ?? []) {
@@ -388,105 +350,13 @@ const nodeViews = computed<LalNodeView[]>(() => {
   });
 });
 
-function nodeKey(n: NodeSlice): string {
-  return n.nodeId ?? n.peer ?? '?';
-}
-
-function cellAt(view: LalNodeView, step: LalStep, recIdx: number): LalCell | undefined {
-  return view.cells.get(step.key)?.get(recIdx);
-}
-
-function logBuilderOutput(p: LalSamplePayload | null): LalLogBuilderOutput | null {
-  if (!p?.output) return null;
-  if (p.output.type !== 'LogBuilder') return null;
-  return p.output as LalLogBuilderOutput;
-}
-
-function logDataInput(p: LalSamplePayload | null): LalLogDataInput | null {
-  if (!p?.input) return null;
-  if (p.input.type !== 'LogData') return null;
-  return p.input as LalLogDataInput;
-}
-
-interface KvEntry {
-  k: string;
-  v: string;
-  hl?: boolean;
-}
-
-function inputEntries(p: LalSamplePayload | null): KvEntry[] {
-  const inp = logDataInput(p);
-  if (!inp) return [];
-  return [
-    { k: 'service', v: inp.service ?? '—' },
-    { k: 'endpoint', v: inp.endpoint ?? '—' },
-    { k: 'instance', v: inp.serviceInstance ?? '—' },
-    { k: 'layer', v: inp.layer ?? '—' },
-  ];
-}
-
-/** The agent-supplied log tags (`code.filepath`, `os.type`,
- *  `gen_ai.*`, …). These pre-LAL tags are the raw key/value bag the
- *  OTLP exporter sent with the log; LAL rules read them via
- *  `tag("…")` and may overwrite or extend them, but the input
- *  sample captures them verbatim. */
-function inputTags(p: LalSamplePayload | null): { key: string; value: string }[] {
-  const inp = logDataInput(p);
-  return inp?.tags ?? [];
-}
-
-/** Split the merged-tag view on a LogBuilder snapshot into two
- *  semantic groups so the operator can tell at a glance what survived
- *  from the agent vs. what the rule added:
- *  - `carried` — tags whose status is `original`; came in on the
- *    LogData and weren't touched by the rule.
- *  - `added` — tags the rule created or overwrote; covers both
- *    `lal-added` (new) and `lal-override` (key collided with an input
- *    tag, runtime concatenated). */
-function carriedTags(p: LalSamplePayload | null): LalLogBuilderTag[] {
-  const out = logBuilderOutput(p);
-  if (!out?.tags) return [];
-  return out.tags.filter((t) => t.status === 'original');
-}
-
-function addedTags(p: LalSamplePayload | null): LalLogBuilderTag[] {
-  const out = logBuilderOutput(p);
-  if (!out?.tags) return [];
-  return out.tags.filter((t) => t.status === 'lal-added' || t.status === 'lal-override');
-}
-
-function outputEntries(p: LalSamplePayload | null): KvEntry[] {
-  const out = logBuilderOutput(p);
-  if (!out) return [];
-  return [
-    { k: 'service', v: out.service ?? '—' },
-    { k: 'endpoint', v: out.endpoint ?? '—' },
-    { k: 'timestamp', v: out.timestamp ? String(out.timestamp) : '—' },
-  ];
-}
-
-function bodyPreview(p: LalSamplePayload | null): string {
-  const inp = logDataInput(p);
-  const text = inp?.body?.text;
-  if (!text) return '';
-  const t = text.trim();
-  return t.length > 80 ? `${t.slice(0, 80)}…` : t;
-}
-
-function contentPreview(p: LalSamplePayload | null): string {
-  const lb = logBuilderOutput(p);
-  if (!lb?.content) return '';
-  const t = lb.content.trim();
-  return t.length > 80 ? `${t.slice(0, 80)}…` : t;
-}
-
 // ── Selection + source pane ───────────────────────────────────────
 
 /** Single selected cell drives the source-pane open-state and the
  *  `<mark>` highlight inside the captured DSL. `selectedCell` itself
  *  is declared above `loadHistorical` (TDZ guard). */
 
-function selectCell(cell: LalCell): void {
+function selectCell(cell: LalCellData): void {
   selectedCell.value = selectedCell.value === cell ? null : cell;
 }
 
@@ -527,35 +397,6 @@ const searchQuery = ref<string>('');
 /** UI-side cap so a busy capture doesn't render hundreds of columns
  *  at once; operators raise this when they want the full set. */
 const displayLimit = ref<number>(20);
-
-function recordMatches(rec: SessionRecord, q: string): boolean {
-  if (q === '') return true;
-  const needle = q.toLowerCase();
-  for (const sample of rec.samples ?? []) {
-    if (!isLalSamplePayload(sample.payload)) continue;
-    const p = sample.payload;
-    if (p.input?.type === 'LogData') {
-      const body = (p.input as LalLogDataInput).body;
-      const text = body?.text;
-      if (typeof text === 'string' && text.toLowerCase().includes(needle)) return true;
-    }
-    if (p.output?.type === 'LogBuilder') {
-      const out = p.output as LalLogBuilderOutput;
-      if (typeof out.content === 'string' && out.content.toLowerCase().includes(needle)) {
-        return true;
-      }
-      for (const t of out.tags ?? []) {
-        if (
-          t.key.toLowerCase().includes(needle) ||
-          t.value.toLowerCase().includes(needle)
-        ) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
 
 /** Memoized per-node post-filter view. Computed once per
  *  (recordViews, search, limit) tuple so the template's many
@@ -703,22 +544,6 @@ function jumpToStep(stepKey: string): void {
   if (el && typeof el.scrollIntoView === 'function') {
     el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   }
-}
-
-function cssEscape(s: string): string {
-  // Minimal escape — step keys are `<type>@<digits>`, no special chars
-  // beyond `@` which is querySelector-safe. Keep this honest in case
-  // the key shape ever broadens.
-  return s.replace(/(["\\\[\]'])/g, '\\$1');
-}
-
-function formatTime(ms: number): string {
-  const d = new Date(ms);
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  const ss = String(d.getSeconds()).padStart(2, '0');
-  const ms3 = String(d.getMilliseconds()).padStart(3, '0');
-  return `${hh}:${mm}:${ss}.${ms3}`;
 }
 
 function recordTitle(view: LalRecordView): string {
@@ -1009,67 +834,11 @@ function recordTitle(view: LalRecordView): string {
               <template v-if="cellAt(node, step, rv.recIdx) === undefined">
                 <span class="lal__cellabsent">—</span>
               </template>
-              <template v-else>
-                <!-- input: LogData -->
-                <template v-if="step.type === 'input'">
-                  <div class="lal__kvs">
-                    <div v-for="kv in inputEntries(cellAt(node, step, rv.recIdx)?.payload ?? null)" :key="kv.k" class="lal__kv">
-                      <span class="lal__kvk">{{ kv.k }}</span>
-                      <span class="lal__kvv">{{ kv.v }}</span>
-                    </div>
-                  </div>
-                  <div
-                    v-if="inputTags(cellAt(node, step, rv.recIdx)?.payload ?? null).length > 0"
-                    class="lal__tags"
-                  >
-                    <span
-                      v-for="(tag, ti) in inputTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
-                      :key="ti"
-                      class="lal__tag lal__tag--orig"
-                    >{{ tag.key }}={{ tag.value }}</span>
-                  </div>
-                  <div v-if="bodyPreview(cellAt(node, step, rv.recIdx)?.payload ?? null)" class="lal__body">
-                    {{ bodyPreview(cellAt(node, step, rv.recIdx)?.payload ?? null) }}
-                  </div>
-                </template>
-
-                <!-- function / output: LogBuilder snapshot -->
-                <template v-else>
-                  <div class="lal__kvs">
-                    <div v-for="kv in outputEntries(cellAt(node, step, rv.recIdx)?.payload ?? null)" :key="kv.k" class="lal__kv">
-                      <span class="lal__kvk">{{ kv.k }}</span>
-                      <span class="lal__kvv">{{ kv.v }}</span>
-                    </div>
-                  </div>
-                  <div
-                    v-if="carriedTags(cellAt(node, step, rv.recIdx)?.payload ?? null).length > 0"
-                    class="lal__taggroup"
-                  >
-                    <span class="lal__tagheader">{{ t('carried') }}</span>
-                    <span
-                      v-for="(tag, ti) in carriedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
-                      :key="`o-${ti}`"
-                      class="lal__tag lal__tag--orig"
-                    >{{ tag.key }}={{ tag.value }}</span>
-                  </div>
-                  <div
-                    v-if="addedTags(cellAt(node, step, rv.recIdx)?.payload ?? null).length > 0"
-                    class="lal__taggroup"
-                  >
-                    <span class="lal__tagheader">{{ t('+ added') }}</span>
-                    <span
-                      v-for="(tag, ti) in addedTags(cellAt(node, step, rv.recIdx)?.payload ?? null)"
-                      :key="`a-${ti}`"
-                      class="lal__tag"
-                      :class="tag.status === 'lal-override' ? 'lal__tag--over' : 'lal__tag--add'"
-                    >{{ tag.key }}={{ tag.value }}</span>
-                  </div>
-                  <div v-if="contentPreview(cellAt(node, step, rv.recIdx)?.payload ?? null)" class="lal__body">
-                    {{ contentPreview(cellAt(node, step, rv.recIdx)?.payload ?? null) }}
-                  </div>
-                </template>
-                <div v-if="cellAt(node, step, rv.recIdx)?.payload?.aborted" class="lal__abort">{{ t('aborted') }}</div>
-              </template>
+              <LalCell
+                v-else
+                :step-type="step.type"
+                :payload="cellAt(node, step, rv.recIdx)?.payload ?? null"
+              />
             </div>
           </template>
         </div>
@@ -1573,100 +1342,6 @@ function recordTitle(view: LalRecordView): string {
   color: var(--rr-dim);
   font-style: italic;
   font-size: var(--sw-fs-sm);
-}
-
-.lal__kvs {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 2px 8px;
-}
-
-.lal__kv {
-  display: contents;
-}
-
-.lal__kvk {
-  color: var(--sw-fg-3);
-  font-size: var(--sw-fs-xs);
-  font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
-  align-self: center;
-}
-
-.lal__kvv {
-  color: var(--rr-ink);
-  word-break: break-all;
-  font-size: var(--sw-fs-sm);
-}
-
-.lal__body {
-  background: var(--rr-bg2);
-  border: 1px solid var(--rr-border);
-  padding: 4px 6px;
-  color: var(--rr-ink2);
-  font-size: var(--sw-fs-xs);
-  line-height: 1.4;
-  word-break: break-all;
-  white-space: pre-wrap;
-}
-
-.lal__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-
-.lal__taggroup {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.lal__tagheader {
-  font-family: var(--rr-font-mono);
-  font-size: var(--sw-fs-xs);
-  font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
-  color: var(--sw-fg-3);
-  margin-right: 4px;
-  flex-shrink: 0;
-}
-
-.lal__tag {
-  padding: 1px 5px;
-  font-size: var(--sw-fs-xs);
-  border: 1px solid var(--rr-border);
-  background: var(--rr-bg);
-  color: var(--rr-ink2);
-  white-space: nowrap;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lal__tag--orig {
-  color: var(--rr-ink2);
-}
-
-.lal__tag--add {
-  color: var(--rr-accent, var(--rr-active));
-  border-color: var(--rr-accent, var(--rr-active));
-}
-
-.lal__tag--over {
-  color: var(--rr-warn, #d6a96d);
-  border-color: var(--rr-warn, #d6a96d);
-}
-
-.lal__abort {
-  color: var(--rr-warn, #d6a96d);
-  font-size: var(--sw-fs-xs);
-  font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
 }
 
 .lal__histbanner {

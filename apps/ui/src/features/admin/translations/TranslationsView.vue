@@ -33,34 +33,28 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import {
   buildOverlayExportEnvelope,
   downloadJson,
   parseOverlayImport,
   pickJsonFile,
 } from '@/features/admin/_shared/templatePortability';
-import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import LayerDashboardCanvas from '@/features/admin/_shared/LayerDashboardCanvas.vue';
 import OverviewDashboardCanvas from '@/features/admin/_shared/OverviewDashboardCanvas.vue';
-import TemplatePicker, { type TemplatePickerEntry } from '@/features/admin/_shared/TemplatePicker.vue';
+import TemplatePicker from '@/features/admin/_shared/TemplatePicker.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
-import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import TranslationFieldPanel from './TranslationFieldPanel.vue';
+import { useTranslationPicker } from './useTranslationPicker';
+import { useTranslationDraft, type EffectiveSource } from './useTranslationDraft';
 import { useLocalTranslationEdits } from '@/controls/localTranslationEdits';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { bff, BffApiError } from '@/api/client';
 import { stableStringify } from '@/utils/stableJson';
-import {
-  walkTranslatable,
-  setAtPath,
-  getAtPath,
-  type TranslatableField,
-} from '@/features/admin/_shared/translatableFields';
+import { type TranslatableField } from '@/features/admin/_shared/translatableFields';
 import { SUPPORTED_LOCALES, LOCALE_NATIVE_LABEL, type Locale } from '@/i18n';
-import { vAutosize } from '@/utils/autosize';
 import type { AdminLayerTemplate } from '@/api/client';
 import type {
   OverviewDashboard,
@@ -73,10 +67,6 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 const { t } = useI18n({ useScope: 'global' });
 
-const overviewSources = useTemplateSources('overview');
-const layerSources = useTemplateSources('layer');
-const layerSync = useTemplateSync({ kind: 'layer' });
-const overviewSync = useTemplateSync({ kind: 'overview' });
 const localEdits = useLocalTranslationEdits();
 
 // ── Picker state ───────────────────────────────────────────────────
@@ -84,91 +74,15 @@ const selectedKind = ref<'overview' | 'layer'>('overview');
 const selectedName = ref<string>('');
 const scope = ref<DashboardScope>('service');
 
-// Bundled-only entries (overview / layer rows the operator may not
-// have pushed yet) come off the sync-status badge list.
-const bundledOverviewNames = computed<string[]>(() => {
-  const s = overviewSync.status.value;
-  return s ? s.badges.filter((b) => b.kind === 'overview').map((b) => b.name) : [];
-});
-const layerNames = computed<string[]>(() => {
-  const s = layerSync.status.value;
-  return s ? s.badges.filter((b) => b.kind === 'layer').map((b) => b.name) : [];
-});
-
-function metaFor(name: string, kind: 'overview' | 'layer'): {
-  syncBadge: ReturnType<typeof layerSync.badgeFor>;
-  hasLocalDraft: boolean;
-  isDiverged: boolean;
-  localeBadges: TemplatePickerEntry['localeBadges'];
-} {
-  const sync = kind === 'overview' ? overviewSync : layerSync;
-  const sources = kind === 'overview' ? overviewSources : layerSources;
-  const badge = sync.badgeFor(name);
-  // Per-locale status chips: derived from the overlay sibling rows
-  // already present in sync-status, with the operator's unstaged
-  // browser draft taking precedence ('local' wins over any sync state).
-  const localeBadges = SUPPORTED_LOCALES.filter((l) => l !== 'en').map((locale) => {
-    if (localEdits.has(name, locale)) {
-      return { locale, status: 'local' as const };
-    }
-    const s = sources.overlayStatus(name, locale);
-    return { locale, status: s ?? ('empty' as const) };
-  });
-  return {
-    syncBadge: badge,
-    // Picker chip lights up when ANY locale has an unstaged draft for
-    // this template.
-    hasLocalDraft: localEdits.localesFor(name).length > 0,
-    isDiverged: badge === 'diverged',
-    localeBadges,
-  };
-}
-
-const overviewEntries = computed<TemplatePickerEntry[]>(() => {
-  const out: TemplatePickerEntry[] = [];
-  const seen = new Set<string>();
-  const push = (name: string, content: OverviewDashboard | null): void => {
-    if (!content || seen.has(name)) return;
-    seen.add(name);
-    out.push({
-      value: name,
-      label: content.title || content.id,
-      key: content.id,
-      ...metaFor(name, 'overview'),
-    });
-  };
-  for (const name of overviewSources.remoteNames()) {
-    push(name, overviewSources.remote<OverviewDashboard>(name));
-  }
-  for (const name of bundledOverviewNames.value) {
-    push(name, overviewSources.bundled<OverviewDashboard>(name));
-  }
-  out.sort((a, b) => a.label.localeCompare(b.label));
-  return out;
-});
-
-const layerEntries = computed<TemplatePickerEntry[]>(() => {
-  const out: TemplatePickerEntry[] = [];
-  for (const name of layerNames.value) {
-    const content =
-      layerSources.remote<AdminLayerTemplate>(name) ??
-      layerSources.bundled<AdminLayerTemplate>(name);
-    if (!content) continue;
-    out.push({
-      value: name,
-      label: content.alias || content.key,
-      key: content.key,
-      color: content.color,
-      ...metaFor(name, 'layer'),
-    });
-  }
-  out.sort((a, b) => a.label.localeCompare(b.label));
-  return out;
-});
-
-const activeEntries = computed<TemplatePickerEntry[]>(() =>
-  selectedKind.value === 'overview' ? overviewEntries.value : layerEntries.value,
-);
+const {
+  overviewSources,
+  layerSources,
+  layerSync,
+  overviewSync,
+  overviewEntries,
+  layerEntries,
+  activeEntries,
+} = useTranslationPicker(selectedKind);
 
 const refreshing = ref(false);
 async function onRefreshTemplates(): Promise<void> {
@@ -207,7 +121,7 @@ watch(
  *  no OAP row therefore isn't translatable until it's published (the
  *  editor shows the empty state). Embedded `i18n` is no longer written by
  *  this page; any historical embedded block is stripped defensively. */
-const effective = computed<{ source: Record<string, unknown> } | null>(() => {
+const effective = computed<EffectiveSource | null>(() => {
   const name = selectedName.value;
   const kind = selectedKind.value;
   if (!name) return null;
@@ -219,143 +133,28 @@ const effective = computed<{ source: Record<string, unknown> } | null>(() => {
   return { source: rest };
 });
 
-/** Operator's in-progress overlay, keyed by template-name → locale →
- *  field-path → translation. Editor reads/writes here; Push serializes
- *  the per-locale map back into the sibling OAP overlay row. */
-const draft = ref<Record<string, Record<string, Record<string, string>>>>({});
-
-/** OAP + disk overlay snapshots we've already fetched from the BFF,
- *  keyed by `${name}:${locale}`. Used to seed the draft AND to compute
- *  the diff for the push modal. */
-interface OverlaySnapshot { disk: unknown; oap: unknown }
-const fetchedOverlays = ref<Record<string, OverlaySnapshot>>({});
-
-function overlayKey(name: string, locale: string): string {
-  return `${name}:${locale}`;
-}
-
-/** Walk an overlay into the draft for (name, locale). Translatable
- *  leaves only; existing draft values are NEVER clobbered (preserves
- *  the operator's in-progress typing across locale switches). */
-function applyOverlayToDraft(name: string, loc: string, overlay: unknown, eff: { source: Record<string, unknown> }): void {
-  if (!overlay) return;
-  const fields = walkTranslatable(eff.source);
-  const m: Record<string, string> = {};
-  for (const f of fields) {
-    const v = getAtPath(overlay, f.segments);
-    if (typeof v === 'string' && v.length > 0) m[f.path] = v;
-  }
-  const tplMap = { ...(draft.value[name] ?? {}) };
-  const cur = tplMap[loc] ?? {};
-  tplMap[loc] = { ...m, ...cur };
-  draft.value = { ...draft.value, [name]: tplMap };
-}
-
-/** Seed the draft for one (template, locale) from:
- *    1. disk overlay (BFF-shipped sibling catalog)
- *    2. OAP overlay row (previously-pushed translations) — wins over disk
- *    3. local-staged draft (operator's in-progress) — wins over both
- *  Existing draft values still take precedence over (1) and (2) so
- *  active typing isn't disturbed. */
-async function ensureOverlayFetched(name: string, loc: Locale, eff: NonNullable<typeof effective.value>): Promise<void> {
-  if (loc === 'en') return;
-  const k = overlayKey(name, loc);
-  if (Object.prototype.hasOwnProperty.call(fetchedOverlays.value, k)) return;
-  try {
-    const { disk, oap } = await bff.templateSync.overlay(name, loc);
-    fetchedOverlays.value = { ...fetchedOverlays.value, [k]: { disk, oap } };
-    // Disk first, then OAP on top — OAP wins per-leaf where set.
-    applyOverlayToDraft(name, loc, disk, eff);
-    applyOverlayToDraft(name, loc, oap, eff);
-  } catch {
-    fetchedOverlays.value = { ...fetchedOverlays.value, [k]: { disk: null, oap: null } };
-  }
-  // Local stage wins over everything — apply last so it survives the
-  // seed even when an OAP row exists.
-  const staged = localEdits.get<unknown>(name, loc);
-  if (staged) applyOverlayToDraft(name, loc, staged, eff);
-}
-
-// `target` MUST be declared above the `watch(effective, ...)` below
-// because that watch uses `{ immediate: true }` and reads `target.value`
-// in its callback — which fires DURING setup. Declaring `target` after
-// the watch leaves it in the TDZ at the moment the immediate callback
-// runs, producing a silent ReferenceError that aborts setup and renders
-// the page blank with no console trace (CLAUDE.md flags this as a
-// recurring failure mode for `immediate: true` watchers).
-const target = ref<Locale>(
-  (SUPPORTED_LOCALES.find((l) => l !== 'en') as Locale) ?? 'zh-CN',
-);
-const targetLocales = SUPPORTED_LOCALES.filter((l) => l !== 'en');
-
-watch(
-  effective,
-  (eff) => {
-    if (!eff) return;
-    const name = selectedName.value;
-    if (!draft.value[name]) {
-      draft.value = { ...draft.value, [name]: {} };
-    }
-    void ensureOverlayFetched(name, target.value, eff);
-  },
-  { immediate: true },
-);
-
-// When the operator switches target language, lazy-fetch its overlays.
-watch([target, effective], ([loc, eff]) => {
-  if (!eff || !selectedName.value) return;
-  void ensureOverlayFetched(selectedName.value, loc, eff);
-});
-
-/** Build the overlay object (source-shape mirror) for one (name, locale)
- *  from the in-memory draft. Returns null when the draft is empty. */
-function buildOverlayContent(name: string, loc: string, eff: NonNullable<typeof effective.value>): Record<string, unknown> | null {
-  const fields = walkTranslatable(eff.source);
-  const overlay: Record<string, unknown> = {};
-  const m = draft.value[name]?.[loc] ?? {};
-  for (const f of fields) {
-    const v = m[f.path];
-    if (v && v.length > 0) setAtPath(overlay, f.segments, v);
-  }
-  return Object.keys(overlay).length === 0 ? null : overlay;
-}
-
-/** The source as the preview should render it — the target locale's
- *  current draft is merged onto English. */
-const localizedSource = computed<unknown>(() => {
-  const eff = effective.value;
-  if (!eff) return null;
-  const overlay = buildOverlayContent(selectedName.value, target.value, eff);
-  if (!overlay) return eff.source;
-  return deepMerge(eff.source, overlay);
-});
-
-function deepMerge(src: unknown, ovl: unknown): unknown {
-  if (Array.isArray(src)) {
-    if (!Array.isArray(ovl)) return src;
-    return src.map((item, i) => deepMerge(item, ovl[i]));
-  }
-  if (src !== null && typeof src === 'object') {
-    if (!ovl || typeof ovl !== 'object' || Array.isArray(ovl)) return src;
-    const ovlMap = ovl as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(src as Record<string, unknown>)) {
-      out[k] = deepMerge(v, ovlMap[k]);
-    }
-    return out;
-  }
-  if (typeof src === 'string' && typeof ovl === 'string' && ovl.length > 0) return ovl;
-  return src;
-}
-
-const localizedOverview = computed<OverviewDashboard | null>(() => {
-  if (selectedKind.value !== 'overview') return null;
-  return (localizedSource.value as OverviewDashboard) ?? null;
-});
-const localizedLayer = computed<AdminLayerTemplate | null>(() => {
-  if (selectedKind.value !== 'layer') return null;
-  return (localizedSource.value as AdminLayerTemplate) ?? null;
-});
+const {
+  target,
+  targetLocales,
+  fetchedOverlays,
+  editorSource,
+  localizedOverview,
+  localizedLayer,
+  allFields,
+  filledCount,
+  oapOverlayForTarget,
+  draftOverlayForTarget,
+  inUseOverlayForTarget,
+  dirty,
+  hasStagedLocal,
+  overlayKey,
+  draftValue,
+  setDraftValue,
+  applyOverlayToDraft,
+  buildOverlayContent,
+  rebuildDraftForLocale,
+  clearDraftLocale,
+} = useTranslationDraft({ selectedKind, selectedName, effective });
 
 // ── Scope (Component) selector for layer kind ──────────────────────
 
@@ -367,17 +166,6 @@ const scopeOptions = computed<Array<{ value: DashboardScope; label: string }>>((
     { value: 'instance', label: slots?.instances || 'Instance' },
     { value: 'endpoint', label: slots?.endpoints || 'Endpoint' },
   ];
-});
-
-// ── Translation progress counter ───────────────────────────────────
-
-const allFields = computed<TranslatableField[]>(() => {
-  const eff = effective.value;
-  return eff ? walkTranslatable(eff.source) : [];
-});
-const filledCount = computed<number>(() => {
-  const m = draft.value[selectedName.value]?.[target.value] ?? {};
-  return allFields.value.filter((f) => (m[f.path] ?? '').length > 0).length;
 });
 
 // ── Click-widget → floating panel ──────────────────────────────────
@@ -471,24 +259,6 @@ function onSelectLayerHeader(payload: { el: HTMLElement; event: MouseEvent }): v
   openPanel(fields, 'Layer header', payload.el, pointFromEvent(payload.event));
 }
 
-const currentPanelFields = computed<TranslatableField[]>(() => panel.value.fields);
-
-// ── Editing inside the floating panel ──────────────────────────────
-
-function draftValue(path: string): string {
-  return draft.value[selectedName.value]?.[target.value]?.[path] ?? '';
-}
-function setDraftValue(path: string, value: string): void {
-  const name = selectedName.value;
-  const loc = target.value;
-  const tplMap = { ...(draft.value[name] ?? {}) };
-  const locMap = { ...(tplMap[loc] ?? {}) };
-  if (value.length === 0) delete locMap[path];
-  else locMap[path] = value;
-  tplMap[loc] = locMap;
-  draft.value = { ...draft.value, [name]: tplMap };
-}
-
 // ── Stage to local + Push to OAP ───────────────────────────────────
 // Per-locale model: stage / push acts on the CURRENT target locale.
 // Operator switches Target to translate another language; each locale
@@ -498,68 +268,8 @@ const banner = computed(() =>
   selectedKind.value === 'overview' ? overviewSync.banner.value : layerSync.banner.value,
 );
 
-/** OAP overlay row content for (selected template, target locale).
- *  Used as the LEFT side of the push diff. */
-const oapOverlayForTarget = computed<unknown>(() => {
-  const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
-  return snap?.oap ?? null;
-});
-
-/** Operator's would-be next OAP overlay for (selected template, target
- *  locale) — built from the in-memory draft. */
-const draftOverlayForTarget = computed<Record<string, unknown> | null>(() => {
-  const eff = effective.value;
-  if (!eff || !selectedName.value) return null;
-  return buildOverlayContent(selectedName.value, target.value, eff);
-});
-
-/** Diff state — true when the draft differs from what's on OAP. The
- *  push modal's stage / push buttons gate on this. */
-const dirty = computed<boolean>(() => {
-  const a = draftOverlayForTarget.value;
-  const b = oapOverlayForTarget.value;
-  return stableStringify(a ?? null) !== stableStringify(b ?? null);
-});
-
 const saveMsg = ref<string | null>(null);
 const saving = ref(false);
-
-/* ── Editor source tracking ────────────────────────────────────────
- * Matches the Layer Dashboards + Overview Templates admin editors:
- * the pill always shows one of three states (`from local` / `from
- * bundled` / `from remote`) and the dropdown lets the operator reset
- * to the disk-shipped overlay only ("bundled") or to whatever OAP
- * currently has ("remote"). Local edits flip the pill to "from
- * local"; discard flips it back to "from remote". */
-const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
-
-// Switching template or target locale recomputes the source from
-// whether the operator has unstaged local edits for that (name, loc).
-// Don't clobber an explicitly-set source (bundled) inside the same
-// locale — the watcher only fires when name/locale changes.
-watch([selectedName, target], () => {
-  editorSource.value = hasStagedLocal.value ? 'local' : 'remote';
-});
-
-/** Rebuild the draft for one (name, locale) from a specific source.
- *  - `remote` reproduces the default layering (disk overlay first, OAP
- *    overlay wins per leaf) — the canonical baseline the operator
- *    sees in the live UI.
- *  - `bundled` shows ONLY the disk-shipped overlay, ignoring OAP. Use
- *    this to compare against the on-disk seed without OAP overrides. */
-function rebuildDraftForLocale(name: string, loc: string, src: 'remote' | 'bundled'): void {
-  const eff = effective.value;
-  if (!eff) return;
-  const tplMap = { ...(draft.value[name] ?? {}) };
-  delete tplMap[loc];
-  draft.value = { ...draft.value, [name]: tplMap };
-  const snap = fetchedOverlays.value[overlayKey(name, loc)];
-  if (!snap) return;
-  applyOverlayToDraft(name, loc, snap.disk, eff);
-  if (src === 'remote') {
-    applyOverlayToDraft(name, loc, snap.oap, eff);
-  }
-}
 
 /** Reset to dropdown — discard the current local draft and reload the
  *  draft from the picked source. Symmetric with the layer / overview
@@ -670,8 +380,6 @@ function discardLocal(): void {
   setTimeout(() => (saveMsg.value = null), 3000);
 }
 
-const hasStagedLocal = computed<boolean>(() => localEdits.has(selectedName.value, target.value));
-
 const readOnly = computed<boolean>(() =>
   selectedKind.value === 'overview' ? overviewSync.readOnly.value : layerSync.readOnly.value,
 );
@@ -686,14 +394,6 @@ function flashMsg(msg: string): void {
     if (saveMsg.value === msg) saveMsg.value = null;
   }, 6000);
 }
-/** The in-use overlay for (selected template, target locale): the OAP row
- *  (what's published) wins, else the disk-shipped seed. A pushed row is
- *  already the full merged overlay, so this is the complete in-use copy. */
-const inUseOverlayForTarget = computed<Record<string, unknown> | null>(() => {
-  const snap = fetchedOverlays.value[overlayKey(selectedName.value, target.value)];
-  const v = snap?.oap ?? snap?.disk ?? null;
-  return v && typeof v === 'object' ? (v as Record<string, unknown>) : null;
-});
 const canExport = computed<boolean>(() => inUseOverlayForTarget.value !== null);
 function onExport(): void {
   const overlay = inUseOverlayForTarget.value;
@@ -741,9 +441,7 @@ async function onImportFile(): Promise<void> {
   }
   // Overwrite the (template, locale) draft from the imported overlay, then
   // stage it locally so Push publishes exactly the imported translation.
-  const tplMap = { ...(draft.value[name] ?? {}) };
-  delete tplMap[loc];
-  draft.value = { ...draft.value, [name]: tplMap };
+  clearDraftLocale(name, loc);
   applyOverlayToDraft(name, loc, res.content, eff);
   const overlay = buildOverlayContent(name, loc, eff);
   if (overlay) localEdits.set(name, loc, overlay);
@@ -755,34 +453,6 @@ async function onImportFile(): Promise<void> {
       locale: LOCALE_NATIVE_LABEL[loc],
     }),
   );
-}
-
-/** Human label for a translatable field shown next to the EN source.
- *  The wire path (e.g. `kpis[0].label`) is internal — translators
- *  shouldn't see it; they should see what KIND of string they're
- *  translating (title, tip, tab label, …). EN source identifies
- *  which one. */
-const FIELD_LABELS: Record<string, string> = {
-  title: 'Title',
-  tip: 'Tip',
-  description: 'Description',
-  label: 'Label',
-  group: 'Group',
-  alias: 'Alias',
-  expressionLabels: 'Series label',
-  tableHeaders: 'Column header',
-  slots: 'Term',
-  aliases: 'Layer alias',
-};
-function leafLabel(segments: Array<string | number>): string {
-  // Walk back to the last non-index segment — that's the field's
-  // structural name. For `kpis[3].label` it's "label"; for
-  // `expressionLabels[2]` it's "expressionLabels".
-  for (let i = segments.length - 1; i >= 0; i--) {
-    const s = segments[i];
-    if (typeof s === 'string') return FIELD_LABELS[s] ?? s;
-  }
-  return '';
 }
 </script>
 
@@ -959,45 +629,20 @@ function leafLabel(segments: Array<string | number>): string {
       />
     </div>
 
-    <FloatingPanel
+    <TranslationFieldPanel
       :open="panel.open"
       :anchor="panel.anchor"
       :point="panel.point"
-      :width="520"
+      :label="panel.label"
+      :target-label="LOCALE_NATIVE_LABEL[target]"
+      :fields="panel.fields"
+      :saving="saving"
+      :dirty="dirty"
+      :draft-value="draftValue"
       @close="closePanel"
-    >
-      <div class="fp">
-        <header class="fp__head">
-          <div class="fp__head-text">
-            <span class="fp__kicker">EN → {{ LOCALE_NATIVE_LABEL[target] }}</span>
-            <h4>{{ panel.label }}</h4>
-          </div>
-          <button type="button" class="fp__close" @click="closePanel">✕</button>
-        </header>
-        <div class="fp__rows">
-          <div v-for="f in currentPanelFields" :key="f.path" class="fp__row">
-            <div class="fp__row-meta">
-              <span class="fp__tag">{{ leafLabel(f.segments) }}</span>
-              <span class="fp__src">{{ f.source }}</span>
-            </div>
-            <textarea
-              v-autosize="draftValue(f.path) || f.source"
-              :value="draftValue(f.path)"
-              :placeholder="f.source"
-              rows="1"
-              class="fp__input"
-              @input="setDraftValue(f.path, ($event.target as HTMLTextAreaElement).value)"
-            ></textarea>
-          </div>
-        </div>
-        <footer class="fp__foot">
-          <button type="button" class="sw-btn" @click="closePanel">{{ t('Close') }}</button>
-          <button type="button" class="sw-btn is-primary" :disabled="saving || !dirty" @click="stageLocal">
-            {{ t('Stage local') }}
-          </button>
-        </footer>
-      </div>
-    </FloatingPanel>
+      @update-field="setDraftValue"
+      @stage="stageLocal"
+    />
 
     <Modal
       :open="pushOpen"
@@ -1109,52 +754,6 @@ function leafLabel(segments: Array<string | number>): string {
   border-bottom: 1px solid var(--sw-line-2);
   font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sw-fg-3);
   background: var(--sw-bg-1);
-}
-
-/* Floating panel (per-widget translation popover) */
-.fp { display: flex; flex-direction: column; max-height: calc(100vh - 16px); }
-.fp__head {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--sw-line-2);
-  background: var(--sw-bg-2);
-}
-.fp__head-text { flex: 1; min-width: 0; }
-.fp__kicker {
-  font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--sw-accent); display: block; margin-bottom: 2px;
-}
-.fp__head h4 { margin: 0; font-size: 13px; color: var(--sw-fg-0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fp__close {
-  background: none; border: none; color: var(--sw-fg-3);
-  cursor: pointer; font-size: 14px; padding: 0 4px;
-}
-.fp__close:hover { color: var(--sw-fg-1); }
-.fp__rows { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 12px; }
-.fp__row { padding: 8px 0; border-bottom: 1px dashed var(--sw-line); }
-.fp__row:last-child { border-bottom: none; }
-.fp__row-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
-.fp__tag {
-  flex: 0 0 auto;
-  font-size: 9.5px; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--sw-fg-3);
-  background: var(--sw-bg-2); border: 1px solid var(--sw-line-2);
-  padding: 1px 6px; border-radius: 3px;
-}
-.fp__src { font-size: 12px; color: var(--sw-fg-1); font-weight: 500; }
-.fp__input {
-  width: 100%; box-sizing: border-box;
-  background: var(--sw-bg-2); color: var(--sw-fg-1);
-  border: 1px solid var(--sw-line-2); border-radius: 3px;
-  padding: 4px 6px; font-size: 12.5px; resize: vertical;
-  font-family: inherit;
-}
-.fp__input:focus { outline: none; border-color: var(--sw-accent); }
-.fp__foot {
-  padding: 8px 12px;
-  border-top: 1px solid var(--sw-line-2);
-  display: flex; gap: 6px; justify-content: flex-end;
-  background: var(--sw-bg-2);
 }
 
 .tv__push-lede {

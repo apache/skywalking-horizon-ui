@@ -34,7 +34,7 @@
   table or a flame graph.
 -->
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
@@ -51,11 +51,14 @@ import type {
   ProfileSpan,
   ProfileTask,
   ProfileTaskLog,
-  ProfileTimeRange,
 } from '@/api/client';
 import ProfileStackTable from '@/layer/profiling/ProfileStackTable.vue';
 import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
 import NativeTraceWaterfall from '@/layer/traces/NativeTraceWaterfall.vue';
+import NewTraceProfileTaskModal from '@/layer/profiling/NewTraceProfileTaskModal.vue';
+import type { NewTraceTaskPayload } from '@/layer/profiling/NewTraceProfileTaskModal.vue';
+import TraceProfileTaskDetailModal from '@/layer/profiling/TraceProfileTaskDetailModal.vue';
+import { profileTimeRanges } from '@/layer/profiling/profileTimeRanges';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
@@ -207,32 +210,6 @@ async function openTaskDetail(t: ProfileTask, ev: Event): Promise<void> {
 }
 
 // ── Analyze ─────────────────────────────────────────────────────────
-function timeRangesFor(span: ProfileSpan): ProfileTimeRange[] {
-  if (dataMode.value === 'include') {
-    return [{ start: span.startTime, end: span.endTime }];
-  }
-  const children = span.children ?? [];
-  if (!children.length) return [{ start: span.startTime, end: span.endTime }];
-  let ranges: ProfileTimeRange[] = [];
-  for (const c of children) {
-    ranges.push({ start: span.startTime, end: c.startTime });
-    ranges.push({ start: c.endTime, end: span.endTime });
-  }
-  ranges = ranges.reduce<ProfileTimeRange[]>((acc, cur) => {
-    let merged = false;
-    for (const r of acc) {
-      if (cur.start <= r.end && r.start <= cur.start) {
-        r.start = Math.max(r.start, cur.start);
-        r.end = Math.min(r.end, cur.end);
-        merged = true;
-      }
-    }
-    if (!merged) acc.push(cur);
-    return acc;
-  }, []);
-  return ranges.filter((r) => r.start !== r.end);
-}
-
 async function runAnalyze(): Promise<void> {
   const span = currentSpan.value;
   if (!span?.profiled) {
@@ -242,7 +219,7 @@ async function runAnalyze(): Promise<void> {
   analyzeMessage.value = '';
   analyzeLoading.value = true;
   try {
-    const queries: ProfileAnalyzeQuery[] = timeRangesFor(span).map((tr) => ({
+    const queries: ProfileAnalyzeQuery[] = profileTimeRanges(span, dataMode.value).map((tr) => ({
       segmentId: span.segmentId,
       timeRange: tr,
     }));
@@ -267,26 +244,7 @@ const taskCreateError = ref<string | null>(null);
 const endpointKeyword = ref('');
 const endpointLimit = ref(20);
 const endpointPicks = useLayerEndpoints(layerKey, selectedId, endpointKeyword, endpointLimit);
-const newTask = reactive({
-  endpointName: '',
-  monitorTime: 'now' as 'now' | 'set',
-  monitorTimeAt: new Date(),
-  monitorDuration: 5,
-  minThreshold: 0,
-  dumpPeriod: 10,
-  maxSamplingCount: 5,
-});
-function resetNewTask(): void {
-  newTask.endpointName = '';
-  newTask.monitorTime = 'now';
-  newTask.monitorTimeAt = new Date();
-  newTask.monitorDuration = 5;
-  newTask.minThreshold = 0;
-  newTask.dumpPeriod = 10;
-  newTask.maxSamplingCount = 5;
-  taskCreateError.value = null;
-}
-async function submitNewTask(): Promise<void> {
+async function submitNewTask(payload: NewTraceTaskPayload): Promise<void> {
   if (!selectedId.value) {
     taskCreateError.value = 'Pick a service first';
     return;
@@ -294,16 +252,14 @@ async function submitNewTask(): Promise<void> {
   taskCreateError.value = null;
   const idsBefore = new Set(tasks.value.map((t) => t.id));
   try {
-    const startTime =
-      newTask.monitorTime === 'now' ? Date.now() : newTask.monitorTimeAt.getTime();
     const resp = await bffClient.profile.create(layerKey.value, {
       serviceId: selectedId.value,
-      endpointName: newTask.endpointName,
-      startTime,
-      duration: Number(newTask.monitorDuration),
-      minDurationThreshold: Number(newTask.minThreshold),
-      dumpPeriod: Number(newTask.dumpPeriod),
-      maxSamplingCount: Number(newTask.maxSamplingCount),
+      endpointName: payload.endpointName,
+      startTime: payload.startTime,
+      duration: payload.duration,
+      minDurationThreshold: payload.minDurationThreshold,
+      dumpPeriod: payload.dumpPeriod,
+      maxSamplingCount: payload.maxSamplingCount,
     });
     if (resp.errorReason) {
       taskCreateError.value = resp.errorReason;
@@ -314,7 +270,6 @@ async function submitNewTask(): Promise<void> {
       return;
     }
     showNewTask.value = false;
-    resetNewTask();
     await refreshTasks();
     await pollForNewTask({
       idsBefore,
@@ -484,113 +439,23 @@ function fmtTime(ms: number): string {
     </div>
   </div>
 
-  <!-- New task modal -->
-  <div v-if="showNewTask" class="dlg-mask" @click.self="showNewTask = false">
-    <div class="dlg">
-      <div class="dlg-head">
-        <div>
-          New profile task
-          <span v-if="serviceName" class="muted">on {{ serviceName }}</span>
-        </div>
-        <button class="x" @click="showNewTask = false">×</button>
-      </div>
-      <div class="dlg-body">
-        <div class="field">
-          <label>Endpoint name</label>
-          <input
-            v-model="endpointKeyword"
-            placeholder="Type to search…"
-            class="ti-input wide"
-          />
-          <select v-model="newTask.endpointName" class="sel wide">
-            <option value="">(any)</option>
-            <option v-for="e in endpointPicks.endpoints.value" :key="e.id" :value="e.name">
-              {{ e.name }}
-            </option>
-          </select>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Start when</label>
-            <div class="seg">
-              <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">now</button>
-              <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">set time</button>
-            </div>
-            <input
-              v-if="newTask.monitorTime === 'set'"
-              type="datetime-local"
-              class="ti-input"
-              :value="new Date(newTask.monitorTimeAt.getTime() - newTask.monitorTimeAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)"
-              @input="(ev: Event) => (newTask.monitorTimeAt = new Date((ev.target as HTMLInputElement).value))"
-            />
-          </div>
-          <div class="field">
-            <label>Duration (min)</label>
-            <select v-model.number="newTask.monitorDuration" class="sel">
-              <option :value="5">5</option>
-              <option :value="10">10</option>
-              <option :value="15">15</option>
-            </select>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label>Min threshold (ms)</label>
-            <input type="number" min="0" v-model.number="newTask.minThreshold" class="ti-input" />
-          </div>
-          <div class="field">
-            <label>Dump period (ms)</label>
-            <select v-model.number="newTask.dumpPeriod" class="sel">
-              <option :value="10">10</option>
-              <option :value="20">20</option>
-              <option :value="50">50</option>
-              <option :value="100">100</option>
-            </select>
-          </div>
-          <div class="field">
-            <label>Max sampling count</label>
-            <select v-model.number="newTask.maxSamplingCount" class="sel">
-              <option v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" :value="n">{{ n }}</option>
-            </select>
-          </div>
-        </div>
-        <div v-if="taskCreateError" class="dlg-err">{{ taskCreateError }}</div>
-      </div>
-      <div class="dlg-foot">
-        <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
-        <button class="btn-primary" @click="submitNewTask">Create task</button>
-      </div>
-    </div>
-  </div>
+  <NewTraceProfileTaskModal
+    v-model:show="showNewTask"
+    :service-name="serviceName"
+    :endpoints="endpointPicks.endpoints.value"
+    :keyword="endpointKeyword"
+    :error="taskCreateError"
+    @update:keyword="(k) => (endpointKeyword = k)"
+    @submit="submitNewTask"
+  />
 
-  <!-- Task detail modal -->
-  <div v-if="taskDetailFor" class="dlg-mask" @click.self="taskDetailFor = null">
-    <div class="dlg wide">
-      <div class="dlg-head">
-        <div>Profile task detail</div>
-        <button class="x" @click="taskDetailFor = null">×</button>
-      </div>
-      <div class="dlg-body">
-        <dl class="kv">
-          <dt>Service</dt><dd>{{ serviceName ?? taskDetailFor.serviceId }}</dd>
-          <dt>Endpoint</dt><dd>{{ taskDetailFor.endpointName }}</dd>
-          <dt>Start time</dt><dd>{{ fmtTime(taskDetailFor.startTime) }}</dd>
-          <dt>Duration</dt><dd>{{ taskDetailFor.duration }} min</dd>
-          <dt>Min threshold</dt><dd>{{ taskDetailFor.minDurationThreshold }} ms</dd>
-          <dt>Dump period</dt><dd>{{ taskDetailFor.dumpPeriod }}</dd>
-          <dt>Max sampling count</dt><dd>{{ taskDetailFor.maxSamplingCount }}</dd>
-        </dl>
-        <div v-if="taskDetailLogs.length" class="logs">
-          <h5>Instance logs</h5>
-          <div v-for="(log, i) in taskDetailLogs" :key="i" class="log-line">
-            <span class="t-tag">{{ log.operationType }}</span>
-            <span class="muted">{{ log.instanceName }}</span>
-            <span>{{ fmtTime(log.operationTime) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
+  <TraceProfileTaskDetailModal
+    :task="taskDetailFor"
+    :service-name="serviceName"
+    :logs="taskDetailLogs"
+    :fmt-time="fmtTime"
+    @close="taskDetailFor = null"
+  />
 </template>
 
 <style scoped>
@@ -833,16 +698,6 @@ function fmtTime(ms: number): string {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.btn-secondary {
-  background: var(--sw-bg-2);
-  color: var(--sw-fg-1);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 3px;
-  padding: 6px 14px;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-
 /* Span card frame — wraps the shared NativeTraceWaterfall in a
  * sw-card boundary with a labelled header so it reads as a distinct
  * section above the Analyze result panel. */
@@ -892,120 +747,5 @@ function fmtTime(ms: number): string {
   color: #ffb86b;
   font-size: 11.5px;
   border-bottom: 1px solid var(--sw-line);
-}
-
-.dlg-mask {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.dlg {
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 6px;
-  width: 520px;
-  max-width: 92vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-}
-.dlg.wide {
-  width: 640px;
-}
-.dlg-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-2);
-  font-weight: 600;
-  font-size: 12.5px;
-  color: var(--sw-fg-0);
-}
-.x {
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3);
-  font-size: 18px;
-  cursor: pointer;
-  line-height: 1;
-}
-.dlg-body {
-  padding: 14px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--sw-fg-1);
-}
-.field label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--sw-fg-3);
-}
-.field-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.field-row .field {
-  flex: 1 1 0;
-  min-width: 140px;
-}
-.dlg-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--sw-line);
-}
-.dlg-err {
-  color: var(--sw-err);
-  font-size: 11px;
-}
-.kv {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  row-gap: 6px;
-  font-size: 11.5px;
-  margin: 0;
-}
-.kv dt {
-  color: var(--sw-fg-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-size: 10px;
-  align-self: center;
-}
-.kv dd {
-  margin: 0;
-  color: var(--sw-fg-0);
-}
-.logs h5 {
-  margin: 14px 0 6px;
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.log-line {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  font-size: 11px;
-  padding: 4px 0;
-  border-bottom: 1px dotted var(--sw-line);
 }
 </style>

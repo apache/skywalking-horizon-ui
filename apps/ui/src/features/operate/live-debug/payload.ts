@@ -150,3 +150,33 @@ export function isEmptySample(sample: SessionSample): boolean {
   if (typeof p !== 'object' || p === null) return false;
   return (p as { empty?: boolean }).empty === true;
 }
+
+// ─── Highlight ─────────────────────────────────────────────────────
+
+export interface Segment {
+  text: string;
+  highlight: boolean;
+}
+
+/** Split a rule field into highlight / plain segments around every
+ *  exact occurrence of the selected step's `sourceText`. Drives the
+ *  inline `<mark>` collaborative highlight inside the captured DSL —
+ *  clicking a step lights up the matching expression in the rule
+ *  statement above the chain. */
+export function highlightSegments(text: string | undefined, fragment: string): Segment[] {
+  if (!text) return [];
+  if (fragment === '') return [{ text, highlight: false }];
+  const segments: Segment[] = [];
+  let cursor = 0;
+  while (cursor < text.length) {
+    const at = text.indexOf(fragment, cursor);
+    if (at < 0) {
+      segments.push({ text: text.slice(cursor), highlight: false });
+      break;
+    }
+    if (at > cursor) segments.push({ text: text.slice(cursor, at), highlight: false });
+    segments.push({ text: fragment, highlight: true });
+    cursor = at + fragment.length;
+  }
+  return segments;
+}

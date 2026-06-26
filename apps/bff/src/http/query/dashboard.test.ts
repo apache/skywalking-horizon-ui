@@ -16,17 +16,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  buildFragment,
-  parseSeries,
-  avgOf,
-  parseLabeledSeries,
-  parseTopList,
-  flattenTabWidgets,
-  widgetSchema,
-  type Window,
-  type MqeResultShape,
-} from './dashboard.js';
+import { buildFragment, type MqeResultShape } from '../../logic/dashboard/mqe.js';
+import { parseSeries, avgOf, parseLabeledSeries, parseTopList } from '../../logic/dashboard/parsers.js';
+import { flattenTabWidgets } from '../../logic/dashboard/gates.js';
+import { widgetSchema } from '../../logic/dashboard/schema.js';
+import type { Window } from '../../util/window.js';
 import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 
 const W: Window = { start: '2026-05-17 1000', end: '2026-05-17 1100', step: 'MINUTE' };

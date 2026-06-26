@@ -37,13 +37,17 @@ import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
   EndpointDependencyNode,
-  EndpointDependencyResponse,
   LayerDef,
   TopologyMetricDef,
 } from '@/api/client';
-import { bffClient } from '@/api/client';
 import { useLayerEndpointDependency } from '@/layer/endpoint-dependency/useLayerEndpointDependency';
-import { useTimeRangeStore } from '@/controls/timeRange';
+import { useEndpointDependencyExpansion } from '@/layer/endpoint-dependency/useEndpointDependencyExpansion';
+import {
+  useEndpointDependencyLayout,
+  NW,
+  NH,
+  COL_GAP,
+} from '@/layer/endpoint-dependency/useEndpointDependencyLayout';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayers } from '@/shell/useLayers';
@@ -59,7 +63,6 @@ import Sparkline from '@/components/charts/Sparkline.vue';
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
-const timeRange = useTimeRangeStore();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
@@ -145,128 +148,31 @@ const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
-// ── Interactive expansion ─────────────────────────────────────────
-// `getEndpointDependencies` returns a node's WHOLE neighbourhood (both
-// directions in ONE response — OAP has no directional endpoint query),
-// so there is ONE expand per node, not a left/right pair. New callers
-// land left, callees right via the BFS layout. The handle lives on the
-// node's OUTWARD edge (the way the chain extends); keyed by node id so a
-// repeat click is a no-op. A click that surfaces nothing new marks the
-// node exhausted, fading the handle so it isn't a dead control.
-const expansions = ref<Map<string, EndpointDependencyResponse>>(new Map());
-const expansionsLoading = ref<Set<string>>(new Set());
-const exhausted = ref<Set<string>>(new Set());
-function hasExpansion(node: EndpointDependencyNode): boolean {
-  return expansions.value.has(node.id);
-}
-function isExhausted(node: EndpointDependencyNode): boolean {
-  return exhausted.value.has(node.id);
-}
-function isLoadingExpansion(node: EndpointDependencyNode): boolean {
-  return expansionsLoading.value.has(node.id);
-}
-// Transient banner when an expand returns no NEW neighbour, so a leaf-node
-// expand gives explicit feedback ("loaded, but nothing more") instead of
-// the easily-missed handle fade. Auto-clears after a few seconds.
-const noDepFlash = ref<string | null>(null);
-let noDepFlashTimer: ReturnType<typeof setTimeout> | null = null;
-function flashNoDep(name: string): void {
-  noDepFlash.value = name;
-  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
-  noDepFlashTimer = setTimeout(() => {
-    noDepFlash.value = null;
-    noDepFlashTimer = null;
-  }, 3200);
-}
-async function expandNode(node: EndpointDependencyNode): Promise<void> {
-  const key = node.id;
-  if (expansions.value.has(key) || expansionsLoading.value.has(key)) return;
-  const loading = new Set(expansionsLoading.value);
-  loading.add(key);
-  expansionsLoading.value = loading;
-  try {
-    const before = new Set(nodes.value.map((n) => n.id));
-    const resp = await bffClient.layer.endpointDependency(
-      layerKey.value,
-      node.serviceName,
-      node.name,
-      { step: timeRange.step, startMs: timeRange.range.startMs, endMs: timeRange.range.endMs },
-    );
-    const next = new Map(expansions.value);
-    next.set(key, resp);
-    expansions.value = next;
-    // No new neighbour surfaced (chain leaf / all already shown) — fade
-    // the handle AND flash an explicit "nothing more" banner.
-    if (!resp.nodes.some((n) => !before.has(n.id))) {
-      const e = new Set(exhausted.value);
-      e.add(key);
-      exhausted.value = e;
-      flashNoDep(node.name);
-    }
-  } catch {
-    // Soft-fail — the operator can click again to retry.
-  } finally {
-    const done = new Set(expansionsLoading.value);
-    done.delete(key);
-    expansionsLoading.value = done;
-  }
-}
-// Reset expansions whenever the focus endpoint changes — the previous
-// expansion graph is irrelevant against a new focus.
-watch(selectedEndpoint, () => {
-  expansions.value = new Map();
-  expansionsLoading.value = new Set();
-  exhausted.value = new Set();
-  dragOffsets.value = new Map();
-  // Cascade-clear the per-graph view state too. Endpoint ids are stable
-  // across focuses, so without this a node/edge selected under the old
-  // focus keeps the detail sidebar open against the new graph.
-  selectedNodeId.value = null;
-  selectedCallId.value = null;
-  noDepFlash.value = null;
-});
-
-// ── Merged graph = focus response ∪ all expansion responses.
-//    Deduplicate by node id and call id; later expansions don't
-//    overwrite earlier metric values, which keeps the first-seen
-//    snapshot stable while the operator browses. -------------------
-const nodes = computed<EndpointDependencyNode[]>(() => {
-  const map = new Map<string, EndpointDependencyNode>();
-  for (const n of baseNodes.value) map.set(n.id, n);
-  for (const exp of expansions.value.values()) {
-    for (const n of exp.nodes) if (!map.has(n.id)) map.set(n.id, n);
-  }
-  return [...map.values()];
-});
-/** True when the call carries at least one resolved metric value. */
-function callHasMetrics(c: EndpointDependencyCall): boolean {
-  for (const v of Object.values(c.metrics ?? {})) if (v !== null) return true;
-  return false;
-}
-const calls = computed<EndpointDependencyCall[]>(() => {
-  // Merge with "prefer-metrics-populated" semantics: a later
-  // expansion's view of the same edge wins when it has actual
-  // metric values while the earlier copy was a null shell. Without
-  // this, the very first fetch (which might have been served before
-  // the BFF's virtual-source filter relaxation) keeps null-metric
-  // edges in place even after the operator expanded a neighbour
-  // that returns the correctly-populated row.
-  const map = new Map<string, EndpointDependencyCall>();
-  function consider(c: EndpointDependencyCall): void {
-    const existing = map.get(c.id);
-    if (!existing) {
-      map.set(c.id, c);
-      return;
-    }
-    if (!callHasMetrics(existing) && callHasMetrics(c)) {
-      map.set(c.id, c);
-    }
-  }
-  for (const c of baseCalls.value) consider(c);
-  for (const exp of expansions.value.values()) {
-    for (const c of exp.calls) consider(c);
-  }
-  return [...map.values()];
+// ── Interactive expansion + merged graph. The expansion engine owns the
+// per-node fetch lifecycle (one `getEndpointDependencies` call returns a
+// node's WHOLE neighbourhood — new callers land left, callees right via the
+// layout) and the merged `nodes` / `calls` it produces. A new focus
+// endpoint discards the expansion graph; the callback cascade-clears this
+// view's per-graph state (drag offsets + node/edge selection) so a stale
+// selection doesn't carry over.
+const {
+  nodes,
+  calls,
+  noDepFlash,
+  hasExpansion,
+  isExhausted,
+  isLoadingExpansion,
+  expandNode,
+} = useEndpointDependencyExpansion({
+  layerKey,
+  baseNodes,
+  baseCalls,
+  selectedEndpoint,
+  onFocusReset: () => {
+    dragOffsets.value = new Map();
+    selectedNodeId.value = null;
+    selectedCallId.value = null;
+  },
 });
 
 // ── Config from response (operator-edited layer JSON). Mirrors the
@@ -330,165 +236,34 @@ function edgeVal(c: EndpointDependencyCall, def: TopologyMetricDef | null): numb
 // picked the closest fuzzy match).
 const focusedId = computed<string | null>(() => data.value?.endpointId ?? null);
 
-// ── Compute layer index per node by BFS from focus, then bucket.
-interface LayoutNode extends EndpointDependencyNode {
-  layerIdx: number;
-}
-const layoutNodes = computed<LayoutNode[]>(() => {
-  const all = nodes.value;
-  if (all.length === 0) return [];
-  const focusId = focusedId.value;
-  const byId = new Map(all.map((n) => [n.id, n]));
-  const callsList = calls.value;
-  const downstream = new Map<string, string[]>();
-  const upstream = new Map<string, string[]>();
-  for (const c of callsList) {
-    if (!downstream.has(c.source)) downstream.set(c.source, []);
-    downstream.get(c.source)!.push(c.target);
-    if (!upstream.has(c.target)) upstream.set(c.target, []);
-    upstream.get(c.target)!.push(c.source);
-  }
-  const layerOf = new Map<string, number>();
-  if (focusId && byId.has(focusId)) {
-    // ONE direction-aware BFS over the whole connected component: from
-    // each reached node a downstream neighbour sits one layer right (+1),
-    // an upstream neighbour one layer left (-1). A single combined pass —
-    // not forward-only then backward-only — so cross-links land relative
-    // to their own neighbour. The old two-pass version couldn't reach a
-    // CALLER of a callee-of-focus (e.g. a node revealed by expanding a
-    // downstream endpoint) and dumped it into a far straggler column.
-    layerOf.set(focusId, 0);
-    const queue = [focusId];
-    while (queue.length > 0) {
-      const id = queue.shift()!;
-      const cur = layerOf.get(id)!;
-      for (const t of downstream.get(id) ?? []) {
-        if (!layerOf.has(t)) {
-          layerOf.set(t, cur + 1);
-          queue.push(t);
-        }
-      }
-      for (const s of upstream.get(id) ?? []) {
-        if (!layerOf.has(s)) {
-          layerOf.set(s, cur - 1);
-          queue.push(s);
-        }
-      }
-    }
-  }
-  // Stragglers — genuinely disconnected nodes get a column just past the
-  // rightmost real layer (not a hard-coded index that could collide).
-  let maxLayer = 0;
-  for (const v of layerOf.values()) if (v > maxLayer) maxLayer = v;
-  let extra = maxLayer + 1;
-  for (const n of all) {
-    if (!layerOf.has(n.id)) {
-      layerOf.set(n.id, extra++);
-    }
-  }
-  return all.map((n) => ({ ...n, layerIdx: layerOf.get(n.id)! }));
-});
-
-// ── Group nodes by layer index, cap each layer at NODES_PER_LAYER by
-// CPM, and bucket the rest into a "+N more" pseudo-row.
-const NODES_PER_LAYER = 8;
-interface LayerColumn {
-  index: number;
-  label: string;
-  visible: LayoutNode[];
-  hidden: number;
-}
-const layerColumns = computed<LayerColumn[]>(() => {
-  const byLayer = new Map<number, LayoutNode[]>();
-  for (const n of layoutNodes.value) {
-    if (!byLayer.has(n.layerIdx)) byLayer.set(n.layerIdx, []);
-    byLayer.get(n.layerIdx)!.push(n);
-  }
-  const indices = [...byLayer.keys()].sort((a, b) => a - b);
-  return indices.map((i) => {
-    // Sort by the operator-configured `center` metric (typically RPM).
-    // Falls back to the legacy `cpm` field when the config hasn't
-    // arrived yet (first render before the BFF responds).
-    const list = byLayer.get(i)!.slice().sort((a, b) => {
-      const va = nodeVal(a, centerDef.value) ?? a.cpm ?? 0;
-      const vb = nodeVal(b, centerDef.value) ?? b.cpm ?? 0;
-      return vb - va;
-    });
-    const visible = list.slice(0, NODES_PER_LAYER);
-    const hidden = list.length - visible.length;
-    let label: string;
-    // Focus = L0; layers to the LEFT (negative index) are the focus's
-    // callers, to the RIGHT (positive) its callees. Labelled `Callers`
-    // / `Callees` to match the node popout (Callers/Callees) and the
-    // expand handles — the old `Upstream`/`Downstream` pair was both
-    // ambiguous and inverted (nginx vs data-flow conventions clashed).
-    if (i < 0) label = t('L{i} · Callers', { i });
-    else if (i === 0) label = t('L0 · Focus');
-    else label = t('L+{i} · Callees', { i });
-    return { index: i, label, visible, hidden };
-  });
-});
-
-// ── SVG layout math. The template binds NW / COL_GAP via the same
-// names; exposing them on a const-bag keeps Vue's setup-script
-// auto-binding happy without resorting to `defineExpose`.
-const NW = 152;
-// Compact box: 3 tight stacked rows (service name / API name / RPM).
-const NH = 56;
-// Gap between columns leaves room for the curved edge's line-metric
-// chip (60-80px) without colliding with adjacent node boxes.
-const COL_GAP = 300;
-const ROW_GAP = 80;
-const W = computed(() => Math.max(800, layerColumns.value.length * COL_GAP + 80));
-const H = computed(() => {
-  const maxNodes = Math.max(1, ...layerColumns.value.map((c) => c.visible.length));
-  return 80 + maxNodes * ROW_GAP + 40;
-});
-
-/**
- * Card height adapts to the graph the same way the topology view
- * does: 60% floor of a 780px baseline, capped at 1100px. Operators
- * get a consistent envelope across both dependency tabs.
- */
-const CARD_BASELINE = 780;
-const CARD_MIN = Math.round(CARD_BASELINE * 0.6);
-const CARD_MAX = 1100;
-const cardHeightPx = computed<number>(() => {
-  const ideal = H.value + 80;
-  return Math.max(CARD_MIN, Math.min(CARD_MAX, ideal));
-});
-
-interface Pos { x: number; y: number; col: number; row: number }
-const nodePos = computed<Map<string, Pos>>(() => {
-  const map = new Map<string, Pos>();
-  layerColumns.value.forEach((col, colIdx) => {
-    const x = 40 + colIdx * COL_GAP;
-    col.visible.forEach((n, rowIdx) => {
-      const y = 80 + rowIdx * ROW_GAP;
-      map.set(n.id, { x, y, col: colIdx, row: rowIdx });
-    });
-  });
-  return map;
-});
-
-// ── Manual node drag. The operator can drag a box to declutter a dense
-// graph; the offset layers on the BFS layout so edges (which read
-// displayPos) follow. Cleared when a new focus endpoint rebuilds the graph.
+// ── Manual node drag offsets. The operator can drag a box to declutter a
+// dense graph; the offset layers on the BFS layout so edges (which read
+// displayPos) follow. Cleared by `onFocusReset` when a new focus rebuilds
+// the graph.
 const dragOffsets = ref<Map<string, { dx: number; dy: number }>>(new Map());
-const displayPos = computed<Map<string, Pos>>(() => {
-  if (dragOffsets.value.size === 0) return nodePos.value;
-  const out = new Map<string, Pos>();
-  for (const [id, p] of nodePos.value) {
-    const off = dragOffsets.value.get(id);
-    out.set(id, off ? { ...p, x: p.x + off.dx, y: p.y + off.dy } : p);
-  }
-  return out;
-});
 
-// Filter calls whose endpoints survived the per-layer cap.
-const visibleCalls = computed<EndpointDependencyCall[]>(() => {
-  const ids = new Set(nodePos.value.keys());
-  return calls.value.filter((c) => ids.has(c.source) && ids.has(c.target));
+// ── BFS column layout + curved edge geometry. The layout composable owns
+// the pure geometry; the view keeps the config-driven metric accessors it
+// feeds in (centerDef / nodeVal) and the SVG scene that binds the result.
+const {
+  layoutNodes,
+  layerColumns,
+  W,
+  H,
+  cardHeightPx,
+  nodePos,
+  displayPos,
+  visibleCalls,
+  callPathD,
+  callMidpoint,
+} = useEndpointDependencyLayout({
+  nodes,
+  calls,
+  focusedId,
+  centerDef,
+  nodeVal,
+  dragOffsets,
+  t,
 });
 
 // ── Pan / zoom. The SVG fits the whole graph by default (viewBox = full
@@ -731,65 +506,6 @@ function jumpToEndpointDashboard(): void {
   });
 }
 
-/** Bi-direction-aware curved path. Same rule as the service map's
- *  `callPathD`: bow the arc to one side of the chord; for the
- *  matching reverse call we bow the other side so both lines stay
- *  visible. No arrowhead — animated traffic dots advertise direction. */
-function hasReverse(c: EndpointDependencyCall): boolean {
-  return calls.value.some((x) => x.source === c.target && x.target === c.source);
-}
-function bowSign(c: EndpointDependencyCall): number {
-  if (!hasReverse(c)) return 0;
-  return c.source < c.target ? 1 : -1;
-}
-function callPathD(c: EndpointDependencyCall): string {
-  const a = displayPos.value.get(c.source);
-  const b = displayPos.value.get(c.target);
-  if (!a || !b) return '';
-  const x1 = a.x + NW;
-  const y1 = a.y + NH / 2;
-  const x2 = b.x;
-  const y2 = b.y + NH / 2;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const perpX = -uy;
-  const perpY = ux;
-  const bow = Math.min(30, Math.max(14, len * 0.10));
-  const sign = bowSign(c);
-  const amplitude = sign === 0 ? 12 : bow;
-  const signed = sign === 0 ? -1 : sign;
-  const ctrlX = (x1 + x2) / 2 + perpX * amplitude * signed;
-  const ctrlY = (y1 + y2) / 2 + perpY * amplitude * signed;
-  return `M ${x1} ${y1} Q ${ctrlX} ${ctrlY} ${x2} ${y2}`;
-}
-function callMidpoint(c: EndpointDependencyCall): { x: number; y: number } | null {
-  const a = displayPos.value.get(c.source);
-  const b = displayPos.value.get(c.target);
-  if (!a || !b) return null;
-  const x1 = a.x + NW;
-  const y1 = a.y + NH / 2;
-  const x2 = b.x;
-  const y2 = b.y + NH / 2;
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-  const len = Math.hypot(dx, dy) || 1;
-  const ux = dx / len;
-  const uy = dy / len;
-  const perpX = -uy;
-  const perpY = ux;
-  const bow = Math.min(30, Math.max(14, len * 0.10));
-  const sign = bowSign(c);
-  const amplitude = sign === 0 ? 12 : bow;
-  const signed = sign === 0 ? -1 : sign;
-  return {
-    x: (x1 + x2) / 2 + perpX * amplitude * signed * 0.55,
-    y: (y1 + y2) / 2 + perpY * amplitude * signed * 0.55,
-  };
-}
-
 // Edge selection — same independent-from-node model as the service
 // map. Edge panel surfaces server-side line metrics only (OAP doesn't
 // expose a client family for endpoint relations).
@@ -833,7 +549,6 @@ onMounted(() => {
 });
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
-  if (noDepFlashTimer) clearTimeout(noDepFlashTimer);
 });
 function edgeSeries(c: EndpointDependencyCall, def: TopologyMetricDef): Array<number | null> {
   return c.metricSeries?.[def.id] ?? [];

@@ -15,8 +15,8 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { computed } from 'vue';
+import { RouterLink, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
 
@@ -32,7 +32,7 @@ import { useThemeStore, AVAILABLE_THEMES } from '@/state/theme';
 
 const logoSwBlue = logoSw.replace(/fill="#fff"/g, 'fill="#1368B3"');
 import { useAuthStore } from '@/state/auth';
-import { useLayers, firstLayerTab } from '@/shell/useLayers';
+import { useLayers, isSingleFeatureLayer } from '@/shell/useLayers';
 import { useLandingOrder } from '@/shell/useLandingOrder';
 import { useOverviewDashboards } from '@/render/overview/useOverviewDashboards';
 import { useDebugPanel } from '@/controls/debugPanel';
@@ -60,46 +60,20 @@ async function signOut(): Promise<void> {
   await router.push({ name: 'login' });
 }
 
-const { availableLayers, oapReachable, oapError, hasTopology } = useLayers();
+const { availableLayers, oapReachable, oapError } = useLayers();
 const orderedLayers = useLandingOrder(availableLayers);
 const { publicOverviews } = useOverviewDashboards();
 
-import { sectionIcon, layerIcon as layerIconByKey } from './icons';
-function layerIcon(L: SidebarLayer): IconName {
-  return layerIconByKey(L.key);
-}
+import { sectionIcon } from './icons';
+import SidebarLayerRow from './SidebarLayerRow.vue';
+import SidebarLayerChildren from './SidebarLayerChildren.vue';
+import { useSidebarActive } from './useSidebarActive';
+import { useSidebarMenu } from './useSidebarMenu';
 
 type SidebarLayer = (typeof orderedLayers.value)[number];
-function hasInstances(L: SidebarLayer): boolean {
-  return L.caps.instances ?? Boolean(L.slots.instances);
-}
-function hasEndpoints(L: SidebarLayer): boolean {
-  return L.caps.endpoints ?? Boolean(L.slots.endpoints);
-}
-/** A layer whose only worthwhile screen is the services list — no
- *  tabs to expand into. Rendered as a direct link, not an accordion. */
-function isSingleFeatureLayer(L: SidebarLayer): boolean {
-  if (hasInstances(L) || hasEndpoints(L)) return false;
-  if (hasTopology(L)) return false;
-  const c = L.caps;
-  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
-  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
-  return true;
-}
 
-const expandedLayer = ref<string | null>(null);
-function toggleLayer(key: string): void {
-  const wasExpanded = expandedLayer.value === key;
-  expandedLayer.value = wasExpanded ? null : key;
-  if (!wasExpanded) {
-    const L = orderedLayers.value.find((l) => l.key === key);
-    if (!L) return;
-    const target = `/layer/${L.key}/${firstLayerTab(L)}`;
-    if (route.path === target) return;
-    if (route.path.startsWith(`/layer/${L.key}/`)) return;
-    void router.push(target);
-  }
-}
+const { route, isActive, isActiveExact, expandedLayer, toggleLayer, navRef } =
+  useSidebarActive(orderedLayers);
 
 interface LayerGroup { kind: 'group'; label: string; layers: SidebarLayer[] }
 interface LayerSingle { kind: 'single'; layer: SidebarLayer }
@@ -137,254 +111,16 @@ const operateLayers = computed(() =>
 );
 const sidebarEntries = computed<SidebarEntry[]>(() => bucket(publicLayers.value));
 
-const route = useRoute();
-// Case-insensitive: layer keys are UPPER_SNAKE in the menu/links but a
-// URL may arrive lowercased (overview KPI tiles link lowercased, hand-typed
-// URLs, etc.). Without normalising, the active row wouldn't get the accent
-// colour and the auto-scroll couldn't find it.
-const routePathLc = computed(() => route.path.toLowerCase());
-function isActive(path: string): boolean {
-  const p = path.toLowerCase();
-  return routePathLc.value === p || routePathLc.value.startsWith(p + '/');
-}
-/** Use this — not {@link isActive} — for sibling routes where one is
- *  a prefix of another (e.g. `/operate/live-debug` vs
- *  `/operate/live-debug/history`); prefix-match would light both up. */
-function isActiveExact(path: string): boolean {
-  return routePathLc.value === path.toLowerCase();
-}
+const { platformSection, menuSections, isNavL1Open, toggleNavL1 } = useSidebarMenu();
 
-// Only the layer the route currently points at is auto-expanded. We do
-// NOT pre-expand the first layer (General) on a non-layer landing —
-// expanding a section is an explicit user action (a click), and a
-// default-open accordion misleads operators into thinking that layer is
-// "selected" when they've navigated nowhere.
-const navRef = ref<HTMLElement | null>(null);
-/** Bring the route's active nav row into view (it may sit below the fold
- *  on a long sidebar). Waits a tick so the route-driven expand has
- *  rendered the L2 children that contain the active row. */
-async function scrollActiveIntoView(): Promise<void> {
-  await nextTick();
-  // Both the layer row and its active child carry `.is-active`; scroll to
-  // the LAST (deepest) one — the active tab — so it lands in view.
-  // Exclude `.sw-nav-toggle` (the bottom "Debug events" button is
-  // `.is-active` whenever the panel is on — default on localhost — and
-  // being last in the DOM it would otherwise scroll the sidebar to the
-  // very end on every navigation regardless of the clicked item).
-  const actives = navRef.value?.querySelectorAll('.is-active:not(.sw-nav-toggle)');
-  actives?.[actives.length - 1]?.scrollIntoView({ block: 'nearest' });
-}
-
-// Expand the layer the route points at AND scroll its active item into
-// view — on entering a layer page (deep-link, reload, or in-app nav),
-// not just the first paint. URL keys are lowercase; layer keys are
-// UPPER_SNAKE — match case-insensitively.
-watch(
-  [() => route.path, orderedLayers],
-  ([path, rows]) => {
-    const m = path.match(/^\/layer\/([^/]+)/);
-    if (m) {
-      const L = rows.find((l) => l.key.toUpperCase() === m[1]!.toUpperCase());
-      if (L) expandedLayer.value = L.key;
-    }
-    void scrollActiveIntoView();
-  },
-  { immediate: true },
-);
-onMounted(scrollActiveIntoView);
-
-interface NavRow {
-  icon: IconName;
-  label: string;
-  to: string;
-  badge?: { text: string; kind?: 'ok' | 'warn' | 'err' | 'info' };
-  /** Custom active-match; defaults to exact `path === to`. */
-  activeWhen?: (path: string) => boolean;
-  /** Present ⇒ row renders as an L1 expandable with these as L2. */
-  children?: NavRow[];
-  /** Optional verb gate — row is removed from the DOM when the user
-   *  lacks it. UI-only filter; the BFF enforces the same verbs server-
-   *  side, so hiding is a UX nicety, not security. */
-  verb?: string;
-}
-
-interface NavSection {
-  kicker: string;
-  /** Stable identifier independent of locale — used by render-side
-   *  filters that pick a specific section (e.g. the platform-monitoring
-   *  block which is hoisted to the top of the operate area). Defaults
-   *  to `'default'` for sections that don't need to be singled out. */
-  kind?: 'platform' | 'operate' | 'setup' | 'admin' | 'default';
-  links: NavRow[];
-}
-
-// Each static menu carries the read verb its page's primary data route
-// requires (see apps/bff/src/rbac/route-policy.ts). The sidebar removes
-// rows the user can't read; the BFF enforces the same verbs server-side.
-//
-// `sections` is a `computed`, not a module-level constant, so `t(...)`
-// resolves against the CURRENT locale — otherwise label / kicker text
-// would freeze at first render and a locale switch would only update
-// strings used directly in the template, not these object-embedded ones.
-const sections = computed<NavSection[]>(() => [
-  // OAP self-observability diagnostics (the backend itself, not the
-  // observed services). Rendered above the per-layer self-observability
-  // dashboards. All three are read-only and gated on maintainer-tier verbs.
-  {
-    kind: 'platform',
-    kicker: t('Platform monitoring'),
-    links: [
-      { icon: 'svc', label: t('Cluster status'), to: '/operate/cluster', verb: 'cluster:read' },
-      { icon: 'clock', label: t('Data retention'), to: '/operate/ttl', verb: 'ttl:read' },
-      { icon: 'db', label: t('OAP configuration'), to: '/operate/config', verb: 'config:read' },
-    ],
-  },
-  {
-    kind: 'operate',
-    kicker: t('Operate'),
-    links: [
-      { icon: 'alert', label: t('Alerting rules'), to: '/operate/alerting-rules', verb: 'alarm-rule:read' },
-      {
-        icon: 'set',
-        label: t('DSL management'),
-        // No standalone landing — `to` jumps to the first rule page so
-        // the L1 itself is clickable; activeWhen covers all DSL routes.
-        to: '/operate/dsl/otel-rules',
-        verb: 'rule:read',
-        activeWhen: (p) => p === '/operate/oal' || /^\/operate\/dsl(\/|$)/.test(p),
-        children: [
-          { icon: 'set', label: 'MAL · OTEL', to: '/operate/dsl/otel-rules', verb: 'rule:read' },
-          { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules', verb: 'rule:read' },
-          { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
-          { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
-          { icon: 'trace', label: t('OAL · read-only'), to: '/operate/oal', verb: 'rule:read' },
-          { icon: 'download', label: t('Dump & restore'), to: '/operate/dsl/dump', verb: 'rule:read' },
-        ],
-      },
-      {
-        icon: 'flame',
-        label: t('Live debugger'),
-        to: '/operate/live-debug',
-        verb: 'live-debug:read',
-        // Match the tab variants only; the history sibling at
-        // /operate/live-debug/history must NOT highlight this row.
-        activeWhen: (p) => p === '/operate/live-debug' || /^\/operate\/live-debug\/(mal|lal|oal)(\/|$)/.test(p),
-      },
-      { icon: 'event', label: t('Capture history'), to: '/operate/live-debug/history', verb: 'live-debug:read' },
-      { icon: 'metric', label: t('Metrics inspect'), to: '/operate/inspect', verb: 'inspect:read' },
-      { icon: 'trace', label: t('Trace inspect'), to: '/operate/trace-inspect', verb: 'inspect:read' },
-      { icon: 'log', label: t('Log inspect'), to: '/operate/log-inspect', verb: 'inspect:read' },
-    ],
-  },
-  {
-    kind: 'setup',
-    kicker: t('Dashboard setup'),
-    links: [
-      { icon: 'set', label: t('Overview templates'), to: '/admin/overview-templates', verb: 'overview:write' },
-      { icon: 'metric', label: t('Layer dashboards'), to: '/admin/layer-dashboards', verb: 'dashboard:read' },
-      { icon: 'web', label: t('Translations'), to: '/admin/translations', verb: 'overview:write' },
-      { icon: 'alert', label: t('Alert page'), to: '/admin/alert-page-setup', verb: 'alarm-setup:read' },
-      { icon: 'set', label: t('3D Infra Map'), to: '/admin/3d-map', verb: 'overview:write' },
-      { icon: 'set', label: t('Global defaults'), to: '/admin/global-defaults', verb: 'setup:read' },
-    ],
-  },
-  {
-    kind: 'admin',
-    kicker: t('Admin'),
-    links: [
-      { icon: 'user', label: t('Users'), to: '/admin/users', verb: 'user:read' },
-      { icon: 'set', label: t('Auth status'), to: '/admin/auth-status', verb: 'auth:read' },
-      { icon: 'set', label: t('Roles & permissions'), to: '/admin/roles', verb: 'role:read' },
-    ],
-  },
-]);
-
-/**
- * Verb-filtered view of `sections`: rows with a `verb` the current user
- * lacks are removed; rows without a `verb` always show; sections that
- * end up empty are dropped so we don't render orphan headers.
- *
- * Hiding is a UX nicety — the BFF enforces the same verbs server-side,
- * so this is "don't show controls that won't work," not security.
- */
-// Count of templates edited locally but not yet pushed to OAP
-// (diverged = bundled differs from the stored remote). Drives the
-// yellow "unsynced changes" warning on the template-admin menu rows.
-function divergedCount(kind: 'layer' | 'overview'): number {
-  const badges = bundle.value?.syncStatus?.badges ?? [];
-  return badges.filter((b) => b.kind === kind && b.status === 'diverged').length;
-}
-/** True when this layer's template has local edits not yet published to
- *  OAP (diverged) — drives the yellow warning on its sidebar row. */
+// True when this layer's template has local edits not yet published to OAP
+// (diverged) — drives the yellow warning on its grouped sidebar row.
 function isLayerDiverged(key: string): boolean {
   const badges = bundle.value?.syncStatus?.badges ?? [];
   return badges.some(
     (b) => b.kind === 'layer' && b.status === 'diverged' && b.key.toUpperCase() === key.toUpperCase(),
   );
 }
-
-/** Per-route warn badge for the template-admin rows. */
-function syncBadgeFor(to: string): NavRow['badge'] | undefined {
-  const kind = to === '/admin/layer-dashboards' ? 'layer' : to === '/admin/overview-templates' ? 'overview' : null;
-  if (!kind) return undefined;
-  const n = divergedCount(kind);
-  return n > 0 ? { text: String(n), kind: 'warn' } : undefined;
-}
-
-const visibleSections = computed<NavSection[]>(() => {
-  const out: NavSection[] = [];
-  for (const sec of sections.value) {
-    const links = sec.links
-      .filter((r) => !r.verb || auth.hasVerb(r.verb))
-      .map((r) => {
-        const badge = syncBadgeFor(r.to);
-        return badge ? { ...r, badge } : r;
-      });
-    if (links.length === 0) continue;
-    out.push({ kind: sec.kind, kicker: sec.kicker, links });
-  }
-  return out;
-});
-
-// Platform monitoring (OAP self-observability) renders at the top of the
-// operate area — above the per-layer self-observability dashboards — so
-// it's pulled out of the generic section loop below. Identified by the
-// locale-independent `kind` tag so the filter survives a language switch.
-const platformSection = computed<NavSection | undefined>(() =>
-  visibleSections.value.find((s) => s.kind === 'platform'),
-);
-const menuSections = computed<NavSection[]>(() =>
-  visibleSections.value.filter((s) => s.kind !== 'platform'),
-);
-
-const openNavL1 = ref<Set<string>>(new Set());
-function isNavL1Open(to: string): boolean { return openNavL1.value.has(to); }
-function toggleNavL1(row: NavRow): void {
-  if (!row.children) return;
-  const next = new Set(openNavL1.value);
-  if (next.has(row.to)) next.delete(row.to);
-  else next.add(row.to);
-  openNavL1.value = next;
-}
-
-watch(
-  () => route.path,
-  (path) => {
-    for (const sec of sections.value) {
-      for (const row of sec.links) {
-        if (!row.children) continue;
-        const childActive = row.children.some((c) =>
-          c.activeWhen ? c.activeWhen(path) : path === c.to,
-        );
-        const parentActive = row.activeWhen ? row.activeWhen(path) : path === row.to;
-        if ((childActive || parentActive) && !openNavL1.value.has(row.to)) {
-          openNavL1.value = new Set([...openNavL1.value, row.to]);
-        }
-      }
-    }
-  },
-  { immediate: true },
-);
 </script>
 
 <template>
@@ -470,337 +206,33 @@ watch(
             <span class="layer-group-name">{{ E.label }}</span>
           </div>
           <template v-for="L in E.layers" :key="`${E.label}::${L.key}`">
-              <RouterLink
-                v-if="isSingleFeatureLayer(L)"
-                :to="`/layer/${L.key}/${firstLayerTab(L)}`"
-                class="layer-row direct in-group"
-                :class="{ 'is-active': isActive(`/layer/${L.key}`) }"
-              >
-                <Icon :name="layerIcon(L)" />
-                <span class="layer-name">{{ L.name }}</span>
-                <span
-                  v-if="isLayerDiverged(L.key)"
-                  class="layer-warn"
-                  :title="t('Local changes not published to OAP')"
-                ><Icon name="alert" :size="11" /></span>
-              </RouterLink>
-              <div
-                v-else
-                class="layer-row in-group"
-                :class="{
-                  'is-expanded': expandedLayer === L.key,
-                  'is-active': isActiveExact(`/layer/${L.key}`),
-                }"
-                @click="toggleLayer(L.key)"
-              >
-                <Icon :name="layerIcon(L)" />
-                <span class="layer-name">{{ L.name }}</span>
-                <span
-                  v-if="isLayerDiverged(L.key)"
-                  class="layer-warn"
-                  :title="t('Local changes not published to OAP')"
-                ><Icon name="alert" :size="11" /></span>
-                <span class="caret" :class="{ open: expandedLayer === L.key }">
-                  <Icon name="caret" :size="10" />
-                </span>
-              </div>
-              <div
-                v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
-                class="layer-children in-group"
-              >
-                <RouterLink
-                  v-if="L.caps.dashboards"
-                  :to="`/layer/${L.key}/${firstLayerTab(L)}`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/${firstLayerTab(L)}`) || route.path === `/layer/${L.key}` }"
-                >
-                  <Icon name="svc" /><span>Service</span>
-                  <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="hasInstances(L)"
-                  :to="`/layer/${L.key}/instance`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/instance`) }"
-                >
-                  <Icon name="prof" /><span>{{ L.slots.instances ?? 'Instance' }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="hasEndpoints(L)"
-                  :to="`/layer/${L.key}/endpoint`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
-                >
-                  <Icon name="ep" /><span>{{ L.slots.endpoints ?? 'Endpoint' }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="hasTopology(L)"
-                  :to="`/layer/${L.key}/topology`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
-                >
-                  <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.deployment"
-                  :to="`/layer/${L.key}/deployment`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
-                >
-                  <Icon name="topo" /><span>{{ L.slots.deployment ?? 'Deployment' }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.endpointDependency"
-                  :to="`/layer/${L.key}/dependency`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/dependency`) }"
-                >
-                  <Icon name="ep" /><span>{{ L.slots.endpointDependency || 'Dependency' }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.traces"
-                  :to="`/layer/${L.key}/trace`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/trace`) }"
-                >
-                  <Icon name="trace" /><span>Trace</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.traces && L.traces?.source === 'both'"
-                  :to="`/layer/${L.key}/zipkin-trace`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/zipkin-trace`) }"
-                >
-                  <Icon name="trace" /><span>OTel &amp; Zipkin Trace</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.logs"
-                  :to="`/layer/${L.key}/logs`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/logs`) }"
-                >
-                  <Icon name="log" /><span>Logs</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.browserErrors"
-                  :to="`/layer/${L.key}/browser-errors`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/browser-errors`) }"
-                >
-                  <Icon name="web" /><span>{{ t('Browser Logs') }}</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.podLogs"
-                  :to="`/layer/${L.key}/pod-logs`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/pod-logs`) }"
-                >
-                  <Icon name="log" /><span>Pod Logs</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.traceProfiling"
-                  :to="`/layer/${L.key}/trace-profiling`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/trace-profiling`) }"
-                >
-                  <Icon name="prof" /><span>Trace Profiling</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.ebpfProfiling"
-                  :to="`/layer/${L.key}/ebpf-profiling`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/ebpf-profiling`) }"
-                >
-                  <Icon name="prof" /><span>eBPF Profiling</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.asyncProfiling"
-                  :to="`/layer/${L.key}/async-profiling`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/async-profiling`) }"
-                >
-                  <Icon name="prof" /><span>Async Profiling</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.networkProfiling"
-                  :to="`/layer/${L.key}/network-profiling`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/network-profiling`) }"
-                >
-                  <Icon name="prof" /><span>Network Profiling</span>
-                </RouterLink>
-                <RouterLink
-                  v-if="L.caps.pprofProfiling"
-                  :to="`/layer/${L.key}/pprof`"
-                  class="sw-nav-item"
-                  :class="{ 'is-active': isActive(`/layer/${L.key}/pprof`) }"
-                >
-                  <Icon name="prof" /><span>pprof (Go)</span>
-                </RouterLink>
-              </div>
-            </template>
+            <SidebarLayerRow
+              :layer="L"
+              variant="grouped"
+              :expanded="expandedLayer === L.key"
+              :diverged="isLayerDiverged(L.key)"
+              @toggle="toggleLayer"
+            />
+            <SidebarLayerChildren
+              v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
+              :layer="L"
+              in-group
+            />
+          </template>
         </template>
 
-        <!-- Ungrouped single-feature layer: direct link. -->
-        <RouterLink
-          v-else-if="isSingleFeatureLayer(E.layer)"
-          :to="`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`"
-          class="layer-row direct"
-          :class="{ 'is-active': isActive(`/layer/${E.layer.key}`) }"
-        >
-          <Icon :name="layerIcon(E.layer)" />
-          <span class="layer-name">{{ E.layer.name }}</span>
-        </RouterLink>
-
-        <div
+        <!-- Ungrouped single-feature layer OR expandable accordion head. -->
+        <SidebarLayerRow
           v-else
-          class="layer-row expandable"
-          :class="{
-            'is-expanded': expandedLayer === E.layer.key,
-            'is-active': isActiveExact(`/layer/${E.layer.key}`),
-          }"
-          @click="toggleLayer(E.layer.key)"
-        >
-          <Icon :name="layerIcon(E.layer)" />
-          <span class="layer-name">{{ E.layer.name }}</span>
-          <span class="caret" :class="{ open: expandedLayer === E.layer.key }">
-            <Icon name="caret" :size="10" />
-          </span>
-        </div>
-        <div
+          :layer="E.layer"
+          variant="ungrouped"
+          :expanded="expandedLayer === E.layer.key"
+          @toggle="toggleLayer"
+        />
+        <SidebarLayerChildren
           v-if="E.kind === 'single' && !isSingleFeatureLayer(E.layer) && expandedLayer === E.layer.key"
-          class="layer-children"
-        >
-          <RouterLink
-            v-if="E.layer.caps.dashboards"
-            :to="`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/${firstLayerTab(E.layer)}`) || route.path === `/layer/${E.layer.key}` }"
-          >
-            <Icon name="svc" /><span>Service</span>
-            <span class="sw-badge" style="margin-left: auto">{{ E.layer.serviceCount }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="hasInstances(E.layer)"
-            :to="`/layer/${E.layer.key}/instance`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/instance`) }"
-          >
-            <Icon name="prof" /><span>{{ E.layer.slots.instances ?? 'Instance' }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="hasEndpoints(E.layer)"
-            :to="`/layer/${E.layer.key}/endpoint`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/endpoint`) }"
-          >
-            <Icon name="ep" /><span>{{ E.layer.slots.endpoints ?? 'Endpoint' }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="hasTopology(E.layer)"
-            :to="`/layer/${E.layer.key}/topology`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/topology`) }"
-          >
-            <Icon name="topo" /><span>{{ E.layer.slots.topology ?? 'Topology' }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.deployment"
-            :to="`/layer/${E.layer.key}/deployment`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/deployment`) }"
-          >
-            <Icon name="topo" /><span>{{ E.layer.slots.deployment ?? 'Deployment' }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.endpointDependency"
-            :to="`/layer/${E.layer.key}/dependency`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/dependency`) }"
-          >
-            <Icon name="ep" /><span>{{ E.layer.slots.endpointDependency ?? `${E.layer.slots.endpoints ?? 'Endpoint'} dependency` }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.traces"
-            :to="`/layer/${E.layer.key}/trace`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/trace`) }"
-          >
-            <Icon name="trace" /><span>Traces</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.traces && E.layer.traces?.source === 'both'"
-            :to="`/layer/${E.layer.key}/zipkin-trace`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/zipkin-trace`) }"
-          >
-            <Icon name="trace" /><span>OTel &amp; Zipkin Traces</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.logs"
-            :to="`/layer/${E.layer.key}/logs`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/logs`) }"
-          >
-            <Icon name="log" /><span>Logs</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.browserErrors"
-            :to="`/layer/${E.layer.key}/browser-errors`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/browser-errors`) }"
-          >
-            <Icon name="web" /><span>{{ t('Browser Logs') }}</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.podLogs"
-            :to="`/layer/${E.layer.key}/pod-logs`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/pod-logs`) }"
-          >
-            <Icon name="log" /><span>Pod Logs</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.traceProfiling"
-            :to="`/layer/${E.layer.key}/trace-profiling`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/trace-profiling`) }"
-          >
-            <Icon name="flame" /><span>Trace Profiling</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.ebpfProfiling"
-            :to="`/layer/${E.layer.key}/ebpf-profiling`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/ebpf-profiling`) }"
-          >
-            <Icon name="flame" /><span>eBPF Profiling</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.networkProfiling"
-            :to="`/layer/${E.layer.key}/network-profiling`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/network-profiling`) }"
-          >
-            <Icon name="prof" /><span>Network Profiling</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.pprofProfiling"
-            :to="`/layer/${E.layer.key}/pprof`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/pprof`) }"
-          >
-            <Icon name="prof" /><span>pprof (Go)</span>
-          </RouterLink>
-          <RouterLink
-            v-if="E.layer.caps.asyncProfiling"
-            :to="`/layer/${E.layer.key}/async-profiling`"
-            class="sw-nav-item"
-            :class="{ 'is-active': isActive(`/layer/${E.layer.key}/async-profiling`) }"
-          >
-            <Icon name="flame" /><span>Async Profiling</span>
-          </RouterLink>
-        </div>
+          :layer="E.layer"
+        />
       </template>
 
       <!-- Platform monitoring — OAP self-observability under one header:
@@ -826,79 +258,18 @@ watch(
           </RouterLink>
         </template>
         <template v-if="operateLayers.length > 0 && auth.hasVerb('cluster:read')">
-        <template v-for="L in operateLayers" :key="`op:${L.key}`">
-          <RouterLink
-            v-if="isSingleFeatureLayer(L)"
-            :to="`/layer/${L.key}/${firstLayerTab(L)}`"
-            class="layer-row direct"
-            :class="{ 'is-active': isActive(`/layer/${L.key}`) }"
-          >
-            <Icon :name="layerIcon(L)" />
-            <span class="layer-name">{{ L.name }}</span>
-            <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
-          </RouterLink>
-          <div
-            v-else
-            class="layer-row expandable"
-            :class="{
-              'is-expanded': expandedLayer === L.key,
-              'is-active': isActiveExact(`/layer/${L.key}`),
-            }"
-            @click="toggleLayer(L.key)"
-          >
-            <Icon :name="layerIcon(L)" />
-            <span class="layer-name">{{ L.name }}</span>
-            <span class="caret" :class="{ open: expandedLayer === L.key }">
-              <Icon name="caret" :size="10" />
-            </span>
-          </div>
-          <div
-            v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
-            class="layer-children"
-          >
-            <RouterLink
-              v-if="L.caps.dashboards"
-              :to="`/layer/${L.key}/${firstLayerTab(L)}`"
-              class="sw-nav-item"
-              :class="{ 'is-active': isActive(`/layer/${L.key}/${firstLayerTab(L)}`) || route.path === `/layer/${L.key}` }"
-            >
-              <Icon name="svc" /><span>Service</span>
-              <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
-            </RouterLink>
-            <RouterLink
-              v-if="hasInstances(L)"
-              :to="`/layer/${L.key}/instance`"
-              class="sw-nav-item"
-              :class="{ 'is-active': isActive(`/layer/${L.key}/instance`) }"
-            >
-              <Icon name="prof" /><span>{{ L.slots.instances ?? 'Instance' }}</span>
-            </RouterLink>
-            <RouterLink
-              v-if="hasEndpoints(L)"
-              :to="`/layer/${L.key}/endpoint`"
-              class="sw-nav-item"
-              :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
-            >
-              <Icon name="ep" /><span>{{ L.slots.endpoints ?? 'Endpoint' }}</span>
-            </RouterLink>
-            <RouterLink
-              v-if="hasTopology(L)"
-              :to="`/layer/${L.key}/topology`"
-              class="sw-nav-item"
-              :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
-            >
-              <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
-            </RouterLink>
-            <RouterLink
-              v-if="L.caps.deployment"
-              :to="`/layer/${L.key}/deployment`"
-              class="sw-nav-item"
-              :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
-            >
-              <Icon name="topo" /><span>{{ L.slots.deployment ?? 'Deployment' }}</span>
-            </RouterLink>
-          </div>
-        </template>
+          <template v-for="L in operateLayers" :key="`op:${L.key}`">
+            <SidebarLayerRow
+              :layer="L"
+              variant="operate"
+              :expanded="expandedLayer === L.key"
+              @toggle="toggleLayer"
+            />
+            <SidebarLayerChildren
+              v-if="!isSingleFeatureLayer(L) && expandedLayer === L.key"
+              :layer="L"
+            />
+          </template>
         </template>
       </template>
 
@@ -1119,21 +490,6 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.layer-warn {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  margin: 0 2px 0 4px;
-}
-.layer-row .layer-warn :deep(svg) {
-  width: 12px;
-  height: 12px;
-  flex: 0 0 12px;
-  color: #facc15;
-}
-.layer-row.direct {
-  text-decoration: none;
-}
 .layer-row.expandable {
   cursor: pointer;
   user-select: none;
@@ -1254,10 +610,6 @@ watch(
   opacity: 1;
 }
 .layer-group-name { flex: 1; min-width: 0; }
-/* Grouped and ungrouped layer rows sit at the same indent — the group
- * header already delineates the section, so no extra tree-style nest. */
-.layer-row.in-group { }
-.layer-children.in-group { }
 .sw-nav-item {
   text-decoration: none;
 }

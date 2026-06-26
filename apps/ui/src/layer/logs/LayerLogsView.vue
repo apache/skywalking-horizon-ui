@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
+import type { LayerDef, LogRow } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
@@ -39,6 +39,11 @@ import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useDensityBins } from '@/layer/_shared/useDensityBins';
+import { useLogTimeRange, TIME_RANGE_PRESETS, CUSTOM_RANGE_SENTINEL } from '@/layer/logs/useLogTimeRange';
+import { useLogTagConditions } from '@/layer/logs/useLogTagConditions';
+import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
+import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -124,38 +129,16 @@ const instanceIdForQuery = computed<string | null>(() => selectedInstanceObj.val
 // optional narrower otherwise. Endpoint lists are unbounded so the
 // picker uses a search-keyword model (Enter to commit).
 const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
-// Endpoint search-and-select combobox. The input acts as both the
-// search field (filters the OAP `findEndpoint` query via the debounced
-// `endpointQuery`) AND the displayed selection. The dropdown opens
-// on focus / typing and closes on click-outside or after a pick.
-const endpointSearchInput = ref('');
+// Endpoint search-and-select combobox (EndpointCombo). Its debounced
+// search value rides up via `update:query` and drives the OAP
+// `findEndpoint` list; picking / clearing flows back through the events.
 const endpointQuery = ref('');
 const endpointLimit = ref(20);
-const endpointComboOpen = ref(false);
-const endpointComboEl = ref<HTMLDivElement | null>(null);
-let endpointSearchTimer: ReturnType<typeof setTimeout> | null = null;
-watch(endpointSearchInput, (v) => {
-  if (endpointSearchTimer) clearTimeout(endpointSearchTimer);
-  endpointSearchTimer = setTimeout(() => {
-    endpointQuery.value = v.trim();
-  }, 250);
-});
-function onEndpointComboClickOutside(ev: MouseEvent): void {
-  if (!endpointComboOpen.value) return;
-  const el = endpointComboEl.value;
-  if (el && !el.contains(ev.target as Node)) endpointComboOpen.value = false;
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('click', onEndpointComboClickOutside);
-}
 function pickEndpoint(name: string): void {
   setSelectedEndpoint(name);
-  endpointSearchInput.value = name;
-  endpointComboOpen.value = false;
 }
 function clearEndpoint(): void {
   setSelectedEndpoint(null);
-  endpointSearchInput.value = '';
   endpointQuery.value = '';
 }
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
@@ -197,7 +180,6 @@ const traceIdInput = ref('');
 // latency / cardinality behaviour on busy clusters. The conditions
 // the UI exposes — service / instance / endpoint / traceID / tags —
 // are all indexed dimensions and cover the booster-ui condition set.
-const customTags = ref<LogTagFilter[]>([]);
 const page = ref(1);
 const pageSize = ref(50);
 const traceIdRef = computed<string | null>(() => {
@@ -209,107 +191,21 @@ const instanceIdRef = computed<string | null>(() => instanceIdForQuery.value);
 const endpointIdRef = computed<string | null>(() => endpointIdForQuery.value);
 const keywordsRef = computed<string[]>(() => []);
 
-// Time-range picker. Logs blocks the global topbar picker (see
-// `TIME_RANGE_OPT_OUT` in AppTopbar), so this is the source of truth
-// for which rolling window the log + facet queries scan. Presets
-// cover the most common ranges; the operator can extend if needed
-// (cap is 7 days, enforced server-side too). Mirrors the trace tab's
-// Custom… escape hatch — picking it swaps the preset dropdown for two
-// `datetime-local` inputs so the operator can pin an absolute window.
-const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
-  { label: 'Last 15 min', minutes: 15 },
-  { label: 'Last 30 min', minutes: 30 },
-  { label: 'Last 1 hour', minutes: 60 },
-  { label: 'Last 3 hours', minutes: 180 },
-  { label: 'Last 6 hours', minutes: 360 },
-  { label: 'Last 12 hours', minutes: 720 },
-  { label: 'Last 24 hours', minutes: 1440 },
-];
-const CUSTOM_RANGE_SENTINEL = -1;
-const windowMinutes = ref<number>(30);
-const customStart = ref<string | null>(null);
-const customEnd = ref<string | null>(null);
-const isCustomRange = computed(() => windowMinutes.value === CUSTOM_RANGE_SENTINEL);
-function fmtDateTimeLocal(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-watch(isCustomRange, (custom) => {
-  if (custom) {
-    if (!customStart.value || !customEnd.value) {
-      const end = new Date();
-      const start = new Date(end.getTime() - 30 * 60_000);
-      customStart.value = fmtDateTimeLocal(start);
-      customEnd.value = fmtDateTimeLocal(end);
-    }
-  } else {
-    customStart.value = null;
-    customEnd.value = null;
-  }
-});
-/** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
- *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
- *  same `queryDuration.start/end` slot the trace tab uses. */
-function toOapMinute(local: string | null): string | null {
-  if (!local) return null;
-  const [d, t] = local.split('T');
-  if (!d || !t) return null;
-  return `${d} ${t.replace(':', '')}`;
-}
-const startTimeRef = computed<string | null>(() =>
-  isCustomRange.value ? toOapMinute(customStart.value) : null,
-);
-const endTimeRef = computed<string | null>(() =>
-  isCustomRange.value ? toOapMinute(customEnd.value) : null,
-);
-const windowMinutesEffective = computed<number>(() =>
-  isCustomRange.value ? 0 : windowMinutes.value,
-);
+// Time range (presets + Custom…) — owns the OAP-shaped window refs.
+const {
+  windowMinutes,
+  customStart,
+  customEnd,
+  isCustomRange,
+  startTime: startTimeRef,
+  endTime: endTimeRef,
+  windowMinutesEffective,
+} = useLogTimeRange(30);
 
-// ── Tag conditions (booster-style single `key=value` input) ──────
-// One text input; Enter commits the tag. Tags accumulate in `customTags`
-// and ride along on the OAP log query as filters. Key/value autocomplete
-// lives in TagInput.
-const tagInput = ref('');
-function addTagFilter(): void {
-  const raw = tagInput.value.trim();
-  if (!raw || !raw.includes('=')) return;
-  const idx = raw.indexOf('=');
-  const key = raw.slice(0, idx).trim();
-  const value = raw.slice(idx + 1).trim();
-  if (!key) return;
-  if (customTags.value.some((t) => t.key === key && t.value === value)) return;
-  customTags.value = [...customTags.value, { key, value }];
-  tagInput.value = '';
-  page.value = 1;
-}
-function removeTagFilter(i: number): void {
-  customTags.value = customTags.value.filter((_, idx) => idx !== i);
-  page.value = 1;
-}
-
-// ── Level filter goes to OAP as a `level=<UPPER>` tag filter so the
-// server-side total + pagination match the visible rows. The filter
-// is single-select (booster-ui uses the same pattern).
-const LEVEL_TAG_VALUES: Record<'error' | 'warn' | 'info' | 'debug', string> = {
-  error: 'ERROR',
-  warn: 'WARN',
-  info: 'INFO',
-  debug: 'DEBUG',
-};
-const selectedLevel = ref<'error' | 'warn' | 'info' | 'debug' | null>(null);
-const allTags = computed<LogTagFilter[]>(() => {
-  const out = [...customTags.value];
-  if (selectedLevel.value) {
-    out.push({ key: 'level', value: LEVEL_TAG_VALUES[selectedLevel.value] });
-  }
-  return out;
-});
-function toggleLevel(l: 'error' | 'warn' | 'info' | 'debug' | 'other'): void {
-  if (l === 'other') return; // server-side has no canonical value for "other"
-  selectedLevel.value = selectedLevel.value === l ? null : l;
-  page.value = 1;
-}
+// Tag chips + single-select level filter; editing any condition resets
+// `page` to 1. `allTags` is what the OAP log query consumes.
+const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFilter, toggleLevel } =
+  useLogTagConditions(page);
 
 const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   service: serviceName,
@@ -370,38 +266,10 @@ function levelOf(r: LogRow): Level {
   return 'other';
 }
 
-const BINS = 60;
-const histogram = computed(() => {
-  const rows = logs.value;
-  if (rows.length === 0) return { bins: [] as Array<Record<Level, number>>, max: 0, t0: 0, t1: 0 };
-  let t0 = Infinity;
-  let t1 = -Infinity;
-  for (const r of rows) {
-    if (r.timestamp < t0) t0 = r.timestamp;
-    if (r.timestamp > t1) t1 = r.timestamp;
-  }
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 === t1) {
-    t0 = (t1 || Date.now()) - 60_000;
-    t1 = t1 || Date.now();
-  }
-  const span = t1 - t0 || 1;
-  const bins: Array<Record<Level, number>> = Array.from({ length: BINS }, () => ({
-    error: 0,
-    warn: 0,
-    info: 0,
-    debug: 0,
-    other: 0,
-  }));
-  for (const r of rows) {
-    const idx = Math.min(BINS - 1, Math.floor(((r.timestamp - t0) / span) * BINS));
-    bins[idx][levelOf(r)] += 1;
-  }
-  let max = 0;
-  for (const b of bins) {
-    const t = b.error + b.warn + b.info + b.debug + b.other;
-    if (t > max) max = t;
-  }
-  return { bins, max, t0, t1 };
+const histogram = useDensityBins<LogRow, Level>(logs, {
+  keys: LEVEL_ORDER,
+  timeOf: (r) => r.timestamp,
+  keyOf: levelOf,
 });
 
 // ── Facets — server-side aggregated across a larger window sample
@@ -428,26 +296,6 @@ const filteredLogs = computed<LogRow[]>(() => logs.value);
 const popoutRow = ref<LogRow | null>(null);
 function onRowClick(r: LogRow): void {
   popoutRow.value = r;
-}
-
-// Custom hover tooltip state for the density bar. Native browser
-// `title` was making the cursor render as `?` (help-cursor) instead
-// of showing the count, which read like a UI bug.
-const hoveredBin = ref<number | null>(null);
-function fmtBucketRange(idx: number, t0: number, t1: number): string {
-  if (!t0 || !t1) return '';
-  const span = (t1 - t0) || 1;
-  const start = new Date(t0 + (span * idx) / BINS);
-  const end = new Date(t0 + (span * (idx + 1)) / BINS);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const fmt = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-function fmtAxisTime(ts: number): string {
-  if (!ts) return '';
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** Open the trace in the global popout overlay rather than navigating
@@ -492,45 +340,15 @@ function jumpToTrace(traceId: string, ts?: number): void {
              item to pick. Width: 2 columns so long endpoint paths fit. -->
         <div class="cf cf-wide">
           <span>Endpoint</span>
-          <div ref="endpointComboEl" class="cf-combo" @click.stop>
-            <input
-              v-model="endpointSearchInput"
-              type="text"
-              class="cf-input"
-              :placeholder="selectedEndpoint ?? 'All'"
-              @focus="endpointComboOpen = true"
-              @input="endpointComboOpen = true"
-            />
-            <button
-              v-if="selectedEndpoint || endpointSearchInput"
-              type="button"
-              class="cf-combo-clear"
-              title="Clear endpoint"
-              @click="clearEndpoint"
-            >×</button>
-            <ul v-if="endpointComboOpen" class="cf-combo-list">
-              <li
-                v-if="showEndpointSelector"
-                class="cf-combo-item"
-                :class="{ on: !selectedEndpoint }"
-                @click="clearEndpoint"
-              >
-                <em>All</em>
-              </li>
-              <li
-                v-for="e in endpointList"
-                :key="e.id"
-                class="cf-combo-item"
-                :class="{ on: selectedEndpoint === e.name }"
-                @click="pickEndpoint(e.name)"
-              >
-                {{ e.name }}
-              </li>
-              <li v-if="endpointList.length === 0" class="cf-combo-empty">
-                {{ endpointsLoading ? 'searching…' : 'no matches' }}
-              </li>
-            </ul>
-          </div>
+          <EndpointCombo
+            :endpoints="endpointList"
+            :selected="selectedEndpoint"
+            :show-all="showEndpointSelector"
+            :loading="endpointsLoading"
+            @update:query="endpointQuery = $event"
+            @pick="pickEndpoint"
+            @clear="clearEndpoint"
+          />
         </div>
         <!-- Trace ID. Bound directly — each keystroke updates the
              query. URL `?traceId=` still overrides. -->
@@ -625,62 +443,10 @@ function jumpToTrace(traceId: string, ts?: number): void {
           </span>
         </div>
 
-        <!-- Density bar — x: time, y: count, color: level. Hover a
-             bin: a custom tooltip (NOT the native `title` — the
-             native cursor was rendering as a help cursor `?` instead
-             of the count, which was confusing) shows the bucket time
-             range + per-level counts. Axis tick labels under the bar
-             carry the time scale. -->
-        <div class="lg-density-wrap" v-if="histogram.bins.length > 0" @mouseleave="hoveredBin = null">
-          <div class="lg-density">
-            <div
-              v-for="(bin, i) in histogram.bins"
-              :key="i"
-              class="lg-density-bin"
-              @mouseenter="hoveredBin = i"
-            >
-              <span
-                v-for="l in LEVEL_ORDER"
-                :key="l"
-                class="lg-density-segment"
-                :style="{
-                  background: LEVEL_COLOR[l],
-                  height: histogram.max ? (bin[l] / histogram.max * 100) + '%' : '0%',
-                }"
-              />
-            </div>
-            <!-- Custom hover tooltip — replaces the native browser
-                 tooltip which was both slow to appear AND coupled to
-                 the `cursor: help` rendering (the `?` cursor was the
-                 thing the operator was reporting). -->
-            <div
-              v-if="hoveredBin !== null"
-              class="lg-density-tip"
-              :style="{ left: ((hoveredBin + 0.5) / 60) * 100 + '%' }"
-            >
-              <div class="lg-density-tip-time">
-                {{ fmtBucketRange(hoveredBin, histogram.t0, histogram.t1) }}
-              </div>
-              <div class="lg-density-tip-total">
-                {{ histogram.bins[hoveredBin].error + histogram.bins[hoveredBin].warn + histogram.bins[hoveredBin].info + histogram.bins[hoveredBin].debug + histogram.bins[hoveredBin].other }} log<template v-if="(histogram.bins[hoveredBin].error + histogram.bins[hoveredBin].warn + histogram.bins[hoveredBin].info + histogram.bins[hoveredBin].debug + histogram.bins[hoveredBin].other) !== 1">s</template>
-              </div>
-              <div class="lg-density-tip-rows">
-                <span v-for="l in LEVEL_ORDER" :key="l" v-show="histogram.bins[hoveredBin][l] > 0" class="lg-density-tip-row">
-                  <span class="lvl-dot" :style="{ background: LEVEL_COLOR[l] }" />
-                  <span class="lg-density-tip-name">{{ l }}</span>
-                  <span class="lg-density-tip-val mono">{{ histogram.bins[hoveredBin][l] }}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div class="lg-density-axis">
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.25) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.5) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.75) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t1) }}</span>
-          </div>
-        </div>
+        <!-- Density bar — x: time, y: count, color: level. The shared
+             DensityHistogram owns the hover tooltip + axis; we feed it
+             the binned data + the level keys/colours. -->
+        <DensityHistogram :data="histogram" :keys="LEVEL_ORDER" :colors="LEVEL_COLOR" />
 
         <!-- Stream -->
         <div v-if="filteredLogs.length === 0" class="lg-empty">
@@ -814,58 +580,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
 .cf-range-num { flex: 1; min-width: 0; }
 .cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
 
-/* Endpoint combobox = single search input + anchored dropdown.
-   Click-outside closes it (see `onEndpointComboClickOutside`). */
-.cf-combo { position: relative; }
-.cf-combo .cf-input { padding-right: 22px; }
-.cf-combo-clear {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3);
-  font-size: 13px;
-  cursor: pointer;
-}
-.cf-combo-clear:hover { color: var(--sw-err); }
-.cf-combo-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 4px 0 0;
-  padding: 4px;
-  max-height: 240px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  z-index: 50;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-}
-.cf-combo-item {
-  padding: 5px 8px;
-  font-size: 11px;
-  font-family: var(--sw-mono);
-  color: var(--sw-fg-1);
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cf-combo-item em { color: var(--sw-fg-1); font-style: normal; font-family: var(--sw-mono); }
-.cf-combo-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
-.cf-combo-item.on { background: var(--sw-accent-soft); color: var(--sw-accent-2); font-weight: 600; }
-.cf-combo-empty { padding: 6px 8px; font-size: 10.5px; color: var(--sw-fg-3); }
-
 .f-field {
   display: inline-flex;
   align-items: baseline;
@@ -963,73 +677,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
   flex-direction: column;
   min-height: 0;
 }
-/* Density-bar wrapper: the 60 stacked bin bars on top, x-axis tick
-   strip underneath so the time scale is readable at a glance. */
-.lg-density-wrap {
-  padding: 8px 12px 4px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
-}
-.lg-density {
-  display: grid;
-  grid-template-columns: repeat(60, 1fr);
-  align-items: end;
-  gap: 1px;
-  height: 60px;
-  position: relative; /* anchor for the absolute-positioned tooltip */
-}
-.lg-density-bin {
-  display: flex;
-  flex-direction: column-reverse;
-  height: 100%;
-  background: var(--sw-bg-2);
-  border-radius: 1px;
-  overflow: hidden;
-  /* No `cursor: help` — the `?` cursor was misread as a UI error.
-     The bin reads as informational (hover surfaces a count tooltip),
-     so a default pointer is the right affordance. */
-}
-.lg-density-bin:hover { outline: 1px solid var(--sw-accent-line); }
-.lg-density-segment { display: block; }
-/* Custom hover tooltip — anchored to the hovered bin via the
-   `left: <bin-center>%` inline style. Wider than a single bin so it
-   doesn't clip; transforms back by 50% to centre on the bin. */
-.lg-density-tip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  min-width: 160px;
-  padding: 6px 9px;
-  background: var(--sw-bg-0);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  pointer-events: none;
-  z-index: 5;
-}
-.lg-density-tip-time { color: var(--sw-fg-3); font-family: var(--sw-mono); font-size: 10px; margin-bottom: 2px; }
-.lg-density-tip-total { color: var(--sw-fg-0); font-weight: 700; font-size: 12px; margin-bottom: 4px; }
-.lg-density-tip-rows { display: flex; flex-direction: column; gap: 2px; }
-.lg-density-tip-row { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; }
-.lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
-.lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: capitalize; }
-.lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* X-axis tick strip — 5 evenly-spaced labels (start / 25% / 50% /
-   75% / end) underneath the bars, in tabular nums so they line up. */
-.lg-density-axis {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--sw-mono);
-  font-size: 9.5px;
-  color: var(--sw-fg-3);
-  font-variant-numeric: tabular-nums;
-  margin-top: 4px;
-  padding: 0 2px;
-}
-.lg-density-axis .t-tick:first-child { text-align: left; }
-.lg-density-axis .t-tick:last-child { text-align: right; }
 
 .lg-empty {
   padding: 32px;

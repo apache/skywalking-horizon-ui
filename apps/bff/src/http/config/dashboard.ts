@@ -35,7 +35,7 @@ import {
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { oapOverlayContentFor } from '../../logic/templates/overlay.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
-import { scopeSchema } from '../query/dashboard.js';
+import { scopeSchema } from '../../logic/dashboard/schema.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
 
 export interface DashboardConfigDeps {

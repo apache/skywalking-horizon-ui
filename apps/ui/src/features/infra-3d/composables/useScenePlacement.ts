@@ -86,6 +86,17 @@ export interface ZonePlacement {
   clusters?: ClusterBand[];
 }
 
+/** Expand a zone to the layer key(s) the Scene gates visibility on. A
+ *  solo zone keys on its own layer; a GROUP zone (e.g. Self-Observability
+ *  clustering so11y_*) keys on its MEMBER layers. The Scene checks
+ *  `visibleNodes` / `visibleZones` against member layer keys, never the
+ *  group id — so visibility seeding, the tier toggle, and per-layer
+ *  counts must all use the members. Keying on the group id alone leaves
+ *  grouped cubes unrendered and undercounts the tier. */
+export function zoneLayerKeys(z: ZonePlacement): string[] {
+  return z.group ? z.group.layerKeys : [z.layerKey];
+}
+
 /** One topology-cluster band inside a zone (e.g. a k8s/mesh namespace).
  *  Drawn as a labelled boundary around the cluster's cubes. */
 export interface ClusterBand {
