@@ -162,24 +162,65 @@ function clearPage(): void {
   pageQuery.value = '';
 }
 
+// Manual-fire: filter edits (version / page / time) stage into `applied`;
+// the query reads that snapshot, so it fires only on Run query — never the
+// prior service's errors on a fresh tab. page + pageSize stay live (paging
+// is a direct action, not a staged filter).
+const hasQueried = ref(false);
+interface AppliedBrowserConditions {
+  service: string | null;
+  serviceVersionId: string;
+  pagePathId: string;
+  windowMinutes: number;
+  startMs: number | null;
+  endMs: number | null;
+}
+function snapshotConditions(): AppliedBrowserConditions {
+  return {
+    service: serviceName.value,
+    serviceVersionId: selectedVersionId.value,
+    pagePathId: selectedPageId.value,
+    windowMinutes: windowMinutesEffective.value,
+    startMs: startMsRef.value,
+    endMs: endMsRef.value,
+  };
+}
+const applied = ref<AppliedBrowserConditions>(snapshotConditions());
+function applyConditions(): void {
+  applied.value = snapshotConditions();
+}
+
 const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
-  service: serviceName,
-  serviceVersionId: selectedVersionId,
-  pagePathId: selectedPageId,
+  service: computed(() => applied.value.service),
+  serviceVersionId: computed(() => applied.value.serviceVersionId),
+  pagePathId: computed(() => applied.value.pagePathId),
   category: allCategories,
   page,
   pageSize,
-  windowMinutes: windowMinutesEffective,
-  startMs: startMsRef,
-  endMs: endMsRef,
+  windowMinutes: computed(() => applied.value.windowMinutes),
+  startMs: computed(() => applied.value.startMs),
+  endMs: computed(() => applied.value.endMs),
+  enabled: hasQueried,
 });
+function runQuery(): void {
+  applyConditions();
+  page.value = 1;
+  hasQueried.value = true;
+  void refetch();
+}
 
-// Version/page ids belong to the previous service — drop them on app change.
+// Service switch is a context change → cascade-clear back to the Run-query
+// prompt; never show the prior service's errors under the new one.
 watch(serviceName, () => {
   selectedVersionId.value = '';
   clearPage();
+  hasQueried.value = false;
+  page.value = 1;
+  applyConditions();
 });
-watch([serviceName, windowMinutes, customStart, customEnd, selectedVersionId, selectedPageId, pageSize], () => {
+// pageSize is a live pagination control (reset page + refetch); filter edits
+// stage into `applied` and wait for Run query.
+watch(pageSize, () => {
   page.value = 1;
 });
 // `expanded` is an index into `filteredLogs`; drop it when the set changes.
@@ -285,7 +326,7 @@ function loc(row: BrowserErrorRow): string {
             {{ t('Source maps') }}
             <span class="be-maps-count">{{ sourceMaps.length }}</span>
           </button>
-          <button class="sw-btn primary" type="button" :disabled="isFetching" @click="refetch()">{{ t('Run query') }}</button>
+          <button class="sw-btn primary" type="button" :disabled="isFetching" @click="runQuery">{{ t('Run query') }}</button>
         </div>
       </div>
       <div class="lg-conditions">
@@ -370,6 +411,7 @@ function loc(row: BrowserErrorRow): string {
         </DensityHistogram>
 
         <div v-if="!serviceName" class="lg-empty">{{ t('Select an app to view its browser logs.') }}</div>
+        <div v-else-if="!hasQueried" class="lg-empty">{{ t('Pick your conditions, then click Run query.') }}</div>
         <div v-else-if="isFetching && logs.length === 0" class="lg-empty">{{ t('Reading data…') }}</div>
         <div v-else-if="!reachable" class="lg-empty">{{ t('Backend unreachable.') }}<span v-if="queryError"> {{ queryError }}</span></div>
         <div v-else-if="filteredLogs.length === 0" class="lg-empty">

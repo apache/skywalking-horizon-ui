@@ -36,6 +36,9 @@ export interface BrowserErrorParams {
    *  `windowMinutes`. The BFF applies the OAP timezone offset. */
   startMs?: Ref<number | null>;
   endMs?: Ref<number | null>;
+  /** Gate the query — when false it never runs. Manual-fire holds it until
+   *  the operator presses Run query. Defaults to always-on. */
+  enabled?: Ref<boolean>;
 }
 
 export function useLayerBrowserErrors(layerKey: Ref<string>, params: BrowserErrorParams) {
@@ -69,7 +72,7 @@ export function useLayerBrowserErrors(layerKey: Ref<string>, params: BrowserErro
         page: params.page.value,
         pageSize: params.pageSize.value,
       }),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: computed(() => layerKey.value.length > 0 && (params.enabled ? params.enabled.value : true)),
     staleTime: 15_000,
   });
   // No auto-refresh subscription: this is a triage page that owns its time

@@ -26,7 +26,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ### Logs
 
-- **Logs query on demand, not on every edit.** The per-layer Logs tab and cross-layer Log inspect now stage condition changes and fetch only when you press **Run query** — a fresh tab shows a "Pick your conditions, then click Run query" prompt, and switching service resets to that prompt and clears the level / tag filters, so the previous service's logs never linger under the new one.
+- **Log and browser-error lists query on demand, not on every edit.** The per-layer Logs tab, cross-layer Log inspect, and the Browser Errors tab now stage condition changes and fetch only when you press **Run query** — a fresh tab shows a "Pick your conditions, then click Run query" prompt, and switching service resets to that prompt (clearing the level / tag / category filters), so the previous service's data never lingers under the new one.
 
 ### Alarms
 
