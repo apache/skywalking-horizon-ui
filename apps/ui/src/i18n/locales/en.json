@@ -1548,5 +1548,6 @@
   "all reachable": "all reachable",
   "{n} unreachable": "{n} unreachable",
   "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.": "Reachability of each admin feature — the BFF GETs the relative REST path the feature actually calls and reports whether it responds. Health is the live probe, not config-presence: a path that 404s (selector off, renamed, or absent in a fork) reads as unreachable. 'selector detected' below is only an upstream-release hint, not the verdict.",
-  "Enable on OAP:": "Enable on OAP:"
+  "Enable on OAP:": "Enable on OAP:",
+  "{n} reachable · {b} bundled": "{n} reachable · {b} bundled"
 }

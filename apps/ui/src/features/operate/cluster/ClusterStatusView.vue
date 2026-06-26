@@ -114,9 +114,16 @@ const adminBadgeState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
 const adminBadgeLabel = computed<string>(() => {
   if (!preflight.value) return t('loading…');
   if (!adminReachable.value) return t('unreachable');
-  const down = preflight.value.modules.filter((m) => m.required && m.reachable === false);
-  if (down.length === 0) return t('all reachable');
-  return t('{n} unreachable', { n: down.length });
+  const mods = preflight.value.modules;
+  const down = mods.filter((m) => m.reachable === false).length;
+  if (down > 0) return t('{n} unreachable', { n: down });
+  // reachable === null = not probed (ui_template in readonly: bundled). It's
+  // healthy, but it isn't "reachable" — don't fold it into "all reachable".
+  const bundled = mods.filter((m) => m.reachable === null).length;
+  if (bundled > 0) {
+    return t('{n} reachable · {b} bundled', { n: mods.length - bundled, b: bundled });
+  }
+  return t('all reachable');
 });
 
 const adminGeneratedAt = computed<string>(() => agoLabel(preflight.value?.generatedAt));
