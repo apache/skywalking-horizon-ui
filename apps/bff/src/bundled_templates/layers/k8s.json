@@ -209,7 +209,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       },
       {
         "id": "deployment_status",
@@ -225,7 +225,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       },
       {
         "id": "deployment_replicas",
@@ -241,7 +241,7 @@
         ],
         "showTableValues": true,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       },
       {
         "id": "service_pod_status",
@@ -257,7 +257,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       },
       {
         "id": "pod_not_running",
@@ -273,7 +273,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       },
       {
         "id": "pod_waiting",
@@ -289,7 +289,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 4
+        "rowSpan": 2
       }
     ],
     "instance": [

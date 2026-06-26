@@ -859,6 +859,13 @@ onMounted(() => {
   grid-template-columns: 1fr 360px;
   gap: 16px;
 }
+/* Narrow viewports: the fixed 360px detail rail + squeezed list overflow,
+   so stack the detail below the list at full width instead. */
+@media (max-width: 1080px) {
+  .ax__split {
+    grid-template-columns: 1fr;
+  }
+}
 .ax__list { display: flex; flex-direction: column; gap: 12px; }
 .ax__empty {
   padding: 24px;

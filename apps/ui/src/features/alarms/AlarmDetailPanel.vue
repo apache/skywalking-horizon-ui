@@ -330,7 +330,9 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
   color: var(--sw-fg-0);
   margin: 0;
   line-height: 1.4;
-  word-break: break-all;
+  /* `anywhere` breaks long dotted/hyphenated service names only when they
+     can't fit, instead of `break-all` chopping every line mid-character. */
+  overflow-wrap: anywhere;
 }
 /* Probe-source classifier (`agent`, `mesh-svr`, `mesh-dp`, `mesh-cp`).
  * Just operational metadata — muted, not accent. Render as a quiet
