@@ -33,13 +33,19 @@ import { logger } from '../logger.js';
 
 export type RoutePolicy = 'public' | 'auth' | string;
 
-/** A config-template write — it pushes to OAP's ui_template store. In
- *  `templates.mode=readonly` there is no store to write to, so these are denied
- *  at the edge regardless of the verb grant (the UI hides them too, but a direct
- *  request must still fail — the BFF is the authority). */
+/** A config-surface write. The template routes push to OAP's ui_template store;
+ *  `/api/alarms/config` writes the alert page-setup (the `horizon.alert.page-setup`
+ *  template, file-backed). In `templates.mode=readonly` the whole config surface
+ *  is served from the local bundle and read-only, so these are denied at the edge
+ *  regardless of the verb grant (the UI hides them too, but a direct request must
+ *  still fail — the BFF is the authority). */
 export function isTemplateWriteRoute(method: string, url: string): boolean {
   if (method === 'GET' || method === 'HEAD') return false;
-  return url.startsWith('/api/admin/templates') || url.startsWith('/api/admin/overview-templates');
+  return (
+    url.startsWith('/api/admin/templates') ||
+    url.startsWith('/api/admin/overview-templates') ||
+    url.startsWith('/api/alarms/config')
+  );
 }
 export async function denyTemplateWriteWhenReadOnly(
   _req: FastifyRequest,

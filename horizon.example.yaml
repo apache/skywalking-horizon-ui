@@ -58,6 +58,9 @@ oap:
   # GraphQL port (typical for the demo / k8s deploys).
   zipkinUrl: "${HORIZON_OAP_ZIPKIN_URL:http://127.0.0.1:9412/zipkin}"
   timeoutMs: ${HORIZON_OAP_TIMEOUT_MS:15000}
+  # Optional MQE host/port override (defaults to the query host). JSON env, e.g.
+  # HORIZON_OAP_MQE='{"host":"mqe.internal","port":12800}'.
+  mqe: ${HORIZON_OAP_MQE:null}
   # Optional basic-auth for outbound OAP calls. JSON env, e.g.
   # HORIZON_OAP_AUTH='{"username":"skywalking","password":"skywalking"}'.
   auth: ${HORIZON_OAP_AUTH:null}

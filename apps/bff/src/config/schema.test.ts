@@ -73,4 +73,40 @@ describe('horizon.example.yaml — tokenized default + parity', () => {
     expect(raw).toContain('${HORIZON_TEMPLATES_MODE');
     expect(raw).toContain('${HORIZON_OAP_ADMIN_URL');
   });
+
+  // The real contract: EVERY schema-default field is env-overridable. Walk the
+  // fully-defaulted config and assert each node is covered in the example by a
+  // `${HORIZON_…}` token — either a scalar token at that path, or a JSON-env
+  // token standing in for a whole subtree (performance, rbac.roles, …). Catches
+  // a new nested field shipped without env coverage, which the top-level-section
+  // check above would miss.
+  it('every schema-default field is env-tokenized in the example (recursive)', () => {
+    const defaults = configSchema.parse({}) as Record<string, unknown>;
+    const example = (YAML.parse(raw) ?? {}) as Record<string, unknown>;
+    const TOKEN = /\$\{HORIZON_[A-Z0-9_]+(:[\s\S]*)?\}/;
+    const uncovered: string[] = [];
+    const walk = (schemaNode: unknown, exampleNode: unknown, path: string): void => {
+      // A token string covers this node (scalar token, or a JSON-env token
+      // collapsing a whole subtree to one var).
+      if (typeof exampleNode === 'string' && TOKEN.test(exampleNode)) return;
+      if (schemaNode !== null && typeof schemaNode === 'object' && !Array.isArray(schemaNode)) {
+        if (exampleNode === null || typeof exampleNode !== 'object' || Array.isArray(exampleNode)) {
+          uncovered.push(`${path} (section absent from example)`);
+          return;
+        }
+        for (const key of Object.keys(schemaNode)) {
+          if (path === '' && key === 'infra3d') continue; // deprecated passthrough, never tokenized
+          walk(
+            (schemaNode as Record<string, unknown>)[key],
+            (exampleNode as Record<string, unknown>)[key],
+            path ? `${path}.${key}` : key,
+          );
+        }
+        return;
+      }
+      uncovered.push(`${path} (leaf not tokenized)`);
+    };
+    walk(defaults, example, '');
+    expect(uncovered, `fields lacking an env token in horizon.example.yaml:\n  ${uncovered.join('\n  ')}`).toEqual([]);
+  });
 });

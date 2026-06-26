@@ -30,6 +30,8 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import type { AuditLogger } from '../../audit/logger.js';
 import { requireAuth } from '../../user/middleware.js';
+import { isTemplateReadOnly } from '../../logic/templates/sync.js';
+import { loadBundledAlertPageSetup } from '../../logic/alarms/bundled.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import {
   ALARMS_WINDOW_OPTIONS,
@@ -77,7 +79,10 @@ export function registerAlarmsConfigRoutes(
     '/api/alarms/config',
     { preHandler: auth },
     async (_req: FastifyRequest, reply: FastifyReply) => {
-      const cfg = await deps.store.load();
+      // Readonly mode serves the alert page-setup from the bundle like every
+      // other template; the local store (a prior live session's edits) is not
+      // the source here. Writes are denied by the route-policy backstop.
+      const cfg = isTemplateReadOnly() ? loadBundledAlertPageSetup() : await deps.store.load();
       return reply.send(cfg);
     },
   );

@@ -124,13 +124,14 @@ export default { chipLabel };
   border-color: var(--sw-muted, #4a525c);
   background: var(--sw-bg-elev, #161a20);
 }
-/* Deliberate read-only (templates.mode=readonly) — informational, not an
- * error, so muted rather than the danger red of `unreachable`. */
+/* Deliberate read-only (templates.mode=readonly) — not an error (no red), but
+ * warning-yellow so it's unmistakable that the whole surface is uneditable; a
+ * muted gray strip was too easy to miss next to the green per-row chips. */
 .sbb--readonly {
-  border-color: var(--sw-muted, #4a525c);
-  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--sw-warn, #b88500);
+  background: rgba(184, 133, 0, 0.10);
 }
-.sbb--readonly .sbb__chip { background: var(--sw-muted, #4a525c); color: #fff; }
+.sbb--readonly .sbb__chip { background: var(--sw-warn, #b88500); color: #1a1a1a; }
 .sbb__row {
   display: flex;
   gap: 12px;
