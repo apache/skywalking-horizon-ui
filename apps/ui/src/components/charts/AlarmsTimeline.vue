@@ -38,6 +38,7 @@ import {
   BrushComponent,
   GridComponent,
   MarkLineComponent,
+  ToolboxComponent,
   TooltipComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -50,6 +51,7 @@ echarts.use([
   BrushComponent,
   GridComponent,
   MarkLineComponent,
+  ToolboxComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
@@ -161,7 +163,7 @@ function buildOption(): echarts.EChartsCoreOption {
       xAxisIndex: 0,
       brushType: 'lineX',
       brushMode: 'single',
-      brushStyle: { color: 'rgba(249,115,22,0.18)', borderColor: 'rgba(249,115,22,0.6)' },
+      brushStyle: { color: 'rgba(226,232,240,0.10)', borderColor: 'rgba(226,232,240,0.7)' },
       transformable: false,
       throttleType: 'debounce',
       throttleDelay: 200,

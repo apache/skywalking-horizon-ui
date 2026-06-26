@@ -25,6 +25,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 
 export interface EndpointPick {
   id: string;
@@ -116,18 +117,14 @@ function submit(): void {
       <div class="dlg-body">
         <div class="field">
           <label>Endpoint name</label>
-          <input
-            :value="keyword"
-            placeholder="Type to search…"
-            class="ti-input wide"
-            @input="(ev: Event) => emit('update:keyword', (ev.target as HTMLInputElement).value)"
+          <EndpointCombo
+            :endpoints="endpoints"
+            :selected="newTask.endpointName || null"
+            placeholder="(any)"
+            @update:query="(q: string) => emit('update:keyword', q)"
+            @pick="(name: string) => (newTask.endpointName = name)"
+            @clear="newTask.endpointName = ''"
           />
-          <select v-model="newTask.endpointName" class="sel wide">
-            <option value="">(any)</option>
-            <option v-for="e in endpoints" :key="e.id" :value="e.name">
-              {{ e.name }}
-            </option>
-          </select>
         </div>
         <div class="field-row">
           <div class="field">

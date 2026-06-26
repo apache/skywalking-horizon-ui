@@ -350,20 +350,8 @@ function fmtTime(ms: number): string {
 
 <template>
   <div class="sw-card net-shell">
-    <!-- Side: instance picker + tasks -->
+    <!-- Side: tasks (the create target instance is chosen inside New Task) -->
     <div class="net-side">
-      <div class="side-head">
-        <span>Instance</span>
-      </div>
-      <div class="picker">
-        <select v-model="selectedInstanceId" class="sel wide" :disabled="!instances.instances.value.length">
-          <option v-if="!instances.instances.value.length" :value="null">— no instances —</option>
-          <option v-for="inst in instances.instances.value" :key="inst.id" :value="inst.id">
-            {{ inst.name }}
-          </option>
-        </select>
-      </div>
-
       <div class="side-head between">
         <span>Network tasks</span>
         <div class="side-head-actions">
@@ -377,8 +365,8 @@ function fmtTime(ms: number): string {
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
-            :disabled="!selectedInstanceId"
-            :title="!selectedInstanceId ? 'Pick an instance first' : 'Create a new network profile task'"
+            :disabled="!serviceId"
+            :title="!serviceId ? 'Pick a service first' : 'Create a new network profile task'"
             @click="showNewTask = true"
           >+ New Task</button>
         </div>
@@ -497,6 +485,16 @@ function fmtTime(ms: number): string {
         <button class="x" @click="showNewTask = false">×</button>
       </div>
       <div class="dlg-body">
+        <div class="field">
+          <label>Instance</label>
+          <select v-model="selectedInstanceId" class="sel wide" :disabled="!instances.instances.value.length">
+            <option v-if="!instances.instances.value.length" :value="null">— no instances —</option>
+            <option v-for="inst in instances.instances.value" :key="inst.id" :value="inst.id">{{ inst.name }}</option>
+          </select>
+        </div>
+        <div v-if="!instances.instances.value.length" class="banner err">
+          No instances available for this service — a network profile task cannot be created.
+        </div>
         <p class="hint">
           OAP captures one connection sample per matching rule. Leave URI
           empty to match any request; toggle 4xx/5xx to scope by status.
@@ -533,7 +531,12 @@ function fmtTime(ms: number): string {
       </div>
       <div class="dlg-foot">
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
-        <button class="btn-primary" @click="submitNewTask">Create task</button>
+        <button
+          class="btn-primary"
+          :disabled="!selectedInstanceId"
+          :title="selectedInstanceId ? 'Create the network profile task' : 'No instances available for this service'"
+          @click="submitNewTask"
+        >Create task</button>
       </div>
     </div>
   </div>

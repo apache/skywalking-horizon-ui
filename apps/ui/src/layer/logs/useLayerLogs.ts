@@ -136,6 +136,7 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
     facets: computed(() => q.data.value ?? null),
     isFetching: q.isFetching,
     error: q.error,
+    refetch: q.refetch,
   };
 }
 

@@ -32,7 +32,7 @@
 import { watch } from 'vue';
 import { useEndpointCombo } from '@/layer/_shared/useEndpointCombo';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     endpoints: ReadonlyArray<{ id: string; name: string }>;
     selected: string | null;
@@ -51,6 +51,9 @@ const emit = defineEmits<{
 
 const combo = useEndpointCombo();
 watch(combo.query, (q) => emit('update:query', q));
+// Mirror the parent's selection into the input so a parent-side clear/change
+// resets the displayed text (setDisplay skips the search debounce).
+watch(() => props.selected, (sel) => combo.setDisplay(sel ?? ''));
 
 function pick(name: string): void {
   combo.setDisplay(name);

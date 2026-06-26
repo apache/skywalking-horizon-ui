@@ -150,8 +150,9 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
 watch(serviceName, (next, prev) => {
-  if (prev !== undefined && next !== prev && selectedEndpoint.value) {
-    setSelectedEndpoint(null);
+  if (prev !== undefined && next !== prev) {
+    if (selectedEndpoint.value) setSelectedEndpoint(null);
+    endpointQuery.value = '';
   }
 });
 const selectedEndpointObj = computed(() =>
@@ -278,7 +279,7 @@ const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   enabled: hasQueried,
 });
 
-const { facets } = useLayerLogFacets(layerKey, {
+const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   service: aService,
   instanceId: aInstanceId,
   endpointId: aEndpointId,
@@ -290,15 +291,15 @@ const { facets } = useLayerLogFacets(layerKey, {
   enabled: hasQueried,
 });
 
-// Run-query handler mirrors the trace tab: refetch both the log
-// stream + the facet sample on demand. With most filters already
-// auto-refetching, this is the operator's "I'm done editing — refresh
-// now" affordance, identical voice to `LayerTracesView#runQuery`.
+// Run query refetches BOTH the log stream and the facet sample (level
+// counts) so they never diverge — facets carry a 30s staleTime, so an
+// unchanged-condition Run query needs an explicit refetch.
 function runQuery(): void {
   page.value = 1;
   hasQueried.value = true;
   applyConditions();
   void refetch();
+  void refetchFacets();
 }
 
 // ── Density histogram (60 bins). Loki/Datadog style: stacked bars
