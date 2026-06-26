@@ -32,6 +32,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
@@ -52,6 +53,7 @@ import TimeChart from '@/components/charts/TimeChart.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 // Preview-only: forward the draft `processTopology` block so a clicked
@@ -479,15 +481,15 @@ function fmtTime(ms: number): string {
           </select>
         </div>
         <div v-if="!instances.instances.value.length" class="banner err">
-          No instances available for this service — a network profile task cannot be created.
+          {{ t('No instances available for this service — a network profile task cannot be created.') }}
         </div>
         <template v-else-if="selectedInstanceId">
-          <div v-if="processesLoading" class="hint">Checking processes on this instance…</div>
+          <div v-if="processesLoading" class="hint">{{ t('Checking processes on this instance…') }}</div>
           <div v-else-if="!networkProcesses.length" class="banner err">
-            This instance has no profilable processes — a network task cannot be created (network profiling needs a rover-monitored process).
+            {{ t('This instance has no profilable processes — a network task cannot be created (network profiling needs a rover-monitored process).') }}
           </div>
           <div v-else class="proc-list">
-            <span class="proc-list-label">Processes ({{ networkProcesses.length }})</span>
+            <span class="proc-list-label">{{ t('Processes') }} ({{ networkProcesses.length }})</span>
             <span v-for="p in networkProcesses" :key="p.id" class="proc-chip">{{ p.name }}</span>
           </div>
         </template>
@@ -497,7 +499,7 @@ function fmtTime(ms: number): string {
         </p>
         <div v-for="(s, i) in samplings" :key="i" class="sampling">
           <div class="sampling-head">
-            <strong>Sampling rule {{ i + 1 }}</strong>
+            <strong>{{ t('Sampling rule') }} {{ i + 1 }}</strong>
             <button
               v-if="samplings.length > 1"
               class="del"
@@ -516,10 +518,10 @@ function fmtTime(ms: number): string {
             </div>
           </div>
           <div class="check-row">
-            <label class="cb"><input type="checkbox" v-model="s.when4xx" /> when 4xx</label>
-            <label class="cb"><input type="checkbox" v-model="s.when5xx" /> when 5xx</label>
-            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteRequest" /> capture request</label>
-            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> capture response</label>
+            <label class="cb"><input type="checkbox" v-model="s.when4xx" /> {{ t('when 4xx') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.when5xx" /> {{ t('when 5xx') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteRequest" /> {{ t('capture request') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> {{ t('capture response') }}</label>
           </div>
         </div>
         <button class="btn-secondary" type="button" @click="addSampling">+ add another sampling rule</button>
@@ -530,7 +532,7 @@ function fmtTime(ms: number): string {
         <button
           class="btn-primary"
           :disabled="!selectedInstanceId || processesLoading || !networkProcesses.length"
-          :title="!selectedInstanceId ? 'No instances available for this service' : processesLoading ? 'Checking processes…' : !networkProcesses.length ? 'This instance has no profilable processes' : 'Create the network profile task'"
+          :title="!selectedInstanceId ? t('No instances available for this service') : processesLoading ? t('Checking processes…') : !networkProcesses.length ? t('This instance has no profilable processes') : t('Create the network profile task')"
           @click="submitNewTask"
         >Create task</button>
       </div>

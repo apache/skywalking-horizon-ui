@@ -25,6 +25,7 @@
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerServices } from '@/layer/useLayerServices';
@@ -41,6 +42,7 @@ import PprofTaskDetailModal from '@/layer/profiling/PprofTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId: serviceId } = useSelectedService();
@@ -322,7 +324,7 @@ function instanceName(id: string): string {
               :class="{ on: newTask.instances.includes(i.id) }"
               @click="toggleInstance(i.id, 'new')"
             >{{ i.name }}</button>
-            <span v-if="!instances.instances.value.length" class="muted">No instances available for this service — a pprof task cannot be created.</span>
+            <span v-if="!instances.instances.value.length" class="muted">{{ t('No instances available for this service — a pprof task cannot be created.') }}</span>
           </div>
         </div>
         <div class="field">

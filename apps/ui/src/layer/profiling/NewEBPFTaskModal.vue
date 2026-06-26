@@ -23,6 +23,7 @@
 -->
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { EBPFTargetType } from '@/api/client';
 import type { NewEBPFTaskPayload } from '@/layer/profiling/useEBPFProfiling';
@@ -38,6 +39,8 @@ const emit = defineEmits<{
   (e: 'update:show', show: boolean): void;
   (e: 'submit', payload: NewEBPFTaskPayload): void;
 }>();
+
+const { t } = useI18n();
 
 const newTask = reactive({
   labels: [] as string[],
@@ -93,7 +96,7 @@ function submit(): void {
       </div>
       <div class="dlg-body">
         <div v-if="!couldProfiling" class="dlg-warn">
-          <strong>OAP reports no profilable processes for this service.</strong>
+          <strong>{{ t('OAP reports no profilable processes for this service.') }}</strong>
           <span>A new task can't run until OAP sees an eBPF-profilable process. Check that:</span>
           <ul>
             <li>instances are running and instrumented;</li>
@@ -155,7 +158,7 @@ function submit(): void {
         <button
           class="btn-primary"
           :disabled="!couldProfiling"
-          :title="couldProfiling ? '' : 'OAP reports no profilable processes for this service'"
+          :title="couldProfiling ? '' : t('OAP reports no profilable processes for this service')"
           @click="submit"
         >Create task</button>
       </div>
