@@ -179,7 +179,6 @@ export interface SceneMaterials {
  * are owned by `useSceneEdges` / the Scene template, not here.
  */
 export function useSceneMaterials(): SceneMaterials {
-  // ── Color cache ────────────────────────────────────────────────────
   const colorCache = new Map<string, Color>();
   function colorByHex(hex: string): Color {
     let c = colorCache.get(hex);
@@ -200,7 +199,6 @@ export function useSceneMaterials(): SceneMaterials {
     return readTintColor(tintFallback);
   }
 
-  // ── Shared geometries ──────────────────────────────────────────────
   // ONE node geometry shared by every cube — hover / select only change
   // the material, never the geometry (swapping geometry mid-pointer-event
   // rebuilt the raycaster's bbox and made clicks miss).
@@ -210,7 +208,6 @@ export function useSceneMaterials(): SceneMaterials {
   const rippleGeometry = new RingGeometry(0.6, 0.78, 44);
   const cubeEdgesGeometry = new EdgesGeometry(nodeGeometry);
 
-  // ── Static materials ───────────────────────────────────────────────
   // Transparent slate glass tier slab; depthWrite off so cubes/zones
   // blend through cleanly. Backface culling off so the slab looks solid.
   const planeMaterial = new MeshBasicMaterial({
@@ -295,7 +292,6 @@ export function useSceneMaterials(): SceneMaterials {
       }),
   );
 
-  // ── Cached, color-keyed factories ──────────────────────────────────
   const zoneMaterials = new Map<string, MeshBasicMaterial>();
   function zoneMaterial(hex: string): MeshBasicMaterial {
     let m = zoneMaterials.get(hex);

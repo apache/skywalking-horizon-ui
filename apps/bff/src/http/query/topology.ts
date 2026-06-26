@@ -324,7 +324,6 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
       const coldStage = !!req.coldStage;
 
-      // ── Resolve seed service ids.
       let seedIds: string[] = [];
       const knownServices = new Map<string, { id: string; name: string; normal: boolean }>();
       try {
@@ -380,7 +379,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         );
       }
 
-      // ── BFS expand topology.
+      // BFS-expand the seed services out to `depth` hops.
       const nodes = new Map<string, OapTopoNode>();
       const calls = new Map<string, OapTopoCall>();
       let frontier = seedIds.slice();
@@ -430,11 +429,6 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           tooLarge: { nodes: nodes.size, edges: calls.size },
         } satisfies TopologyResponse);
       }
-
-      // (Disconnected services are dropped a few lines below — they
-      // don't belong on a topology map. The earlier "fill them in as
-      // standalone nodes" pass was reverted after a closer look at
-      // booster-ui's demo, which only renders connected nodes too.)
 
       // ── Per-node MQE. Builds fragments off the layer's
       // `topology.nodeMetrics`. Synthetic nodes (User / external) are

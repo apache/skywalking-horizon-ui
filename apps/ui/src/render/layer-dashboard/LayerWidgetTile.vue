@@ -100,9 +100,6 @@ function result(id: string): DashboardWidgetResult | undefined {
   >
     <!-- Tab widgets carry no title — the tab bar is their header. -->
     <div v-if="widget.type !== 'tab'" class="w-head">
-      <!-- Title + tip group, kept adjacent so the tip chip sits
-           next to the title text rather than floating away when
-           the right-side affordances exist. -->
       <div class="w-head-title">
         <h4>{{ widget.title }}</h4>
         <WidgetTip :tip="widget.tip" />

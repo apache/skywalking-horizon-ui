@@ -56,12 +56,9 @@ const oapChipTooltip = computed<string>(() => {
     <span class="dot" />
     <span v-if="reachable" class="ver">OAP</span>
     <span v-else class="ver">offline</span>
-    <!-- Server TZ offset removed from the visible chip — too much
-         noise next to the health dot for an operator-rare check.
-         The tooltip (`oapChipTooltip`) still surfaces the value
-         when reachable, and the Cluster Status page → Query pane
-         shows it prominently. Non-cluster:read users get a static
-         chip (no link to the maintainer-only Cluster page). -->
+    <!-- Server TZ offset is kept out of the visible chip (noise next to
+         the health dot); it stays in the tooltip and on the Cluster
+         Status page. -->
   </component>
 </template>
 

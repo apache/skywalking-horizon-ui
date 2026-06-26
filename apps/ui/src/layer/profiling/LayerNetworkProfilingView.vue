@@ -72,7 +72,6 @@ watch(
   { immediate: true },
 );
 
-// ── Tasks ──────────────────────────────────────────────────────────
 const tasks = ref<EBPFTask[]>([]);
 const tasksError = ref<string | null>(null);
 const tasksLoading = ref(false);
@@ -99,9 +98,8 @@ async function refreshTasks(): Promise<void> {
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
-    // currentTask change drives loadTopology via the watch below; when
-    // the list is empty currentTask stays null and we fall back to the
-    // live picker view.
+    // currentTask drives loadTopology via the watch below; with an empty
+    // list it stays null, so load the live picker view here instead.
     if (!currentTask.value) await loadTopology();
   } catch (e) {
     tasksError.value = e instanceof Error ? e.message : String(e);
@@ -110,7 +108,6 @@ async function refreshTasks(): Promise<void> {
   }
 }
 
-// ── Process topology ──────────────────────────────────────────────
 const nodes = ref<ProcessNode[]>([]);
 const calls = ref<ProcessCall[]>([]);
 const topologyLoading = ref(false);
@@ -161,7 +158,6 @@ function closeEdge(): void {
   selectedCall.value = null;
 }
 
-// ── Edge (process-relation) metrics ────────────────────────────────
 const relationMetrics = ref<ProcessRelationMetricsResponse | null>(null);
 const relationLoading = ref(false);
 const relationError = ref<string | null>(null);
@@ -278,7 +274,6 @@ function onEdgeKeydown(ev: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onEdgeKeydown));
 onBeforeUnmount(() => window.removeEventListener('keydown', onEdgeKeydown));
 
-// ── New task modal ────────────────────────────────────────────────
 const showNewTask = ref(false);
 useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTaskError = ref<string | null>(null);
@@ -387,7 +382,6 @@ function fmtTime(ms: number): string {
       </ul>
     </div>
 
-    <!-- Main: topology + detail -->
     <div class="net-main">
       <div class="filter-bar">
         <div class="tb-block">
@@ -439,9 +433,7 @@ function fmtTime(ms: number): string {
       <div class="dlg-body edge-dlg-body">
         <div v-if="relationLoading" class="muted">Reading process-relation metrics…</div>
         <div v-else-if="relationError" class="banner err">{{ relationError }}</div>
-        <!-- Left/right split: client side | server side. Each column
-             stacks its metric widgets; matching ids line up row-for-row.
-             The metric set is operator-configurable in the admin. -->
+        <!-- The metric set is operator-configurable in the admin. -->
         <div v-else-if="relationMetrics" class="edge-cols">
           <section
             v-for="side in (['client', 'server'] as const)"
@@ -813,8 +805,6 @@ function fmtTime(ms: number): string {
   font-size: 10.5px;
   color: var(--sw-fg-1);
 }
-/* Edge dashboard modal — near-fullscreen; client | server side-by-side,
-   each side a 2-up widget grid → 4 widgets per row (2 client + 2 server). */
 /* `.dlg.edge-dlg` (not `.edge-dlg`) so this beats the base `.dlg`
  * width:560px regardless of rule order. */
 .dlg.edge-dlg { width: 92vw; max-width: 92vw; height: 92vh; max-height: 92vh; }

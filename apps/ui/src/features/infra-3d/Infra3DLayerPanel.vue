@@ -107,8 +107,6 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
 </script>
 
 <template>
-  <!-- Side panel: tier → layer/logic-group. Click focuses + flashes
-       that region; the eye toggles the tier. -->
   <aside class="layer-panel">
     <div class="panel-head">
       <span>Tiers</span>
@@ -122,7 +120,6 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
           class="tier-block"
           :class="{ hidden: tierVisibility(g.zones) === 'none' }"
         >
-          <!-- Tier row — click to focus the tier, eye to toggle it. -->
           <div class="tier-item" @click="emit('tier-focus', g.id)">
             <span class="grp-dot" :data-plane="g.id" />
             <span class="tier-name">{{ g.name }}</span>
@@ -147,7 +144,6 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
             </button>
           </div>
 
-          <!-- Layers + logic groups on this tier (level 2). -->
           <ul v-if="g.entries.length" class="layer-sublist">
             <li
               v-for="e in g.entries"
@@ -229,10 +225,6 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
 .grp-dot[data-plane='mesh']         { background: var(--sw-info); }
 .grp-dot[data-plane='middleware']   { background: var(--sw-purple); }
 .grp-dot[data-plane='infra']        { background: var(--sw-ok); }
-/* Tier-list — replaces the legacy nested grp-head + layer-list. One
-   row per tier (apps / mesh / middleware / infra in the bundled
-   config); click the row to fly the camera to the tier, click the
-   eye to hide / show every layer in that tier at once. */
 .tier-list {
   list-style: none;
   margin: 0;
@@ -254,8 +246,6 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
   background: rgba(255, 255, 255, 0.04);
   color: var(--sw-fg-0);
 }
-/* ── Nested hierarchy: layers / logic groups under a tier, members /
-      clusters under those. Indented, lighter than the tier row. ── */
 .layer-sublist { list-style: none; margin: 0; padding: 2px 0 6px; }
 .layer-row {
   display: flex;

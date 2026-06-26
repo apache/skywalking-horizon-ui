@@ -47,12 +47,10 @@ import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
-// ── Conditions ──────────────────────────────────────────────────
-// Sentinel duration that means "use customStartMs / customEndMs
-// instead of a preset window." Picked as -1 so it can't collide with
-// any real ms value.
+// Sentinel duration meaning "use the custom start/end instead of a preset
+// window." Picked as -1 so it can't collide with any real ms value.
 const CUSTOM_RANGE = -1;
-const lookbackMs = ref<number>(30 * 60_000); // 30 min default
+const lookbackMs = ref<number>(30 * 60_000);
 const TIME_PRESETS = computed<Array<{ label: string; ms: number }>>(() => [
   { label: t('Last 15 min'), ms: 15 * 60_000 },
   { label: t('Last 30 min'), ms: 30 * 60_000 },
@@ -131,9 +129,8 @@ const { openTrace } = useZipkinTracePopout();
 const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? traces.value : []));
 
 function runQuery(): void {
-  // Service filter is now operator-driven (free-text + datalist), not
-  // bound to the URL service picker. Empty = "All services" in
-  // Zipkin's API — pass null and OAP returns the full set.
+  // Empty service filter = "All services" in Zipkin's API: pass null and
+  // OAP returns the full set.
   cService.value = zipkinServiceFilter.value.trim() || null;
   // Time range — preset emits {endTs: now, lookback: preset}; Custom
   // commits absolute start/end → {endTs: end, lookback: end - start}.
@@ -163,10 +160,6 @@ function runQuery(): void {
   void refetch();
 }
 
-// Zipkin's service universe is independent of SkyWalking's per-page
-// picker; the input defaults to All-services and narrows via the
-// /api/v2/services dropdown.
-
 // No auto-fire (traces are expensive); a layer switch resets to the prompt.
 watch(layerKey, () => {
   hasQueried.value = false;
@@ -174,9 +167,6 @@ watch(layerKey, () => {
   pickedTraceIds.value = new Set();
 });
 
-// The three Zipkin autocomplete subsystems (services list, the
-// service-scoped span/remote lists, the annotation key/value datalist)
-// own their own fetch + debounce + teardown.
 const {
   serviceOptions: zipkinServiceOptions,
   spanNameOptions,
@@ -204,11 +194,8 @@ const spanNameSelectOptions = computed(() => [
   ...spanNameOptions.value.map((s) => ({ value: s, label: s })),
 ]);
 
-// ── Inline selection (list-left, detail-right) ──────────────────
-// Mirrors `LayerTracesView`'s native pattern: a row click commits a
-// selection to local state instead of opening the global popout.
-// The selected trace's full spans render in the side rail. The
-// trace-id input + URL-driven `?traceId=` still fall back to the
+// A row click commits a selection to local state (inline detail in the side
+// rail). The trace-id input + URL `?traceId=` still fall back to the global
 // popout for the "paste an id" / "share a link" flows.
 const selectedTraceId = ref<string | null>(null);
 function selectNative(row: NativeTraceListRow): void {
@@ -250,17 +237,13 @@ function onPageKeyDown(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onPageKeyDown, true));
 onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true));
 
-// ── Shared-widget rows ──────────────────────────────────────────
-// The duration scatter (TraceDistribution) + result list / rail
-// (TraceListPanel) are the shared native-trace widgets. Adapt each
-// Zipkin row onto `NativeTraceListRow` (µs → ms, traceId stays the
-// row key) so the in-page pick set + selection key on the trace id.
+// Adapt each Zipkin row onto `NativeTraceListRow` (µs → ms, traceId stays the
+// row key) so the shared native-trace widgets can render them.
 const nativeRows = computed<NativeTraceListRow[]>(() =>
   [...shownTraces.value]
     .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0))
     .map(zipkinRowToNative),
 );
-// Largest duration (ms) across the visible set — the bar / dot scale.
 const maxTraceDuration = computed<number>(() => {
   let m = 0;
   for (const r of nativeRows.value) if (r.duration > m) m = r.duration;
@@ -271,10 +254,8 @@ function openByInput(): void {
   if (v) openTrace(v);
 }
 
-// ── Distribution selection (in-page filter) ─────────────────────
-// Clicking a dot toggles the trace into `pickedTraceIds`; dragging a
-// box adds every matched dot (TraceDistribution emits the keys). The
-// list narrows to the picked set — no extra query fires.
+// Picking dots / brushing a box narrows the list to the picked set; no extra
+// query fires.
 const pickedTraceIds = ref<Set<string>>(new Set());
 const pickedKeys = computed(() => [...pickedTraceIds.value]);
 const isPicking = computed(() => pickedTraceIds.value.size > 0);
@@ -292,10 +273,8 @@ function onScatterBrush(keys: string[]): void {
   for (const k of keys) next.add(k);
   pickedTraceIds.value = next;
 }
-// Drop a stale pick when the result set changes.
 watch(traces, () => { pickedTraceIds.value = new Set(); });
 
-// List / rail rows, narrowed to the picked set when any are picked.
 const visibleRows = computed<NativeTraceListRow[]>(() => {
   if (pickedTraceIds.value.size === 0) return nativeRows.value;
   return nativeRows.value.filter((r) => pickedTraceIds.value.has(r.key));
@@ -304,7 +283,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 
 <template>
   <div class="ztr-tab">
-    <!-- Top strip: filter (80%) + duration distribution (20%). -->
     <div class="ztr-top-strip">
     <header class="ztr-toolbar sw-card">
       <div class="ztr-head">
@@ -320,8 +298,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         <button class="sw-btn primary ztr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="ztr-conditions">
-        <!-- Service condition — on-theme TypeaheadSelect. Empty value
-             commits as `null` (= every service) to the Zipkin query. -->
         <label class="cf">
           <span>{{ t('Service') }}</span>
           <TypeaheadSelect
@@ -390,17 +366,12 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
             <option :value="100">100</option>
           </select>
         </label>
-        <!-- Time range pinned to its own final row so the (optional)
-             custom-range pair sits beside it on the same line. -->
         <label class="cf row-break">
           <span>{{ t('Time range') }}</span>
           <select v-model.number="lookbackMs" class="cf-input">
             <option v-for="p in TIME_PRESETS" :key="p.ms" :value="p.ms">{{ p.label }}</option>
           </select>
         </label>
-        <!-- Custom-range inputs — show only when "Custom range…" is
-             picked. `datetime-local` parses to the operator's local
-             zone; we convert to ms-since-epoch on Run query. -->
         <label v-if="isCustomRange" class="cf">
           <span>{{ t('From') }}</span>
           <input
@@ -422,8 +393,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
       </div>
     </header>
 
-      <!-- Distribution: dots only. Click a dot to open its trace; drag
-           a box to narrow the list. -->
       <section class="ztr-scatter sw-card">
         <header class="ztr-scatter-head">
           <span v-if="!isPicking" class="kicker">{{ t('Distribution') }}</span>
@@ -451,8 +420,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
       </section>
     </div>
 
-    <!-- No selection — full-width list. Once an operator clicks a
-         row, the section flips below to the rail+detail split. -->
     <section v-if="!selectedTraceId" class="ztr-split">
       <article class="ztr-list sw-card">
         <header class="ztr-list-head">
@@ -478,11 +445,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
       </article>
     </section>
 
-    <!-- Selection mode — native trace pattern: a narrow rail of
-         compact cards on the left + the detail (span tree) on the
-         right. Rail can collapse to a column of progress bars for
-         "folder style" navigation between traces without rebuilding
-         the page layout. -->
     <section v-else class="ztr-detail-split" :class="{ 'rail-collapsed': !railOpen }">
       <TraceListPanel
         foldable
@@ -600,9 +562,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 .sw-btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 .sw-btn.primary:hover:not(:disabled) { background: var(--sw-accent-2); }
 
-/* ── Duration distribution scatter ───────────────────────────────
-   Ported from `LayerTracesView`'s `.tr-scatter` so the native +
-   Zipkin trace tabs read identically. */
 .ztr-scatter {
   padding: 6px 10px 8px;
   display: flex;
@@ -648,8 +607,6 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
   color: #f87171;
   font-size: 11.5px;
 }
-/* Two-column split — single grid that collapses to one column when
-   no row is selected, so the table claims full width on landing. */
 .ztr-split {
   display: grid;
   grid-template-columns: 1fr;
@@ -658,29 +615,20 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 .dim { color: var(--sw-fg-3); }
 
 @media (max-width: 1100px) {
-  /* On narrow screens, fall back to stacked layout — the detail rail
-     would crowd the table otherwise. */
   .ztr-detail-split { grid-template-columns: 1fr !important; }
 }
 
-/* ── Selection-mode layout (rail + detail) ───────────────────────
-   Mirrors `LayerTracesView`'s `.tr-detail-split` shape so the
-   native + Zipkin trace tabs behave identically when an operator
-   drills into a row. */
 .ztr-detail-split {
   display: grid;
   grid-template-columns: 320px 1fr;
   gap: 12px;
-  /* `stretch` lets the two cards share the row height (max of each
-     side's natural height, capped by their respective max-height
-     rules). With `start` the right detail card collapsed to its
-     content height while the rail extended down with many trace
-     rows, producing a visibly mismatched pair. */
+  /* `stretch` (not `start`) so the rail + detail cards share the row
+     height; otherwise the detail card collapses to its content height
+     while a long rail extends past it, visibly mismatched. */
   align-items: stretch;
 }
 .ztr-detail-split.rail-collapsed { grid-template-columns: 64px 1fr; }
 
-/* Small buttons (scatter Reset). */
 .sw-btn.small {
   height: 22px;
   padding: 0 8px;

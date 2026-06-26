@@ -55,8 +55,6 @@
 import { RuntimeRuleApiError, type ApplyResult } from './types.js';
 import type { FetchLike } from './runtime-rule.js';
 
-// ── Catalogs ───────────────────────────────────────────────────────
-
 /** Debug-session catalog — every wire name accepted by the handler.
  *  Matches `Catalog.java` enum's `wireName` values. */
 export type DebugCatalog = 'otel-rules' | 'log-mal-rules' | 'telegraf-rules' | 'lal' | 'oal';
@@ -72,8 +70,6 @@ export const DEBUG_CATALOGS: readonly DebugCatalog[] = [
 export function isDebugCatalog(value: unknown): value is DebugCatalog {
   return typeof value === 'string' && (DEBUG_CATALOGS as readonly string[]).includes(value);
 }
-
-// ── Session start ──────────────────────────────────────────────────
 
 /** Query-param inputs (mandatory) for `POST /dsl-debugging/session`. */
 export interface StartSessionQuery {
@@ -221,8 +217,6 @@ export interface StartSessionResponse {
   priorCleanup: PriorCleanup;
 }
 
-// ── Sample-level shape (the new per-execution capture) ─────────────
-
 /** The five unified sample types. The rule's static stage vocabulary
  *  (per-DSL block names like `meterEmit`, `extractor`, `aggregation`)
  *  collapsed into these on the wire — each DSL only emits a subset:
@@ -239,8 +233,6 @@ export const SAMPLE_TYPES: readonly SampleType[] = [
   'aggregation',
   'output',
 ] as const;
-
-// ─── MAL payload shapes ────────────────────────────────────────────
 
 /** A single MAL `Sample` row inside a SampleFamily — what the upstream
  *  ELSampleFamilyDebugDump.toJson surfaces per row. */
@@ -302,8 +294,6 @@ export interface MalOutputPayload {
    *    functions. */
   value?: number | string | Record<string, number>;
 }
-
-// ─── LAL payload shapes ────────────────────────────────────────────
 
 /** LAL `LogData.toJson()` — what the input probe sees on the way in. */
 export interface LalLogDataInput {
@@ -393,8 +383,6 @@ export interface LalSamplePayload {
   output?: LalOutput;
 }
 
-// ─── OAL payload shapes ────────────────────────────────────────────
-
 /** OAL input / filter payload — the source object's columns. The
  *  upstream recorder calls `source.toJson()`; the column set is per
  *  source class. */
@@ -453,8 +441,6 @@ export interface SessionSample {
   sourceLine?: number;
 }
 
-// ── Per-record envelope ────────────────────────────────────────────
-
 /** Catalog-specific structured rule metadata. The recorder fills in
  *  whatever it has — common fields:
  *  - all DSLs:  `ruleName`
@@ -485,8 +471,6 @@ export interface SessionRecord {
   samples: SessionSample[];
 }
 
-// ── Per-node slice + session response ──────────────────────────────
-
 export type NodeStatus = 'ok' | 'captured' | 'not_local' | 'unreachable';
 
 export interface NodeSlice {
@@ -512,8 +496,6 @@ export interface SessionResponse {
   ruleKey?: RuleKey;
   nodes: NodeSlice[];
 }
-
-// ── Stop / list / status ───────────────────────────────────────────
 
 export interface StopPeerOutcome {
   peer: string;
@@ -552,8 +534,6 @@ export interface DslDebuggingStatus {
   activeSessions: number;
 }
 
-// ── Error envelope ─────────────────────────────────────────────────
-
 /** Known `code` values the handler emits. Open string for forward
  *  compatibility — the server may extend this enum. */
 export type DebugErrorCode =
@@ -576,8 +556,6 @@ export interface DebugErrorBody {
   code: DebugErrorCode;
   message: string;
 }
-
-// ── Client ─────────────────────────────────────────────────────────
 
 export interface DslDebuggingClientOptions {
   adminUrl: string;
@@ -664,8 +642,6 @@ export class DslDebuggingClient {
     if (!res.ok) throw await this.toError(res, url);
     return (await res.json()) as DslDebuggingStatus;
   }
-
-  // ── private helpers ─────────────────────────────────────────────
 
   private async send(url: string, init: RequestInit): Promise<Response> {
     const headers: Record<string, string> = {

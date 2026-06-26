@@ -61,12 +61,8 @@ export function useEndpointDependencyExpansion(opts: ExpansionOptions) {
   const { layerKey, baseNodes, baseCalls, selectedEndpoint, onFocusReset } = opts;
   const timeRange = useTimeRangeStore();
 
-  // `getEndpointDependencies` returns a node's WHOLE neighbourhood (both
-  // directions in ONE response — OAP has no directional endpoint query),
-  // so there is ONE expand per node, not a left/right pair. The handle is
-  // keyed by node id so a repeat click is a no-op. A click that surfaces
-  // nothing new marks the node exhausted, fading the handle so it isn't a
-  // dead control.
+  // Keyed by node id so a repeat click is a no-op; a click that surfaces
+  // nothing new marks the node exhausted, fading the handle.
   const expansions = ref<Map<string, EndpointDependencyResponse>>(new Map());
   const expansionsLoading = ref<Set<string>>(new Set());
   const exhausted = ref<Set<string>>(new Set());
@@ -109,8 +105,6 @@ export function useEndpointDependencyExpansion(opts: ExpansionOptions) {
       const next = new Map(expansions.value);
       next.set(key, resp);
       expansions.value = next;
-      // No new neighbour surfaced (chain leaf / all already shown) — fade
-      // the handle AND flash an explicit "nothing more" banner.
       if (!resp.nodes.some((n) => !before.has(n.id))) {
         const e = new Set(exhausted.value);
         e.add(key);
@@ -125,24 +119,18 @@ export function useEndpointDependencyExpansion(opts: ExpansionOptions) {
       expansionsLoading.value = done;
     }
   }
-  // Reset expansions whenever the focus endpoint changes — the previous
-  // expansion graph is irrelevant against a new focus.
   watch(selectedEndpoint, () => {
     expansions.value = new Map();
     expansionsLoading.value = new Set();
     exhausted.value = new Set();
     noDepFlash.value = null;
-    // Cascade-clear the view's per-graph state too (drag offsets +
-    // node/edge selection). Endpoint ids are stable across focuses, so
-    // without this a selection under the old focus keeps the detail sidebar
-    // open against the new graph.
+    // Endpoint ids are stable across focuses, so without this cascade-clear a
+    // selection under the old focus keeps the detail sidebar open on the new graph.
     onFocusReset();
   });
 
-  // ── Merged graph = focus response ∪ all expansion responses.
-  //    Deduplicate by node id and call id; later expansions don't
-  //    overwrite earlier metric values, which keeps the first-seen
-  //    snapshot stable while the operator browses. -------------------
+  // Merged graph = focus response ∪ all expansion responses, deduped by node
+  // id (first-seen wins, keeping the snapshot stable while the operator browses).
   const nodes = computed<EndpointDependencyNode[]>(() => {
     const map = new Map<string, EndpointDependencyNode>();
     for (const n of baseNodes.value) map.set(n.id, n);

@@ -69,7 +69,6 @@ const { t } = useI18n({ useScope: 'global' });
 
 const localEdits = useLocalTranslationEdits();
 
-// ── Picker state ───────────────────────────────────────────────────
 const selectedKind = ref<'overview' | 'layer'>('overview');
 const selectedName = ref<string>('');
 const scope = ref<DashboardScope>('service');
@@ -110,8 +109,6 @@ watch(
   },
   { immediate: true },
 );
-
-// ── Source + draft state ───────────────────────────────────────────
 
 /** Effective SOURCE for the picked template — strictly REMOTE (the
  *  version published to OAP). We translate the PUBLISHED template's
@@ -156,8 +153,6 @@ const {
   clearDraftLocale,
 } = useTranslationDraft({ selectedKind, selectedName, effective });
 
-// ── Scope (Component) selector for layer kind ──────────────────────
-
 const scopeOptions = computed<Array<{ value: DashboardScope; label: string }>>(() => {
   const eff = effective.value;
   const slots = eff && selectedKind.value === 'layer' ? (eff.source as unknown as AdminLayerTemplate).slots : null;
@@ -167,8 +162,6 @@ const scopeOptions = computed<Array<{ value: DashboardScope; label: string }>>((
     { value: 'endpoint', label: slots?.endpoints || 'Endpoint' },
   ];
 });
-
-// ── Click-widget → floating panel ──────────────────────────────────
 
 interface PanelState {
   open: boolean;
@@ -259,7 +252,6 @@ function onSelectLayerHeader(payload: { el: HTMLElement; event: MouseEvent }): v
   openPanel(fields, 'Layer header', payload.el, pointFromEvent(payload.event));
 }
 
-// ── Stage to local + Push to OAP ───────────────────────────────────
 // Per-locale model: stage / push acts on the CURRENT target locale.
 // Operator switches Target to translate another language; each locale
 // is its own OAP overlay row.
@@ -384,7 +376,6 @@ const readOnly = computed<boolean>(() =>
   selectedKind.value === 'overview' ? overviewSync.readOnly.value : layerSync.readOnly.value,
 );
 
-// ── Import / Export ────────────────────────────────────────────────
 // Translations are their own OAP rows on their own page, so their
 // import/export is separate from the source-template pages. Both act on
 // the CURRENT (template, target locale) — the same unit Stage / Push use.

@@ -30,30 +30,22 @@ import { useTimeRangeStore } from '@/controls/timeRange';
  */
 const TIME_RANGE_OPT_OUT = [
   /^\/layer\/[^/]+\/trace$/,
-  // Logs run their own time window the same way traces do — the page
-  // carries an explicit time picker (the condition bar), and the level
-  // / keyword filters make rolling-window refresh awkward when the
-  // operator is mid-investigation. Block the global picker + pause the
-  // auto-refresher whenever the operator is on a Logs tab.
+  // Logs carry their own time picker (the condition bar); the level /
+  // keyword filters make rolling-window refresh awkward mid-investigation.
   /^\/layer\/[^/]+\/logs$/,
-  // Browser Logs is a triage view with its own Time range picker (same as
-  // Logs) — auto-refresh would shift the visible window mid-investigation.
+  // Browser Logs has its own Time range picker — auto-refresh would shift
+  // the visible window mid-investigation.
   /^\/layer\/[^/]+\/browser-errors$/,
-  // Pod Logs is a live tail driven by its own interval poll — the
-  // global ticker would double-fire and the page has no rolling window
-  // to refresh. Pause it while on the Pod Logs tab.
+  // Pod Logs is a live tail driven by its own interval poll — the global
+  // ticker would double-fire and there's no rolling window to refresh.
   /^\/layer\/[^/]+\/pod-logs$/,
-  // Alarms is a triage view — auto-refresh shifts the visible window
-  // out from under any selection / brush the operator is making, and
-  // we already chunk the traffic backfill ourselves with explicit
-  // delta refresh. Pause the global ticker while on /alarms.
+  // Alarms is a triage view — auto-refresh shifts the window out from under
+  // any selection/brush, and the traffic backfill is chunked with its own
+  // explicit delta refresh.
   /^\/alarms$/,
-  // Profiling tabs (trace / eBPF / network / async / pprof) bind to a
-  // *task* and the operator drills into a single segment + analyze
-  // result. Auto-refresh would yank the task list, re-pick the first
-  // task, and blow away the analyze pane mid-investigation. The pages
-  // expose their own "refresh tasks" affordance instead. Same regex
-  // shape as the trace/logs opt-outs above.
+  // Profiling tabs bind to a *task*; auto-refresh would yank the task list,
+  // re-pick the first task, and blow away the analyze pane mid-investigation.
+  // The pages expose their own "refresh tasks" affordance instead.
   /^\/layer\/[^/]+\/trace-profiling$/,
   /^\/layer\/[^/]+\/ebpf-profiling$/,
   /^\/layer\/[^/]+\/network-profiling$/,

@@ -64,8 +64,6 @@ import { scopeShort, type ForeignForm, type Source } from './inspectTypes';
 
 const { t } = useI18n({ useScope: 'global' });
 
-// ─── Types local to the page ────────────────────────────────────────
-
 type ChartKind = 'line' | 'bar' | 'area';
 
 /** Storage metadata for a FOREIGN metric — one the connected OAP doesn't
@@ -215,8 +213,6 @@ const endForServer = computed(() => formatForServer(end.value, step.value, serve
 const bucketCount = computed(() => bucketsBetween(start.value, end.value, step.value));
 const bucketOverflow = computed(() => bucketCount.value > INSPECT_MAX_BUCKETS);
 
-// ─── Catalog query ─────────────────────────────────────────────────
-
 const queryClient = useQueryClient();
 const catalogQuery = useQuery({
   queryKey: ['inspect', 'catalog'],
@@ -291,8 +287,6 @@ function commitForeign(specs: ForeignForm[]): void {
   drawerOpen.value = false;
   for (const w of added) void resolveEntitiesFor(w);
 }
-
-// ─── Board / widgets ───────────────────────────────────────────────
 
 interface MakeWidgetOpts {
   id?: string;
@@ -603,8 +597,6 @@ function decodedLabel(e: EntityRow): string {
   return e.entityId;
 }
 
-// ─── Per-widget entity resolution ──────────────────────────────────
-
 async function resolveEntitiesFor(w: Widget): Promise<void> {
   if (!rangeValid.value) return;
   if (bucketOverflow.value) {
@@ -643,8 +635,6 @@ async function resolveEntitiesFor(w: Widget): Promise<void> {
     w.error = describeApiError(err);
   }
 }
-
-// ─── Per-widget MQE fire ───────────────────────────────────────────
 
 /* When the selection or range changes, re-fire MQE for the widget.
  * For multi-entity selections we make one MQE call per entity and
@@ -748,8 +738,6 @@ watch([start, end, step], async () => {
     if (w.selectedIds.size > 0) await execWidget(w);
   }
 });
-
-// ─── Entity editor popover ─────────────────────────────────────────
 
 const editorForWidget = ref<string | null>(null);
 const editorErr = ref<string>('');
@@ -872,8 +860,6 @@ async function rerunInspectFor(w: Widget) {
   if (w.selectedIds.size > 0) await execWidget(w);
 }
 
-// ─── Refresh ───────────────────────────────────────────────────────
-
 async function refreshEverything() {
   /* 1. Bust BFF-side caches (attribution + server-time). These
    *    imperative calls return fresh data; vue-query state is
@@ -896,8 +882,6 @@ async function refreshEverything() {
     }),
   );
 }
-
-// ─── Display helpers ───────────────────────────────────────────────
 
 function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
   if (s === 'OAL') return 'ok';
@@ -923,7 +907,6 @@ function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
       <Btn kind="primary" :disabled="catalogQuery.isPending.value" @click="openDrawer">{{ t('+ add metric') }}</Btn>
     </header>
 
-    <!-- INSPECT_NOT_ENABLED banner -->
     <div v-if="inspectNotEnabled" class="ins__banner ins__banner--err">
       <strong>{{ t('Inspect API not enabled on OAP.') }}</strong>
       <i18n-t keypath="Set {flag} on the admin-server, then click refresh." tag="span">
@@ -937,7 +920,6 @@ function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
       <Btn @click="catalogQuery.refetch()">{{ t('retry') }}</Btn>
     </div>
 
-    <!-- Filters / time range / capacity -->
     <section class="ins__filters">
       <header class="ins__sectionhead">
         {{ t('range & capacity') }}
@@ -1002,7 +984,6 @@ function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
       </div>
     </section>
 
-    <!-- Board -->
     <section class="ins__board-section">
       <header class="ins__sectionhead">
         {{ t('board') }}
@@ -1208,7 +1189,6 @@ function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
       </div>
     </section>
 
-    <!-- Catalog drawer -->
     <transition name="drawer">
       <InspectCatalogDrawer
         v-if="drawerOpen"

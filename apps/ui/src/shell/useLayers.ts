@@ -159,12 +159,11 @@ export function isSingleFeatureLayer(L: LayerDef): boolean {
  */
 export function firstLayerTab(L: LayerDef | undefined): string {
   if (!L) return 'service';
-  // `caps.dashboards` is derived from `components.service !== false`,
-  // so it's the authoritative enable-flag for the per-service page.
-  // Some layers (MESH_DP — sidecar-only; SO11Y_*_AGENT — per-JVM) have
-  // a non-empty `slots.services` label (used elsewhere for breadcrumbs)
-  // but no service component; previously the truthy slot label was
-  // pushing those layers onto an empty `/service` page.
+  // `caps.dashboards` (derived from `components.service !== false`) is the
+  // authoritative enable-flag for the per-service page. Some layers (MESH_DP
+  // — sidecar-only; SO11Y_*_AGENT — per-JVM) carry a non-empty
+  // `slots.services` label but no service component; gating on the slot label
+  // instead of caps would land them on an empty `/service` page.
   if (L.caps?.dashboards) return 'service';
   if (L.caps?.instances ?? Boolean(L.slots?.instances)) return 'instance';
   if (L.caps?.endpoints ?? Boolean(L.slots?.endpoints)) return 'endpoint';

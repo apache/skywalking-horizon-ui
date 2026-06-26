@@ -89,7 +89,6 @@ interface LayoutOptions {
 export function useEndpointDependencyLayout(opts: LayoutOptions) {
   const { nodes, calls, focusedId, centerDef, nodeVal, dragOffsets, t } = opts;
 
-  // ── Compute layer index per node by BFS from focus, then bucket.
   const layoutNodes = computed<LayoutNode[]>(() => {
     const all = nodes.value;
     if (all.length === 0) return [];
@@ -145,8 +144,6 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
     return all.map((n) => ({ ...n, layerIdx: layerOf.get(n.id)! }));
   });
 
-  // ── Group nodes by layer index, cap each layer at NODES_PER_LAYER by
-  // the center metric, and bucket the rest into a "+N more" pseudo-row.
   const layerColumns = computed<LayerColumn[]>(() => {
     const byLayer = new Map<number, LayoutNode[]>();
     for (const n of layoutNodes.value) {
@@ -200,9 +197,7 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
     return map;
   });
 
-  // ── Manual node drag. The operator can drag a box to declutter a dense
-  // graph; the offset layers on the BFS layout so edges (which read
-  // displayPos) follow. Cleared when a new focus endpoint rebuilds the graph.
+  // Drag offsets layer on the BFS positions so edges (which read displayPos) follow.
   const displayPos = computed<Map<string, Pos>>(() => {
     if (dragOffsets.value.size === 0) return nodePos.value;
     const out = new Map<string, Pos>();
@@ -213,7 +208,6 @@ export function useEndpointDependencyLayout(opts: LayoutOptions) {
     return out;
   });
 
-  // Filter calls whose endpoints survived the per-layer cap.
   const visibleCalls = computed<EndpointDependencyCall[]>(() => {
     const ids = new Set(nodePos.value.keys());
     return calls.value.filter((c) => ids.has(c.source) && ids.has(c.target));

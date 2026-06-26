@@ -56,9 +56,8 @@ const eventCount = computed<number>(() => all.value.length);
 </script>
 
 <template>
-  <!-- v-show (not v-if) so the toggle responds instantly — the
-       VNode tree stays mounted, only display flips. Saves the
-       re-mount + sticky-listener re-attach cost on every click. -->
+  <!-- v-show (not v-if) so the toggle responds instantly without paying
+       the re-mount + sticky-listener re-attach cost on every click. -->
   <div v-show="enabled" class="dbg" :class="['dbg-kind-' + latestKind, { open }]" data-no-event-track>
     <div v-show="open" class="dbg-popover">
       <header class="dbg-pop-head">

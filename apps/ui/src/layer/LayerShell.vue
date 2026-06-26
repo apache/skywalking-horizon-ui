@@ -409,7 +409,6 @@ async function copyShareLink(): Promise<void> {
   shareCopiedTimer = setTimeout(() => { shareCopied.value = false; }, 1400);
 }
 
-// ── Header identity ──────────────────────────────────────────────────
 function initialsFor(name: string): string {
   return name
     .split(/[\s_-]+/)
@@ -422,11 +421,10 @@ const displayName = computed(() => cfg.value?.displayName || layer.value?.name |
 const initials = computed(() => initialsFor(displayName.value));
 const serviceSlotLabel = computed(() => layer.value?.slots.services || 'services');
 
-// ── Tabs ─────────────────────────────────────────────────────────────
-// ── Header KPI strip ─────────────────────────────────────────────────
-// Picks at most 5 metrics from the layer's setup columns; service count
-// always leads. Each KPI is read from /api/layer/:key/landing.aggregates,
-// so it's the same value the Overview tile shows.
+// Header KPI strip: at most 5 metrics from the layer's setup columns;
+// service count always leads. Each KPI is read from
+// /api/layer/:key/landing.aggregates, so it's the same value the
+// Overview tile shows.
 interface HeaderKpi {
   label: string;
   value: number | null;

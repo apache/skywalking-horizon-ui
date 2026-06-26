@@ -85,9 +85,7 @@ watch(
   { immediate: true },
 );
 
-// ── Log scope (per-layer config) ───────────────────────────────────
-// Drives which condition selectors the conditions bar surfaces.
-// Mirrors booster-ui's ConditionTags / EntityType routing:
+// Log scope routes which condition selectors the bar surfaces (booster-ui parity):
 //   - 'service'  → instance + endpoint selectors (both optional)
 //   - 'instance' → endpoint selector only (instance is pinned)
 //   - 'endpoint' → instance selector only (endpoint is pinned)
@@ -100,12 +98,8 @@ const logScope = computed<'service' | 'instance' | 'endpoint'>(
 // "All" doesn't make sense.
 const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 
-// ── Instance picker. Always queries OAP's instance list; how the
-// picked value is used depends on `logScope`:
-//   - `instance` scope: pinned — the picker is the primary entity
-//     selector for the page.
-//   - `service` scope: optional narrower; null means "all instances".
-//   - `endpoint` scope: optional narrower as well.
+// How the picked instance is used depends on `logScope`: pinned primary
+// selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
 // Logs (and traces) intentionally do NOT auto-select an instance.
@@ -125,13 +119,9 @@ const selectedInstanceObj = computed(() =>
 );
 const instanceIdForQuery = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
 
-// ── Endpoint picker. Same shape — pinned when `logScope === 'endpoint'`,
-// optional narrower otherwise. Endpoint lists are unbounded so the
-// picker uses a search-keyword model (Enter to commit).
+// Endpoint lists are unbounded, so the picker uses a search-keyword model:
+// the typed value drives the OAP `findEndpoint` list via `update:query`.
 const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
-// Endpoint search-and-select combobox (EndpointCombo). Its debounced
-// search value rides up via `update:query` and drives the OAP
-// `findEndpoint` list; picking / clearing flows back through the events.
 const endpointQuery = ref('');
 const endpointLimit = ref(20);
 function pickEndpoint(name: string): void {
@@ -162,18 +152,12 @@ const selectedEndpointObj = computed(() =>
 );
 const endpointIdForQuery = computed<string | null>(() => selectedEndpointObj.value?.id ?? null);
 
-// ── Query state ────────────────────────────────────────────────────
-// Trace ID rides either from `?traceId=` in the URL (e.g. log row's
-// "↗ trace" link landing back on this tab) or from the operator's
-// explicit input on the conditions bar. The URL takes precedence so
-// shared / bookmarked URLs always restore the same view.
+// Trace ID rides from `?traceId=` in the URL or the operator's input. The URL
+// takes precedence so shared / bookmarked URLs restore the same view.
 const traceIdParam = computed(() => {
   const v = route.query[TRACE_POPOUT_QUERY];
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
-// Trace ID — bound directly to the input. Each keystroke updates the
-// query (no Pin/Clear button). URL `?traceId=` still wins so the
-// trace→log roundtrip keeps the pinned value.
 const traceIdInput = ref('');
 // Free-text content search is intentionally NOT exposed. OAP's
 // content-keyword filter is opt-in per storage backend (off on the
@@ -208,13 +192,11 @@ const {
 const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFilter, toggleLevel } =
   useLogTagConditions(page);
 
-// ── Manual-fire (applied snapshot) ─────────────────────────────────
-// The log stream + facet queries read these APPLIED conditions, not the
-// live draft refs, so editing instance / endpoint / trace-id / tags /
-// time stages the query without firing it. `applyConditions()` commits
-// the current draft; it runs on the initial service load, on each
-// "Run query", and on a service switch (a context change, not a filter
-// edit). `page`/`pageSize` stay live; there is no periodic refresh.
+// The log stream + facet queries read these APPLIED conditions, not the live
+// draft refs, so editing instance / endpoint / trace-id / tags / time stages
+// the query without firing it. `applyConditions()` commits the current draft;
+// it runs on initial service load, on each "Run query", and on a service
+// switch. `page`/`pageSize` stay live; there is no periodic refresh.
 interface AppliedLogConditions {
   service: string | null;
   instanceId: string | null;
@@ -302,11 +284,8 @@ function runQuery(): void {
   void refetchFacets();
 }
 
-// ── Density histogram (60 bins). Loki/Datadog style: stacked bars
-// per level over the visible page's time window. Counts come from
-// the loaded page only — total-window density would need a server
-// aggregation we don't have yet. -----------------------------------
-
+// Density histogram counts come from the loaded page only — total-window
+// density would need a server aggregation we don't have yet.
 const LEVEL_ORDER = ['error', 'warn', 'info', 'debug', 'other'] as const;
 type Level = typeof LEVEL_ORDER[number];
 const LEVEL_COLOR: Record<Level, string> = {
@@ -333,27 +312,20 @@ const histogram = useDensityBins<LogRow, Level>(logs, {
   keyOf: levelOf,
 });
 
-// ── Facets — server-side aggregated across a larger window sample
-// (default 200 rows). When the facet fetch hasn't returned yet we
-// fall back to counts derived from the visible page so the rail
-// never goes empty.
+// Server-side level facets; until the facet fetch returns, fall back to
+// counts from the visible page so the rail never goes empty.
 const levelFacet = computed<Record<Level, number>>(() => {
   if (facets.value?.level) return facets.value.level;
   const counts: Record<Level, number> = { error: 0, warn: 0, info: 0, debug: 0, other: 0 };
   for (const r of logs.value) counts[levelOf(r)] += 1;
   return counts;
 });
-// Service facet removed — the log query is already service-scoped
-// (the view is opened from /layer/<key>/logs with a specific service
-// selected), so a "top services" rail just repeats the title.
+// No service facet: the log query is already service-scoped, so a
+// "top services" rail would just repeat the title.
 
-// Since the level filter now goes to OAP, the visible logs already
-// reflect it — no client-side narrowing needed.
+// The level filter goes to OAP, so the visible logs already reflect it.
 const filteredLogs = computed<LogRow[]>(() => logs.value);
 
-// ── Log payload popout — a row click opens the shared LogDetailPopout
-// (format-aware pretty-print + copy + key/value tag table + trace link).
-// The popout owns its own Escape / close + format detection.
 const popoutRow = ref<LogRow | null>(null);
 function onRowClick(r: LogRow): void {
   popoutRow.value = r;
@@ -402,8 +374,6 @@ watch(
         <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">Run query</button>
       </div>
       <div class="lg-conditions">
-        <!-- Instance / Sidecar picker. `All` is the default for every
-             scope; pinning an instance is opt-in via the dropdown. -->
         <label class="cf">
           <span>{{ logScope === 'instance' ? 'Sidecar' : 'Instance' }}</span>
           <select
@@ -416,9 +386,6 @@ watch(
             <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
           </select>
         </label>
-        <!-- Endpoint combobox = search + dropdown in one component.
-             Type to filter the OAP list via `endpointQuery`; click an
-             item to pick. Width: 2 columns so long endpoint paths fit. -->
         <div class="cf cf-wide">
           <span>Endpoint</span>
           <EndpointCombo
@@ -431,8 +398,6 @@ watch(
             @clear="clearEndpoint"
           />
         </div>
-        <!-- Trace ID. Bound directly — each keystroke updates the
-             query. URL `?traceId=` still overrides. -->
         <label class="cf cf-wide">
           <span>Trace ID</span>
           <input
@@ -444,7 +409,6 @@ watch(
             placeholder="paste trace id…"
           />
         </label>
-        <!-- Tags — single key=value input + custom autocomplete. -->
         <label class="cf cf-wide">
           <span>Tags</span>
           <TagInput
@@ -454,8 +418,6 @@ watch(
             @commit="addTagFilter"
           />
         </label>
-        <!-- Time range — presets + Custom… that swaps to two
-             datetime-local inputs (matches the trace tab). -->
         <label class="cf" :class="{ 'cf-wide': isCustomRange }">
           <span>Time range</span>
           <template v-if="isCustomRange">
@@ -481,8 +443,6 @@ watch(
           </select>
         </label>
       </div>
-      <!-- Active tag chips — same markup / class names as the trace
-           tab's `tr-tag-row` so the two pages read identically. -->
       <div v-if="customTags.length > 0" class="tr-tag-row">
         <span class="tag-row-label">Active tags</span>
         <span class="tag-chips">
@@ -498,21 +458,12 @@ watch(
       <strong>Logs feed failed.</strong> {{ String(error) }}
     </div>
 
-    <!-- Histogram + main stream -->
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <!-- Manual-fire: until the operator runs a query, hide the whole
-             results stack and show the same "pick conditions" prompt the
-             Traces tab uses (see `hasQueried`). -->
         <div v-if="!hasQueried" class="lg-empty">
           Pick your conditions, then click Run query.
         </div>
         <template v-else>
-        <!-- Top-of-table legend strip — one chip per level with the
-             in-window count when data exists. Clickable: toggles the
-             level filter. The service axis is intentionally absent
-             (this query is already service-scoped, so the service
-             dimension carries no information). -->
         <div v-if="facets || logs.length > 0" class="lg-legend">
           <span class="lg-legend-kicker">Levels</span>
           <button
@@ -533,19 +484,11 @@ watch(
           </span>
         </div>
 
-        <!-- Density bar — x: time, y: count, color: level. The shared
-             DensityHistogram owns the hover tooltip + axis; we feed it
-             the binned data + the level keys/colours. -->
         <DensityHistogram :data="histogram" :keys="LEVEL_ORDER" :colors="LEVEL_COLOR" />
 
-        <!-- Stream -->
         <div v-if="filteredLogs.length === 0" class="lg-empty">
           {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
         </div>
-        <!-- Row click → open the full-payload popout. The dense row
-             rendering is the shared `LogStreamPanel` (same markup the
-             cross-layer Log inspect uses); the popout + density bar +
-             facets stay in this view. -->
         <LogStreamPanel
           v-else
           :rows="filteredLogs"
@@ -568,8 +511,6 @@ watch(
       </div>
     </section>
 
-    <!-- Full-payload popout. Format-aware pretty-print + copy button +
-         tag table + trace link. Escape or backdrop click closes. -->
     <LogDetailPopout
       :row="popoutRow"
       @close="popoutRow = null"
@@ -615,14 +556,10 @@ watch(
   flex: 1;
   min-width: 320px;
 }
-/* Trace-style toolbar layout (same voice as `LayerTracesView`). */
 .lg-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .lg-toolbar-head { display: flex; align-items: center; gap: 10px; width: 100%; }
-/* Run-query button: SkyWalking orange, sits at the right edge of the
-   toolbar head row. Matches `LayerTracesView.tr-run-btn` exactly so the
-   two pages read identically. `.sw-btn.primary` is locally scoped per
-   page (each view declares its own styling); copying the rule keeps
-   the visual stable without dragging in a shared global. */
+/* `.sw-btn.primary` is locally scoped per page (each view declares its own);
+   the rule is copied to keep the visual stable without a shared global. */
 .lg-run-btn { margin-left: auto; }
 .sw-btn.primary {
   background: var(--sw-accent);
@@ -701,9 +638,6 @@ watch(
   padding: 0;
   min-height: 540px;
 }
-/* Top-of-table level legend — chips sit above the density bar so the
-   level counts surface at the same scan line the user reads the
-   timeline. Clicking a chip filters the stream to that level. */
 .lg-legend {
   display: flex;
   align-items: center;
@@ -800,8 +734,6 @@ watch(
   .lg-legend-chip { padding: 2px 7px; font-size: 11px; }
 }
 
-/* Active tag chips — markup + visuals lifted from `LayerTracesView`
-   so the two pages read identically. */
 .tr-tag-row {
   display: flex;
   align-items: center;

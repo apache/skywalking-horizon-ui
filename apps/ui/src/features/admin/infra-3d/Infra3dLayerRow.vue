@@ -170,7 +170,6 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
 .row-spacer { flex: 1 1 auto; min-width: 8px; }
 .tier-select { flex: 0 0 130px; }
 
-/* Inputs (shared with the host editor). */
 .inp {
   height: 24px;
   padding: 0 8px;
@@ -184,7 +183,6 @@ function onMetric(field: 'mqe' | 'label' | 'unit', e: Event): void {
 .inp.mono { font-family: var(--sw-mono-font, ui-monospace, monospace); font-size: 11px; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
 
-/* Buttons (shared with the host editor). */
 .btn {
   height: 26px;
   padding: 0 12px;

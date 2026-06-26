@@ -310,8 +310,6 @@ async function resolveServiceId(
   );
 }
 
-// ── Process-relation metrics (network-profiling edge panel) ──────────
-
 interface MqeEnv {
   error?: string | null;
   results?: Array<{ values?: Array<{ value: string | number | null }> }>;
@@ -372,7 +370,6 @@ const LIST_PROCESSES = /* GraphQL */ `
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
   const auth = requireAuth(deps);
 
-  // ── list tasks + couldProfiling metadata ──────────────────────────
   app.get(
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
@@ -414,7 +411,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── create task ───────────────────────────────────────────────────
   app.post(
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
@@ -463,7 +459,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── per-task schedules ────────────────────────────────────────────
   app.get(
     '/api/ebpf/tasks/:taskId/schedules',
     { preHandler: auth },
@@ -485,7 +480,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── network profiling ─────────────────────────────────────────────
   /** List network-profile tasks for a service. Same OAP entry-point as
    *  ON_CPU/OFF_CPU tasks, with target=NETWORK. OAP stores network tasks
    *  with trigger FIXED_TIME (EBPFProfilingMutationService sets
@@ -669,7 +663,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── analyze ───────────────────────────────────────────────────────
   app.post(
     '/api/ebpf/analyze',
     { preHandler: auth },

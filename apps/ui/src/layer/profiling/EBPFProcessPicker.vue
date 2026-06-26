@@ -54,17 +54,15 @@ function anchorPicker(): void {
   const el = pickerBtnEl.value;
   if (!el) return;
   const r = el.getBoundingClientRect();
-  // Default: drop down below the button. If there's not enough room
-  // below, flip up so the body fits without being clipped at the
-  // viewport bottom. 12px gap from the button edge.
+  // Flip up when there's not enough room below, so the body isn't clipped
+  // at the viewport bottom.
   const gap = 8;
   const spaceBelow = window.innerHeight - r.bottom - gap;
   const wantDown = spaceBelow >= 240 || spaceBelow >= r.top - gap;
   pickerPos.top = wantDown
     ? r.bottom + gap
     : Math.max(8, r.top - gap - PICKER_MAX_HEIGHT);
-  // Right-align so the popout sits under the trigger's right edge,
-  // matching standard dropdown anchoring. Clamp to viewport (8px gutter).
+  // Right-align under the trigger's right edge, clamped to viewport.
   const wantLeft = Math.min(
     r.right - PICKER_WIDTH,
     window.innerWidth - PICKER_WIDTH - 8,
@@ -86,7 +84,6 @@ function onPickerOutsideMouseDown(ev: MouseEvent): void {
   const target = ev.target as Node;
   // Trigger button toggles via its own @click; ignore.
   if (pickerBtnEl.value && pickerBtnEl.value.contains(target)) return;
-  // Click inside the popout itself stays open.
   const popout = document.querySelector('.process-picker-pop');
   if (popout && popout.contains(target)) return;
   closeProcessPicker();
@@ -94,7 +91,6 @@ function onPickerOutsideMouseDown(ev: MouseEvent): void {
 function onPickerKeyDown(ev: KeyboardEvent): void {
   if (ev.key === 'Escape' && showProcessPicker.value) closeProcessPicker();
 }
-// Per-row expand/fold inside the popout. Tracked as a Set for O(1) toggle.
 const expandedProcessIds = ref<Set<string>>(new Set());
 function toggleProcessExpanded(id: string): void {
   const next = new Set(expandedProcessIds.value);
@@ -125,9 +121,6 @@ function toggleProcessId(id: string): void {
   emit('update:modelValue', next);
 }
 
-// Wire the picker's outside-click + ESC + resize listeners only while
-// it's open. Symmetric attach/detach keeps the document free of stray
-// listeners when the picker is closed (cheap, but the right shape).
 watch(showProcessPicker, (open) => {
   if (open) {
     window.addEventListener('resize', anchorPicker);
@@ -161,10 +154,6 @@ onBeforeUnmount(() => {
     </button>
   </div>
 
-  <!-- Picker popout — teleported to <body> so it overlays the
-       layer-tab card instead of pushing the flamegraph down. Anchor
-       rect lives on `pickerPos`; click-outside + ESC dismiss are
-       wired in via setup-level watchers. -->
   <Teleport to="body">
     <div
       v-if="showProcessPicker"
@@ -201,17 +190,11 @@ onBeforeUnmount(() => {
         </div>
         <div v-if="!filteredProcesses.length" class="empty">No matches.</div>
         <template v-for="p in filteredProcesses" :key="p.id">
-          <!-- Row click toggles the detail panel. Selection (pin/
-               unpin) lives entirely on the checkbox — clicking the
-               row body has no effect on selection. This split keeps
-               the "let me read the details" gesture from
-               accidentally pinning a process the operator didn't
-               mean to include in the analyze. The checkbox cell
-               uses `@click.stop` so clicks inside it don't bubble
-               up and trigger the row's expand toggle. The chevron
-               has no own handler — clicking the button bubbles to
-               the row's expand toggle, giving keyboard users a
-               focusable expand affordance for free. -->
+          <!-- Row click toggles the detail panel; pin/unpin lives only on
+               the checkbox. The checkbox cell uses `@click.stop` so its
+               clicks don't bubble to the row's expand toggle. The chevron
+               button has no own handler — its click bubbles to the row's
+               expand toggle, giving keyboard users a focusable affordance. -->
           <div
             class="pr"
             :class="{ on: modelValue.includes(p.id) }"
@@ -259,12 +242,8 @@ onBeforeUnmount(() => {
                   <span v-for="l in p.labels" :key="l" class="pe-chip">{{ l }}</span>
                 </dd>
               </div>
-              <!-- Attributes flattened to first-level dl rows.
-                   A thin "ATTRIBUTES" rule sits above the first one
-                   so operators read "these are OAP-reported process
-                   attributes" vs. the fixed identity rows above.
-                   The label is a divider hint, NOT a header — the
-                   rows themselves still live at the same level. -->
+              <!-- The "ATTRIBUTES" label is a divider hint, NOT a header —
+                   the attribute rows still live at the same dl level. -->
               <div v-if="(p.attributes ?? []).length" class="pe-sep">
                 <span class="pe-sep-label">Attributes</span>
               </div>
@@ -376,12 +355,8 @@ onBeforeUnmount(() => {
   color: var(--sw-accent);
 }
 
-/* Expanded detail panel — full-width, sits directly under its row,
- * shares the picker's vertical scroll. Mono fonts on values for the
- * grep-friendly fields (`command_line`, `container.id`, agent UUIDs).
- * Removes the truncating ellipsis: each attribute is on its own line
- * with overflow-wrap so monstrous JVM command lines wrap inside the
- * box instead of pushing past it. */
+/* Expanded detail panel. overflow-wrap (vs. the row ellipsis) so long JVM
+ * command lines wrap inside the box instead of pushing past it. */
 .pr-expand {
   background: var(--sw-bg-2);
   border-bottom: 1px solid var(--sw-line);
@@ -424,11 +399,9 @@ onBeforeUnmount(() => {
   margin: 0 4px 4px 0;
   font-size: 10.5px;
 }
-/* Separator between the fixed identity rows (Process / Service / …)
- * and the OAP-reported attribute rows. A 1px dashed rule with a small
- * uppercase "ATTRIBUTES" caption sitting on top — purely a visual
- * divider; the attribute rows below it stay structurally at the same
- * dl level so the grid alignment carries through. */
+/* Purely a visual divider between the identity rows and the attribute
+ * rows; the attribute rows stay at the same dl level so the grid alignment
+ * carries through. */
 .pe-sep {
   margin: 6px 0 4px;
   border-top: 1px dashed var(--sw-line);

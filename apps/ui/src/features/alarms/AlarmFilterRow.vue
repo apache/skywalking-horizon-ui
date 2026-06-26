@@ -39,7 +39,6 @@ const { availableLayers } = useLayers();
 </script>
 
 <template>
-  <!-- ── Filter row — conditional on capabilities.queryAlarms ──── -->
   <div v-if="hasQueryAlarms" class="ax__filters">
     <label class="ax__filter">
       <span>{{ t('Layer') }}</span>
@@ -112,7 +111,6 @@ const { availableLayers } = useLayers();
 </template>
 
 <style scoped>
-/* Filter row (re-used styles from the prior view) */
 .ax__filters {
   display: flex;
   flex-wrap: wrap;

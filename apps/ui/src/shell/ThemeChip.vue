@@ -45,11 +45,8 @@ function onThemeChipBlur(e: FocusEvent): void {
 </script>
 
 <template>
-  <!-- ── Theme chip ────────────────────────────────────────────
-    Labeled with the current theme name so operators can find it
-    without guessing the icon. The small dot indicates an active
-    user override (theme differs from org default). Click opens a
-    popover with the 5 themes + Reset. -->
+  <!-- The small dot indicates an active user override (theme differs
+       from org default). -->
   <div ref="themeChipEl" class="theme-chip-cluster" tabindex="-1" @focusout="onThemeChipBlur">
     <button
       type="button"
@@ -85,9 +82,7 @@ function onThemeChipBlur(e: FocusEvent): void {
 </template>
 
 <style scoped>
-/* ── Theme chip ────────────────────────────────────────────────────
-   Mirrors `refresh-cluster` — a small icon button + popover. The dot
-   surfaces when the user has a local theme override active. */
+/* Mirrors `refresh-cluster` — a small icon button + popover. */
 .theme-chip-cluster {
   position: relative;
   display: inline-flex;

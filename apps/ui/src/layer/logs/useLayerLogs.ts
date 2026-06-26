@@ -140,7 +140,7 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
   };
 }
 
-// Log tag autocomplete now uses OAP's native `queryLogTagAutocomplete`
+// Log tag autocomplete uses OAP's native `queryLogTagAutocomplete`
 // endpoints (mirrors booster-ui's ConditionTags) via the BFF helpers
 // `bffClient.log.tagKeys()` + `bffClient.log.tagValues(key)`. Called
 // directly from `LayerLogsView` — no composable needed since they're

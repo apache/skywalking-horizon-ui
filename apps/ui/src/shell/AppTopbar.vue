@@ -50,10 +50,6 @@ const isLightAppearance = computed<boolean>(
 
 <template>
   <header class="sw-top">
-    <!-- When the sidebar is folded, its wordmark is hidden — show the
-         brand (logo + name) here so the product identity stays visible.
-         Otherwise the left zone stays empty (the framework-event feed
-         moved to the bottom-fixed DebugEventPanel). -->
     <RouterLink v-if="sidebarCollapsed" to="/" class="top-brand" aria-label="SkyWalking Horizon">
       <span class="top-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
       <small>Horizon</small>
@@ -67,11 +63,9 @@ const isLightAppearance = computed<boolean>(
       <AutoRefreshChip />
       <AlarmBadgeChip />
       <ThemeChip />
-      <!-- Locale picker. Sits next to the theme chip so the two
-           operator-overridable surfaces (theme + language) cluster
-           together. Pick is persisted to localStorage and invalidates
-           every active vue-query so BFF-localized payloads (menu /
-           layer dashboards / overviews) refetch in the new locale. -->
+      <!-- A locale pick invalidates every active vue-query so BFF-localized
+           payloads (menu / layer dashboards / overviews) refetch in the
+           new locale. -->
       <LocaleChip />
     </div>
   </header>

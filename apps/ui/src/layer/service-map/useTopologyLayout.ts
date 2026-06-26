@@ -47,9 +47,9 @@ import { isUserNode } from '@/layer/service-map/useTopologyIcons';
  */
 export const NODE_R = 32;
 export const COL_GAP = 220;
-// Each row used to be NODE_R*2 + 90 = 154px tall; bump ~20% so the
-// secondary node beneath a spine node has more breathing room and the
-// diagonal calls reach a clearly distinct row instead of crowding it.
+// ~20% taller than the bare NODE_R*2 + 90 so the secondary node beneath
+// a spine node has breathing room and diagonal calls reach a clearly
+// distinct row instead of crowding it.
 export const ROW_GAP = Math.round((NODE_R * 2 + 90) * 1.2);
 
 // Group bounding-box paddings. Top padding is bigger so the alias chip

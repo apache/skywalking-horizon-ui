@@ -111,7 +111,6 @@ export class AlarmsStore {
         overviewAlarmsLimit?: unknown;
       };
 
-      // Prefer the new shape when present.
       let pinned: string[] | null = null;
       if (Array.isArray(parsed.pinnedLayers)) {
         pinned = parsed.pinnedLayers.filter(

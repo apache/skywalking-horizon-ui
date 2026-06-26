@@ -119,7 +119,6 @@ const emit = defineEmits<{
   (e: 'nodes-by-layer', byLayer: Record<string, SceneServiceNode[]>): void;
 }>();
 
-// ── Graph + placement ────────────────────────────────────────────────
 // Build with the config-aware level resolver so each layer lands on
 // its admin-configured plane. The parent guarantees the config is
 // loaded before mounting this component (see Infra3DView.vue), so
@@ -300,7 +299,6 @@ const {
   hierarchyTubes,
 } = edges;
 
-// ── Shared geometries + materials ─────────────────────────────────────
 // All shared geometries / materials live in useSceneMaterials (cache-and-
 // dispose factory); destructure the handful the template + frame loop
 // reference directly.
@@ -328,7 +326,7 @@ const {
   rippleMats,
 } = mats;
 
-// ── Opt decorative geometry out of pointer picking ───────────────────
+// Opt decorative geometry out of pointer picking.
 // TresJS dispatches pointer events via THREE.Raycaster against every
 // mesh in the scene — closest hit wins, regardless of whether the
 // closest mesh carries a click handler. So a 0.18-radius traffic
@@ -371,7 +369,7 @@ const planeSlabs = placement.planes.map((P) => {
   };
 });
 
-// ── Animated traffic packets — call edges only. ────────────────────────
+// Animated traffic packets — intra-layer call edges only.
 interface Packet {
   curve: CatmullRomCurve3;
   phase: number;
@@ -439,11 +437,6 @@ function bindRipple(r: AlarmRipple, el: unknown): void {
   if (obj) obj.raycast = _noopRaycast;
 }
 
-// ── Frame loop: animate packets + lerp the orbit controls' target
-// toward the caller's focus target (when the operator clicks a node
-// or a zone). Also recomputes which zone labels overflow their
-// projected zone footprint. Both run against the live THREE objects
-// so mouse-driven changes and programmatic changes stay in sync. ──
 // Camera controller — owns the THREE camera + OrbitControls plumbing and
 // the toolbar action methods (re-exposed below). `camGoal` is the side-
 // panel focus goal the frame loop glides toward.
@@ -621,8 +614,6 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   }
 }
 
-// ── Pointer interactions ─────────────────────────────────────────────
-//
 // All diagnostic logging is gated on `window.__INFRA3D_DEBUG__`.
 // Toggle on in DevTools (`window.__INFRA3D_DEBUG__ = true`) when
 // click / hover flow misbehaves and you need to see which path a
@@ -687,7 +678,7 @@ function onNodeClick(node: SceneServiceNode): void {
   emit('select', node);
 }
 
-// ── Stable per-node handler cache ────────────────────────────────────
+// Stable per-node handler cache.
 // TresJS's `nodeOps.patchProp` calls `node.addEventListener(type, fn)`
 // on every prop patch but never removes the previous handler. THREE's
 // `addEventListener` dedupes by REFERENCE — so a fresh arrow function
@@ -862,21 +853,14 @@ const openDashboardHref = computed<string>(() => {
   return `${base}layer/${n.layerKey}/service?service=${encodeURIComponent(n.serviceId)}`;
 });
 
-// ── Detail-card side: flip to whichever side of the canvas has more
-//    room. Recomputed during the render loop alongside the label-hide
-//    pass so it tracks orbit / pan / zoom. The card itself is
-//    portaled by cientos <Html> at the cube's projected position;
-//    `selectedSide` controls a CSS class that translates the card
-//    horizontally either to the right of the cube (`side=right`) or
-//    to the left (`side=left`).
+// Detail-card side: flip to whichever side of the canvas has more room,
+// recomputed in the render loop so it tracks orbit / pan / zoom.
 //
-//    Hysteresis on the flip: when the cube projects close to the
-//    canvas centerline a naive `x < 0` rule would oscillate on every
-//    sub-pixel camera move and the card would visually flash between
-//    the two sides. We only flip when the cube has clearly crossed
-//    to the OPPOSITE half (|NDC.x| > 0.25), AND we re-pick freely
-//    the first time a new node is selected (so the initial side is
-//    always correct).
+// Hysteresis on the flip: near the canvas centerline a naive `x < 0`
+// rule oscillates on every sub-pixel camera move and the card flashes
+// between sides. We only flip when the cube clearly crosses to the
+// OPPOSITE half (|NDC.x| > 0.25), AND re-pick freely the first time a
+// new node is selected (so the initial side is always correct).
 const selectedSide = ref<'left' | 'right'>('right');
 let lastSidedNodeId: string | null = null;
 const _projVec = new Vector3();
@@ -1039,7 +1023,6 @@ onUnmounted(() => {
         </TresMesh>
       </template>
 
-      <!-- Side-panel selection flash. -->
       <TresMesh
         v-for="z in flashRender"
         :key="`flash:${z.layerKey}`"
@@ -1210,7 +1193,6 @@ onUnmounted(() => {
         <primitive :object="callPacketMat" />
       </TresMesh>
 
-      <!-- Cross-layer call-edge packets — flow caller→callee. -->
       <TresMesh
         v-for="(p, pi) in crossPackets"
         :key="`xpkt:${pi}`"

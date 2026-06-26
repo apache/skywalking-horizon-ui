@@ -195,12 +195,9 @@ function incidentEntity(i: AlarmIncident): string {
 <template>
   <section class="sw-card alarms-widget">
     <header>
-      <!-- Two rows. Row 1 carries the identity (title + tip) and the
-           View-all link. Row 2 carries the secondary metadata — window
-           + active count — so the title isn't crushed by it on narrow
-           widgets. An empty rail isn't mistaken for "no alarms"
-           overall because the operator still sees the window slice on
-           row 2. -->
+      <!-- Window + active count live on row 2, not next to the title:
+           the operator still sees the window slice when the rail is
+           empty, so an empty rail isn't read as "no alarms" overall. -->
       <div class="aw-row-top">
         <h4>{{ title }}</h4>
         <WidgetTip :tip="tip" />

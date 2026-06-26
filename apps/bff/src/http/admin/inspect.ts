@@ -101,8 +101,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     return buildOapClients(deps.config.current, { fetch: deps.fetch });
   }
 
-  // ── /api/inspect/metrics ─────────────────────────────────────────
-
   app.get(
     '/api/inspect/metrics',
     { preHandler: auth },
@@ -131,7 +129,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 
-  // ── /api/inspect/catalog ─────────────────────────────────────────
   // Merges `/inspect/metrics` with Studio's rule-file attribution
   // (source + file per metric). This is the endpoint the Inspect
   // page's catalog drawer hits — the raw `/api/inspect/metrics`
@@ -176,7 +173,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 
-  // ── /api/inspect/server-time ─────────────────────────────────────
   // Caches OAP's `getTimeInfo` so the SPA can display dates in browser
   // local TZ while sending server-TZ strings to OAP.
 
@@ -197,7 +193,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 
-  // ── /api/inspect/exec ────────────────────────────────────────────
   // Fires `mutation execExpression` against the resolved MQE base
   // and returns the `ExpressionResult` payload verbatim.
 
@@ -237,8 +232,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       }
     },
   );
-
-  // ── /api/inspect/entities ────────────────────────────────────────
 
   app.get(
     '/api/inspect/entities',
@@ -305,7 +298,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 
-  // ── /api/inspect/values ──────────────────────────────────────────
   // Reads VALUES of FOREIGN metric(s) the connected OAP doesn't define,
   // via OAP's admin-port `POST /inspect/values` (returns the same
   // ExpressionResult shape as execExpression). This is the value path
@@ -328,8 +320,6 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
     },
   );
 }
-
-// ── helpers ───────────────────────────────────────────────────────
 
 /** Parse the foreign-metric `valueColumn` / `valueType` pair. Returns an
  *  empty object for an aware request (neither supplied), the validated pair

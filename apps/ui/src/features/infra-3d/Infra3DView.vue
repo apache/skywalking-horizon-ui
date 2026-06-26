@@ -118,11 +118,9 @@ const planeOrder = computed<PlaneSpec[]>(() =>
 );
 
 
-// ── Loading pipeline ─────────────────────────────────────────────────
 // The loading-stage registries + FULL / LIGHT run orchestration + the 60s
 // auto-refresh timer live in useInfra3dLoader; it publishes `liveTopo` (the
-// scene's render source) and the pipeline-timeline state. Instantiated
-// below once planeOrder is in hand.
+// scene's render source) and the pipeline-timeline state.
 
 // Live data is the default. `?live=0` forces the committed snapshot (a
 // debug / comparison escape hatch). `liveTopo` (from the loader) holds the
@@ -246,10 +244,8 @@ function onSelect(node: SceneServiceNode | null): void {
     selectedNodeId.value = node.nodeId;
   }
 }
-// ── Camera toolbar handlers — straight pass-through to the scene
-//    handle. The numeric scales are tuned to feel like one "step" of
-//    a typical scroll-zoom / drag-rotate, so each click is a small
-//    nudge an operator can chain. ─────────────────────────────────────
+// The numeric scales are tuned to feel like one "step" of a typical
+// scroll-zoom / drag-rotate, so each toolbar click is a chainable nudge.
 function btnZoomIn(): void {
   sceneRef.value?.zoom(0.8);
 }
@@ -271,20 +267,12 @@ function btnReset(): void {
   selectedNodeId.value = null;
 }
 
-// ── Keyboard pan ─────────────────────────────────────────────────────
-// Arrow keys nudge the orbit center along the camera's screen-relative
-// axes (up = pan up, left = pan left, …). Holding the key auto-repeats
-// via the browser's native keydown repeat. WASD aliases the same
-// gestures so a gamer-style operator can drive the scene without
-// reaching for the arrow cluster.
-//
-// We attach to `window` so the keys work without first clicking the
-// canvas — but only suppress the default when the focus isn't on a
-// text input (the side panel doesn't have any, so this is just defence
-// against future inputs added to this view).
+// Arrow keys / WASD nudge the orbit center along the camera's
+// screen-relative axes. Attached to `window` so the keys work without
+// first clicking the canvas — input-focus is excluded below so future
+// text inputs added to this view aren't hijacked.
 function onKeyDown(e: KeyboardEvent): void {
   const tgt = e.target as HTMLElement | null;
-  // Don't hijack typing if the operator happens to be in an input.
   if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.isContentEditable)) {
     return;
   }
@@ -395,10 +383,6 @@ function onPanelZoneFocus(zoneKey: string): void {
 
 <template>
   <div class="infra3d">
-    <!-- Floating top bar — sits above the scene rather than taking
-         vertical space, so the WebGL canvas gets the full viewport.
-         Compact and unobtrusive; the operator's eye lands on the
-         scene first, the chrome is glanceable when they need stats. -->
     <header class="bar floating">
       <div class="title">
         <template v-if="focusLayer">
@@ -414,8 +398,6 @@ function onPanelZoneFocus(zoneKey: string): void {
           <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
         </template>
       </div>
-      <!-- Counts + query-scope live in the bottom status strip; the
-           header keeps only the title and the exit affordance. -->
       <div class="stats">
         <router-link class="back" to="/" title="Exit 3D map">×</router-link>
       </div>
@@ -455,9 +437,8 @@ function onPanelZoneFocus(zoneKey: string): void {
         @nodes-by-layer="onNodesByLayer"
       />
 
-      <!-- Top-left camera-control toolbar. Mouse rotate/zoom/pan still
-           work; these buttons give explicit affordances for the same
-           gestures (useful on trackpads + as a discoverability cue). -->
+      <!-- Explicit affordances for the same mouse rotate/zoom/pan
+           gestures — useful on trackpads + as a discoverability cue. -->
       <aside v-if="sceneReady" class="cam-tools">
         <div class="cam-row">
           <button class="cam-btn" title="zoom in" @click="btnZoomIn">＋</button>
@@ -476,8 +457,6 @@ function onPanelZoneFocus(zoneKey: string): void {
         </div>
       </aside>
 
-      <!-- Beacon mode toggle — dims the scene to wireframe so only
-           alarming cubes stand out. Sits under the camera toolbar. -->
       <button
         v-if="sceneReady"
         class="beacon-toggle"
@@ -511,10 +490,6 @@ function onPanelZoneFocus(zoneKey: string): void {
         @refresh="loader.refreshNow"
       />
 
-      <!-- Bottom-left brand mark — anchors the standalone view to the
-           SkyWalking product identity. No link / no chrome; pure
-           identification so an operator opening the page mid-incident
-           still knows where they are. -->
       <!-- router-link, not a bare <a href="/">: a hardcoded "/" ignores
            the router base (import.meta.env.BASE_URL) and full-reloads to
            the server root, which lands on an empty page under a gateway
@@ -540,9 +515,6 @@ function onPanelZoneFocus(zoneKey: string): void {
   background: var(--sw-bg-0);
   overflow: hidden;
 }
-/* Floating top bar — overlays the canvas so the scene gets the full
-   viewport. Compact, glass-backed, with a small × that returns the
-   operator to the rest of Horizon. */
 .bar.floating {
   position: absolute;
   top: 12px;
@@ -664,11 +636,6 @@ function onPanelZoneFocus(zoneKey: string): void {
 }
 
 
-/* Detail card moved INTO the Scene component as a cientos <Html>
-   anchored at the selected cube — its styles now live alongside the
-   floating tooltip in Infra3DScene.vue's non-scoped style block. */
-
-/* ── Top-left camera toolbar ─────────────────────────────────────── */
 .cam-tools {
   position: absolute;
   top: 60px;

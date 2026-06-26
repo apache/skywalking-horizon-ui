@@ -81,14 +81,10 @@ export function buildFragment(
     coldStage?: boolean;
   } = {},
 ): string {
-  // We fetch metric.labels (for multi-series Line widgets — relabels()
-  // returns one labeled result per percentile) and value.id /
-  // owner.endpointName (for TopList widgets — top_n() returns a
-  // sorted list of entities + values).
-  //
-  // layerScope=true skips the serviceName filter so the MQE runs
-  // across the whole layer — used for cross-service rollups like the
-  // "Top 20 endpoints" widget on the per-layer Service page.
+  // The selection set fetches metric.labels (multi-series Line widgets —
+  // relabels() returns one labeled result per percentile) and value.id /
+  // owner.endpointName (TopList widgets — top_n() returns a sorted list of
+  // entities + values).
   let entity: string;
   if (opts.layerScope) {
     entity = '{ scope: All }';

@@ -15,12 +15,9 @@
   limitations under the License.
 -->
 <!--
-  Per-layer Traces tab dispatcher. Routes route `/layer/:key/trace` to
-  either `LayerTracesView.vue` (SkyWalking-native) or
-  `LayerZipkinTracesView.vue` based on the layer template's
-  `traces.source` flag. For `source: 'both'` we render a small
-  source-toggle bar above the active view so the operator can flip
-  between the two trace stores.
+  Per-layer Traces tab dispatcher. Routes `/layer/:key/trace` to either
+  `LayerTracesView.vue` (SkyWalking-native) or `LayerZipkinTracesView.vue`
+  based on the layer template's `traces.source` flag.
 
   The router can't make this decision statically (it has no menu data
   at route-resolve time), so this dispatcher reads `useLayers()`

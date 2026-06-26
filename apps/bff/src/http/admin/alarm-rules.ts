@@ -146,7 +146,6 @@ function pivot(
   }));
   const totalNodes = nodes.length || 1;
 
-  /* Build per-rule node membership from the list envelope. */
   const perRuleNodes = new Map<string, Set<string>>();
   for (const inst of listResp.oapInstances) {
     if (!inst.status) continue;
@@ -199,7 +198,6 @@ export function registerAlarmRulesRoutes(
     return buildOapClients(deps.config.current, { fetch: deps.fetch }).alarmStatus();
   }
 
-  // ── GET /api/admin/alarm-rules ────────────────────────────────────
   app.get(
     '/api/admin/alarm-rules',
     { preHandler: auth },
@@ -249,7 +247,6 @@ export function registerAlarmRulesRoutes(
     },
   );
 
-  // ── GET /api/admin/alarm-rules/:id ────────────────────────────────
   app.get(
     '/api/admin/alarm-rules/:id',
     { preHandler: auth },
@@ -295,7 +292,6 @@ export function registerAlarmRulesRoutes(
     },
   );
 
-  // ── GET /api/admin/alarm-rules/:id/context?entity=… ───────────────
   // `entity` rides as a query param (not a path segment) because entity
   // names carry `::` and may carry `/` (endpoint scope) — path-segment
   // encoding of those is a portability minefield across proxies.

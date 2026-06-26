@@ -194,7 +194,6 @@ watchEffect(() => {
   }
 });
 
-// ── New-dashboard composer ─────────────────────────────────────────
 const newDashOpen = ref(false);
 const newDashError = ref<string | null>(null);
 
@@ -245,7 +244,6 @@ function createDash(payload: { id: string; title: string; description: string })
   setFlash(`created local draft · ${id} — edit, preview, then “Check diff & push”.`);
 }
 
-// ── Preview pane ──────────────────────────────────────────────────
 /* Lightweight layout preview — recreates the dashboard's grid + a
  * summary card per widget (kind / title / KPI labels) so the
  * operator can see "is the layout right?" without saving + tab-
@@ -263,7 +261,6 @@ const selectedWidgetId = ref<string | null>(null);
 function selectWidget(id: string): void {
   selectedWidgetId.value = id;
 }
-// Drop the selection when the dashboard changes.
 watch(selectedId, () => {
   selectedWidgetId.value = null;
 });
@@ -284,7 +281,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEditorKey));
 // cache so even a fresh fetch sees live OAP state.
 onMounted(() => void refreshConfigBundle({ force: true }));
 
-// ── Delete current dashboard ───────────────────────────────────────
 // A local-only draft (never pushed) is truly removed from the browser —
 // a real hard delete, it was never on OAP. Anything on OAP (bundled or
 // remote-only) is soft-disabled, because OAP has no hard DELETE; a
@@ -643,7 +639,6 @@ async function pushToOap(): Promise<void> {
   }
 }
 
-// ── Import / Export ────────────────────────────────────────────────
 // Export downloads the IN-USE version (what end users render: remote,
 // else bundled) — never the editor draft. A never-published local-only
 // draft has no in-use version, so Export is disabled there.
@@ -683,7 +678,7 @@ async function onImportFile(): Promise<void> {
   );
 }
 
-// ── Widget reorder + delete (the drawer reaches back into these) ───
+// Widget reorder + delete — the drawer reaches back into these.
 function moveWidget(idx: number, dir: -1 | 1): void {
   if (!draft.value) return;
   const next = [...draft.value.widgets];

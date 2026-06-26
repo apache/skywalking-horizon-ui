@@ -72,7 +72,6 @@ function copyShareableUrl(): void {
   navigator.clipboard?.writeText(url.toString()).catch(() => {});
 }
 
-// ── Waterfall (parent-id walk → depth-indented rows) ─────────────
 interface DetailRow { span: ZipkinSpan; depth: number; offsetUs: number; durUs: number; }
 const detailBounds = computed(() => {
   let t0 = Infinity;
@@ -122,7 +121,6 @@ const detailRows = computed<DetailRow[]>(() => {
   return out;
 });
 
-// ── Service colour palette (matches TraceDetailCard) ─────────────
 const SERVICE_PALETTE = [
   'var(--sw-accent)', 'var(--sw-info)', 'var(--sw-cyan)', 'var(--sw-purple)',
   'var(--sw-ok)', 'var(--sw-warn)', 'var(--sw-pink)',
@@ -168,7 +166,6 @@ function annotationHint(value: string): string | null {
   return label ? t(label) : null;
 }
 
-// ── Render helpers ───────────────────────────────────────────────
 function fmtMs(us: number | null | undefined): string {
   if (us == null) return '—';
   if (us < 1000) return `${us}μs`;
@@ -189,7 +186,6 @@ function detailWidthPct(us: number): number {
   return Math.max(0.8, Math.min(100, (us / (detailBounds.value.totalUs || 1)) * 100));
 }
 
-// ── Span detail modal ─────────────────────────────────────────────
 const selectedSpanId = ref<string | null>(null);
 const selectedSpan = computed<ZipkinSpan | null>(() => {
   if (!selectedSpanId.value) return null;

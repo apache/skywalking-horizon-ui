@@ -41,8 +41,7 @@ const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId } = useSelectedService();
 const { instances: instanceList } = useLayerInstances(layerKey, selectedId);
 
-// Pod (instance) is the pinned entity for this page. Resolve the picked
-// name to its OAP instance id for the on-demand queries.
+// Pod (instance) is the pinned entity; resolve the picked name to its OAP id.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const instanceId = computed<string | null>(() => {
   if (!selectedInstance.value) return null;
@@ -69,7 +68,6 @@ const {
   toggleTail,
 } = useLayerPodLogs(layerKey, instanceId);
 
-// ── Keyword chips ────────────────────────────────────────────────────
 const keywordInput = ref('');
 const excludeInput = ref('');
 function addKeyword(): void {
@@ -89,7 +87,6 @@ function removeExclude(i: number): void {
   excludes.value = excludes.value.filter((_, idx) => idx !== i);
 }
 
-// ── "updated Xs ago" ticker ──────────────────────────────────────────
 const nowTick = ref(Date.now());
 let agoTimer: ReturnType<typeof setInterval> | null = null;
 const updatedAgo = computed<string | null>(() => {
@@ -98,7 +95,6 @@ const updatedAgo = computed<string | null>(() => {
   return s < 1 ? t('just now') : t('{seconds}s ago', { seconds: s });
 });
 
-// ── Monaco read-only log pane ────────────────────────────────────────
 const host = ref<HTMLDivElement | null>(null);
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
 let model: monaco.editor.ITextModel | null = null;
@@ -107,7 +103,6 @@ function renderLines(): void {
   if (!model) return;
   const text = lines.value.map((l) => l.content).join('\n');
   model.setValue(text);
-  // Tail behaviour — keep the newest line in view after each refresh.
   if (editor && lines.value.length > 0) {
     const last = model.getLineCount();
     editor.revealLine(last);

@@ -131,8 +131,6 @@ export interface EBPFTaskCreationResponse {
   error?: string;
 }
 
-// ── Network profiling ────────────────────────────────────────────────
-
 export interface ProcessNode {
   id: string;
   name: string;

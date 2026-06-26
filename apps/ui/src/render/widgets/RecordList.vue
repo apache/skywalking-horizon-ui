@@ -41,7 +41,6 @@ defineProps<{ items: ReadonlyArray<RecordRow>; unit?: string; color?: string }>(
 
 const { openTrace } = useTracePopout();
 
-// Transient per-row "copied" flash so the copy click reads as an action.
 const copiedIdx = ref<number | null>(null);
 let copiedTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyStatement(text: string, idx: number): Promise<void> {
@@ -61,7 +60,6 @@ async function copyStatement(text: string, idx: number): Promise<void> {
 <template>
   <ul class="record-list">
     <li v-for="(r, i) in items" :key="i" class="rec-row">
-      <!-- Jump-to-trace — only when this sample carries a trace id. -->
       <button
         v-if="r.traceId"
         type="button"
@@ -72,7 +70,6 @@ async function copyStatement(text: string, idx: number): Promise<void> {
         <Icon name="trace" :size="12" />
       </button>
       <span v-else class="rec-trace-spacer" aria-hidden="true" />
-      <!-- Statement text — click to copy. -->
       <button
         type="button"
         class="rec-stmt"

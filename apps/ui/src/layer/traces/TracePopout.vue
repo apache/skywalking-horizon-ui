@@ -163,7 +163,6 @@ function fmtAttachedTs(t: { seconds: number; nanos: number }): string {
   return fmtDateTime(ms) + '.' + String(t.nanos).padStart(9, '0').slice(0, 6);
 }
 
-// Copy affordances.
 const copyFlash = ref<'id' | 'url' | null>(null);
 let copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashCopy(kind: 'id' | 'url'): void {
@@ -239,15 +238,10 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
         </span>
       </div>
 
-      <!-- Body: waterfall (left) + sticky span detail panel (right).
-           Distinct from the per-layer trace tab's modal-on-tabbed
-           detail; here the right panel is always visible, swapping
-           contents on span row click. -->
       <div class="tp-body">
         <div v-if="waterfall.length === 0 && !isFetching" class="tp-empty">{{ t('no span data') }}</div>
         <div v-else class="tp-split" :class="{ 'no-selection': !selectedSpan }">
           <div class="tp-waterfall">
-            <!-- Time axis at the top of the waterfall column. -->
             <div class="tp-time-axis">
               <span class="t-tick first">0</span>
               <span class="t-tick">{{ fmtMs(totalDuration * 0.25) }}</span>
@@ -323,9 +317,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
             </div>
           </div>
 
-          <!-- Span detail panel — replaces the nested modal used in
-               the per-layer trace tab. Shown when a span is picked;
-               hidden otherwise to let the waterfall claim full width. -->
           <aside v-if="selectedSpan" class="tp-span-panel">
             <header class="tp-span-head">
               <h5>{{ t('Span detail') }}</h5>
@@ -516,7 +507,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 }
 .tp-body { flex: 1; overflow: hidden; min-height: 0; display: flex; }
 
-/* Horizontal split: waterfall + sticky span panel. */
 .tp-split {
   display: grid;
   grid-template-columns: 1fr 420px;
@@ -527,7 +517,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 }
 .tp-split.no-selection { grid-template-columns: 1fr; }
 
-/* Waterfall */
 .tp-waterfall {
   padding: 6px 0;
   overflow-y: auto;
@@ -548,9 +537,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
    * fully obscured when the axis sticks during scroll. */
   background-color: var(--sw-bg-1);
   border-bottom: 1px solid var(--sw-line);
-  /* Soft shadow under the axis once scrolled — gives the axis a
-   * "floating header" feel and visually separates it from the first
-   * row even on dense traces. */
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
   font-family: var(--sw-mono);
   font-size: 10px;
@@ -680,7 +666,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
   pointer-events: none;
 }
 
-/* Span panel (sticky right side) */
 .tp-span-panel {
   border-left: 1px solid var(--sw-line);
   background: var(--sw-bg-1);
@@ -783,7 +768,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
   color: var(--sw-fg-1);
 }
 
-/* Status flag */
 .status-flag {
   display: inline-flex;
   align-items: center;
@@ -814,7 +798,6 @@ function nativeSpanError(s: NativeSpan): boolean { return s.isError; }
 .status-flag.flag-ok { background: rgba(34, 197, 94, 0.14); color: var(--sw-ok); }
 .status-flag.flag-err { background: rgba(239, 68, 68, 0.18); color: var(--sw-err); }
 
-/* Copy affordance */
 .copy-btn:active { transform: scale(0.94); }
 .copy-flash-chip {
   display: inline-flex;

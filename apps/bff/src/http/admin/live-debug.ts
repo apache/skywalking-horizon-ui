@@ -72,7 +72,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     return buildOapClients(deps.config.current, { fetch: deps.fetch });
   }
 
-  // ── start session ────────────────────────────────────────────────
   app.post(
     '/api/debug/session',
     { preHandler: auth },
@@ -130,7 +129,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     },
   );
 
-  // ── poll session ─────────────────────────────────────────────────
   app.get(
     '/api/debug/session/:id',
     { preHandler: auth },
@@ -148,7 +146,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     },
   );
 
-  // ── stop session ─────────────────────────────────────────────────
   app.post(
     '/api/debug/session/:id/stop',
     { preHandler: auth },
@@ -183,7 +180,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     },
   );
 
-  // ── list active sessions ─────────────────────────────────────────
   app.get(
     '/api/debug/sessions',
     { preHandler: auth },
@@ -198,7 +194,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     },
   );
 
-  // ── per-cluster status fan-out ───────────────────────────────────
   // /dsl-debugging/status is a per-node read; OAP doesn't aggregate it
   // cluster-wide. We turn the single `oap.adminUrl` into one URL per
   // resolved IP via DNS lookup and probe each. When the hostname is
@@ -231,8 +226,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     },
   );
 }
-
-// ── helpers ─────────────────────────────────────────────────────────
 
 function ensureVerb(
   req: FastifyRequest,

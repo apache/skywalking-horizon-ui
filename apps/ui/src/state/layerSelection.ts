@@ -76,7 +76,6 @@ export const useLayerSelectionStore = defineStore('layer-selection', () => {
    *  don't (the operator's pick stays sticky across tabs). */
   const ownerKey = ref<string | null>(null);
 
-  // --- Multi-entity lock (cross-check) state ---
   // `lockedServices` = service-scope set (service ids). `lockedInstances`
   // / `lockedEndpoints` = CROSS-SERVICE sets of compound `service<SEP>
   // name` keys, so pins from different services stay locked together and

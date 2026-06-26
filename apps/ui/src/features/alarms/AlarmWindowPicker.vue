@@ -54,7 +54,6 @@ useEscapeToClose(() => w.customOpen.value, () => w.closeCustom());
     >{{ t('custom') }}</button>
   </div>
 
-  <!-- Custom range editor — sits under the picker; closes on apply. -->
   <div v-else-if="part === 'editor' && w.customOpen.value" class="ax__custom">
     <label class="ax__custom-field">
       <span>{{ t('Start') }}</span>
@@ -98,7 +97,6 @@ useEscapeToClose(() => w.customOpen.value, () => w.closeCustom());
   color: var(--sw-fg-0);
 }
 
-/* Custom date range editor */
 .ax__custom {
   display: flex;
   flex-wrap: wrap;

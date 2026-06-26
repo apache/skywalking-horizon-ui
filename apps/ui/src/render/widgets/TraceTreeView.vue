@@ -205,8 +205,6 @@ watch(treeSvgEl, async () => {
         :class="{ err: n.span.isError }"
         @click="emit('select-span', n.span)"
       >
-        <!-- Base plate: subtle dark fill + service-coloured
-             border so the card reads as a "container". -->
         <rect
           :width="NODE_W"
           :height="NODE_H"
@@ -216,8 +214,6 @@ watch(treeSvgEl, async () => {
           :stroke="n.span.isError ? 'var(--sw-err)' : serviceColor(n.span.serviceCode)"
           stroke-width="1.6"
         />
-        <!-- Progress fill: width proportional to this span's
-             latency vs the trace's total duration. -->
         <clipPath :id="`tree-clip-${n.span.segmentId}-${n.span.spanId}`">
           <rect :width="NODE_W" :height="NODE_H" rx="4" />
         </clipPath>

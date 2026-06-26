@@ -68,7 +68,6 @@ const effectiveGroups = computed<TopGroup[]>(() => {
 });
 const activeIdx = ref(0);
 watch(effectiveGroups, (g) => {
-  // Reset to first tab when the group set changes shape.
   if (activeIdx.value >= g.length) activeIdx.value = 0;
 });
 const activeGroup = computed(() => effectiveGroups.value[activeIdx.value] ?? null);
@@ -350,7 +349,6 @@ const tipStyle = computed(() => {
   pointer-events: none;
 }
 
-/* ── Pop-out modal ───────────────────────────────────────────────── */
 .tl-modal {
   position: fixed;
   inset: 0;

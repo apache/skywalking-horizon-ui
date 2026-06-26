@@ -52,7 +52,6 @@ export function useZipkinAutocomplete(opts: {
 }) {
   const { layerKey, serviceFilter, annotationQuery, spanName, remoteServiceName } = opts;
 
-  // ── Service list ────────────────────────────────────────────────
   const serviceOptions = ref<string[]>([]);
   // Best-effort: a failed fetch leaves the input as plain text.
   async function loadServiceOptions(): Promise<void> {
@@ -64,7 +63,6 @@ export function useZipkinAutocomplete(opts: {
   }
   watch(layerKey, () => { void loadServiceOptions(); }, { immediate: true });
 
-  // ── Span name / remote service ──────────────────────────────────
   const spanNameOptions = ref<string[]>([]);
   const remoteSvcOptions = ref<string[]>([]);
   async function loadAutocomplete(svc: string): Promise<void> {
@@ -97,7 +95,6 @@ export function useZipkinAutocomplete(opts: {
     autocompleteTimer = setTimeout(() => { void loadAutocomplete(trimmed); }, 250);
   }, { immediate: true });
 
-  // ── Annotation keys + values ────────────────────────────────────
   const annotationKeyOptions = ref<string[]>([]);
   const annotationValueOptions = ref<string[]>([]);
   const annotationValueKey = ref<string>('');

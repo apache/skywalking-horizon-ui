@@ -27,7 +27,7 @@ import type { NativeTraceListRow, ZipkinTraceListRow } from '@/api/client';
  *     widgets `Number()`-parse into ms-since-epoch for the scatter X).
  *
  * `key` / `traceIds` stay the Zipkin `traceId` so the host's pick set
- * and row selection key on the trace id, unchanged from before.
+ * and row selection key on the trace id.
  */
 export function zipkinRowToNative(r: ZipkinTraceListRow): NativeTraceListRow {
   return {

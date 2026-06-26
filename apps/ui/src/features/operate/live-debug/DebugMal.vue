@@ -1334,8 +1334,6 @@ function toggleEntity(row: MalSampleRow): void {
   background: var(--rr-bg3);
 }
 
-/* ── Per-metric sample groups (right pane) ──────────────────────── */
-
 .mal__groups {
   display: flex;
   flex-direction: column;
@@ -1516,8 +1514,6 @@ function toggleEntity(row: MalSampleRow): void {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
-
-/* ── Diff mode (differing labels only) ──────────────────────────── */
 
 .mal__diffcommonrow td {
   background: var(--rr-bg2);

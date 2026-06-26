@@ -116,9 +116,6 @@ const sections: NavSection[] = [
     ],
   },
   {
-    /* "DSL Management" was a misleading label — the page is just a
-     * static read-out of the operator's own RBAC verbs. Renamed
-     * "Permissions" so its purpose is obvious. */
     kicker: 'account',
     links: [
       {

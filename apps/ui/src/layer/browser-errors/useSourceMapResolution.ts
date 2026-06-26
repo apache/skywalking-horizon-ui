@@ -38,7 +38,6 @@ import type {
 import { bffClient, describeApiError } from '@/api/client';
 
 export interface SourceMapResolution {
-  // ── Source-map cache (manager panel + per-row picker) ──
   showMaps: Ref<boolean>;
   sourceMaps: Ref<SourceMapDescriptor[]>;
   usage: Ref<SourceMapUsage | null>;
@@ -48,7 +47,6 @@ export interface SourceMapResolution {
   loadMaps: () => Promise<void>;
   onUpload: (file: File) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
-  // ── Per-row expand + resolution (one row open at a time) ──
   expanded: Ref<number | null>;
   selectedMapId: Ref<string>;
   resolved: Ref<ResolveResponse | null>;
@@ -60,7 +58,6 @@ export interface SourceMapResolution {
 }
 
 export function useSourceMapResolution(t: (key: string, named?: Record<string, unknown>) => string): SourceMapResolution {
-  // ── Source-map cache (shared by the manager + the per-row picker) ───
   const showMaps = ref(false);
   const sourceMaps = ref<SourceMapDescriptor[]>([]);
   const usage = ref<SourceMapUsage | null>(null);
@@ -68,7 +65,6 @@ export function useSourceMapResolution(t: (key: string, named?: Record<string, u
   const mapsBusy = ref(false);
   const mapsError = ref<string | null>(null);
 
-  // ── Row expand + source-map resolution (one row open at a time) ─────
   const expanded = ref<number | null>(null);
   const selectedMapId = ref<string>('');
   const resolved = ref<ResolveResponse | null>(null);

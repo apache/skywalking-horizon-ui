@@ -83,9 +83,7 @@ watch(
   { immediate: true },
 );
 
-// ── Time range (own to this triage page — the topbar pauses the global
-// ticker here) + paging. Preset window OR a Custom absolute range, exactly
-// like the Logs conditions bar. ─────────────────────────────────────────
+// Own time range: the topbar pauses the global ticker for this triage page.
 const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
   { label: 'Last 15 min', minutes: 15 },
   { label: 'Last 30 min', minutes: 30 },
@@ -176,8 +174,7 @@ const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrow
   endMs: endMsRef,
 });
 
-// Reset the version/page filters when the app changes (their ids belong to
-// the previous service), and reset paging on any condition change.
+// Version/page ids belong to the previous service — drop them on app change.
 watch(serviceName, () => {
   selectedVersionId.value = '';
   clearPage();
@@ -185,18 +182,13 @@ watch(serviceName, () => {
 watch([serviceName, windowMinutes, customStart, customEnd, selectedVersionId, selectedPageId, pageSize], () => {
   page.value = 1;
 });
-// Collapse the open row + its resolution whenever a fresh result set
-// lands. (Category-filter toggles reset it too — see toggleCat — because
-// `expanded` is an index into `filteredLogs`, which changes when the
-// filter changes.)
+// `expanded` is an index into `filteredLogs`; drop it when the set changes.
 watch(logs, () => {
   closeExpanded();
 });
 
 const hasMorePages = computed(() => logs.value.length >= pageSize.value);
 
-// ── Categories: legend + histogram colours (uses the same tokens the
-// Logs view uses for level colours, so the two tabs share a palette). ─
 const CATEGORY_ORDER = ['js', 'promise', 'vue', 'ajax', 'resource', 'unknown'] as const;
 type Cat = (typeof CATEGORY_ORDER)[number];
 const CATEGORY_COLOR: Record<Cat, string> = {
@@ -227,10 +219,6 @@ const catFacet = computed<Record<Cat, number>>(() => {
   return counts;
 });
 
-// ── Density histogram (60 bins) — counts per category over the loaded
-// rows' time window, same construction as the Logs tab. The shared
-// DensityHistogram owns the hover tooltip + axis; we feed it the binned
-// data (via the shared `useDensityBins`) + the category keys/colours. ──
 const histogram = useDensityBins<BrowserErrorRow, Cat>(logs, {
   keys: CATEGORY_ORDER,
   timeOf: (r) => r.time,
@@ -249,8 +237,6 @@ function fmtDate(ts: number): string {
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-// ── Source-map de-obfuscation: BFF-memory cache (manager panel + per-row
-// picker) + the one-row-open-at-a-time expand/resolve flow. -----------
 const {
   showMaps,
   sourceMaps,
@@ -288,9 +274,6 @@ function loc(row: BrowserErrorRow): string {
 
 <template>
   <div class="lg-tab">
-    <!-- Conditions card — same shape/vocabulary as the Logs conditions
-         bar (kicker + Run query head, label-on-top field grid). Source
-         maps sits on the right of the head; its panel expands below. -->
     <section class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
         <span class="kicker">{{ t('Browser Logs') }}</span>
@@ -363,9 +346,6 @@ function loc(row: BrowserErrorRow): string {
 
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <!-- Category legend — one chip per category with the in-window
-             count; click toggles the stream filter. Mirrors the Logs
-             "Levels" strip. -->
         <div v-if="logs.length > 0" class="lg-legend">
           <span class="lg-legend-kicker">{{ t('Categories') }}</span>
           <button
@@ -383,14 +363,10 @@ function loc(row: BrowserErrorRow): string {
           <span class="lg-legend-sample">{{ t('{count} in window', { count: logs.length }) }}</span>
         </div>
 
-        <!-- Density bar — x: time, y: count, colour: category. The shared
-             DensityHistogram owns the hover tooltip + axis; `#tipTotal`
-             keeps the Browser Logs wording / i18n. -->
         <DensityHistogram :data="histogram" :keys="CATEGORY_ORDER" :colors="CATEGORY_COLOR">
           <template #tipTotal="{ total }">{{ t('{count} logs', { count: total }) }}</template>
         </DensityHistogram>
 
-        <!-- States + stream -->
         <div v-if="!serviceName" class="lg-empty">{{ t('Select an app to view its browser logs.') }}</div>
         <div v-else-if="isFetching && logs.length === 0" class="lg-empty">{{ t('Reading data…') }}</div>
         <div v-else-if="!reachable" class="lg-empty">{{ t('Backend unreachable.') }}<span v-if="queryError"> {{ queryError }}</span></div>
@@ -478,11 +454,8 @@ function loc(row: BrowserErrorRow): string {
    share a stylesheet so neither can regress the other). */
 .lg-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
 
-/* Conditions card — mirrors the Logs conditions bar: a padded sw-card
-   with a kicker + Run-query head, then a 4-column grid of label-on-top
-   full-width fields. */
 /* overflow:visible so the Page combobox dropdown isn't clipped by the
-   card's rounded-corner overflow (same as the Logs conditions card). */
+   card's rounded-corner overflow. */
 .lg-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .lg-toolbar-head { display: flex; align-items: center; gap: 10px; width: 100%; }
 .kicker { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sw-accent); font-weight: 600; }
@@ -671,8 +644,6 @@ function loc(row: BrowserErrorRow): string {
 .be-frame-orig { color: var(--sw-cyan); }
 .be-frame-name { color: var(--sw-info); }
 .be-frame-unmapped { color: var(--sw-fg-3); margin-left: auto; font-style: italic; }
-/* Source snippet — a small code block with a line-number gutter; the
-   mapped line is tinted + its number accented. */
 .be-snippet {
   display: flex;
   flex-direction: column;

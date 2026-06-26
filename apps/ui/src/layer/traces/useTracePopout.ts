@@ -25,9 +25,9 @@
  * `?openTraceId=<id>` so links + back/forward + share-URL all work
  * without an extra session store.
  *
- * The popout component itself lives at `components/trace/TracePopout.vue`
- * and is mounted once globally inside `AppShell.vue`. It listens to
- * the same query param and fetches the trace via `useTraceDetail`.
+ * The popout component (`TracePopout.vue`) is mounted once globally inside
+ * `AppShell.vue`. It listens to the same query param and fetches the trace
+ * via `useTraceDetail`.
  */
 
 import { computed } from 'vue';

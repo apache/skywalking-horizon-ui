@@ -81,8 +81,8 @@ function toMapLayer(L: LayerDef): MapLayer {
   };
 }
 
-/** Layers-only skeleton; `servicesByLayer` / `topologies` fill in as the
- *  sequential stages land. `hierarchy` stays `[]` in Phase 1. */
+/** Layers-only skeleton; `servicesByLayer` / `topologies` / `hierarchy`
+ *  fill in as the sequential stages land. */
 export function liveSkeleton(roster: LayerDef[]): MapTopology {
   return {
     capturedAt: new Date().toISOString(),
@@ -235,8 +235,7 @@ function toHierarchyEntry(
   };
 }
 
-/** Stage `hierarchy` — restore the cross-layer Smartscape peers the static
- *  snapshot carried (lost when the dynamic loader hard-coded `hierarchy: []`).
+/** Stage `hierarchy` — assemble the cross-layer Smartscape peers.
  *
  *  INCREMENTAL: `getServiceHierarchy` is one call per service, so only
  *  services NOT already in `cache` are fetched; existing entries are reused

@@ -451,10 +451,9 @@ function persistLocal(content: AdminLayerTemplate): void {
 // "Reset to ▾" dropdown — discard the current local draft and reload the
 // editor from the picked source. The op-facing tooltip says "Discard
 // current edits and reload …", so the action must DROP the local draft
-// rather than re-stage the new content as a fresh draft (which the
-// previous implementation did via persistLocal, triggering the
-// TemplateConflictPrompt right after every reset). Subsequent edits in
-// the editor re-create a local draft naturally on the next change.
+// rather than re-stage the new content as a fresh draft — re-staging would
+// trigger the TemplateConflictPrompt right after every reset. Subsequent
+// edits in the editor re-create a local draft naturally on the next change.
 const resetDropdownOpen = ref(false);
 function resetTo(src: 'bundled' | 'remote'): void {
   loadFrom(src);
@@ -570,7 +569,7 @@ watch(visibleScopes, (scopes) => {
   void nextTick(updateScopeScroll);
 });
 
-// ── Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
+// Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
 // on a narrow editor it overflows, so we let it scroll and surface
 // chevron buttons that appear only on the side(s) with hidden tabs.
 const scopeNav = ref<HTMLElement | null>(null);
@@ -614,7 +613,7 @@ watch(
 watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
 function onWinResizeScope(): void { updateScopeScroll(); }
 
-// ── Editor drawer position. The drawer edits the selected widget. A sticky
+// Editor drawer position. The drawer edits the selected widget. A sticky
 // drawer gets clipped once you scroll past the bottom of the tall widget canvas
 // (its containing block), so a bottom-row widget opens with the editor's top
 // off-screen. Pin it to the viewport with `position: fixed` instead, overlaying
@@ -1063,7 +1062,6 @@ function onReorderDrop(e: DragEvent, i: number): void {
       setWidgetsFor(activeScope.value, widgets);
       selectedIdx.value = tIdx;
     } else {
-      // Plain reorder.
       widgets.splice(from, 1);
       widgets.splice(to, 0, dragged);
       setWidgetsFor(activeScope.value, widgets);
@@ -1453,7 +1451,6 @@ async function pushToOap(): Promise<void> {
   }
 }
 
-// ── Import / Export ────────────────────────────────────────────────
 function flashMsg(msg: string): void {
   saveMsg.value = msg;
   setTimeout(() => {
@@ -1497,7 +1494,7 @@ async function onImportFile(): Promise<void> {
   flashMsg(`Imported “${key}” as a local draft. Preview, then “Check diff & push”.`);
 }
 
-// ── Disable / reactivate (OAP has no hard DELETE) ──────────────────
+// Disable / reactivate — OAP has no hard DELETE.
 // Disabling soft-disables the layer on OAP: a disabled template drops out
 // of the bundle AND the menu, so the layer disappears from the sidebar.
 // Reactivating re-pushes the bundled default to OAP, which clears the
@@ -2383,7 +2380,7 @@ function setVisibility(v: 'public' | 'operate'): void {
   }
 }
 
-// ── Topology cluster setup — rule editor + live tester.
+// Topology cluster setup — rule editor + live tester.
 // The rule is a named-capture regex run against every service name in
 // the topology + service pickers. Operators bind which capture maps to
 // the display label vs the cluster value (e.g. k8s namespace), and
@@ -2628,7 +2625,6 @@ const namingTest = computed<NamingTestResult>(() => {
             </template>
             </div>
         </div>
-        <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
           <div class="identity-row">
             <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
@@ -2716,7 +2712,6 @@ const namingTest = computed<NamingTestResult>(() => {
                 title="Import a layer dashboard JSON file as a local draft — preview, then publish."
                 @click="onImportFile"
               >Import</button>
-              <!-- Reset the editor to a source (discard current content). -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
                   Reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -2754,7 +2749,6 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </template>
               </div>
-              <!-- Preview the real page rendering a chosen source. -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="previewDropdownOpen = !previewDropdownOpen">
                   Preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
@@ -3022,7 +3016,6 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <!-- Scope tabs -->
         <div id="scope-editor" class="scope-tabs-wrap sw-card">
           <button
             v-show="canScrollScopeLeft"
@@ -4042,7 +4035,6 @@ const namingTest = computed<NamingTestResult>(() => {
               >＋ Add widget ▾</button>
               <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
               <div v-if="addMenuOpen" class="add-menu" role="menu">
-                <!-- Container first, then a divider, then the five leaf kinds. -->
                 <button type="button" class="add-menu-item" role="menuitem" @click="pickAddKind('tab')">
                   <span class="ami-type t-tab">tab</span>
                   <span class="ami-text">
@@ -4335,7 +4327,6 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </template>
 
-                <!-- NORMAL widget: the content form. -->
                 <template v-else>
                   <template v-if="editingWidget">
                     <div v-if="editingWidget.format === 'enum'" class="d-section">

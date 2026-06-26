@@ -57,7 +57,6 @@ const emit = defineEmits<{ (e: 'select-call', c: ProcessCall | null): void }>();
 const host = ref<HTMLDivElement | null>(null);
 const selectedCallId = ref<string | null>(null);
 
-// ── Hex geometry (flat-top) ─────────────────────────────────────────
 function hexCellPath(cx: number, cy: number, R: number): string {
   const v: [number, number][] = [];
   for (let i = 0; i < 6; i++) {
@@ -220,7 +219,6 @@ function edgeMid(c: PositionedCall): Pt {
   return { x: (e.sx + e.tx) / 2, y: (e.sy + e.ty) / 2 };
 }
 
-// ── Node info popover (floating window) ─────────────────────────────
 const nodePop = reactive<{ node: PositionedNode | null; x: number; y: number }>({
   node: null,
   x: 0,
@@ -334,7 +332,6 @@ function render(): void {
     .style('font-size', '13px')
     .text(instanceLabel());
 
-  // Edges (animated flow).
   const linkG = g.append('g').attr('class', 'links');
   edgeSel = linkG
     .selectAll<SVGPathElement, PositionedCall>('path.edge')
@@ -463,7 +460,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="topo-wrap">
     <div ref="host" class="topo-host"></div>
-    <!-- Node info floating popover -->
     <Teleport to="body">
       <div v-if="nodePop.node" class="topo-nodepop" :style="popStyle" role="tooltip">
         <div class="np-name">{{ nodePop.node.name }}</div>

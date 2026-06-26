@@ -64,12 +64,9 @@ const coldChipTooltip = computed<string>(() =>
 </template>
 
 <style scoped>
-/* ── Cold-stage chip (BanyanDB only) ─────────────────────────── */
-/* Snowflake pill that sits to the left of the time picker. Off state
- * is muted (matches the other off-state chips); on state uses a cool
- * cyan tint so it visually pops — operators are intentionally drawn
- * to "you are currently including cold data" because it changes which
- * window of history is in play. */
+/* On state uses a cool cyan tint so it visually pops — operators are
+ * intentionally drawn to "you are currently including cold data" because
+ * it changes which window of history is in play. */
 .cold-chip {
   display: inline-flex;
   align-items: center;

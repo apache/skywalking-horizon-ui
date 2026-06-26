@@ -27,9 +27,8 @@ const { t } = useI18n({ useScope: 'global' });
 const { ownsTimeRange, noTimeContext } = useTopbarTimeContext();
 const auto = useAutoRefreshStore();
 
-// Per-user "Save as my default" / "Reset to org default" on the time
-// picker. The org default is what the admin set on
-// /admin/global-defaults (3-tier: localStorage → OAP → bundled 60m).
+// The org default is what the admin set on /admin/global-defaults
+// (3-tier: localStorage → OAP → bundled 60m).
 const timeDefaultsStore = useTimeDefaultsStore();
 function saveCurrentAsMyTimeDefault(): void {
   const dur = timeRange.preset?.durationMs;
@@ -61,7 +60,6 @@ const globalTimeTooltip = computed<string>(() => {
   return `Browser local time · ${localTzLabel.value}`;
 });
 
-// ── Global time-range picker ──────────────────────────────────────
 const timeRange = useTimeRangeStore();
 const timeMenuOpen = ref(false);
 const timeClusterEl = ref<HTMLElement | null>(null);
@@ -111,15 +109,13 @@ const timeChipLabel = computed<string>(() => {
   return timeRange.label;
 });
 
-// ── Custom range, per precision ───────────────────────────────────
-// One "Custom…" expander per precision group. Inputs are scoped to
-// the step so the operator can't pick at finer resolution than the
-// data will support:
+// Inputs are scoped to the step so the operator can't pick at finer
+// resolution than the data will support:
 //   MINUTE → datetime-local (date + HH:MM)
 //   HOUR   → date + hour-select (00…23), no minute field at all
 //   DAY    → date-only
-// Submit clamps against STEP_LIMITS so an overlong window is
-// rejected at the boundary instead of silently truncated.
+// Submit clamps against STEP_LIMITS so an overlong window is rejected at
+// the boundary instead of silently truncated.
 const customOpenStep = ref<TimeStep | null>(null);
 /** Per-bound, per-step form state. For HOUR we keep date and hour
  *  in separate keys so the UI can render two distinct controls. */
@@ -315,7 +311,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
             <template v-for="side in (['start', 'end'] as const)" :key="side">
               <label class="tr-custom-field">
                 <span>{{ side === 'start' ? 'Start' : 'End' }}</span>
-                <!-- MINUTE precision — full date + HH:MM. -->
                 <input
                   v-if="activeStepTab === 'MINUTE'"
                   type="datetime-local"
@@ -323,7 +318,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
                   class="tr-custom-input"
                   v-model="customDraft[`${activeStepTab}-${side}`]"
                 />
-                <!-- HOUR precision — date + hour-select. -->
                 <div v-else-if="activeStepTab === 'HOUR'" class="tr-custom-split">
                   <input
                     type="date"
@@ -339,7 +333,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
                     </option>
                   </select>
                 </div>
-                <!-- DAY precision — date only. -->
                 <input
                   v-else
                   type="date"
@@ -395,7 +388,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
   filter: grayscale(0.6);
 }
 
-/* ── Global time-range picker ─────────────────────────────────── */
 .time-cluster {
   position: relative;
   display: flex;
@@ -571,7 +563,6 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
   filter: brightness(1.08);
 }
 
-/* ── Per-user time-defaults footer (in the time-picker dropdown) ──── */
 .tr-defaults {
   border-top: 1px solid var(--sw-line);
   padding: 8px 10px;

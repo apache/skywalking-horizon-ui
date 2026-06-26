@@ -36,8 +36,6 @@ const props = defineProps<{
   colors: Record<K, string>;
 }>();
 
-// Custom hover tooltip state. Owned here so the histogram tears down its
-// own interaction when the host swaps the component out.
 const hoveredBin = ref<number | null>(null);
 
 function binTotal(b: Record<K, number>): number {
@@ -83,8 +81,6 @@ function fmtAxisTime(ts: number): string {
           }"
         />
       </div>
-      <!-- Custom hover tooltip — anchored to the hovered bin via the
-           `left: <bin-center>%` inline style. -->
       <div
         v-if="hoveredBin !== null"
         class="lg-density-tip"
@@ -118,8 +114,6 @@ function fmtAxisTime(ts: number): string {
 </template>
 
 <style scoped>
-/* Density-bar wrapper: the stacked bin bars on top, x-axis tick strip
-   underneath so the time scale is readable at a glance. */
 .lg-density-wrap {
   padding: 8px 12px 4px;
   border-bottom: 1px solid var(--sw-line);
@@ -131,7 +125,7 @@ function fmtAxisTime(ts: number): string {
   align-items: end;
   gap: 1px;
   height: 60px;
-  position: relative; /* anchor for the absolute-positioned tooltip */
+  position: relative;
 }
 .lg-density-bin {
   display: flex;
@@ -146,9 +140,6 @@ function fmtAxisTime(ts: number): string {
 }
 .lg-density-bin:hover { outline: 1px solid var(--sw-accent-line); }
 .lg-density-segment { display: block; }
-/* Custom hover tooltip — anchored to the hovered bin via the
-   `left: <bin-center>%` inline style. Wider than a single bin so it
-   doesn't clip; transforms back by 50% to centre on the bin. */
 .lg-density-tip {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -171,8 +162,6 @@ function fmtAxisTime(ts: number): string {
 .lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
 .lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: capitalize; }
 .lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* X-axis tick strip — 5 evenly-spaced labels (start / 25% / 50% /
-   75% / end) underneath the bars, in tabular nums so they line up. */
 .lg-density-axis {
   display: flex;
   justify-content: space-between;

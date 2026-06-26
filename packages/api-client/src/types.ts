@@ -27,16 +27,12 @@
  * hot-update.
  */
 
-// ── Catalogs ───────────────────────────────────────────────────────
-
 export const CATALOGS = ['otel-rules', 'log-mal-rules', 'telegraf-rules', 'lal'] as const;
 export type Catalog = (typeof CATALOGS)[number];
 
 export function isCatalog(value: unknown): value is Catalog {
   return typeof value === 'string' && (CATALOGS as readonly string[]).includes(value);
 }
-
-// ── Status / loader enums ──────────────────────────────────────────
 
 export type RuleStatus = 'ACTIVE' | 'INACTIVE' | 'BUNDLED' | 'n/a';
 export type LocalState = 'RUNNING' | 'SUSPENDED' | 'NOT_LOADED';
@@ -275,8 +271,7 @@ export interface RuleStatusResponse {
 export const DELETE_MODES = ['', 'revertToBundled'] as const;
 export type DeleteMode = (typeof DELETE_MODES)[number];
 
-// ── /status/cluster/nodes (port 12800) ─────────────────────────────
-
+// /status/cluster/nodes lives on the query host (port 12800), not the admin port.
 export interface ClusterNode {
   host: string;
   port: number;
@@ -290,8 +285,6 @@ export interface ClusterNode {
 export interface ClusterNodesResponse {
   nodes: ClusterNode[];
 }
-
-// ── Errors ─────────────────────────────────────────────────────────
 
 /** Thrown by the client for any HTTP response outside the expected
  *  set. Exposes the parsed body so callers can switch on

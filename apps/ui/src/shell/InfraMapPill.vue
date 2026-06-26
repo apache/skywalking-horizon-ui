@@ -37,12 +37,9 @@ const exp3dExpanded = computed<boolean>(() => exp3dHover.value);
 </script>
 
 <template>
-  <!-- 3D Infra Map entry point — always-on in the topbar. Compact
-       "3D Infra" by default; expands to the full "3D Infra Map"
-       wordmark on hover or while the operator is already on /3d/map.
-       The stacked-tier icon mirrors the page's three planes (apps /
-       mesh / infra) using the same tint colors so the pill reads
-       as a microcosm of the view it leads to. -->
+  <!-- The stacked-tier icon mirrors the page's three planes (apps /
+       mesh / infra) using the same tint colors, so the pill reads as a
+       microcosm of the view it leads to. -->
   <RouterLink
     to="/3d/map"
     class="exp-badge"
@@ -77,17 +74,10 @@ const exp3dExpanded = computed<boolean>(() => exp3dHover.value);
 </template>
 
 <style scoped>
-/* ── 3D Infra Map entry pill ────────────────────────────────────────
-   Always-present topbar affordance for the 3D view. Compact "3D Infra"
-   by default; on hover OR while on /3d/map it swaps content to the full
-   "3D Infrastructure Map" wordmark
-   (driven from the `.is-on` class — see exp3dExpanded in <script>).
-   The container width changes naturally with the rendered text; we
-   transition the border/glow/background so the visual emphasis lands
-   on the focal state, while the text swap itself is instant (v-if).
-   Avoids the inline-block + max-width trick we had before — that
-   rendered the "hidden" word at sub-baseline positions during the
-   transition, which was the "Map appears smaller and offset" bug. */
+/* Width changes naturally with the rendered text (v-if swap is instant);
+ * only border/glow/background transition so the emphasis lands on the
+ * focal state. See <script> for why the swap is v-if, not a CSS width
+ * transition. */
 .exp-badge {
   display: inline-flex;
   align-items: center;

@@ -53,11 +53,9 @@ function refreshDecorations(): void {
   if (!model || !decorationCollection) return;
   const text = model.getValue();
   const decorations: monaco.editor.IModelDeltaDecoration[] = [];
-  // Iterate matches and convert byte offsets to (line, column).
   let m: RegExpExecArray | null;
   RULE_NAME_RE.lastIndex = 0;
   while ((m = RULE_NAME_RE.exec(text)) !== null) {
-    // Compute line number from the match offset.
     let line = 1;
     for (let i = 0; i < m.index; i++) {
       if (text.charCodeAt(i) === 10 /* \n */) line += 1;

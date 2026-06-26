@@ -91,14 +91,7 @@ function identity(name: string | null | undefined): ServiceIdentity {
 const landing = useLayerLanding(safeLayer, safeCfg);
 const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
-// Loading-sequence orchestration. The per-step waits keep this
-// deterministic: service first, then the endpoint query (empty
-// keyword → top-N), then the first-endpoint pick. See the matching
-// `watchEffect` in LayerDashboardsView for the rationale.
-// Defined further below once `endpointList` / `endpointsLoading` are
-// in scope.
 
-// ── Endpoint picker (same shape as Endpoint tab).
 const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
 const endpointSearchInput = ref('');
 const endpointQuery = ref('');
@@ -116,17 +109,14 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
   endpointQuery,
   endpointLimit,
 );
-// Drop stale endpoint when service changes.
 watch(serviceName, (next, prev) => {
   if (prev !== undefined && next !== prev && selectedEndpoint.value) {
     setSelectedEndpoint(null);
   }
 });
 // Strict loading sequence (service → endpoint list → first-endpoint
-// pick). `watchEffect` cascades naturally through the dependency
-// updates; the `return` after step 1 prevents racing the endpoint
-// pick before `serviceName` has propagated and the endpoint list
-// has refreshed.
+// pick). The `return` after step 1 prevents racing the endpoint pick
+// before `serviceName` has propagated and the endpoint list refreshed.
 watchEffect(() => {
   if (!selectedId.value) {
     const first = landingRows.value[0];
@@ -175,9 +165,8 @@ const {
   },
 });
 
-// ── Config from response (operator-edited layer JSON). Mirrors the
-// service-map view's binding pattern: a role → metric def lookup
-// drives every visual channel.
+// Config (operator-edited layer JSON): a role → metric def lookup drives
+// every visual channel, same binding as the service-map view.
 const cfg = computed(() => data.value?.config ?? {
   nodeMetrics: [] as TopologyMetricDef[],
   linkMetrics: [] as TopologyMetricDef[],
@@ -236,15 +225,9 @@ function edgeVal(c: EndpointDependencyCall, def: TopologyMetricDef | null): numb
 // picked the closest fuzzy match).
 const focusedId = computed<string | null>(() => data.value?.endpointId ?? null);
 
-// ── Manual node drag offsets. The operator can drag a box to declutter a
-// dense graph; the offset layers on the BFS layout so edges (which read
-// displayPos) follow. Cleared by `onFocusReset` when a new focus rebuilds
-// the graph.
+// Drag offset layers on the BFS layout so edges (which read displayPos) follow.
 const dragOffsets = ref<Map<string, { dx: number; dy: number }>>(new Map());
 
-// ── BFS column layout + curved edge geometry. The layout composable owns
-// the pure geometry; the view keeps the config-driven metric accessors it
-// feeds in (centerDef / nodeVal) and the SVG scene that binds the result.
 const {
   layoutNodes,
   layerColumns,
@@ -328,7 +311,6 @@ function clientToView(clientX: number, clientY: number): { x: number; y: number 
 function zoomAround(factor: number, cx: number, cy: number): void {
   userAdjusted.value = true;
   const v = viewBox.value ?? { x: 0, y: 0, w: W.value, h: H.value };
-  // viewBox width bounded to [30%, 160%] of the full graph (zoom-in / out caps).
   const newW = Math.min(W.value * 1.6, Math.max(W.value * 0.3, v.w * factor));
   const k = newW / v.w;
   viewBox.value = { x: cx - (cx - v.x) * k, y: cy - (cy - v.y) * k, w: newW, h: v.h * k };
@@ -361,8 +343,6 @@ function onPanEnd(): void {
   panning = false;
 }
 
-// Kind colour band — uses the endpoint's `type` field, then service
-// name fallbacks (db/cache/mq/ext).
 /**
  * Health-band colour from the configured ring metric. Reads the
  * operator's explicit `thresholds` block when present; otherwise
@@ -393,13 +373,9 @@ function ringColor(n: EndpointDependencyNode): string {
   return 'var(--sw-ok)';
 }
 
-/* `kindColor` / `kindLabel` were removed — endpoint nodes don't
- * carry meaningful component classification at the OAP wire level,
- * so the visual cue was unreliable. SLA-band border + focus star
- * carry all the per-node signal. */
-
-// ── Selected node popout state. Anchors the design's tail callout
-// just right of the clicked node.
+// Endpoint nodes carry no meaningful component classification at the
+// OAP wire level, so there's no kind colour band — the SLA-band border
+// + focus star carry all the per-node signal.
 const selectedNodeId = ref<string | null>(null);
 
 // Per-node drag (distinct from the background pan). Pointer-captured on
@@ -579,7 +555,6 @@ function edgeRowCrosshair(rowId: string): number | null {
 
 <template>
   <div class="ep-tab">
-    <!-- Endpoint picker — search-on-Enter (mirrors the Endpoint tab). -->
     <section class="ep-picker sw-card">
       <header class="picker-head">
         <span class="kicker">{{ t('API dependency') }}</span>
@@ -708,7 +683,6 @@ function edgeRowCrosshair(rowId: string): number | null {
             @pointerleave="onPanEnd"
           />
 
-          <!-- column guide lines -->
           <line
             v-for="(col, i) in layerColumns"
             :key="`g-${col.index}`"
@@ -807,7 +781,6 @@ function edgeRowCrosshair(rowId: string): number | null {
             </template>
           </g>
 
-          <!-- nodes -->
           <g
             v-for="n in layoutNodes.filter((nn) => nodePos.get(nn.id))"
             :key="n.id"
@@ -948,7 +921,6 @@ function edgeRowCrosshair(rowId: string): number | null {
               @keydown.space.prevent="expandNode(n)"
             >
               <circle r="9" cx="9" cy="9" fill="var(--sw-bg-0)" :stroke="hasExpansion(n) || isLoadingExpansion(n) ? 'var(--sw-accent-2)' : 'var(--sw-line-2)'" stroke-width="1" />
-              <!-- loading spinner: a spinning arc while the dependency query is in flight -->
               <circle
                 v-if="isLoadingExpansion(n)"
                 cx="9"

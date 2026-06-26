@@ -156,7 +156,6 @@ function onPickTask(t: EBPFTask): void {
 
 <template>
   <div class="sw-card ebpf-shell">
-    <!-- Tasks -->
     <div class="ebpf-side">
       <div class="side-head">
         <span>eBPF profile tasks</span>
@@ -215,7 +214,6 @@ function onPickTask(t: EBPFTask): void {
       </ul>
     </div>
 
-    <!-- Main pane -->
     <div class="ebpf-main">
       <div class="filter-bar">
         <div class="tb-block">

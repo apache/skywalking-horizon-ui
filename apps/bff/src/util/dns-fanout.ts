@@ -19,8 +19,7 @@
  * DNS-resolve a hostname-based URL into one URL per resolved IP, so the
  * caller can fan out per-node requests against a single configured URL.
  *
- * Replaces the previous "list every admin URL in horizon.yaml" approach
- * for the per-node features (live-debug status). The user configures
+ * Used by the per-node features (live-debug status): the user configures
  * one URL pointing at a DNS name (or k8s Service / headless Service);
  * this helper turns it into N URLs the BFF can probe individually.
  *

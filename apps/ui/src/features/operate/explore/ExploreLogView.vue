@@ -153,7 +153,6 @@ const {
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 
-// ── log conditions ────────────────────────────────────────────────────
 const cond = reactive({
   tags: '' as string,
   traceId: '' as string,
@@ -210,7 +209,6 @@ function onTagCommit(): void {
   cond.tags = `${base}, `;
 }
 
-// ── run + result ──────────────────────────────────────────────────────
 const running = ref(false);
 const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);

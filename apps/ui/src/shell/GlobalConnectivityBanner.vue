@@ -147,8 +147,7 @@ const errorText = computed<string>(() => info.value?.error ?? 'no response');
 const onClusterPage = computed<boolean>(() => route.path.startsWith('/operate/cluster'));
 const queryUrl = computed<string | undefined>(() => info.value?.queryUrl);
 
-// --- Template store (OAP UI-template overlay) unreachable -------------
-// Second fundamental failure. `syncStatus.unreachable` rides on the
+// Second fundamental failure: `syncStatus.unreachable` rides on the
 // config bundle the shell already preloads. When set, every dashboard /
 // overview / topology route returns nothing (no bundled fallback at
 // render time), so the operator must see the surface is BLOCKED. The

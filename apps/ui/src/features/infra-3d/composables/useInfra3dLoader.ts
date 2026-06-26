@@ -504,10 +504,6 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
   }
 
   function start(): void {
-    // Full load once at landing (templates + layout + structure), then a
-    // light refresh every minute (services + topologies + metrics). Alarms
-    // poll on their own 1-min timer (20m window). The strip's refresh button
-    // forces an immediate full run.
     void runFull();
     scheduleRefresh();
   }

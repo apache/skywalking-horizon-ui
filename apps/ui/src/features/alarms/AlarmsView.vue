@@ -37,7 +37,7 @@
           fetched response client-side.
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
@@ -59,11 +59,9 @@ import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
 
 const { t } = useI18n();
 
-// ── Time window ──────────────────────────────────────────────────────
 const timeWindow = useAlarmWindow();
 const { windowMode, startTime, endTime, formatWindowLabel } = timeWindow;
 
-// ── Capability + page config ────────────────────────────────────────
 const { capabilities } = useOapInfo();
 const hasQueryAlarms = computed<boolean>(() => capabilities.value.queryAlarms);
 
@@ -74,11 +72,9 @@ const pageConfig = useQuery({
 });
 const pinnedLayers = computed<string[]>(() => pageConfig.data.value?.pinnedLayers ?? []);
 
-/* Initial picker selection is admin-configured. We only apply the
- * config'd default once — after that the operator's manual picker
- * choices win (they shouldn't snap back on a refetch). The flag
- * survives across pageConfig refetches because it's outside the
- * `data` reactive. */
+/* Apply the admin-configured default window once; after that the
+ * operator's manual picker choice wins and must not snap back on a
+ * pageConfig refetch (flag lives outside the `data` reactive). */
 let didApplyDefault = false;
 watch(
   () => pageConfig.data.value?.defaultWindowMs,
@@ -90,11 +86,9 @@ watch(
   { immediate: true },
 );
 
-// ── Filters (new-mode cascade) ──────────────────────────────────────
 const filters = useAlarmFilters(hasQueryAlarms);
 const { applied } = filters;
 
-// ── URL-reflected chip filter ───────────────────────────────────────
 /* The header layer chips narrow the rendered list to that layer
  * (client-side filter on top of the fetched response). The selection
  * lives in the URL `?layer=GENERAL` so refresh / share preserves it
@@ -116,7 +110,6 @@ function selectChip(layerKey: string): void {
   chipLayer.value = layerKey === chipLayer.value ? '' : layerKey;
 }
 
-// ── Selection (alarm OR time range, mutually exclusive) ────────────
 function keyFor(a: AlarmMessage): string {
   return `${a.id}::${a.startTime}`;
 }
@@ -143,7 +136,6 @@ function clearSelection(): void {
   selectedRange.value = null;
 }
 
-// ── Alarms query ───────────────────────────────────────────────────
 const alarmsQuery = useQuery({
   queryKey: computed(() => [
     'alarms',
@@ -169,7 +161,6 @@ const alarmsQuery = useQuery({
   refetchOnWindowFocus: false,
 });
 
-// ── Derived data ────────────────────────────────────────────────────
 const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []);
 const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);
 
@@ -312,13 +303,9 @@ const selectedAlarm = computed<AlarmMessage | null>(() => {
   return alarms.value.find((a) => keyFor(a) === k) ?? null;
 });
 
-// ── List tabs (by layer) ───────────────────────────────────────────
-/* Tab strip above the row list: "All · pinned-1 · pinned-2 · …
- * overflow chips". The "All" tab maps to no layer filter; every
- * other tab maps to its layer key via `chipLayer`. We render the
- * same set of layers that the header KPIs + overflow chips show, so
- * the two surfaces stay consistent — different entry points to the
- * same `chipLayer` URL state. */
+/* "All" maps to no layer filter; every other tab maps to its layer key
+ * via `chipLayer` — the same state the header KPIs + overflow chips
+ * write, so the two surfaces stay consistent. */
 interface ListTab {
   key: string;
   label: string;
@@ -337,7 +324,6 @@ const listTabs = computed<ListTab[]>(() => {
   return tabs;
 });
 
-// ── Frontend paging ────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 const page = ref<number>(1);
 const totalPages = computed<number>(
@@ -352,7 +338,6 @@ watch([filteredIncidents, chipLayer, startTime, endTime], () => {
   page.value = 1;
 });
 
-// ── Misc utils ─────────────────────────────────────────────────────
 function prettyLayer(k: string): string {
   if (k === 'OTHER') return t('Other');
   return k
@@ -390,10 +375,6 @@ async function onRefresh(): Promise<void> {
     refreshing.value = false;
   }
 }
-
-onMounted(() => {
-  /* Nothing to do here — vue-query fires on mount. */
-});
 </script>
 
 <template>
@@ -424,7 +405,6 @@ onMounted(() => {
 
     <AlarmWindowPicker :window="timeWindow" part="editor" />
 
-    <!-- ── KPI strip: total + pinned + overflow chips ─────────────── -->
     <div class="ax__kpis">
       <button
         type="button"
@@ -482,7 +462,6 @@ onMounted(() => {
 
     <AlarmFilterRow :filters="filters" :has-query-alarms="hasQueryAlarms" />
 
-    <!-- ── Timeline (flags only) ─────────────────────────────────── -->
     <section class="ax__panel">
       <header class="ax__panel-head">
         <h3>{{ t('Timeline') }}</h3>
@@ -509,12 +488,8 @@ onMounted(() => {
       />
     </section>
 
-    <!-- ── List + detail ─────────────────────────────────────────── -->
     <section class="ax__split">
       <div class="ax__list">
-        <!-- Layer tabs — same `chipLayer` state as the header KPIs, so
-             clicking a tab and clicking a header chip do the same
-             thing. URL `?layer=…` persists either selection. -->
         <div v-if="listTabs.length > 1" class="ax__tabs" role="tablist">
           <button
             v-for="t in listTabs"
@@ -585,9 +560,6 @@ onMounted(() => {
               >▾</button>
               <span v-else class="ax__row-expand-placeholder" aria-hidden="true" />
             </li>
-            <!-- Expanded history: every individual firing/recovery
-                 in startTime-ascending order. Clicking a sub-row
-                 selects that specific event for the detail panel. -->
             <li
               v-if="isExpanded(inc.id) && inc.triggerCount > 1"
               class="ax__row-history"
@@ -618,7 +590,6 @@ onMounted(() => {
           </template>
         </ul>
 
-        <!-- Frontend pager — only when there's more than one page. -->
         <nav v-if="totalPages > 1" class="ax__pager">
           <button
             type="button"
@@ -700,7 +671,6 @@ onMounted(() => {
 }
 .ax__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* KPI strip — total + pinned + overflow */
 .ax__kpis {
   display: flex;
   flex-wrap: wrap;
@@ -727,11 +697,8 @@ onMounted(() => {
 .ax__kpi--total {
   border-color: var(--sw-line-2);
 }
-/* "Other" KPI tile — read-only aggregate, rendered as a disabled
- * button so the flex-row metrics match neighbours exactly. Dashed
- * border + cursor:default makes the read-only-ness obvious; an
- * explicit opacity:1 override keeps the value legible (browser-
- * default disabled-button styling fades to ~0.5). */
+/* opacity:1 overrides the browser-default disabled-button fade (~0.5)
+ * so this read-only aggregate stays legible. */
 .ax__kpi--passive {
   cursor: default;
   border-style: dashed;
@@ -808,7 +775,6 @@ onMounted(() => {
   color: var(--sw-accent-2);
 }
 
-/* Panel + timeline */
 .ax__panel {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
@@ -853,7 +819,6 @@ onMounted(() => {
 }
 .ax__panel-reset:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* Split list / detail */
 .ax__split {
   display: grid;
   grid-template-columns: 1fr 360px;
@@ -876,9 +841,6 @@ onMounted(() => {
   border: 1px dashed var(--sw-line);
   border-radius: 8px;
 }
-/* Layer tab strip — sits between the list header and the rows.
- * Tabs share state with the header KPI chips (both write `chipLayer`),
- * so visual sync is automatic. */
 .ax__tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1064,9 +1026,8 @@ onMounted(() => {
 .sw-badge.is-err { color: var(--sw-err); background: var(--sw-err-soft); border-color: rgba(239,68,68,0.3); }
 .sw-badge.is-warn { color: var(--sw-warn); background: var(--sw-warn-soft); border-color: rgba(234,179,8,0.3); }
 
-/* ── Expand chevron + per-incident history ────────────────────────
-   The chevron is only rendered when triggerCount > 1; otherwise a
-   spacer keeps the row's grid alignment stable. */
+/* The chevron renders only when triggerCount > 1; otherwise the
+   placeholder spacer keeps the row's grid alignment stable. */
 .ax__row-expand,
 .ax__row-expand-placeholder {
   width: 22px; height: 22px;

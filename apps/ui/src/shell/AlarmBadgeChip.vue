@@ -20,10 +20,8 @@ import { RouterLink } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
 import { useAlarmCount } from '@/shell/useAlarmCount';
 
-/* Alarm badge — independent 60s timer, rolling 20m window. The
- * badge sits next to OAP / time / refresh because alarms are a
- * top-level concern; clicking jumps straight to /alarms regardless of
- * which page the operator is on. */
+// Independent 60s timer, rolling 20m window (see useAlarmCount). Clicking
+// jumps to /alarms regardless of which page the operator is on.
 const alarmCount = useAlarmCount();
 const alarmBadgeTooltip = computed<string>(() => {
   if (alarmCount.hasError.value) {
@@ -60,10 +58,8 @@ const alarmBadgeState = computed<'ok' | 'err' | 'unknown'>(() => {
 </template>
 
 <style scoped>
-/* ── Alarm badge ───────────────────────────────────────────────── */
-/* Bell + count, same chip footprint as the OAP pill. Red fill when
- * any alarm fired in the window, neutral when clean, grey when the
- * BFF can't reach OAP. Click jumps to /alarms. */
+/* Red when any alarm fired in the window, neutral when clean, grey when
+ * the BFF can't reach OAP. */
 .alarm-badge {
   text-decoration: none;
   display: inline-flex;

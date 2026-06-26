@@ -30,11 +30,10 @@ const leafWidgetSchema = z.object({
   title: z.string(),
   tip: z.string().optional(),
   type: z.enum(['card', 'line', 'top', 'record', 'table']),
-  // Bumped from 8 to 16: JVM Memory Detail carries 11 pool metrics
-  // (code cache + young/old/survivor/permgen/metaspace + z-heap +
-  // compressed class space + 3 segmented codeheaps), and a few of the
-  // language families approach the same range. 16 gives headroom for
-  // future relabeled bundles without blowing the cap.
+  // Cap is 16: JVM Memory Detail carries 11 pool metrics (code cache +
+  // young/old/survivor/permgen/metaspace + z-heap + compressed class space
+  // + 3 segmented codeheaps), and a few language families approach the same
+  // range; 16 leaves headroom for future relabeled bundles.
   expressions: z.array(z.string().min(1)).min(1).max(16),
   expressionLabels: z.array(z.string()).max(16).optional(),
   expressionUnits: z.array(z.string()).max(16).optional(),

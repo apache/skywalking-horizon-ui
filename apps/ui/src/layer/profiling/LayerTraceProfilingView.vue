@@ -99,7 +99,6 @@ const landing = useLayerLanding(safeLayer, safeCfg);
 const { selectedId } = useSelectedService();
 const serviceName = useLayerServiceName(layerKey, landing);
 
-// ── Task list + segments ────────────────────────────────────────────
 const tasks = ref<ProfileTask[]>([]);
 const tasksError = ref<string | null>(null);
 const tasksLoading = ref(false);
@@ -120,7 +119,6 @@ const currentSpan = ref<ProfileSpan | null>(null);
 const taskDetailFor = ref<ProfileTask | null>(null);
 const taskDetailLogs = ref<ProfileTaskLog[]>([]);
 
-// ── Analyze result ──────────────────────────────────────────────────
 const analyzeTrees = ref<ProfileAnalyzationTree[]>([]);
 const analyzeLoading = ref(false);
 const analyzeMessage = ref('');
@@ -209,7 +207,6 @@ async function openTaskDetail(t: ProfileTask, ev: Event): Promise<void> {
   }
 }
 
-// ── Analyze ─────────────────────────────────────────────────────────
 async function runAnalyze(): Promise<void> {
   const span = currentSpan.value;
   if (!span?.profiled) {
@@ -238,7 +235,6 @@ async function runAnalyze(): Promise<void> {
   }
 }
 
-// ── New Task dialog ─────────────────────────────────────────────────
 const showNewTask = ref(false);
 const taskCreateError = ref<string | null>(null);
 const endpointKeyword = ref('');
@@ -292,7 +288,6 @@ function fmtTime(ms: number): string {
 <template>
   <div class="sw-card prof-shell">
     <div class="prof-side">
-      <!-- Tasks -->
       <div class="side-pane">
         <div class="side-head">
           <span>Profile tasks</span>
@@ -345,7 +340,6 @@ function fmtTime(ms: number): string {
           </li>
         </ul>
       </div>
-      <!-- Segments -->
       <div class="side-pane">
         <div class="side-head">
           <span>Sampled traces</span>
@@ -425,7 +419,6 @@ function fmtTime(ms: number): string {
         </div>
       </section>
 
-      <!-- Result panel -->
       <div class="result">
         <div v-if="analyzeMessage" class="result-tip">{{ analyzeMessage }}</div>
         <ProfileStackTable

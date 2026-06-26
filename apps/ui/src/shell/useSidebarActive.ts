@@ -96,9 +96,8 @@ export function useSidebarActive(orderedLayers: Ref<readonly LayerDef[]>) {
   }
 
   // Expand the layer the route points at AND scroll its active item into
-  // view — on entering a layer page (deep-link, reload, or in-app nav),
-  // not just the first paint. URL keys are lowercase; layer keys are
-  // UPPER_SNAKE — match case-insensitively.
+  // view — on every entry into a layer page (deep-link, reload, in-app
+  // nav), not just the first paint.
   watch(
     [() => route.path, orderedLayers],
     ([path, rows]) => {

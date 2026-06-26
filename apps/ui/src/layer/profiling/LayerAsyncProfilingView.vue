@@ -116,7 +116,6 @@ async function refreshTasks(): Promise<void> {
 
 function syncInstancesFromTask(t: AsyncProfilingTask): void {
   selectedInstances.value = [...(t.serviceInstanceIds ?? [])];
-  // default event type to the first one collectable from CPU-like
   const ev = t.events?.[0];
   if (ev === 'LOCK') eventType.value = 'LOCK';
   else if (ev === 'ALLOC') eventType.value = 'OBJECT_ALLOCATION_IN_NEW_TLAB';

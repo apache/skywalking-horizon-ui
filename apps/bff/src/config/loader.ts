@@ -104,17 +104,13 @@ export function isAuthConfigured(cfg: HorizonConfig): boolean {
 
 /**
  * Inspect the loaded config and emit a startup warning if auth isn't
- * wired yet. Kept as a separate function (rather than inlined into
- * `loadConfig`) so callers can choose to skip it (tests) or run it on
- * config hot-reload too.
+ * wired yet. Separate from `loadConfig` so callers can skip it (tests)
+ * or run it on config hot-reload too.
  *
- * The historical contract was fail-loud — a misconfigured deployment
- * crashed on boot. That was inconvenient for first-touch operators:
- * a clean `docker run` produced a CrashLoopBackOff instead of a UI
- * with a "set up auth" hint. We now boot, log a warning, and surface
- * the same information to the login page so the first interaction is
- * "open browser → see the next step" rather than "watch container
- * logs → guess what's wrong".
+ * A misconfigured deployment boots and logs a warning rather than
+ * crashing, surfacing the same information to the login page so the
+ * first interaction is "open browser → see the next step" rather than
+ * "watch container logs → guess what's wrong".
  *
  * Returns the input on success so callers can chain.
  */

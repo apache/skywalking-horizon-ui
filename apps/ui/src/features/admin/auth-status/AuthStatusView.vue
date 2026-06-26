@@ -119,7 +119,6 @@ function fmtAgo(ms: number | null): string {
     <div v-if="loading" class="loading">{{ t('Loading auth status…') }}</div>
     <div v-else-if="probeError" class="error">{{ t('Failed to load: {err}', { err: probeError }) }}</div>
     <template v-else-if="status">
-      <!-- Headline -->
       <div class="head-card">
         <div class="head-left">
           <div class="status-glyph" :class="{ ok: healthy, err: !healthy }">
@@ -179,7 +178,6 @@ function fmtAgo(ms: number | null): string {
       </div>
 
       <div class="grid-2col">
-        <!-- Backend identity -->
         <section class="sw-card">
           <header class="card-head">
             <h3>{{ t('Backend') }}</h3>
@@ -256,7 +254,6 @@ function fmtAgo(ms: number | null): string {
           </table>
         </section>
 
-        <!-- Local users -->
         <section class="sw-card">
           <header class="card-head">
             <h3>{{ t('Local users') }}</h3>
@@ -301,7 +298,6 @@ function fmtAgo(ms: number | null): string {
         </section>
       </div>
 
-      <!-- LDAP details -->
       <section v-if="status.ldap" class="sw-card">
         <header class="card-head">
           <h3>{{ t('LDAP probe') }}</h3>
@@ -367,7 +363,6 @@ function fmtAgo(ms: number | null): string {
         </table>
       </section>
 
-      <!-- Group -> role mapping -->
       <section v-if="status.ldap && status.ldap.groupMappings.length" class="sw-card">
         <header class="card-head">
           <h3>{{ t('Group → role mapping') }}</h3>
@@ -404,7 +399,6 @@ function fmtAgo(ms: number | null): string {
         </table>
       </section>
 
-      <!-- Resolver -->
       <section v-if="status.ldap" class="sw-card">
         <header class="card-head">
           <h3>{{ t('Test a username') }}</h3>

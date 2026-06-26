@@ -105,7 +105,6 @@ function previewCellStyle(w: OverviewWidget, cols: number): Record<string, strin
   };
 }
 
-// ── Canvas drag-reorder (HTML5 DnD over the flat widgets array) ─────
 const dragId = ref<string | null>(null);
 function onWidgetDragStart(e: DragEvent, id: string): void {
   dragId.value = id;
@@ -127,7 +126,6 @@ function onWidgetDrop(targetId: string): void {
   emit('update:modelValue', { ...d, widgets: ws });
 }
 
-// ── Canvas corner-resize (drag updates span / rowSpan) ──────────────
 const resize = reactive({ active: false, id: '', startX: 0, startY: 0, startSpan: 4, startRowSpan: 1, cellW: 1, cellH: 96, cols: 12 });
 function onResizeStart(e: MouseEvent, w: OverviewWidget, cols: number): void {
   e.preventDefault();
@@ -165,7 +163,6 @@ function onResizeEnd(): void {
   window.removeEventListener('mouseup', onResizeEnd);
 }
 
-// ── Add-widget composer ────────────────────────────────────────────
 /* Small inline form that gates a new widget on (type, width, height)
  * — the operator picks those first per the spec, then the widget
  * is appended with sensible defaults and the existing per-widget
@@ -240,7 +237,7 @@ function createWidget(): void {
   };
   emit('update:modelValue', { ...props.modelValue, widgets: [...props.modelValue.widgets, widget] });
   composerOpen.value = false;
-  selectWidget(widget.id); // open the drawer to finish editing it
+  selectWidget(widget.id);
 }
 </script>
 
@@ -334,7 +331,6 @@ function createWidget(): void {
               <span v-if="w.layer" class="ot__pv-layer">{{ w.layer }}</span>
             </div>
             <div class="ot__pv-title">{{ w.title }}</div>
-            <!-- Per-type mock body. -->
             <template v-if="w.type === 'alarms'">
             <!-- Mock alarm rows — same shape as AlarmsWidget so
                  the operator sees the rail layout, not just a
@@ -434,7 +430,6 @@ function createWidget(): void {
 </template>
 
 <style scoped>
-/* Preview pane */
 .ot__preview {
   margin-top: 14px;
   padding: 12px;
@@ -521,7 +516,6 @@ function createWidget(): void {
   stroke: var(--sw-accent);
 }
 
-/* Alarms mock rows */
 .ot__pv-alarms { list-style: none; margin: 0; padding: 0; }
 .ot__pv-alarm {
   display: flex; align-items: flex-start; gap: 6px;
@@ -632,7 +626,6 @@ function createWidget(): void {
 .ot__in--narrow { width: 160px; }
 .ot__in--num { width: 80px; font-variant-numeric: tabular-nums; }
 
-/* Add-widget composer */
 .ot__add-widget { margin-top: 8px; }
 .ot__add-trigger {
   width: 100%;

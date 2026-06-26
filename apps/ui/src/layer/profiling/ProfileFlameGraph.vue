@@ -209,13 +209,9 @@ function draw(): void {
   applySelectionHighlight();
   const svg = root.value.querySelector('svg');
   if (svg) {
-    // Hover a frame → render a cursor-following info card (悬浮信息).
-    // The earlier click-driven modal popout was a useful escape hatch
-    // while the framework was unstable, but now that the flame draw is
-    // settled, an inline tooltip matches operator muscle memory from
-    // booster-ui + every other flame viewer. Tracking happens at the
-    // SVG layer so each `g` (frame group) is resolved via event-target
-    // walk-up — no per-frame listener install (matters at 1000+ frames).
+    // Hover tracking is bound at the SVG layer, resolving each `g` (frame
+    // group) via event-target walk-up — no per-frame listener install
+    // (matters at 1000+ frames).
     const onMove = (event: MouseEvent) => {
       const target = (event.target as Element).closest('g');
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

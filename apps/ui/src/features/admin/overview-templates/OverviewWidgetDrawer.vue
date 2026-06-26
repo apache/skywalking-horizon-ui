@@ -61,7 +61,7 @@ function widgetKindLabel(type: OverviewWidget['type']): string {
   }
 }
 
-// ── KPI row helpers (kpi-tile / metric-composite only) ─────────────
+// KPI row helpers — kpi-tile / metric-composite only.
 function addKpi(w: OverviewWidget): void {
   const next = [...(w.kpis ?? []), { label: 'new KPI', mqe: '' } as OverviewKpi];
   w.kpis = next;
@@ -93,7 +93,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <span class="ot__drawer-title">{{ selectedWidgetId === META_SEL ? 'Dashboard meta' : 'Edit widget' }}</span>
       <button type="button" class="ot__drawer-close" title="Close (Esc)" @click="emit('close')">✕</button>
     </div>
-    <!-- Dashboard-level meta: title + description. -->
     <section v-if="selectedWidgetId === META_SEL" class="ot__meta">
       <header class="ot__meta-head">
         <span class="ot__meta-kicker">Dashboard meta</span>
@@ -127,7 +126,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
       class="ot__widget"
       :class="`ot__widget--${w.type}`"
     >
-      <!-- Header: type kicker + widget id + move/delete row actions. -->
       <header class="ot__widget-head">
         <span class="ot__widget-kind">{{ widgetKindLabel(w.type) }}</span>
         <code class="ot__widget-id">{{ w.id }}</code>
@@ -176,7 +174,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </template>
       </div>
 
-      <!-- 2. Title + tip. -->
       <div class="ot__row">
         <label class="ot__field ot__field--wide">
           <span>Title</span>
@@ -188,7 +185,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
-      <!-- 3. Layer — universal for data widgets. -->
       <div v-if="w.type !== 'section-break'" class="ot__row">
         <label class="ot__field">
           <span>Layer</span>
@@ -199,7 +195,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
-      <!-- metric: mqe + unit + aggregation -->
       <div v-if="w.type === 'metric'" class="ot__row">
         <label class="ot__field ot__field--wide">
           <span>MQE</span>
@@ -219,7 +214,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
-      <!-- alarms: limit -->
       <div v-if="w.type === 'alarms'" class="ot__row">
         <label class="ot__field">
           <span>Row limit</span>
@@ -227,7 +221,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
         </label>
       </div>
 
-      <!-- kpi-tile / metric-composite: KPI rows. -->
       <template v-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
         <div v-if="w.type === 'kpi-tile'" class="ot__row">
           <label class="ot__field">
@@ -344,7 +337,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
 .ot__drawer-close { margin-left: auto; background: transparent; border: none; color: var(--sw-fg-3); font-size: 14px; cursor: pointer; width: 22px; height: 22px; border-radius: 4px; }
 .ot__drawer-close:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
 
-/* Per-widget card */
 .ot__widget {
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
@@ -402,7 +394,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
 .ot__field input[type='checkbox'] { width: 14px; height: 14px; margin: 4px 0 0; cursor: pointer; }
 .ot__none { color: var(--sw-fg-3); font-size: 11px; }
 
-/* Dashboard-level meta card. */
 .ot__meta {
   background: var(--sw-bg-2);
   border: 1px solid var(--sw-line);
@@ -429,7 +420,6 @@ function onKpiStyleChange(k: OverviewKpi): void {
   color: var(--sw-fg-3);
 }
 
-/* KPI sub-table */
 .ot__kpis {
   margin-top: 8px;
   background: var(--sw-bg-1);

@@ -435,15 +435,12 @@ function gridStyle(w: { span?: number; rowSpan?: number; w?: number; h?: number 
  * surfaces — the operator builds one mental color map.
  */
 function widgetColor(w: { id?: string; title?: string; expressions?: string[] }): string {
-  // Try a few sources in priority order; the colorForMetric helper
-  // pattern-matches on the metric key (cpm / sla / apdex / err /
-  // p50/p75/p95/p99 / etc.) — the title or id usually contains one.
+  // Match the metric key (cpm / sla / apdex / err / p50..p99 / …) in
+  // id, then title, then first expression — whichever names it first.
   const candidates: string[] = [];
   if (w.id) candidates.push(w.id);
   if (w.title) candidates.push(w.title);
   if (w.expressions?.[0]) candidates.push(w.expressions[0]);
-  // Lower-case + flatten so patterns like 'service_cpm' / 'Traffic'
-  // both hit the right band.
   for (const c of candidates) {
     const c2 = c.toLowerCase();
     if (/(^|[^a-z])cpm([^a-z]|$)/.test(c2) || c2.includes('traffic') || c2.includes('rpm')) return 'var(--sw-accent)';
@@ -452,7 +449,6 @@ function widgetColor(w: { id?: string; title?: string; expressions?: string[] })
     if (/p\d{2,3}/.test(c2) || c2.includes('percentile') || c2.includes('resp_time') || c2.includes('response time') || c2.includes('latency')) return 'var(--sw-warn)';
     if (c2.includes('err') || c2.includes('error') || c2.includes('failure')) return 'var(--sw-err)';
   }
-  // Fall back to the metric catalog helper.
   return colorForMetric(w.id || w.title || w.expressions?.[0] || '');
 }
 

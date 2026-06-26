@@ -32,8 +32,6 @@
  * know which.
  */
 
-// ── Trace source selector ──────────────────────────────────────────
-
 export type TraceSource = 'native' | 'zipkin' | 'both';
 
 /** Per-layer traces dashboard config. Lives at `template.traces` in
@@ -140,8 +138,6 @@ export interface NativeTraceDetailResponse {
   error?: string;
 }
 
-// ── Zipkin trace types ─────────────────────────────────────────────
-//
 // Zipkin's wire shape is the v2 JSON span format (zipkin.io/zipkin-api).
 // We surface it verbatim so the operator sees zipkin-shaped data when
 // they're inspecting a zipkin trace.
@@ -205,8 +201,6 @@ export interface ZipkinTraceDetailResponse {
   error?: string;
 }
 
-// ── Combined responses ────────────────────────────────────────────
-//
 // When the operator picks `source = both`, the list endpoint fans
 // out to both backends and surfaces them on independent slots. The
 // UI renders two separate tables (one per backend) rather than

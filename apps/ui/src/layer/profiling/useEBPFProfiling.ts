@@ -126,20 +126,17 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
     aggregateType.value = 'COUNT';
   }
 
-  // Distinct labels across this task's schedules
   const labelOptions = computed<string[]>(() => {
     const s = new Set<string>();
     for (const sc of schedules.value)
       for (const l of sc.process.labels ?? []) s.add(l);
     return [...s];
   });
-  // Distinct processes (collapsed by id)
   const processes = computed<EBPFProcess[]>(() => {
     const byId = new Map<string, EBPFProcess>();
     for (const sc of schedules.value) byId.set(sc.process.id, sc.process);
     return [...byId.values()];
   });
-  // Schedule duration banner (min start → max end)
   const scheduleDuration = computed(() => {
     if (!schedules.value.length) return null;
     const starts = schedules.value.map((s) => s.startTime);
@@ -166,7 +163,6 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
       analyzeTip.value = 'No schedules match the current filter.';
       return;
     }
-    // Merge overlapping time ranges (mirrors booster-ui logic).
     const ranges: { start: number; end: number }[] = matching
       .map((sc) => ({ start: sc.startTime, end: sc.endTime }))
       .sort((a, b) => a.start - b.start);
@@ -278,7 +274,6 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
   }
 
   return {
-    // task list
     tasks,
     tasksError,
     tasksLoading,
@@ -287,7 +282,6 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
     currentTask,
     refreshTasks,
     pickTask,
-    // schedules / filters
     schedules,
     schedulesError,
     selectedLabels,
@@ -297,16 +291,13 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
     processes,
     scheduleDuration,
     toggleLabel,
-    // analyze
     analyzeTrees,
     analyzeTip,
     analyzeLoading,
     profileTrees,
     runAnalyze,
-    // new task
     newTaskError,
     submitNewTask,
-    // poll
     polling,
     pollRound,
   };

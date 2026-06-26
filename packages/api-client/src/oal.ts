@@ -139,8 +139,6 @@ export class OalClient {
     return (await res.json()) as OalSourceDetail;
   }
 
-  // ── private helpers ─────────────────────────────────────────────
-
   private async send(url: string, init: RequestInit): Promise<Response> {
     const headers: Record<string, string> = {
       Accept: 'application/json, text/plain',

@@ -321,7 +321,6 @@ function edgePathD(c: InstanceTopologyCall): string {
   return `M ${x1} ${a.cy} C ${mx} ${a.cy} ${mx} ${b.cy} ${x2} ${b.cy}`;
 }
 
-// ── Pan + zoom.
 const svgEl = ref<SVGSVGElement | null>(null);
 const zoomLayerEl = ref<SVGGElement | null>(null);
 const containerEl = ref<HTMLDivElement | null>(null);
@@ -525,7 +524,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 
 <template>
   <div class="imv">
-    <!-- Pair picker toolbar -->
     <div class="imv-toolbar">
       <button class="sw-btn small ghost imv-back" type="button" @click="backToServiceMap">← {{ t('Service map') }}</button>
       <span class="imv-title">{{ instanceMapLabel }}</span>

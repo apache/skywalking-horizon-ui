@@ -51,8 +51,6 @@ export interface Token {
   text: string;
 }
 
-// ── Per-DSL vocabulary ─────────────────────────────────────────────
-
 /** OAL DSL — top-level words and OAL function names. */
 const OAL_KEYWORDS = new Set(['from', 'filter', 'disable']);
 const OAL_FUNCS = new Set([
@@ -164,8 +162,6 @@ const MAL_KEYWORDS = new Set([
   'unit',
 ]);
 
-// ── Tokeniser ──────────────────────────────────────────────────────
-
 const RE_LINE_COMMENT = /^(?:\/\/|#)/;
 const RE_STRING_SQ = /^'(?:\\.|[^'\\])*'/;
 const RE_STRING_DQ = /^"(?:\\.|[^"\\])*"/;
@@ -202,7 +198,6 @@ export function tokenizeLine(line: string, lang: SyntaxLang): Token[] {
 
   while (s.length > 0) {
     if (RE_LINE_COMMENT.test(s)) {
-      // The rest of the line is a comment.
       out.push({ kind: 'comment', text: s });
       break;
     }

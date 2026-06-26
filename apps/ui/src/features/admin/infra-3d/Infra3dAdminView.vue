@@ -59,7 +59,6 @@ import Infra3dLayerRow, { type LayerRow } from './Infra3dLayerRow.vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
-// ── Live OAP layer catalog ────────────────────────────────────────────
 // We hydrate the Layers section from the catalog union'd with config
 // keys, so an OAP layer the admin hasn't classified yet shows up here
 // and an out-of-tree layer (config exists, OAP no longer reports it)
@@ -67,7 +66,6 @@ import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 const { availableLayers } = useLayers();
 const { t } = useI18n();
 
-// ── Template-sync state ───────────────────────────────────────────────
 // The 3D-map config is a singleton template kind — ONE row,
 // `horizon.infra-3d.config`. The shared editor owns the bundled →
 // local(browser) → remote(OAP) load/save/push/reset/import/export machine;
@@ -125,7 +123,6 @@ const {
 
 const layerSearch = ref('');
 
-// ── Tiers + layer⇄level resolution ────────────────────────────────────
 const { levelsSorted, addLevel, removeLevel, moveLevel, resolveLevel, levelLabel } =
   useInfra3dLevels(draft);
 
@@ -137,7 +134,6 @@ const allLayerKeys = computed<string[]>(() => {
   return [...s].sort((a, b) => a.localeCompare(b));
 });
 
-// ── Layers editing ────────────────────────────────────────────────────
 const layerRows = computed<LayerRow[]>(() => {
   if (!draft.value) return [];
   const oap = new Map<string, { hasTopology: boolean }>();
@@ -294,7 +290,6 @@ function setMetricField(key: string, field: 'mqe' | 'label' | 'unit', value: str
   if (metric) metric[field] = value;
 }
 
-// ── Groups editing ────────────────────────────────────────────────────
 // Logic groups (e.g. Self-Observability) cluster several layers into one
 // block on a tier. The icon set is the bakeable subset the 3D stamp
 // renderer knows (useLayerIconTexture.LayerIconName); an unknown name
@@ -440,7 +435,6 @@ const stats = computed(() => {
     </div>
     <div v-else-if="!ready" class="loading">{{ t('Loading config…') }}</div>
     <template v-else-if="draft">
-      <!-- ── Global filter ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Global layer filter') }}</h2>
@@ -458,7 +452,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Tiers & layers ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Tiers & layers (top → bottom)') }}</h2>
@@ -509,7 +502,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Unpinned → failover ────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Unpinned layers') }}</h2>
@@ -543,7 +535,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Groups ────────────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Logic groups') }}</h2>
@@ -601,7 +592,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Service-map layers ─────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Service-map layers') }}</h2>
@@ -617,7 +607,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Unknown layer fallback ─────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Failover tier') }}</h2>
@@ -635,7 +624,6 @@ const stats = computed(() => {
 
     </template>
 
-    <!-- ── Check diff & push ──────────────────────────────────────────── -->
     <Modal :open="pushDiffOpen" :title="t('Push 3D-map config to OAP')" width="min(1100px, 94vw)" fit-body @close="pushDiffOpen = false">
       <div class="push-modal">
         <p class="push-lede">
@@ -682,7 +670,6 @@ export { parseHexColor };
   overflow-y: auto;
 }
 
-/* Header */
 .hd {
   display: flex;
   align-items: center;
@@ -700,7 +687,6 @@ export { parseHexColor };
 .lede code { background: var(--sw-bg-3); padding: 1px 4px; border-radius: 3px; }
 .hd-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 
-/* Source pill + reset menu */
 .src-pill {
   display: inline-flex;
   align-items: center;
@@ -745,13 +731,11 @@ export { parseHexColor };
 .reset-item[disabled] { opacity: 0.45; cursor: default; }
 .reset-suffix { color: var(--sw-fg-3); font-size: 10px; }
 
-/* Push diff modal */
 .push-modal { display: flex; flex-direction: column; gap: 10px; min-width: min(1040px, 90vw); flex: 1; min-height: 0; }
 /* Definite height for the Monaco diff to fill (else it collapses). */
 .push-diff { flex: 1; min-height: 0; }
 .push-lede { font-size: 11.5px; color: var(--sw-fg-2); margin: 0; }
 
-/* Buttons */
 .btn {
   height: 26px;
   padding: 0 12px;
@@ -772,7 +756,6 @@ export { parseHexColor };
 .btn.danger { border-color: rgba(239, 68, 68, 0.6); color: #f87171; }
 .btn.danger:hover:not([disabled]) { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 
-/* Banners */
 .issues {
   margin: 8px 20px 0;
   padding: 8px 12px;
@@ -797,7 +780,6 @@ export { parseHexColor };
 }
 .loading { padding: 20px; color: var(--sw-fg-3); font-size: 12px; }
 
-/* Sections */
 .sect {
   margin: 12px 20px;
   border: 1px solid var(--sw-line);
@@ -818,7 +800,6 @@ export { parseHexColor };
 .sect-body  { padding: 12px 14px; }
 .fallback-level { max-width: 260px; }
 
-/* Inputs */
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .field.row { flex-direction: row; align-items: center; gap: 6px; }
 .lbl   { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sw-fg-3); }
@@ -838,7 +819,6 @@ export { parseHexColor };
 .inp.search { height: 22px; width: 180px; margin-left: auto; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
 
-/* Tiers */
 .tier-card {
   border: 1px solid var(--sw-line);
   border-radius: 4px;
@@ -923,7 +903,6 @@ export { parseHexColor };
 .hint-sm { font-size: 10.5px; color: var(--sw-fg-3); margin: 0; }
 .empty { padding: 14px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
 
-/* Groups */
 .groups-grid { display: flex; flex-direction: column; gap: 8px; }
 .group-card {
   border: 1px solid var(--sw-line);
@@ -942,6 +921,4 @@ export { parseHexColor };
 .group-body  { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .group-body .row-2 { max-width: 420px; }
 .hint-sm.warn { color: #f0a04b; }
-
-/* Advanced */
 </style>

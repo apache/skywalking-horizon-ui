@@ -21,12 +21,9 @@ import { useI18n } from 'vue-i18n';
 import Icon, { type IconName } from '@/components/icons/Icon.vue';
 
 const { t } = useI18n({ useScope: 'global' });
-// Full "SkyWalking" wordmark + moon. The shipped file is white-fill
-// (designed for dark backgrounds). For light-appearance themes we
-// derive a blue (`#1368B3` — the official SkyWalking brand blue)
-// variant by replacing the fill color in the raw SVG string. Keeps
-// the SAME wordmark shape; just recolors. Avoids shipping a separate
-// blue asset that could drift from the white one.
+// The shipped SVG is white-fill (for dark backgrounds). Light-appearance
+// themes derive a brand-blue (`#1368B3`) variant by recoloring the raw
+// SVG string, so the two never drift from a separate asset.
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useThemeStore, AVAILABLE_THEMES } from '@/state/theme';
 
@@ -41,11 +38,9 @@ import { useAlarmCount } from '@/shell/useAlarmCount';
 import { useConfigBundle } from '@/controls/configBundle';
 
 const { enabled: debugPanelEnabled, toggle: toggleDebugPanel } = useDebugPanel();
-// Fold the whole menu to a thin rail; the shell grid follows suit.
 const { collapsed: sidebarCollapsed, toggle: toggleSidebar } = useSidebar();
-/* Shares the same composable as the topbar badge — one query feeds
- * both, so the two surfaces never disagree and the cache is warm
- * regardless of which renders first. */
+// Shares the same composable as the topbar badge — one query feeds both,
+// so the two surfaces never disagree regardless of which renders first.
 const alarmCount = useAlarmCount();
 
 const auth = useAuthStore();
@@ -125,9 +120,8 @@ function isLayerDiverged(key: string): boolean {
 
 <template>
   <aside class="sw-side" :class="{ collapsed: sidebarCollapsed }">
-    <!-- Expanded: original wordmark header (unchanged) + collapse toggle.
-         Folded: the wordmark moves to the topbar (see AppTopbar); the rail
-         keeps just the expand chevron in the same 44px header row. -->
+    <!-- When folded, the wordmark moves to the topbar (see AppTopbar) and
+         the rail keeps just the expand chevron in the 44px header row. -->
     <div v-if="!sidebarCollapsed" class="sw-brand-row">
       <RouterLink to="/" class="sw-brand" aria-label="SkyWalking Horizon">
         <span class="brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
@@ -155,7 +149,6 @@ function isLayerDiverged(key: string): boolean {
     </button>
 
     <nav v-show="!sidebarCollapsed" ref="navRef" class="sw-nav">
-      <!-- Overviews are gated by `overview:read`. -->
       <template v-if="auth.hasVerb('overview:read')">
         <div class="sw-nav-section sw-nav-section--icon">
           <Icon :name="sectionIcon('Overviews')" />
@@ -321,11 +314,9 @@ function isLayerDiverged(key: string): boolean {
             </div>
           </template>
         </template>
-        <!-- Toggle row appended to the bottom of the Admin section —
-             controls the bottom-fixed DebugEventPanel. Default state
-             is hostname-driven (on for localhost, off elsewhere) and
-             sticks via localStorage. Rendered as a plain button so
-             clicks fire the store toggle rather than navigating. -->
+        <!-- Controls the bottom-fixed DebugEventPanel. Default state is
+             hostname-driven (on for localhost, off elsewhere). A plain
+             button, not a link, so clicks toggle rather than navigate. -->
         <button
           v-if="entry.kicker === 'Admin'"
           type="button"
@@ -578,13 +569,9 @@ function isLayerDiverged(key: string): boolean {
 .layer-children .sw-nav-item.is-active :deep(svg) {
   color: var(--sw-accent);
 }
-/* L0 — every section header lives at the same rhythm regardless of
- * whether it's the top-of-sidebar Overviews/Layers/Manage kicker or
- * an in-Layers sub-group bucket (Istio / Kubernetes / …). All wear
- * the spec voice (10/700/0.1em uppercase fg-3, 14px top padding) and
- * carry an icon on the left so the icon column stays aligned with
- * the L1 rows below — the eye doesn't have to jump positions when
- * scanning. No caret, no click — L0s are presentational. */
+/* L0 — section headers (top-of-sidebar kickers AND in-Layers sub-group
+ * buckets) share one rhythm and carry a left icon so the icon column
+ * stays aligned with the L1 rows below. Presentational: no caret, no click. */
 .sw-nav-section,
 .sw-nav-section--icon {
   font-size: 10px;

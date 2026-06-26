@@ -404,7 +404,7 @@ function locateConfigDir(): string {
       readdirSync(dir);
       return dir;
     } catch {
-      /* try next */
+      // try next
     }
   }
   // Last-resort default — first candidate. The first readdir of an

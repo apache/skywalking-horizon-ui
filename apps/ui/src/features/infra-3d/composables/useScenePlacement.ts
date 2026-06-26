@@ -41,8 +41,6 @@ import type { PlaneId, SceneGraph, SceneLayer, SceneServiceNode } from './useMap
 import { resolveServiceIdentity } from '@/utils/serviceName';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 
-// ── Output types ────────────────────────────────────────────────────────
-
 export interface NodePlacement {
   nodeId: string;
   x: number;
@@ -148,8 +146,6 @@ export interface ScenePlacement {
   bounds: { minX: number; maxX: number; minZ: number; maxZ: number; minY: number; maxY: number };
 }
 
-// ── Layout constants ───────────────────────────────────────────────────
-
 /** Vertical gap between adjacent planes. The placement function turns
  *  the caller-supplied plane order into Y values `index * PLANE_VGAP`
  *  — so a 4-plane config (apps → mesh → middleware → infra) takes 3×
@@ -172,8 +168,6 @@ const GROUP_MEMBER_GAP = 1.0;
  *  pad between a cluster's cubes and its boundary band. */
 const CLUSTER_GAP_X = 2.2;
 const CLUSTER_INNER_PAD = 0.9;
-
-// ── Layer → zone tint ───────────────────────────────────────────────────
 
 export function tintForLayer(layerKey: string, group: string | null): ZoneTint {
   const k = layerKey.toLowerCase();
@@ -243,8 +237,6 @@ export function readTintColor(tint: ZoneTint): string {
   const v = root.getPropertyValue(tintCssVar(tint)).trim();
   return v || '#888888';
 }
-
-// ── Layout primitives ──────────────────────────────────────────────────
 
 interface LocalPoint {
   x: number;
@@ -415,8 +407,6 @@ function rankBasedLayout(L: SceneLayer): { positions: Map<string, LocalPoint>; r
   });
   return { positions, rows, cols };
 }
-
-// ── Top-level placement ────────────────────────────────────────────────
 
 /** A placement unit on a plane — either a single layer or a logic group
  *  clustering several layers. `positions` are node offsets relative to

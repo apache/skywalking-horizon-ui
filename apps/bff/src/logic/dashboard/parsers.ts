@@ -174,7 +174,6 @@ export function parseTable(
     }
     return { labels, value };
   });
-  // Stable order by the joined label values.
   rows.sort((a, b) =>
     a.labels.map((l) => l.value).join('·').localeCompare(b.labels.map((l) => l.value).join('·')),
   );

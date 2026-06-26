@@ -164,7 +164,7 @@ export class SourceMapStore {
         if (e.origin !== 'upload') continue;
         if (!victim || e.lastUsedAt < victim.lastUsedAt) victim = e;
       }
-      if (!victim) break; // nothing left to evict
+      if (!victim) break;
       this.drop(victim.id);
     }
   }
@@ -345,7 +345,6 @@ export class SourceMapStore {
     if (!this.entries.has(id)) return null;
     const cached = this.parsed.get(id);
     if (cached) {
-      // refresh LRU position
       this.parsed.delete(id);
       this.parsed.set(id, cached);
       return cached;

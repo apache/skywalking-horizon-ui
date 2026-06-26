@@ -80,7 +80,6 @@ defineExpose({ closeSpanModal });
 
 const nativeSpans = computed<NativeSpan[]>(() => props.spans);
 
-// ── Copy id / shareable url ───────────────────────────────────────
 const copyFlash = ref<'id' | 'url' | null>(null);
 let copyFlashTimer: ReturnType<typeof setTimeout> | null = null;
 function flashCopy(kind: 'id' | 'url'): void {
@@ -94,8 +93,6 @@ function copyTraceId(): void {
 }
 function copyShareableUrl(): void {
   if (!props.traceId) return;
-  // Compose a URL with `?traceId=<id>` so anyone with the link gets
-  // the popout cold-load experience.
   const url = new URL(window.location.href);
   url.searchParams.set('traceId', props.traceId);
   // Tag the source so Trace inspect (one route, two sources) reopens it as
@@ -105,14 +102,11 @@ function copyShareableUrl(): void {
 }
 onBeforeUnmount(() => { if (copyFlashTimer) clearTimeout(copyFlashTimer); });
 
-// ── View mode ─────────────────────────────────────────────────────
 type ViewMode = 'default' | 'tree' | 'statistics';
 const viewMode = ref<ViewMode>('default');
 
-// ── Service color palette / legend ────────────────────────────────
 const serviceColors = computed<Map<string, string>>(() => buildServiceColors(nativeSpans.value));
 
-// ── KPIs ──────────────────────────────────────────────────────────
 const nativeWaterfallDuration = computed(() => {
   const spans = nativeSpans.value;
   if (spans.length === 0) return 0;
@@ -124,7 +118,6 @@ const nativeRootStart = computed(() => {
   return spans.length > 0 ? Math.min(...spans.map((s) => s.startTime)) : null;
 });
 
-// ── Span detail modal ─────────────────────────────────────────────
 // The modal's open/close is surfaced to the host (`update:modalOpen`)
 // so the host owns the single Esc cascade (modal first, then inline
 // detail) — avoiding two competing capture-phase window listeners.

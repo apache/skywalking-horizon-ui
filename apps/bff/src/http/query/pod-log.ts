@@ -108,7 +108,6 @@ function validLayerKey(k: string): boolean {
 export function registerPodLogRoutes(app: FastifyInstance, deps: PodLogRouteDeps): void {
   const auth = requireAuth(deps);
 
-  // ── List a pod's containers ──────────────────────────────────────
   app.get(
     '/api/layer/:key/pod-logs/containers',
     { preHandler: auth },
@@ -146,7 +145,6 @@ export function registerPodLogRoutes(app: FastifyInstance, deps: PodLogRouteDeps
     },
   );
 
-  // ── Tail a container's logs ──────────────────────────────────────
   app.post(
     '/api/layer/:key/pod-logs',
     { preHandler: auth },

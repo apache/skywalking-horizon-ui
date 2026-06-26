@@ -261,7 +261,6 @@ export function useSingletonTemplateEditor<T>(
     resetMenuOpen.value = false;
   }
 
-  // ── Import / Export ────────────────────────────────────────────────
   // Export downloads the IN-USE config (remote, else bundled) — what the
   // page renders — not the editor draft. Import stages a file as a local
   // draft; `loadFrom('local')` normalizes any legacy shapes. Errors reuse

@@ -35,8 +35,6 @@ function detectInitial(): boolean {
     if (raw === '1') return true;
     if (raw === '0') return false;
   }
-  // No stored preference → off. Was previously on for localhost; now
-  // uniform so operator-reported behavior matches what developers see.
   return false;
 }
 

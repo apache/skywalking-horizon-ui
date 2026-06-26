@@ -24,60 +24,42 @@ const placeholder = () => import('@/shell/PlaceholderView.vue');
 // Layer sub-routes nest under a single LayerShell route so every tab
 // shares the header KPI strip + cap-driven tab navigation. The shell
 // reads `:layerKey` from the URL and pulls layer config / live data.
-// Sub-route components fill the tab body via a nested router-view.
-// The canonical landing is `/service` — that's the widget-grid view
-// operators see when they click a layer. Every layer sub-tab now
-// has its own dedicated component; the earlier `placeholderTabs`
-// array (for tabs awaiting their per-page treatment) is gone.
+// Sub-route components fill the tab body via a nested router-view; the
+// canonical landing is `/service`.
 function layerRoute(): RouteRecordRaw {
   return {
     path: 'layer/:layerKey',
     component: () => import('@/layer/LayerShell.vue'),
     children: [
-      // Bare /layer/:layerKey lands on the Service view — the per-layer
-      // widget grid driven by the dashboard config.
       { path: '', redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }) },
-      // Per-scope dashboards. Same view component, scope inferred from
-      // the URL — widget set differs per scope via the JSON template's
-      // `dashboards.<scope>` array.
+      // Same view component, scope inferred from the URL — widget set
+      // differs per scope via the JSON template's `dashboards.<scope>` array.
       { path: 'service', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
       { path: 'instance', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
       { path: 'endpoint', component: () => import('@/render/layer-dashboard/LayerDashboardsView.vue') },
       {
         path: 'topology',
-        // Topology tab shell: Service map, plus an Instance map sub-tab
-        // when the layer enables instance topology (?view=service|instance).
         component: () => import('@/layer/service-map/LayerTopologyTab.vue'),
-        // The topology page ships its own in-box service-focus selector
-        // (the map is layer-wide by default). Declaring it here keeps
-        // the LayerShell's header picker hidden for this route — no
-        // route-string sniffing in the shell.
+        // The page owns its own in-box service-focus selector, so
+        // `ownsServiceSelector` keeps the LayerShell header picker hidden
+        // for this route — no route-string sniffing in the shell.
         meta: { ownsServiceSelector: true },
       },
       { path: 'dependency', component: () => import('@/layer/endpoint-dependency/LayerEndpointDependencyView.vue') },
-      // Deployment — instance-to-instance graph within one
-      // service. Service-scoped, so it deliberately does NOT set
+      // Service-scoped, so it deliberately does NOT set
       // `ownsServiceSelector`: the shell's Service header picker stays
       // visible and the view reads `useSelectedService`.
       { path: 'deployment', component: () => import('@/layer/service-map/LayerDeploymentView.vue') },
       // `LayerTracesEntry` is a runtime dispatcher: it inspects the
       // layer template's `traces.source` and renders either the native
-      // trace view or the Zipkin one. Mesh / k8s layers land on Zipkin.
-      //
-      // Both trace views read the shell-level service selection via
-      // `useSelectedService`, so we leave `ownsServiceSelector` OFF —
-      // the LayerShell's Switch picker stays visible and the native
-      // view's toolbar deliberately doesn't repeat it (see comment
-      // inside LayerTracesView.vue). The Zipkin view also carries its
-      // own free-text service filter for the cases where Zipkin's
-      // service universe drifts from SkyWalking's; that input lives
-      // inside the view and is independent of the shell picker.
+      // trace view or the Zipkin one. Both views read the shell-level
+      // service selection via `useSelectedService`, so `ownsServiceSelector`
+      // stays OFF and the LayerShell Switch picker stays visible.
       { path: 'trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
-      // Second trace tab — only surfaced in the sidebar when the layer's
-      // `traces.source` is `both`. Native + Zipkin spans differ in format
-      // and query conditions, so they get separate tabs rather than an
-      // in-tab toggle. The entry component renders the Zipkin view for
-      // this path regardless of source.
+      // Second trace tab — only surfaced when the layer's `traces.source`
+      // is `both`. Native + Zipkin spans differ in format and query
+      // conditions, so they get separate tabs rather than an in-tab toggle.
+      // The entry component renders the Zipkin view for this path regardless.
       { path: 'zipkin-trace', component: () => import('@/layer/traces/LayerTracesEntry.vue') },
       { path: 'logs', component: () => import('@/layer/logs/LayerLogsView.vue') },
       // BROWSER-layer JS error logs + source-map de-obfuscation (#6784).
@@ -102,10 +84,8 @@ function layerRoute(): RouteRecordRaw {
         redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service`, query: to.query }),
       },
       {
-        // Legacy /layer/<key>/services/<id> URLs from before the
-        // selection model became per-page. The service id is no
-        // longer URL-pinned (operators pick on landing), so we
-        // forward to the bare service tab and drop the id.
+        // Service id is no longer URL-pinned (picked on landing), so the
+        // legacy /services/<id> form forwards to the bare service tab.
         path: 'services/:serviceId',
         redirect: (to) => ({ path: `/layer/${to.params.layerKey}/service` }),
       },
@@ -158,7 +138,6 @@ const shellRoutes: RouteRecordRaw[] = [
   // here is kept only so reverse-route lookups by name (`infra-3d-map`)
   // continue to resolve, redirecting to the standalone path.
   { path: '3d/map', redirect: '/3d/map' },
-  // Cluster
   {
     path: 'operate/cluster',
     component: () => import('@/features/operate/cluster/ClusterStatusView.vue'),
@@ -172,7 +151,6 @@ const shellRoutes: RouteRecordRaw[] = [
     component: () => import('@/features/operate/alerting-rules/AlertingRulesView.vue'),
     meta: { verb: 'alarm-rule:read' },
   },
-  // ── DSL Management ─────────────────────────────────────────────────
   // Static sub-routes are declared first so they aren't shadowed by
   // the catalog alternation regex (which would otherwise grab `edit`
   // / `dump`). Each gated on `receiver-runtime-rule` at the page-body
@@ -257,7 +235,6 @@ const shellRoutes: RouteRecordRaw[] = [
     component: () => import('@/features/operate/live-debug/LiveDebuggerView.vue'),
     meta: { verb: 'live-debug:read' },
   },
-  // Admin
   {
     path: 'admin/layer-dashboards',
     component: () => import('@/features/admin/layer-templates/LayerDashboardsAdmin.vue'),

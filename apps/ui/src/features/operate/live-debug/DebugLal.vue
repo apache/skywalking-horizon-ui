@@ -770,7 +770,6 @@ function recordTitle(view: LalRecordView): string {
           class="lal__matrix"
           :style="`grid-template-columns: 180px repeat(${displayedRecords(node).length}, minmax(200px, 1fr));`"
         >
-          <!-- header row: blank label cell + record headers -->
           <div class="lal__hdrlbl">
             {{ t('block ▾ / record →') }}
             <div class="lal__hdrlblct">
@@ -801,7 +800,6 @@ function recordTitle(view: LalRecordView): string {
             </div>
           </div>
 
-          <!-- step rows -->
           <template v-for="step in node.steps" :key="step.key">
             <div
               class="lal__steplbl"

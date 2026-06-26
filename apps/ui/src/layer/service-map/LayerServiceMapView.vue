@@ -367,7 +367,6 @@ const visibleCalls = computed<TopologyCall[]>(() => {
 });
 const clusterRects = computed(() => buildClusterRects(clusterBuckets.value, nodePos.value));
 
-// ── SVG canvas dims.
 const W = computed(() => {
   const b = clusterBuckets.value;
   if (b.length === 0) return 820;
@@ -846,17 +845,12 @@ onBeforeUnmount(() => {
                     stroke-width="1.5"
                     stroke-dasharray="7 5"
                   />
-                  <!-- Header chip rendered INSIDE the cluster top
-                       (in the CLUSTER_HEAD_HEIGHT padding above the
-                       topmost node, reserved by the rect math above).
-                       Previously this chip floated above the box top,
-                       which forced a CHIP_HEADROOM floor on the rect
-                       y that broke encompass when a node was dragged
-                       above the floor. Drawing inside the cluster
-                       removes that constraint entirely. The cluster
-                       *value* is rendered noticeably larger than the
-                       alias label — the name is the signal, the
-                       alias is just a qualifier. -->
+                  <!-- Header chip rendered INSIDE the cluster top (in the
+                       CLUSTER_HEAD_HEIGHT padding above the topmost node,
+                       reserved by the rect math above) so dragging a node
+                       above the box top can't break encompass. Cluster
+                       *value* is larger than the alias label — the name is
+                       the signal, the alias just a qualifier. -->
                   <g transform="translate(20, 22)">
                     <rect
                       x="0"
@@ -908,9 +902,8 @@ onBeforeUnmount(() => {
                 stroke-width="14"
                 style="cursor: pointer"
               />
-              <!-- Base edge line. Uniform width across the canvas now
-                   that heaviest-path is gone — every edge is visually
-                   peer; selection brightens. -->
+              <!-- Base edge line. Uniform width across the canvas —
+                   every edge is visually peer; selection brightens. -->
               <path
                 :d="callPathD(c)"
                 fill="none"
@@ -920,14 +913,10 @@ onBeforeUnmount(() => {
                 stroke-linecap="round"
                 style="pointer-events: none"
               />
-              <!-- Direction overlay: short dot-like dashes that drift
-                   from source → target. Spacing + speed are tuned for
-                   readability — earlier the dashes were dense (6-on /
-                   10-off, 1.2s) and read as a fast-scrolling solid
-                   line. Now they're discrete particles (4-on / 28-off,
-                   3s) so the eye can track a single dot along the
-                   path. Stroke is slightly thicker + round-capped so
-                   each dot reads as a circle rather than a tick. -->
+              <!-- Direction overlay: discrete dot-like dashes (4-on /
+                   28-off, 3s) that drift from source → target, so the
+                   eye can track a single dot along the path. Round-capped
+                   so each dot reads as a circle rather than a tick. -->
               <path
                 :d="callPathD(c)"
                 fill="none"
@@ -946,15 +935,9 @@ onBeforeUnmount(() => {
                   repeatCount="indefinite"
                 />
               </path>
-              <!-- Edge metric chip — sits on the line midpoint with a
-                   pill background. Compact by design (edge metrics
-                   aren't the headline signal; they ride alongside the
-                   line). The chip shows the configured line metric
-                   value + unit; `(C)` marker when only client-side
-                   data was available. -->
-              <!-- Edge metric chip — bigger + higher-contrast text so
-                   the unit reads even on dense lines. Units are
-                   always displayed UPPERCASE. -->
+              <!-- Edge metric chip on the line midpoint. Shows the
+                   configured line metric value + unit (uppercased);
+                   `·C` marker when only client-side data was available. -->
               <template v-if="edgeLabel(c) && edgeMidpoint(c)">
                 <g
                   :transform="`translate(${edgeMidpoint(c)!.x - 44}, ${edgeMidpoint(c)!.y - 13})`"
@@ -997,8 +980,7 @@ onBeforeUnmount(() => {
 
             <!-- Polished linear-chain node — pure SVG, no PNGs. Three
                  concentric circles + a kind-specific icon + agent
-                 badge top-right + name/metric text below. Mirrors
-                 docs/.../screens/topology-chain.jsx. -->
+                 badge top-right + name/metric text below. -->
             <g
               v-for="n in layoutNodes.filter((nn) => nodePos.get(nn.id))"
               :key="n.id"
@@ -1136,7 +1118,6 @@ onBeforeUnmount(() => {
                 <title>Show service hierarchy (cross-layer peers)</title>
                 <circle r="11" fill="var(--sw-accent)" />
                 <circle r="11" fill="none" stroke="var(--sw-bg-0)" stroke-width="2" />
-                <!-- Stacked-layers glyph — three offset chevrons -->
                 <g stroke="var(--sw-bg-0)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M-4 -3 L0 -1 L4 -3" />
                   <path d="M-4 0 L0 2 L4 0" />
@@ -1396,10 +1377,8 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 360px;
 }
 .sm-graph {
-  /* Fill the card — the parent `.sm-card` is `display: flex` since the
-     2-col-with-sidebar layout went away; without an explicit `flex: 1`
-     the graph collapsed to its intrinsic height and the map showed
-     stale. */
+  /* `flex: 1` is required — without it the graph collapses to its
+     intrinsic height inside the flex `.sm-card` and shows stale. */
   flex: 1;
   position: relative;
   min-width: 0;

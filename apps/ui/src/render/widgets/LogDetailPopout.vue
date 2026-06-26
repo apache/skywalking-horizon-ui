@@ -81,7 +81,6 @@ function fmtDate(ts: number): string {
 
 const fmt = computed<LogFormat | null>(() => (props.row ? detectFormat(props.row) : null));
 
-// Brief "Copied" confirmation on the button after a successful copy.
 const copied = ref(false);
 let copyTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyContent(): Promise<void> {
@@ -98,7 +97,6 @@ async function copyContent(): Promise<void> {
     /* clipboard may be blocked; silently no-op */
   }
 }
-// Reset the confirmation when the popout switches to another row.
 watch(() => props.row, () => { copied.value = false; });
 onBeforeUnmount(() => { if (copyTimer) clearTimeout(copyTimer); });
 function onJumpTrace(): void {

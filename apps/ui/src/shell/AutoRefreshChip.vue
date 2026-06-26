@@ -89,9 +89,6 @@ const refreshTooltip = computed<string>(() => {
 </script>
 
 <template>
-  <!-- Auto-refresh cluster: countdown + spinning button on the
-       left, dropdown caret on the right. Click the icon to
-       refresh now; click the caret to pick an interval. -->
   <div ref="refreshClusterEl" class="refresh-cluster" :class="{ 'is-disabled': ownsTimeRange }">
     <button
       type="button"
@@ -131,7 +128,6 @@ const refreshTooltip = computed<string>(() => {
   filter: grayscale(0.6);
 }
 
-/* Auto-refresh cluster */
 .refresh-cluster {
   position: relative;
   display: inline-flex;
