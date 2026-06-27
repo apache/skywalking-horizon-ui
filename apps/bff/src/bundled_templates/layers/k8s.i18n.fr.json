@@ -132,6 +132,10 @@
         "tip": "Utilisation CPU en millicores."
       },
       {
+        "title": "Total pods",
+        "tip": "Pods actuellement planifiés sur ce nœud (toutes phases)."
+      },
+      {
         "title": "Ressources CPU du nœud",
         "expressionLabels": [
           "total",

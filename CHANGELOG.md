@@ -30,7 +30,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ### Alarms
 
-- **The alarm timeline reads more clearly** — a clearer selection band and legend, and the detail sidebar reflows cleanly on narrow windows.
+- **The alarm timeline reads more clearly** — a clearer selection band and legend, and the detail sidebar reflows cleanly on narrow windows. Hovering the timeline now hints both affordances — click a minute to filter, or drag across the timeline to select a range — so range-selection is no longer hidden.
 
 ### User experience
 
@@ -45,6 +45,8 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Cards can render values as colored status chips.** A card widget with `format: enum` now takes an optional chip color per value-map entry — `ok` (green), `warn` (amber), `err` (red), `info` (blue), `neutral` (grey) — and renders each matched value, or metric label, as a colored chip instead of a bare number. Set it in the layer-dashboard admin's value-map editor, next to the existing value → label mapping.
 
 - **The Kubernetes Node Status card now reads as a status, not a number.** Instead of a raw `1`, it shows the node's active conditions as colored chips — `Ready` in green, the `*Pressure` / `NetworkUnavailable` conditions in amber/red — so node health is legible at a glance.
+
+- **The Kubernetes Node dashboard gains a Pod Total card.** A compact card now sits directly under Node Status showing the current count of pods scheduled on the selected node (all phases) — the latest value of the same metric the "Pods on Node" trend already charts — so the space beside the status card is no longer blank.
 
 ## 1.0.0
 

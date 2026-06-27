@@ -153,9 +153,11 @@ function buildOption(): echarts.EChartsCoreOption {
                  · <span style="color:#22c55e;">${recovered} recovered</span>
                </div>`
             : '',
-          total > 0
-            ? `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-3);">click to filter to this minute</div>`
-            : '',
+          `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-3);">${
+            total > 0
+              ? 'click to filter to this minute · drag to select a range'
+              : 'drag to select a range'
+          }</div>`,
         ].join('');
       },
     },

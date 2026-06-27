@@ -334,6 +334,18 @@
         "rowSpan": 2
       },
       {
+        "id": "node_pod_count",
+        "title": "Pod Total",
+        "tip": "Pods currently scheduled on this node (all phases).",
+        "type": "card",
+        "expressions": [
+          "latest(k8s_node_pod_total)"
+        ],
+        "span": 3,
+        "rowSpan": 1,
+        "format": "int"
+      },
+      {
         "id": "node_cpu_resources",
         "title": "Node CPU Resources",
         "type": "line",

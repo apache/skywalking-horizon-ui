@@ -132,6 +132,10 @@
         "tip": "millicore 単位の CPU 使用量。"
       },
       {
+        "title": "Pod 合計",
+        "tip": "現在このノードにスケジュールされている Pod（全フェーズ）。"
+      },
+      {
         "title": "ノード CPU リソース",
         "expressionLabels": [
           "合計",
