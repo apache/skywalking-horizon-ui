@@ -88,6 +88,8 @@ For one selected node (an **Instance** in OAP terms) — its scheduling state an
 
 - **Pods on Node** — pods scheduled on the node over time (`k8s_node_pod_total`).
 
+- **Pod Total** — the current count of pods scheduled on the node, as a single latest reading (`latest(k8s_node_pod_total)`).
+
 - **Node CPU Usage** — node CPU usage in millicores (`k8s_node_cpu_usage`).
 
 - **Node CPU Resources** — node CPU total against allocatable, requests, and limits, in millicores (`k8s_node_cpu_cores`, `k8s_node_cpu_cores_allocatable`, `k8s_node_cpu_cores_requests`, `k8s_node_cpu_cores_limits`).

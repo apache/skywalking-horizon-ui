@@ -130,6 +130,10 @@
         "tip": "Uso de CPU en millicores."
       },
       {
+        "title": "Total de pods",
+        "tip": "Pods actualmente programados en este nodo (todas las fases)."
+      },
+      {
         "title": "Recursos de CPU del nodo",
         "expressionLabels": [
           "total",

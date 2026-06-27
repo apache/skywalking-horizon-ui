@@ -132,6 +132,10 @@
         "tip": "밀리코어 단위의 CPU 사용량입니다."
       },
       {
+        "title": "Pod 총합",
+        "tip": "현재 이 노드에 스케줄된 Pod(모든 단계)."
+      },
+      {
         "title": "노드 CPU 리소스",
         "expressionLabels": [
           "전체",
