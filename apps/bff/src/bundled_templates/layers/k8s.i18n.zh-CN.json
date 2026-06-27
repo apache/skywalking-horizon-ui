@@ -73,6 +73,7 @@
       { "title": "节点状态" },
       { "title": "节点上的 Pod" },
       { "title": "节点 CPU 使用", "tip": "CPU 使用量，单位 millicore。" },
+      { "title": "Pod 总数", "tip": "当前调度到该节点的 Pod（所有阶段）。" },
       {
         "title": "节点 CPU 资源",
         "expressionLabels": ["total", "allocatable", "requests", "limits"]
