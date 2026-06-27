@@ -90,6 +90,33 @@ const { t } = useI18n({ useScope: 'global' });
 function result(id: string): DashboardWidgetResult | undefined {
   return props.results.get(id);
 }
+
+// Colored enum card: the BFF keeps the metric's labels (one row per active
+// label — e.g. a K8s node's Ready / *Pressure conditions) instead of
+// collapsing to a scalar, so we render them as status chips. The chip key is
+// whichever label value the operator mapped in valueColors / valueMap.
+type ChipRow = NonNullable<DashboardWidgetResult['table']>[number];
+function chipKey(w: DashboardWidget, row: ChipRow): string {
+  for (const l of row.labels) {
+    if (l.value in (w.valueColors ?? {}) || l.value in (w.valueMap ?? {})) return l.value;
+  }
+  return row.labels.map((l) => l.value).join(' ') || String(row.value ?? '');
+}
+function chipLabel(w: DashboardWidget, row: ChipRow): string {
+  const k = chipKey(w, row);
+  return w.valueMap?.[k] ?? k;
+}
+function chipColor(w: DashboardWidget, row: ChipRow): 'ok' | 'warn' | 'err' | 'info' | 'neutral' {
+  const c = w.valueColors?.[chipKey(w, row)];
+  return c === 'ok' || c === 'warn' || c === 'err' || c === 'info' ? c : 'neutral';
+}
+// Only conditions the operator mapped are shown — keeps the status card on the
+// health conditions (Ready / *Pressure) and drops informational K8s noise.
+function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): ChipRow[] {
+  return (res?.table ?? []).filter((r) =>
+    r.labels.some((l) => l.value in (w.valueColors ?? {}) || l.value in (w.valueMap ?? {})),
+  );
+}
 </script>
 
 <template>
@@ -130,7 +157,15 @@ function result(id: string): DashboardWidgetResult | undefined {
         <span class="muted">{{ result(widget.id)!.error }}</span>
       </template>
       <template v-else-if="widget.type === 'card'">
-        <div v-if="compareMode" class="card-compare">
+        <div v-if="!compareMode && widget.valueColors && chipRows(widget, result(widget.id)).length" class="card-chips">
+          <span
+            v-for="(row, ci) in chipRows(widget, result(widget.id))"
+            :key="ci"
+            class="status-chip"
+            :class="`sc-${chipColor(widget, row)}`"
+          >{{ chipLabel(widget, row) }}</span>
+        </div>
+        <div v-else-if="compareMode" class="card-compare">
           <div v-for="e in compareEntities" :key="e" class="cc-row">
             <span class="cc-dot" :style="{ background: compareHue(e) }" />
             <span class="cc-name" :title="entityLabel(e)">{{ entityLabel(e) }}</span>
@@ -370,6 +405,37 @@ function result(id: string): DashboardWidgetResult | undefined {
   font-size: 11px;
   color: var(--sw-fg-3);
 }
+.card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 6px 0;
+}
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status-chip::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sc-ok { color: var(--sw-ok); background: var(--sw-ok-soft); }
+.sc-warn { color: var(--sw-warn); background: var(--sw-warn-soft); }
+.sc-err { color: var(--sw-err); background: var(--sw-err-soft); }
+.sc-info { color: var(--sw-info); background: var(--sw-info-soft); }
+.sc-neutral { color: var(--sw-fg-3); background: var(--sw-bg-2); }
 .muted {
   color: var(--sw-fg-3);
   font-size: 11px;

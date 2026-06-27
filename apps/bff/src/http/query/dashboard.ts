@@ -492,6 +492,16 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         }
 
         if (widget.type === 'card') {
+          // A colored enum card whose metric is labeled (e.g. K8s node
+          // conditions → one row per active condition) keeps the labels so
+          // the tile renders them as colored status chips; every other card
+          // collapses to the scalar average as before.
+          if (widget.format === 'enum' && widget.valueColors) {
+            const rows = parseTable(data[`w${wIdx}_e0`]);
+            if (rows && rows.some((r) => r.labels.length > 0)) {
+              return { id: widget.id, table: rows };
+            }
+          }
           const first = widget.expressions.map((_, eIdx) =>
             parseSeries(data[`w${wIdx}_e${eIdx}`]),
           ).find((s) => s !== null);

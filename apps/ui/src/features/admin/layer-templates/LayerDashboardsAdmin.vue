@@ -1213,6 +1213,10 @@ function setValueMapKey(oldKey: string, newKey: string): void {
   const label = w.valueMap[oldKey];
   delete w.valueMap[oldKey];
   w.valueMap[newKey] = label;
+  if (w.valueColors && oldKey in w.valueColors) {
+    w.valueColors[newKey] = w.valueColors[oldKey];
+    delete w.valueColors[oldKey];
+  }
 }
 function addValueMapRow(): void {
   const w = editingWidget.value;
@@ -1227,6 +1231,30 @@ function removeValueMapRow(key: string): void {
   if (!w || !w.valueMap) return;
   delete w.valueMap[key];
   if (Object.keys(w.valueMap).length === 0) delete w.valueMap;
+  if (w.valueColors) {
+    delete w.valueColors[key];
+    if (Object.keys(w.valueColors).length === 0) delete w.valueColors;
+  }
+}
+
+// Optional color per valueMap key → `valueColors`, turning the enum card into
+// colored status chips (one per matched value/label). Empty = no chip color.
+const CHIP_COLORS = ['', 'ok', 'warn', 'err', 'info', 'neutral'] as const;
+function valueColorFor(key: string): string {
+  return editingWidget.value?.valueColors?.[key] ?? '';
+}
+function setValueColor(key: string, color: string): void {
+  const w = editingWidget.value;
+  if (!w) return;
+  if (!color) {
+    if (w.valueColors) {
+      delete w.valueColors[key];
+      if (Object.keys(w.valueColors).length === 0) delete w.valueColors;
+    }
+    return;
+  }
+  if (!w.valueColors) w.valueColors = {};
+  w.valueColors[key] = color;
 }
 
 /** Drawer commits edits in place on the live draft via v-model — no
@@ -4333,7 +4361,7 @@ const namingTest = computed<NamingTestResult>(() => {
                 <template v-else>
                   <template v-if="editingWidget">
                     <div v-if="editingWidget.format === 'enum'" class="d-section">
-                      <span class="d-label">Value map (enum → label)</span>
+                      <span class="d-label">Value map (enum → label, color)</span>
                       <div class="vm-rows">
                         <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
                           <input
@@ -4349,11 +4377,19 @@ const namingTest = computed<NamingTestResult>(() => {
                             @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
                             placeholder="Failed"
                           />
+                          <select
+                            class="vm-color"
+                            :value="valueColorFor(row[0])"
+                            title="Chip color"
+                            @change="setValueColor(row[0], ($event.target as HTMLSelectElement).value)"
+                          >
+                            <option v-for="c in CHIP_COLORS" :key="c" :value="c">{{ c || '—' }}</option>
+                          </select>
                           <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
                         </div>
                       </div>
                       <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
-                      <p class="d-hint">Map a coded value to a label (e.g. 1 → OK). Card widgets only; labels are translatable per locale.</p>
+                      <p class="d-hint">Map a coded value — or a metric label such as a K8s node condition — to a label and an optional chip color (<code>ok</code> green / <code>warn</code> amber / <code>err</code> red / <code>info</code> blue / <code>neutral</code> grey). With a color set, the card renders colored status chips, one per matched value. Card widgets only; labels are translatable per locale.</p>
                     </div>
                     <div class="d-section">
                       <span class="d-label">MQE expressions</span>
@@ -6428,6 +6464,7 @@ const namingTest = computed<NamingTestResult>(() => {
 .vm-row .vm-key { width: 64px; flex: 0 0 auto; }
 .vm-row .vm-arrow { color: var(--sw-fg-3); }
 .vm-row .vm-label { flex: 1 1 auto; min-width: 0; }
+.vm-row .vm-color { width: 84px; flex: 0 0 auto; }
 .expr-rows { display: flex; flex-direction: column; gap: 4px; }
 .expr-row { display: flex; gap: 6px; align-items: center; }
 .expr-row .expr-mqe { flex: 1 1 auto; min-width: 0; }

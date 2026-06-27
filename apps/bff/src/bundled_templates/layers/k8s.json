@@ -302,7 +302,14 @@
         ],
         "span": 3,
         "rowSpan": 1,
-        "format": "int"
+        "format": "enum",
+        "valueColors": {
+          "Ready": "ok",
+          "MemoryPressure": "warn",
+          "DiskPressure": "warn",
+          "PIDPressure": "warn",
+          "NetworkUnavailable": "err"
+        }
       },
       {
         "id": "node_pod_total",

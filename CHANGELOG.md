@@ -40,6 +40,12 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Denser Kubernetes dashboard tables** — the K8s layer's table widgets show more rows without scrolling.
 
+### Dashboards
+
+- **Cards can render values as colored status chips.** A card widget with `format: enum` now takes an optional chip color per value-map entry — `ok` (green), `warn` (amber), `err` (red), `info` (blue), `neutral` (grey) — and renders each matched value, or metric label, as a colored chip instead of a bare number. Set it in the layer-dashboard admin's value-map editor, next to the existing value → label mapping.
+
+- **The Kubernetes Node Status card now reads as a status, not a number.** Instead of a raw `1`, it shows the node's active conditions as colored chips — `Ready` in green, the `*Pressure` / `NetworkUnavailable` conditions in amber/red — so node health is legible at a glance.
+
 ## 1.0.0
 
 ### Performance & behavior tuning

@@ -43,6 +43,12 @@ const leafWidgetSchema = z.object({
   showTableValues: z.boolean().optional(),
   span: z.number().int().min(1).max(12).optional(),
   rowSpan: z.number().int().min(1).max(64).optional(),
+  // Card value formatting + enum maps. The resolver gates colored status
+  // chips on format:'enum' + valueColors, so both must survive validation.
+  format: z.enum(['int', 'decimal', 'compact', 'duration', 'enum']).optional(),
+  valueMap: z.record(z.string()).optional(),
+  valueColors: z.record(z.string()).optional(),
+  labelTopN: z.number().int().min(1).max(50).optional(),
   // Structured visibility gate. `.catch(undefined)` makes the parse
   // TOLERANT: a legacy free-text predicate (`"<metric> has value"` /
   // `#entity.x`) left over in an OAP-stored dashboard resolves to
