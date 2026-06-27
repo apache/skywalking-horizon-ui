@@ -84,6 +84,7 @@ import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue'
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
+import MetricDefinitionRow from './MetricDefinitionRow.vue';
 
 // OAP UI-template sync status for layer dashboards. Drives the banner +
 // Save gating + per-row badge below.
@@ -1775,13 +1776,6 @@ function moveMetric(bucket: MetricBucket, i: number, dir: -1 | 1): void {
   if (j < 0 || j >= list.length) return;
   [list[i], list[j]] = [list[j], list[i]];
 }
-function toggleThresholds(m: TopologyMetricDef): void {
-  if (m.thresholds) {
-    m.thresholds = undefined;
-  } else {
-    m.thresholds = { ok: 0.1, warn: 1, danger: 5 };
-  }
-}
 
 const topologyNodeMetrics = computed(() => getMetricList('node'));
 const topologyServerMetrics = computed(() => getMetricList('linkServer'));
@@ -3255,62 +3249,21 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="topologyNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in topologyNodeMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf">
-                      <span>id</span>
-                      <input v-model="m.id" type="text" class="mf-input mono" />
-                    </label>
-                    <label class="mf">
-                      <span>label</span>
-                      <input v-model="m.label" type="text" class="mf-input" />
-                    </label>
-                    <label class="mf mf-wide">
-                      <span>MQE</span>
-                      <input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_cpm" />
-                    </label>
-                    <label class="mf mf-narrow">
-                      <span>unit</span>
-                      <input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" />
-                    </label>
-                    <label class="mf">
-                      <span>role</span>
-                      <select v-model="m.role" class="mf-input">
-                        <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
-                      </select>
-                    </label>
-                    <label class="mf mf-narrow">
-                      <span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('node', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === topologyNodeMetrics.length - 1" title="Move down" @click="moveMetric('node', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('node', i)">×</button>
-                    </div>
-                  </div>
-                  <div class="metric-thresholds">
-                    <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">
-                      {{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}
-                    </button>
-                    <template v-if="m.thresholds">
-                      <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-checkbox">
-                        <input v-model="m.thresholds.invertHealth" type="checkbox" />
-                        <span>invert (higher = better)</span>
-                      </label>
-                      <label v-if="m.thresholds.invertHealth" class="mf mf-narrow">
-                        <span>base</span>
-                        <input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" />
-                      </label>
-                    </template>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in topologyNodeMetrics"
+                  :key="i"
+                  v-model:metric="topologyNodeMetrics[i]"
+                  :role-options="TOPOLOGY_ROLE_OPTIONS"
+                  show-role
+                  show-thresholds
+                  mqe-placeholder="service_cpm"
+                  unit-placeholder="rpm"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < topologyNodeMetrics.length - 1"
+                  @move-up="moveMetric('node', i, -1)"
+                  @move-down="moveMetric('node', i, 1)"
+                  @remove="removeMetric('node', i)"
+                />
               </div>
             </div>
 
@@ -3322,25 +3275,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="topologyServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in topologyServerMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('linkServer', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === topologyServerMetrics.length - 1" @click="moveMetric('linkServer', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('linkServer', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in topologyServerMetrics"
+                  :key="i"
+                  v-model:metric="topologyServerMetrics[i]"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < topologyServerMetrics.length - 1"
+                  @move-up="moveMetric('linkServer', i, -1)"
+                  @move-down="moveMetric('linkServer', i, 1)"
+                  @remove="removeMetric('linkServer', i)"
+                />
               </div>
             </div>
 
@@ -3352,25 +3296,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="topologyClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in topologyClientMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('linkClient', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === topologyClientMetrics.length - 1" @click="moveMetric('linkClient', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('linkClient', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in topologyClientMetrics"
+                  :key="i"
+                  v-model:metric="topologyClientMetrics[i]"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < topologyClientMetrics.length - 1"
+                  @move-up="moveMetric('linkClient', i, -1)"
+                  @move-down="moveMetric('linkClient', i, 1)"
+                  @remove="removeMetric('linkClient', i)"
+                />
               </div>
             </div>
 
@@ -3398,40 +3333,21 @@ const namingTest = computed<NamingTestResult>(() => {
                 </header>
                 <div v-if="instanceNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
                 <div v-else class="metric-list">
-                  <article v-for="(m, i) in instanceNodeMetrics" :key="i" class="metric-row">
-                    <div class="metric-row-head">
-                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_instance_cpm" /></label>
-                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
-                      <label class="mf"><span>role</span>
-                        <select v-model="m.role" class="mf-input">
-                          <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
-                        </select>
-                      </label>
-                      <label class="mf mf-narrow"><span>agg</span>
-                        <select v-model="m.aggregation" class="mf-input">
-                          <option value="avg">avg</option>
-                          <option value="sum">sum</option>
-                        </select>
-                      </label>
-                      <div class="metric-row-actions">
-                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('instNode', i, -1)">↑</button>
-                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceNodeMetrics.length - 1" title="Move down" @click="moveMetric('instNode', i, 1)">↓</button>
-                        <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('instNode', i)">×</button>
-                      </div>
-                    </div>
-                    <div class="metric-thresholds">
-                      <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
-                      <template v-if="m.thresholds">
-                        <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
-                        <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
-                        <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
-                        <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
-                        <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
-                      </template>
-                    </div>
-                  </article>
+                  <MetricDefinitionRow
+                    v-for="(_m, i) in instanceNodeMetrics"
+                    :key="i"
+                    v-model:metric="instanceNodeMetrics[i]"
+                    :role-options="TOPOLOGY_ROLE_OPTIONS"
+                    show-role
+                    show-thresholds
+                    mqe-placeholder="service_instance_cpm"
+                    unit-placeholder="rpm"
+                    :can-move-up="i > 0"
+                    :can-move-down="i < instanceNodeMetrics.length - 1"
+                    @move-up="moveMetric('instNode', i, -1)"
+                    @move-down="moveMetric('instNode', i, 1)"
+                    @remove="removeMetric('instNode', i)"
+                  />
                 </div>
               </div>
 
@@ -3443,22 +3359,16 @@ const namingTest = computed<NamingTestResult>(() => {
                 </header>
                 <div v-if="instanceServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
                 <div v-else class="metric-list">
-                  <article v-for="(m, i) in instanceServerMetrics" :key="i" class="metric-row">
-                    <div class="metric-row-head">
-                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>agg</span>
-                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
-                      </label>
-                      <div class="metric-row-actions">
-                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkServer', i, -1)">↑</button>
-                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceServerMetrics.length - 1" @click="moveMetric('instLinkServer', i, 1)">↓</button>
-                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkServer', i)">×</button>
-                      </div>
-                    </div>
-                  </article>
+                  <MetricDefinitionRow
+                    v-for="(_m, i) in instanceServerMetrics"
+                    :key="i"
+                    v-model:metric="instanceServerMetrics[i]"
+                    :can-move-up="i > 0"
+                    :can-move-down="i < instanceServerMetrics.length - 1"
+                    @move-up="moveMetric('instLinkServer', i, -1)"
+                    @move-down="moveMetric('instLinkServer', i, 1)"
+                    @remove="removeMetric('instLinkServer', i)"
+                  />
                 </div>
               </div>
 
@@ -3470,22 +3380,16 @@ const namingTest = computed<NamingTestResult>(() => {
                 </header>
                 <div v-if="instanceClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
                 <div v-else class="metric-list">
-                  <article v-for="(m, i) in instanceClientMetrics" :key="i" class="metric-row">
-                    <div class="metric-row-head">
-                      <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                      <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                      <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                      <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>agg</span>
-                        <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
-                      </label>
-                      <div class="metric-row-actions">
-                        <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('instLinkClient', i, -1)">↑</button>
-                        <button class="sw-btn small ghost" type="button" :disabled="i === instanceClientMetrics.length - 1" @click="moveMetric('instLinkClient', i, 1)">↓</button>
-                        <button class="sw-btn small ghost danger" type="button" @click="removeMetric('instLinkClient', i)">×</button>
-                      </div>
-                    </div>
-                  </article>
+                  <MetricDefinitionRow
+                    v-for="(_m, i) in instanceClientMetrics"
+                    :key="i"
+                    v-model:metric="instanceClientMetrics[i]"
+                    :can-move-up="i > 0"
+                    :can-move-down="i < instanceClientMetrics.length - 1"
+                    @move-up="moveMetric('instLinkClient', i, -1)"
+                    @move-down="moveMetric('instLinkClient', i, 1)"
+                    @remove="removeMetric('instLinkClient', i)"
+                  />
                 </div>
               </div>
             </template>
@@ -3737,37 +3641,21 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in deploymentNodeMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="service_instance_cpm" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" placeholder="rpm" /></label>
-                    <label class="mf"><span>role</span>
-                      <select v-model="m.role" class="mf-input">
-                        <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
-                      </select>
-                    </label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" title="Move up" @click="moveMetric('sitNode', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentNodeMetrics.length - 1" title="Move down" @click="moveMetric('sitNode', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" title="Remove" @click="removeMetric('sitNode', i)">×</button>
-                    </div>
-                  </div>
-                  <div class="metric-thresholds">
-                    <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">{{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}</button>
-                    <template v-if="m.thresholds">
-                      <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-checkbox"><input v-model="m.thresholds.invertHealth" type="checkbox" /><span>invert (higher = better)</span></label>
-                      <label v-if="m.thresholds.invertHealth" class="mf mf-narrow"><span>base</span><input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" /></label>
-                    </template>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in deploymentNodeMetrics"
+                  :key="i"
+                  v-model:metric="deploymentNodeMetrics[i]"
+                  :role-options="TOPOLOGY_ROLE_OPTIONS"
+                  show-role
+                  show-thresholds
+                  mqe-placeholder="service_instance_cpm"
+                  unit-placeholder="rpm"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < deploymentNodeMetrics.length - 1"
+                  @move-up="moveMetric('sitNode', i, -1)"
+                  @move-down="moveMetric('sitNode', i, 1)"
+                  @remove="removeMetric('sitNode', i)"
+                />
               </div>
             </div>
 
@@ -3779,22 +3667,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in deploymentServerMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkServer', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentServerMetrics.length - 1" @click="moveMetric('sitLinkServer', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkServer', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in deploymentServerMetrics"
+                  :key="i"
+                  v-model:metric="deploymentServerMetrics[i]"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < deploymentServerMetrics.length - 1"
+                  @move-up="moveMetric('sitLinkServer', i, -1)"
+                  @move-down="moveMetric('sitLinkServer', i, 1)"
+                  @remove="removeMetric('sitLinkServer', i)"
+                />
               </div>
             </div>
 
@@ -3806,22 +3688,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in deploymentClientMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input"><option value="avg">avg</option><option value="sum">sum</option></select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('sitLinkClient', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === deploymentClientMetrics.length - 1" @click="moveMetric('sitLinkClient', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('sitLinkClient', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in deploymentClientMetrics"
+                  :key="i"
+                  v-model:metric="deploymentClientMetrics[i]"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < deploymentClientMetrics.length - 1"
+                  @move-up="moveMetric('sitLinkClient', i, -1)"
+                  @move-down="moveMetric('sitLinkClient', i, 1)"
+                  @remove="removeMetric('sitLinkClient', i)"
+                />
               </div>
             </div>
           </div>
@@ -3855,49 +3731,20 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="epDepNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in epDepNodeMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="endpoint_cpm" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf">
-                      <span>role</span>
-                      <select v-model="m.role" class="mf-input">
-                        <option v-for="o in TOPOLOGY_ROLE_OPTIONS" :key="String(o.value)" :value="o.value || undefined">{{ o.label }}</option>
-                      </select>
-                    </label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('node', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === epDepNodeMetrics.length - 1" @click="moveMetric('node', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('node', i)">×</button>
-                    </div>
-                  </div>
-                  <div class="metric-thresholds">
-                    <button class="sw-btn small ghost" type="button" @click="toggleThresholds(m)">
-                      {{ m.thresholds ? '− Thresholds' : '＋ Thresholds' }}
-                    </button>
-                    <template v-if="m.thresholds">
-                      <label class="mf mf-narrow"><span>ok ≤</span><input v-model.number="m.thresholds.ok" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>warn ≤</span><input v-model.number="m.thresholds.warn" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-narrow"><span>danger ≤</span><input v-model.number="m.thresholds.danger" type="number" step="0.1" class="mf-input" /></label>
-                      <label class="mf mf-checkbox">
-                        <input v-model="m.thresholds.invertHealth" type="checkbox" />
-                        <span>invert (higher = better)</span>
-                      </label>
-                      <label v-if="m.thresholds.invertHealth" class="mf mf-narrow">
-                        <span>base</span>
-                        <input v-model.number="m.thresholds.invertBase" type="number" step="1" class="mf-input" placeholder="100" />
-                      </label>
-                    </template>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in epDepNodeMetrics"
+                  :key="i"
+                  v-model:metric="epDepNodeMetrics[i]"
+                  :role-options="TOPOLOGY_ROLE_OPTIONS"
+                  show-role
+                  show-thresholds
+                  mqe-placeholder="endpoint_cpm"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < epDepNodeMetrics.length - 1"
+                  @move-up="moveMetric('node', i, -1)"
+                  @move-down="moveMetric('node', i, 1)"
+                  @remove="removeMetric('node', i)"
+                />
               </div>
             </div>
 
@@ -3909,25 +3756,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="epDepLinkMetrics.length === 0" class="topo-cfg-empty">No link metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in epDepLinkMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('link', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === epDepLinkMetrics.length - 1" @click="moveMetric('link', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('link', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in epDepLinkMetrics"
+                  :key="i"
+                  v-model:metric="epDepLinkMetrics[i]"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < epDepLinkMetrics.length - 1"
+                  @move-up="moveMetric('link', i, -1)"
+                  @move-down="moveMetric('link', i, 1)"
+                  @remove="removeMetric('link', i)"
+                />
               </div>
             </div>
           </div>
@@ -3950,25 +3788,17 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="processEdgeClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in processEdgeClientMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="process_relation_client_write_cpm" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('edgeClient', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === processEdgeClientMetrics.length - 1" @click="moveMetric('edgeClient', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('edgeClient', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in processEdgeClientMetrics"
+                  :key="i"
+                  v-model:metric="processEdgeClientMetrics[i]"
+                  mqe-placeholder="process_relation_client_write_cpm"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < processEdgeClientMetrics.length - 1"
+                  @move-up="moveMetric('edgeClient', i, -1)"
+                  @move-down="moveMetric('edgeClient', i, 1)"
+                  @remove="removeMetric('edgeClient', i)"
+                />
               </div>
             </div>
 
@@ -3980,25 +3810,17 @@ const namingTest = computed<NamingTestResult>(() => {
               </header>
               <div v-if="processEdgeServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
               <div v-else class="metric-list">
-                <article v-for="(m, i) in processEdgeServerMetrics" :key="i" class="metric-row">
-                  <div class="metric-row-head">
-                    <label class="mf"><span>id</span><input v-model="m.id" type="text" class="mf-input mono" /></label>
-                    <label class="mf"><span>label</span><input v-model="m.label" type="text" class="mf-input" /></label>
-                    <label class="mf mf-wide"><span>MQE</span><input v-model="m.mqe" type="text" class="mf-input mono" placeholder="process_relation_server_write_cpm" /></label>
-                    <label class="mf mf-narrow"><span>unit</span><input v-model="m.unit" type="text" class="mf-input" /></label>
-                    <label class="mf mf-narrow"><span>agg</span>
-                      <select v-model="m.aggregation" class="mf-input">
-                        <option value="avg">avg</option>
-                        <option value="sum">sum</option>
-                      </select>
-                    </label>
-                    <div class="metric-row-actions">
-                      <button class="sw-btn small ghost" type="button" :disabled="i === 0" @click="moveMetric('edgeServer', i, -1)">↑</button>
-                      <button class="sw-btn small ghost" type="button" :disabled="i === processEdgeServerMetrics.length - 1" @click="moveMetric('edgeServer', i, 1)">↓</button>
-                      <button class="sw-btn small ghost danger" type="button" @click="removeMetric('edgeServer', i)">×</button>
-                    </div>
-                  </div>
-                </article>
+                <MetricDefinitionRow
+                  v-for="(_m, i) in processEdgeServerMetrics"
+                  :key="i"
+                  v-model:metric="processEdgeServerMetrics[i]"
+                  mqe-placeholder="process_relation_server_write_cpm"
+                  :can-move-up="i > 0"
+                  :can-move-down="i < processEdgeServerMetrics.length - 1"
+                  @move-up="moveMetric('edgeServer', i, -1)"
+                  @move-down="moveMetric('edgeServer', i, 1)"
+                  @remove="removeMetric('edgeServer', i)"
+                />
               </div>
             </div>
           </div>
