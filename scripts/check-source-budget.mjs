@@ -19,17 +19,15 @@
 // this gate adds the comment-VOLUME cap ESLint cannot express, and is the
 // CI-runnable enforcer of both. A file is over budget when it carries more
 // than CODE_MAX lines of code OR more than COMMENT_MAX lines of comment.
-// SKIP lists files still mid-decomposition (mirrors eslint's grandfather
-// block) — it only ever shrinks.
+// SKIP is an explicit exemption list for files still mid-decomposition;
+// empty now that every source file is within budget.
 
 import { readFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const CODE_MAX = 2000;
 const COMMENT_MAX = 500;
-const SKIP = new Set([
-  'apps/ui/src/features/admin/layer-templates/LayerDashboardsAdmin.vue',
-]);
+const SKIP = new Set([]);
 
 const files = execSync('git ls-files', { encoding: 'utf8' })
   .split('\n')

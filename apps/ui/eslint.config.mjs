@@ -40,17 +40,9 @@ export default [
   {
     // File-size guardrail. No file may exceed 2000 lines of code (comments
     // and blank lines excluded) — split it (extract composables /
-    // sub-components) instead. The grandfather list below is the live
-    // decomposition backlog: remove a file when its split lands; never add to it.
+    // sub-components) instead.
     files: ['src/**/*.vue', 'src/**/*.ts'],
     ignores: ['**/*.test.ts', '**/*.d.ts'],
     rules: { 'max-lines': ['error', { max: 2000, skipComments: true, skipBlankLines: true }] },
-  },
-  {
-    // ── DECOMPOSE BACKLOG ─ the only file still over 2000 loc; its split is
-    //    in flight (LayerDashboardsAdmin → per-scope editors + composables).
-    //    This list only ever SHRINKS — remove the entry when the split lands.
-    files: ['src/features/admin/layer-templates/LayerDashboardsAdmin.vue'],
-    rules: { 'max-lines': 'off' },
   },
 ];
