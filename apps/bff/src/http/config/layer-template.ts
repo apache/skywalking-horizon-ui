@@ -39,11 +39,6 @@ export interface LayerTemplateConfigDeps {
   sessions: SessionStore;
 }
 
-// All zod schemas for admin template validation were removed when
-// `POST /api/admin/layer-templates/:key` was retired. Layer-template
-// updates now flow through `/api/admin/templates/save` (OAP-backed,
-// validated server-side by the OAP UI-template endpoint shape).
-
 export function registerLayerTemplateRoutes(
   app: FastifyInstance,
   deps: LayerTemplateConfigDeps,
@@ -56,7 +51,6 @@ export function registerLayerTemplateRoutes(
     return reply.send({ templates: allLayerTemplates() });
   });
 
-  // POST /api/admin/layer-templates/:key removed — operator updates
-  // now go through `/api/admin/templates/save` (OAP-backed). Bundled
-  // JSON is immutable at runtime.
+  // No write route here: operator updates go through `/api/admin/templates/save`
+  // (OAP-backed). Bundled JSON is immutable at runtime.
 }

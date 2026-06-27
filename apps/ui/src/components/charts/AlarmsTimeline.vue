@@ -38,6 +38,7 @@ import {
   BrushComponent,
   GridComponent,
   MarkLineComponent,
+  ToolboxComponent,
   TooltipComponent,
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
@@ -50,6 +51,7 @@ echarts.use([
   BrushComponent,
   GridComponent,
   MarkLineComponent,
+  ToolboxComponent,
   TooltipComponent,
   CanvasRenderer,
 ]);
@@ -161,7 +163,7 @@ function buildOption(): echarts.EChartsCoreOption {
       xAxisIndex: 0,
       brushType: 'lineX',
       brushMode: 'single',
-      brushStyle: { color: 'rgba(249,115,22,0.18)', borderColor: 'rgba(249,115,22,0.6)' },
+      brushStyle: { color: 'rgba(226,232,240,0.10)', borderColor: 'rgba(226,232,240,0.7)' },
       transformable: false,
       throttleType: 'debounce',
       throttleDelay: 200,
@@ -359,27 +361,49 @@ watch(
   { deep: true },
 );
 
-/* Parent-driven brush clear: when the operator hits the "clear
- * selection" button in the list header, the parent sets its
- * `selectedRange` ref to null. Mirror that into the chart by
- * wiping the brush rectangle. We only act on the null transition —
- * a non-null selection on this side is either echoed from a drag we
- * just did (no-op needed) or from a click on a flag (no rectangle
- * needed; the row list narrowing is the visual feedback). */
-watch(
-  () => props.selectedRange,
-  (next) => {
-    if (next === null || next === undefined) clearBrush();
-  },
-);
+/** Draw the orange selection band for a range (or wipe it when null).
+ *  Keeps the chart's rectangle in sync with the parent's `selectedRange`
+ *  whatever the source — a drag (snaps to the whole-minute range), a flag
+ *  click (a single-minute band, so the operator sees which slice is
+ *  active, not just the narrowed list), or the parent's clear button. */
+function drawBrush(range: { startTime: number; endTime: number } | null | undefined): void {
+  if (!chart) return;
+  if (range === null || range === undefined) {
+    clearBrush();
+    return;
+  }
+  chart.dispatchAction({
+    type: 'brush',
+    areas: [{ brushType: 'lineX', xAxisIndex: 0, coordRange: [range.startTime, range.endTime] }],
+  });
+}
+watch(() => props.selectedRange, (next) => drawBrush(next));
 </script>
 
 <template>
-  <div ref="container" class="alarms-timeline" :style="{ height: `${height ?? 110}px` }" />
+  <div class="alarms-timeline-wrap">
+    <div ref="container" class="alarms-timeline" :style="{ height: `${height ?? 110}px` }" />
+    <!-- Legend — the stack is firing (red) on the bottom, recovered (green)
+         on top; without this the colored areas / pins read ambiguously. -->
+    <div class="atl-legend">
+      <span class="atl-leg"><i class="atl-swatch firing" /> firing</span>
+      <span class="atl-leg"><i class="atl-swatch recovered" /> recovered</span>
+    </div>
+  </div>
 </template>
 
 <style scoped>
-.alarms-timeline {
-  width: 100%;
+.alarms-timeline-wrap { width: 100%; }
+.alarms-timeline { width: 100%; }
+.atl-legend {
+  display: flex;
+  gap: 16px;
+  padding: 2px 4px 0;
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
 }
+.atl-leg { display: inline-flex; align-items: center; gap: 5px; }
+.atl-swatch { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.atl-swatch.firing { background: #ef4444; }
+.atl-swatch.recovered { background: #22c55e; }
 </style>

@@ -32,6 +32,8 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -46,10 +48,12 @@ import type {
   ProcessRelationMetricsResponse,
 } from '@/api/client';
 import ProcessTopologyGraph from '@/layer/profiling/ProcessTopologyGraph.vue';
+import { useNetworkProcesses } from '@/layer/profiling/useNetworkProcesses';
 import TimeChart from '@/components/charts/TimeChart.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 // Preview-only: forward the draft `processTopology` block so a clicked
@@ -57,9 +61,7 @@ const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology');
 const { selectedId: serviceId } = useSelectedService();
 
-// Instance picker (binds to ?serviceInstance= via plain ref state — the
-// network view needs an *instance* to be useful, so we don't reuse the
-// generic `useSelectedInstance` composable's URL contract).
+// Instance picker — plain ref state (not the URL-bound useSelectedInstance).
 const instances = useLayerInstances(layerKey, serviceId);
 const selectedInstanceId = ref<string | null>(null);
 watch(
@@ -72,18 +74,13 @@ watch(
   { immediate: true },
 );
 
-// ── Tasks ──────────────────────────────────────────────────────────
 const tasks = ref<EBPFTask[]>([]);
 const tasksError = ref<string | null>(null);
 const tasksLoading = ref(false);
 const currentTask = ref<EBPFTask | null>(null);
 
-// Tasks are listed per SERVICE, not per selected instance. A network
-// task runs against the instance that was live when it was created; if
-// that pod has since been replaced (new pod name), AND-ing the task
-// query with the currently-selected instance hides the task entirely.
-// The task object carries its own serviceInstanceId, so the list stays
-// correct and selecting a task can still drive the right topology.
+// Tasks are listed per SERVICE, not the selected instance — a task's pod
+// may have been replaced; the task carries its own serviceInstanceId.
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
   () => void refreshTasks(),
@@ -103,9 +100,8 @@ async function refreshTasks(): Promise<void> {
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;
-    // currentTask change drives loadTopology via the watch below; when
-    // the list is empty currentTask stays null and we fall back to the
-    // live picker view.
+    // currentTask drives loadTopology via the watch below; with an empty
+    // list it stays null, so load the live picker view here instead.
     if (!currentTask.value) await loadTopology();
   } catch (e) {
     tasksError.value = e instanceof Error ? e.message : String(e);
@@ -114,18 +110,14 @@ async function refreshTasks(): Promise<void> {
   }
 }
 
-// ── Process topology ──────────────────────────────────────────────
 const nodes = ref<ProcessNode[]>([]);
 const calls = ref<ProcessCall[]>([]);
 const topologyLoading = ref(false);
 const topologyError = ref<string | null>(null);
 const windowMinutes = ref(30);
 
-// Topology follows the SELECTED TASK: a finished FIXED_TIME task only
-// captured process relations on its own instance during its own window
-// (and that pod may since have been replaced). When a task is selected
-// we query its instance + [taskStartTime, taskStartTime+duration]; with
-// no task we fall back to the picker instance + rolling window.
+// Topology follows the selected task (its instance + capture window); with
+// no task, the picker instance + a rolling window.
 watch([currentTask, selectedInstanceId], () => void loadTopology());
 
 async function loadTopology(): Promise<void> {
@@ -168,7 +160,6 @@ function closeEdge(): void {
   selectedCall.value = null;
 }
 
-// ── Edge (process-relation) metrics ────────────────────────────────
 const relationMetrics = ref<ProcessRelationMetricsResponse | null>(null);
 const relationLoading = ref(false);
 const relationError = ref<string | null>(null);
@@ -186,9 +177,7 @@ function endpointRef(n: ProcessNode): ProcessRelationEndpointRef {
   };
 }
 
-// Refire when the operator clicks a different edge. The detail area
-// resets first (cascade-clear), then resolves async — never leaves a
-// stale conversation's numbers under the new edge's header.
+// Refire on a new edge: reset first (cascade-clear), then resolve async.
 watch(selectedCall, async (call) => {
   relationMetrics.value = null;
   relationError.value = null;
@@ -287,21 +276,22 @@ function onEdgeKeydown(ev: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onEdgeKeydown));
 onBeforeUnmount(() => window.removeEventListener('keydown', onEdgeKeydown));
 
-// ── New task modal ────────────────────────────────────────────────
 const showNewTask = ref(false);
+useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTaskError = ref<string | null>(null);
+const { processes: networkProcesses, loading: processesLoading } =
+  useNetworkProcesses(selectedInstanceId, showNewTask);
 const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
-// OAP's `EBPFNetworkDataCollectingSettings.requireCompleteRequest` and
-// `requireCompleteResponse` are `Boolean!` — non-null. Every sampling
-// row MUST carry the settings block, otherwise
-// `createEBPFNetworkProfiling` 400s with a schema validation error.
+// requireComplete{Request,Response} are Boolean! — every sampling row must
+// carry the settings block or create 400s.
 const DEFAULT_SETTINGS = (): NetworkProfilingSampling['settings'] => ({
   requireCompleteRequest: true,
   requireCompleteResponse: true,
 });
-const samplings = ref<NetworkProfilingSampling[]>([
+const DEFAULT_SAMPLINGS = (): NetworkProfilingSampling[] => [
   { uriRegex: '', minDuration: 0, when4xx: true, when5xx: true, settings: DEFAULT_SETTINGS() },
-]);
+];
+const samplings = ref<NetworkProfilingSampling[]>(DEFAULT_SAMPLINGS());
 function addSampling(): void {
   samplings.value.push({ minDuration: 0, when4xx: false, when5xx: false, settings: DEFAULT_SETTINGS() });
 }
@@ -329,6 +319,7 @@ async function submitNewTask(): Promise<void> {
       return;
     }
     showNewTask.value = false;
+    samplings.value = DEFAULT_SAMPLINGS();
     await refreshTasks();
     await pollForNewTask({
       idsBefore,
@@ -350,20 +341,8 @@ function fmtTime(ms: number): string {
 
 <template>
   <div class="sw-card net-shell">
-    <!-- Side: instance picker + tasks -->
+    <!-- Side: tasks (the create target instance is chosen inside New Task) -->
     <div class="net-side">
-      <div class="side-head">
-        <span>Instance</span>
-      </div>
-      <div class="picker">
-        <select v-model="selectedInstanceId" class="sel wide" :disabled="!instances.instances.value.length">
-          <option v-if="!instances.instances.value.length" :value="null">— no instances —</option>
-          <option v-for="inst in instances.instances.value" :key="inst.id" :value="inst.id">
-            {{ inst.name }}
-          </option>
-        </select>
-      </div>
-
       <div class="side-head between">
         <span>Network tasks</span>
         <div class="side-head-actions">
@@ -377,7 +356,8 @@ function fmtTime(ms: number): string {
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
-            :disabled="!selectedInstanceId"
+            :disabled="!serviceId"
+            :title="!serviceId ? 'Pick a service first' : 'Create a new network profile task'"
             @click="showNewTask = true"
           >+ New Task</button>
         </div>
@@ -406,7 +386,6 @@ function fmtTime(ms: number): string {
       </ul>
     </div>
 
-    <!-- Main: topology + detail -->
     <div class="net-main">
       <div class="filter-bar">
         <div class="tb-block">
@@ -458,9 +437,7 @@ function fmtTime(ms: number): string {
       <div class="dlg-body edge-dlg-body">
         <div v-if="relationLoading" class="muted">Reading process-relation metrics…</div>
         <div v-else-if="relationError" class="banner err">{{ relationError }}</div>
-        <!-- Left/right split: client side | server side. Each column
-             stacks its metric widgets; matching ids line up row-for-row.
-             The metric set is operator-configurable in the admin. -->
+        <!-- The metric set is operator-configurable in the admin. -->
         <div v-else-if="relationMetrics" class="edge-cols">
           <section
             v-for="side in (['client', 'server'] as const)"
@@ -496,13 +473,33 @@ function fmtTime(ms: number): string {
         <button class="x" @click="showNewTask = false">×</button>
       </div>
       <div class="dlg-body">
+        <div class="field">
+          <label>Instance</label>
+          <select v-model="selectedInstanceId" class="sel wide" :disabled="!instances.instances.value.length">
+            <option v-if="!instances.instances.value.length" :value="null">— no instances —</option>
+            <option v-for="inst in instances.instances.value" :key="inst.id" :value="inst.id">{{ inst.name }}</option>
+          </select>
+        </div>
+        <div v-if="!instances.instances.value.length" class="banner err">
+          {{ t('No instances available for this service — a network profile task cannot be created.') }}
+        </div>
+        <template v-else-if="selectedInstanceId">
+          <div v-if="processesLoading" class="hint">{{ t('Checking processes on this instance…') }}</div>
+          <div v-else-if="!networkProcesses.length" class="banner err">
+            {{ t('This instance has no profilable processes — a network task cannot be created (network profiling needs a rover-monitored process).') }}
+          </div>
+          <div v-else class="proc-list">
+            <span class="proc-list-label">{{ t('Processes') }} ({{ networkProcesses.length }})</span>
+            <span v-for="p in networkProcesses" :key="p.id" class="proc-chip">{{ p.name }}</span>
+          </div>
+        </template>
         <p class="hint">
           OAP captures one connection sample per matching rule. Leave URI
           empty to match any request; toggle 4xx/5xx to scope by status.
         </p>
         <div v-for="(s, i) in samplings" :key="i" class="sampling">
           <div class="sampling-head">
-            <strong>Sampling rule {{ i + 1 }}</strong>
+            <strong>{{ t('Sampling rule') }} {{ i + 1 }}</strong>
             <button
               v-if="samplings.length > 1"
               class="del"
@@ -521,10 +518,10 @@ function fmtTime(ms: number): string {
             </div>
           </div>
           <div class="check-row">
-            <label class="cb"><input type="checkbox" v-model="s.when4xx" /> when 4xx</label>
-            <label class="cb"><input type="checkbox" v-model="s.when5xx" /> when 5xx</label>
-            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteRequest" /> capture request</label>
-            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> capture response</label>
+            <label class="cb"><input type="checkbox" v-model="s.when4xx" /> {{ t('when 4xx') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.when5xx" /> {{ t('when 5xx') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteRequest" /> {{ t('capture request') }}</label>
+            <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> {{ t('capture response') }}</label>
           </div>
         </div>
         <button class="btn-secondary" type="button" @click="addSampling">+ add another sampling rule</button>
@@ -532,7 +529,12 @@ function fmtTime(ms: number): string {
       </div>
       <div class="dlg-foot">
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
-        <button class="btn-primary" @click="submitNewTask">Create task</button>
+        <button
+          class="btn-primary"
+          :disabled="!selectedInstanceId || processesLoading || !networkProcesses.length"
+          :title="!selectedInstanceId ? t('No instances available for this service') : processesLoading ? t('Checking processes…') : !networkProcesses.length ? t('This instance has no profilable processes') : t('Create the network profile task')"
+          @click="submitNewTask"
+        >Create task</button>
       </div>
     </div>
   </div>
@@ -807,8 +809,6 @@ function fmtTime(ms: number): string {
   font-size: 10.5px;
   color: var(--sw-fg-1);
 }
-/* Edge dashboard modal — near-fullscreen; client | server side-by-side,
-   each side a 2-up widget grid → 4 widgets per row (2 client + 2 server). */
 /* `.dlg.edge-dlg` (not `.edge-dlg`) so this beats the base `.dlg`
  * width:560px regardless of rule order. */
 .dlg.edge-dlg { width: 92vw; max-width: 92vw; height: 92vh; max-height: 92vh; }
@@ -987,4 +987,7 @@ function fmtTime(ms: number): string {
   color: var(--sw-err);
   font-size: 11px;
 }
+.proc-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0; }
+.proc-list-label { font-size: 11px; color: var(--sw-fg-3); }
+.proc-chip { font-family: var(--sw-mono); font-size: 10.5px; color: var(--sw-fg-1); background: var(--sw-bg-2); border: 1px solid var(--sw-line); padding: 1px 6px; border-radius: 3px; }
 </style>

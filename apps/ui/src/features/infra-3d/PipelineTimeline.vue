@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { DeepReadonly } from 'vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { PipelineStageId, StageState } from './composables/useInfra3dPipeline';
 
 // The pipeline composable exposes `readonly()` wrapped state; we
@@ -69,6 +70,8 @@ const emit = defineEmits<{
 }>();
 
 const openStage = ref<PipelineStageId | null>(null);
+
+useEscapeToClose(() => openStage.value !== null, () => { openStage.value = null; });
 
 function toggleStage(id: PipelineStageId): void {
   openStage.value = openStage.value === id ? null : id;
@@ -111,7 +114,6 @@ const openStageState = computed<ROStageState | null>(() => {
 
 <template>
   <div class="pl">
-    <!-- Drawer (above the strip) -->
     <div v-if="openStageState" class="drawer">
       <header class="drawer-head">
         <span class="drawer-title">{{ stageLabels[openStageState.id] }} · stage</span>
@@ -124,7 +126,6 @@ const openStageState = computed<ROStageState | null>(() => {
       <div class="drawer-body">
         <p v-if="openStageState.summary" class="drawer-summary">{{ openStageState.summary }}</p>
 
-        <!-- Services -->
         <template v-if="openStageState.detail.kind === 'services'">
           <ul class="kv">
             <li><b>services</b><span>{{ openStageState.detail.servicesTotal }}</span></li>
@@ -142,7 +143,6 @@ const openStageState = computed<ROStageState | null>(() => {
           </details>
         </template>
 
-        <!-- Templates -->
         <template v-else-if="openStageState.detail.kind === 'templates'">
           <ul class="kv">
             <li><b>with topology widget</b><span>{{ openStageState.detail.layersWithTopology.length }}</span></li>
@@ -154,7 +154,6 @@ const openStageState = computed<ROStageState | null>(() => {
           </details>
         </template>
 
-        <!-- Topologies -->
         <template v-else-if="openStageState.detail.kind === 'topologies'">
           <table class="probes">
             <thead>
@@ -172,7 +171,6 @@ const openStageState = computed<ROStageState | null>(() => {
           </table>
         </template>
 
-        <!-- Layout -->
         <template v-else-if="openStageState.detail.kind === 'layout'">
           <ul class="kv">
             <li><b>layers re-laid</b><span>{{ openStageState.detail.layersReLaid }}</span></li>
@@ -180,7 +178,6 @@ const openStageState = computed<ROStageState | null>(() => {
           </ul>
         </template>
 
-        <!-- Metrics -->
         <template v-else-if="openStageState.detail.kind === 'metrics'">
           <ul class="kv">
             <li><b>services done</b><span>{{ openStageState.detail.servicesDone }} / {{ openStageState.detail.servicesTotal }}</span></li>
@@ -207,7 +204,6 @@ const openStageState = computed<ROStageState | null>(() => {
       </div>
     </div>
 
-    <!-- Strip -->
     <div class="strip">
       <button
         v-for="id in props.stageOrder"
@@ -259,7 +255,6 @@ const openStageState = computed<ROStageState | null>(() => {
   z-index: 80;
 }
 
-/* Strip */
 .strip {
   display: flex;
   align-items: stretch;
@@ -330,7 +325,6 @@ const openStageState = computed<ROStageState | null>(() => {
 .refresh:hover:not([disabled]) { background: var(--sw-bg-3); color: var(--sw-fg-0); }
 .refresh[disabled] { opacity: 0.4; cursor: default; }
 
-/* Drawer */
 .drawer {
   border-bottom: 1px solid var(--sw-line);
   background: var(--sw-bg-1);

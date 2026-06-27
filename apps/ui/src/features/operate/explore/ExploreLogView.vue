@@ -34,14 +34,13 @@
   tails) — these logs are never persisted, so there is no cold-stage.
 -->
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff, bffClient, describeApiError } from '@/api/client';
 import type {
   BrowserErrorCategory,
   BrowserErrorRow,
   BrowserErrorsResponse,
-  ExploreEntity,
   ExploreRequest,
   ExploreResolved,
   ExploreWindow,
@@ -60,6 +59,11 @@ import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import BrowserErrorPopout from '@/render/widgets/BrowserErrorPopout.vue';
 import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
+import ExploreBrowserErrorList from './ExploreBrowserErrorList.vue';
+import ExplorePodLogList from './ExplorePodLogList.vue';
+import { useExploreEntity } from './useExploreEntity';
+import { usePodLogSource } from './usePodLogSource';
+import { usePodLogTail } from './usePodLogTail';
 import { logRowKey } from '@/utils/logRow';
 
 const { t } = useI18n();
@@ -72,288 +76,83 @@ const { openTrace } = useTracePopout();
 type LogSource = 'raw' | 'browser' | 'pods';
 const logSource = ref<LogSource>('raw');
 
-// ── entity (OPTIONAL): pick (layer-filtered) vs type (name + real) ────
-type EntityMode = 'pick' | 'type';
-const entityMode = ref<EntityMode>('pick');
-
-const pickLayer = ref<string>('');
-const pickServiceId = ref<string>('');
-const pickInstanceId = ref<string>('');
-const pickEndpointId = ref<string>('');
-const services = ref<Array<{ id: string; name: string; normal: boolean | null }>>([]);
-const instances = ref<Array<{ id: string; name: string }>>([]);
-const endpoints = ref<Array<{ id: string; name: string }>>([]);
-const servicesLoading = ref(false);
-
-const pickServiceName = computed(
-  () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
-);
-
-async function loadServices(): Promise<void> {
-  services.value = [];
-  instances.value = [];
-  endpoints.value = [];
-  pickServiceId.value = '';
-  pickInstanceId.value = '';
-  pickEndpointId.value = '';
-  if (!pickLayer.value) return;
-  servicesLoading.value = true;
-  try {
-    const res = await bffClient.layer.services(pickLayer.value);
-    services.value = res.reachable ? res.services : [];
-  } catch {
-    services.value = [];
-  } finally {
-    servicesLoading.value = false;
-  }
-}
-
-async function loadInstances(): Promise<void> {
-  instances.value = [];
-  pickInstanceId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) return;
-  try {
-    const res = await bffClient.layer.instances(pickLayer.value, name);
-    instances.value = res.reachable ? res.instances : [];
-  } catch {
-    instances.value = [];
-  }
-}
-
-async function loadEndpoints(): Promise<void> {
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) {
-    endpoints.value = [];
-    return;
-  }
-  try {
-    const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
-    endpoints.value = res.reachable ? res.endpoints : [];
-  } catch {
-    endpoints.value = [];
-  }
-}
+// ── entity (OPTIONAL): pick (layer-filtered) vs type (name + real). The
+// picker state + loaders + option lists live in the shared composable; the
+// cascade watches stay here because they branch on the active log source. ─
+const {
+  entityMode,
+  pickLayer,
+  pickServiceId,
+  pickInstanceId,
+  pickEndpointId,
+  services,
+  instances,
+  endpoints,
+  servicesLoading,
+  loadServices,
+  loadInstances,
+  loadEndpoints,
+  serviceOptions,
+  instanceOptions,
+  endpointOptions,
+  instanceSel,
+  endpointSel,
+  typeService,
+  typeReal,
+  typeInstance,
+  typeEndpoint,
+  seedTypeFromPick,
+  currentEntity,
+} = useExploreEntity();
 
 // No layer seed for the browser source: this is an inspect tool, so it
 // exposes every layer/service rather than pinning BROWSER (which left the
 // service list showing only the browser app under an "Any layer" label).
 
-// ── pods entity — a specific pod (instance) + container, scoped to a
-// `caps.podLogs` layer. The SERVICE field has its own Pick/Type toggle
-// (Pod + Container stay dropdowns either way): in Pick mode the service
-// is chosen from the layer's catalog (→ `pickServiceId`); in Type mode
-// the operator types a service name (→ `podTypeService`), which the
-// instances route resolves per-layer (name → listServices → listInstances).
-// The instance IS the pod; the container list is lazy-loaded from the
-// pod's id. No endpoint — a pod log scopes to one container. ────────────
-type PodEntityMode = 'pick' | 'type';
-const podEntityMode = ref<PodEntityMode>('pick');
-const podTypeService = ref<string>('');
-// Real flag for the typed service. Pod logs are real-only in practice
-// (a virtual/peer service has no pods), so this defaults to real.
-const podTypeReal = ref(true);
-const podContainer = ref<string>('');
-const podContainers = ref<string[]>([]);
-const containersLoading = ref(false);
-const containersError = ref<string | null>(null);
-
-const podInstancesLoading = ref(false);
-// Pods service identity for the instances route: a picked OAP service-id
-// (Pick) or the typed name (Type). Both resolve per-layer server-side.
-const podServiceArg = computed(() =>
-  podEntityMode.value === 'pick' ? pickServiceId.value : podTypeService.value.trim(),
-);
-
-/** Encode a typed service name to an OAP service id (base64 of the UTF-8
- *  name + the real flag). Type mode sends this so the instances route's
- *  id-passthrough resolves the pods without a per-layer name lookup,
- *  which is why Type needs no layer. */
-function encodePodServiceId(name: string, real: boolean): string {
-  const bytes = new TextEncoder().encode(name);
-  let bin = '';
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return `${btoa(bin)}.${real ? 1 : 0}`;
-}
-
-/** Load the pod (instance) list for the chosen/typed service of the pods
- *  source, scoped to its `caps.podLogs` layer. Cascade-clears the pod +
- *  container picks first so a stale pod never sits under the new list. */
-async function loadPodInstances(): Promise<void> {
-  instances.value = [];
-  pickInstanceId.value = '';
-  podContainer.value = '';
-  podContainers.value = [];
-  containersError.value = null;
-  // Pick resolves the service within the chosen layer. Type needs no layer:
-  // the typed name is encoded to a service id, and the instances route
-  // ignores the layer key for an id, so any caps.podLogs layer works.
-  let layer: string | undefined;
-  let arg: string;
-  if (podEntityMode.value === 'pick') {
-    layer = pickLayer.value;
-    arg = pickServiceId.value;
-  } else {
-    const name = podTypeService.value.trim();
-    layer = podLayers.value[0]?.key;
-    arg = name ? encodePodServiceId(name, podTypeReal.value) : '';
-  }
-  if (!layer || !arg) return;
-  podInstancesLoading.value = true;
-  try {
-    const res = await bff.layer.instances(layer, arg);
-    instances.value = res.reachable ? res.instances : [];
-    // Single pod → auto-pin it (the common single-replica case); the
-    // `pickInstanceId` watch then lists its containers.
-    if (instances.value.length === 1) pickInstanceId.value = instances.value[0]!.id;
-  } catch {
-    instances.value = [];
-  } finally {
-    podInstancesLoading.value = false;
-  }
-}
-
-// The shared cascade serves two sources with different downstreams:
-//  · raw/browser → service list, then instances + endpoints.
-//  · pods        → service list (Pick mode), then pods (instances), then
-//                  containers; no endpoints.
-// Each cascade gates on the active source so the wrong downstream never
-// fires (loading pod containers for a browser service, etc.).
-watch(pickLayer, () => {
-  // pods Pick reloads its service list here; pods Type ignores the layer
-  // (it encodes the name to an id), so no pods-specific branch is needed.
-  void loadServices();
+// ── pods source — the Kubernetes Pod logs entity (pod + container), its
+// service → pod → container cascade, and the trailing-window / interval /
+// include-exclude condition. The composable drives the SHARED entity refs
+// (gating its cascade on `logSource === 'pods'`) and owns the pod option
+// lists; the view keeps the fetch + live-tail engine. ───────────────────
+const {
+  podEntityMode,
+  podTypeService,
+  podTypeReal,
+  podContainer,
+  podContainers,
+  containersLoading,
+  containersError,
+  podInstancesLoading,
+  podServiceArg,
+  podWindowSeconds,
+  podIntervalSeconds,
+  podIncludes,
+  podExcludes,
+  podIncludeInput,
+  podExcludeInput,
+  addPodInclude,
+  removePodInclude,
+  addPodExclude,
+  removePodExclude,
+  podLayers,
+  podFetchLayer,
+  podContainerOptions,
+  podInstanceOptions,
+  podInstanceSel,
+} = usePodLogSource({
+  logSource,
+  availableLayers,
+  pickLayer,
+  pickServiceId,
+  pickInstanceId,
+  instances,
+  loadServices,
+  loadInstances,
+  loadEndpoints,
 });
-watch(pickServiceId, () => {
-  if (logSource.value === 'pods') {
-    if (podEntityMode.value === 'pick') void loadPodInstances();
-    return;
-  }
-  void loadInstances();
-  void loadEndpoints();
-});
-// Type mode: the typed name + real flag encode to a service id → resolve pods.
-watch([podTypeService, podTypeReal], () => {
-  if (logSource.value === 'pods' && podEntityMode.value === 'type') void loadPodInstances();
-});
-
-async function loadContainers(): Promise<void> {
-  podContainer.value = '';
-  podContainers.value = [];
-  containersError.value = null;
-  const id = pickInstanceId.value;
-  const layer = podFetchLayer.value;
-  if (!layer || !id) return;
-  containersLoading.value = true;
-  try {
-    const r = await bff.log.podContainers(layer, id);
-    if (r.errorReason) {
-      containersError.value = r.errorReason;
-    } else if (!r.reachable) {
-      containersError.value = r.error ?? t('OAP unreachable');
-    } else {
-      podContainers.value = r.containers;
-      // Auto-pick the first container (OAP lists the app container first).
-      podContainer.value = r.containers[0] ?? '';
-    }
-  } catch (e) {
-    containersError.value = e instanceof Error ? e.message : String(e);
-  } finally {
-    containersLoading.value = false;
-  }
-}
-// Only the pods source needs containers — fetch when its pinned pod
-// changes (operator pick OR the single-pod auto-pin in loadPodInstances).
-// Entering pods always wipes the shared entity, so a pod can only ever be
-// set from within the pods cascade — no "carried-in pod" case to handle.
-watch(pickInstanceId, () => {
-  if (logSource.value === 'pods') void loadContainers();
-});
-// Pick↔Type for the pods service is a fresh start: drop the service in
-// both representations + the downstream pod / container so neither mode
-// inherits the other's pick. The layer stays (Type still needs one).
-watch(podEntityMode, () => {
-  pickServiceId.value = '';
-  podTypeService.value = '';
-  instances.value = [];
-  pickInstanceId.value = '';
-  podContainer.value = '';
-  podContainers.value = [];
-  containersError.value = null;
-});
-const podContainerOptions = computed(() => podContainers.value.map((c) => ({ value: c, label: c })));
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
-// `caps.podLogs` marks K8s-deployed layers (k8s_service / mesh — the same
-// flag that gates the per-layer Pod Logs tab). The pods Layer dropdown lists
-// EVERY layer (the layer is cosmetic on the pod-log wire, so operators may
-// pick any); this narrower set only auto-defaults the Pick layer when exactly
-// one such layer exists.
-const podLayers = computed(() => availableLayers.value.filter((l) => l.caps?.podLogs));
-// The layer key for the pod-log fetches: the picked layer in Pick mode; in
-// Type mode the Layer field is hidden, so fall back to any caps.podLogs layer.
-// OAP resolves the pod by its instance id, not the layer (the BFF only checks
-// the key's shape), so any pod-log layer works — without this, Type mode
-// dead-ends whenever more than one caps.podLogs layer exists.
-const podFetchLayer = computed(() =>
-  podEntityMode.value === 'pick' ? pickLayer.value : (podLayers.value[0]?.key ?? ''),
-);
-const serviceOptions = computed(() =>
-  services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
-);
-const instanceOptions = computed(() => [
-  { value: '', label: t('All instances') },
-  ...instances.value.map((i) => ({ value: i.id, label: i.name })),
-]);
-const endpointOptions = computed(() => [
-  { value: '', label: t('All endpoints') },
-  ...endpoints.value.map((e) => ({ value: e.id, label: e.name })),
-]);
-const instanceSel = computed<string>({ get: () => pickInstanceId.value, set: (v) => (pickInstanceId.value = v ?? '') });
-const endpointSel = computed<string>({ get: () => pickEndpointId.value, set: (v) => (pickEndpointId.value = v ?? '') });
-// Pods source: the instance is REQUIRED (it is the pod), so no "All
-// instances" sentinel row — just the raw instance list.
-const podInstanceOptions = computed(() => instances.value.map((i) => ({ value: i.id, label: i.name })));
-const podInstanceSel = computed<string>({ get: () => pickInstanceId.value, set: (v) => (pickInstanceId.value = v ?? '') });
 
-const typeService = ref<string>('');
-const typeReal = ref<boolean>(true);
-const typeInstance = ref<string>('');
-const typeEndpoint = ref<string>('');
-
-/** Seed the Type form from the current Pick selection — pick to discover,
- *  then tweak the name/flag by hand. */
-function seedTypeFromPick(): void {
-  if (!pickServiceName.value) return;
-  typeService.value = pickServiceName.value;
-  typeReal.value = services.value.find((s) => s.id === pickServiceId.value)?.normal !== false;
-  typeInstance.value = instances.value.find((i) => i.id === pickInstanceId.value)?.name ?? '';
-  typeEndpoint.value = endpoints.value.find((e) => e.id === pickEndpointId.value)?.name ?? '';
-  entityMode.value = 'type';
-}
-
-function currentEntity(): ExploreEntity | null {
-  if (entityMode.value === 'pick') {
-    if (!pickServiceId.value) return null;
-    return {
-      mode: 'pick',
-      serviceId: pickServiceId.value,
-      instanceId: pickInstanceId.value || undefined,
-      endpointId: pickEndpointId.value || undefined,
-    };
-  }
-  const name = typeService.value.trim();
-  if (!name) return null;
-  return {
-    mode: 'type',
-    serviceName: name,
-    isReal: typeReal.value,
-    instanceName: typeInstance.value.trim() || undefined,
-    endpointName: typeEndpoint.value.trim() || undefined,
-  };
-}
-
-// ── log conditions ────────────────────────────────────────────────────
 const cond = reactive({
   tags: '' as string,
   traceId: '' as string,
@@ -362,77 +161,6 @@ const cond = reactive({
 });
 const WINDOWS = [15, 30, 60, 180, 360, 720, 1440];
 const LIMITS = [20, 50, 100, 200];
-
-// ── pods condition — a trailing SECOND-precision window (live tail), in
-// seconds. Reuses the per-layer Pod Logs window + interval options. No
-// cold-stage: pod logs are never persisted. ─────────────────────────────
-const podWindowSeconds = ref<number>(60);
-const podIntervalSeconds = ref<number>(5);
-// Include / Exclude are RAW regex (no `.*…*` wrap — the operator types the
-// regex), passed verbatim as keywordsOfContent / excludingKeywordsOfContent,
-// exactly like the per-layer Pod Logs tab.
-const podIncludes = ref<string[]>([]);
-const podExcludes = ref<string[]>([]);
-const podIncludeInput = ref('');
-const podExcludeInput = ref('');
-function addPodInclude(): void {
-  const v = podIncludeInput.value.trim();
-  if (v && !podIncludes.value.includes(v)) podIncludes.value = [...podIncludes.value, v];
-  podIncludeInput.value = '';
-}
-function removePodInclude(i: number): void {
-  podIncludes.value = podIncludes.value.filter((_, idx) => idx !== i);
-}
-function addPodExclude(): void {
-  const v = podExcludeInput.value.trim();
-  if (v && !podExcludes.value.includes(v)) podExcludes.value = [...podExcludes.value, v];
-  podExcludeInput.value = '';
-}
-function removePodExclude(i: number): void {
-  podExcludes.value = podExcludes.value.filter((_, idx) => idx !== i);
-}
-
-// ── pods live-tail engine. Owns its own setInterval: Start polls
-// `runPodQuery` every interval (re-fetching the rolling Window), Pause
-// stops it, manual Refresh fetches now. The timer is torn down on unmount,
-// on switching away from pods, and on any entity / window / interval / filter
-// change (so a stale loop never keeps hitting OAP or stacks fetches). The
-// Run button still works as a one-shot — `runQuery` reuses `runPodQuery`. ─
-const podTailing = ref(false);
-let podTimer: ReturnType<typeof setInterval> | null = null;
-
-function stopPodTail(): void {
-  podTailing.value = false;
-  if (podTimer !== null) {
-    clearInterval(podTimer);
-    podTimer = null;
-  }
-}
-function startPodTail(): void {
-  if (logSource.value !== 'pods' || !canRun.value) return;
-  stopPodTail();
-  podTailing.value = true;
-  void tickPodQuery();
-  podTimer = setInterval(() => void tickPodQuery(), podIntervalSeconds.value * 1000);
-}
-function togglePodTail(): void {
-  if (podTailing.value) stopPodTail();
-  else startPodTail();
-}
-
-// Re-targeting the pod (pod / container / layer / service change) tears the
-// tail down — a loop must never bleed across pods. Window / interval / filter
-// changes while tailing restart the loop so OAP re-runs with the new
-// condition (mirrors the per-layer Pod Logs tab); paused, they just take
-// effect on the next Start.
-watch([pickInstanceId, podContainer, pickLayer, podServiceArg], stopPodTail);
-watch([podWindowSeconds, podIntervalSeconds], () => {
-  if (podTailing.value) startPodTail();
-});
-watch([podIncludes, podExcludes], () => {
-  if (podTailing.value) startPodTail();
-}, { deep: true });
-onUnmounted(stopPodTail);
 
 // ── browser condition: error category (ALL = no filter; the rest mirror
 // OAP's ErrorCategory enum verbatim). Time + Limit are shared with raw. ─
@@ -481,7 +209,6 @@ function onTagCommit(): void {
   cond.tags = `${base}, `;
 }
 
-// ── run + result ──────────────────────────────────────────────────────
 const running = ref(false);
 const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
@@ -579,24 +306,23 @@ async function runPodQuery(): Promise<void> {
   }
 }
 
-// One poll tick: a reentrancy-guarded `runPodQuery` so overlapping ticks
-// never stack (a slow OAP response can outlast the interval). Marks the
-// pane as queried + clears the prior soft-error before fetching, then
-// resolves; a hard error stops the loop so it doesn't spin on failures.
-let podTickInFlight = false;
-async function tickPodQuery(): Promise<void> {
-  if (podTickInFlight) return;
-  podTickInFlight = true;
-  hasQueried.value = true;
-  errorMsg.value = null;
-  podErrorReason.value = null;
-  try {
-    await runPodQuery();
-    if (errorMsg.value) stopPodTail();
-  } finally {
-    podTickInFlight = false;
-  }
-}
+// ── pods live-tail engine. The composable owns the setInterval + the
+// reentrancy-guarded tick (wrapping `runPodQuery`), tears down on unmount /
+// source-switch / re-target, and restarts on window / interval / filter
+// change. The Run button still works as a one-shot — `runQuery` reuses
+// `runPodQuery` (and pauses the tail first). ────────────────────────────
+const { tailing: podTailing, stopTail: stopPodTail, toggleTail: togglePodTail } = usePodLogTail({
+  logSource,
+  canRun,
+  intervalSeconds: podIntervalSeconds,
+  retargetWatch: [pickInstanceId, podContainer, pickLayer, podServiceArg],
+  windowWatch: [podWindowSeconds, podIntervalSeconds],
+  filterWatch: [podIncludes, podExcludes],
+  hasQueried,
+  errorMsg,
+  podErrorReason,
+  runOnce: runPodQuery,
+});
 
 async function runQuery(): Promise<void> {
   if (!canRun.value) return;
@@ -649,13 +375,6 @@ const browserRows = computed<BrowserErrorRow[]>(() =>
 const podRows = computed<PodLogLine[]>(() =>
   hasQueried.value && logSource.value === 'pods' ? podLines.value : [],
 );
-/** Pod log line timestamp (ms epoch from the BFF) → HH:MM:SS, browser-local. */
-function fmtPodTime(ts: number | null): string {
-  if (ts == null) return '';
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
 
 // ── detail — clicking a row opens the shared full-payload popout. The
 // stream stays full-width; the popout owns its own Escape / close +
@@ -740,36 +459,6 @@ async function onRemoveMap(id: string): Promise<void> {
   }
 }
 onMounted(loadMaps);
-
-// ── presentation helpers (browser list rows) ──────────────────────────
-const CATEGORY_COLOR: Record<string, string> = {
-  js: 'var(--sw-err)',
-  promise: 'var(--sw-warn)',
-  vue: 'var(--sw-info)',
-  ajax: 'var(--sw-accent-2)',
-  resource: 'var(--sw-cyan)',
-  unknown: 'var(--sw-fg-3)',
-};
-function catColor(r: BrowserErrorRow): string {
-  return CATEGORY_COLOR[(r.category ?? '').toLowerCase()] ?? 'var(--sw-fg-3)';
-}
-function fmtRowTime(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-function fmtRowDate(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-function rowLoc(r: BrowserErrorRow): string {
-  if (!r.line) return '';
-  return `${r.line}:${r.col ?? 0}`;
-}
-function browserRowKey(r: BrowserErrorRow, idx: number): string {
-  return `${r.time}-${r.category}-${idx}`;
-}
 
 // Cascade-clear on source switch: drop the prior result + resolved-query
 // echo so the new source starts on its own "run a query" empty state rather
@@ -1085,70 +774,27 @@ watch(logSource, (next, prev) => {
 
     <!-- Browser source: a dense error list in the same dark vocabulary as
          the per-layer Browser Logs stream; row-click opens the popout. -->
-    <div v-if="logSource === 'browser'" class="iq-result">
-      <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — pick a BROWSER service, type a name, or leave it blank.') }}</div>
-      <div v-else-if="running && browserRows.length === 0" class="iq-empty">{{ t('Reading data…') }}</div>
-      <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
-      <div v-else-if="browserRows.length === 0" class="iq-empty">{{ t('No browser logs in this window.') }}</div>
-
-      <article v-else class="iq-list-card sw-card">
-        <header class="iq-list-head">
-          <h4>{{ t('Browser errors') }}</h4>
-          <span class="hint">{{ browserRows.length }} {{ t('errors') }}</span>
-        </header>
-        <div class="iq-stream-scroll">
-          <div class="be-stream">
-            <div
-              v-for="(r, idx) in browserRows"
-              :key="browserRowKey(r, idx)"
-              class="be-row"
-              :class="{ 'is-open': selectedBrowserRow === r }"
-              :style="{ boxShadow: `inset 3px 0 0 ${catColor(r)}` }"
-              @click="openBrowserRow(r)"
-            >
-              <span class="be-time mono">{{ fmtRowTime(r.time) }}</span>
-              <span class="be-date mono dim">{{ fmtRowDate(r.time) }}</span>
-              <span class="be-cat" :style="{ color: catColor(r) }">{{ r.category }}</span>
-              <span class="be-page mono dim" :title="r.pagePath">{{ r.pagePath || '—' }}</span>
-              <span class="be-ver mono dim" :title="r.serviceVersion">{{ r.serviceVersion || '—' }}</span>
-              <span class="be-msg mono">
-                <span v-if="rowLoc(r)" class="be-loc">{{ rowLoc(r) }}</span>
-                <span class="be-msg-body">{{ r.message || t('(no message)') }}</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </article>
-    </div>
+    <ExploreBrowserErrorList
+      v-if="logSource === 'browser'"
+      :rows="browserRows"
+      :selected-row="selectedBrowserRow"
+      :has-queried="hasQueried"
+      :running="running"
+      :error-msg="errorMsg"
+      @select="openBrowserRow"
+    />
 
     <!-- Kubernetes Pod logs source: a read-only dense pane of on-demand log
          lines (timestamp + content), matching the per-layer Pod Logs look.
          OAP's errorReason (feature disabled / stale pod) shows as a hint. -->
-    <div v-else-if="logSource === 'pods'" class="iq-result">
-      <div v-if="!hasQueried" class="iq-empty">{{ t('Pick a pod and a container, then run a query.') }}</div>
-      <div v-else-if="running && podRows.length === 0" class="iq-empty">{{ t('Reading data…') }}</div>
-      <div v-else-if="errorMsg" class="iq-err">{{ errorMsg }}</div>
-      <div v-else-if="podErrorReason" class="iq-pod-banner">
-        <strong>{{ t('Logs unavailable:') }}</strong> {{ podErrorReason }}
-        <span class="dim">{{ t('— pick a currently-running pod, or check that on-demand pod logs are enabled on OAP.') }}</span>
-      </div>
-      <div v-else-if="podRows.length === 0" class="iq-empty">{{ t('No logs in this window.') }}</div>
-
-      <article v-else class="iq-list-card sw-card">
-        <header class="iq-list-head">
-          <h4>{{ t('Kubernetes Pod logs') }}</h4>
-          <span class="hint">{{ podRows.length }} {{ t('lines') }}</span>
-        </header>
-        <div class="iq-stream-scroll">
-          <div class="pl-stream">
-            <div v-for="(l, idx) in podRows" :key="`pl-${idx}`" class="pl-row">
-              <span class="pl-time mono dim">{{ fmtPodTime(l.timestamp) }}</span>
-              <span class="pl-content mono">{{ l.content }}</span>
-            </div>
-          </div>
-        </div>
-      </article>
-    </div>
+    <ExplorePodLogList
+      v-else-if="logSource === 'pods'"
+      :rows="podRows"
+      :has-queried="hasQueried"
+      :running="running"
+      :error-msg="errorMsg"
+      :pod-error-reason="podErrorReason"
+    />
 
     <div v-else class="iq-result">
       <div v-if="!hasQueried" class="iq-empty">{{ t('Run a query — name a service or leave it blank.') }}</div>
@@ -1312,51 +958,9 @@ watch(logSource, (next, prev) => {
 .mono { font-family: var(--sw-mono); }
 .dim { color: var(--sw-fg-3); }
 
-/* Browser-error list rows — same dense grid vocabulary as the per-layer
-   Browser Logs stream so the two read identically. */
-.be-stream { font-size: 11.5px; }
-.be-row {
-  display: grid;
-  grid-template-columns: 76px 40px 74px 150px 90px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 4px 12px;
-  border-bottom: 1px solid var(--sw-line);
-  cursor: pointer;
-}
-.be-row:hover, .be-row.is-open { background: var(--sw-bg-2); }
-.be-time { color: var(--sw-fg-1); }
-.be-date { font-size: 10px; }
-.be-cat { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; }
-.be-page, .be-ver { font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.be-msg {
-  font-size: 11px; color: var(--sw-fg-1); overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-}
-.be-loc {
-  flex: 0 0 auto; font-size: 9.5px; color: var(--sw-fg-3); background: var(--sw-bg-3);
-  border-radius: 3px; padding: 0 5px; font-variant-numeric: tabular-nums;
-}
-.be-msg-body { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Pod-log line list — read-only dense lines (timestamp + content) in the
-   same dark vocabulary as the per-layer Pod Logs pane. Plain text, no
-   row-click popout (each line is just a string). */
-.pl-stream { font-size: 11.5px; }
-.pl-row {
-  display: grid;
-  grid-template-columns: 70px 1fr;
-  gap: 10px;
-  align-items: baseline;
-  padding: 2px 12px;
-  border-bottom: 1px solid var(--sw-line);
-}
-.pl-row:hover { background: var(--sw-bg-2); }
-.pl-time { font-size: 10.5px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.pl-content { color: var(--sw-fg-1); white-space: pre-wrap; word-break: break-word; }
-
-/* On-demand pod logs return OAP's errorReason when the feature is disabled
-   or the pod can't be resolved — surface it as a hint, not a blank pane. */
+/* The pod form's container-listing can return OAP's errorReason (feature
+   disabled / stale pod) — surfaced as a hint banner, not a blank, before Run.
+   (The result-pane copy of this banner lives in ExplorePodLogList.) */
 .iq-pod-tip { margin: 8px 0 0; font-size: 11px; line-height: 1.45; color: var(--sw-fg-3); }
 .iq-pod-banner {
   margin: 8px 0 0;

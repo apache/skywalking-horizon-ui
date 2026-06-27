@@ -239,8 +239,7 @@ const rbacSchema = z
       }),
     /** Landing route per role; the UI uses this to send users to the
      *  page that fits their job after login. Cluster status lives at
-     *  `/operate/cluster` (operator tooling against OAP) — the prior
-     *  `/admin/cluster` defaults 404'd because no such route exists. */
+     *  `/operate/cluster` (operator tooling against OAP). */
     landingByRole: z
       .record(z.string(), z.string())
       .default({
@@ -362,11 +361,10 @@ const sourceMapsSchema = z
   .default({});
 
 // Layers hidden from the sidebar / menu even when OAP reports them in
-// `listLayers`. Config-driven (replaces a former hard-coded hide list): an
-// operator can clear `excluded` to surface every reported layer, or add keys
-// for internal-only layers they don't want on the menu. The `reason` is
-// documentation for whoever reads this file — it isn't shown in the UI (an
-// excluded layer simply doesn't appear).
+// `listLayers`. An operator can clear `excluded` to surface every reported
+// layer, or add keys for internal-only layers they don't want on the menu.
+// The `reason` is documentation for whoever reads this file — it isn't shown
+// in the UI (an excluded layer simply doesn't appear).
 const excludedLayerSchema = z
   .object({
     /** OAP layer key (UPPER_SNAKE), matched case-insensitively. */
@@ -408,8 +406,7 @@ const performanceSchema = z
           })
           .strict()
           .default({}),
-        // 3D infrastructure-map metric fan-out (relocated from the 3D
-        // template's former `pipeline` block).
+        // 3D infrastructure-map metric fan-out.
         infra3d: z
           .object({
             metricBulkSize: z.number().int().min(1).max(12).default(6),

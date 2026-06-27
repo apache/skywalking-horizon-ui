@@ -309,17 +309,12 @@ function onPick(span: WaterfallSpan): void {
   border-bottom: 1px solid var(--sw-line);
   cursor: pointer;
   position: relative;
-  /* Browser-level virtualization. Each row is near-fixed-height
-   * (~32px = 24 band + 8 vertical padding), so we hint the intrinsic
-   * size and let the browser skip rendering / style / layout / paint
-   * for rows scrolled off-screen. Big traces (5k+ spans) used to
-   * freeze the main thread for seconds on open because every row's
-   * SVG glyph + component icon + name-band gradient mounted into the
-   * DOM upfront. With content-visibility:auto the browser instantiates
-   * those rows lazily as they enter the viewport, with negligible cost
-   * to the always-visible head of the list. Supported in Chrome 85+,
-   * Edge 85+, Safari 18+, Firefox 125+; older browsers degrade to
-   * normal rendering. */
+  /* Browser-level virtualization: off-screen rows skip render/layout/paint.
+   * Big traces (5k+ spans) used to freeze the main thread for seconds on
+   * open because every row's SVG glyph + icon + name-band mounted upfront.
+   * `contain-intrinsic-size` needs a hint for the collapsed height — rows
+   * are near-fixed at ~32px (24 band + 8 vertical padding). Unsupported
+   * browsers degrade to normal rendering. */
   content-visibility: auto;
   contain-intrinsic-size: auto 32px;
 }

@@ -28,7 +28,4 @@ export class LayerTemplatesApi {
       '/api/admin/layer-templates',
     );
   }
-
-  // save() removed — LayerDashboardsAdmin now saves via
-  // `bff.templateSync.save('horizon.layer.<KEY>', content)`.
 }

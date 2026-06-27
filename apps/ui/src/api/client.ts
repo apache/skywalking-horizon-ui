@@ -221,6 +221,8 @@ export type {
   ProcessRelationEndpointRef,
   ProcessRelationMetric,
   ProcessRelationMetricsResponse,
+  NetworkProcess,
+  NetworkProcessesResponse,
   NetworkProfilingSampling,
   NetworkProfilingCreateRequest,
   NetworkProfilingCreateResponse,

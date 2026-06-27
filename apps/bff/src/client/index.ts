@@ -82,9 +82,8 @@ export function buildOapClients(
   const fetch = opts.fetch;
   const primaryUrl = config.oap.adminUrl;
   const timeoutMs = config.oap.timeoutMs;
-  // If config.oap.auth is set, every constructed client gets the
-  // basic-auth Authorization header so all upstream calls (status,
-  // runtime-rule, OAL catalog, DSL debug, inspect) authenticate.
+  // One basic-auth header shared by every constructed client, so all
+  // upstream calls authenticate.
   const headers: Record<string, string> | undefined = config.oap.auth
     ? {
         authorization:

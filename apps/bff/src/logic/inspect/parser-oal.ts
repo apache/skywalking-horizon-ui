@@ -32,9 +32,7 @@ const METRIC_NAME_RE = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/;
 
 /** Strip C-style line and block comments from a source string. */
 function stripComments(src: string): string {
-  // Block comments first — non-greedy, multiline.
   const noBlock = src.replace(/\/\*[\s\S]*?\*\//g, '');
-  // Line comments next.
   return noBlock.replace(/\/\/[^\n]*/g, '');
 }
 

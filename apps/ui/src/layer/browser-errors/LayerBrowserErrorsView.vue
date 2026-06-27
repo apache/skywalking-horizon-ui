@@ -23,18 +23,10 @@
   one addition is the row-expand panel: raw stack + source-map resolution.
 -->
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import type {
-  BrowserErrorCategory,
-  BrowserErrorRow,
-  LayerDef,
-  ResolveResponse,
-  SourceMapDescriptor,
-  SourceMapUsage,
-} from '@/api/client';
-import { bffClient, describeApiError } from '@/api/client';
+import type { BrowserErrorCategory, BrowserErrorRow, LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { useSetupStore } from '@/state/setup';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -43,7 +35,11 @@ import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerBrowserErrors } from '@/layer/browser-errors/useLayerBrowserErrors';
+import { useSourceMapResolution } from '@/layer/browser-errors/useSourceMapResolution';
+import { useDensityBins } from '@/layer/_shared/useDensityBins';
 import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
+import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
+import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 
 const route = useRoute();
 const { t } = useI18n({ useScope: 'global' });
@@ -87,9 +83,7 @@ watch(
   { immediate: true },
 );
 
-// ── Time range (own to this triage page — the topbar pauses the global
-// ticker here) + paging. Preset window OR a Custom absolute range, exactly
-// like the Logs conditions bar. ─────────────────────────────────────────
+// Own time range: the topbar pauses the global ticker for this triage page.
 const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
   { label: 'Last 15 min', minutes: 15 },
   { label: 'Last 30 min', minutes: 30 },
@@ -145,78 +139,97 @@ const allCategories = ref<BrowserErrorCategory>('ALL');
 const selectedVersionId = ref('');
 const { instances: versionList } = useLayerInstances(layerKey, serviceName);
 
-// Page (endpoint) is a searchable combobox, not a plain dropdown: OAP
-// returns only a top-N endpoint list, so the typed keyword is forwarded to
-// the endpoint search (`pageQuery`) to surface pages outside the top-N.
+// Page (endpoint) is a searchable combobox (shared EndpointCombo), not a
+// plain dropdown: OAP returns only a top-N endpoint list, so the typed
+// keyword rides up via `update:query` into the endpoint search (`pageQuery`)
+// to surface pages outside the top-N. The combo selects by name; the BFF
+// filter wants `pagePathId`, so the id is captured from the loaded list at
+// pick time (a snapshot — the picked page survives the post-pick query
+// reset even when it falls outside the reverted top-N).
 const selectedPageId = ref('');
 const selectedPageLabel = ref('');
-const pageSearchInput = ref('');
-const pageComboOpen = ref(false);
-const pageComboEl = ref<HTMLElement | null>(null);
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit);
-function onPageInput(ev: Event): void {
-  const v = (ev.target as HTMLInputElement).value;
-  pageSearchInput.value = v;
-  pageQuery.value = v.trim();
-  pageComboOpen.value = true;
-}
-function pickPage(p: { id: string; name: string }): void {
-  selectedPageId.value = p.id;
-  selectedPageLabel.value = p.name;
-  pageSearchInput.value = '';
+const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit);
+function pickPage(name: string): void {
+  selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
+  selectedPageLabel.value = name;
   pageQuery.value = '';
-  pageComboOpen.value = false;
 }
 function clearPage(): void {
   selectedPageId.value = '';
   selectedPageLabel.value = '';
-  pageSearchInput.value = '';
   pageQuery.value = '';
-  pageComboOpen.value = false;
 }
-function onPageComboClickOutside(ev: MouseEvent): void {
-  if (!pageComboOpen.value) return;
-  const el = pageComboEl.value;
-  if (el && !el.contains(ev.target as Node)) pageComboOpen.value = false;
+
+// Manual-fire: filter edits (version / page / time) stage into `applied`;
+// the query reads that snapshot, so it fires only on Run query — never the
+// prior service's errors on a fresh tab. page + pageSize stay live (paging
+// is a direct action, not a staged filter).
+const hasQueried = ref(false);
+interface AppliedBrowserConditions {
+  service: string | null;
+  serviceVersionId: string;
+  pagePathId: string;
+  windowMinutes: number;
+  startMs: number | null;
+  endMs: number | null;
 }
-onMounted(() => window.addEventListener('click', onPageComboClickOutside));
-onBeforeUnmount(() => window.removeEventListener('click', onPageComboClickOutside));
+function snapshotConditions(): AppliedBrowserConditions {
+  return {
+    service: serviceName.value,
+    serviceVersionId: selectedVersionId.value,
+    pagePathId: selectedPageId.value,
+    windowMinutes: windowMinutesEffective.value,
+    startMs: startMsRef.value,
+    endMs: endMsRef.value,
+  };
+}
+const applied = ref<AppliedBrowserConditions>(snapshotConditions());
+function applyConditions(): void {
+  applied.value = snapshotConditions();
+}
 
 const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
-  service: serviceName,
-  serviceVersionId: selectedVersionId,
-  pagePathId: selectedPageId,
+  service: computed(() => applied.value.service),
+  serviceVersionId: computed(() => applied.value.serviceVersionId),
+  pagePathId: computed(() => applied.value.pagePathId),
   category: allCategories,
   page,
   pageSize,
-  windowMinutes: windowMinutesEffective,
-  startMs: startMsRef,
-  endMs: endMsRef,
+  windowMinutes: computed(() => applied.value.windowMinutes),
+  startMs: computed(() => applied.value.startMs),
+  endMs: computed(() => applied.value.endMs),
+  enabled: hasQueried,
 });
+function runQuery(): void {
+  applyConditions();
+  page.value = 1;
+  hasQueried.value = true;
+  void refetch();
+}
 
-// Reset the version/page filters when the app changes (their ids belong to
-// the previous service), and reset paging on any condition change.
+// Service switch is a context change → cascade-clear back to the Run-query
+// prompt; never show the prior service's errors under the new one.
 watch(serviceName, () => {
   selectedVersionId.value = '';
   clearPage();
+  hasQueried.value = false;
+  page.value = 1;
+  applyConditions();
 });
-watch([serviceName, windowMinutes, customStart, customEnd, selectedVersionId, selectedPageId, pageSize], () => {
+// pageSize is a live pagination control (reset page + refetch); filter edits
+// stage into `applied` and wait for Run query.
+watch(pageSize, () => {
   page.value = 1;
 });
-// Collapse the open row + its resolution whenever a fresh result set
-// lands. (Category-filter toggles reset it too — see toggleCat — because
-// `expanded` is an index into `filteredLogs`, which changes when the
-// filter changes.)
+// `expanded` is an index into `filteredLogs`; drop it when the set changes.
 watch(logs, () => {
   closeExpanded();
 });
 
 const hasMorePages = computed(() => logs.value.length >= pageSize.value);
 
-// ── Categories: legend + histogram colours (uses the same tokens the
-// Logs view uses for level colours, so the two tabs share a palette). ─
 const CATEGORY_ORDER = ['js', 'promise', 'vue', 'ajax', 'resource', 'unknown'] as const;
 type Cat = (typeof CATEGORY_ORDER)[number];
 const CATEGORY_COLOR: Record<Cat, string> = {
@@ -233,6 +246,7 @@ function catOf(r: BrowserErrorRow): Cat {
 }
 
 const selectedCat = ref<Cat | null>(null);
+watch(serviceName, () => { selectedCat.value = null; });
 function toggleCat(c: Cat): void {
   selectedCat.value = selectedCat.value === c ? null : c;
   // `expanded` indexes into filteredLogs, which just changed — drop it.
@@ -247,41 +261,11 @@ const catFacet = computed<Record<Cat, number>>(() => {
   return counts;
 });
 
-// ── Density histogram (60 bins) — counts per category over the loaded
-// rows' time window, same construction as the Logs tab. ──────────────
-const BINS = 60;
-const histogram = computed(() => {
-  const rows = logs.value;
-  if (rows.length === 0) return { bins: [] as Array<Record<Cat, number>>, max: 0, t0: 0, t1: 0 };
-  let t0 = Infinity;
-  let t1 = -Infinity;
-  for (const r of rows) {
-    if (r.time < t0) t0 = r.time;
-    if (r.time > t1) t1 = r.time;
-  }
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 === t1) {
-    t0 = (t1 || Date.now()) - 60_000;
-    t1 = t1 || Date.now();
-  }
-  const span = t1 - t0 || 1;
-  const bins: Array<Record<Cat, number>> = Array.from({ length: BINS }, () => ({
-    js: 0, promise: 0, vue: 0, ajax: 0, resource: 0, unknown: 0,
-  }));
-  for (const r of rows) {
-    const idx = Math.min(BINS - 1, Math.floor(((r.time - t0) / span) * BINS));
-    bins[idx][catOf(r)] += 1;
-  }
-  let max = 0;
-  for (const b of bins) {
-    const t = b.js + b.promise + b.vue + b.ajax + b.resource + b.unknown;
-    if (t > max) max = t;
-  }
-  return { bins, max, t0, t1 };
+const histogram = useDensityBins<BrowserErrorRow, Cat>(logs, {
+  keys: CATEGORY_ORDER,
+  timeOf: (r) => r.time,
+  keyOf: catOf,
 });
-const hoveredBin = ref<number | null>(null);
-function binTotal(b: Record<Cat, number>): number {
-  return b.js + b.promise + b.vue + b.ajax + b.resource + b.unknown;
-}
 
 function pad(n: number): string {
   return String(n).padStart(2, '0');
@@ -294,117 +278,33 @@ function fmtDate(ts: number): string {
   const d = new Date(ts);
   return `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-function fmtAxisTime(ms: number): string {
-  const d = new Date(ms);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function fmtBucketRange(i: number, t0: number, t1: number): string {
-  const span = (t1 - t0) || 1;
-  const a = t0 + (span * i) / BINS;
-  const b = t0 + (span * (i + 1)) / BINS;
-  const t = (ms: number) => {
-    const d = new Date(ms);
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  };
-  return `${t(a)} – ${t(b)}`;
-}
 
-// ── Source-map cache (shared by the manager + the per-row picker) ───
-const showMaps = ref(false);
-const sourceMaps = ref<SourceMapDescriptor[]>([]);
-const usage = ref<SourceMapUsage | null>(null);
-const mapsEnabled = ref(true);
-const mapsBusy = ref(false);
-const mapsError = ref<string | null>(null);
-
-async function loadMaps(): Promise<void> {
-  try {
-    const res = await bffClient.browserErrors.listSourceMaps();
-    sourceMaps.value = res.maps;
-    usage.value = res.usage;
-    mapsEnabled.value = res.enabled;
-    mapsError.value = null;
-  } catch (err) {
-    mapsError.value = describeApiError(err);
-  }
-}
-async function onUpload(file: File): Promise<void> {
-  mapsBusy.value = true;
-  mapsError.value = null;
-  try {
-    const res = await bffClient.browserErrors.uploadSourceMap(file);
-    if (!res.ok) mapsError.value = t('Upload rejected: {reason}', { reason: res.error ?? t('unknown') });
-    await loadMaps();
-    if (res.ok && res.map && !selectedMapId.value) selectedMapId.value = res.map.id;
-  } catch (err) {
-    mapsError.value = describeApiError(err);
-  } finally {
-    mapsBusy.value = false;
-  }
-}
-async function onRemove(id: string): Promise<void> {
-  mapsBusy.value = true;
-  try {
-    await bffClient.browserErrors.deleteSourceMap(id);
-    if (selectedMapId.value === id) selectedMapId.value = '';
-    await loadMaps();
-  } catch (err) {
-    mapsError.value = describeApiError(err);
-  } finally {
-    mapsBusy.value = false;
-  }
-}
-onMounted(loadMaps);
-
-// ── Row expand + source-map resolution (one row open at a time) ─────
-const expanded = ref<number | null>(null);
-const selectedMapId = ref<string>('');
-const resolved = ref<ResolveResponse | null>(null);
-const resolveBusy = ref(false);
-const resolveErr = ref<string | null>(null);
+const {
+  showMaps,
+  sourceMaps,
+  usage,
+  mapsEnabled,
+  mapsBusy,
+  mapsError,
+  loadMaps,
+  onUpload,
+  onRemove,
+  expanded,
+  selectedMapId,
+  resolved,
+  resolveBusy,
+  resolveErr,
+  closeExpanded,
+  toggleRow,
+  resolveRow,
+} = useSourceMapResolution(t);
+watch(serviceName, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
 // reports several errors at the identical timestamp+page+version (a
 // data-only key would collide). Same approach as the Logs stream.
 function rowKey(r: BrowserErrorRow, idx: number): string {
   return `${r.time}-${r.category}-${idx}`;
-}
-function closeExpanded(): void {
-  expanded.value = null;
-  resolved.value = null;
-  resolveErr.value = null;
-}
-function toggleRow(idx: number): void {
-  if (expanded.value === idx) {
-    closeExpanded();
-    return;
-  }
-  expanded.value = idx;
-  resolved.value = null;
-  resolveErr.value = null;
-  if (!selectedMapId.value && sourceMaps.value.length > 0) selectedMapId.value = sourceMaps.value[0].id;
-}
-async function resolveRow(row: BrowserErrorRow): Promise<void> {
-  if (!selectedMapId.value) return;
-  resolveBusy.value = true;
-  resolveErr.value = null;
-  resolved.value = null;
-  try {
-    const res = await bffClient.browserErrors.resolve({
-      stack: row.stack ?? undefined,
-      line: row.line ?? undefined,
-      col: row.col ?? undefined,
-      errorUrl: row.errorUrl ?? undefined,
-      category: row.category,
-      sourceMapId: selectedMapId.value,
-    });
-    resolved.value = res;
-    if (!res.ok) resolveErr.value = t('Could not resolve: {reason}', { reason: res.error ?? t('unknown') });
-  } catch (err) {
-    resolveErr.value = describeApiError(err);
-  } finally {
-    resolveBusy.value = false;
-  }
 }
 function loc(row: BrowserErrorRow): string {
   // Browser line/col are 1-based; OAP reports 0 for categories that carry
@@ -417,9 +317,6 @@ function loc(row: BrowserErrorRow): string {
 
 <template>
   <div class="lg-tab">
-    <!-- Conditions card — same shape/vocabulary as the Logs conditions
-         bar (kicker + Run query head, label-on-top field grid). Source
-         maps sits on the right of the head; its panel expands below. -->
     <section class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
         <span class="kicker">{{ t('Browser Logs') }}</span>
@@ -429,7 +326,7 @@ function loc(row: BrowserErrorRow): string {
             {{ t('Source maps') }}
             <span class="be-maps-count">{{ sourceMaps.length }}</span>
           </button>
-          <button class="sw-btn primary" type="button" :disabled="isFetching" @click="refetch()">{{ t('Run query') }}</button>
+          <button class="sw-btn primary" type="button" :disabled="isFetching" @click="runQuery">{{ t('Run query') }}</button>
         </div>
       </div>
       <div class="lg-conditions">
@@ -440,38 +337,17 @@ function loc(row: BrowserErrorRow): string {
             <option v-for="v in versionList" :key="v.id" :value="v.id">{{ v.name }}</option>
           </select>
         </label>
-        <div ref="pageComboEl" class="cf cf-span-3 cf-combo-field">
+        <div class="cf cf-span-3">
           <span>{{ t('Page') }}</span>
-          <div class="be-combo">
-            <input
-              class="cf-input be-combo-input"
-              type="text"
-              :value="pageSearchInput"
-              :placeholder="selectedPageLabel || t('All pages')"
-              :disabled="!serviceName"
-              :title="t('Search page path')"
-              @focus="pageComboOpen = true"
-              @input="onPageInput"
-            />
-            <button
-              v-if="selectedPageId || pageSearchInput"
-              type="button"
-              class="be-combo-clear"
-              :title="t('Clear page')"
-              @click="clearPage"
-            >×</button>
-            <ul v-if="pageComboOpen" class="be-combo-list">
-              <li class="be-combo-item" :class="{ on: !selectedPageId }" @click="clearPage"><em>{{ t('All pages') }}</em></li>
-              <li
-                v-for="p in pageList"
-                :key="p.id"
-                class="be-combo-item"
-                :class="{ on: selectedPageId === p.id }"
-                @click="pickPage(p)"
-              >{{ p.name }}</li>
-              <li v-if="pageList.length === 0" class="be-combo-empty">{{ t('no matches') }}</li>
-            </ul>
-          </div>
+          <EndpointCombo
+            :endpoints="pageList"
+            :selected="selectedPageLabel || null"
+            :loading="pagesLoading"
+            :placeholder="t('All pages')"
+            @update:query="pageQuery = $event"
+            @pick="pickPage"
+            @clear="clearPage"
+          />
         </div>
         <label class="cf cf-wide">
           <span>{{ t('Time range') }}</span>
@@ -513,9 +389,6 @@ function loc(row: BrowserErrorRow): string {
 
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <!-- Category legend — one chip per category with the in-window
-             count; click toggles the stream filter. Mirrors the Logs
-             "Levels" strip. -->
         <div v-if="logs.length > 0" class="lg-legend">
           <span class="lg-legend-kicker">{{ t('Categories') }}</span>
           <button
@@ -533,54 +406,12 @@ function loc(row: BrowserErrorRow): string {
           <span class="lg-legend-sample">{{ t('{count} in window', { count: logs.length }) }}</span>
         </div>
 
-        <!-- Density bar — x: time, y: count, colour: category. -->
-        <div class="lg-density-wrap" v-if="histogram.bins.length > 0" @mouseleave="hoveredBin = null">
-          <div class="lg-density">
-            <div
-              v-for="(bin, i) in histogram.bins"
-              :key="i"
-              class="lg-density-bin"
-              @mouseenter="hoveredBin = i"
-            >
-              <span
-                v-for="c in CATEGORY_ORDER"
-                :key="c"
-                class="lg-density-segment"
-                :style="{
-                  background: CATEGORY_COLOR[c],
-                  height: histogram.max ? (bin[c] / histogram.max * 100) + '%' : '0%',
-                }"
-              />
-            </div>
-            <div
-              v-if="hoveredBin !== null"
-              class="lg-density-tip"
-              :style="{ left: ((hoveredBin + 0.5) / 60) * 100 + '%' }"
-            >
-              <div class="lg-density-tip-time">{{ fmtBucketRange(hoveredBin, histogram.t0, histogram.t1) }}</div>
-              <div class="lg-density-tip-total">
-                {{ t('{count} logs', { count: binTotal(histogram.bins[hoveredBin]) }) }}
-              </div>
-              <div class="lg-density-tip-rows">
-                <span v-for="c in CATEGORY_ORDER" :key="c" v-show="histogram.bins[hoveredBin][c] > 0" class="lg-density-tip-row">
-                  <span class="lvl-dot" :style="{ background: CATEGORY_COLOR[c] }" />
-                  <span class="lg-density-tip-name">{{ c }}</span>
-                  <span class="lg-density-tip-val mono">{{ histogram.bins[hoveredBin][c] }}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div class="lg-density-axis">
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.25) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.5) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.75) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t1) }}</span>
-          </div>
-        </div>
+        <DensityHistogram :data="histogram" :keys="CATEGORY_ORDER" :colors="CATEGORY_COLOR" :label-case="'uppercase'">
+          <template #tipTotal="{ total }">{{ t('{count} logs', { count: total }) }}</template>
+        </DensityHistogram>
 
-        <!-- States + stream -->
         <div v-if="!serviceName" class="lg-empty">{{ t('Select an app to view its browser logs.') }}</div>
+        <div v-else-if="!hasQueried" class="lg-empty">{{ t('Pick your conditions, then click Run query.') }}</div>
         <div v-else-if="isFetching && logs.length === 0" class="lg-empty">{{ t('Reading data…') }}</div>
         <div v-else-if="!reachable" class="lg-empty">{{ t('Backend unreachable.') }}<span v-if="queryError"> {{ queryError }}</span></div>
         <div v-else-if="filteredLogs.length === 0" class="lg-empty">
@@ -667,11 +498,8 @@ function loc(row: BrowserErrorRow): string {
    share a stylesheet so neither can regress the other). */
 .lg-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
 
-/* Conditions card — mirrors the Logs conditions bar: a padded sw-card
-   with a kicker + Run-query head, then a 4-column grid of label-on-top
-   full-width fields. */
 /* overflow:visible so the Page combobox dropdown isn't clipped by the
-   card's rounded-corner overflow (same as the Logs conditions card). */
+   card's rounded-corner overflow. */
 .lg-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .lg-toolbar-head { display: flex; align-items: center; gap: 10px; width: 100%; }
 .kicker { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--sw-accent); font-weight: 600; }
@@ -700,59 +528,6 @@ function loc(row: BrowserErrorRow): string {
 .cf-range { display: flex; align-items: center; gap: 4px; }
 .cf-range-num { flex: 1; min-width: 0; }
 .cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
-/* Searchable Page (endpoint) combobox — typed keyword feeds the OAP
-   endpoint search, so pages outside the top-N list still surface. */
-.cf-combo-field .be-combo { position: relative; width: 100%; }
-.be-combo { position: relative; }
-.be-combo-input { width: 100%; padding-right: 22px; }
-.be-combo-input::placeholder { color: var(--sw-fg-2); }
-.be-combo-clear {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3);
-  font-size: 13px;
-  cursor: pointer;
-}
-.be-combo-clear:hover { color: var(--sw-err); }
-.be-combo-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 4px 0 0;
-  padding: 4px;
-  max-height: 240px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  z-index: 50;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-}
-.be-combo-item {
-  padding: 5px 8px;
-  font-size: 11px;
-  font-family: var(--sw-mono);
-  color: var(--sw-fg-1);
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.be-combo-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
-.be-combo-item.on { background: var(--sw-accent-soft); color: var(--sw-accent-2); font-weight: 600; }
-.be-combo-item em { font-style: normal; }
-.be-combo-empty { padding: 6px 8px; font-size: 10.5px; color: var(--sw-fg-3); }
 .lg-legend-sample { margin-left: auto; font-size: 10.5px; color: var(--sw-fg-3); font-family: var(--sw-mono); }
 .be-maps-toggle {
   display: inline-flex;
@@ -840,46 +615,6 @@ function loc(row: BrowserErrorRow): string {
 .f-select:focus { outline: none; border-color: var(--sw-accent-line); }
 .f-select:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.lg-density-wrap { padding: 8px 12px 4px; border-bottom: 1px solid var(--sw-line); background: var(--sw-bg-1); }
-.lg-density { display: grid; grid-template-columns: repeat(60, 1fr); align-items: end; gap: 1px; height: 60px; position: relative; }
-.lg-density-bin { display: flex; flex-direction: column-reverse; height: 100%; background: var(--sw-bg-2); border-radius: 1px; overflow: hidden; }
-.lg-density-bin:hover { outline: 1px solid var(--sw-accent-line); }
-.lg-density-segment { display: block; }
-.lg-density-tip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  min-width: 160px;
-  padding: 6px 9px;
-  background: var(--sw-bg-0);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  pointer-events: none;
-  z-index: 5;
-}
-.lg-density-tip-time { color: var(--sw-fg-3); font-family: var(--sw-mono); font-size: 10px; margin-bottom: 2px; }
-.lg-density-tip-total { color: var(--sw-fg-0); font-weight: 700; font-size: 12px; margin-bottom: 4px; }
-.lg-density-tip-rows { display: flex; flex-direction: column; gap: 2px; }
-.lg-density-tip-row { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; }
-.lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
-.lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: uppercase; letter-spacing: 0.04em; }
-.lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
-.lg-density-axis {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--sw-mono);
-  font-size: 9.5px;
-  color: var(--sw-fg-3);
-  font-variant-numeric: tabular-nums;
-  margin-top: 4px;
-  padding: 0 2px;
-}
-.lg-density-axis .t-tick:first-child { text-align: left; }
-.lg-density-axis .t-tick:last-child { text-align: right; }
-
 .lg-empty { padding: 32px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
 .lg-stream { flex: 1; overflow-y: auto; font-size: 11.5px; }
 .lg-row {
@@ -953,8 +688,6 @@ function loc(row: BrowserErrorRow): string {
 .be-frame-orig { color: var(--sw-cyan); }
 .be-frame-name { color: var(--sw-info); }
 .be-frame-unmapped { color: var(--sw-fg-3); margin-left: auto; font-style: italic; }
-/* Source snippet — a small code block with a line-number gutter; the
-   mapped line is tinted + its number accented. */
 .be-snippet {
   display: flex;
   flex-direction: column;

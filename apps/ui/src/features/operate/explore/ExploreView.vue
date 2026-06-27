@@ -56,7 +56,6 @@ import TagInput from '@/components/primitives/TagInput.vue';
 const { t } = useI18n();
 const { availableLayers } = useLayers();
 
-// ── source (native / zipkin) ──────────────────────────────────────────
 type TraceSource = 'native' | 'zipkin';
 const traceSource = ref<TraceSource>('native');
 
@@ -252,7 +251,6 @@ watch(traceSource, (src) => {
   if (src === 'zipkin' && zipkinServiceNames.value.length === 0) void loadZipkinServices();
 });
 
-// ── trace conditions ──────────────────────────────────────────────────
 const cond = reactive({
   traceId: '',
   traceState: 'ALL' as TraceQueryState,
@@ -312,7 +310,6 @@ function onTagCommit(): void {
   cond.tags = `${base}, `;
 }
 
-// ── run + result ──────────────────────────────────────────────────────
 const running = ref(false);
 const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);

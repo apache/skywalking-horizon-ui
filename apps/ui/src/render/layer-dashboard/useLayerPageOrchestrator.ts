@@ -124,10 +124,8 @@ export function useLayerPageOrchestrator(refs: OrchestratorRefs): {
 } {
   const stamps = reactive(freshStamps());
   const done = ref(false);
-  // ----------------------------------------------------------------
   // The cascade. Each step emits exactly once per (layerKey, scope)
   // arming, only after the prior step is `true`.
-  // ----------------------------------------------------------------
 
   function report(phase: Phase, text: string): void {
     pushEvent(`init/${phase}`, 'ok', text);

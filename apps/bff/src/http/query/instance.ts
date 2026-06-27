@@ -120,11 +120,10 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
       // OAP service-id shape: `<base64>.<digits>` (e.g.
-      // `Y2hlY2tvdXQ=.1`). Anything else — including names that
-      // happen to contain `.` like `mesh-svr::r3-load.sample-services`
-      // — needs a `listServices` lookup. The earlier "contains `.`"
-      // heuristic was too loose and broke mesh / k8s_service instance
-      // queries whose service names embed dots.
+      // `Y2hlY2tvdXQ=.1`). Match this strictly, not "contains `.`":
+      // a loose substring rule mis-classifies mesh / k8s_service names
+      // that embed dots (e.g. `mesh-svr::r3-load.sample-services`) as
+      // ids — they need a `listServices` lookup instead.
       let serviceId = serviceArg;
       if (!/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) {
         try {

@@ -34,8 +34,6 @@
 
 import type { FetchLike } from './runtime-rule.js';
 
-// ── Catalog / metrics ──────────────────────────────────────────────
-
 /** MetricsType emitted by OAP's `MetricsType.java`; values match
  *  `Column.ValueDataType` after the metadata mapping. */
 export type InspectMetricType = 'REGULAR_VALUE' | 'LABELED_VALUE' | 'HEATMAP' | 'SAMPLED_RECORD';
@@ -96,8 +94,6 @@ export interface MetricsResponse {
   metrics: MetricRow[];
 }
 
-// ── Entities ───────────────────────────────────────────────────────
-
 /** MQE Entity input shape — field names match SkyWalking's GraphQL
  *  `Entity` input verbatim so the operator can paste this block
  *  straight into a `mutation execExpression(…, entity: …)`. The OAP
@@ -149,8 +145,6 @@ export interface EntitiesResponse {
   rows: EntityRow[];
 }
 
-// ── Request args ───────────────────────────────────────────────────
-
 export interface ListMetricsArgs {
   /** Java regex.Pattern over metric name. No filter when omitted. */
   regex?: string;
@@ -181,8 +175,6 @@ export interface ListEntitiesArgs {
   valueType?: InspectForeignValueType;
 }
 
-// ── MQE result shape ───────────────────────────────────────────────
-//
 // What `mutation execExpression(...)` returns on the public GraphQL
 // surface — `data.execExpression`. Studio's BFF unwraps the GraphQL
 // envelope and forwards this shape verbatim to the SPA.
@@ -272,8 +264,6 @@ export interface InspectExecRequest {
   debug?: boolean;
 }
 
-// ── Date format ────────────────────────────────────────────────────
-
 /** Format a `Date` into the date string OAP expects for the given
  *  step. Mirrors `Duration.getStartTimeBucket` / `getEndTimeBucket`'s
  *  accepted shapes:
@@ -305,8 +295,6 @@ export function isInspectDate(s: string, step: InspectStep): boolean {
   return /^\d{4}-\d{2}-\d{2} \d{4}$/.test(s);
 }
 
-// ── Errors ─────────────────────────────────────────────────────────
-
 /** OAP's inspect error envelope: `{ "error": "string" }`. */
 export interface InspectErrorBody {
   error: string;
@@ -323,8 +311,6 @@ export class InspectApiError extends Error {
     this.name = 'InspectApiError';
   }
 }
-
-// ── Client ─────────────────────────────────────────────────────────
 
 export interface InspectClientOptions {
   /** OAP admin port URL, e.g. `http://oap:17128`. No trailing slash. */
@@ -396,8 +382,6 @@ export class InspectClient {
     if (!res.ok) throw await this.toError(res, url);
     return (await res.json()) as ExpressionResult;
   }
-
-  // ── private helpers ─────────────────────────────────────────────
 
   private async send(url: string, init: RequestInit): Promise<Response> {
     const headers: Record<string, string> = {

@@ -104,7 +104,6 @@ function rolePill(role: string): string {
     <div v-if="loading" class="loading">{{ t('Loading users…') }}</div>
     <div v-else-if="error" class="error">{{ t('Failed to load: {msg}', { msg: error }) }}</div>
     <template v-else-if="data">
-      <!-- LDAP hint banner -->
       <div v-if="data.backend === 'ldap'" class="hint hint-info">
         <span class="hint-icon">ⓘ</span>
         <div class="hint-body">
@@ -133,7 +132,6 @@ function rolePill(role: string): string {
         </div>
       </div>
 
-      <!-- KPI cards -->
       <div class="kpi-grid">
         <div class="kpi-card">
           <div class="kpi-label">{{ t('Total') }}</div>
@@ -166,7 +164,6 @@ function rolePill(role: string): string {
         <template #node><code>{{ data.node }}</code></template>
       </i18n-t>
 
-      <!-- Users table -->
       <section class="sw-card">
         <header class="card-head">
           <h3>{{ t('Users') }}</h3>

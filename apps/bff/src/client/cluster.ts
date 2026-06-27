@@ -21,11 +21,7 @@
  * The BFF fires a single `/runtime/rule/list` to `oap.adminUrl` and
  * exposes the result. OAP routes rule operations cluster-internally, so
  * one node's list is the cluster's list — we don't fan out on the BFF
- * side. The previous "per-node convergence" view was retired alongside
- * the `adminUrls: [...]` → `adminUrl: string` config rename; if you
- * need per-node visibility for runtime rules, that's an OAP-side
- * feature ask (cluster routes already exist for `/dsl-debugging/status`
- * which the BFF probes via DNS lookup on `adminUrl`).
+ * side.
  */
 
 import type {

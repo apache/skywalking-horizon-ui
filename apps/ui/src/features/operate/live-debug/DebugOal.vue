@@ -29,7 +29,7 @@
  * carry the materialised metric (`type` + `timeBucket`, `total`,
  * `value`, …).
  */
-import { computed, ref, shallowRef, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
@@ -39,16 +39,17 @@ import type {
   OalRulesResponse,
   OalSourcePayload,
   SessionRecord,
-  SessionResponse,
   SessionSample,
 } from '@skywalking-horizon-ui/api-client';
 import { bff } from '@/api/client';
 import { useDebugSession } from '@/features/operate/live-debug/useDebugSession';
-import { useDebugHistory, type HistoryEntry } from '@/features/operate/live-debug/useDebugHistory';
+import { useDebugHistory } from '@/features/operate/live-debug/useDebugHistory';
 import Btn from '@/components/primitives/Btn.vue';
 import Pill from '@/components/primitives/Pill.vue';
 import DebugView from './DebugView.vue';
-import { isOalMetricsPayload, isOalSourcePayload, sampleTone } from './payload.js';
+import { highlightSegments, isOalMetricsPayload, isOalSourcePayload, sampleTone } from './payload.js';
+import { useDebugReplay } from './useDebugReplay.js';
+import { useRecordFold } from './useRecordFold.js';
 import {
   decodeEntityId,
   decodeMetricEntityId,
@@ -141,27 +142,17 @@ interface OalNodeView extends NodeSlice {
   groups: OalRecordGroup[];
 }
 
-// ── Historical replay ──────────────────────────────────────────────
+// ── Historical replay + deep-link / session restore ────────────────
 
-const historicalEntry = shallowRef<HistoryEntry | null>(null);
-
-const displaySession = computed<SessionResponse | null>(
-  () => historicalEntry.value?.session ?? dbg.session.value,
-);
-
-function loadHistorical(entry: HistoryEntry): void {
-  historicalEntry.value = entry;
-  selectedFile.value = entry.name;
-  selectedMetric.value = entry.ruleName;
-  if (entry.recordCap !== undefined) recordCap.value = entry.recordCap;
-  if (entry.retentionMillis !== undefined) {
-    retentionMinutes.value = Math.max(1, Math.round(entry.retentionMillis / MS_PER_MINUTE));
-  }
-}
-
-function clearHistorical(): void {
-  historicalEntry.value = null;
-}
+const { historicalEntry, displaySession, clearHistorical } = useDebugReplay({
+  dbg,
+  history,
+  name: selectedFile,
+  ruleName: selectedMetric,
+  recordCap,
+  retentionMinutes,
+  widget: 'oal',
+});
 
 function formatTime(ms: number): string {
   const d = new Date(ms);
@@ -170,69 +161,6 @@ function formatTime(ms: number): string {
   const ss = String(d.getSeconds()).padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
 }
-
-function persistCapture(): void {
-  if (historicalEntry.value !== null) return;
-  const id = dbg.sessionId.value;
-  if (!id || !selectedFile.value || !selectedMetric.value) return;
-  const sess: SessionResponse = dbg.session.value ?? {
-    sessionId: id,
-    capturedAt: Date.now(),
-    nodes: [],
-  };
-  history.save({
-    widget: 'oal',
-    catalog: 'oal',
-    name: selectedFile.value,
-    ruleName: selectedMetric.value,
-    recordCap: recordCap.value,
-    retentionMillis: retentionMinutes.value * MS_PER_MINUTE,
-    retentionDeadline: dbg.retentionDeadline.value ?? undefined,
-    recordCount: sess.nodes.reduce((n, x) => n + (x.records?.length ?? 0), 0),
-    nodeCount: sess.nodes.length,
-    session: sess,
-  });
-}
-
-watch(
-  () => [dbg.sessionId.value, dbg.session.value, dbg.retentionDeadline.value] as const,
-  () => persistCapture(),
-);
-
-watch(
-  () => route.query.resumeSessionId,
-  (id) => {
-    if (typeof id !== 'string' || id === '') return;
-    if (dbg.sessionId.value === id) return;
-    // Cross-widget lookup (`history.all`) — routing already pinned us
-    // to the right widget, so filtering again by widget would silently
-    // swallow entries with a mismatched widget field.
-    const entry = history.all.value.find((e) => e.session.sessionId === id);
-    if (!entry) return;
-    selectedFile.value = entry.name;
-    selectedMetric.value = entry.ruleName;
-    if (entry.recordCap !== undefined) recordCap.value = entry.recordCap;
-    if (entry.retentionMillis !== undefined) {
-      retentionMinutes.value = Math.max(1, Math.round(entry.retentionMillis / MS_PER_MINUTE));
-    }
-    dbg.resume(id, entry.retentionDeadline ?? null);
-  },
-  { immediate: true },
-);
-
-watch(
-  () => route.query.historyId,
-  (id) => {
-    if (typeof id !== 'string' || id === '') {
-      if (historicalEntry.value !== null) clearHistorical();
-      return;
-    }
-    if (historicalEntry.value?.id === id) return;
-    const entry = history.all.value.find((e) => e.id === id);
-    if (entry) loadHistorical(entry);
-  },
-  { immediate: true },
-);
 
 const nodeViews = computed<OalNodeView[]>(() => {
   const s = displaySession.value;
@@ -345,79 +273,24 @@ function selectRow(row: OalSampleRow): void {
   selectedRow.value = selectedRow.value === row ? null : row;
 }
 
-interface Segment {
-  text: string;
-  highlight: boolean;
-}
-
 const selectedFragment = computed<string>(
   () => selectedRow.value?.sample.sourceText.trim() ?? '',
 );
 
-/** Split a rule field into highlight / plain segments around every
- *  exact occurrence of the selected step's `sourceText`. Drives the
- *  inline `<mark>` collaborative highlight inside the captured DSL —
- *  clicking a step lights up the matching expression in the OAL
- *  statement above the chain. */
-function highlightSegments(text: string | undefined, fragment: string): Segment[] {
-  if (!text) return [];
-  if (fragment === '') return [{ text, highlight: false }];
-  const segments: Segment[] = [];
-  let cursor = 0;
-  while (cursor < text.length) {
-    const at = text.indexOf(fragment, cursor);
-    if (at < 0) {
-      segments.push({ text: text.slice(cursor), highlight: false });
-      break;
-    }
-    if (at > cursor) segments.push({ text: text.slice(cursor, at), highlight: false });
-    segments.push({ text: fragment, highlight: true });
-    cursor = at + fragment.length;
-  }
-  return segments;
-}
-
 // ── Per-record fold state + fold/expand all (mirrors MAL) ──────────
 
-const foldedRecords = ref<Set<string>>(new Set());
-
-function recordFoldKey(nKey: string, idx: number): string {
-  return `${nKey}#${idx}`;
-}
-
-function isRecordFolded(nKey: string, idx: number): boolean {
-  return foldedRecords.value.has(recordFoldKey(nKey, idx));
-}
-
-function toggleRecord(nKey: string, idx: number): void {
-  const k = recordFoldKey(nKey, idx);
-  const next = new Set(foldedRecords.value);
-  if (next.has(k)) next.delete(k);
-  else next.add(k);
-  foldedRecords.value = next;
-}
-
-function foldAllRecords(): void {
-  const next = new Set<string>();
-  for (const v of nodeViews.value) {
-    const nKey = v.nodeId ?? v.peer ?? '?';
-    for (const g of v.groups) next.add(recordFoldKey(nKey, g.index));
-  }
-  foldedRecords.value = next;
-}
-
-function expandAllRecords(): void {
-  foldedRecords.value = new Set();
-}
-
-const totalRecordCount = computed<number>(() => {
-  let n = 0;
-  for (const v of nodeViews.value) n += v.groups.length;
-  return n;
-});
-
-const allFolded = computed<boolean>(
-  () => totalRecordCount.value > 0 && foldedRecords.value.size === totalRecordCount.value,
+const {
+  foldedRecords,
+  isRecordFolded,
+  toggleRecord,
+  foldAllRecords,
+  expandAllRecords,
+  totalRecordCount,
+  allFolded,
+} = useRecordFold(() =>
+  nodeViews.value.flatMap((v) =>
+    v.groups.map((g) => ({ nodeKey: v.nodeId ?? v.peer ?? '?', index: g.index })),
+  ),
 );
 </script>
 

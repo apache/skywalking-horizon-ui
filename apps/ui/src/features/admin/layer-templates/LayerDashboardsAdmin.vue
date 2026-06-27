@@ -16,15 +16,18 @@
 -->
 <!--
   Admin / Layer dashboards. List every loaded layer template, pick one
-  on the left, edit its per-scope widget set on the right. Saves write
-  the JSON file back via POST /api/admin/layer-templates/:key so the
-  BFF refreshes its in-memory cache.
+  on the left, edit its per-scope widget set on the right. Saves go
+  through the template-sync store (bff.templateSync.save) which persists
+  to OAP and refreshes the BFF's in-memory cache.
 
   Widget editor presents the new span-based fields (12-col flow
   layout): operator picks a column span, optional row span, MQE
   expressions, type, title, unit, and an optional visibility predicate.
   Legacy x/y/w/h are NOT shown — they're kept on the wire for
   back-compat with older JSONs but operators don't edit them.
+
+  XL file; decomposition is staged — geometry helpers are extracted
+  (layer-dashboards.geometry.ts); MetricDefinitionRow + composables pending.
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
@@ -46,6 +49,17 @@ import type {
   TopologyMetricDef,
 } from '@skywalking-horizon-ui/api-client';
 import { collectWidgetIds } from '@skywalking-horizon-ui/api-client';
+import {
+  CANVAS_COLS,
+  CANVAS_ROW_PX,
+  CANVAS_GAP_PX,
+  SUBGRID_ROW_PX,
+  SUBGRID_GAP_PX,
+  DRAWER_COL,
+  widgetSpan,
+  widgetRowSpan,
+  widgetGridStyle,
+} from '@/features/admin/layer-templates/layer-dashboards.geometry';
 
 /** Admin-only scopes that aren't dashboard-widget scopes. `networkProfiling`
  *  is the process-topology edge editor; `deployment` is the
@@ -440,10 +454,9 @@ function persistLocal(content: AdminLayerTemplate): void {
 // "Reset to ▾" dropdown — discard the current local draft and reload the
 // editor from the picked source. The op-facing tooltip says "Discard
 // current edits and reload …", so the action must DROP the local draft
-// rather than re-stage the new content as a fresh draft (which the
-// previous implementation did via persistLocal, triggering the
-// TemplateConflictPrompt right after every reset). Subsequent edits in
-// the editor re-create a local draft naturally on the next change.
+// rather than re-stage the new content as a fresh draft — re-staging would
+// trigger the TemplateConflictPrompt right after every reset. Subsequent
+// edits in the editor re-create a local draft naturally on the next change.
 const resetDropdownOpen = ref(false);
 function resetTo(src: 'bundled' | 'remote'): void {
   loadFrom(src);
@@ -559,7 +572,7 @@ watch(visibleScopes, (scopes) => {
   void nextTick(updateScopeScroll);
 });
 
-// ── Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
+// Scope-tab strip horizontal scroll. The strip can hold ~11 scopes;
 // on a narrow editor it overflows, so we let it scroll and surface
 // chevron buttons that appear only on the side(s) with hidden tabs.
 const scopeNav = ref<HTMLElement | null>(null);
@@ -603,7 +616,7 @@ watch(
 watch([visibleScopes, activeScope], () => void nextTick(updateScopeScroll));
 function onWinResizeScope(): void { updateScopeScroll(); }
 
-// ── Editor drawer position. The drawer edits the selected widget. A sticky
+// Editor drawer position. The drawer edits the selected widget. A sticky
 // drawer gets clipped once you scroll past the bottom of the tall widget canvas
 // (its containing block), so a bottom-row widget opens with the editor's top
 // off-screen. Pin it to the viewport with `position: fixed` instead, overlaying
@@ -614,7 +627,6 @@ function onWinResizeScope(): void { updateScopeScroll(); }
 // viewport below the topbar.
 const drawerEl = ref<HTMLElement | null>(null);
 const editorCardEl = ref<HTMLElement | null>(null);
-const DRAWER_COL = 360;
 function positionDrawer(): void {
   const el = drawerEl.value;
   const card = editorCardEl.value;
@@ -867,23 +879,6 @@ const resize = reactive<{
   cellH: 1,
 });
 
-const CANVAS_COLS = 12;
-const CANVAS_ROW_PX = 120;
-const CANVAS_GAP_PX = 8;
-
-function widgetSpan(w: DashboardWidget): number {
-  return Math.min(CANVAS_COLS, Math.max(1, w.span ?? 4));
-}
-function widgetRowSpan(w: DashboardWidget): number {
-  return Math.max(1, w.rowSpan ?? 2);
-}
-function widgetGridStyle(w: DashboardWidget): Record<string, string> {
-  return {
-    gridColumn: `span ${widgetSpan(w)}`,
-    gridRow: `span ${widgetRowSpan(w)}`,
-  };
-}
-
 function onResizeStart(e: MouseEvent, i: number): void {
   e.preventDefault();
   e.stopPropagation();
@@ -907,8 +902,6 @@ function onResizeStart(e: MouseEvent, i: number): void {
   window.addEventListener('mousemove', onResizeMove);
   window.addEventListener('mouseup', onResizeEnd);
 }
-const SUBGRID_ROW_PX = 84;
-const SUBGRID_GAP_PX = 6;
 /** Resize a widget INSIDE a tab — same drag as the top level, but snapped to
  *  the tab's own 12-col sub-grid pitch (measured from the .cw-subgrid). */
 function onSubResizeStart(e: MouseEvent, widgetId: string, tabIdx: number, subIdx: number): void {
@@ -1072,7 +1065,6 @@ function onReorderDrop(e: DragEvent, i: number): void {
       setWidgetsFor(activeScope.value, widgets);
       selectedIdx.value = tIdx;
     } else {
-      // Plain reorder.
       widgets.splice(from, 1);
       widgets.splice(to, 0, dragged);
       setWidgetsFor(activeScope.value, widgets);
@@ -1221,6 +1213,10 @@ function setValueMapKey(oldKey: string, newKey: string): void {
   const label = w.valueMap[oldKey];
   delete w.valueMap[oldKey];
   w.valueMap[newKey] = label;
+  if (w.valueColors && oldKey in w.valueColors) {
+    w.valueColors[newKey] = w.valueColors[oldKey];
+    delete w.valueColors[oldKey];
+  }
 }
 function addValueMapRow(): void {
   const w = editingWidget.value;
@@ -1235,6 +1231,30 @@ function removeValueMapRow(key: string): void {
   if (!w || !w.valueMap) return;
   delete w.valueMap[key];
   if (Object.keys(w.valueMap).length === 0) delete w.valueMap;
+  if (w.valueColors) {
+    delete w.valueColors[key];
+    if (Object.keys(w.valueColors).length === 0) delete w.valueColors;
+  }
+}
+
+// Optional color per valueMap key → `valueColors`, turning the enum card into
+// colored status chips (one per matched value/label). Empty = no chip color.
+const CHIP_COLORS = ['', 'ok', 'warn', 'err', 'info', 'neutral'] as const;
+function valueColorFor(key: string): string {
+  return editingWidget.value?.valueColors?.[key] ?? '';
+}
+function setValueColor(key: string, color: string): void {
+  const w = editingWidget.value;
+  if (!w) return;
+  if (!color) {
+    if (w.valueColors) {
+      delete w.valueColors[key];
+      if (Object.keys(w.valueColors).length === 0) delete w.valueColors;
+    }
+    return;
+  }
+  if (!w.valueColors) w.valueColors = {};
+  w.valueColors[key] = color;
 }
 
 /** Drawer commits edits in place on the live draft via v-model — no
@@ -1462,7 +1482,6 @@ async function pushToOap(): Promise<void> {
   }
 }
 
-// ── Import / Export ────────────────────────────────────────────────
 function flashMsg(msg: string): void {
   saveMsg.value = msg;
   setTimeout(() => {
@@ -1506,7 +1525,7 @@ async function onImportFile(): Promise<void> {
   flashMsg(`Imported “${key}” as a local draft. Preview, then “Check diff & push”.`);
 }
 
-// ── Disable / reactivate (OAP has no hard DELETE) ──────────────────
+// Disable / reactivate — OAP has no hard DELETE.
 // Disabling soft-disables the layer on OAP: a disabled template drops out
 // of the bundle AND the menu, so the layer disappears from the sidebar.
 // Reactivating re-pushes the bundled default to OAP, which clears the
@@ -2392,7 +2411,7 @@ function setVisibility(v: 'public' | 'operate'): void {
   }
 }
 
-// ── Topology cluster setup — rule editor + live tester.
+// Topology cluster setup — rule editor + live tester.
 // The rule is a named-capture regex run against every service name in
 // the topology + service pickers. Operators bind which capture maps to
 // the display label vs the cluster value (e.g. k8s namespace), and
@@ -2637,7 +2656,6 @@ const namingTest = computed<NamingTestResult>(() => {
             </template>
             </div>
         </div>
-        <!-- Identity strip + save controls -->
         <section class="sw-card identity-card">
           <div class="identity-row">
             <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
@@ -2725,7 +2743,6 @@ const namingTest = computed<NamingTestResult>(() => {
                 title="Import a layer dashboard JSON file as a local draft — preview, then publish."
                 @click="onImportFile"
               >Import</button>
-              <!-- Reset the editor to a source (discard current content). -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
                   Reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
@@ -2763,7 +2780,6 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </template>
               </div>
-              <!-- Preview the real page rendering a chosen source. -->
               <div class="reset-dd">
                 <button class="sw-btn" type="button" @click="previewDropdownOpen = !previewDropdownOpen">
                   Preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
@@ -3031,7 +3047,6 @@ const namingTest = computed<NamingTestResult>(() => {
           </div>
         </section>
 
-        <!-- Scope tabs -->
         <div id="scope-editor" class="scope-tabs-wrap sw-card">
           <button
             v-show="canScrollScopeLeft"
@@ -4051,7 +4066,6 @@ const namingTest = computed<NamingTestResult>(() => {
               >＋ Add widget ▾</button>
               <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
               <div v-if="addMenuOpen" class="add-menu" role="menu">
-                <!-- Container first, then a divider, then the five leaf kinds. -->
                 <button type="button" class="add-menu-item" role="menuitem" @click="pickAddKind('tab')">
                   <span class="ami-type t-tab">tab</span>
                   <span class="ami-text">
@@ -4344,11 +4358,10 @@ const namingTest = computed<NamingTestResult>(() => {
                   </div>
                 </template>
 
-                <!-- NORMAL widget: the content form. -->
                 <template v-else>
                   <template v-if="editingWidget">
                     <div v-if="editingWidget.format === 'enum'" class="d-section">
-                      <span class="d-label">Value map (enum → label)</span>
+                      <span class="d-label">Value map (enum → label, color)</span>
                       <div class="vm-rows">
                         <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
                           <input
@@ -4364,11 +4377,19 @@ const namingTest = computed<NamingTestResult>(() => {
                             @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
                             placeholder="Failed"
                           />
+                          <select
+                            class="vm-color"
+                            :value="valueColorFor(row[0])"
+                            title="Chip color"
+                            @change="setValueColor(row[0], ($event.target as HTMLSelectElement).value)"
+                          >
+                            <option v-for="c in CHIP_COLORS" :key="c" :value="c">{{ c || '—' }}</option>
+                          </select>
                           <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
                         </div>
                       </div>
                       <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
-                      <p class="d-hint">Map a coded value to a label (e.g. 1 → OK). Card widgets only; labels are translatable per locale.</p>
+                      <p class="d-hint">Map a coded value — or a metric label such as a K8s node condition — to a label and an optional chip color (<code>ok</code> green / <code>warn</code> amber / <code>err</code> red / <code>info</code> blue / <code>neutral</code> grey). With a color set, the card renders colored status chips, one per matched value. Card widgets only; labels are translatable per locale.</p>
                     </div>
                     <div class="d-section">
                       <span class="d-label">MQE expressions</span>
@@ -6443,6 +6464,7 @@ const namingTest = computed<NamingTestResult>(() => {
 .vm-row .vm-key { width: 64px; flex: 0 0 auto; }
 .vm-row .vm-arrow { color: var(--sw-fg-3); }
 .vm-row .vm-label { flex: 1 1 auto; min-width: 0; }
+.vm-row .vm-color { width: 84px; flex: 0 0 auto; }
 .expr-rows { display: flex; flex-direction: column; gap: 4px; }
 .expr-row { display: flex; gap: 6px; align-items: center; }
 .expr-row .expr-mqe { flex: 1 1 auto; min-width: 0; }

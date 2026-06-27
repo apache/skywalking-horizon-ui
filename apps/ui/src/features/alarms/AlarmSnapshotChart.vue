@@ -132,9 +132,8 @@ function fmtMinute(ts: number): string {
   return `${h}:${m}`;
 }
 
-/** Caption shown above the chart canvas — mirrors what the shaded
- *  band represents. Reactive so it tracks the snapshot's bucket
- *  count + the admin-fetched rule period when either changes. */
+/** Caption above the canvas — mirrors what the shaded band represents
+ *  (rule period when admin supplied it, else the full snapshot). */
 const windowCaption = computed<string>(() => {
   const bucketCount = Math.max(
     ...props.metric.results.map((r) => r.values.length),

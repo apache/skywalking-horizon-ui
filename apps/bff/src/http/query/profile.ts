@@ -183,7 +183,6 @@ async function resolveServiceId(
 export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDeps): void {
   const auth = requireAuth(deps);
 
-  // ── list tasks ─────────────────────────────────────────────────────
   app.get(
     '/api/layer/:key/profile/tasks',
     { preHandler: auth },
@@ -213,7 +212,6 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     },
   );
 
-  // ── create task ────────────────────────────────────────────────────
   app.post(
     '/api/layer/:key/profile/tasks',
     { preHandler: auth },
@@ -240,7 +238,6 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     },
   );
 
-  // ── list segments for a task ──────────────────────────────────────
   app.get(
     '/api/profile/tasks/:taskId/segments',
     { preHandler: auth },
@@ -262,7 +259,6 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     },
   );
 
-  // ── list operation logs for a task ────────────────────────────────
   app.get(
     '/api/profile/tasks/:taskId/logs',
     { preHandler: auth },
@@ -284,7 +280,6 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     },
   );
 
-  // ── analyze profiled span time-ranges ─────────────────────────────
   app.post(
     '/api/profile/analyze',
     { preHandler: auth },

@@ -198,6 +198,17 @@ export interface DashboardWidget {
    */
   valueMap?: Record<string, string>;
   /**
+   * Optional color per key, turning a `format: 'enum'` `card` into colored
+   * status chips. Keys match `valueMap` — a coded value (`"1"`), OR a metric
+   * **label** value for a label-keyed status (e.g. a K8s node condition
+   * `"Ready"` / `"MemoryPressure"`). Values are semantic tokens: `ok` (green),
+   * `warn` (amber), `err` (red), `info` (blue), `neutral` (grey). When set, a
+   * scalar enum renders its mapped label as one colored chip; a label-keyed
+   * metric renders every active label as its own chip (the BFF keeps the
+   * labels instead of collapsing to a scalar). Absent ⇒ plain enum/number.
+   */
+  valueColors?: Record<string, string>;
+  /**
    * Column span in a 12-column flow grid. Default 4. Widgets pack via
    * `grid-auto-flow: dense` so positions are dynamic — operators
    * describe a widget's width once and the grid lays it out.

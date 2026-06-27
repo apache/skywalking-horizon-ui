@@ -39,6 +39,7 @@ import type {
   EBPFTaskCreationResponse,
   EBPFTaskListResponse,
   FetchLike,
+  NetworkProcessesResponse,
   NetworkProfilingCreateRequest,
   NetworkProfilingCreateResponse,
   NetworkProfilingKeepAliveResponse,
@@ -309,8 +310,6 @@ async function resolveServiceId(
   );
 }
 
-// ── Process-relation metrics (network-profiling edge panel) ──────────
-
 interface MqeEnv {
   error?: string | null;
   results?: Array<{ values?: Array<{ value: string | number | null }> }>;
@@ -359,10 +358,18 @@ function relationSeries(env: MqeEnv | undefined): Array<number | null> {
   });
 }
 
+const LIST_PROCESSES = /* GraphQL */ `
+  query listNetworkProcesses($instanceId: ID!, $duration: Duration!) {
+    listProcesses(instanceId: $instanceId, duration: $duration) {
+      id
+      name
+    }
+  }
+`;
+
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
   const auth = requireAuth(deps);
 
-  // ── list tasks + couldProfiling metadata ──────────────────────────
   app.get(
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
@@ -404,7 +411,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── create task ───────────────────────────────────────────────────
   app.post(
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
@@ -453,7 +459,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── per-task schedules ────────────────────────────────────────────
   app.get(
     '/api/ebpf/tasks/:taskId/schedules',
     { preHandler: auth },
@@ -475,7 +480,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── network profiling ─────────────────────────────────────────────
   /** List network-profile tasks for a service. Same OAP entry-point as
    *  ON_CPU/OFF_CPU tasks, with target=NETWORK. OAP stores network tasks
    *  with trigger FIXED_TIME (EBPFProfilingMutationService sets
@@ -574,6 +578,39 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
+  /** Processes reporting on a service instance — the network task-creation
+   *  modal confirms the instance has profilable processes before Create
+   *  (OAP rejects a network task on an instance with none). */
+  app.get(
+    '/api/ebpf/network/processes',
+    { preHandler: auth },
+    async (req: FastifyRequest, reply: FastifyReply) => {
+      const q = req.query as { serviceInstance?: string; windowMinutes?: string };
+      const instance = (q.serviceInstance ?? '').trim();
+      const payload: NetworkProcessesResponse = { processes: [], reachable: true };
+      if (!instance) return reply.send(payload);
+      const minutes = Math.max(5, Math.min(180, Number(q.windowMinutes) || 30));
+      const endMs = Date.now();
+      const startMs = endMs - minutes * 60_000;
+      const opts = buildOapOpts(deps.config.current, deps.fetch);
+      const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
+      try {
+        const data = await graphqlPost<{ listProcesses: NetworkProcessesResponse['processes'] }>(
+          opts,
+          LIST_PROCESSES,
+          {
+            instanceId: instance,
+            duration: { start: fmtMinute(startMs, offset), end: fmtMinute(endMs, offset), step: 'MINUTE' },
+          },
+        );
+        payload.processes = data.listProcesses ?? [];
+        return reply.send(payload);
+      } catch (err) {
+        return reply.send(softErr(payload, err));
+      }
+    },
+  );
+
   /** Create a network-profile task on a specific service instance. */
   app.post(
     '/api/ebpf/network/tasks',
@@ -626,7 +663,6 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     },
   );
 
-  // ── analyze ───────────────────────────────────────────────────────
   app.post(
     '/api/ebpf/analyze',
     { preHandler: auth },

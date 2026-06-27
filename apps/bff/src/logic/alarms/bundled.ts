@@ -49,20 +49,14 @@ export function invalidateAlertBundleCache(): void {
 }
 
 function locateAlertBundle(): string {
-  // Probe order:
-  //   1. <HERE>/bundled_templates/...      — bundled BFF (esbuild). After
-  //      `pnpm package`, dist/server.js sits next to dist/bundled_templates/,
-  //      so HERE = .../dist and the file is one level deeper. In the
-  //      container that's /app/server.js → /app/bundled_templates/. The
-  //      sibling layer + overview loaders already include this entry
-  //      first; the alert loader was missing it, which made every probe
-  //      collapse above WORKDIR (node:path.resolve clamps at /) and
-  //      print the same path three times.
-  //   2. <HERE>/../../bundled_templates/...  — dev (tsx). Source is at
-  //      apps/bff/src/logic/alarms/, bundled_templates is two levels up
-  //      at apps/bff/src/bundled_templates/.
-  //   3. <cwd>/bundled_templates/...        — operator running from a
-  //      relocated dist/ where neither path above works.
+  // Probe order matches the sibling layer/overview loaders. Entry 1
+  // must come first: after `pnpm package`, dist/server.js sits next to
+  // dist/bundled_templates, so HERE = dist/. Drop it and the remaining
+  // probes climb above WORKDIR — node:path.resolve clamps at `/` and
+  // every candidate collapses to the same wrong path.
+  //   1. <HERE>/bundled_templates/...      — packaged dist (HERE = dist/).
+  //   2. <HERE>/../../bundled_templates/... — dev source tree (tsx).
+  //   3. <cwd>/bundled_templates/...        — relocated dist/.
   const candidates = [
     resolve(HERE, 'bundled_templates/alert/page-setup.json'),
     resolve(HERE, '../../bundled_templates/alert/page-setup.json'),

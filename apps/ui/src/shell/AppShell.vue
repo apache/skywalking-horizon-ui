@@ -37,21 +37,16 @@ import { useTimeDefaultsStore } from '@/state/timeDefaults';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { watch } from 'vue';
 
-// Eager-load the theme + time-defaults org defaults so the renderer
-// has the right `<html data-theme>` and the right default window for
-// the first paint. Both stores expose 3-tier resolution (user pref
-// in localStorage → OAP → bundled) — at construction they already
-// reflect the user pref + bundled fallback; this call fills the OAP
-// tier as soon as auth is through.
+// Both stores expose 3-tier resolution (user pref in localStorage → OAP
+// → bundled); at construction they reflect user pref + bundled fallback,
+// and loadOrgDefault (onMounted) fills the OAP tier once auth is through.
 const themeStore = useThemeStore();
 const timeDefaultsStore = useTimeDefaultsStore();
 const timeRangeStore = useTimeRangeStore();
 
-// Apply the resolved time-defaults to the live time-range store as
-// soon as it lands. The time-range store is constructed with a static
-// `'1h'` default; this watch promotes the resolved value (user pref →
-// OAP → bundled) over that. Subsequent operator picks on the time
-// picker stay sticky — we don't override an explicit selection.
+// The time-range store is constructed with a static `'1h'` default; this
+// watch promotes the resolved time-default over it ONCE — subsequent
+// operator picks on the time picker stay sticky.
 let timeDefaultsApplied = false;
 watch(
   () => timeDefaultsStore.defaultWindowMinutes,
@@ -63,11 +58,9 @@ watch(
   { immediate: true },
 );
 
-// Kick the config preload once the shell mounts (i.e. after the auth
-// guard has let the user through). All layer dashboard configs +
-// overview list arrive in one round-trip and land in localStorage so
-// subsequent navigations read configs synchronously — no per-page
-// spinner for what's effectively static template content.
+// All layer dashboard configs + overview list arrive in one round-trip
+// and land in localStorage, so subsequent navigations read configs
+// synchronously — no per-page spinner for static template content.
 onMounted(() => {
   void ensureConfigBundle();
   void themeStore.loadOrgDefault();
@@ -100,11 +93,6 @@ const initReady = computed<boolean>(
   () => menuSettled.value && bundleLoaded.value,
 );
 
-// Reserve bottom padding on the main pane equal to the panel's
-// collapsed height when the debug panel is enabled, so the panel
-// doesn't overlay page content. The expanded popover is still a
-// transient overlay (operator dismisses it explicitly) — reserving
-// 260px permanently would waste real estate.
 const { enabled: debugPanelEnabled } = useDebugPanel();
 // Drives the `.sw` grid column width — see `.sw.side-collapsed` below.
 const { collapsed: sidebarCollapsed, width: sidebarWidth, setWidth: setSidebarWidth, resetWidth: resetSidebarWidth } = useSidebar();
@@ -137,8 +125,6 @@ function startSidebarResize(e: PointerEvent): void {
   <div class="sw" :class="{ 'side-collapsed': sidebarCollapsed, resizing: resizingSidebar }" :style="{ '--sw-side-w': sidebarWidth + 'px' }">
     <AppSidebar />
     <AppTopbar />
-    <!-- Drag handle on the sidebar/main boundary; hidden when collapsed.
-         Double-click resets to the default width. -->
     <div
       v-if="!sidebarCollapsed"
       class="sw-resize"
@@ -151,17 +137,11 @@ function startSidebarResize(e: PointerEvent): void {
            (`:12800`) poll reports unreachable. Admin-port (`:17128`)
            failures render per-page via AdminFeatureWarning, not here. -->
       <GlobalConnectivityBanner />
-      <!-- Cold-only-with-recent-range warning. Renders only on BanyanDB
-           when the operator has the Cold pill ON AND the picked time
-           range overlaps hot+warm (where cold returns empty). Loudly
-           tells the operator why widgets went blank and offers a
-           one-click "turn Cold off". -->
+      <!-- Renders only on BanyanDB when the Cold pill is ON AND the picked
+           range overlaps hot+warm, where cold returns empty — explains why
+           widgets went blank and offers a one-click "turn Cold off". -->
       <ColdStageTrapBanner />
-      <!-- Notice shown only while a page is in ?mode=preview. -->
       <PreviewModeBanner />
-      <!-- Shell-level init placeholder. Visible until the layer
-           registry + config bundle have both loaded. Per-page code
-           runs against fully-populated state from the first paint. -->
       <div v-if="!initReady" class="sw-init">
         <div class="sw-card sw-init-card">
           <h2>{{ t('Initializing…') }}</h2>
@@ -173,43 +153,28 @@ function startSidebarResize(e: PointerEvent): void {
     <!-- Global trace-id popout: any page can call useTracePopout().openTrace(id)
          and this modal renders the waterfall + span detail. -->
     <TracePopout />
-    <!-- Zipkin trace popout — shares `?traceId=`; native vs Zipkin
-         self-select by ID shape (see isZipkinTraceId). -->
+    <!-- Shares `?traceId=`; native vs Zipkin self-select by ID shape
+         (see isZipkinTraceId). -->
     <ZipkinTracePopout />
-    <!-- Per-session prompt: when local template edits diverge from OAP,
-         ask once which version to render (local preview vs remote live). -->
     <TemplateConflictPrompt />
-    <!-- Bottom-fixed framework-event panel. Self-hides when the Admin →
-         "Debug events" toggle is off (default off in production, on
-         when hostname looks local). Always mounted so the toggle
-         responds without a re-mount race. -->
+    <!-- Always mounted (even when hidden) so the Admin "Debug events"
+         toggle responds without a re-mount race. -->
     <DebugEventPanel />
   </div>
 </template>
 
 <style scoped>
-/* Reserve room for the collapsed DebugEventPanel (26px) when it's
- * enabled so the panel doesn't overlay page content. Expanded
- * popover stays a transient overlay — operators close it
- * explicitly, reserving its full 260px permanently would waste
- * vertical real estate. */
+/* Reserve room for the collapsed DebugEventPanel (26px); the expanded
+ * popover stays a transient overlay, so we don't reserve its full 260px. */
 .sw-main.has-debug-panel { padding-bottom: 26px; }
 
-/* Folded sidebar — collapse the grid's side column to a thin rail that
- * holds just the expand affordance. The sidebar's own scoped styles
- * hide the nav/labels at this width (see AppSidebar `.sw-side.collapsed`).
- * Animates in step with the sidebar's own collapse transition. */
+/* Collapse the grid's side column to a thin rail; the sidebar's own
+ * scoped styles hide nav/labels at this width (see `.sw-side.collapsed`). */
 .sw.side-collapsed { grid-template-columns: 48px 1fr; }
 .sw { transition: grid-template-columns 160ms ease; }
-/* During a drag the column must follow the cursor 1:1, not lag through
- * the collapse ease. */
+/* During a drag the column must follow the cursor 1:1, not lag the ease. */
 .sw.resizing { transition: none; }
 
-/* Drag-to-resize handle straddling the sidebar/main boundary. Tracks
- * `--sw-side-w` live as the operator drags. Full height so it's easy to
- * grab; transparent until hovered/active. While dragging the grid
- * transition is suppressed (the column should follow the cursor 1:1,
- * not lag through the 160ms ease). */
 .sw-resize {
   position: absolute;
   top: 0;

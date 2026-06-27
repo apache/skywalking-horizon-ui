@@ -89,11 +89,9 @@ watch(
   { immediate: true },
 );
 
-// ── Filter state ───────────────────────────────────────────────────
-// Two layers: live form refs (bound to the inputs) and *committed*
-// refs that drive the actual query. The query only fires when the
-// operator hits "Run query" — trace queries can be slow over slow
-// links, so we don't auto-refetch on every keystroke / select change.
+// Two layers: live form refs (bound to the inputs) and *committed* refs that
+// drive the query. The query only fires on "Run query" — trace queries can be
+// slow over slow links, so we don't auto-refetch on every keystroke / select.
 const traceState = ref<TraceQueryState>('ALL');
 const queryOrder = ref<TraceQueryOrder>('BY_START_TIME');
 const minDuration = ref<number | null>(null);
@@ -263,7 +261,6 @@ function removeTag(i: number): void {
   tagsList.value = tagsList.value.filter((_, idx) => idx !== i);
 }
 
-// ── Inline selection (click-driven, local state, no URL change) ───
 const selectedTraceId = ref<string | null>(null);
 const selectedTraceIds = ref<string[]>([]);
 const selectedRowKey = ref<string | null>(null);
@@ -298,14 +295,8 @@ const maxTraceDuration = computed(() => {
   return Math.max(...arr.map((tr) => tr.duration));
 });
 
-/* ── Distribution selection (in-page filter) ─────────────────────
- *
- * Clicking a dot adds (or removes) the corresponding trace to the
- * `pickedTraceIds` set. Dragging a rectangle on the chart selects
- * every dot inside it (the shared TraceDistribution emits the matched
- * keys). The list below is then filtered to only the picked traces —
- * no extra query fires. Reset clears the set.
- */
+// Picking dots / brushing a rectangle filters the list to the picked traces;
+// no extra query fires.
 const pickedTraceIds = ref<Set<string>>(new Set());
 const pickedKeys = computed(() => [...pickedTraceIds.value]);
 const isPicking = computed(() => pickedTraceIds.value.size > 0);
@@ -318,30 +309,25 @@ function togglePick(rowKey: string): void {
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
-// Dot click → toggle picked. The operator picks dots to filter; the
-// inline detail still opens via the list row click below.
+// Picking dots filters the list; the inline detail still opens via a list row.
 function onScatterSelect(row: NativeTraceListRow): void {
   togglePick(row.key);
 }
-// Drag-brush → add every matched dot to the picked set.
 function onScatterBrush(keys: string[]): void {
   const next = new Set(pickedTraceIds.value);
   for (const k of keys) next.add(k);
   pickedTraceIds.value = next;
 }
 
-// Filter the visible list by the picked set when any are picked.
 const visibleTraces = computed(() => {
   const all = native.value?.traces ?? [];
   if (pickedTraceIds.value.size === 0) return all;
   return all.filter((t) => pickedTraceIds.value.has(t.key));
 });
 
-// ── Detail card — span-modal state + Esc cascade ───────────────────
-// The span-detail modal now lives inside TraceDetailCard. The card
-// reports its open/close via `update:modalOpen`; the page owns the
-// single Esc cascade so the two dismissal steps stay ordered without
-// competing capture-phase listeners.
+// The span-detail modal lives inside TraceDetailCard and reports open/close via
+// `update:modalOpen`; the page owns the single Esc cascade so the two dismissal
+// steps stay ordered without competing capture-phase listeners.
 const detailCard = ref<InstanceType<typeof TraceDetailCard> | null>(null);
 const spanModalOpen = ref<boolean>(false);
 
@@ -378,10 +364,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
     <div class="tr-top-strip">
       <header class="tr-toolbar sw-card">
         <div class="tr-toolbar-head">
-          <!-- Service name removed from the head row — the layer
-               header's Switch button already shows which service the
-               page is bound to, so repeating it here is duplicate
-               chrome (same reasoning as the logs tab). -->
+          <!-- No service name in the head row: the layer header's Switch
+               button already shows the bound service, so repeating it is
+               duplicate chrome. -->
           <span class="kicker">{{ t('Traces') }}</span>
           <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
           <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
@@ -484,10 +469,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 
       <section class="tr-scatter sw-card">
         <header class="tr-scatter-head">
-          <!-- Header text swaps when the operator is picking dots:
-               `Distribution` becomes `N picked` + a Reset button.
-               Reset is always visible while picking so the operator
-               can drop the filter with one click. -->
           <span v-if="!isPicking" class="kicker">{{ t('Distribution') }}</span>
           <span v-else class="kicker pick-kicker">{{ t('{n} picked', { n: pickedTraceIds.size }) }}</span>
           <span class="legend">
@@ -712,9 +693,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   font-weight: 700;
 }
 .reset-btn { margin-left: 6px; }
-/* The scatter chart internals (dots, axis, drag) live in
-   TraceDistribution.vue; this card only styles the head strip. The
-   shared component fills the remaining card height via its own flex. */
+/* Chart internals live in TraceDistribution.vue; this card only styles
+   the head strip and lets the shared component fill the remaining height. */
 .tr-scatter :deep(.scatter-wrap) { flex: 1; min-height: 0; }
 
 .tr-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 80px); overflow: hidden; }

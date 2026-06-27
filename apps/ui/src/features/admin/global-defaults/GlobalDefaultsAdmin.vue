@@ -61,7 +61,6 @@ const timeStatus = computed(() => timeSync.badgeFor('horizon.time-defaults.globa
 const themeDiverged = computed(() => themeStatus.value === 'diverged');
 const timeDiverged = computed(() => timeStatus.value === 'diverged');
 
-// ── Drafts ─────────────────────────────────────────────────────────
 // We hydrate from the bundle's syncStatus (badge tells us what's there,
 // but not the value); call sync-status once on mount to get the live
 // values. After save, refetch.
@@ -122,7 +121,6 @@ watch(
   () => { void loadFromOap(); },
 );
 
-// ── Save ───────────────────────────────────────────────────────────
 const saving = ref(false);
 const flash = ref<string | null>(null);
 function setFlash(msg: string): void {
@@ -169,7 +167,6 @@ function onReset(): void {
   }
 }
 
-// ── Time picker presets ───────────────────────────────────────────
 // A small whitelist — operators can pick from these or type a custom
 // number. Step precision (the OAP `Duration.step` value) is derived
 // from the window size automatically: ≤ 4h → MINUTE, 6h…14d → HOUR,
@@ -204,7 +201,6 @@ const draftBucketCount = computed(() => {
   return Math.round(m / 60 / 24);
 });
 
-// ── Diff modal state ──────────────────────────────────────────────
 const themeDiffOpen = ref(false);
 const timeDiffOpen = ref(false);
 async function onDiffReset(): Promise<void> {
@@ -231,7 +227,6 @@ async function onDiffReset(): Promise<void> {
     <div v-else-if="loadError" class="gd__err">{{ loadError }}</div>
 
     <template v-else>
-      <!-- ── Theme ───────────────────────────────────────────────── -->
       <section class="gd__section">
         <header class="gd__sec-head">
           <h2>{{ t('Theme') }}</h2>
@@ -258,7 +253,6 @@ async function onDiffReset(): Promise<void> {
         </div>
       </section>
 
-      <!-- ── Time defaults ──────────────────────────────────────── -->
       <section class="gd__section">
         <header class="gd__sec-head">
           <h2>{{ t('Default time window') }}</h2>
@@ -333,7 +327,6 @@ async function onDiffReset(): Promise<void> {
         </p>
       </section>
 
-      <!-- ── Actions ────────────────────────────────────────────── -->
       <footer class="gd__actions">
         <span v-if="flash" class="gd__flash">{{ flash }}</span>
         <span v-else-if="dirty" class="gd__dirty">{{ t('unsaved changes') }}</span>

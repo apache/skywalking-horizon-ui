@@ -55,8 +55,7 @@ function pad(n: number): string {
 
 /** Shift an epoch-ms into the OAP server's local wall-clock by adding the
  *  offset, then read the UTC fields off the shifted Date — which are now
- *  the OAP-local components. This is the same trick as `alarms.ts`'s
- *  original `fmtSecond`; it works because `Date` is an absolute instant
+ *  the OAP-local components. Works because `Date` is an absolute instant
  *  and `getUTC*` doesn't apply the BFF process's TZ. */
 function shifted(epochMs: number, offsetMinutes: number): Date {
   return new Date(epochMs + offsetMinutes * 60_000);
@@ -128,8 +127,6 @@ export function windowFromRange<S extends TimeStep>(
   };
 }
 
-// ── Server timezone discovery ─────────────────────────────────────────
-
 interface TzCacheEntry {
   offsetMinutes: number;
   fetchedAt: number;
@@ -152,10 +149,8 @@ const TIME_INFO_QUERY = /* GraphQL */ `
 /** Look up the OAP server's UTC offset in minutes. Cached 60s.
  *
  *  Returns 0 (UTC fallback) if the probe fails — same behavior as
- *  booster-ui, and matches the fallback alarms.ts has carried since
- *  the original shared-offset implementation. The 60s TTL bounds how
- *  long a misconfigured BFF would keep sending bad-TZ strings after
- *  the operator fixes their OAP. */
+ *  booster-ui. The 60s TTL bounds how long a misconfigured BFF would
+ *  keep sending bad-TZ strings after the operator fixes their OAP. */
 export async function getServerOffsetMinutes(
   config: ConfigSource,
   fetchImpl?: FetchLike,

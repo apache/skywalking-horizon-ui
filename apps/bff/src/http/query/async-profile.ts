@@ -110,8 +110,6 @@ function clampExecArgs(v: unknown): string | undefined {
   return v.slice(0, MAX_EXEC_ARGS_LEN);
 }
 
-// ── Async profiler queries ──────────────────────────────────────────
-
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
   query ListServicesForAsyncResolve($layer: String!) {
     services: listServices(layer: $layer) {
@@ -170,8 +168,7 @@ const GET_ASYNC_ANALYZE = /* GraphQL */ `
   }
 `;
 
-// ── pprof queries (same shape, different OAP entry points) ──────────
-
+// pprof queries: same shape as async, different OAP entry points.
 const GET_PPROF_TASK_LIST = /* GraphQL */ `
   query GetPprofTaskList($request: PprofTaskListRequest!) {
     pprofTaskList: queryPprofTaskList(request: $request) {
@@ -247,7 +244,6 @@ export function registerAsyncProfileRoutes(
 ): void {
   const auth = requireAuth(deps);
 
-  // ── Async profiler ──────────────────────────────────────────────
   app.get(
     '/api/layer/:key/async/tasks',
     { preHandler: auth },
@@ -351,7 +347,6 @@ export function registerAsyncProfileRoutes(
     },
   );
 
-  // ── pprof (Go) ──────────────────────────────────────────────────
   app.get(
     '/api/layer/:key/pprof/tasks',
     { preHandler: auth },

@@ -43,7 +43,7 @@ The conditions bar narrows the stream. Every filter is optional; together they a
 
 - **Level** — the **Levels** strip above the stream doubles as a filter. Click `error`, `warn`, `info`, or `debug` to show only that level; click again to clear. The level filter is sent to OAP as a `level` tag, so pagination and counts reflect the filtered set. The `other` chip (lines whose level tag is missing or unrecognized) is informational only — it has no server-side value to filter on, so it is not clickable.
 
-Edits to the conditions refresh the stream automatically. **Run query** is the explicit "I'm done editing, refresh now" button and resets to the first page.
+The stream queries on demand, not on every keystroke. Editing a condition stages it; nothing is fetched until you press **Run query**, which runs the query and resets to the first page. A freshly opened tab shows a *Pick your conditions, then click Run query* prompt rather than auto-loading, and switching service resets to that prompt — clearing the level and tag filters — so the previous service's logs never linger under the new one. Paging and the page-size picker fetch immediately once you have run a query.
 
 ### Time range
 

@@ -27,11 +27,7 @@
  *   stage 6: metrics     — chunked traffic-MQE fetch
  *
  * Each stage owns a typed state + detail blob the bottom-of-page
- * timeline reads to render its drawer. The pipeline is iteration-1
- * scaffolding: it surfaces operator-visible progress for the demo
- * snapshot today; stage 5 wires through to live OAP MQE fetches in
- * the next iteration. The shape is stable so the timeline UI doesn't
- * need to change as later stages light up.
+ * timeline reads to render its drawer.
  *
  * Threading: each stage is awaited sequentially — operators read the
  * map as it builds bottom-up, and the parallelism that does exist is

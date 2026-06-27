@@ -28,14 +28,12 @@ import { useSetupStore } from '@/state/setup';
  * Used by BOTH the Overview page (card order) and the sidebar's Layers
  * section (row order) so the two stay in lockstep.
  *
- * IMPORTANT: reads priority via `store.priorityFor()`, which is side-
- * effect-free. The earlier version called `store.ensure()` here — and
- * `ensure` writes to `configs.<layer>.landing.headerColumns` on every
- * call. Inside a computed that READS the store, those writes invalidate
- * the same computed, producing "Maximum recursive updates exceeded in
- * component <AppSidebar>" and freezing the page on any layer route.
- * Setup reconciliation runs on the admin pages that explicitly call
- * `ensure`, NOT from this read.
+ * IMPORTANT: read priority via `store.priorityFor()` (side-effect-free),
+ * never `store.ensure()` — `ensure` writes `configs.<layer>.landing.
+ * headerColumns`, and inside a computed that READS the store those writes
+ * invalidate the same computed → "Maximum recursive updates exceeded in
+ * component <AppSidebar>", freezing the page on any layer route. Setup
+ * reconciliation runs on the admin pages that explicitly call `ensure`.
  */
 export function useLandingOrder(layers: ComputedRef<readonly LayerDef[]>) {
   const store = useSetupStore();
@@ -54,7 +52,3 @@ export function useLandingOrder(layers: ComputedRef<readonly LayerDef[]>) {
     });
   });
 }
-
-// (Removed `useLandingLayers` — every available layer is automatically on
-// the landing. The Overview just consumes `useLandingOrder(availableLayers)`
-// directly.)

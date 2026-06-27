@@ -155,6 +155,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/layer/:key/ebpf/network/tasks':        'profile:read',
   'GET /api/ebpf/network/tasks':                   'profile:read',
   'GET /api/ebpf/network/topology':                'profile:read',
+  'GET /api/ebpf/network/processes':               'profile:read',
   'POST /api/layer/:key/ebpf/network/process-relation-metrics': 'profile:read',
 
   'GET /api/overview/dashboards':                  'overview:read',

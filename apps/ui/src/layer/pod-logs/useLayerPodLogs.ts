@@ -200,21 +200,18 @@ export function useLayerPodLogs(layerKey: Ref<string>, instanceId: Ref<string | 
   onUnmounted(stopTail);
 
   return {
-    // pinned inputs
     containers: readonly(containers),
     selectedContainer,
     windowSeconds,
     intervalSeconds,
     keywords,
     excludes,
-    // state
     lines: readonly(lines),
     errorReason: readonly(errorReason),
     loadingContainers: readonly(loadingContainers),
     fetching: readonly(fetching),
     tailing: readonly(tailing),
     lastUpdatedAt: readonly(lastUpdatedAt),
-    // actions
     loadContainers,
     fetchOnce,
     startTail,

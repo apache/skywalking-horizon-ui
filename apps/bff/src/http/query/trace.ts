@@ -105,8 +105,6 @@ function explicitWindow(
   return { start: fmtSecond(s.getTime(), offsetMinutes), end: fmtSecond(e.getTime(), offsetMinutes) };
 }
 
-// ── Wire request shape ─────────────────────────────────────────────
-
 export interface TraceListBody {
   source?: TraceSource;
   service?: string;
@@ -135,8 +133,6 @@ export interface TraceListBody {
    *  template — same preview path as topology / endpoint-dependency. */
   previewConfig?: string;
 }
-
-// ── Native GraphQL queries ────────────────────────────────────────
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
   query ListServicesForTrace($layer: String!) {
@@ -238,12 +234,10 @@ const QUERY_TRACE_DETAIL = /* GraphQL */ `
   }
 `;
 
-// ── Helpers ────────────────────────────────────────────────────────
-
-// OAP service-id shape: `<base64>.<digits>`. Match strictly so we
-// don't mis-classify names containing `.` (e.g. `*.sample-services`)
-// as ids — the earlier "contains `.` and no whitespace" heuristic was
-// too loose and broke trace queries on mesh-layer services.
+// OAP service-id shape: `<base64>.<digits>`. Match strictly, not
+// "contains `.` and no whitespace": the loose form mis-classifies
+// mesh-layer names containing `.` (e.g. `*.sample-services`) as ids
+// and breaks their trace queries.
 const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
 async function resolveServiceId(
   opts: GraphqlOptions,
@@ -404,8 +398,6 @@ export async function fetchZipkinList(
     };
   }
 }
-
-// ── Routes ─────────────────────────────────────────────────────────
 
 export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps): void {
   const auth = requireAuth(deps);

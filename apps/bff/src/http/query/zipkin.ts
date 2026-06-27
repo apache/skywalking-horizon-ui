@@ -125,7 +125,6 @@ async function zipkinFetch(
 export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps): void {
   const auth = requireAuth(deps);
 
-  // GET /api/zipkin/services
   app.get('/api/zipkin/services', { preHandler: auth }, async (_req, reply) => {
     try {
       const { status, body } = await zipkinFetch(deps.config.current, deps.fetch, '/api/v2/services');
@@ -137,7 +136,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     }
   });
 
-  // GET /api/zipkin/spans?serviceName=
   app.get('/api/zipkin/spans', { preHandler: auth }, async (req, reply) => {
     const q = req.query as { serviceName?: string };
     if (!q.serviceName) return reply.code(400).send({ error: 'missing_serviceName' });
@@ -151,7 +149,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     }
   });
 
-  // GET /api/zipkin/remote-services?serviceName=
   app.get('/api/zipkin/remote-services', { preHandler: auth }, async (req, reply) => {
     const q = req.query as { serviceName?: string };
     if (!q.serviceName) return reply.code(400).send({ error: 'missing_serviceName' });
@@ -168,7 +165,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     }
   });
 
-  // GET /api/zipkin/traces?serviceName=&spanName=&minDuration=&maxDuration=&annotationQuery=&endTs=&lookback=&limit=
   app.get('/api/zipkin/traces', { preHandler: auth }, async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;
     const limit = q.limit ? Math.max(1, Math.min(200, Number(q.limit))) : 30;
@@ -215,7 +211,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     }
   });
 
-  // GET /api/zipkin/trace/:traceId
   app.get<{ Params: { traceId: string } }>(
     '/api/zipkin/trace/:traceId',
     { preHandler: auth },
@@ -251,9 +246,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     },
   );
 
-  // GET /api/zipkin/autocomplete/keys
-  // GET /api/zipkin/autocomplete/values?key=X
-  //
   // Proxies for `/api/v2/autocompleteKeys` + `/api/v2/autocompleteValues`.
   // OAP keeps a pre-configured set of "autocomplete keys" (operator
   // adds to a config list) and indexes their distinct values from
@@ -289,7 +281,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
     }
   });
 
-  // GET /api/zipkin/traceMany?traceIds=t1,t2,t3
   app.get('/api/zipkin/traceMany', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const q = req.query as { traceIds?: string };
     const ids = (q.traceIds ?? '').split(',').map((s) => s.trim()).filter(Boolean);

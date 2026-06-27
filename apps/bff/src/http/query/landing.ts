@@ -278,7 +278,6 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
             defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
-      // Step 1 — service list.
       let services: ListServicesRow[];
       try {
         const data = await graphqlPost<{ services: ListServicesRow[] }>(
@@ -336,7 +335,6 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         return reply.send(body);
       }
 
-      // Step 2 — resolve MQE expressions per column.
       const resolved = cfg.columns.map((c) => ({
         column: c,
         expression: resolveMqe(c.metric, c.mqe, layerKey),
@@ -451,7 +449,6 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         };
       });
 
-      // Step 4 — sort + slice.
       rows.sort((a, b) => {
         const av = a.metrics[cfg.orderBy];
         const bv = b.metrics[cfg.orderBy];

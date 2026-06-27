@@ -32,14 +32,12 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { z } from 'zod';
 import type {
   DashboardResponse,
   DashboardWidget,
   DashboardWidgetResult,
   FetchLike,
   UITemplateClient,
-  VisibleWhen,
 } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -48,16 +46,32 @@ import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import {
   defaultMinuteWindow,
-  fmtForStep,
   getServerOffsetMinutes,
   windowFromRange,
-  type TimeStep,
-  type Window,
 } from '../../util/window.js';
 import { widgetsForScope } from '../../logic/layers/loader.js';
 import { serviceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { defaultWidgetsFor } from '../../logic/dashboard/defaults.js';
+import { bodySchema, MAX_REQUEST_WIDGETS } from '../../logic/dashboard/schema.js';
+import { buildFragment, type MqeResultShape } from '../../logic/dashboard/mqe.js';
+import {
+  parseSeries,
+  avgOf,
+  parseLabeledSeries,
+  parseTopList,
+  parseRecords,
+  parseTable,
+} from '../../logic/dashboard/parsers.js';
+import {
+  flattenValues,
+  mqeGatePass,
+  buildAttrMap,
+  entityGatePass,
+  vwOf,
+  isSelfGate,
+  flattenTabWidgets,
+} from '../../logic/dashboard/gates.js';
 
 export interface DashboardRouteDeps {
   config: ConfigSource;
@@ -66,164 +80,6 @@ export interface DashboardRouteDeps {
   /** OAP UI-template client — serve the in-use (remote-or-bundled)
    *  widget set when the caller doesn't pass explicit widgets. */
   uiTemplateClient?: () => UITemplateClient;
-}
-
-/** A leaf widget — the five queryable kinds, used both at the top level and
- *  inside a tab panel. `widgetSchema` below extends it to add the `tab`
- *  container (one level deep: a tab's children are leaves). */
-const leafWidgetSchema = z.object({
-  id: z.string().min(1),
-  title: z.string(),
-  tip: z.string().optional(),
-  type: z.enum(['card', 'line', 'top', 'record', 'table']),
-  // Bumped from 8 to 16: JVM Memory Detail carries 11 pool metrics
-  // (code cache + young/old/survivor/permgen/metaspace + z-heap +
-  // compressed class space + 3 segmented codeheaps), and a few of the
-  // language families approach the same range. 16 gives headroom for
-  // future relabeled bundles without blowing the cap.
-  expressions: z.array(z.string().min(1)).min(1).max(16),
-  expressionLabels: z.array(z.string()).max(16).optional(),
-  expressionUnits: z.array(z.string()).max(16).optional(),
-  expressionAxes: z.array(z.number().int().min(0).max(1)).max(16).optional(),
-  unit: z.string().optional(),
-  tableHeaders: z.tuple([z.string(), z.string()]).optional(),
-  showTableValues: z.boolean().optional(),
-  span: z.number().int().min(1).max(12).optional(),
-  rowSpan: z.number().int().min(1).max(64).optional(),
-  // Structured visibility gate. `.catch(undefined)` makes the parse
-  // TOLERANT: a legacy free-text predicate (`"<metric> has value"` /
-  // `#entity.x`) left over in an OAP-stored dashboard resolves to
-  // `undefined` (ungated) instead of failing the whole widget/template
-  // parse. New gates are authored as the structured object.
-  visibleWhen: z
-    .union([
-      z.object({ kind: z.literal('mqe'), expression: z.string().min(1), op: z.literal('exists') }),
-      z.object({
-        kind: z.literal('mqe'),
-        expression: z.string().min(1),
-        op: z.enum(['gt', 'lt']),
-        value: z.number(),
-      }),
-      z.object({ kind: z.literal('entity'), attribute: z.string().min(1), op: z.literal('exists') }),
-      z.object({
-        kind: z.literal('entity'),
-        attribute: z.string().min(1),
-        op: z.literal('eq'),
-        value: z.string(),
-      }),
-    ])
-    .optional()
-    .catch(undefined),
-  layerScope: z.boolean().optional(),
-  // Legacy x/y/w/h kept optional for back-compat.
-  x: z.number().int().min(0).optional(),
-  y: z.number().int().min(0).optional(),
-  w: z.number().int().positive().optional(),
-  h: z.number().int().positive().optional(),
-});
-
-/** Full widget schema: a leaf, plus the `tab` container. A `tab` carries no MQE
- *  of its own (so `expressions` may be empty) and holds named panels of leaf
- *  widgets in `tabs`. The SPA flattens to the active tab before posting; the
- *  BFF also flattens (see `flattenTabWidgets`) so the pipeline only sees leaves. */
-export const widgetSchema = leafWidgetSchema
-  .extend({
-    type: z.enum(['card', 'line', 'top', 'record', 'table', 'tab']),
-    // Relaxed to allow the empty array a `tab` container carries; the refine
-    // below keeps every NON-tab leaf at ≥1 expression (an empty-MQE leaf would
-    // otherwise pass here and render blank).
-    expressions: z.array(z.string().min(1)).max(16),
-    tabs: z
-      .array(z.object({ name: z.string(), widgets: z.array(leafWidgetSchema).max(40) }))
-      .max(20)
-      .optional(),
-  })
-  .superRefine((w, ctx) => {
-    if (w.type !== 'tab' && w.expressions.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['expressions'],
-        message: 'a non-tab widget requires at least one expression',
-      });
-    }
-  });
-/** Shared with config/dashboard.ts (GET-config handler). */
-export const scopeSchema = z.enum([
-  'service',
-  'instance',
-  'endpoint',
-  'dependency',
-  'topology',
-  'trace',
-  'logs',
-  'traceProfiling',
-  'ebpfProfiling',
-  'asyncProfiling',
-]);
-/** Per-request queryable-widget cap (mirrors the SPA's chunk size). Enforced on
- *  the body pre-expansion (zod) AND on the leaf count after tab flattening. */
-const MAX_REQUEST_WIDGETS = 40;
-const bodySchema = z.object({
-  service: z.string().optional(),
-  /** Selected instance name. Honored only when `scope === 'instance'`
-   *  (or any instance-derived scope) — the BFF flips the MQE entity to
-   *  `{ scope: ServiceInstance, serviceName, serviceInstanceName }` so
-   *  every widget on the Instance page evaluates against the chosen
-   *  pair instead of the parent service. */
-  serviceInstance: z.string().optional(),
-  /** Selected endpoint name, analogous to `serviceInstance` but for
-   *  the Endpoint page. Switches the entity to
-   *  `{ scope: Endpoint, serviceName, endpointName }`. */
-  endpoint: z.string().optional(),
-  // Hard cap per request — protects OAP's storage page-size cliffs
-  // (CLAUDE.md warns about backend-specific thresholds). The UI is
-  // responsible for chunking widget sets larger than this across
-  // multiple requests; the BFF refuses oversized bodies up-front so
-  // an accidentally-huge template never reaches OAP. The cap is
-  // re-checked AFTER tab expansion (a container counts as 1 here but
-  // flattens to many leaves) — see the handler.
-  widgets: z.array(widgetSchema).max(MAX_REQUEST_WIDGETS).optional(),
-  scope: scopeSchema.optional(),
-  /** Global time-range, forwarded by the SPA's time picker. When all
-   *  three are present the BFF queries OAP at the requested precision
-   *  and window; otherwise it falls back to the last-hour MINUTE
-   *  default. `step` must match OAP's downsampling tiers and drives the
-   *  date-string format (verifyDateTimeString rejects a mismatch). */
-  step: z.enum(['MINUTE', 'HOUR', 'DAY']).optional(),
-  startMs: z.number().int().positive().optional(),
-  endMs: z.number().int().positive().optional(),
-});
-
-interface MqeOwner {
-  scope?: string | null;
-  serviceName?: string | null;
-  serviceInstanceName?: string | null;
-  endpointName?: string | null;
-}
-interface MqeValueShape {
-  id?: string | null;
-  value?: string | null;
-  /** Trace id of a RECORD_LIST sample (slow SQL / slow statements) —
-   *  powers the jump-to-trace icon on a `record` widget. Null on
-   *  non-record results. */
-  traceID?: string | null;
-  owner?: MqeOwner | null;
-}
-interface MqeLabelShape {
-  key: string;
-  value: string;
-}
-interface MqeMetadataShape {
-  labels?: MqeLabelShape[] | null;
-}
-interface MqeValuesShape {
-  metric?: MqeMetadataShape | null;
-  values?: MqeValueShape[];
-}
-export interface MqeResultShape {
-  type: string;
-  error?: string | null;
-  results?: MqeValuesShape[];
 }
 
 const LIST_FIRST_SERVICE = /* GraphQL */ `
@@ -268,328 +124,6 @@ const LIST_INSTANCE_ATTRS = /* GraphQL */ `
 const DEFAULT_WINDOW_MIN = 60;
 function defaultWindow(offsetMinutes: number) {
   return defaultMinuteWindow(offsetMinutes, DEFAULT_WINDOW_MIN);
-}
-// Re-export so the existing `./dashboard.js` consumers (the test file
-// today; future fragment helpers that import Window from here) don't
-// need to know the helpers moved into the shared util.
-export { fmtForStep, type TimeStep, type Window };
-
-/** Build one aliased `execExpression` GraphQL fragment for a single
- *  widget expression. The entity scope flips based on opts:
- *    - `layerScope: true` → `{ scope: All }` (no service filter — GLOBAL,
- *      not layer-restricted; use with care since OAP's Entity has no
- *      `layer` field, so this leaks across layers if the metric is
- *      shared between layers)
- *    - `serviceInstanceName` set → ServiceInstance scope
- *    - `endpointName` set → Endpoint scope
- *    - otherwise → Service scope with the supplied serviceName
- *
- *  Exported for unit testing (see dashboard.test.ts). */
-export function buildFragment(
-  alias: string,
-  expression: string,
-  serviceName: string,
-  normal: boolean,
-  w: Window,
-  opts: {
-    layerScope?: boolean;
-    serviceInstanceName?: string | null;
-    endpointName?: string | null;
-    /** When true, splice `coldStage: true` into the Duration literal.
-     *  OAP ignores it for non-BanyanDB backends, so callers can pass it
-     *  unconditionally when the request asked for cold-stage data. */
-    coldStage?: boolean;
-  } = {},
-): string {
-  // We fetch metric.labels (for multi-series Line widgets — relabels()
-  // returns one labeled result per percentile) and value.id /
-  // owner.endpointName (for TopList widgets — top_n() returns a
-  // sorted list of entities + values).
-  //
-  // layerScope=true skips the serviceName filter so the MQE runs
-  // across the whole layer — used for cross-service rollups like the
-  // "Top 20 endpoints" widget on the per-layer Service page.
-  let entity: string;
-  if (opts.layerScope) {
-    entity = '{ scope: All }';
-  } else if (opts.serviceInstanceName) {
-    entity =
-      `{ scope: ServiceInstance, serviceName: ${JSON.stringify(serviceName)},` +
-      ` serviceInstanceName: ${JSON.stringify(opts.serviceInstanceName)},` +
-      ` normal: ${normal ? 'true' : 'false'} }`;
-  } else if (opts.endpointName) {
-    entity =
-      `{ scope: Endpoint, serviceName: ${JSON.stringify(serviceName)},` +
-      ` endpointName: ${JSON.stringify(opts.endpointName)},` +
-      ` normal: ${normal ? 'true' : 'false'} }`;
-  } else {
-    entity = `{ scope: Service, serviceName: ${JSON.stringify(serviceName)}, normal: ${normal ? 'true' : 'false'} }`;
-  }
-  const coldFrag = opts.coldStage ? ', coldStage: true' : '';
-  return (
-    `${alias}: execExpression(\n` +
-    `      expression: ${JSON.stringify(expression)},\n` +
-    `      entity: ${entity},\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
-    `    ) {\n` +
-    `      type error\n` +
-    `      results {\n` +
-    `        metric { labels { key value } }\n` +
-    `        values { id value traceID owner { scope serviceName serviceInstanceName endpointName } }\n` +
-    `      }\n` +
-    `    }`
-  );
-}
-
-export function parseSeries(r: MqeResultShape | undefined): Array<number | null> | null {
-  if (!r || r.error) return null;
-  const values = r.results?.[0]?.values ?? [];
-  if (values.length === 0) return null;
-  return values.map((v) => {
-    if (v.value === null || v.value === undefined) return null;
-    const n = Number(v.value);
-    return Number.isFinite(n) ? n : null;
-  });
-}
-export function avgOf(series: Array<number | null> | null): number | null {
-  if (!series) return null;
-  const xs = series.filter((v): v is number => v !== null);
-  if (xs.length === 0) return null;
-  return xs.reduce((a, b) => a + b, 0) / xs.length;
-}
-
-/**
- * Time-series MQE responses can carry multiple labeled results (one
- * relabel() call returns 5 results, one per percentile). Convert each
- * to a `DashboardSeries`. The label preference order:
- *  - explicit `relabels(..., key='...')` from metric.labels (multi-series)
- *  - fallback to the caller's expression text (single-series)
- *
- * Do NOT use `values[0].id` as a label — for time-series MQEs, OAP
- * returns the per-bucket timestamp/index as the value id, which is
- * useless as a series label.
- */
-export function parseLabeledSeries(
-  r: MqeResultShape | undefined,
-  fallbackLabel: string,
-): Array<{ label: string; data: Array<number | null> }> | null {
-  if (!r || r.error) return null;
-  const out: Array<{ label: string; data: Array<number | null> }> = [];
-  for (const rs of r.results ?? []) {
-    const values = rs.values ?? [];
-    if (values.length === 0) continue;
-    const data = values.map((v) => {
-      if (v.value === null || v.value === undefined) return null;
-      const n = Number(v.value);
-      return Number.isFinite(n) ? n : null;
-    });
-    // For relabels() results OAP returns multi-result responses with
-    // metric.labels populated — take the last (most-derived) label
-    // value, e.g. `percentile='99'`. Single-series results have no
-    // labels; fall back to the operator's expression text.
-    const labels = rs.metric?.labels ?? [];
-    const lbl = labels.length > 0 ? labels[labels.length - 1].value : fallbackLabel;
-    out.push({ label: lbl, data });
-  }
-  return out.length > 0 ? out : null;
-}
-
-/**
- * Extract a sorted list from a `top_n(...)` MQE response. Names follow
- * an entity-scope priority:
- *   Endpoint    →  "<service> · <endpoint>" or just "<endpoint>"
- *   Instance    →  "<service> · <instance>" or just "<instance>"
- *   Service     →  service
- *   fallback    →  raw id
- *
- * The `<service> ·` prefix is only added when the list actually spans
- * MULTIPLE services (layer-wide top lists, where the same endpoint can
- * appear under different services and needs disambiguation). On a
- * single-service dashboard ("Top 20 APIs" under one service) every row
- * carries the same service, so the prefix is pure noise — drop it and
- * show just the endpoint / instance.
- */
-export function parseTopList(
-  r: MqeResultShape | undefined,
-): Array<{ name: string; value: number | null }> | null {
-  if (!r || r.error) return null;
-  const values = r.results?.[0]?.values ?? [];
-  if (values.length === 0) return null;
-  const services = new Set<string>();
-  for (const v of values) {
-    if (v.owner?.serviceName) services.add(v.owner.serviceName);
-  }
-  const multiService = services.size > 1;
-  return values.map((v) => {
-    const o = v.owner;
-    let name = '—';
-    if (o?.endpointName) {
-      name = multiService && o.serviceName ? `${o.serviceName} · ${o.endpointName}` : o.endpointName;
-    } else if (o?.serviceInstanceName) {
-      name = multiService && o.serviceName
-        ? `${o.serviceName} · ${o.serviceInstanceName}`
-        : o.serviceInstanceName;
-    } else if (o?.serviceName) {
-      name = o.serviceName;
-    } else if (v.id) {
-      name = v.id;
-    }
-    const num = v.value !== null && v.value !== undefined ? Number(v.value) : null;
-    return { name, value: Number.isFinite(num as number) ? (num as number) : null };
-  });
-}
-
-/**
- * Extract slow-SQL / slow-statement samples from a RECORD_LIST MQE
- * response (e.g. `top_n(top_n_database_statement, …)`). Each entry is one
- * sampled statement execution: `name` is the statement text (the MQE
- * value `id`), `value` the latency, and `traceId` the originating trace —
- * which the `record` widget surfaces as a jump-to-trace icon per row.
- */
-export function parseRecords(
-  r: MqeResultShape | undefined,
-): Array<{ name: string; value: number | null; traceId: string | null }> | null {
-  if (!r || r.error) return null;
-  const values = r.results?.[0]?.values ?? [];
-  if (values.length === 0) return null;
-  return values.map((v) => {
-    const num = v.value !== null && v.value !== undefined ? Number(v.value) : null;
-    return {
-      name: v.id ?? '—',
-      value: Number.isFinite(num as number) ? (num as number) : null,
-      traceId: v.traceID ?? null,
-    };
-  });
-}
-
-/**
- * Extract `table` rows from a LABELED `latest(...)` MQE response. Each
- * result is one label combination (e.g. `{phase: Running, service: x}`
- * or `{condition: Ready, node: y}`); the row name joins the label
- * VALUES (the status/phase/condition/entity dimensions) and the value
- * is the latest non-null bucket. Mirrors booster-ui's Table for
- * label-dimensioned meters that a scalar card / time-series line can't
- * represent. Rows are sorted by name for a stable render.
- */
-export function parseTable(
-  r: MqeResultShape | undefined,
-): Array<{ labels: Array<{ key: string; value: string }>; value: number | null }> | null {
-  if (!r || r.error) return null;
-  const results = r.results ?? [];
-  if (results.length === 0) return null;
-  const rows = results.map((rs) => {
-    const labels = (rs.metric?.labels ?? []).map((l) => ({ key: l.key, value: l.value }));
-    // `latest(...)` yields one bucket, but be defensive: take the last
-    // non-null value across the result's buckets.
-    let value: number | null = null;
-    for (const v of rs.values ?? []) {
-      if (v.value === null || v.value === undefined) continue;
-      const n = Number(v.value);
-      if (Number.isFinite(n)) value = n;
-    }
-    // No labels (degenerate) → fall back to the value id as a single column.
-    if (labels.length === 0 && rs.values?.[0]?.id) {
-      labels.push({ key: 'name', value: rs.values[0].id as string });
-    }
-    return { labels, value };
-  });
-  // Stable order by the joined label values.
-  rows.sort((a, b) =>
-    a.labels.map((l) => l.value).join('·').localeCompare(b.labels.map((l) => l.value).join('·')),
-  );
-  return rows;
-}
-
-/* ------------------------------------------------------------------- *
- * Visibility gates (`visibleWhen`).
- *
- * `mqe` gates are existential over the WHOLE result — every labeled
- * series (relabels / histogram), every bucket — so `flattenValues`
- * collapses an MqeResultShape to its non-null numeric value set and the
- * op tests "at least one value …". `entity` gates read the selected
- * instance's attribute bag.
- * ------------------------------------------------------------------- */
-
-/** Every non-null numeric value across all labeled series + buckets. */
-function flattenValues(r: MqeResultShape | undefined): number[] {
-  if (!r || r.error) return [];
-  const out: number[] = [];
-  for (const rs of r.results ?? []) {
-    for (const v of rs.values ?? []) {
-      if (v.value === null || v.value === undefined) continue;
-      const n = Number(v.value);
-      if (Number.isFinite(n)) out.push(n);
-    }
-  }
-  return out;
-}
-
-function mqeGatePass(op: 'exists' | 'gt' | 'lt', value: number | undefined, vals: number[]): boolean {
-  if (op === 'gt') return value !== undefined && vals.some((v) => v > value);
-  if (op === 'lt') return value !== undefined && vals.some((v) => v < value);
-  return vals.length > 0; // exists
-}
-
-/** Attribute lookup for the selected instance: `language` + named
- *  attributes, keyed lower-case. Empty values are dropped so `exists`
- *  means present-AND-non-empty (OAP reports `namespace`/`cluster` as
- *  empty-string keys). */
-function buildAttrMap(
-  language: string | null | undefined,
-  attrs: Array<{ name: string; value: string }>,
-): Map<string, string> {
-  const m = new Map<string, string>();
-  if (language && language.trim()) m.set('language', language.trim());
-  for (const a of attrs) {
-    const v = a.value == null ? '' : String(a.value);
-    if (v.trim() !== '') m.set(a.name.toLowerCase(), v);
-  }
-  return m;
-}
-
-/** Evaluate an entity gate. `attrs === null` means "no entity context"
- *  (non-Instance scope / probe failed) → no-op (visible). */
-function entityGatePass(
-  vw: Extract<VisibleWhen, { kind: 'entity' }>,
-  attrs: Map<string, string> | null,
-): boolean {
-  if (!attrs) return true;
-  const val = attrs.get(vw.attribute.toLowerCase());
-  if (vw.op === 'eq') return val !== undefined && val.toLowerCase() === vw.value.toLowerCase();
-  return val !== undefined; // exists (map already excludes empties)
-}
-
-/** Normalize a widget's gate — overlay-sourced widgets may still carry a
- *  legacy string; anything that isn't the structured object is no gate. */
-function vwOf(w: DashboardWidget): VisibleWhen | undefined {
-  const vw = w.visibleWhen as unknown;
-  return vw && typeof vw === 'object' && 'kind' in (vw as object) ? (vw as VisibleWhen) : undefined;
-}
-
-/** A `mqe` gate whose expression the widget already queries — evaluated
- *  from the widget's own batch result (no extra probe, no skip). */
-function isSelfGate(w: DashboardWidget, vw: VisibleWhen): boolean {
-  return vw.kind === 'mqe' && w.expressions.includes(vw.expression);
-}
-
-/** Expand `tab` containers to their leaf children so the pipeline only sees
- *  queryable leaves (a tab carries no MQE). Covers the template-resolved
- *  fallback + direct API callers; the SPA already flattens to the active tab.
- *  Emits only the FIRST (default-active) panel — matching the lazy contract,
- *  so a tab group never fans into a larger OAP request than the UI issues. */
-export function flattenTabWidgets(widgets: DashboardWidget[]): DashboardWidget[] {
-  const out: DashboardWidget[] = [];
-  for (const w of widgets) {
-    if (w.type === 'tab') {
-      const firstPanel = (w.tabs ?? [])[0];
-      for (const child of firstPanel?.widgets ?? []) {
-        if (child.type !== 'tab') out.push(child);
-      }
-    } else {
-      out.push(w);
-    }
-  }
-  return out;
 }
 
 export function registerDashboardQueryRoute(app: FastifyInstance, deps: DashboardRouteDeps): void {
@@ -958,6 +492,16 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
         }
 
         if (widget.type === 'card') {
+          // A colored enum card whose metric is labeled (e.g. K8s node
+          // conditions → one row per active condition) keeps the labels so
+          // the tile renders them as colored status chips; every other card
+          // collapses to the scalar average as before.
+          if (widget.format === 'enum' && widget.valueColors) {
+            const rows = parseTable(data[`w${wIdx}_e0`]);
+            if (rows && rows.some((r) => r.labels.length > 0)) {
+              return { id: widget.id, table: rows };
+            }
+          }
           const first = widget.expressions.map((_, eIdx) =>
             parseSeries(data[`w${wIdx}_e${eIdx}`]),
           ).find((s) => s !== null);

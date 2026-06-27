@@ -41,30 +41,24 @@
   3D-map content before it reaches OAP); issues land in the push error list.
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import {
-  bff,
   type Infra3dConfig,
   type InfraGroupSpec,
   type InfraLayerSpec,
-  type InfraLevelSpec,
   type InfraMqe,
 } from '@/api/client';
 import { refresh as refreshLiveInfraConfig } from '@/features/infra-3d/composables/useInfra3dConfig';
-import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
-import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
-import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
-import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
-import { refreshConfigBundle } from '@/controls/configBundle';
-import { stableStringify } from '@/utils/stableJson';
+import { useSingletonTemplateEditor } from '@/features/admin/_shared/useSingletonTemplateEditor';
+import { useInfra3dLevels, type ResolvedLevel } from './useInfra3dLevels';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+import Infra3dLayerRow, { type LayerRow } from './Infra3dLayerRow.vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 
-// ── Live OAP layer catalog ────────────────────────────────────────────
 // We hydrate the Layers section from the catalog union'd with config
 // keys, so an OAP layer the admin hasn't classified yet shows up here
 // and an out-of-tree layer (config exists, OAP no longer reports it)
@@ -72,39 +66,12 @@ import MonacoDiff from '@/features/operate/_shared/MonacoDiff.vue';
 const { availableLayers } = useLayers();
 const { t } = useI18n();
 
-// ── Template-sync state ───────────────────────────────────────────────
 // The 3D-map config is a singleton template kind — ONE row,
-// `horizon.infra-3d.config`. It rides the same bundled → local(browser)
-// → remote(OAP) machinery as the layer / overview dashboards: edits save
-// to a browser-local draft, "Check diff & push" publishes to OAP, and
-// the map renders the remote (with bundled as fallback).
+// `horizon.infra-3d.config`. The shared editor owns the bundled →
+// local(browser) → remote(OAP) load/save/push/reset/import/export machine;
+// `normalizeSpecs` folds the legacy topology/load shapes into the single
+// `metric` the editor edits, and `afterPush` re-reads the live /3d/map view.
 const NAME = 'horizon.infra-3d.config';
-const sources = useTemplateSources('infra-3d');
-const sync = useTemplateSync({ kind: 'infra-3d' });
-const localEdits = useLocalTemplateEdits();
-
-/** Working copy the structured editor below mutates. */
-const draft = ref<Infra3dConfig | null>(null);
-const layerSearch = ref('');
-/** Which of the three sources the editor is currently showing. */
-const editorSource = ref<'local' | 'bundled' | 'remote'>('remote');
-const pushing = ref(false);
-const pushErr = ref<string[] | null>(null);
-const pushDiffOpen = ref(false);
-const resetMenuOpen = ref(false);
-
-const readOnly = computed(() => sync.readOnly.value);
-const ready = computed(() => !sources.isLoading.value && draft.value !== null);
-const hasLocalDraft = computed(() => localEdits.has(NAME));
-const hasRemote = computed(() => sources.hasRemote(NAME));
-/** Per-row sync badge (synced / diverged / …) for the source pill. */
-const badge = computed(() => sync.badgeFor(NAME));
-/** Bundled byte-equals OAP-live — resetting to bundled is then a no-op. */
-const isSynced = computed(() => badge.value === 'synced');
-
-function clone<T>(v: T): T {
-  return JSON.parse(JSON.stringify(v)) as T;
-}
 
 /** Collapse the deprecated `topology` / `load` shapes into the single
  *  `metric` the editor edits, so an OAP row saved before the single-metric
@@ -120,218 +87,44 @@ function normalizeSpecs(cfg: Infra3dConfig): void {
   }
 }
 
-/** Cloned + normalized — used as a comparison baseline so an old-shape
- *  remote doesn't read as "dirty" the moment it loads. */
-function normalizedClone(cfg: Infra3dConfig | null): Infra3dConfig | null {
-  if (!cfg) return null;
-  const c = clone(cfg);
-  normalizeSpecs(c);
-  return c;
-}
-
-function loadFrom(src: 'local' | 'bundled' | 'remote'): void {
-  let next: Infra3dConfig | null = null;
-  if (src === 'local') next = localEdits.get<Infra3dConfig>(NAME) ?? null;
-  else if (src === 'remote') next = sources.remote<Infra3dConfig>(NAME);
-  else next = sources.bundled<Infra3dConfig>(NAME);
-  // Bundled always exists; remote/local may be null — fall back so the
-  // editor always has a working doc.
-  if (!next) next = sources.bundled<Infra3dConfig>(NAME);
-  draft.value = normalizedClone(next);
-  editorSource.value = src;
-}
-
-/** Pick the source on (re)load: local draft if present, else remote (the
- *  runtime source of truth), else bundled. */
-function syncDraft(): void {
-  if (hasLocalDraft.value) loadFrom('local');
-  else if (hasRemote.value) loadFrom('remote');
-  else loadFrom('bundled');
-}
-
-/** Set when the sources settle but still produce no working doc (the BFF
- *  itself is unreachable — bundled rows are absent, so there's nothing to
- *  edit). Surfaces an error instead of an indefinite spinner. */
-const loadError = ref(false);
-
-onMounted(async () => {
-  // Force a fresh OAP read so badges + remote content are current.
-  await refreshConfigBundle({ force: true });
-  await sources.refetch();
-  syncDraft();
-  loadError.value = draft.value === null;
+const editor = useSingletonTemplateEditor<Infra3dConfig>({
+  kind: 'infra-3d',
+  name: NAME,
+  normalize: normalizeSpecs,
+  afterPush: () => refreshLiveInfraConfig().then(() => undefined),
+  importedNote: () => t('Imported as a local draft — preview, then “Check diff & push”.'),
 });
+const {
+  draft,
+  editorSource,
+  loadError,
+  ready,
+  readOnly,
+  hasLocalDraft,
+  hasRemote,
+  badge,
+  isSynced,
+  dirty,
+  banner,
+  pushErr,
+  pushing,
+  pushDiffOpen,
+  resetMenuOpen,
+  importMsg,
+  pushLocalPretty,
+  pushRemotePretty,
+  save,
+  openPushDiff,
+  pushToOap,
+  resetTo,
+  onExport,
+  onImportFile,
+} = editor;
 
-// Cold-cache arrival — hydrate once the sources land if mount raced ahead.
-watch(
-  () => sources.isLoading.value,
-  (loading) => {
-    if (loading) return;
-    if (!draft.value) syncDraft();
-    loadError.value = draft.value === null;
-  },
-);
+const layerSearch = ref('');
 
-const localContent = computed<Infra3dConfig | null>(
-  () => localEdits.get<Infra3dConfig>(NAME) ?? null,
-);
-const remoteContent = computed<Infra3dConfig | null>(() => sources.remote<Infra3dConfig>(NAME));
-
-/** Dirty = the editor diverges from its baseline (the local draft when
- *  one exists, otherwise remote / bundled). Drives the Save button. */
-const dirty = computed(() => {
-  if (!draft.value) return false;
-  const baseline = hasLocalDraft.value
-    ? localContent.value
-    : (remoteContent.value ?? sources.bundled<Infra3dConfig>(NAME));
-  // Normalize the baseline to the single-metric shape so an old-shape
-  // remote (topology/load) doesn't read as dirty against the normalized draft.
-  return stableStringify(draft.value) !== stableStringify(normalizedClone(baseline ?? null));
-});
-
-/** Save the current editor state as a browser-local draft. The only
- *  "save" — it never writes OAP. Publish via "Check diff & push". */
-function save(): void {
-  if (!draft.value) return;
-  localEdits.set(NAME, clone(draft.value));
-  editorSource.value = 'local';
-}
-
-const pushLocalPretty = computed(() => (draft.value ? stableStringify(draft.value, 2) : ''));
-const pushRemotePretty = computed(() => stableStringify(remoteContent.value ?? null, 2));
-
-function openPushDiff(): void {
-  if (!draft.value) return;
-  // Persist the editor state first so the diff reflects exactly what
-  // would be pushed.
-  save();
-  pushErr.value = null;
-  pushDiffOpen.value = true;
-}
-
-async function pushToOap(): Promise<void> {
-  if (!draft.value || pushing.value) return;
-  pushing.value = true;
-  pushErr.value = null;
-  // 1) The publish — the only thing whose failure means "not saved".
-  try {
-    await bff.templateSync.save(NAME, draft.value);
-  } catch (err) {
-    const anyErr = err as { body?: { issues?: string[] }; message?: string };
-    pushErr.value = anyErr.body?.issues ?? [anyErr.message ?? String(err)];
-    pushing.value = false;
-    return; // keep the modal open with the error; nothing was committed
-  }
-  // Committed. Clear the local draft + close the modal regardless of the
-  // post-write cache refresh outcome below.
-  localEdits.remove(NAME);
-  pushDiffOpen.value = false;
-  // 2) Best-effort cache refreshes. A failure here (e.g. the /3d/map read
-  //    cache pop 403-ing for a role without infra-3d:read) does NOT undo the
-  //    publish, so it must never surface as a "push failed".
-  try {
-    await bff.templateSync.resync();
-    await Promise.all([sources.refetch(), refreshConfigBundle({ force: true })]);
-    await refreshLiveInfraConfig();
-    loadFrom('remote');
-  } catch (err) {
-    console.warn('[infra-3d] post-push refresh failed (the publish already committed):', err);
-  } finally {
-    pushing.value = false;
-  }
-}
-
-/** Reset the editor to a clean source and drop any local draft. */
-function resetTo(src: 'bundled' | 'remote'): void {
-  loadFrom(src);
-  localEdits.remove(NAME);
-  pushErr.value = null;
-  resetMenuOpen.value = false;
-}
-
-// ── Import / Export ────────────────────────────────────────────────
-// Export downloads the IN-USE config (remote, else bundled) — what the map
-// renders — not the editor draft. Import stages a file as a local draft;
-// `loadFrom('local')` normalizes any legacy topology/load shapes. Errors
-// reuse the push-issue list; success shows a transient note.
-const importMsg = ref<string | null>(null);
-function onExport(): void {
-  const inUse = sources.remote<Infra3dConfig>(NAME) ?? sources.bundled<Infra3dConfig>(NAME);
-  if (!inUse) return;
-  downloadJson(`${NAME}.json`, buildExportEnvelope('infra-3d', NAME, inUse));
-}
-async function onImportFile(): Promise<void> {
-  const text = await pickJsonFile();
-  if (text === null) return;
-  const res = validateImport('infra-3d', text);
-  if (!res.ok) {
-    pushErr.value = [res.error];
-    importMsg.value = null;
-    return;
-  }
-  localEdits.set(NAME, res.content);
-  loadFrom('local');
-  pushErr.value = null;
-  importMsg.value = t('Imported as a local draft — preview, then “Check diff & push”.');
-  setTimeout(() => {
-    importMsg.value = null;
-  }, 6000);
-}
-
-// ── Levels editing ────────────────────────────────────────────────────
-function addLevel(): void {
-  if (!draft.value) return;
-  const maxOrder = Math.max(-1, ...draft.value.levels.map((l) => l.order));
-  // Unique id — a length-based id collides after add-then-remove editing
-  // (and a duplicate level id aliases tier buckets + fails save validation).
-  const taken = new Set(draft.value.levels.map((l) => l.id));
-  let n = draft.value.levels.length + 1;
-  let id = `level-${n}`;
-  while (taken.has(id)) id = `level-${++n}`;
-  draft.value.levels.push({ id, order: maxOrder + 1, label: 'New level', layers: [] });
-}
-function removeLevel(id: string): void {
-  if (!draft.value) return;
-  draft.value.levels = draft.value.levels.filter((l) => l.id !== id);
-  if (draft.value.unknownLayer.level === id && draft.value.levels.length > 0) {
-    draft.value.unknownLayer.level = draft.value.levels[0]!.id;
-  }
-}
-const levelsSorted = computed<InfraLevelSpec[]>(() => {
-  if (!draft.value) return [];
-  return [...draft.value.levels].sort((a, b) => a.order - b.order);
-});
-
-/** `idx` is the index in `levelsSorted` (what the template renders) — NOT
- *  the unsorted `draft.levels` array, whose order can differ from the sort
- *  (bundled has mesh order 2 before middleware order 1). Swap the `order`
- *  values of the two SORTED neighbours so ↑/↓ moves the intended tier. */
-function moveLevel(idx: number, delta: number): void {
-  const sorted = levelsSorted.value;
-  const target = idx + delta;
-  if (target < 0 || target >= sorted.length) return;
-  const a = sorted[idx]!;
-  const b = sorted[target]!;
-  const ao = a.order;
-  a.order = b.order;
-  b.order = ao;
-}
-
-// ── Layer ⇄ level resolution ──────────────────────────────────────────
-// Level membership is edited in ONE place — the Levels section's member
-// chips. The Layers section only DISPLAYS where each layer lands, using
-// the same resolution order the BFF applies, so the two surfaces never
-// drift into the old "edit the same array twice" redundancy.
-
-/** Compile that never throws — a half-typed regex in an input just stops
- *  matching rather than blowing up the page. */
-function safeRegex(src: string): RegExp | null {
-  try {
-    return new RegExp(src);
-  } catch {
-    return null;
-  }
-}
+const { levelsSorted, addLevel, removeLevel, moveLevel, resolveLevel, levelLabel } =
+  useInfra3dLevels(draft);
 
 /** Union of OAP-reported + config-declared layer keys (canonical upper). */
 const allLayerKeys = computed<string[]>(() => {
@@ -340,42 +133,6 @@ const allLayerKeys = computed<string[]>(() => {
   if (draft.value) for (const k of Object.keys(draft.value.layers)) s.add(k.toUpperCase());
   return [...s].sort((a, b) => a.localeCompare(b));
 });
-
-type LevelVia = 'group' | 'explicit' | 'default' | 'filtered';
-
-/** Mirror the BFF's layer→level resolution (see useInfra3dConfig): global
- *  filter → group membership → explicit list → unknownLayer fallback.
- *  Returns HOW it resolved so the unpinned rows can flag fallback / filtered
- *  layers the operator didn't pin by hand. */
-function resolveLevel(key: string): { levelId: string | null; via: LevelVia } {
-  if (!draft.value) return { levelId: null, via: 'default' };
-  const u = key.toUpperCase();
-  const gf = safeRegex(draft.value.filter.layer);
-  if (gf && !gf.test(u)) return { levelId: null, via: 'filtered' };
-  for (const g of draft.value.groups ?? []) {
-    if (g.layers.some((k) => k.toUpperCase() === u)) return { levelId: g.level, via: 'group' };
-  }
-  for (const lvl of draft.value.levels) {
-    if (lvl.layers.some((k) => k.toUpperCase() === u)) return { levelId: lvl.id, via: 'explicit' };
-  }
-  return { levelId: draft.value.unknownLayer.level, via: 'default' };
-}
-
-function levelLabel(levelId: string | null): string {
-  if (!levelId) return '—';
-  return draft.value?.levels.find((l) => l.id === levelId)?.label ?? levelId;
-}
-
-// ── Layers editing ────────────────────────────────────────────────────
-/** Union of OAP-known + config-known layers. The keys are canonical
- *  upper-case; the entry's `inOap`/`inConfig` flags drive the row badges. */
-interface LayerRow {
-  key: string;
-  inOap: boolean;
-  inConfig: boolean;
-  hasTopology: boolean;
-  spec: InfraLayerSpec | null;
-}
 
 const layerRows = computed<LayerRow[]>(() => {
   if (!draft.value) return [];
@@ -422,8 +179,8 @@ const serviceMapLayers = computed<string[]>(() =>
 /** Resolved level per layer-key — drives the read-only "via" qualifier on
  *  UNPINNED rows so the operator sees how a layer lands when no tier pins
  *  it (regex / fallback / filtered). */
-const resolvedLevels = computed<Record<string, { levelId: string | null; via: LevelVia }>>(() => {
-  const out: Record<string, { levelId: string | null; via: LevelVia }> = {};
+const resolvedLevels = computed<Record<string, ResolvedLevel>>(() => {
+  const out: Record<string, ResolvedLevel> = {};
   for (const r of layerRows.value) out[r.key] = resolveLevel(r.key);
   return out;
 });
@@ -526,7 +283,13 @@ function clearMetric(key: string): void {
   if (spec) spec.metric = undefined;
 }
 
-// ── Groups editing ────────────────────────────────────────────────────
+/** Write one metric field — the row component edits via events (it can't
+ *  mutate the row prop directly), so the parent owns the draft write. */
+function setMetricField(key: string, field: 'mqe' | 'label' | 'unit', value: string): void {
+  const metric = draft.value?.layers[key.toUpperCase()]?.metric;
+  if (metric) metric[field] = value;
+}
+
 // Logic groups (e.g. Self-Observability) cluster several layers into one
 // block on a tier. The icon set is the bakeable subset the 3D stamp
 // renderer knows (useLayerIconTexture.LayerIconName); an unknown name
@@ -661,7 +424,7 @@ const stats = computed(() => {
       </div>
     </header>
 
-    <SyncStatusBanner :banner="sync.banner.value" />
+    <SyncStatusBanner :banner="banner" />
     <ul v-if="pushErr && pushErr.length" class="issues">
       <li v-for="(it, i) in pushErr" :key="i"><code>{{ it }}</code></li>
     </ul>
@@ -672,7 +435,6 @@ const stats = computed(() => {
     </div>
     <div v-else-if="!ready" class="loading">{{ t('Loading config…') }}</div>
     <template v-else-if="draft">
-      <!-- ── Global filter ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Global layer filter') }}</h2>
@@ -690,7 +452,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Tiers & layers ─────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Tiers & layers (top → bottom)') }}</h2>
@@ -720,23 +481,20 @@ const stats = computed(() => {
             </header>
             <div class="tier-body">
               <div class="layer-rows">
-                <div v-for="row in layersByTier[lvl.id]" :key="row.key" class="layer-row">
-                  <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)" />
-                  <span class="layer-key">{{ row.key }}</span>
-                  <template v-if="row.spec?.metric">
-                    <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" :placeholder="t('mqe e.g. service_cpm')" />
-                    <input class="inp metric-lbl" v-model="row.spec.metric.label" :placeholder="t('label')" />
-                    <input class="inp metric-unit" v-model="row.spec.metric.unit" :placeholder="t('unit')" />
-                    <button class="btn tiny danger" type="button" :title="t('remove metric')" @click="clearMetric(row.key)">⊘</button>
-                  </template>
-                  <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">{{ t('+ metric') }}</button>
-                  <div class="row-spacer" />
-                  <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
-                    <option value="">{{ t('— unpinned —') }}</option>
-                    <option v-for="tier in levelsSorted" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
-                  </select>
-                  <button class="btn tiny ghost" type="button" :title="t('Remove from this tier (moves to Unpinned)')" @click="assignLayerToLevel(row.key, null)">×</button>
-                </div>
+                <Infra3dLayerRow
+                  v-for="row in layersByTier[lvl.id]"
+                  :key="row.key"
+                  :row="row"
+                  variant="tier"
+                  :levels="levelsSorted"
+                  :pinned-tier="explicitTier[row.key] ?? ''"
+                  @set-color="(c) => (ensureLayerSpec(row.key).color = c)"
+                  @update-metric="(f, v) => setMetricField(row.key, f, v)"
+                  @change-tier="(e) => onMoveTier(row.key, e)"
+                  @ensure-metric="ensureMetric(row.key)"
+                  @clear-metric="clearMetric(row.key)"
+                  @remove="assignLayerToLevel(row.key, null)"
+                />
                 <div v-if="(layersByTier[lvl.id]?.length ?? 0) === 0" class="tier-empty">{{ t('No layers pinned — use a layer\'s tier dropdown to move one here.') }}</div>
               </div>
             </div>
@@ -744,7 +502,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Unpinned → failover ────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Unpinned layers') }}</h2>
@@ -756,37 +513,28 @@ const stats = computed(() => {
         </header>
         <div class="sect-body">
           <div class="layer-rows">
-            <div
+            <Infra3dLayerRow
               v-for="row in unpinnedRows"
               :key="row.key"
-              class="layer-row"
-              :class="{ unclassified: isUnclassified(row.key) }"
-            >
-              <input type="color" class="color-pick" :value="row.spec?.color ?? '#8a8a8a'" @input="(e) => (ensureLayerSpec(row.key).color = (e.target as HTMLInputElement).value)" />
-              <span class="layer-key">{{ row.key }}</span>
-              <template v-if="row.spec?.metric">
-                <input class="inp mono metric-mqe" v-model="row.spec.metric.mqe" placeholder="mqe" />
-                <input class="inp metric-lbl" v-model="row.spec.metric.label" :placeholder="t('label')" />
-                <input class="inp metric-unit" v-model="row.spec.metric.unit" :placeholder="t('unit')" />
-                <button class="btn tiny danger" type="button" :title="t('remove metric')" @click="clearMetric(row.key)">⊘</button>
-              </template>
-              <button v-else class="btn tiny ghost" type="button" @click="ensureMetric(row.key)">{{ t('+ metric') }}</button>
-              <div class="row-spacer" />
-              <span class="via-tag" :data-via="resolvedLevels[row.key]?.via" :title="t('falls to {via}', { via: resolvedLevels[row.key]?.via })">
-                {{ resolvedLevels[row.key]?.via === 'filtered' ? t('filtered out') : '→ ' + levelLabel(resolvedLevels[row.key]?.levelId ?? null) }}
-              </span>
-              <select class="inp tier-select" :value="explicitTier[row.key] ?? ''" @change="(e) => onMoveTier(row.key, e)">
-                <option value="">{{ t('— pin to tier —') }}</option>
-                <option v-for="tier in levelsSorted" :key="tier.id" :value="tier.id">{{ tier.label }}</option>
-              </select>
-              <button class="btn tiny danger" type="button" :title="t('Delete this layer from the config entirely')" @click="removeLayerFromConfig(row.key)">×</button>
-            </div>
+              :row="row"
+              variant="unpinned"
+              :levels="levelsSorted"
+              :pinned-tier="explicitTier[row.key] ?? ''"
+              :resolved="resolvedLevels[row.key]"
+              :resolved-label="levelLabel(resolvedLevels[row.key]?.levelId ?? null)"
+              :unclassified="isUnclassified(row.key)"
+              @set-color="(c) => (ensureLayerSpec(row.key).color = c)"
+              @update-metric="(f, v) => setMetricField(row.key, f, v)"
+              @change-tier="(e) => onMoveTier(row.key, e)"
+              @ensure-metric="ensureMetric(row.key)"
+              @clear-metric="clearMetric(row.key)"
+              @remove="removeLayerFromConfig(row.key)"
+            />
             <div v-if="unpinnedRows.length === 0" class="empty">{{ t('No unpinned layers.') }}</div>
           </div>
         </div>
       </section>
 
-      <!-- ── Groups ────────────────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Logic groups') }}</h2>
@@ -844,7 +592,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Service-map layers ─────────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Service-map layers') }}</h2>
@@ -860,7 +607,6 @@ const stats = computed(() => {
         </div>
       </section>
 
-      <!-- ── Unknown layer fallback ─────────────────────────────────── -->
       <section class="sect">
         <header class="sect-head">
           <h2>{{ t('Failover tier') }}</h2>
@@ -878,7 +624,6 @@ const stats = computed(() => {
 
     </template>
 
-    <!-- ── Check diff & push ──────────────────────────────────────────── -->
     <Modal :open="pushDiffOpen" :title="t('Push 3D-map config to OAP')" width="min(1100px, 94vw)" fit-body @close="pushDiffOpen = false">
       <div class="push-modal">
         <p class="push-lede">
@@ -925,7 +670,6 @@ export { parseHexColor };
   overflow-y: auto;
 }
 
-/* Header */
 .hd {
   display: flex;
   align-items: center;
@@ -943,7 +687,6 @@ export { parseHexColor };
 .lede code { background: var(--sw-bg-3); padding: 1px 4px; border-radius: 3px; }
 .hd-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
 
-/* Source pill + reset menu */
 .src-pill {
   display: inline-flex;
   align-items: center;
@@ -988,13 +731,11 @@ export { parseHexColor };
 .reset-item[disabled] { opacity: 0.45; cursor: default; }
 .reset-suffix { color: var(--sw-fg-3); font-size: 10px; }
 
-/* Push diff modal */
 .push-modal { display: flex; flex-direction: column; gap: 10px; min-width: min(1040px, 90vw); flex: 1; min-height: 0; }
 /* Definite height for the Monaco diff to fill (else it collapses). */
 .push-diff { flex: 1; min-height: 0; }
 .push-lede { font-size: 11.5px; color: var(--sw-fg-2); margin: 0; }
 
-/* Buttons */
 .btn {
   height: 26px;
   padding: 0 12px;
@@ -1015,7 +756,6 @@ export { parseHexColor };
 .btn.danger { border-color: rgba(239, 68, 68, 0.6); color: #f87171; }
 .btn.danger:hover:not([disabled]) { background: rgba(239, 68, 68, 0.15); color: #fca5a5; }
 
-/* Banners */
 .issues {
   margin: 8px 20px 0;
   padding: 8px 12px;
@@ -1040,7 +780,6 @@ export { parseHexColor };
 }
 .loading { padding: 20px; color: var(--sw-fg-3); font-size: 12px; }
 
-/* Sections */
 .sect {
   margin: 12px 20px;
   border: 1px solid var(--sw-line);
@@ -1061,7 +800,6 @@ export { parseHexColor };
 .sect-body  { padding: 12px 14px; }
 .fallback-level { max-width: 260px; }
 
-/* Inputs */
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
 .field.row { flex-direction: row; align-items: center; gap: 6px; }
 .lbl   { font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sw-fg-3); }
@@ -1081,7 +819,6 @@ export { parseHexColor };
 .inp.search { height: 22px; width: 180px; margin-left: auto; }
 .inp:focus { outline: 1px solid var(--sw-accent); }
 
-/* Tiers */
 .tier-card {
   border: 1px solid var(--sw-line);
   border-radius: 4px;
@@ -1146,19 +883,9 @@ export { parseHexColor };
 .add-layer:hover { border-color: var(--sw-accent); color: var(--sw-fg-0); }
 .add-layer:focus { outline: 1px solid var(--sw-accent); }
 
-/* Layer rows — one dense line per layer (inside a tier or the unpinned
-   bucket): colour · key · badges · metric (mqe/label/unit) · tier · remove. */
+/* Layer-row container (the rows themselves are Infra3dLayerRow). The colour
+   picker is reused in the group head, so its rule stays here too. */
 .layer-rows { display: flex; flex-direction: column; gap: 4px; }
-.layer-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid var(--sw-line);
-  border-radius: 4px;
-  background: var(--sw-bg-1);
-}
-.layer-row.unclassified { border-color: rgba(239, 158, 68, 0.5); }
 .color-pick {
   width: 24px;
   height: 20px;
@@ -1169,26 +896,6 @@ export { parseHexColor };
   cursor: pointer;
   flex: 0 0 auto;
 }
-.layer-key {
-  font-family: var(--sw-mono-font, monospace);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--sw-fg-0);
-  /* Fixed column so the metric fields line up across every row regardless
-     of key length (GENERAL … BYTEDANCE_MINI_PROGRAM). */
-  flex: 0 0 190px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.via-tag { font-size: 10px; color: var(--sw-fg-3); white-space: nowrap; flex: 0 0 auto; }
-.via-tag[data-via='default'],
-.via-tag[data-via='filtered'] { color: #f0a04b; }
-.metric-mqe { flex: 0 1 200px; min-width: 110px; }
-.metric-lbl { flex: 0 0 110px; }
-.metric-unit { flex: 0 0 72px; }
-.row-spacer { flex: 1 1 auto; min-width: 8px; }
-.tier-select { flex: 0 0 130px; }
 .tier-empty { font-size: 11px; color: var(--sw-fg-3); font-style: italic; padding: 2px 2px 4px; }
 .warn-count { color: #f0a04b; }
 .row-2 { display: flex; gap: 8px; }
@@ -1196,7 +903,6 @@ export { parseHexColor };
 .hint-sm { font-size: 10.5px; color: var(--sw-fg-3); margin: 0; }
 .empty { padding: 14px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
 
-/* Groups */
 .groups-grid { display: flex; flex-direction: column; gap: 8px; }
 .group-card {
   border: 1px solid var(--sw-line);
@@ -1215,6 +921,4 @@ export { parseHexColor };
 .group-body  { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
 .group-body .row-2 { max-width: 420px; }
 .hint-sm.warn { color: #f0a04b; }
-
-/* Advanced */
 </style>

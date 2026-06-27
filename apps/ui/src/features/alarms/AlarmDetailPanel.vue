@@ -99,9 +99,8 @@ const snapshotBuckets = computed<number>(() => {
   return r?.values.length ?? 0;
 });
 
-/** Bucket-range label: "HH:MM → HH:MM" computed the same way the
- *  snapshot chart anchors its x-axis (latest bucket = trigger minute,
- *  earlier buckets step back). Empty when no snapshot. */
+/** "HH:MM → HH:MM" anchored the same way AlarmSnapshotChart anchors its
+ *  x-axis (latest bucket = trigger minute, earlier buckets step back). */
 const snapshotRangeLabel = computed<string>(() => {
   if (!props.alarm || snapshotBuckets.value === 0) return '';
   const MINUTE = 60_000;
@@ -180,13 +179,11 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
       <template v-if="alarm.layerKey"> · {{ alarm.layerKey }}</template>
     </div>
 
-    <!-- 1. Message -->
     <section class="ad__sec">
       <div class="ad__kicker">{{ t('Message') }}</div>
       <p class="ad__rule">{{ alarm.message }}</p>
     </section>
 
-    <!-- 2. Tags -->
     <section v-if="alarm.tags.length > 0" class="ad__sec">
       <div class="ad__kicker">{{ t('Tags') }}</div>
       <div class="ad__tags">
@@ -196,7 +193,6 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
       </div>
     </section>
 
-    <!-- 3. Expression -->
     <section class="ad__sec">
       <div class="ad__kicker">{{ t('Trigger expression') }}</div>
       <pre class="ad__expr">{{ alarm.snapshot.expression || t('— no MQE recorded —') }}</pre>
@@ -206,12 +202,8 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
       </div>
     </section>
 
-    <!-- Rule body — lazy fetch via admin-server. Sits between the
-         expression and the snapshot charts so the metadata
-         (period / silence / hooks) contextualises the bucket count
-         shown above and the per-metric chart shown below. Hidden when
-         admin is unreachable or the message doesn't match a known
-         rule. -->
+    <!-- Rule body — lazy fetch via admin-server. Hidden when admin is
+         unreachable or the message doesn't match a known rule. -->
     <section v-if="matchedRuleId" class="ad__sec">
       <div class="ad__kicker ad__kicker--with-link">
         <span>{{ t('Rule') }}</span>
@@ -244,11 +236,10 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
       </div>
     </section>
 
-    <!-- 4. Snapshots — per-metric chart of values captured at firing.
-         X-axis is real time (reconstructed from the trigger minute
-         + bucket count). Trigger time is marked with a vertical
-         orange line; the rule's evaluation window is shaded when
-         admin-server gave us the rule's `period`. -->
+    <!-- One snapshot chart per metric. X-axis is real time, reconstructed
+         from the trigger minute + bucket count; the trigger time is marked
+         with a vertical line and the rule's evaluation window is shaded when
+         the admin-server supplied the rule's `period`. -->
     <section v-for="m in snapshotMetrics" :key="m.name" class="ad__sec">
       <div class="ad__kicker">{{ m.name }}</div>
       <AlarmSnapshotChart
@@ -330,7 +321,9 @@ const rulePeriod = computed<number | null>(() => ruleDetail.value?.period ?? nul
   color: var(--sw-fg-0);
   margin: 0;
   line-height: 1.4;
-  word-break: break-all;
+  /* `anywhere` breaks long dotted/hyphenated service names only when they
+     can't fit, instead of `break-all` chopping every line mid-character. */
+  overflow-wrap: anywhere;
 }
 /* Probe-source classifier (`agent`, `mesh-svr`, `mesh-dp`, `mesh-cp`).
  * Just operational metadata — muted, not accent. Render as a quiet

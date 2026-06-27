@@ -37,8 +37,6 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
-// router/route used to live here for in-place navigation; peer clicks
-// now open a NEW TAB via window.open, so no router needed.
 import type {
   HierarchyPeer,
   LayerLevel,
@@ -778,7 +776,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
   filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.55));
 }
 
-/* ── Floating close button ─────────────────────────────────────── */
 .sm-hierarchy-close {
   position: absolute;
   top: 14px;

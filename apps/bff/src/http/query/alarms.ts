@@ -159,8 +159,6 @@ export interface AlarmsCountResponse {
   generatedAt: number;
 }
 
-// ── GraphQL queries ──────────────────────────────────────────────────
-
 /* `events` is deliberately OMITTED — demo OAP (and some storage
  *  backends) throw `java.io.IOException: fail to query stream` when
  *  events stream per-row alongside a 30+ row page. The snapshot
@@ -243,8 +241,6 @@ interface ListServicesRaw {
   listServices: Array<{ name: string; normal: boolean | null }>;
 }
 
-// ── Schemas + caps ───────────────────────────────────────────────────
-
 /** Window cap for `/api/alarms` and `/api/alarms/count`. Defence-in-
  *  depth — the UI picker already enforces this, but a hand-crafted
  *  URL shouldn't pull a 24h fan-out from OAP. */
@@ -275,8 +271,6 @@ const countQuerySchema = z.object({
   startTime: z.coerce.number().int().positive(),
   endTime: z.coerce.number().int().positive(),
 });
-
-// ── Entity builder (new mode) ────────────────────────────────────────
 
 /* Translate the cascade fields (`layer`, `service`, `instance`,
  * `endpoint`) into the smallest precise `Entity` that the
@@ -312,8 +306,6 @@ function buildEntity(q: {
   return base;
 }
 
-// ── Row tagging ──────────────────────────────────────────────────────
-
 async function tagWithLayer(
   msgsRaw: AlarmMessage[],
   serviceLayer: ServiceLayerCatalog,
@@ -337,13 +329,10 @@ async function tagWithLayer(
   });
 }
 
-// ── Routes ───────────────────────────────────────────────────────────
-
 export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQueryRouteDeps): void {
   const auth = requireAuth(deps);
   const serviceLayer = deps.serviceLayer;
 
-  // ── GET /api/alarms ────────────────────────────────────────────────
   app.get('/api/alarms', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
     const parsed = alarmsQuerySchema.safeParse(req.query);
     if (!parsed.success) {
@@ -356,7 +345,6 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     }
 
     const opts = buildOapOpts(deps.config.current, deps.fetch);
-    // offset + caps are independent probes — fetch them in parallel.
     const [offset, caps] = await Promise.all([
       getServerOffsetMinutes(deps.config, deps.fetch),
       getOapCapabilities(deps.config.current, deps.fetch),
@@ -423,7 +411,6 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     return reply.send(body);
   });
 
-  // ── GET /api/alarms/count ──────────────────────────────────────────
   app.get(
     '/api/alarms/count',
     { preHandler: auth },
@@ -439,7 +426,6 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       }
 
       const opts = buildOapOpts(deps.config.current, deps.fetch);
-      // offset + caps are independent probes — fetch them in parallel.
       const [offset, caps] = await Promise.all([
         getServerOffsetMinutes(deps.config, deps.fetch),
         getOapCapabilities(deps.config.current, deps.fetch),
@@ -512,7 +498,6 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     },
   );
 
-  // ── GET /api/alarms/services?layer=X ──────────────────────────────
   /* Cascading-filter helper. Returns the service roster for one OAP
    * layer in alpha order so the UI populates a dropdown without
    * re-implementing the listServices wire. The instance + endpoint

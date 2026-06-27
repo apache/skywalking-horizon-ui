@@ -32,7 +32,7 @@
     jump-trace — { traceId, ts } when the operator clicks the trace link.
 -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
 import Modal from '@/features/operate/_shared/Modal.vue';
@@ -81,14 +81,24 @@ function fmtDate(ts: number): string {
 
 const fmt = computed<LogFormat | null>(() => (props.row ? detectFormat(props.row) : null));
 
+const copied = ref(false);
+let copyTimer: ReturnType<typeof setTimeout> | null = null;
 async function copyContent(): Promise<void> {
   if (!props.row) return;
   try {
     await navigator.clipboard.writeText(props.row.content);
+    copied.value = true;
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      copied.value = false;
+      copyTimer = null;
+    }, 1500);
   } catch {
     /* clipboard may be blocked; silently no-op */
   }
 }
+watch(() => props.row, () => { copied.value = false; });
+onBeforeUnmount(() => { if (copyTimer) clearTimeout(copyTimer); });
 function onJumpTrace(): void {
   if (props.row?.traceId) emit('jump-trace', { traceId: props.row.traceId, ts: props.row.timestamp });
 }
@@ -103,7 +113,7 @@ function onJumpTrace(): void {
           <span class="ld-fmt">{{ fmt!.toUpperCase() }}</span>
         </div>
         <div class="ld-ctrls">
-          <button class="sw-btn small" type="button" @click="copyContent">{{ t('Copy') }}</button>
+          <button class="sw-btn small" :class="{ 'is-copied': copied }" type="button" @click="copyContent">{{ copied ? t('Copied') : t('Copy') }}</button>
           <button v-if="row.traceId" class="sw-btn small" type="button" @click="onJumpTrace">↗ {{ t('trace') }}</button>
         </div>
       </div>
@@ -178,6 +188,7 @@ function onJumpTrace(): void {
   color: var(--sw-fg-1); border-radius: 4px; font: inherit; font-size: 11px; cursor: pointer;
 }
 .sw-btn.small:hover { color: var(--sw-fg-0); border-color: var(--sw-fg-3); }
+.sw-btn.small.is-copied { color: var(--sw-accent-2); background: var(--sw-accent-soft); border-color: var(--sw-accent-2); }
 .mono { font-family: var(--sw-mono); }
 @media (max-width: 900px) {
   .ld-split { flex-direction: column; }

@@ -41,7 +41,6 @@ const { openTraceId, closeTrace } = useZipkinTracePopout();
 const traceIdRef = computed(() => openTraceId.value);
 const { spans, isLoading, error } = useZipkinTrace(traceIdRef);
 
-// ── Span tree → flat waterfall rows ────────────────────────────────
 interface WaterfallRow {
   span: ZipkinSpan;
   depth: number;
@@ -78,8 +77,6 @@ const waterfall = computed<WaterfallRow[]>(() => {
     if (!byParent.has(p)) byParent.set(p, []);
     byParent.get(p)!.push(s);
   }
-  // Sort siblings by timestamp so the waterfall reads top-down in
-  // chronological order.
   for (const arr of byParent.values()) {
     arr.sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0));
   }
@@ -106,9 +103,7 @@ const waterfall = computed<WaterfallRow[]>(() => {
     if (!s.parentId) continue;
     if (!spanIds.has(s.parentId)) orphanRoots.push(s);
   }
-  // Walk the canonical roots first.
   walk(rootKey, 0);
-  // Then any orphan roots (parent missing from the response).
   for (const s of orphanRoots) {
     const start = s.timestamp ?? t0;
     out.push({ span: s, depth: 0, startOffsetUs: start - t0, durationUs: s.duration ?? 0 });
@@ -131,7 +126,6 @@ function clearSpan(): void {
 // Drop the selection when the trace changes.
 watch(traceIdRef, () => { selectedSpanId.value = null; });
 
-// Click outside the span-detail modal card dismisses it.
 const spanDetailRef = ref<HTMLElement | null>(null);
 function onSpanDetailDocClick(e: MouseEvent): void {
   if (!selectedSpan.value) return;
@@ -195,7 +189,6 @@ function copyShareableUrl(): void {
   navigator.clipboard?.writeText(window.location.href).catch(() => {});
 }
 
-// ── Formatting ────────────────────────────────────────────────────
 function fmtMs(us: number): string {
   if (us < 1000) return `${us}μs`;
   if (us < 1_000_000) return `${(us / 1000).toFixed(2)}ms`;
@@ -211,11 +204,9 @@ function widthPct(us: number): number {
   return Math.max(0.8, Math.min(100, (us / total) * 100));
 }
 
-// ── ESC + backdrop close ─────────────────────────────────────────
-// Escape unwinds one layer at a time: clear span detail first (if a
-// span is pinned), then close the whole popout. Matches the dismiss
-// model of a modal stack — operators expect Escape not to nuke their
-// trace context when they only meant to dismiss the side panel.
+// Escape unwinds one layer at a time: clear span detail first (if a span is
+// pinned), then close the whole popout. Operators expect Escape not to nuke
+// their trace context when they only meant to dismiss the side panel.
 function onKeydown(ev: KeyboardEvent): void {
   if (ev.key !== 'Escape') return;
   if (selectedSpan.value) {
@@ -229,12 +220,8 @@ function onKeydown(ev: KeyboardEvent): void {
   }
 }
 
-// Global keydown + mousedown listeners are wired through Vue's
-// lifecycle so they're torn down on unmount. The previous module-level
-// `addEventListener` calls leaked one listener pair per component
-// instance — the popout is usually mounted once for the app's
-// lifetime, but the lifecycle pattern matches LayerZipkinTracesView
-// and is the correct shape for HMR / future split-mount scenarios.
+// Global keydown + mousedown listeners are wired through Vue's lifecycle so
+// they're torn down on unmount (the correct shape for HMR / split-mount).
 onMounted(() => {
   if (typeof window !== 'undefined') {
     window.addEventListener('keydown', onKeydown);

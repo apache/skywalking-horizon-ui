@@ -170,7 +170,6 @@ async function buildIndex(deps: AttributionDeps): Promise<AttributionIndex> {
     ),
   ]);
 
-  // OAL: fetch every file's content and extract LHS metric names.
   // Per-file getFileContent errors are tolerated.
   const oalContents = await Promise.all(
     filesEnvSafe.files.map(async (name) => {
@@ -213,8 +212,8 @@ async function buildIndex(deps: AttributionDeps): Promise<AttributionIndex> {
 
   const malContents = [...malRuntimeContents, ...malBundledContents];
 
-  // Build the index. Detect conflicts (one metric claimed by multiple
-  // files) so the SPA can surface them.
+  // Detect conflicts (one metric claimed by multiple files) so the SPA
+  // can surface them.
   const byMetric = new Map<string, MetricAttribution>();
   const claims = new Map<string, { source: AttributionSource; file: string }[]>();
 

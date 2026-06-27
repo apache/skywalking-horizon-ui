@@ -306,7 +306,6 @@ export function registerEndpointDependencyRoute(
       const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
       const coldStage = !!req.coldStage;
 
-      // ── Resolve service name → id.
       let serviceId = serviceArg;
       let normal = true;
       try {
@@ -336,7 +335,6 @@ export function registerEndpointDependencyRoute(
         );
       }
 
-      // ── Resolve endpoint name → id.
       let endpointId = endpointArg;
       if (!/\.0_/.test(endpointArg)) {
         try {
@@ -370,7 +368,6 @@ export function registerEndpointDependencyRoute(
         }
       }
 
-      // ── Fetch the dependency graph.
       let graph: EndpointDepResp['topology'];
       try {
         const data = await graphqlPost<EndpointDepResp>(opts, ENDPOINT_DEPENDENCY, {
@@ -392,11 +389,10 @@ export function registerEndpointDependencyRoute(
         );
       }
 
-      // ── Per-node MQE.
       const realNodes = graph.nodes.filter(
         (n) => n.isReal && n.serviceName && n.name && n.name !== 'User',
       );
-      // ── Per-node + per-edge MQE. Build both fragment families, then fan them
+      // Per-node + per-edge MQE. Build both fragment families, then fan them
       // out concurrently (disjoint OAP entities + result maps); each chunks
       // internally and soft-fails per chunk, keeping the graph on a hiccup.
       const nodeMetricVals = new Map<string, Record<string, number | null>>();

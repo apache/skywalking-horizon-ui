@@ -56,7 +56,6 @@ const winMinutes = computed<number>(() =>
   props.windowMinutes && props.windowMinutes > 0 ? props.windowMinutes : 30,
 );
 
-// ── Fragment parsing ─────────────────────────────────────────────
 // Suggestions operate on the text after the last comma; everything
 // before it is preserved verbatim when a suggestion is applied.
 const lastComma = computed<number>(() => props.modelValue.lastIndexOf(','));
@@ -115,7 +114,6 @@ function scheduleValueFetch(key: string): void {
   valueDebounce = setTimeout(() => void ensureValues(key), 180);
 }
 
-// ── Suggestion list ──────────────────────────────────────────────
 // Before `=`: matching keys rendered `key=`. After `=`: matching values
 // rendered `key=value`. Filter is case-insensitive prefix on the typed part.
 const suggestions = computed<string[]>(() => {
@@ -163,7 +161,6 @@ function applySuggestion(s: string): void {
   });
 }
 
-// ── Input / keyboard ─────────────────────────────────────────────
 function onInput(e: Event): void {
   emit('update:modelValue', (e.target as HTMLInputElement).value);
   open.value = true;

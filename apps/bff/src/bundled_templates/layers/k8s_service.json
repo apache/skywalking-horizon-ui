@@ -83,7 +83,7 @@
         ],
         "showTableValues": false,
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 2
       },
       {
         "id": "pod_restarts",
@@ -98,7 +98,7 @@
         ],
         "showTableValues": true,
         "span": 4,
-        "rowSpan": 3
+        "rowSpan": 2
       },
       {
         "id": "cpu_resources",

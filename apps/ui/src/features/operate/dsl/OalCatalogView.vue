@@ -96,7 +96,6 @@ watch(
   },
 );
 
-// Auto-select the first file when the listing loads.
 watch(
   () => files.value,
   (list) => {

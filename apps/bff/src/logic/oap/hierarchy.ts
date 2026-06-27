@@ -165,7 +165,6 @@ function groupPeers(
     }
   }
 
-  // Inject self under its own layer.
   ensure(focusLayer).set(serviceId, {
     id: serviceId,
     name: selfName ?? serviceId,

@@ -860,7 +860,6 @@ function sparkValues(series: AlarmMqeSnapshotSeries): Array<number | null> {
 .ar__dot.is-ok { background: var(--sw-ok); }
 .ar__dot.is-err { background: var(--sw-err); }
 
-/* ── Running-context popup ──────────────────────────────────────── */
 .arc { display: flex; flex-direction: column; gap: 14px; }
 .arc__expr { margin: 0; }
 .arc__msg {

@@ -249,7 +249,6 @@ function onScatterDot(p: ScatterPoint, ev: MouseEvent): void {
           <title>{{ p.label }} · {{ fmtMs(p.y) }}{{ isHot(p.rowKey) ? ` · ${t('selected')}` : '' }}</title>
         </circle>
       </g>
-      <!-- Drag-select rectangle. -->
       <rect
         v-if="dragRect"
         :x="dragRect.x"

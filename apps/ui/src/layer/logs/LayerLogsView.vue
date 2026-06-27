@@ -38,7 +38,12 @@ import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
-import { useTracePopout } from '@/layer/traces/useTracePopout';
+import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
+import { useDensityBins } from '@/layer/_shared/useDensityBins';
+import { useLogTimeRange, TIME_RANGE_PRESETS, CUSTOM_RANGE_SENTINEL } from '@/layer/logs/useLogTimeRange';
+import { useLogTagConditions } from '@/layer/logs/useLogTagConditions';
+import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
+import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -80,9 +85,7 @@ watch(
   { immediate: true },
 );
 
-// ── Log scope (per-layer config) ───────────────────────────────────
-// Drives which condition selectors the conditions bar surfaces.
-// Mirrors booster-ui's ConditionTags / EntityType routing:
+// Log scope routes which condition selectors the bar surfaces (booster-ui parity):
 //   - 'service'  → instance + endpoint selectors (both optional)
 //   - 'instance' → endpoint selector only (instance is pinned)
 //   - 'endpoint' → instance selector only (endpoint is pinned)
@@ -95,12 +98,8 @@ const logScope = computed<'service' | 'instance' | 'endpoint'>(
 // "All" doesn't make sense.
 const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 
-// ── Instance picker. Always queries OAP's instance list; how the
-// picked value is used depends on `logScope`:
-//   - `instance` scope: pinned — the picker is the primary entity
-//     selector for the page.
-//   - `service` scope: optional narrower; null means "all instances".
-//   - `endpoint` scope: optional narrower as well.
+// How the picked instance is used depends on `logScope`: pinned primary
+// selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
 const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
 // Logs (and traces) intentionally do NOT auto-select an instance.
@@ -120,42 +119,16 @@ const selectedInstanceObj = computed(() =>
 );
 const instanceIdForQuery = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
 
-// ── Endpoint picker. Same shape — pinned when `logScope === 'endpoint'`,
-// optional narrower otherwise. Endpoint lists are unbounded so the
-// picker uses a search-keyword model (Enter to commit).
+// Endpoint lists are unbounded, so the picker uses a search-keyword model:
+// the typed value drives the OAP `findEndpoint` list via `update:query`.
 const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
-// Endpoint search-and-select combobox. The input acts as both the
-// search field (filters the OAP `findEndpoint` query via the debounced
-// `endpointQuery`) AND the displayed selection. The dropdown opens
-// on focus / typing and closes on click-outside or after a pick.
-const endpointSearchInput = ref('');
 const endpointQuery = ref('');
 const endpointLimit = ref(20);
-const endpointComboOpen = ref(false);
-const endpointComboEl = ref<HTMLDivElement | null>(null);
-let endpointSearchTimer: ReturnType<typeof setTimeout> | null = null;
-watch(endpointSearchInput, (v) => {
-  if (endpointSearchTimer) clearTimeout(endpointSearchTimer);
-  endpointSearchTimer = setTimeout(() => {
-    endpointQuery.value = v.trim();
-  }, 250);
-});
-function onEndpointComboClickOutside(ev: MouseEvent): void {
-  if (!endpointComboOpen.value) return;
-  const el = endpointComboEl.value;
-  if (el && !el.contains(ev.target as Node)) endpointComboOpen.value = false;
-}
-if (typeof window !== 'undefined') {
-  window.addEventListener('click', onEndpointComboClickOutside);
-}
 function pickEndpoint(name: string): void {
   setSelectedEndpoint(name);
-  endpointSearchInput.value = name;
-  endpointComboOpen.value = false;
 }
 function clearEndpoint(): void {
   setSelectedEndpoint(null);
-  endpointSearchInput.value = '';
   endpointQuery.value = '';
 }
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
@@ -167,8 +140,9 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
 watch(serviceName, (next, prev) => {
-  if (prev !== undefined && next !== prev && selectedEndpoint.value) {
-    setSelectedEndpoint(null);
+  if (prev !== undefined && next !== prev) {
+    if (selectedEndpoint.value) setSelectedEndpoint(null);
+    endpointQuery.value = '';
   }
 });
 const selectedEndpointObj = computed(() =>
@@ -178,18 +152,12 @@ const selectedEndpointObj = computed(() =>
 );
 const endpointIdForQuery = computed<string | null>(() => selectedEndpointObj.value?.id ?? null);
 
-// ── Query state ────────────────────────────────────────────────────
-// Trace ID rides either from `?traceId=` in the URL (e.g. log row's
-// "↗ trace" link landing back on this tab) or from the operator's
-// explicit input on the conditions bar. The URL takes precedence so
-// shared / bookmarked URLs always restore the same view.
+// Trace ID rides from `?traceId=` in the URL or the operator's input. The URL
+// takes precedence so shared / bookmarked URLs restore the same view.
 const traceIdParam = computed(() => {
-  const v = route.query.traceId;
+  const v = route.query[TRACE_POPOUT_QUERY];
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
-// Trace ID — bound directly to the input. Each keystroke updates the
-// query (no Pin/Clear button). URL `?traceId=` still wins so the
-// trace→log roundtrip keeps the pinned value.
 const traceIdInput = ref('');
 // Free-text content search is intentionally NOT exposed. OAP's
 // content-keyword filter is opt-in per storage backend (off on the
@@ -197,7 +165,6 @@ const traceIdInput = ref('');
 // latency / cardinality behaviour on busy clusters. The conditions
 // the UI exposes — service / instance / endpoint / traceID / tags —
 // are all indexed dimensions and cover the booster-ui condition set.
-const customTags = ref<LogTagFilter[]>([]);
 const page = ref(1);
 const pageSize = ref(50);
 const traceIdRef = computed<string | null>(() => {
@@ -209,147 +176,119 @@ const instanceIdRef = computed<string | null>(() => instanceIdForQuery.value);
 const endpointIdRef = computed<string | null>(() => endpointIdForQuery.value);
 const keywordsRef = computed<string[]>(() => []);
 
-// Time-range picker. Logs blocks the global topbar picker (see
-// `TIME_RANGE_OPT_OUT` in AppTopbar), so this is the source of truth
-// for which rolling window the log + facet queries scan. Presets
-// cover the most common ranges; the operator can extend if needed
-// (cap is 7 days, enforced server-side too). Mirrors the trace tab's
-// Custom… escape hatch — picking it swaps the preset dropdown for two
-// `datetime-local` inputs so the operator can pin an absolute window.
-const TIME_RANGE_PRESETS: Array<{ label: string; minutes: number }> = [
-  { label: 'Last 15 min', minutes: 15 },
-  { label: 'Last 30 min', minutes: 30 },
-  { label: 'Last 1 hour', minutes: 60 },
-  { label: 'Last 3 hours', minutes: 180 },
-  { label: 'Last 6 hours', minutes: 360 },
-  { label: 'Last 12 hours', minutes: 720 },
-  { label: 'Last 24 hours', minutes: 1440 },
-];
-const CUSTOM_RANGE_SENTINEL = -1;
-const windowMinutes = ref<number>(30);
-const customStart = ref<string | null>(null);
-const customEnd = ref<string | null>(null);
-const isCustomRange = computed(() => windowMinutes.value === CUSTOM_RANGE_SENTINEL);
-function fmtDateTimeLocal(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-watch(isCustomRange, (custom) => {
-  if (custom) {
-    if (!customStart.value || !customEnd.value) {
-      const end = new Date();
-      const start = new Date(end.getTime() - 30 * 60_000);
-      customStart.value = fmtDateTimeLocal(start);
-      customEnd.value = fmtDateTimeLocal(end);
-    }
-  } else {
-    customStart.value = null;
-    customEnd.value = null;
-  }
-});
-/** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
- *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
- *  same `queryDuration.start/end` slot the trace tab uses. */
-function toOapMinute(local: string | null): string | null {
-  if (!local) return null;
-  const [d, t] = local.split('T');
-  if (!d || !t) return null;
-  return `${d} ${t.replace(':', '')}`;
-}
-const startTimeRef = computed<string | null>(() =>
-  isCustomRange.value ? toOapMinute(customStart.value) : null,
-);
-const endTimeRef = computed<string | null>(() =>
-  isCustomRange.value ? toOapMinute(customEnd.value) : null,
-);
-const windowMinutesEffective = computed<number>(() =>
-  isCustomRange.value ? 0 : windowMinutes.value,
-);
+// Time range (presets + Custom…) — owns the OAP-shaped window refs.
+const {
+  windowMinutes,
+  customStart,
+  customEnd,
+  isCustomRange,
+  startTime: startTimeRef,
+  endTime: endTimeRef,
+  windowMinutesEffective,
+} = useLogTimeRange(30);
 
-// ── Tag conditions (booster-style single `key=value` input) ──────
-// One text input; Enter commits the tag. Tags accumulate in `customTags`
-// and ride along on the OAP log query as filters. Key/value autocomplete
-// lives in TagInput.
-const tagInput = ref('');
-function addTagFilter(): void {
-  const raw = tagInput.value.trim();
-  if (!raw || !raw.includes('=')) return;
-  const idx = raw.indexOf('=');
-  const key = raw.slice(0, idx).trim();
-  const value = raw.slice(idx + 1).trim();
-  if (!key) return;
-  if (customTags.value.some((t) => t.key === key && t.value === value)) return;
-  customTags.value = [...customTags.value, { key, value }];
-  tagInput.value = '';
-  page.value = 1;
-}
-function removeTagFilter(i: number): void {
-  customTags.value = customTags.value.filter((_, idx) => idx !== i);
-  page.value = 1;
-}
+// Tag chips + single-select level filter; editing any condition resets
+// `page` to 1. `allTags` is what the OAP log query consumes.
+const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFilter, toggleLevel } =
+  useLogTagConditions(page);
 
-// ── Level filter goes to OAP as a `level=<UPPER>` tag filter so the
-// server-side total + pagination match the visible rows. The filter
-// is single-select (booster-ui uses the same pattern).
-const LEVEL_TAG_VALUES: Record<'error' | 'warn' | 'info' | 'debug', string> = {
-  error: 'ERROR',
-  warn: 'WARN',
-  info: 'INFO',
-  debug: 'DEBUG',
-};
-const selectedLevel = ref<'error' | 'warn' | 'info' | 'debug' | null>(null);
-const allTags = computed<LogTagFilter[]>(() => {
-  const out = [...customTags.value];
-  if (selectedLevel.value) {
-    out.push({ key: 'level', value: LEVEL_TAG_VALUES[selectedLevel.value] });
-  }
-  return out;
-});
-function toggleLevel(l: 'error' | 'warn' | 'info' | 'debug' | 'other'): void {
-  if (l === 'other') return; // server-side has no canonical value for "other"
-  selectedLevel.value = selectedLevel.value === l ? null : l;
-  page.value = 1;
+// The log stream + facet queries read these APPLIED conditions, not the live
+// draft refs, so editing instance / endpoint / trace-id / tags / time stages
+// the query without firing it. `applyConditions()` commits the current draft;
+// it runs on initial service load, on each "Run query", and on a service
+// switch. `page`/`pageSize` stay live; there is no periodic refresh.
+interface AppliedLogConditions {
+  service: string | null;
+  instanceId: string | null;
+  endpointId: string | null;
+  traceId: string | null;
+  keywords: string[];
+  tags: LogTagFilter[];
+  windowMinutes: number;
+  startTime: string | null;
+  endTime: string | null;
 }
+function snapshotConditions(): AppliedLogConditions {
+  return {
+    service: serviceName.value,
+    instanceId: instanceIdRef.value,
+    endpointId: endpointIdRef.value,
+    traceId: traceIdRef.value,
+    keywords: keywordsRef.value,
+    tags: allTags.value,
+    windowMinutes: windowMinutesEffective.value,
+    startTime: startTimeRef.value,
+    endTime: endTimeRef.value,
+  };
+}
+const applied = ref<AppliedLogConditions>(snapshotConditions());
+// Manual-fire gate: the log + facet queries stay disabled until the
+// operator presses Run query (or pages), so a freshly-opened tab shows a
+// "Run query" prompt rather than a misleading "no logs" empty state.
+const hasQueried = ref(false);
+function applyConditions(): void {
+  applied.value = snapshotConditions();
+}
+// A service switch is a context change → clear back to the Run-query
+// prompt (cascade-clear: never show the prior service's logs under the
+// new one). Filter edits just stage; they wait for Run query.
+watch(serviceName, () => {
+  hasQueried.value = false;
+  selectedLevel.value = null;
+  customTags.value = [];
+  page.value = 1;
+  applyConditions();
+});
+const aService = computed(() => applied.value.service);
+const aInstanceId = computed(() => applied.value.instanceId);
+const aEndpointId = computed(() => applied.value.endpointId);
+const aTraceId = computed(() => applied.value.traceId);
+const aKeywords = computed(() => applied.value.keywords);
+const aTags = computed(() => applied.value.tags);
+const aWindowMinutes = computed(() => applied.value.windowMinutes);
+const aStartTime = computed(() => applied.value.startTime);
+const aEndTime = computed(() => applied.value.endTime);
 
 const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
-  service: serviceName,
-  instanceId: instanceIdRef,
-  endpointId: endpointIdRef,
-  traceId: traceIdRef,
-  keywords: keywordsRef,
-  tags: allTags,
+  service: aService,
+  instanceId: aInstanceId,
+  endpointId: aEndpointId,
+  traceId: aTraceId,
+  keywords: aKeywords,
+  tags: aTags,
   page,
   pageSize,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  windowMinutes: aWindowMinutes,
+  startTime: aStartTime,
+  endTime: aEndTime,
+  enabled: hasQueried,
 });
 
-const { facets } = useLayerLogFacets(layerKey, {
-  service: serviceName,
-  instanceId: instanceIdRef,
-  endpointId: endpointIdRef,
-  traceId: traceIdRef,
-  keywords: keywordsRef,
-  windowMinutes: windowMinutesEffective,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
+  service: aService,
+  instanceId: aInstanceId,
+  endpointId: aEndpointId,
+  traceId: aTraceId,
+  keywords: aKeywords,
+  windowMinutes: aWindowMinutes,
+  startTime: aStartTime,
+  endTime: aEndTime,
+  enabled: hasQueried,
 });
 
-// Run-query handler mirrors the trace tab: refetch both the log
-// stream + the facet sample on demand. With most filters already
-// auto-refetching, this is the operator's "I'm done editing — refresh
-// now" affordance, identical voice to `LayerTracesView#runQuery`.
+// Run query refetches BOTH the log stream and the facet sample (level
+// counts) so they never diverge — facets carry a 30s staleTime, so an
+// unchanged-condition Run query needs an explicit refetch.
 function runQuery(): void {
   page.value = 1;
+  hasQueried.value = true;
+  applyConditions();
   void refetch();
+  void refetchFacets();
 }
 
-// ── Density histogram (60 bins). Loki/Datadog style: stacked bars
-// per level over the visible page's time window. Counts come from
-// the loaded page only — total-window density would need a server
-// aggregation we don't have yet. -----------------------------------
-
+// Density histogram counts come from the loaded page only — total-window
+// density would need a server aggregation we don't have yet.
 const LEVEL_ORDER = ['error', 'warn', 'info', 'debug', 'other'] as const;
 type Level = typeof LEVEL_ORDER[number];
 const LEVEL_COLOR: Record<Level, string> = {
@@ -370,96 +309,60 @@ function levelOf(r: LogRow): Level {
   return 'other';
 }
 
-const BINS = 60;
-const histogram = computed(() => {
-  const rows = logs.value;
-  if (rows.length === 0) return { bins: [] as Array<Record<Level, number>>, max: 0, t0: 0, t1: 0 };
-  let t0 = Infinity;
-  let t1 = -Infinity;
-  for (const r of rows) {
-    if (r.timestamp < t0) t0 = r.timestamp;
-    if (r.timestamp > t1) t1 = r.timestamp;
-  }
-  if (!Number.isFinite(t0) || !Number.isFinite(t1) || t0 === t1) {
-    t0 = (t1 || Date.now()) - 60_000;
-    t1 = t1 || Date.now();
-  }
-  const span = t1 - t0 || 1;
-  const bins: Array<Record<Level, number>> = Array.from({ length: BINS }, () => ({
-    error: 0,
-    warn: 0,
-    info: 0,
-    debug: 0,
-    other: 0,
-  }));
-  for (const r of rows) {
-    const idx = Math.min(BINS - 1, Math.floor(((r.timestamp - t0) / span) * BINS));
-    bins[idx][levelOf(r)] += 1;
-  }
-  let max = 0;
-  for (const b of bins) {
-    const t = b.error + b.warn + b.info + b.debug + b.other;
-    if (t > max) max = t;
-  }
-  return { bins, max, t0, t1 };
+const histogram = useDensityBins<LogRow, Level>(logs, {
+  keys: LEVEL_ORDER,
+  timeOf: (r) => r.timestamp,
+  keyOf: levelOf,
 });
 
-// ── Facets — server-side aggregated across a larger window sample
-// (default 200 rows). When the facet fetch hasn't returned yet we
-// fall back to counts derived from the visible page so the rail
-// never goes empty.
+// Server-side level facets; until the facet fetch returns, fall back to
+// counts from the visible page so the rail never goes empty.
 const levelFacet = computed<Record<Level, number>>(() => {
   if (facets.value?.level) return facets.value.level;
   const counts: Record<Level, number> = { error: 0, warn: 0, info: 0, debug: 0, other: 0 };
   for (const r of logs.value) counts[levelOf(r)] += 1;
   return counts;
 });
-// Service facet removed — the log query is already service-scoped
-// (the view is opened from /layer/<key>/logs with a specific service
-// selected), so a "top services" rail just repeats the title.
+// No service facet: the log query is already service-scoped, so a
+// "top services" rail would just repeat the title.
 
-// Since the level filter now goes to OAP, the visible logs already
-// reflect it — no client-side narrowing needed.
+// The level filter goes to OAP, so the visible logs already reflect it.
 const filteredLogs = computed<LogRow[]>(() => logs.value);
 
-// ── Log payload popout — a row click opens the shared LogDetailPopout
-// (format-aware pretty-print + copy + key/value tag table + trace link).
-// The popout owns its own Escape / close + format detection.
 const popoutRow = ref<LogRow | null>(null);
 function onRowClick(r: LogRow): void {
   popoutRow.value = r;
 }
 
-// Custom hover tooltip state for the density bar. Native browser
-// `title` was making the cursor render as `?` (help-cursor) instead
-// of showing the count, which read like a UI bug.
-const hoveredBin = ref<number | null>(null);
-function fmtBucketRange(idx: number, t0: number, t1: number): string {
-  if (!t0 || !t1) return '';
-  const span = (t1 - t0) || 1;
-  const start = new Date(t0 + (span * idx) / BINS);
-  const end = new Date(t0 + (span * (idx + 1)) / BINS);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const fmt = (d: Date) => `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  return `${fmt(start)} – ${fmt(end)}`;
-}
-function fmtAxisTime(ts: number): string {
-  if (!ts) return '';
-  const d = new Date(ts);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/** Open the trace in the global popout overlay rather than navigating
- *  to the Traces tab — keeps the operator in the log stream, lets them
- *  scan the waterfall + close it back to where they were without
- *  losing the keyword filter / pagination state. The row's timestamp
- *  is passed as a hint so BanyanDB's `queryTrace` looks in the right
- *  window — without this, OAP searches only the last 1 day and any
- *  trace older than that (cold-tier, etc.) silently fails to load. */
+/** Drill from a log entry into its trace via the global trace popout. The
+ *  row's timestamp is passed so BanyanDB's `queryTrace` looks in the right
+ *  window — without it OAP only searches the last 1 day and older
+ *  (cold-tier) traces silently fail to load.
+ *
+ *  UX: one overlay at a time. Rather than stacking the trace popout on top
+ *  of the log popout, or just dropping the log popout (jarring), we
+ *  remember the entry, hide it, and reopen it when the trace popout closes
+ *  (Escape / × / back) — a drill-in / back flow. A bare row → trace jump
+ *  (no log popout open) leaves nothing to return to. */
+const logReturnRow = ref<LogRow | null>(null);
+watch([layerKey, serviceName], () => { logReturnRow.value = null; });
 function jumpToTrace(traceId: string, ts?: number): void {
+  if (popoutRow.value) {
+    logReturnRow.value = popoutRow.value;
+    popoutRow.value = null;
+  }
   openTrace(traceId, ts);
 }
+watch(
+  () => route.query[TRACE_POPOUT_QUERY],
+  (id, prev) => {
+    // Trace popout just closed → return to the log entry we drilled in from.
+    if (prev && !id && logReturnRow.value) {
+      popoutRow.value = logReturnRow.value;
+      logReturnRow.value = null;
+    }
+  },
+);
 </script>
 
 <template>
@@ -474,12 +377,11 @@ function jumpToTrace(traceId: string, ts?: number): void {
         <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">Run query</button>
       </div>
       <div class="lg-conditions">
-        <!-- Instance / Sidecar picker. `All` is the default for every
-             scope; pinning an instance is opt-in via the dropdown. -->
         <label class="cf">
           <span>{{ logScope === 'instance' ? 'Sidecar' : 'Instance' }}</span>
           <select
             class="cf-input"
+            name="log-instance"
             :value="selectedInstance ?? ''"
             @change="setSelectedInstance(($event.target as HTMLSelectElement).value || null)"
           >
@@ -487,63 +389,29 @@ function jumpToTrace(traceId: string, ts?: number): void {
             <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
           </select>
         </label>
-        <!-- Endpoint combobox = search + dropdown in one component.
-             Type to filter the OAP list via `endpointQuery`; click an
-             item to pick. Width: 2 columns so long endpoint paths fit. -->
         <div class="cf cf-wide">
           <span>Endpoint</span>
-          <div ref="endpointComboEl" class="cf-combo" @click.stop>
-            <input
-              v-model="endpointSearchInput"
-              type="text"
-              class="cf-input"
-              :placeholder="selectedEndpoint ?? 'All'"
-              @focus="endpointComboOpen = true"
-              @input="endpointComboOpen = true"
-            />
-            <button
-              v-if="selectedEndpoint || endpointSearchInput"
-              type="button"
-              class="cf-combo-clear"
-              title="Clear endpoint"
-              @click="clearEndpoint"
-            >×</button>
-            <ul v-if="endpointComboOpen" class="cf-combo-list">
-              <li
-                v-if="showEndpointSelector"
-                class="cf-combo-item"
-                :class="{ on: !selectedEndpoint }"
-                @click="clearEndpoint"
-              >
-                <em>All</em>
-              </li>
-              <li
-                v-for="e in endpointList"
-                :key="e.id"
-                class="cf-combo-item"
-                :class="{ on: selectedEndpoint === e.name }"
-                @click="pickEndpoint(e.name)"
-              >
-                {{ e.name }}
-              </li>
-              <li v-if="endpointList.length === 0" class="cf-combo-empty">
-                {{ endpointsLoading ? 'searching…' : 'no matches' }}
-              </li>
-            </ul>
-          </div>
+          <EndpointCombo
+            :endpoints="endpointList"
+            :selected="selectedEndpoint"
+            :show-all="showEndpointSelector"
+            :loading="endpointsLoading"
+            @update:query="endpointQuery = $event"
+            @pick="pickEndpoint"
+            @clear="clearEndpoint"
+          />
         </div>
-        <!-- Trace ID. Bound directly — each keystroke updates the
-             query. URL `?traceId=` still overrides. -->
         <label class="cf cf-wide">
           <span>Trace ID</span>
           <input
             v-model="traceIdInput"
             type="text"
+            name="log-trace-id"
+            autocomplete="off"
             class="cf-input mono"
             placeholder="paste trace id…"
           />
         </label>
-        <!-- Tags — single key=value input + custom autocomplete. -->
         <label class="cf cf-wide">
           <span>Tags</span>
           <TagInput
@@ -553,26 +421,24 @@ function jumpToTrace(traceId: string, ts?: number): void {
             @commit="addTagFilter"
           />
         </label>
-        <!-- Time range — presets + Custom… that swaps to two
-             datetime-local inputs (matches the trace tab). -->
         <label class="cf" :class="{ 'cf-wide': isCustomRange }">
           <span>Time range</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
-              <input v-model="customStart" type="datetime-local" class="cf-input cf-range-num" />
+              <input v-model="customStart" type="datetime-local" name="log-start" class="cf-input cf-range-num" />
               <span class="cf-range-sep">–</span>
-              <input v-model="customEnd" type="datetime-local" class="cf-input cf-range-num" />
+              <input v-model="customEnd" type="datetime-local" name="log-end" class="cf-input cf-range-num" />
               <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
             </div>
           </template>
-          <select v-else v-model.number="windowMinutes" class="cf-input">
+          <select v-else v-model.number="windowMinutes" name="log-window" class="cf-input">
             <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
             <option :value="CUSTOM_RANGE_SENTINEL">Custom…</option>
           </select>
         </label>
         <label class="cf">
           <span>Page size</span>
-          <select v-model.number="pageSize" class="cf-input">
+          <select v-model.number="pageSize" name="log-page-size" class="cf-input">
             <option :value="20">20</option>
             <option :value="30">30</option>
             <option :value="50">50</option>
@@ -580,8 +446,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
           </select>
         </label>
       </div>
-      <!-- Active tag chips — same markup / class names as the trace
-           tab's `tr-tag-row` so the two pages read identically. -->
       <div v-if="customTags.length > 0" class="tr-tag-row">
         <span class="tag-row-label">Active tags</span>
         <span class="tag-chips">
@@ -597,14 +461,12 @@ function jumpToTrace(traceId: string, ts?: number): void {
       <strong>Logs feed failed.</strong> {{ String(error) }}
     </div>
 
-    <!-- Histogram + main stream -->
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <!-- Top-of-table legend strip — one chip per level with the
-             in-window count when data exists. Clickable: toggles the
-             level filter. The service axis is intentionally absent
-             (this query is already service-scoped, so the service
-             dimension carries no information). -->
+        <div v-if="!hasQueried" class="lg-empty">
+          Pick your conditions, then click Run query.
+        </div>
+        <template v-else>
         <div v-if="facets || logs.length > 0" class="lg-legend">
           <span class="lg-legend-kicker">Levels</span>
           <button
@@ -625,71 +487,11 @@ function jumpToTrace(traceId: string, ts?: number): void {
           </span>
         </div>
 
-        <!-- Density bar — x: time, y: count, color: level. Hover a
-             bin: a custom tooltip (NOT the native `title` — the
-             native cursor was rendering as a help cursor `?` instead
-             of the count, which was confusing) shows the bucket time
-             range + per-level counts. Axis tick labels under the bar
-             carry the time scale. -->
-        <div class="lg-density-wrap" v-if="histogram.bins.length > 0" @mouseleave="hoveredBin = null">
-          <div class="lg-density">
-            <div
-              v-for="(bin, i) in histogram.bins"
-              :key="i"
-              class="lg-density-bin"
-              @mouseenter="hoveredBin = i"
-            >
-              <span
-                v-for="l in LEVEL_ORDER"
-                :key="l"
-                class="lg-density-segment"
-                :style="{
-                  background: LEVEL_COLOR[l],
-                  height: histogram.max ? (bin[l] / histogram.max * 100) + '%' : '0%',
-                }"
-              />
-            </div>
-            <!-- Custom hover tooltip — replaces the native browser
-                 tooltip which was both slow to appear AND coupled to
-                 the `cursor: help` rendering (the `?` cursor was the
-                 thing the operator was reporting). -->
-            <div
-              v-if="hoveredBin !== null"
-              class="lg-density-tip"
-              :style="{ left: ((hoveredBin + 0.5) / 60) * 100 + '%' }"
-            >
-              <div class="lg-density-tip-time">
-                {{ fmtBucketRange(hoveredBin, histogram.t0, histogram.t1) }}
-              </div>
-              <div class="lg-density-tip-total">
-                {{ histogram.bins[hoveredBin].error + histogram.bins[hoveredBin].warn + histogram.bins[hoveredBin].info + histogram.bins[hoveredBin].debug + histogram.bins[hoveredBin].other }} log<template v-if="(histogram.bins[hoveredBin].error + histogram.bins[hoveredBin].warn + histogram.bins[hoveredBin].info + histogram.bins[hoveredBin].debug + histogram.bins[hoveredBin].other) !== 1">s</template>
-              </div>
-              <div class="lg-density-tip-rows">
-                <span v-for="l in LEVEL_ORDER" :key="l" v-show="histogram.bins[hoveredBin][l] > 0" class="lg-density-tip-row">
-                  <span class="lvl-dot" :style="{ background: LEVEL_COLOR[l] }" />
-                  <span class="lg-density-tip-name">{{ l }}</span>
-                  <span class="lg-density-tip-val mono">{{ histogram.bins[hoveredBin][l] }}</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <div class="lg-density-axis">
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.25) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.5) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t0 + (histogram.t1 - histogram.t0) * 0.75) }}</span>
-            <span class="t-tick">{{ fmtAxisTime(histogram.t1) }}</span>
-          </div>
-        </div>
+        <DensityHistogram :data="histogram" :keys="LEVEL_ORDER" :colors="LEVEL_COLOR" />
 
-        <!-- Stream -->
         <div v-if="filteredLogs.length === 0" class="lg-empty">
           {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
         </div>
-        <!-- Row click → open the full-payload popout. The dense row
-             rendering is the shared `LogStreamPanel` (same markup the
-             cross-layer Log inspect uses); the popout + density bar +
-             facets stay in this view. -->
         <LogStreamPanel
           v-else
           :rows="filteredLogs"
@@ -708,11 +510,10 @@ function jumpToTrace(traceId: string, ts?: number): void {
             >Next</button>
           </div>
         </div>
+        </template>
       </div>
     </section>
 
-    <!-- Full-payload popout. Format-aware pretty-print + copy button +
-         tag table + trace link. Escape or backdrop click closes. -->
     <LogDetailPopout
       :row="popoutRow"
       @close="popoutRow = null"
@@ -758,14 +559,10 @@ function jumpToTrace(traceId: string, ts?: number): void {
   flex: 1;
   min-width: 320px;
 }
-/* Trace-style toolbar layout (same voice as `LayerTracesView`). */
 .lg-toolbar { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; overflow: visible; }
 .lg-toolbar-head { display: flex; align-items: center; gap: 10px; width: 100%; }
-/* Run-query button: SkyWalking orange, sits at the right edge of the
-   toolbar head row. Matches `LayerTracesView.tr-run-btn` exactly so the
-   two pages read identically. `.sw-btn.primary` is locally scoped per
-   page (each view declares its own styling); copying the rule keeps
-   the visual stable without dragging in a shared global. */
+/* `.sw-btn.primary` is locally scoped per page (each view declares its own);
+   the rule is copied to keep the visual stable without a shared global. */
 .lg-run-btn { margin-left: auto; }
 .sw-btn.primary {
   background: var(--sw-accent);
@@ -814,58 +611,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
 .cf-range-num { flex: 1; min-width: 0; }
 .cf-range-sep { color: var(--sw-fg-3); font-size: 12px; flex: 0 0 auto; }
 
-/* Endpoint combobox = single search input + anchored dropdown.
-   Click-outside closes it (see `onEndpointComboClickOutside`). */
-.cf-combo { position: relative; }
-.cf-combo .cf-input { padding-right: 22px; }
-.cf-combo-clear {
-  position: absolute;
-  right: 6px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  line-height: 14px;
-  padding: 0;
-  background: transparent;
-  border: none;
-  color: var(--sw-fg-3);
-  font-size: 13px;
-  cursor: pointer;
-}
-.cf-combo-clear:hover { color: var(--sw-err); }
-.cf-combo-list {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  margin: 4px 0 0;
-  padding: 4px;
-  max-height: 240px;
-  overflow-y: auto;
-  list-style: none;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  z-index: 50;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-}
-.cf-combo-item {
-  padding: 5px 8px;
-  font-size: 11px;
-  font-family: var(--sw-mono);
-  color: var(--sw-fg-1);
-  border-radius: 3px;
-  cursor: pointer;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.cf-combo-item em { color: var(--sw-fg-1); font-style: normal; font-family: var(--sw-mono); }
-.cf-combo-item:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); }
-.cf-combo-item.on { background: var(--sw-accent-soft); color: var(--sw-accent-2); font-weight: 600; }
-.cf-combo-empty { padding: 6px 8px; font-size: 10.5px; color: var(--sw-fg-3); }
-
 .f-field {
   display: inline-flex;
   align-items: baseline;
@@ -896,9 +641,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
   padding: 0;
   min-height: 540px;
 }
-/* Top-of-table level legend — chips sit above the density bar so the
-   level counts surface at the same scan line the user reads the
-   timeline. Clicking a chip filters the stream to that level. */
 .lg-legend {
   display: flex;
   align-items: center;
@@ -963,73 +705,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
   flex-direction: column;
   min-height: 0;
 }
-/* Density-bar wrapper: the 60 stacked bin bars on top, x-axis tick
-   strip underneath so the time scale is readable at a glance. */
-.lg-density-wrap {
-  padding: 8px 12px 4px;
-  border-bottom: 1px solid var(--sw-line);
-  background: var(--sw-bg-1);
-}
-.lg-density {
-  display: grid;
-  grid-template-columns: repeat(60, 1fr);
-  align-items: end;
-  gap: 1px;
-  height: 60px;
-  position: relative; /* anchor for the absolute-positioned tooltip */
-}
-.lg-density-bin {
-  display: flex;
-  flex-direction: column-reverse;
-  height: 100%;
-  background: var(--sw-bg-2);
-  border-radius: 1px;
-  overflow: hidden;
-  /* No `cursor: help` — the `?` cursor was misread as a UI error.
-     The bin reads as informational (hover surfaces a count tooltip),
-     so a default pointer is the right affordance. */
-}
-.lg-density-bin:hover { outline: 1px solid var(--sw-accent-line); }
-.lg-density-segment { display: block; }
-/* Custom hover tooltip — anchored to the hovered bin via the
-   `left: <bin-center>%` inline style. Wider than a single bin so it
-   doesn't clip; transforms back by 50% to centre on the bin. */
-.lg-density-tip {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  transform: translateX(-50%);
-  min-width: 160px;
-  padding: 6px 9px;
-  background: var(--sw-bg-0);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 4px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.45);
-  font-size: 11px;
-  color: var(--sw-fg-1);
-  pointer-events: none;
-  z-index: 5;
-}
-.lg-density-tip-time { color: var(--sw-fg-3); font-family: var(--sw-mono); font-size: 10px; margin-bottom: 2px; }
-.lg-density-tip-total { color: var(--sw-fg-0); font-weight: 700; font-size: 12px; margin-bottom: 4px; }
-.lg-density-tip-rows { display: flex; flex-direction: column; gap: 2px; }
-.lg-density-tip-row { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; }
-.lg-density-tip-row .lvl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; }
-.lg-density-tip-name { color: var(--sw-fg-2); flex: 1; text-transform: capitalize; }
-.lg-density-tip-val { color: var(--sw-fg-0); font-weight: 600; font-variant-numeric: tabular-nums; }
-/* X-axis tick strip — 5 evenly-spaced labels (start / 25% / 50% /
-   75% / end) underneath the bars, in tabular nums so they line up. */
-.lg-density-axis {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--sw-mono);
-  font-size: 9.5px;
-  color: var(--sw-fg-3);
-  font-variant-numeric: tabular-nums;
-  margin-top: 4px;
-  padding: 0 2px;
-}
-.lg-density-axis .t-tick:first-child { text-align: left; }
-.lg-density-axis .t-tick:last-child { text-align: right; }
 
 .lg-empty {
   padding: 32px;
@@ -1062,8 +737,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
   .lg-legend-chip { padding: 2px 7px; font-size: 11px; }
 }
 
-/* Active tag chips — markup + visuals lifted from `LayerTracesView`
-   so the two pages read identically. */
 .tr-tag-row {
   display: flex;
   align-items: center;

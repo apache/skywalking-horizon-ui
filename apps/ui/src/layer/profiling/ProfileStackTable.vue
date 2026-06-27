@@ -47,10 +47,8 @@ const emit = defineEmits<{
   (e: 'toggle-highlight'): void;
 }>();
 
-// ── Build the indented tree ─────────────────────────────────────────
-// booster-ui's sortArr keyed by `id` and walked the array twice;
-// the same approach is fine here for the smallish element counts
-// returned by getSegmentsProfileAnalyze.
+// A two-pass id-keyed walk; fine for the smallish element counts the
+// analyze query returns.
 const tableData = computed<StackNode[]>(() => {
   if (!props.trees.length) return [];
   const allDurChildExcluded = props.trees.flatMap((t) =>
@@ -80,7 +78,6 @@ const tableData = computed<StackNode[]>(() => {
   return roots;
 });
 
-// ── Draggable left-column width ─────────────────────────────────────
 const thread = ref<number>(520);
 const dragger = ref<HTMLElement | null>(null);
 onMounted(() => {

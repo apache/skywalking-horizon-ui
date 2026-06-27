@@ -87,21 +87,13 @@ async function refresh(): Promise<void> {
       const keys = new Set<string>();
       const namesNoLayer = new Set<string>();
       for (const m of r.msgs) {
-        // Only single-service alarms — relation/instance/endpoint
-        // alarms would otherwise spuriously redden every cube that
-        // shares a name fragment. ServiceInstance / Process are
-        // intentionally skipped: their entity name carries an instance
-        // suffix that doesn't match `service.name` on the cube.
+        // Service-scope only: ServiceInstance / Process / relation entity
+        // names don't match a cube's `service.name`.
         if (m.scope !== 'Service') continue;
         if (typeof m.name !== 'string' || m.name.length === 0) continue;
-        // Firing only — a recovered alarm (recoveryTime set) is no longer
-        // an active problem. Reddening recovered-within-window alarms made
-        // the map show more red cubes than the alarms page's ACTIVE count.
+        // Firing only — recovered-within-window alarms must not redden a
+        // cube, or the map shows more red than the page's ACTIVE count.
         if (m.recoveryTime !== null) continue;
-        // Precise: key on (layer, name) so an alarm reddens only the
-        // matching service in the matching tier, not every same-named
-        // cube across layers. Alarms with no resolved layer fall back
-        // to name-only matching.
         if (m.layerKey) keys.add(alarmKey(m.layerKey, m.name));
         else namesNoLayer.add(m.name);
       }
@@ -122,7 +114,6 @@ export function useInfra3dAlarms() {
   onMounted(() => {
     refcount++;
     if (refcount === 1) {
-      // First subscriber kicks the timer + does an immediate fetch.
       void refresh();
       timer = setInterval(() => void refresh(), POLL_INTERVAL_MS);
     }

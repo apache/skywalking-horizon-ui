@@ -133,6 +133,23 @@ export function useLayers() {
 }
 
 /**
+ * A layer whose only worthwhile screen is the services list — no tabs to
+ * expand into. The sidebar renders it as a direct link, not an accordion.
+ * Pure (capability-only) so the row component and its parent can both gate
+ * on it without re-deriving.
+ */
+export function isSingleFeatureLayer(L: LayerDef): boolean {
+  const hasInstances = L.caps.instances ?? Boolean(L.slots.instances);
+  const hasEndpoints = L.caps.endpoints ?? Boolean(L.slots.endpoints);
+  if (hasInstances || hasEndpoints) return false;
+  if (L.caps.serviceMap || L.caps.instanceTopology || L.caps.processTopology) return false;
+  const c = L.caps;
+  if (c.traces || c.logs || c.browserErrors || c.traceProfiling || c.ebpfProfiling || c.asyncProfiling || c.events) return false;
+  if (c.endpointDependency || c.serviceMap || c.instanceTopology || c.processTopology || c.deployment) return false;
+  return true;
+}
+
+/**
  * Pick the first sub-route a layer should land on, based on its
  * declared components (slots / caps). Some layers turn off the service
  * tab entirely (`mesh_dp` instance-only, `so11y_*_agent` per-agent
@@ -142,12 +159,11 @@ export function useLayers() {
  */
 export function firstLayerTab(L: LayerDef | undefined): string {
   if (!L) return 'service';
-  // `caps.dashboards` is derived from `components.service !== false`,
-  // so it's the authoritative enable-flag for the per-service page.
-  // Some layers (MESH_DP — sidecar-only; SO11Y_*_AGENT — per-JVM) have
-  // a non-empty `slots.services` label (used elsewhere for breadcrumbs)
-  // but no service component; previously the truthy slot label was
-  // pushing those layers onto an empty `/service` page.
+  // `caps.dashboards` (derived from `components.service !== false`) is the
+  // authoritative enable-flag for the per-service page. Some layers (MESH_DP
+  // — sidecar-only; SO11Y_*_AGENT — per-JVM) carry a non-empty
+  // `slots.services` label but no service component; gating on the slot label
+  // instead of caps would land them on an empty `/service` page.
   if (L.caps?.dashboards) return 'service';
   if (L.caps?.instances ?? Boolean(L.slots?.instances)) return 'instance';
   if (L.caps?.endpoints ?? Boolean(L.slots?.endpoints)) return 'endpoint';

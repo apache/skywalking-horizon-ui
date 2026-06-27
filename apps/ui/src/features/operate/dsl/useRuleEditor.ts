@@ -314,7 +314,6 @@ export function useRuleEditor(opts: UseRuleEditorOptions) {
     return last;
   }
 
-  // Auto-load whenever (catalog, name) settles.
   watch(
     [opts.catalog, opts.name],
     () => {

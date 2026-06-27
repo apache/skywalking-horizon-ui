@@ -216,8 +216,6 @@ export class RuntimeRuleClient {
     return res;
   }
 
-  // ─── private helpers ─────────────────────────────────────────────
-
   private url(path: string, params?: Record<string, string>): string {
     const u = new URL(this.base + path);
     if (params) {

@@ -33,42 +33,23 @@ import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
 import { TresCanvas } from '@tresjs/core';
 import { OrbitControls, Html } from '@tresjs/cientos';
 import {
-  AdditiveBlending,
   BoxGeometry,
-  CanvasTexture,
   CatmullRomCurve3,
-  Color,
-  ConeGeometry,
-  DoubleSide,
   EdgesGeometry,
-  LinearFilter,
-  LineBasicMaterial,
-  MeshBasicMaterial,
-  MeshLambertMaterial,
   type Object3D,
   PerspectiveCamera,
   PlaneGeometry,
-  Quaternion,
-  RingGeometry,
-  SphereGeometry,
-  SpriteMaterial,
-  type Texture,
-  TubeGeometry,
   Vector3,
 } from 'three';
 import {
   buildSceneGraph,
   loadFallbackTopology,
   type MapTopology,
-  type SceneCallEdge,
-  type SceneCrossLayerEdge,
-  type SceneHierarchyEdge,
   type SceneServiceNode,
 } from './composables/useMapTopology';
 import {
   computePlacement,
   type SceneGroupSpec,
-  readTintColor,
   type NodePlacement,
   type PlaneSpec,
   type PlanePlacement,
@@ -76,16 +57,22 @@ import {
   type ZoneTint,
 } from './composables/useScenePlacement';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
-import { colorForLayer, levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
+import { levelForLayer, isLayerExcluded } from './composables/useInfra3dConfig';
 import { resolveServiceIdentity } from '@/utils/serviceName';
-import { layerIcon as layerIconByKey } from '@/shell/icons';
-import {
-  disposeLayerIconTextures,
-  getLayerIconTexture,
-  type LayerIconName,
-} from './composables/useLayerIconTexture';
 import { useInfra3dAlarms, alarmKey } from './composables/useInfra3dAlarms';
 import { useInfra3dMetrics, formatMetricValue } from './composables/useInfra3dMetrics';
+import { useSceneCamera } from './composables/useSceneCamera';
+import { useSceneEdges } from './composables/useSceneEdges';
+import {
+  CLUSTER_LABEL_H,
+  PLANE_THICKNESS,
+  RIPPLE_MAX_OPACITY,
+  RIPPLE_MAX_SCALE,
+  RIPPLE_MIN_SCALE,
+  RIPPLE_PERIOD,
+  RIPPLE_PHASES,
+  useSceneMaterials,
+} from './composables/useSceneMaterials';
 
 interface Props {
   /** Ordered (top-down) list of planes from the admin config. Drives
@@ -132,7 +119,6 @@ const emit = defineEmits<{
   (e: 'nodes-by-layer', byLayer: Record<string, SceneServiceNode[]>): void;
 }>();
 
-// ── Graph + placement ────────────────────────────────────────────────
 // Build with the config-aware level resolver so each layer lands on
 // its admin-configured plane. The parent guarantees the config is
 // loaded before mounting this component (see Infra3DView.vue), so
@@ -142,56 +128,18 @@ const topo = props.topology ?? loadFallbackTopology();
 const graph = buildSceneGraph(topo, levelForLayer, isLayerExcluded);
 const placement = computePlacement(graph, props.planeOrder, props.groups, props.namingByLayer);
 
-/** Resolve the per-layer icon glyph. Routed through the same helper
- *  the sidebar uses (`shell/icons.layerIcon`) so the two surfaces
- *  always agree — change the mapping in one place and both update.
- *  Narrowed to the subset the texture baker knows; unknown glyphs
- *  fall back to the generic service mark. */
-const KNOWN_ICONS: ReadonlySet<LayerIconName> = new Set([
-  'mesh', 'cluster', 'sky', 'skywalking', 'web', 'fn', 'db', 'cache', 'topic', 'flame', 'svc',
-]);
-function iconForLayer(layerKey: string): LayerIconName {
-  const n = layerIconByKey(layerKey);
-  return KNOWN_ICONS.has(n as LayerIconName) ? (n as LayerIconName) : 'svc';
-}
-/** Material for a layer's front-left stamp. The icon is BAKED into a
- *  texture (an SVG of the layer's project mark stroked in the layer
- *  colour) and pasted onto a small PlaneGeometry rotated flat to the
- *  zone surface — so it tilts and rotates with the camera like a
- *  real stamp on the colour swatch.
- *
- *  Materials are cached by `(icon-name, hex)` so two zones with the
- *  same brand mark share one GL material. */
-const iconStampMaterials = new Map<string, MeshBasicMaterial>();
-function stampMaterial(name: LayerIconName, hex: string): MeshBasicMaterial {
-  const key = `${name}|${hex}`;
-  let m = iconStampMaterials.get(key);
-  if (!m) {
-    const tex: Texture = getLayerIconTexture(name, hex);
-    m = new MeshBasicMaterial({
-      map: tex,
-      transparent: true,
-      // Disable depth write so the stamp doesn't fight with the
-      // colored zone plate below it for z-buffer pixels.
-      depthWrite: false,
-      // Slight transparency keeps the stamp from over-asserting on
-      // the operator — it's a brand cue, not the main signal.
-      opacity: 0.85,
-    });
-    iconStampMaterials.set(key, m);
-  }
-  return m;
-}
-function iconStampMaterial(layerKey: string, tint: ZoneTint): MeshBasicMaterial {
-  return stampMaterial(iconForLayer(layerKey), resolveLayerColor(layerKey, tint));
-}
-/** Stamp for a logic group — its configured icon (e.g. `skywalking` for
- *  the SkyWalking brand mark) in the group color. Unknown icon names
- *  fall back to the generic service glyph. */
-function groupStampMaterial(icon: string, hex: string): MeshBasicMaterial {
-  const name = KNOWN_ICONS.has(icon as LayerIconName) ? (icon as LayerIconName) : 'svc';
-  return stampMaterial(name, hex);
-}
+// Shared geometries + materials (cache-and-dispose factory). `dispose()`
+// in onUnmounted frees every GL resource owned here.
+const mats = useSceneMaterials();
+const {
+  resolveLayerColor,
+  zoneMaterial,
+  nodeMaterial,
+  hoverMaterial,
+  iconStampMaterial,
+  groupStampMaterial,
+  clusterLabel,
+} = mats;
 
 // Past-20m alarm overlay — affected service names get the red alarm
 // material in place of the layer tint. Polled every 1 min on a shared
@@ -279,57 +227,8 @@ const clusterBands = computed(() =>
 // Each topology-cluster band draws as a thin wireframe rectangle on the
 // plane (一个线条的框) with its namespace baked into a flat texture stamp
 // at the frame's bottom-left corner — the same baked-plane treatment as
-// the layer-icon stamps, so the name tilts with the camera in 3D.
-const clusterFrameMat = new LineBasicMaterial({
-  color: new Color('#5a6b86'),
-  transparent: true,
-  opacity: 0.85,
-});
-// Baked namespace labels (cached by text|colour). The canvas is sized to
-// the TEXT (up to a wide cap) so the namespace isn't truncated; the plane
-// then uses the frame width. Mirrors the icon-stamp baker.
-const clusterLabels = new Map<string, { mat: MeshBasicMaterial; aspect: number }>();
-function bakeClusterLabel(text: string, hex: string): { tex: CanvasTexture; aspect: number } | null {
-  if (typeof document === 'undefined') return null;
-  const H = 128, FONT = 84, MAXW = 2048, PAD = 18;
-  const probe = document.createElement('canvas').getContext('2d');
-  if (!probe) return null;
-  const font = `700 ${FONT}px system-ui, -apple-system, sans-serif`;
-  probe.font = font;
-  let t = text;
-  while (probe.measureText(t).width > MAXW - PAD * 2 && t.length > 1) t = `${t.slice(0, -2)}…`;
-  const W = Math.max(Math.ceil(probe.measureText(t).width) + PAD * 2, 64);
-  const cv = document.createElement('canvas');
-  cv.width = W;
-  cv.height = H;
-  const cx = cv.getContext('2d');
-  if (!cx) return null;
-  cx.font = font;
-  cx.fillStyle = hex;
-  cx.textBaseline = 'middle';
-  cx.textAlign = 'left';
-  cx.fillText(t, PAD, H / 2 + 2);
-  const tex = new CanvasTexture(cv);
-  tex.minFilter = LinearFilter;
-  tex.magFilter = LinearFilter;
-  tex.anisotropy = 4;
-  return { tex, aspect: W / H };
-}
-function clusterLabel(text: string, hex: string): { mat: MeshBasicMaterial; aspect: number } {
-  const key = `${text}|${hex}`;
-  let e = clusterLabels.get(key);
-  if (!e) {
-    const baked = bakeClusterLabel(text, hex);
-    const mat = new MeshBasicMaterial({ map: baked?.tex ?? undefined, transparent: true, depthWrite: false, opacity: 0.95 });
-    e = { mat, aspect: baked?.aspect ?? 4 };
-    clusterLabels.set(key, e);
-  }
-  return e;
-}
-/** Base world height of a cluster label stamp. The width follows the
- *  frame (left-anchored), capped at the label's natural width so a short
- *  namespace isn't blown up; aspect keeps the baked text un-stretched. */
-const CLUSTER_LABEL_H = 0.66;
+// the layer-icon stamps, so the name tilts with the camera in 3D. The
+// frame material + baked-label cache live in useSceneMaterials.
 const clusterFrames = computed(() =>
   clusterBands.value.map((b) => {
     const pg = new PlaneGeometry(b.width, b.depth);
@@ -379,167 +278,55 @@ const visibleNodes = computed<VisibleNode[]>(() => {
   return out;
 });
 
-// Intra-layer call edges — same plane, both endpoints in the same layer.
-// Rendered as gray translucent tubes; the existing animated traffic
-// packets travel along these.
-interface VisibleCallEdge extends SceneCallEdge {
-  curve: CatmullRomCurve3;
-}
-const visibleCallEdges = computed<VisibleCallEdge[]>(() => {
-  const out: VisibleCallEdge[] = [];
-  for (const L of graph.layers) {
-    if (!isVisible(L.key)) continue;
-    for (const e of L.callEdges) {
-      const a = placement.nodes.get(e.fromNodeId);
-      const b = placement.nodes.get(e.toNodeId);
-      if (!a || !b) continue;
-      const mid = new Vector3((a.x + b.x) / 2, a.y + 0.9, (a.z + b.z) / 2);
-      const curve = new CatmullRomCurve3([
-        new Vector3(a.x, a.y + 0.45, a.z),
-        mid,
-        new Vector3(b.x, b.y + 0.45, b.z),
-      ]);
-      out.push({ ...e, curve });
-    }
-  }
-  return out;
-});
+// Edge model + per-edge tube geometries (intra-layer call, same-plane
+// cross-layer call, selection-gated cross-plane call, selection-gated
+// hierarchy). The composable owns the fresh-batch / free-prev-batch
+// dispose discipline; `edges.disposeAll()` frees the current batch on
+// unmount. Selection + visibility gates are passed in.
+const edges = useSceneEdges(
+  graph,
+  placement,
+  isVisible,
+  computed(() => props.selectedNodeId),
+);
+const {
+  visibleCallEdges,
+  visibleCrossEdges,
+  visibleVerticalEdges,
+  callTubes,
+  crossTubes,
+  verticalTubes,
+  hierarchyTubes,
+} = edges;
 
-/** Cross-LAYER call edges, split by selection-gate. Two visibility
- *  rules so the default view stays focused on in-level topology and
- *  vertical traffic only appears when an operator asks for it:
- *
- *   - **always-on**: source AND target sit on the SAME plane (different
- *     layers within the same level — e.g. BROWSER → GENERAL `agent::ui
- *     → agent::frontend`, or GENERAL → VIRTUAL_MQ same-tier). These
- *     are the "browser calls frontend" edges the user reads as core
- *     in-level topology.
- *   - **selection-gated**: source and target sit on DIFFERENT planes
- *     (e.g. GENERAL → K8S_SERVICE). Only rendered when one of the two
- *     endpoints is the currently-selected cube; deselect hides them
- *     again. Keeps the default view from being a vertical pasta dish
- *     in dense deployments. */
-interface VisibleCrossEdge extends SceneCrossLayerEdge {
-  curve: CatmullRomCurve3;
-  arrowPos: Vector3;
-  arrowDir: Vector3;
-  /** True when the endpoints sit on the same plane (no y delta). */
-  intraLevel: boolean;
-}
-function buildCrossEdgeCurve(a: NodePlacement, b: NodePlacement): {
-  curve: CatmullRomCurve3;
-  arrowPos: Vector3;
-  arrowDir: Vector3;
-  intraLevel: boolean;
-} {
-  const dy = Math.abs(b.y - a.y);
-  const intraLevel = dy < 0.1;
-  // Same-plane → small bump (just above the cube tops, plus a touch
-  // proportional to horizontal distance so long hops curve gently);
-  // cross-plane → larger arch scaling with the y gap so two opposite-
-  // direction vertical tubes don't visually collide.
-  const horiz = Math.hypot(b.x - a.x, b.z - a.z);
-  const arch = intraLevel
-    ? 0.6 + Math.min(horiz * 0.05, 0.8)
-    : 1.2 + dy * 0.25;
-  const archY = Math.max(a.y, b.y) + arch;
-  const mid = new Vector3((a.x + b.x) / 2, archY, (a.z + b.z) / 2);
-  const tip = new Vector3(b.x, b.y + 0.55, b.z);
-  const curve = new CatmullRomCurve3([
-    new Vector3(a.x, a.y + 0.55, a.z),
-    mid,
-    tip,
-  ]);
-  // Sample just shy of the tip so the arrow points along the actual
-  // curve tangent, not the straight chord.
-  const near = curve.getPoint(0.94);
-  const arrowDir = new Vector3().subVectors(tip, near).normalize();
-  return { curve, arrowPos: tip, arrowDir, intraLevel };
-}
+// All shared geometries / materials live in useSceneMaterials (cache-and-
+// dispose factory); destructure the handful the template + frame loop
+// reference directly.
+const {
+  nodeGeometry,
+  packetGeometry,
+  crossArrowGeometry,
+  rippleGeometry,
+  cubeEdgesGeometry,
+  planeMaterial,
+  planeEdgeMaterial,
+  selectedMat,
+  alarmMat,
+  callEdgeMat,
+  callPacketMat,
+  crossEdgeMat,
+  crossArrowMat,
+  crossPacketMat,
+  hierarchyMat,
+  ghostMat,
+  cubeEdgeMat,
+  glowMat,
+  flashMat,
+  clusterFrameMat,
+  rippleMats,
+} = mats;
 
-/** Same-plane cross-layer edges — always visible. */
-const visibleCrossEdges = computed<VisibleCrossEdge[]>(() => {
-  const out: VisibleCrossEdge[] = [];
-  for (const e of graph.crossLayerEdges) {
-    if (!isVisible(e.fromLayer) || !isVisible(e.toLayer)) continue;
-    const a = placement.nodes.get(e.fromNodeId);
-    const b = placement.nodes.get(e.toNodeId);
-    if (!a || !b) continue;
-    const built = buildCrossEdgeCurve(a, b);
-    if (!built.intraLevel) continue; // cross-plane → selection-gated list
-    out.push({ ...e, ...built });
-  }
-  return out;
-});
-
-/** Cross-plane cross-layer edges — only shown when the selected cube
- *  is one of the endpoints. "Show this cube's relatives once." */
-const visibleVerticalEdges = computed<VisibleCrossEdge[]>(() => {
-  const sel = props.selectedNodeId;
-  if (!sel) return [];
-  const out: VisibleCrossEdge[] = [];
-  for (const e of graph.crossLayerEdges) {
-    if (e.fromNodeId !== sel && e.toNodeId !== sel) continue;
-    if (!isVisible(e.fromLayer) || !isVisible(e.toLayer)) continue;
-    const a = placement.nodes.get(e.fromNodeId);
-    const b = placement.nodes.get(e.toNodeId);
-    if (!a || !b) continue;
-    const built = buildCrossEdgeCurve(a, b);
-    if (built.intraLevel) continue; // intra-level → already in the always-on list
-    out.push({ ...e, ...built });
-  }
-  return out;
-});
-
-/** Hierarchy edges — peers of the SELECTED cube only.
- *
- *  Hierarchy relationships (`getHierarchyRelatedServices`) connect the
- *  agent / mesh / k8s_service views of the SAME logical service.
- *  Rendering every hierarchy edge unconditionally clutters the scene
- *  in dense deployments (one frontend service can hierarchy-link to
- *  4+ peers across tiers). Instead, we only draw them when the
- *  operator selects a cube — they read as "what is THIS cube's
- *  cross-layer identity?" — and hide them on deselect. */
-interface VisibleHierarchyEdge extends SceneHierarchyEdge {
-  curve: CatmullRomCurve3;
-}
-const visibleHierarchyEdges = computed<VisibleHierarchyEdge[]>(() => {
-  const sel = props.selectedNodeId;
-  if (!sel) return [];
-  const out: VisibleHierarchyEdge[] = [];
-  for (const e of graph.hierarchyEdges) {
-    if (e.fromNodeId !== sel && e.toNodeId !== sel) continue;
-    const a = placement.nodes.get(e.fromNodeId);
-    const b = placement.nodes.get(e.toNodeId);
-    if (!a || !b) continue;
-    const fromNode = graph.nodesByKey.get(e.fromNodeId);
-    const toNode = graph.nodesByKey.get(e.toNodeId);
-    if (!fromNode || !toNode) continue;
-    if (!isVisible(fromNode.layerKey) || !isVisible(toNode.layerKey)) continue;
-    const dy = Math.abs(b.y - a.y);
-    const archY = (a.y + b.y) / 2 + 0.8 + dy * 0.2;
-    const mid = new Vector3((a.x + b.x) / 2, archY, (a.z + b.z) / 2);
-    const curve = new CatmullRomCurve3([
-      new Vector3(a.x, a.y + 0.55, a.z),
-      mid,
-      new Vector3(b.x, b.y + 0.55, b.z),
-    ]);
-    out.push({ ...e, curve });
-  }
-  return out;
-});
-
-// ── Shared geometries ─────────────────────────────────────────────────
-// ONE node geometry shared by every cube — hover / select only change
-// the material, never the geometry. Swapping the THREE geometry on a
-// mesh under the cursor caused the raycaster's bounding box to rebuild
-// mid-event, which made pointerenter / pointerleave / click fire in
-// unstable orders (the operator saw "I have to click twice" and a
-// flash of the hover state where the click should have selected).
-const nodeGeometry = new BoxGeometry(1.3, 1.0, 1.3);
-const packetGeometry = new SphereGeometry(0.18, 12, 8);
-
-// ── Opt decorative geometry out of pointer picking ───────────────────
+// Opt decorative geometry out of pointer picking.
 // TresJS dispatches pointer events via THREE.Raycaster against every
 // mesh in the scene — closest hit wins, regardless of whether the
 // closest mesh carries a click handler. So a 0.18-radius traffic
@@ -566,59 +353,12 @@ function disableRaycast(el: unknown): void {
   if (obj) obj.raycast = _noopRaycast;
 }
 
-// ── Materials ─────────────────────────────────────────────────────────
-// Materials are cached by the resolved hex color, NOT by tint, so an
-// admin layer-color override (`config.layers[KEY].color`) gets its own
-// material — two layers with identical colors share one. The legacy
-// per-tint color reader is kept as the fallback for layers the admin
-// config hasn't covered.
-const colorCache = new Map<string, Color>();
-function colorByHex(hex: string): Color {
-  let c = colorCache.get(hex);
-  if (!c) {
-    c = new Color(hex);
-    colorCache.set(hex, c);
-  }
-  return c;
-}
-/** Resolve a cube's color: config-supplied layer color first, tint
- *  fallback second. The hex string is the cache key for the material
- *  maps below — same color, same material. */
-function resolveLayerColor(layerKey: string, tintFallback: ZoneTint): string {
-  const cfgHex = colorForLayer(layerKey);
-  // The composable's "unknown layer" sentinel; treat as no override so
-  // the tint mapping wins for layers the admin hasn't classified.
-  if (cfgHex && cfgHex !== '#8a8a8a') return cfgHex;
-  return readTintColor(tintFallback);
-}
-
 // Tier "planes" are volumetric glass slabs, not flat sheets — a box of
-// PLANE_THICKNESS whose TOP face sits at the plane's Y (where cubes
-// rest). Transparent slate glass so the slab reads as a physical tray
-// the cubes sit on. Backface culling off so the slab looks solid glass
-// from any angle; depthWrite off so cubes/zones blend through cleanly.
-const PLANE_THICKNESS = 0.5;
-const planeMaterial = new MeshBasicMaterial({
-  color: new Color('#151a23'),
-  transparent: true,
-  opacity: 0.4,
-  side: DoubleSide,
-  depthWrite: false,
-  polygonOffset: true,
-  polygonOffsetFactor: 1,
-  polygonOffsetUnits: 1,
-});
-// Bright rim on the slab edges — sells the "pane of glass" read and
-// gives each tier a crisp footprint in the dark scene.
-const planeEdgeMaterial = new LineBasicMaterial({
-  color: new Color('#3a4658'),
-  transparent: true,
-  opacity: 0.8,
-});
+// PLANE_THICKNESS whose TOP face sits at the plane's Y (where cubes rest).
 // Slab geometry is per-plane (each tier has its own footprint) and the
 // layout is static, so bake the box + its edge wireframe once. Centred
 // half a thickness BELOW the plane Y so the slab's top face is exactly
-// where the cubes rest.
+// where the cubes rest. (The slab + rim MATERIALS live in useSceneMaterials.)
 const planeSlabs = placement.planes.map((P) => {
   const box = new BoxGeometry(P.width, PLANE_THICKNESS, P.depth);
   return {
@@ -629,236 +369,7 @@ const planeSlabs = placement.planes.map((P) => {
   };
 });
 
-const zoneMaterials = new Map<string, MeshBasicMaterial>();
-function zoneMaterial(hex: string): MeshBasicMaterial {
-  let m = zoneMaterials.get(hex);
-  if (!m) {
-    m = new MeshBasicMaterial({
-      color: colorByHex(hex),
-      transparent: true,
-      opacity: 0.22,
-      side: DoubleSide,
-      depthWrite: false,
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    });
-    zoneMaterials.set(hex, m);
-  }
-  return m;
-}
-
-// Cubes were reading too saturated against the dark scene (the cache
-// red especially). Pull each resolved layer color toward a calmer tone
-// — drop saturation, nudge lightness up a touch — so the cubes read
-// softer while keeping the hue recognizable next to the side-panel
-// swatches (which stay the full tint). Cloned before mutating; the
-// shared cached Color from colorByHex must not be touched.
-const _hsl = { h: 0, s: 0, l: 0 };
-function mutedCubeColor(hex: string): Color {
-  const c = colorByHex(hex).clone();
-  c.getHSL(_hsl);
-  // Pastel pull: drop most of the saturation and lift lightness so the
-  // cubes read as soft, gently-lit tints (think frosted candy) rather
-  // than the gaudy fully-saturated tokens. The side-panel swatches keep
-  // the full tint, so the hue stays recognizable.
-  c.setHSL(_hsl.h, _hsl.s * 0.5, Math.min(1, _hsl.l * 1.1 + 0.06));
-  return c;
-}
-
-const nodeMaterials = new Map<string, MeshLambertMaterial>();
-function nodeMaterial(hex: string): MeshLambertMaterial {
-  let m = nodeMaterials.get(hex);
-  if (!m) {
-    const base = mutedCubeColor(hex);
-    // Soft self-glow so the pastel reads luminous, not matte-flat.
-    m = new MeshLambertMaterial({ color: base, emissive: base.clone().multiplyScalar(0.22) });
-    nodeMaterials.set(hex, m);
-  }
-  return m;
-}
-// Hover is a brightened version of the layer color, NOT pure white —
-// pure white loses the layer association and reads as "is something
-// selected here?" which the operator then clicks again, only to find
-// it was just hover. We lerp only 25% toward white so the cube keeps
-// its layer tint and stays clearly distinguishable from the orange
-// selected state.
-const hoverMaterials = new Map<string, MeshLambertMaterial>();
-function hoverMaterial(hex: string): MeshLambertMaterial {
-  let m = hoverMaterials.get(hex);
-  if (!m) {
-    const base = mutedCubeColor(hex);
-    m = new MeshLambertMaterial({
-      color: base.clone().lerp(new Color(0xffffff), 0.25),
-      emissive: base.clone(),
-      emissiveIntensity: 0.45,
-    });
-    hoverMaterials.set(hex, m);
-  }
-  return m;
-}
-const selectedMat = new MeshLambertMaterial({ color: 0xf97316, emissive: 0xf97316, emissiveIntensity: 0.85 });
-// Alarmed cubes burn red (the whole cube, not just a cap) — paired with
-// the radiating ripple below, red is the unmistakable "this service is
-// alarming" signal. Selection still wins so the operator can inspect it.
-const alarmMat = new MeshLambertMaterial({ color: 0xef4444, emissive: 0xef4444, emissiveIntensity: 0.6 });
-
-// Alarm ripple — a radar / seismic wave radiating out from an alarmed
-// cube across its plane. RIPPLE_PHASES concentric red rings expand and
-// fade on staggered phases so the waves read as a continuous outward
-// pulse. The rings are driven DIRECTLY on the THREE meshes in
-// onSceneLoop (TresJS copies Vector3 props on patch, so a reactive
-// scale binding wouldn't animate per frame) — the same direct-mutation
-// approach the camera and the old beacon pulse use. One shared material
-// per phase (opacity animated); the per-ring scale is set on each mesh.
-const RIPPLE_PHASES = 3;
-const RIPPLE_PERIOD = 3.2; // seconds for a ring to travel fully out
-const RIPPLE_MIN_SCALE = 0.9;
-const RIPPLE_MAX_SCALE = 4.2;
-const RIPPLE_MAX_OPACITY = 0.5;
-const rippleGeometry = new RingGeometry(0.6, 0.78, 44);
-const rippleMats = Array.from(
-  { length: RIPPLE_PHASES },
-  () =>
-    new MeshBasicMaterial({
-      color: 0xef4444,
-      transparent: true,
-      opacity: 0,
-      side: DoubleSide,
-      depthWrite: false,
-    }),
-);
-
-// ── Beacon mode resources ──────────────────────────────────────────
-// Healthy cubes drop to a near-invisible dark body plus a faint
-// wireframe (shared EdgesGeometry of the cube), so the grid reads as a
-// blueprint and only the red alarmed cubes + their glow stand out.
-const ghostMat = new MeshBasicMaterial({
-  color: new Color('#1b2433'),
-  transparent: true,
-  opacity: 0.5,
-  depthWrite: false,
-});
-const cubeEdgesGeometry = new EdgesGeometry(nodeGeometry);
-const cubeEdgeMat = new LineBasicMaterial({
-  color: new Color('#7d8ba3'),
-  transparent: true,
-  opacity: 0.9,
-});
-// Soft red radial halo billboarded over each alarmed cube — the "beacon"
-// glow. Built from a canvas radial-gradient texture so it's a cheap
-// sprite, additively blended for a luminous bloom.
-function makeGlowTexture(): CanvasTexture | null {
-  if (typeof document === 'undefined') return null;
-  const size = 128;
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = size;
-  const cx = cv.getContext('2d');
-  if (!cx) return null;
-  const g = cx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  g.addColorStop(0, 'rgba(255,120,110,0.95)');
-  g.addColorStop(0.35, 'rgba(239,68,68,0.55)');
-  g.addColorStop(1, 'rgba(239,68,68,0)');
-  cx.fillStyle = g;
-  cx.fillRect(0, 0, size, size);
-  return new CanvasTexture(cv);
-}
-const glowTexture = makeGlowTexture();
-const glowMat = new SpriteMaterial({
-  map: glowTexture ?? undefined,
-  color: 0xffffff,
-  transparent: true,
-  depthWrite: false,
-  blending: AdditiveBlending,
-});
-
-/** Intra-layer call edge — calls between two services in the same
- *  layer. The previous dark gray (#5b6373, 0.5 opacity) read as
- *  "broken / barely there" on the dark scene background. Switched to
- *  a cool light-cyan at higher opacity so the layer's internal call
- *  graph is plainly visible without competing with the cross-layer
- *  amber arrows for the operator's eye. */
-const callEdgeMat = new MeshBasicMaterial({
-  color: new Color('#7dd3fc'),
-  transparent: true,
-  opacity: 0.75,
-});
-const callPacketMat = new MeshBasicMaterial({ color: new Color('#e0f2fe') });
-
-/** Cross-layer call edge — lighter orange (was the louder amber
- *  #f0a04b). Lighter shade reads as warm-coloured-but-quiet so it
- *  doesn't dominate; still distinct from the intra-layer cyan and
- *  the hierarchy gray. Arrow head shares the colour. */
-const crossEdgeMat = new MeshBasicMaterial({
-  color: new Color('#ffb878'),
-  transparent: true,
-  opacity: 0.85,
-});
-const crossArrowMat = new MeshLambertMaterial({
-  color: 0xffb878,
-  emissive: 0xffb878,
-  emissiveIntensity: 0.55,
-});
-
-/** Hierarchy edge — neutral mid-gray tube, slightly thicker than the
- *  other edge classes (radius bumped in `hierarchyTubes`). Hierarchy
- *  represents identity ("these cubes are the same logical service in
- *  different layers"), not traffic, so the gray keeps it visually
- *  quiet while the extra thickness keeps it readable when the
- *  operator selects a cube. */
-const hierarchyMat = new MeshBasicMaterial({
-  color: new Color('#8b95a3'),
-  transparent: true,
-  opacity: 0.7,
-});
-
-const callTubes = computed(() =>
-  visibleCallEdges.value.map((e) => ({
-    edge: e,
-    geometry: new TubeGeometry(e.curve, 16, 0.04, 6, false),
-  })),
-);
-
-function buildCrossTubes(edges: VisibleCrossEdge[]) {
-  return edges.map((e) => ({
-    edge: e,
-    geometry: new TubeGeometry(e.curve, 32, 0.06, 8, false),
-    // Quaternion that rotates the cone's default +Y axis onto the
-    // edge direction. Composed lazily during render — kept here so
-    // the template stays declarative.
-    arrowQuat: new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), e.arrowDir),
-  }));
-}
-const crossTubes = computed(() => buildCrossTubes(visibleCrossEdges.value));
-const verticalTubes = computed(() => buildCrossTubes(visibleVerticalEdges.value));
-
-const hierarchyTubes = computed(() =>
-  visibleHierarchyEdges.value.map((e) => ({
-    edge: e,
-    // Radius bumped above the intra/cross tube widths so the gray
-    // hierarchy tube reads as the "identity" link even when many
-    // edges share the same screen region around a selected cube.
-    geometry: new TubeGeometry(e.curve, 24, 0.07, 8, false),
-  })),
-);
-
-// Each tube computed mints a fresh TubeGeometry per edge on every
-// recompute (a layer visibility toggle or selection change re-runs the
-// `visible*Edges` deps). The old GPU buffers are otherwise abandoned —
-// only the *current* batch was freed, on unmount. Free the previous
-// batch when the set changes; flush:'post' so the new geometries have
-// already rendered and the old meshes are detached before we dispose.
-function disposeTubeBatch(batch: ReadonlyArray<{ geometry: TubeGeometry }>): void {
-  for (const t of batch) t.geometry.dispose();
-}
-watch(callTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
-watch(crossTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
-watch(verticalTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
-watch(hierarchyTubes, (_now, prev) => disposeTubeBatch(prev), { flush: 'post' });
-
-const crossArrowGeometry = new ConeGeometry(0.18, 0.5, 10);
-
-// ── Animated traffic packets — call edges only. ────────────────────────
+// Animated traffic packets — intra-layer call edges only.
 interface Packet {
   curve: CatmullRomCurve3;
   phase: number;
@@ -878,8 +389,8 @@ watch(visibleCallEdges, rebuildPackets, { immediate: true });
 // the curve (getPoint 0→1 = from→to) so the operator reads the call
 // DIRECTION, not just the static arrow head. Covers the always-on
 // same-plane edges and the selection-gated vertical ones. Amber to
-// match the cross-edge tubes; intra-layer packets stay cyan.
-const crossPacketMat = new MeshBasicMaterial({ color: new Color('#ffd9b0') });
+// match the cross-edge tubes; intra-layer packets stay cyan (crossPacketMat
+// lives in useSceneMaterials).
 const crossPackets = shallowRef<Packet[]>([]);
 function rebuildCrossPackets(): void {
   const out: Packet[] = [];
@@ -926,14 +437,27 @@ function bindRipple(r: AlarmRipple, el: unknown): void {
   if (obj) obj.raycast = _noopRaycast;
 }
 
-// ── Frame loop: animate packets + lerp the orbit controls' target
-// toward the caller's focus target (when the operator clicks a node
-// or a zone). Also recomputes which zone labels overflow their
-// projected zone footprint. Both run against the live THREE objects
-// so mouse-driven changes and programmatic changes stay in sync. ──
+// Camera controller — owns the THREE camera + OrbitControls plumbing and
+// the toolbar action methods (re-exposed below). `camGoal` is the side-
+// panel focus goal the frame loop glides toward.
+const camera = useSceneCamera(placement.bounds);
+const {
+  cameraRef,
+  controlsRef,
+  camGoal,
+  initialCameraPos,
+  initialTarget,
+  getCamera,
+  getControls,
+  zoom,
+  rotateY,
+  pan,
+  resetView,
+  focusOn,
+} = camera;
+
 const period = 2.6;
 const canvasHostEl = ref<HTMLElement | null>(null);
-const cameraRef = shallowRef<PerspectiveCamera | null>(null);
 let lastLabelTick = 0;
 const _v1 = new Vector3();
 const _v2 = new Vector3();
@@ -1002,17 +526,12 @@ function updateCloseNodes(): void {
 let lastFocusKey: string | null = null;
 const FOCUS_SNAP_EPS = 0.04;
 let sceneElapsed = 0;
-// Side-panel focus goal (pos+target), lerped per frame; precedes focusTarget.
-const camGoal = shallowRef<{ pos: Vector3; target: Vector3 } | null>(null);
 const FLASH_SECONDS = 4;
-const flashMat = new MeshBasicMaterial({
-  color: new Color('#cfe3ff'),
-  transparent: true,
-  opacity: 0,
-  side: DoubleSide,
-  depthWrite: false,
-});
 const flashState = shallowRef<{ keys: Set<string>; start: number } | null>(null);
+// Frame loop: animate packets + glide the orbit target toward the focus
+// goal, and recompute label-overflow / detail-card side. Everything writes
+// the live THREE objects directly (not Vue reactivity) so mouse-driven and
+// programmatic camera/label changes stay in sync.
 function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   sceneElapsed = ctx.elapsed;
   for (const p of packets.value) {
@@ -1099,8 +618,6 @@ function onSceneLoop(ctx: { elapsed: number; delta: number }): void {
   }
 }
 
-// ── Pointer interactions ─────────────────────────────────────────────
-//
 // All diagnostic logging is gated on `window.__INFRA3D_DEBUG__`.
 // Toggle on in DevTools (`window.__INFRA3D_DEBUG__ = true`) when
 // click / hover flow misbehaves and you need to see which path a
@@ -1165,7 +682,7 @@ function onNodeClick(node: SceneServiceNode): void {
   emit('select', node);
 }
 
-// ── Stable per-node handler cache ────────────────────────────────────
+// Stable per-node handler cache.
 // TresJS's `nodeOps.patchProp` calls `node.addEventListener(type, fn)`
 // on every prop patch but never removes the previous handler. THREE's
 // `addEventListener` dedupes by REFERENCE — so a fresh arrow function
@@ -1251,183 +768,6 @@ watch(
   (next, prev) => dbg('props.hoveredNodeId', { prev, next }),
 );
 
-// Camera plumbing — we drive the THREE camera + OrbitControls DIRECTLY,
-// not through reactive Vue props. The reason: mouse interaction
-// (rotate, zoom, pan) mutates the underlying THREE objects in place,
-// while a Vue prop bound to a static initial value would silently
-// stomp those mutations back on every diff. By talking to the
-// instances directly, both the mouse and the button affordances
-// share one source of truth.
-//
-// The initial pose is applied via `:position` / `:target` on first
-// mount; after that, all updates go through the refs.
-
-// Initial camera heading — azimuth 15° off front, 62° polar from vertical
-// (matching OrbitControls' getAzimuthal/getPolarAngle), tuned on the
-// showcase to read the stacked tiers. Scale-invariant; the reset AND the
-// side-panel focus reuse it so every camera move keeps the same angle.
-const CAMERA_AZ = (15 * Math.PI) / 180;
-const CAMERA_POL = (62 * Math.PI) / 180;
-/** Unit camera→position offset direction for the tuned heading. */
-function headingDir(): Vector3 {
-  const s = Math.sin(CAMERA_POL);
-  return new Vector3(s * Math.sin(CAMERA_AZ), Math.cos(CAMERA_POL), s * Math.cos(CAMERA_AZ));
-}
-
-function defaultCameraPos(): [number, number, number] {
-  const b = placement.bounds;
-  const [tx, ty, tz] = defaultTargetPos();
-  const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
-  // Distance scales with the scene footprint so larger / smaller deployments
-  // keep the same fill.
-  const dist = spanXZ * 0.97 + 6;
-  const o = headingDir().multiplyScalar(dist);
-  return [tx + o.x, ty + o.y, tz + o.z];
-}
-function defaultTargetPos(): [number, number, number] {
-  const b = placement.bounds;
-  const cx = (b.minX + b.maxX) / 2;
-  const cz = (b.minZ + b.maxZ) / 2;
-  const spanXZ = Math.max(b.maxX - b.minX, b.maxZ - b.minZ);
-  // Shift the look-point along the camera's screen-right axis (cos az, 0,
-  // -sin az) so the scene sits left-of-centre, clear of the right-hand
-  // TIERS panel.
-  const shift = spanXZ * 0.1;
-  return [
-    cx + Math.cos(CAMERA_AZ) * shift,
-    b.minY + (b.maxY - b.minY) * 0.4,
-    cz - Math.sin(CAMERA_AZ) * shift,
-  ];
-}
-const initialCameraPos = defaultCameraPos();
-const initialTarget = defaultTargetPos();
-
-// cientos OrbitControls's setup does `__expose({ instance: controlsRef })`
-// where controlsRef is a shallowRef<THREE.OrbitControls>. Vue's expose
-// machinery wraps the exposed object in a proxy that AUTO-UNWRAPS
-// refs — so from the parent's perspective `componentRef.value.instance`
-// returns the THREE.OrbitControls directly, NOT a ref.
-//
-// TresJS template refs work the same way for `<Tres*>` elements: the
-// ref is set to the underlying THREE object once the renderer mounts.
-//
-// Both refs may still be `null` between mount-tick and the THREE
-// object actually attaching, so every accessor guards for that.
-// The only bits of THREE.OrbitControls the camera helpers touch. cientos
-// doesn't ship a stable type for the exposed instance, so we narrow to this
-// structurally rather than depend on its internals.
-interface OrbitControlsLike {
-  update: () => void;
-  target: Vector3;
-}
-function asOrbitControls(v: unknown): OrbitControlsLike | null {
-  if (typeof v !== 'object' || v === null) return null;
-  const o = v as { update?: unknown; target?: unknown };
-  return typeof o.update === 'function' && o.target ? (v as OrbitControlsLike) : null;
-}
-// `unknown` (not the controls type): the template ref is set to cientos's
-// exposed component object, whose shape we probe at runtime in getControls.
-const controlsRef = shallowRef<unknown>(null);
-function getControls(): OrbitControlsLike | null {
-  const r = controlsRef.value;
-  if (!r || typeof r !== 'object') return null;
-  const inst = (r as { instance?: unknown }).instance;
-  if (!inst) return null;
-  // Defensive: handle both the auto-unwrapped expose (`inst` IS the controls)
-  // AND the older / alternative shape where `instance` is still a ref.
-  return asOrbitControls(inst) ?? asOrbitControls((inst as { value?: unknown }).value);
-}
-function getCamera(): PerspectiveCamera | null {
-  // TresJS may set the ref to the THREE camera directly or to a wrapper whose
-  // `.value` holds it — probe both shapes through `unknown`.
-  const r = cameraRef.value as unknown;
-  if (!r) return null;
-  if ((r as { isPerspectiveCamera?: boolean }).isPerspectiveCamera) return r as PerspectiveCamera;
-  const inner = (r as { value?: unknown }).value;
-  if (inner && (inner as { isPerspectiveCamera?: boolean }).isPerspectiveCamera) {
-    return inner as PerspectiveCamera;
-  }
-  return null;
-}
-
-/** Zoom by a scalar around the orbit controls' current target. */
-function zoom(factor: number): void {
-  const cam = getCamera();
-  const c = getControls();
-  if (!cam || !c) return;
-  const dx = cam.position.x - c.target.x;
-  const dy = cam.position.y - c.target.y;
-  const dz = cam.position.z - c.target.z;
-  const dist = Math.hypot(dx, dy, dz);
-  if (dist < 1e-3) return;
-  const newDist = Math.min(240, Math.max(8, dist * factor));
-  const k = newDist / dist;
-  cam.position.set(c.target.x + dx * k, c.target.y + dy * k, c.target.z + dz * k);
-  c.update();
-}
-
-/** Rotate the camera around the orbit target's Y axis (azimuth). */
-function rotateY(degrees: number): void {
-  const cam = getCamera();
-  const c = getControls();
-  if (!cam || !c) return;
-  const angle = (degrees * Math.PI) / 180;
-  const dx = cam.position.x - c.target.x;
-  const dz = cam.position.z - c.target.z;
-  const cs = Math.cos(angle);
-  const sn = Math.sin(angle);
-  cam.position.x = c.target.x + dx * cs - dz * sn;
-  cam.position.z = c.target.z + dx * sn + dz * cs;
-  c.update();
-}
-
-/** Pan along the camera's right (X) and up (Y) screen axes. */
-function pan(rightAmount: number, upAmount: number): void {
-  const cam = getCamera();
-  const c = getControls();
-  if (!cam || !c) return;
-  const view = new Vector3().subVectors(c.target, cam.position);
-  const dist = view.length();
-  if (dist < 1e-3) return;
-  view.divideScalar(dist);
-  const right = new Vector3().crossVectors(view, new Vector3(0, 1, 0)).normalize();
-  const up = new Vector3().crossVectors(right, view).normalize();
-  // Step is a fraction of the current view distance so the per-click
-  // pan feels consistent across zoom levels.
-  const step = dist * 0.12;
-  const dxv = right.x * rightAmount * step + up.x * upAmount * step;
-  const dyv = right.y * rightAmount * step + up.y * upAmount * step;
-  const dzv = right.z * rightAmount * step + up.z * upAmount * step;
-  cam.position.x += dxv;
-  cam.position.y += dyv;
-  cam.position.z += dzv;
-  c.target.x += dxv;
-  c.target.y += dyv;
-  c.target.z += dzv;
-  c.update();
-}
-
-/** Reset to the initial framing. */
-function resetView(): void {
-  camGoal.value = null; // cancel any in-flight side-panel focus
-  const cam = getCamera();
-  const c = getControls();
-  if (!cam || !c) return;
-  const [cx, cy, cz] = defaultCameraPos();
-  cam.position.set(cx, cy, cz);
-  const [tx, ty, tz] = defaultTargetPos();
-  c.target.set(tx, ty, tz);
-  c.update();
-}
-
-/** Glide the camera to face `target` from the tuned heading (same angle as
- *  the default / reset), zoomed to fit `radius`. Side panel — moves, doesn't
- *  pivot in place. */
-function focusOn(t: { x: number; y: number; z: number }, radius: number): void {
-  const target = new Vector3(t.x, t.y, t.z);
-  const dist = Math.min(220, Math.max(9, radius * 2.6 + 6));
-  camGoal.value = { target, pos: target.clone().addScaledVector(headingDir(), dist) };
-}
 function flashZones(layerKeys: string[]): void {
   flashState.value = { keys: new Set(layerKeys), start: sceneElapsed };
 }
@@ -1517,21 +857,16 @@ const openDashboardHref = computed<string>(() => {
   return `${base}layer/${n.layerKey}/service?service=${encodeURIComponent(n.serviceId)}`;
 });
 
-// ── Detail-card side: flip to whichever side of the canvas has more
-//    room. Recomputed during the render loop alongside the label-hide
-//    pass so it tracks orbit / pan / zoom. The card itself is
-//    portaled by cientos <Html> at the cube's projected position;
-//    `selectedSide` controls a CSS class that translates the card
-//    horizontally either to the right of the cube (`side=right`) or
-//    to the left (`side=left`).
+// Detail-card side: flip to whichever side of the canvas has more room,
+// recomputed in the render loop alongside the label-hide pass so it tracks
+// orbit / pan / zoom. The card is portaled by cientos <Html> at the cube's
+// projected position; `selectedSide` just picks which way it translates.
 //
-//    Hysteresis on the flip: when the cube projects close to the
-//    canvas centerline a naive `x < 0` rule would oscillate on every
-//    sub-pixel camera move and the card would visually flash between
-//    the two sides. We only flip when the cube has clearly crossed
-//    to the OPPOSITE half (|NDC.x| > 0.25), AND we re-pick freely
-//    the first time a new node is selected (so the initial side is
-//    always correct).
+// Hysteresis on the flip: near the canvas centerline a naive `x < 0`
+// rule oscillates on every sub-pixel camera move and the card flashes
+// between sides. We only flip when the cube clearly crosses to the
+// OPPOSITE half (|NDC.x| > 0.25), AND re-pick freely the first time a
+// new node is selected (so the initial side is always correct).
 const selectedSide = ref<'left' | 'right'>('right');
 let lastSidedNodeId: string | null = null;
 const _projVec = new Vector3();
@@ -1559,43 +894,16 @@ function updateSelectedSide(): void {
 }
 
 onUnmounted(() => {
-  nodeGeometry.dispose();
-  packetGeometry.dispose();
-  planeMaterial.dispose();
-  planeEdgeMaterial.dispose();
+  // Composable-owned GL resources (shared materials/geometries, per-edge
+  // tube batches) free themselves; the Scene only owns the per-plane slab
+  // geometries and the per-batch cluster-frame edge geometries.
+  mats.dispose();
+  edges.disposeAll();
   for (const s of planeSlabs) {
     s.box.dispose();
     s.edges.dispose();
   }
-  for (const m of zoneMaterials.values()) m.dispose();
-  for (const m of nodeMaterials.values()) m.dispose();
-  for (const m of hoverMaterials.values()) m.dispose();
-  selectedMat.dispose();
-  alarmMat.dispose();
-  callEdgeMat.dispose();
-  callPacketMat.dispose();
-  crossPacketMat.dispose();
-  flashMat.dispose();
-  crossEdgeMat.dispose();
-  crossArrowMat.dispose();
-  hierarchyMat.dispose();
-  crossArrowGeometry.dispose();
-  rippleGeometry.dispose();
-  for (const m of rippleMats) m.dispose();
-  ghostMat.dispose();
-  cubeEdgesGeometry.dispose();
-  cubeEdgeMat.dispose();
-  glowTexture?.dispose();
-  glowMat.dispose();
-  for (const m of iconStampMaterials.values()) m.dispose();
-  disposeLayerIconTextures();
-  for (const t of callTubes.value) t.geometry.dispose();
-  for (const t of crossTubes.value) t.geometry.dispose();
-  for (const t of verticalTubes.value) t.geometry.dispose();
-  for (const t of hierarchyTubes.value) t.geometry.dispose();
-  clusterFrameMat.dispose();
   for (const f of clusterFrames.value) f.geom.dispose();
-  for (const e of clusterLabels.values()) { e.mat.map?.dispose(); e.mat.dispose(); }
 });
 </script>
 
@@ -1721,7 +1029,6 @@ onUnmounted(() => {
         </TresMesh>
       </template>
 
-      <!-- Side-panel selection flash. -->
       <TresMesh
         v-for="z in flashRender"
         :key="`flash:${z.layerKey}`"
@@ -1892,7 +1199,6 @@ onUnmounted(() => {
         <primitive :object="callPacketMat" />
       </TresMesh>
 
-      <!-- Cross-layer call-edge packets — flow caller→callee. -->
       <TresMesh
         v-for="(p, pi) in crossPackets"
         :key="`xpkt:${pi}`"

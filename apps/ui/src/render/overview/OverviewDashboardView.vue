@@ -113,14 +113,9 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
               :layer="w.layer"
               :style="widgetStyle(w.span, w.rowSpan, sec.cols)"
             />
-            <!-- Topology: the SAME LayerServiceMapView component the
-                 per-layer Topology tab uses, just in embedded mode
-                 (no toolbar, no zoom controls, no detail sidebar, no
-                 click). Identical visual vocabulary: hierarchical
-                 column layout, ring-coloured SLA, center-metric
-                 RPM, secondary-metric latency, node names, link
-                 metrics — operators see one rendering across the
-                 product. -->
+            <!-- The SAME LayerServiceMapView the per-layer Topology tab
+                 uses, in embedded mode — one topology rendering across
+                 the product. -->
             <div
               v-else-if="w.type === 'topology' && w.layer"
               class="topo-host sw-card"

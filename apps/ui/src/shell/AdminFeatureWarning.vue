@@ -78,7 +78,6 @@ const moduleEnvVar = computed<string | undefined>(() => mod.value?.envVar);
     <span class="icon"><Icon name="alert" :size="14" /></span>
 
     <div class="body">
-      <!-- Admin host unreachable: full-stop, network / port issue -->
       <template v-if="kind === 'host'">
         <h3>{{ t('Admin host unreachable') }}</h3>
         <p>
@@ -103,7 +102,6 @@ const moduleEnvVar = computed<string | undefined>(() => mod.value?.envVar);
         </ul>
       </template>
 
-      <!-- Admin host fine, but this feature's specific module is off -->
       <template v-else>
         <h3>{{ t('Module') }} <code>{{ module }}</code> {{ t('is off on OAP') }}</h3>
         <p>

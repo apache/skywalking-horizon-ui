@@ -264,6 +264,10 @@ export const useSetupStore = defineStore('setup', () => {
     }
   }
 
+  // Form bindings mutate `configs[layer]…` through the Vue proxy, and we
+  // can't tell a user edit from a programmatic write on that proxy — so
+  // dirty tracking needs an explicit signal: callers (LayerSetupCard on
+  // input) must call markDirty from the form handler.
   function markDirty(): void {
     if (!dirty.value) dirty.value = true;
   }
@@ -383,8 +387,7 @@ export const useSetupStore = defineStore('setup', () => {
     saving.value = true;
     lastError.value = null;
     try {
-      // Strip layers that match defaults exactly? Keep all touched layers
-      // for now — server stores them sparse but client sends the full set.
+      // Client sends the full touched set; the server stores it sparse.
       const payload = JSON.parse(JSON.stringify(configs)) as Record<string, LayerConfig>;
       const res = await bffClient.setup.save({ layers: payload });
       applyServerSnapshot(res.layers);
@@ -400,13 +403,6 @@ export const useSetupStore = defineStore('setup', () => {
     applyServerSnapshot(serverSnapshot);
   }
 
-  // Per-template Vue proxy mutation tracking — every form binding
-  // mutates `configs[layer].…`. We hook the proxy via a Pinia subscribe.
-  // Simpler: just call `markDirty` from the form handler. Form bindings
-  // (`v-model="cfg.slots.services"`) go through Pinia, but we can't tell
-  // a programmatic write from a user edit without an explicit signal.
-  // → expose `markDirty` and call it from LayerSetupCard on input.
-
   /** Side-effect-free priority read. Returns the persisted priority
    *  for a layer when one exists, or the static default otherwise.
    *
@@ -421,16 +417,13 @@ export const useSetupStore = defineStore('setup', () => {
   }
 
   return {
-    // state
     configs,
     dirty,
     loading,
     saving,
     bootstrapped,
     lastError,
-    // computed
     layerCount: computed(() => Object.keys(configs).length),
-    // actions
     bootstrap,
     ensure,
     priorityFor,

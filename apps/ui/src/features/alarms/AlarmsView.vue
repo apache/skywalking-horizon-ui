@@ -37,118 +37,31 @@
           fetched response client-side.
 -->
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuery } from '@tanstack/vue-query';
 import {
   bff,
-  bffClient,
   type AlarmMessage,
   type AlarmsConfig,
   type AlarmsResponse,
 } from '@/api/client';
-import { useLayers } from '@/shell/useLayers';
 import { useOapInfo } from '@/shell/useOapInfo';
 import AlarmsTimeline from '@/components/charts/AlarmsTimeline.vue';
 import AlarmDetailPanel from './AlarmDetailPanel.vue';
+import AlarmWindowPicker from './AlarmWindowPicker.vue';
+import AlarmFilterRow from './AlarmFilterRow.vue';
+import { useAlarmWindow, presetFromMs } from './useAlarmWindow';
+import { useAlarmFilters } from './useAlarmFilters';
 import { formatAlarmEntity } from '@/utils/alarmEntity';
 import { mergeIncidents, type AlarmIncident } from '@/utils/alarmIncidents';
 
 const { t } = useI18n();
 
-// ── Time window ──────────────────────────────────────────────────────
-/* Per the alerting redesign: 20m / 2h / 4h presets + custom up to 4h.
- * Alarms are second-precision events; longer windows pull thousands
- * of rows and starve the page on some storage backends. The BFF
- * enforces the same 4h cap server-side. */
-type PresetKey = '20m' | '2h' | '4h';
-const PRESET_MS: Record<PresetKey, number> = {
-  '20m': 20 * 60_000,
-  '2h': 2 * 60 * 60_000,
-  '4h': 4 * 60 * 60_000,
-};
-const PRESETS: readonly PresetKey[] = ['20m', '2h', '4h'] as const;
-const MAX_CUSTOM_MS = 4 * 60 * 60_000;
+const timeWindow = useAlarmWindow();
+const { windowMode, startTime, endTime, formatWindowLabel } = timeWindow;
 
-/** Reverse-lookup: configured ms → preset key. Returns `'20m'` for
- *  any value that doesn't match a preset (defensive — the BFF rejects
- *  non-preset values, but the page should still render with a sane
- *  default if it ever sees one). */
-function presetFromMs(ms: number | undefined): PresetKey {
-  if (ms === PRESET_MS['4h']) return '4h';
-  if (ms === PRESET_MS['2h']) return '2h';
-  return '20m';
-}
-
-type WindowMode = PresetKey | 'custom';
-const windowMode = ref<WindowMode>('20m');
-const windowEndAt = ref<number>(Date.now());
-/** Custom range — only consulted when `windowMode === 'custom'`. */
-const customStart = ref<number>(Date.now() - PRESET_MS['4h']);
-const customEnd = ref<number>(Date.now());
-const customError = ref<string | null>(null);
-const customOpen = ref<boolean>(false);
-
-const startTime = computed<number>(() => {
-  if (windowMode.value === 'custom') return customStart.value;
-  return windowEndAt.value - PRESET_MS[windowMode.value];
-});
-const endTime = computed<number>(() => {
-  if (windowMode.value === 'custom') return customEnd.value;
-  return windowEndAt.value;
-});
-
-function pickPreset(p: PresetKey): void {
-  windowMode.value = p;
-  windowEndAt.value = Date.now();
-  customOpen.value = false;
-  customError.value = null;
-}
-
-/* Format `epochMs → 'YYYY-MM-DDTHH:mm'` (datetime-local). Uses browser
- * TZ — display is browser-local; the BFF converts to OAP TZ on send. */
-function toLocalInput(ms: number): string {
-  const d = new Date(ms);
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  const h = String(d.getHours()).padStart(2, '0');
-  const mi = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${mo}-${dd}T${h}:${mi}`;
-}
-const customStartInput = ref<string>(toLocalInput(customStart.value));
-const customEndInput = ref<string>(toLocalInput(customEnd.value));
-
-function openCustom(): void {
-  windowMode.value = 'custom';
-  customOpen.value = true;
-  customStartInput.value = toLocalInput(customStart.value);
-  customEndInput.value = toLocalInput(customEnd.value);
-  customError.value = null;
-}
-function applyCustom(): void {
-  const s = new Date(customStartInput.value).getTime();
-  const e = new Date(customEndInput.value).getTime();
-  if (!Number.isFinite(s) || !Number.isFinite(e)) {
-    customError.value = t('Invalid date');
-    return;
-  }
-  if (e <= s) {
-    customError.value = t('End must be after start');
-    return;
-  }
-  if (e - s > MAX_CUSTOM_MS) {
-    customError.value = t('Window exceeds {h}h cap', { h: MAX_CUSTOM_MS / 60_000 / 60 });
-    return;
-  }
-  customStart.value = s;
-  customEnd.value = e;
-  customError.value = null;
-  customOpen.value = false;
-}
-
-// ── Capability + page config ────────────────────────────────────────
 const { capabilities } = useOapInfo();
 const hasQueryAlarms = computed<boolean>(() => capabilities.value.queryAlarms);
 
@@ -159,11 +72,9 @@ const pageConfig = useQuery({
 });
 const pinnedLayers = computed<string[]>(() => pageConfig.data.value?.pinnedLayers ?? []);
 
-/* Initial picker selection is admin-configured. We only apply the
- * config'd default once — after that the operator's manual picker
- * choices win (they shouldn't snap back on a refetch). The flag
- * survives across pageConfig refetches because it's outside the
- * `data` reactive. */
+/* Apply the admin-configured default window once; after that the
+ * operator's manual picker choice wins and must not snap back on a
+ * pageConfig refetch (flag lives outside the `data` reactive). */
 let didApplyDefault = false;
 watch(
   () => pageConfig.data.value?.defaultWindowMs,
@@ -175,88 +86,9 @@ watch(
   { immediate: true },
 );
 
-// ── Filters (new-mode cascade) ──────────────────────────────────────
-/* Two layers of state: `draft` is what the operator is composing;
- * `applied` is what the alarms query actually filters by. Nothing
- * fires until `applyFilters()` (or pickPreset(), or onRefresh()). */
-interface FilterValues {
-  layer: string;
-  service: string;
-  instance: string;
-  endpoint: string;
-  keyword: string;
-}
-function emptyFilters(): FilterValues {
-  return { layer: '', service: '', instance: '', endpoint: '', keyword: '' };
-}
-const draft = ref<FilterValues>(emptyFilters());
-const applied = ref<FilterValues>(emptyFilters());
+const filters = useAlarmFilters(hasQueryAlarms);
+const { applied } = filters;
 
-const { availableLayers } = useLayers();
-
-const servicesQuery = useQuery({
-  queryKey: computed(() => ['alarms/services', draft.value.layer]),
-  queryFn: () => bff.alarms.services(draft.value.layer),
-  enabled: computed(() => hasQueryAlarms.value && draft.value.layer.length > 0),
-  staleTime: 30_000,
-});
-const serviceOptions = computed<string[]>(
-  () => (servicesQuery.data.value?.services ?? []).map((s) => s.name),
-);
-
-const instancesQuery = useQuery({
-  queryKey: computed(() => ['alarms/instances', draft.value.layer, draft.value.service]),
-  queryFn: () => bffClient.layer.instances(draft.value.layer, draft.value.service),
-  enabled: computed(
-    () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
-  ),
-  staleTime: 30_000,
-});
-const instanceOptions = computed<string[]>(
-  () => (instancesQuery.data.value?.instances ?? []).map((i) => i.name),
-);
-
-const endpointsQuery = useQuery({
-  queryKey: computed(() => ['alarms/endpoints', draft.value.layer, draft.value.service]),
-  queryFn: () => bffClient.layer.endpoints(draft.value.layer, draft.value.service, '', 50),
-  enabled: computed(
-    () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
-  ),
-  staleTime: 30_000,
-});
-const endpointOptions = computed<string[]>(
-  () => (endpointsQuery.data.value?.endpoints ?? []).map((e) => e.name),
-);
-
-function onLayerChange(): void {
-  draft.value.service = '';
-  draft.value.instance = '';
-  draft.value.endpoint = '';
-}
-function onServiceChange(): void {
-  draft.value.instance = '';
-  draft.value.endpoint = '';
-}
-function applyFilters(): void {
-  applied.value = { ...draft.value };
-}
-function clearFilters(): void {
-  draft.value = emptyFilters();
-  applied.value = emptyFilters();
-}
-const isDirty = computed<boolean>(() => {
-  const d = draft.value;
-  const a = applied.value;
-  return (
-    d.layer !== a.layer ||
-    d.service !== a.service ||
-    d.instance !== a.instance ||
-    d.endpoint !== a.endpoint ||
-    d.keyword !== a.keyword
-  );
-});
-
-// ── URL-reflected chip filter ───────────────────────────────────────
 /* The header layer chips narrow the rendered list to that layer
  * (client-side filter on top of the fetched response). The selection
  * lives in the URL `?layer=GENERAL` so refresh / share preserves it
@@ -278,7 +110,6 @@ function selectChip(layerKey: string): void {
   chipLayer.value = layerKey === chipLayer.value ? '' : layerKey;
 }
 
-// ── Selection (alarm OR time range, mutually exclusive) ────────────
 function keyFor(a: AlarmMessage): string {
   return `${a.id}::${a.startTime}`;
 }
@@ -305,7 +136,6 @@ function clearSelection(): void {
   selectedRange.value = null;
 }
 
-// ── Alarms query ───────────────────────────────────────────────────
 const alarmsQuery = useQuery({
   queryKey: computed(() => [
     'alarms',
@@ -331,7 +161,6 @@ const alarmsQuery = useQuery({
   refetchOnWindowFocus: false,
 });
 
-// ── Derived data ────────────────────────────────────────────────────
 const alarms = computed<AlarmMessage[]>(() => alarmsQuery.data.value?.msgs ?? []);
 const truncated = computed<boolean>(() => alarmsQuery.data.value?.truncated ?? false);
 
@@ -474,13 +303,9 @@ const selectedAlarm = computed<AlarmMessage | null>(() => {
   return alarms.value.find((a) => keyFor(a) === k) ?? null;
 });
 
-// ── List tabs (by layer) ───────────────────────────────────────────
-/* Tab strip above the row list: "All · pinned-1 · pinned-2 · …
- * overflow chips". The "All" tab maps to no layer filter; every
- * other tab maps to its layer key via `chipLayer`. We render the
- * same set of layers that the header KPIs + overflow chips show, so
- * the two surfaces stay consistent — different entry points to the
- * same `chipLayer` URL state. */
+/* "All" maps to no layer filter; every other tab maps to its layer key
+ * via `chipLayer` — the same state the header KPIs + overflow chips
+ * write, so the two surfaces stay consistent. */
 interface ListTab {
   key: string;
   label: string;
@@ -499,7 +324,6 @@ const listTabs = computed<ListTab[]>(() => {
   return tabs;
 });
 
-// ── Frontend paging ────────────────────────────────────────────────
 const PAGE_SIZE = 10;
 const page = ref<number>(1);
 const totalPages = computed<number>(
@@ -514,7 +338,6 @@ watch([filteredIncidents, chipLayer, startTime, endTime], () => {
   page.value = 1;
 });
 
-// ── Misc utils ─────────────────────────────────────────────────────
 function prettyLayer(k: string): string {
   if (k === 'OTHER') return t('Other');
   return k
@@ -537,22 +360,6 @@ function formatRelative(ts: number): string {
   return `${d}d ${h % 24}h ago`;
 }
 
-/** Compact, locale-independent stamp for the custom window. Same
- *  `MM-DD HH:mm` shape as the topbar time chip — keeps the dense UI
- *  consistent and avoids `toLocaleString` picking up zh-CN / locale-
- *  specific formats (the bug fixed earlier on log timestamps). */
-function fmtStamp(ms: number): string {
-  const d = new Date(ms);
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-function formatWindowLabel(): string {
-  if (windowMode.value === 'custom') {
-    return `${fmtStamp(customStart.value)} → ${fmtStamp(customEnd.value)}`;
-  }
-  return t('last {window}', { window: windowMode.value });
-}
-
 watch([startTime, endTime], () => {
   selectedRange.value = null;
 });
@@ -562,16 +369,12 @@ async function onRefresh(): Promise<void> {
   if (refreshing.value) return;
   refreshing.value = true;
   try {
-    if (windowMode.value !== 'custom') windowEndAt.value = Date.now();
+    timeWindow.resetEndToNow();
     await alarmsQuery.refetch();
   } finally {
     refreshing.value = false;
   }
 }
-
-onMounted(() => {
-  /* Nothing to do here — vue-query fires on mount. */
-});
 </script>
 
 <template>
@@ -590,22 +393,7 @@ onMounted(() => {
         </p>
       </div>
       <div class="ax__header-actions">
-        <div class="ax__window">
-          <button
-            v-for="p in PRESETS"
-            :key="p"
-            type="button"
-            class="ax__window-btn"
-            :class="{ active: windowMode === p }"
-            @click="pickPreset(p)"
-          >{{ p }}</button>
-          <button
-            type="button"
-            class="ax__window-btn"
-            :class="{ active: windowMode === 'custom' }"
-            @click="openCustom"
-          >{{ t('custom') }}</button>
-        </div>
+        <AlarmWindowPicker :window="timeWindow" part="buttons" />
         <button
           type="button"
           class="ax__refresh"
@@ -615,25 +403,8 @@ onMounted(() => {
       </div>
     </header>
 
-    <!-- Custom range editor — sits under the picker; closes on apply. -->
-    <div v-if="customOpen" class="ax__custom">
-      <label class="ax__custom-field">
-        <span>{{ t('Start') }}</span>
-        <input v-model="customStartInput" type="datetime-local" step="60" />
-      </label>
-      <label class="ax__custom-field">
-        <span>{{ t('End') }}</span>
-        <input v-model="customEndInput" type="datetime-local" step="60" />
-      </label>
-      <div v-if="customError" class="ax__custom-err">{{ customError }}</div>
-      <div class="ax__custom-actions">
-        <span class="ax__custom-hint">{{ t('max {h}h', { h: MAX_CUSTOM_MS / 60_000 / 60 }) }}</span>
-        <button type="button" class="ax__custom-btn" @click="customOpen = false">{{ t('cancel') }}</button>
-        <button type="button" class="ax__custom-btn ax__custom-btn--primary" @click="applyCustom">{{ t('apply') }}</button>
-      </div>
-    </div>
+    <AlarmWindowPicker :window="timeWindow" part="editor" />
 
-    <!-- ── KPI strip: total + pinned + overflow chips ─────────────── -->
     <div class="ax__kpis">
       <button
         type="button"
@@ -689,78 +460,8 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- ── Filter row — conditional on capabilities.queryAlarms ──── -->
-    <div v-if="hasQueryAlarms" class="ax__filters">
-      <label class="ax__filter">
-        <span>{{ t('Layer') }}</span>
-        <select v-model="draft.layer" @change="onLayerChange">
-          <option value="">{{ t('any layer') }}</option>
-          <option v-for="L in availableLayers" :key="L.key" :value="L.key.toUpperCase()">{{ L.name }}</option>
-        </select>
-      </label>
-      <label class="ax__filter" :class="{ 'is-disabled': !draft.layer }">
-        <span>{{ t('Service') }}</span>
-        <select v-model="draft.service" :disabled="!draft.layer" @change="onServiceChange">
-          <option value="">
-            {{ !draft.layer ? t('pick a layer first') : servicesQuery.isFetching.value ? t('loading…') : t('any service') }}
-          </option>
-          <option v-for="name in serviceOptions" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </label>
-      <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
-        <span>{{ t('Instance') }}</span>
-        <select v-model="draft.instance" :disabled="!draft.service">
-          <option value="">
-            {{ !draft.service ? t('pick a service first') : instancesQuery.isFetching.value ? t('loading…') : t('any instance') }}
-          </option>
-          <option v-for="name in instanceOptions" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </label>
-      <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">
-        <span>{{ t('Endpoint') }}</span>
-        <select v-model="draft.endpoint" :disabled="!draft.service">
-          <option value="">
-            {{ !draft.service ? t('pick a service first') : endpointsQuery.isFetching.value ? t('loading…') : t('any endpoint') }}
-          </option>
-          <option v-for="name in endpointOptions" :key="name" :value="name">{{ name }}</option>
-        </select>
-      </label>
-      <label class="ax__filter ax__filter--wide">
-        <span>{{ t('Keyword') }}</span>
-        <input v-model="draft.keyword" type="text" :placeholder="t('match alarm message')" />
-      </label>
-      <button
-        type="button"
-        class="ax__filter-apply"
-        :class="{ 'is-dirty': isDirty }"
-        :disabled="!isDirty"
-        @click="applyFilters"
-      >{{ isDirty ? t('apply') : t('applied') }}</button>
-      <button
-        v-if="applied.layer || applied.service || applied.instance || applied.endpoint || applied.keyword"
-        type="button"
-        class="ax__filter-clear"
-        @click="clearFilters"
-      >{{ t('clear') }}</button>
-    </div>
-    <div v-else class="ax__filters ax__filters--legacy">
-      <label class="ax__filter ax__filter--wide">
-        <span>{{ t('Keyword') }}</span>
-        <input v-model="draft.keyword" type="text" :placeholder="t('match alarm message')" />
-      </label>
-      <button
-        type="button"
-        class="ax__filter-apply"
-        :class="{ 'is-dirty': isDirty }"
-        :disabled="!isDirty"
-        @click="applyFilters"
-      >{{ isDirty ? t('apply') : t('applied') }}</button>
-      <span class="ax__legacy-note">
-        {{ t('This OAP version supports keyword + tag filters only. Upgrade for layer + entity filters.') }}
-      </span>
-    </div>
+    <AlarmFilterRow :filters="filters" :has-query-alarms="hasQueryAlarms" />
 
-    <!-- ── Timeline (flags only) ─────────────────────────────────── -->
     <section class="ax__panel">
       <header class="ax__panel-head">
         <h3>{{ t('Timeline') }}</h3>
@@ -787,12 +488,8 @@ onMounted(() => {
       />
     </section>
 
-    <!-- ── List + detail ─────────────────────────────────────────── -->
     <section class="ax__split">
       <div class="ax__list">
-        <!-- Layer tabs — same `chipLayer` state as the header KPIs, so
-             clicking a tab and clicking a header chip do the same
-             thing. URL `?layer=…` persists either selection. -->
         <div v-if="listTabs.length > 1" class="ax__tabs" role="tablist">
           <button
             v-for="t in listTabs"
@@ -863,9 +560,6 @@ onMounted(() => {
               >▾</button>
               <span v-else class="ax__row-expand-placeholder" aria-hidden="true" />
             </li>
-            <!-- Expanded history: every individual firing/recovery
-                 in startTime-ascending order. Clicking a sub-row
-                 selects that specific event for the detail panel. -->
             <li
               v-if="isExpanded(inc.id) && inc.triggerCount > 1"
               class="ax__row-history"
@@ -896,7 +590,6 @@ onMounted(() => {
           </template>
         </ul>
 
-        <!-- Frontend pager — only when there's more than one page. -->
         <nav v-if="totalPages > 1" class="ax__pager">
           <button
             type="button"
@@ -961,29 +654,6 @@ onMounted(() => {
   gap: 8px;
   align-items: stretch;
 }
-.ax__window {
-  display: flex;
-  gap: 2px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 6px;
-  padding: 3px;
-}
-.ax__window-btn {
-  background: transparent;
-  border: 0;
-  color: var(--sw-fg-2);
-  font: inherit;
-  font-size: 11.5px;
-  padding: 4px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.ax__window-btn:hover { color: var(--sw-fg-0); }
-.ax__window-btn.active {
-  background: var(--sw-bg-3);
-  color: var(--sw-fg-0);
-}
 .ax__refresh {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line-2);
@@ -1001,68 +671,6 @@ onMounted(() => {
 }
 .ax__refresh:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* Custom date range editor */
-.ax__custom {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 8px;
-  margin-bottom: 12px;
-}
-.ax__custom-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.ax__custom-field input {
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 6px;
-  border-radius: 4px;
-}
-.ax__custom-err {
-  color: var(--sw-err);
-  font-size: 11px;
-}
-.ax__custom-actions {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ax__custom-hint {
-  font-size: 10.5px;
-  color: var(--sw-fg-3);
-}
-.ax__custom-btn {
-  background: transparent;
-  border: 1px solid var(--sw-line-2);
-  color: var(--sw-fg-1);
-  font: inherit;
-  font-size: 11.5px;
-  padding: 4px 12px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.ax__custom-btn--primary {
-  background: var(--sw-accent);
-  border-color: var(--sw-accent);
-  color: #0a0d12;
-  font-weight: 600;
-}
-
-/* KPI strip — total + pinned + overflow */
 .ax__kpis {
   display: flex;
   flex-wrap: wrap;
@@ -1089,11 +697,8 @@ onMounted(() => {
 .ax__kpi--total {
   border-color: var(--sw-line-2);
 }
-/* "Other" KPI tile — read-only aggregate, rendered as a disabled
- * button so the flex-row metrics match neighbours exactly. Dashed
- * border + cursor:default makes the read-only-ness obvious; an
- * explicit opacity:1 override keeps the value legible (browser-
- * default disabled-button styling fades to ~0.5). */
+/* opacity:1 overrides the browser-default disabled-button fade (~0.5)
+ * so this read-only aggregate stays legible. */
 .ax__kpi--passive {
   cursor: default;
   border-style: dashed;
@@ -1170,107 +775,6 @@ onMounted(() => {
   color: var(--sw-accent-2);
 }
 
-/* Filter row (re-used styles from the prior view) */
-.ax__filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: stretch;
-  margin-bottom: 14px;
-  padding: 10px;
-  background: var(--sw-bg-1);
-  border: 1px solid var(--sw-line);
-  border-radius: 8px;
-}
-.ax__filter {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 170px;
-  padding: 6px 10px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line);
-  border-radius: 5px;
-  cursor: pointer;
-}
-.ax__filter--wide { flex: 1; min-width: 220px; }
-.ax__filter:hover:not(.is-disabled) { border-color: var(--sw-line-2); }
-.ax__filter:focus-within:not(.is-disabled) { border-color: var(--sw-accent); }
-.ax__filter.is-disabled { opacity: 0.45; cursor: not-allowed; }
-.ax__filter > span {
-  font-size: 9.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--sw-fg-3);
-  font-weight: 600;
-}
-.ax__filter select,
-.ax__filter input[type='text'] {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background: transparent;
-  border: 0;
-  color: var(--sw-fg-0);
-  font: inherit;
-  font-size: 12px;
-  padding: 1px 0;
-  margin: 0;
-  width: 100%;
-  outline: none;
-}
-.ax__filter select {
-  cursor: pointer;
-  padding-right: 16px;
-  background: transparent
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6' width='10' height='6'><path d='M1 1l4 4 4-4' stroke='%23818a9c' stroke-width='1.4' fill='none' stroke-linecap='round'/></svg>")
-    right 2px center / 9px no-repeat;
-}
-.ax__filter select:disabled { cursor: not-allowed; background-image: none; color: var(--sw-fg-2); }
-.ax__filter-apply {
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  color: var(--sw-fg-2);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  padding: 0 16px;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-left: auto;
-}
-.ax__filter-apply.is-dirty {
-  background: var(--sw-accent);
-  border-color: var(--sw-accent);
-  color: #0a0d12;
-  font-weight: 600;
-}
-.ax__filter-apply:disabled { cursor: default; }
-.ax__filter-clear {
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  background: transparent;
-  border: 1px dashed var(--sw-line-2);
-  color: var(--sw-fg-2);
-  font: inherit;
-  font-size: 11px;
-  padding: 0 14px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.ax__filter-clear:hover { background: var(--sw-bg-2); color: var(--sw-fg-0); border-style: solid; }
-.ax__filters--legacy { align-items: center; gap: 12px; }
-.ax__legacy-note {
-  font-size: 11px;
-  color: var(--sw-fg-3);
-  font-style: italic;
-}
-
-/* Panel + timeline */
 .ax__panel {
   background: var(--sw-bg-1);
   border: 1px solid var(--sw-line);
@@ -1315,11 +819,17 @@ onMounted(() => {
 }
 .ax__panel-reset:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* Split list / detail */
 .ax__split {
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: 16px;
+}
+/* Narrow viewports: the fixed 360px detail rail + squeezed list overflow,
+   so stack the detail below the list at full width instead. */
+@media (max-width: 1080px) {
+  .ax__split {
+    grid-template-columns: 1fr;
+  }
 }
 .ax__list { display: flex; flex-direction: column; gap: 12px; }
 .ax__empty {
@@ -1331,9 +841,6 @@ onMounted(() => {
   border: 1px dashed var(--sw-line);
   border-radius: 8px;
 }
-/* Layer tab strip — sits between the list header and the rows.
- * Tabs share state with the header KPI chips (both write `chipLayer`),
- * so visual sync is automatic. */
 .ax__tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1519,9 +1026,8 @@ onMounted(() => {
 .sw-badge.is-err { color: var(--sw-err); background: var(--sw-err-soft); border-color: rgba(239,68,68,0.3); }
 .sw-badge.is-warn { color: var(--sw-warn); background: var(--sw-warn-soft); border-color: rgba(234,179,8,0.3); }
 
-/* ── Expand chevron + per-incident history ────────────────────────
-   The chevron is only rendered when triggerCount > 1; otherwise a
-   spacer keeps the row's grid alignment stable. */
+/* The chevron renders only when triggerCount > 1; otherwise the
+   placeholder spacer keeps the row's grid alignment stable. */
 .ax__row-expand,
 .ax__row-expand-placeholder {
   width: 22px; height: 22px;

@@ -25,19 +25,32 @@
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
+import { useLayerServices } from '@/layer/useLayerServices';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { bffClient } from '@/api/client';
-import type { PprofTask, PprofTree, ProfileAnalyzationTree } from '@/api/client';
+import type {
+  AsyncProfilingProgressLog,
+  PprofTask,
+  PprofTree,
+  ProfileAnalyzationTree,
+} from '@/api/client';
 import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
+import PprofTaskDetailModal from '@/layer/profiling/PprofTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
+const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId: serviceId } = useSelectedService();
 const instances = useLayerInstances(layerKey, serviceId);
+const { services } = useLayerServices(layerKey);
+const serviceName = computed<string | null>(
+  () => services.value.find((s) => s.id === serviceId.value)?.name ?? null,
+);
 
 const tasks = ref<PprofTask[]>([]);
 const tasksError = ref<string | null>(null);
@@ -48,6 +61,12 @@ const selectedInstances = ref<string[]>([]);
 const tree = ref<PprofTree | null>(null);
 const analyzeError = ref<string | null>(null);
 const analyzeLoading = ref(false);
+
+// Track the operator's open task-detail modal independently of the
+// "current selected task" — opening the detail icon mustn't reset the
+// selected instances / analyze result.
+const taskDetailFor = ref<PprofTask | null>(null);
+const taskDetailLogs = ref<AsyncProfilingProgressLog[]>([]);
 
 const showNewTask = ref(false);
 const newTask = reactive({
@@ -80,7 +99,10 @@ const DURATION_OPTS = [
 
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
-  () => void refreshTasks(),
+  () => {
+    taskDetailFor.value = null; // drop the detail modal on context change
+    void refreshTasks();
+  },
   { immediate: true },
 );
 
@@ -119,6 +141,19 @@ async function runAnalyze(): Promise<void> {
     analyzeError.value = e instanceof Error ? e.message : String(e);
   } finally {
     analyzeLoading.value = false;
+  }
+}
+
+async function openTaskDetail(t: PprofTask, ev: Event): Promise<void> {
+  ev.stopPropagation();
+  taskDetailFor.value = t;
+  taskDetailLogs.value = [];
+  try {
+    const resp = await bffClient.pprof.progress(t.id);
+    if (taskDetailFor.value?.id !== t.id) return; // stale: another task opened mid-fetch
+    taskDetailLogs.value = resp.progress?.logs ?? [];
+  } catch {
+    if (taskDetailFor.value?.id === t.id) taskDetailLogs.value = [];
   }
 }
 
@@ -201,7 +236,7 @@ function instanceName(id: string): string {
             aria-label="Refresh task list"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
-          <button class="btn-new" :disabled="!serviceId" @click="showNewTask = true">+ New Task</button>
+          <button class="btn-new" :disabled="!serviceId" :title="serviceId ? 'Create a new pprof task' : 'Pick a service first'" @click="showNewTask = true">+ New Task</button>
         </div>
       </div>
       <div v-if="polling" class="poll-hint">Waiting for new task… ({{ pollRound }}/4)</div>
@@ -220,6 +255,12 @@ function instanceName(id: string): string {
           <div class="row1">
             <span class="t-tag">{{ t.events }}</span>
             <span class="ep">{{ t.serviceInstanceIds?.length ?? 0 }} instance{{ (t.serviceInstanceIds?.length ?? 0) === 1 ? '' : 's' }}</span>
+            <button
+              type="button"
+              class="row-eye"
+              title="View task detail"
+              @click.stop="openTaskDetail(t, $event)"
+            >i</button>
           </div>
           <div class="row2">
             <span>{{ fmtTime(t.createTime) }}</span>
@@ -283,7 +324,7 @@ function instanceName(id: string): string {
               :class="{ on: newTask.instances.includes(i.id) }"
               @click="toggleInstance(i.id, 'new')"
             >{{ i.name }}</button>
-            <span v-if="!instances.instances.value.length" class="muted">No instances available.</span>
+            <span v-if="!instances.instances.value.length" class="muted">{{ t('No instances available for this service — a pprof task cannot be created.') }}</span>
           </div>
         </div>
         <div class="field">
@@ -320,10 +361,23 @@ function instanceName(id: string): string {
       </div>
       <div class="dlg-foot">
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
-        <button class="btn-primary" @click="submitNewTask">Create task</button>
+        <button
+          class="btn-primary"
+          :disabled="!newTask.instances.length || !newTask.event"
+          :title="!newTask.instances.length ? 'Select at least one instance' : !newTask.event ? 'Pick an event type' : 'Create the pprof task'"
+          @click="submitNewTask"
+        >Create task</button>
       </div>
     </div>
   </div>
+
+  <PprofTaskDetailModal
+    :task="taskDetailFor"
+    :service-name="serviceName"
+    :logs="taskDetailLogs"
+    :fmt-time="fmtTime"
+    @close="taskDetailFor = null"
+  />
 </template>
 
 <style scoped>
@@ -455,6 +509,19 @@ function instanceName(id: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.row-eye {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--sw-fg-3);
+  cursor: pointer;
+  padding: 0;
+  font-style: italic;
+  line-height: 1;
+}
+.row-eye:hover {
+  color: var(--sw-accent);
 }
 .muted {
   color: var(--sw-fg-3);
