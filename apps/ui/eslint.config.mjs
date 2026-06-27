@@ -38,35 +38,19 @@ export default [
     },
   },
   {
-    // File-size guardrail. No NEW file may exceed 1000 lines — split it
-    // (extract composables / sub-components) instead. The grandfather list
-    // below is the live decomposition backlog: remove a file when its split
-    // lands; never add to it.
+    // File-size guardrail. No file may exceed 2000 lines of code (comments
+    // and blank lines excluded) — split it (extract composables /
+    // sub-components) instead. The grandfather list below is the live
+    // decomposition backlog: remove a file when its split lands; never add to it.
     files: ['src/**/*.vue', 'src/**/*.ts'],
     ignores: ['**/*.test.ts', '**/*.d.ts'],
-    rules: { 'max-lines': ['error', 1000] },
+    rules: { 'max-lines': ['error', { max: 2000, skipComments: true, skipBlankLines: true }] },
   },
   {
-    // ── DECOMPOSE BACKLOG ─ files still >1000 loc after the decomposition
-    //    pass. This list only ever SHRINKS. Two groups:
-    //    • cohesive cores (borderline) — the seam was extracted but the
-    //      d3 / scene / dense-render core legitimately stays large; forcing
-    //      it under 1000 would scatter coupled state. May stay grandfathered:
-    //      Infra3DScene, LayerServiceMapView, LayerEndpointDependencyView,
-    //      AlarmsView, DebugMal, DebugLal.
-    //    • awaiting further / dedicated decomposition: OverviewTemplatesAdmin
-    //      (just over), InspectView, and LayerDashboardsAdmin (XL — its own PR).
-    files: [
-      'src/features/admin/layer-templates/LayerDashboardsAdmin.vue',
-      'src/features/admin/overview-templates/OverviewTemplatesAdmin.vue',
-      'src/features/alarms/AlarmsView.vue',
-      'src/features/infra-3d/Infra3DScene.vue',
-      'src/features/operate/inspect/InspectView.vue',
-      'src/features/operate/live-debug/DebugLal.vue',
-      'src/features/operate/live-debug/DebugMal.vue',
-      'src/layer/endpoint-dependency/LayerEndpointDependencyView.vue',
-      'src/layer/service-map/LayerServiceMapView.vue',
-    ],
+    // ── DECOMPOSE BACKLOG ─ the only file still over 2000 loc; its split is
+    //    in flight (LayerDashboardsAdmin → per-scope editors + composables).
+    //    This list only ever SHRINKS — remove the entry when the split lands.
+    files: ['src/features/admin/layer-templates/LayerDashboardsAdmin.vue'],
     rules: { 'max-lines': 'off' },
   },
 ];

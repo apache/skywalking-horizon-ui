@@ -161,13 +161,31 @@ jobs:
       # needed — keeps the CI line robust against pnpm-flag parsing quirks.
       - run: pnpm -r run test:unit
 
+  lint:
+    name: Lint + source budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      # ESLint (rules + 2000-line cap, comments excluded) across ui + bff,
+      # then the source-budget gate (≤2000 code / ≤500 comment lines per file).
+      - run: pnpm lint
+
   required:
     # Status-check name pinned to "Required" so Apache branch protection
     # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
     # [Required]`) can gate on a single rolled-up signal.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test]
+    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -179,3 +197,4 @@ jobs:
           [[ ${{ needs.build-ui.result }} == 'success' ]] || exit 1
           [[ ${{ needs.build-bff.result }} == 'success' ]] || exit 1
           [[ ${{ needs.test.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.lint.result }} == 'success' ]] || exit 1

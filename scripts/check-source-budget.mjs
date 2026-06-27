@@ -1,0 +1,87 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Source-budget guardrail. ESLint's max-lines covers code size in-editor;
+// this gate adds the comment-VOLUME cap ESLint cannot express, and is the
+// CI-runnable enforcer of both. A file is over budget when it carries more
+// than CODE_MAX lines of code OR more than COMMENT_MAX lines of comment.
+// SKIP lists files still mid-decomposition (mirrors eslint's grandfather
+// block) — it only ever shrinks.
+
+import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+
+const CODE_MAX = 2000;
+const COMMENT_MAX = 500;
+const SKIP = new Set([
+  'apps/ui/src/features/admin/layer-templates/LayerDashboardsAdmin.vue',
+]);
+
+const files = execSync('git ls-files', { encoding: 'utf8' })
+  .split('\n')
+  .filter((f) => /\.(ts|vue|js|mjs)$/.test(f) && !f.endsWith('.d.ts'))
+  .filter((f) => f.startsWith('apps/') || f.startsWith('packages/') || f.startsWith('scripts/'))
+  .filter((f) => !/\.(test|spec)\.ts$/.test(f) && !SKIP.has(f));
+
+// Line-level classification: a line is comment if it sits inside a block
+// comment (/* */ or <!-- -->) or opens with // or /* or <!--. Inline trailing
+// comments count as code (the line carries code). Approximate by design — a
+// guardrail flags comment-heavy files, it isn't a forensic tokenizer.
+function classify(src, isVue) {
+  let comment = 0;
+  let blank = 0;
+  let inBlock = false;
+  let close = '';
+  const lines = src.split('\n');
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (inBlock) {
+      comment++;
+      if (line.includes(close)) inBlock = false;
+      continue;
+    }
+    if (line === '') { blank++; continue; }
+    if (line.startsWith('//')) { comment++; continue; }
+    if (line.startsWith('/*')) {
+      comment++;
+      if (!line.includes('*/')) { inBlock = true; close = '*/'; }
+      continue;
+    }
+    if (isVue && line.startsWith('<!--')) {
+      comment++;
+      if (!line.includes('-->')) { inBlock = true; close = '-->'; }
+      continue;
+    }
+  }
+  return { code: lines.length - comment - blank, comment };
+}
+
+const over = [];
+for (const f of files) {
+  const { code, comment } = classify(readFileSync(f, 'utf8'), f.endsWith('.vue'));
+  const probs = [];
+  if (code > CODE_MAX) probs.push(`code ${code} > ${CODE_MAX}`);
+  if (comment > COMMENT_MAX) probs.push(`comments ${comment} > ${COMMENT_MAX}`);
+  if (probs.length) over.push(`  ${f} — ${probs.join('; ')}`);
+}
+
+if (over.length) {
+  console.error(`✗ source-budget: ${over.length} file(s) over budget (code ≤ ${CODE_MAX}, comments ≤ ${COMMENT_MAX}):`);
+  console.error(over.join('\n'));
+  process.exit(1);
+}
+console.log(`✓ source-budget OK: ${files.length} files within ${CODE_MAX} code / ${COMMENT_MAX} comment lines`);

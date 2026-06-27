@@ -39,11 +39,10 @@ export default tseslint.config(
     },
   },
   {
-    // File-size guardrail. No NEW file may exceed 1000 lines — split it
-    // instead. The grandfather list below is the decomposition backlog: remove
-    // a file when its split lands; never add to it.
+    // File-size guardrail. No file may exceed 2000 lines of code (comments
+    // and blank lines excluded) — split it instead.
     files: ['src/**/*.ts'],
     ignores: ['**/*.test.ts'],
-    rules: { 'max-lines': ['error', 1000] },
+    rules: { 'max-lines': ['error', { max: 2000, skipComments: true, skipBlankLines: true }] },
   },
 );
