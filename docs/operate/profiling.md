@@ -21,6 +21,8 @@ Profiling drills past metrics and traces into the call stacks, kernel events, an
 
 Every profiling tab follows the same shape: a task list on the left, a New Task control to start a profiling run, and a result panel on the right that renders the captured data once OAP has fanned the task out to the relevant instances or processes. Results are shown as an indented stack tree or a flame graph, with a toggle between the two where both apply.
 
+Task creation is consistent across every tab. The New Task control opens once you have selected its target — a service, or a service instance for Network Profiling. Inside the dialog, if the target cannot be profiled — no profilable processes, or no instances on the service — Create is disabled with the reason shown next to it, rather than a silently greyed-out control. You always see why a task cannot be started.
+
 ## Access control
 
 Profiling is gated by two distinct permissions:
@@ -59,7 +61,7 @@ eBPF Profiling samples kernel-level stacks from a process without an in-process 
 
 - **OFF_CPU** — where the process is blocked off CPU (waiting on locks, I/O, scheduling).
 
-A task targets a service and, optionally, a set of process labels (leave the labels empty to profile all processes). You choose the target, a start time, and a duration in minutes. The New Task control is only enabled when OAP reports that the service has profilable processes.
+A task targets a service and, optionally, a set of process labels (leave the labels empty to profile all processes). You choose the target, a start time, and a duration in minutes. Open the New Task dialog from the selected service; if OAP reports no profilable processes for it, the dialog says so and Create stays disabled.
 
 When you select a task, the result auto-analyzes. The filter bar lets you narrow the view:
 
@@ -108,7 +110,7 @@ A task can target multiple Go service instances. After it runs, select the insta
 
 ## Network Profiling
 
-Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance: pick an instance, then start a task that defines which traffic to sample.
+Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance, which you pick inside the New Task dialog. The dialog lists the rover-monitored processes reporting on that instance; an instance with no such processes cannot be profiled — OAP rejects the task — so Create is disabled with that reason. Once a valid instance is chosen, the task defines which traffic to sample.
 
 Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx responses, or by a minimum duration — and controls how much of each request and response body is collected. A network task keeps running until it is stopped, so the New Task dialog defines the sampling rules rather than a fixed duration.
 
@@ -118,7 +120,9 @@ The result is a **honeycomb topology**: each cell is a process, and the edges be
 
 - **No profiling tabs on a layer** — OAP did not report profiling support for that service. Each tab requires the corresponding capability (trace, eBPF, async-profiler, network, or pprof), which depends on the agent or [Rover](https://github.com/apache/skywalking-rover) deployment behind the service.
 
-- **New Task is disabled** — you either have not picked a service, or you lack `profile:enable`, or (for eBPF) OAP reports no profilable processes for the service.
+- **New Task is unavailable** — you have not selected a service (or, for Network Profiling, an instance), or you lack `profile:enable`.
+
+- **Create is disabled inside the New Task dialog** — the chosen target cannot be profiled, and the reason is shown next to the button: for eBPF, OAP reports no profilable processes for the service; for Network Profiling, the selected instance has no rover-monitored processes; for Async Profiling and pprof, the service has no instances.
 
 - **Task list is empty after creating a task** — the task is created, but results only appear once OAP has dispatched it to the instances or processes and they report back. The view polls for the new task briefly; use the refresh control if it does not appear.
 

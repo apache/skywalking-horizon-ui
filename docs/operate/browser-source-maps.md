@@ -11,8 +11,12 @@ back to the original file, line, column, and symbol — with a source snippet.
 
 Open the **BROWSER** layer and pick the **Browser Logs** tab. Choose an app in
 the selector, then narrow with the **Version**, **Page**, and **Time range**
-conditions, and the **Category** legend above the stream (click a category to
-filter; the counts stay visible). Each row is one reported error, newest first.
+conditions. The list queries on demand: nothing is fetched until you press
+**Run query**, so a freshly opened tab shows a *Pick your conditions, then
+click Run query* prompt rather than auto-loading, and switching app resets to
+that prompt (clearing the category filter). Once results load, the **Category**
+legend above the stream filters them client-side (click a category to filter;
+the counts stay visible). Each row is one reported error, newest first.
 
 The **Time range** is owned by this page — the global topbar picker is paused
 while you're here, so auto-refresh won't shift the window mid-investigation.
