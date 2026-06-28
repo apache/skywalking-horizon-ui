@@ -49,6 +49,48 @@
       { "title": "服务实例延迟" },
       { "title": "服务实例成功率" },
       {
+        "title": "进程 CPU",
+        "tip": "Node.js agent：进程 CPU（用户态 + 内核态），按采集间隔统计（%）。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 堆已用",
+        "tip": "Node.js agent：V8 堆已用内存（process.memoryUsage().heapUsed），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 堆总量",
+        "tip": "Node.js agent：V8 堆已分配总量（process.memoryUsage().heapTotal），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 堆上限",
+        "tip": "Node.js agent：V8 最大堆大小（v8.getHeapStatistics().heap_size_limit），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "进程 RSS",
+        "tip": "Node.js agent：常驻内存集（process.memoryUsage().rss），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "外部内存",
+        "tip": "Node.js agent：绑定到 V8 的 C++ 对象（process.memoryUsage().external），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "由 agent 上报的 JVM CPU。仅当实例为 JVM 时显示。"
       },

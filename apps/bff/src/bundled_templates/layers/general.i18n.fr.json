@@ -78,6 +78,48 @@
         "title": "Taux de succès de l'instance de service"
       },
       {
+        "title": "CPU processus",
+        "tip": "Agent Node.js : CPU du processus (user + system) sur l'intervalle de collecte (%).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap V8 utilisé",
+        "tip": "Agent Node.js : heap V8 utilisé en MB (process.memoryUsage().heapUsed).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap V8 total",
+        "tip": "Agent Node.js : heap V8 total en MB (process.memoryUsage().heapTotal).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Limite heap V8",
+        "tip": "Agent Node.js : taille max du heap V8 en MB (v8.getHeapStatistics().heap_size_limit).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "RSS processus",
+        "tip": "Agent Node.js : taille de l'ensemble resident en MB (process.memoryUsage().rss).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Mémoire externe",
+        "tip": "Agent Node.js : objets C++ liés à V8 en MB (process.memoryUsage().external).",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "CPU JVM",
         "tip": "CPU JVM tel que remonté par l'agent. Ne s'affiche que lorsque l'instance est une JVM."
       },

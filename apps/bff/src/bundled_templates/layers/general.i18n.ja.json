@@ -78,6 +78,48 @@
         "title": "サービスインスタンス成功率"
       },
       {
+        "title": "プロセス CPU",
+        "tip": "Node.js エージェント：プロセス CPU（user + system）、収集間隔内（%）。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 ヒープ使用量",
+        "tip": "Node.js エージェント：V8 ヒープ使用量（process.memoryUsage().heapUsed）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 ヒープ合計",
+        "tip": "Node.js エージェント：V8 ヒープ合計（process.memoryUsage().heapTotal）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 ヒープ上限",
+        "tip": "Node.js エージェント：V8 最大ヒープサイズ（v8.getHeapStatistics().heap_size_limit）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "プロセス RSS",
+        "tip": "Node.js エージェント：常駐メモリセット（process.memoryUsage().rss）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "外部メモリ",
+        "tip": "Node.js エージェント：V8 にバインドされた C++ オブジェクト（process.memoryUsage().external）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "エージェントが報告する JVM CPU。インスタンスが JVM の場合のみ描画。"
       },

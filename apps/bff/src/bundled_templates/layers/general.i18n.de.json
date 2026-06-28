@@ -136,6 +136,48 @@
         ]
       },
       {
+        "title": "Prozess-CPU",
+        "tip": "Node.js-Agent: Prozess-CPU (User + System) im Sammelintervall (%).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 Heap genutzt",
+        "tip": "Node.js-Agent: Genutzter V8-Heap in MB (process.memoryUsage().heapUsed).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 Heap gesamt",
+        "tip": "Node.js-Agent: V8-Heap gesamt in MB (process.memoryUsage().heapTotal).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 Heap-Limit",
+        "tip": "Node.js-Agent: Maximale V8-Heapgröße in MB (v8.getHeapStatistics().heap_size_limit).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Prozess-RSS",
+        "tip": "Node.js-Agent: Resident-Set-Größe in MB (process.memoryUsage().rss).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Externer Speicher",
+        "tip": "Node.js-Agent: An V8 gebundene C++-Objekte in MB (process.memoryUsage().external).",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM-CPU",
         "tip": "JVM-CPU, gemeldet vom Agenten. Wird nur angezeigt, wenn die Instanz eine JVM ist.",
         "expressions": [

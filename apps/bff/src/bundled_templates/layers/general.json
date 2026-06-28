@@ -182,6 +182,72 @@
         "rowSpan": 2
       },
       {
+        "id": "nodejs_process_cpu",
+        "title": "Process CPU",
+        "tip": "Node.js agent: process CPU (user + system) over the collect interval (%).",
+        "type": "line",
+        "unit": "%",
+        "expressions": ["meter_instance_nodejs_process_cpu"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_process_cpu", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_heap_used",
+        "title": "V8 Heap Used",
+        "tip": "Node.js agent: V8 heap used in MB (process.memoryUsage().heapUsed).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_heap_used/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_heap_used", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_heap_total",
+        "title": "V8 Heap Total",
+        "tip": "Node.js agent: V8 heap total allocated in MB (process.memoryUsage().heapTotal).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_heap_total/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_heap_total", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_heap_limit",
+        "title": "V8 Heap Limit",
+        "tip": "Node.js agent: V8 max heap size in MB (v8.getHeapStatistics().heap_size_limit).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_heap_limit/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_heap_limit", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_rss",
+        "title": "Process RSS",
+        "tip": "Node.js agent: resident set size in MB (process.memoryUsage().rss).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_rss/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_rss", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
+        "id": "nodejs_external_memory",
+        "title": "External Memory",
+        "tip": "Node.js agent: C++ objects bound to V8 in MB (process.memoryUsage().external).",
+        "type": "line",
+        "unit": "MB",
+        "expressions": ["meter_instance_nodejs_external_memory/1048576"],
+        "visibleWhen": { "kind": "mqe", "expression": "meter_instance_nodejs_external_memory", "op": "exists" },
+        "span": 3,
+        "rowSpan": 2
+      },
+      {
         "id": "jvm_cpu",
         "title": "JVM CPU",
         "tip": "JVM CPU as reported by the agent. Renders only when the instance is a JVM.",

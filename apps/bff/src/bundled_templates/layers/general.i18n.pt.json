@@ -84,6 +84,48 @@
         "title": "Taxa de sucesso da instância de serviço"
       },
       {
+        "title": "CPU do processo",
+        "tip": "Agente Node.js: CPU do processo (user + system) no intervalo de coleta (%).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap V8 usado",
+        "tip": "Agente Node.js: heap V8 usado em MB (process.memoryUsage().heapUsed).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Heap V8 total",
+        "tip": "Agente Node.js: heap V8 total em MB (process.memoryUsage().heapTotal).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Limite heap V8",
+        "tip": "Agente Node.js: tamanho máximo do heap V8 em MB (v8.getHeapStatistics().heap_size_limit).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "RSS do processo",
+        "tip": "Agente Node.js: tamanho do conjunto residente em MB (process.memoryUsage().rss).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Memória externa",
+        "tip": "Agente Node.js: objetos C++ vinculados ao V8 em MB (process.memoryUsage().external).",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "CPU da JVM",
         "tip": "CPU da JVM conforme reportado pelo agente. Só aparece quando a instância é uma JVM."
       },

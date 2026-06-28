@@ -78,6 +78,48 @@
         "title": "서비스 인스턴스 성공률"
       },
       {
+        "title": "프로세스 CPU",
+        "tip": "Node.js 에이전트: 프로세스 CPU(user + system), 수집 간격 기준 (%).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 힙 사용량",
+        "tip": "Node.js 에이전트: V8 힙 사용량(process.memoryUsage().heapUsed), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 힙 총량",
+        "tip": "Node.js 에이전트: V8 힙 총량(process.memoryUsage().heapTotal), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8 힙 한도",
+        "tip": "Node.js 에이전트: V8 최대 힙 크기(v8.getHeapStatistics().heap_size_limit), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "프로세스 RSS",
+        "tip": "Node.js 에이전트: 상주 메모리 집합(process.memoryUsage().rss), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "외부 메모리",
+        "tip": "Node.js 에이전트: V8에 바인딩된 C++ 객체(process.memoryUsage().external), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "에이전트가 보고하는 JVM CPU입니다. 인스턴스가 JVM일 때만 표시됩니다."
       },

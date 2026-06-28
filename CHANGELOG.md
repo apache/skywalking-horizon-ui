@@ -16,6 +16,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Six instance dashboard line widgets for PHP Health Metrics** — process CPU utilization, memory used/peak, virtual memory, thread count, and open file descriptors (`meter_instance_php_*`). Each line widget uses `visibleWhen` so widgets render only when the PHP agent reports PHM data (Linux `/proc` sampling of the parent PHP process via `getppid()`).
 
+### General Service — Node.js runtime
+
+- **Six instance dashboard line widgets for Node.js runtime metrics** — process CPU, V8 heap used/total/limit, RSS, and external memory (`meter_instance_nodejs_*`). Each line widget uses `visibleWhen` so widgets render only when the Node.js agent reports runtime data.
+
 ### Profiling
 
 - **Profiling task creation is consistent and tells you upfront what it needs.** Across all five task types (Trace / eBPF / Network / pprof / Async) the **New Task** button enables as soon as the basic entity is chosen and always carries a tooltip, and inside the create box a missing target — no profilable processes, or no instances on the service — is shown as a clear message next to a disabled **Create** rather than a silently greyed-out button.
