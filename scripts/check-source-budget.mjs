@@ -22,18 +22,43 @@
 // SKIP is an explicit exemption list for files still mid-decomposition;
 // empty now that every source file is within budget.
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const CODE_MAX = 2000;
 const COMMENT_MAX = 500;
 const SKIP = new Set([]);
 
-const files = execSync('git ls-files', { encoding: 'utf8' })
-  .split('\n')
-  .filter((f) => /\.(ts|vue|js|mjs)$/.test(f) && !f.endsWith('.d.ts'))
-  .filter((f) => f.startsWith('apps/') || f.startsWith('packages/') || f.startsWith('scripts/'))
-  .filter((f) => !/\.(test|spec)\.ts$/.test(f) && !SKIP.has(f));
+const ROOTS = ['apps', 'packages', 'scripts'];
+const PRUNE = new Set(['node_modules', 'dist', 'coverage']);
+
+// File discovery prefers `git ls-files` (honours .gitignore for free), but falls
+// back to a filesystem walk so the gate still runs in a git-less tree — a source
+// release tarball / zip has no .git, and a raw execSync failure there would break
+// `pnpm lint` with an opaque ENOENT instead of naming this gate. The walk skips
+// dot-dirs and build/dep folders to approximate .gitignore (a clean source
+// archive has none of these anyway, so the two paths agree there).
+function sourceFiles() {
+  let listing;
+  try {
+    listing = execSync('git ls-files', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n');
+  } catch {
+    listing = [];
+    const walk = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        if (e.isDirectory()) { if (!PRUNE.has(e.name) && !e.name.startsWith('.')) walk(`${dir}/${e.name}`); }
+        else listing.push(`${dir}/${e.name}`);
+      }
+    };
+    for (const r of ROOTS) { try { walk(r); } catch { /* root absent — skip */ } }
+  }
+  return listing
+    .filter((f) => /\.(ts|vue|js|mjs)$/.test(f) && !f.endsWith('.d.ts'))
+    .filter((f) => ROOTS.some((r) => f.startsWith(`${r}/`)))
+    .filter((f) => !/\.(test|spec)\.ts$/.test(f) && !SKIP.has(f));
+}
+
+const files = sourceFiles();
 
 // Line-level classification: a line is comment if it sits inside a block
 // comment (/* */ or <!-- -->) or opens with // or /* or <!--. Inline trailing
