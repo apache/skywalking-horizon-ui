@@ -77,14 +77,19 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null;
   }
 
+  // Mirrors the BFF's matchOne (apps/bff/src/rbac/verbs.ts) exactly. This UI gate
+  // is advisory — the BFF enforces — but it must agree, or it hides custom `admin`
+  // grants and shows three-segment controls (e.g. rule:write:structural) that a
+  // two-segment grant like `*:write` does not actually carry and the BFF denies.
   function hasVerb(verb: string): boolean {
     const grants = user.value?.verbs ?? [];
     for (const g of grants) {
-      if (g === '*' || g === verb) return true;
-      const [ga, gact] = g.split(':', 2);
-      const [ra, ract] = verb.split(':', 2);
-      if (gact === '*' && ga === ra) return true;
-      if (ga === '*' && gact === ract) return true;
+      if (g === '*' || g === 'admin' || g === verb) return true;
+      const [ga, gact, gsub] = g.split(':', 3);
+      const [ra, ract, rsub] = verb.split(':', 3);
+      if (ga === ra && gact === '*') return true;
+      if (ga === '*' && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
+      if (ga === ra && gact === ract && (gsub ?? '') === (rsub ?? '')) return true;
     }
     return false;
   }

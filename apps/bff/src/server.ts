@@ -151,13 +151,21 @@ source.onChange((cfg) => {
 
 const app = Fastify({ logger: loggerOptions });
 
-app.setErrorHandler((err, _req, reply) => {
+app.setErrorHandler((err, req, reply) => {
   if (err instanceof HttpError) {
     return reply.status(err.statusCode).send({ code: err.code, message: err.message, details: err.details });
   }
-  const message = err instanceof Error ? err.message : 'internal error';
+  // Never leak an internal / upstream exception message to the client — it can
+  // carry upstream response snippets or endpoint details. Log it server-side,
+  // return a generic body plus the request id for correlation; dev keeps the
+  // raw message for debugging.
   reply.log.error({ err }, 'unhandled');
-  return reply.status(500).send({ code: 'internal_error', message });
+  const isDev = process.env.NODE_ENV === 'development';
+  return reply.status(500).send({
+    code: 'internal_error',
+    message: isDev && err instanceof Error ? err.message : 'internal error',
+    requestId: req.id,
+  });
 });
 
 // Baseline security headers on every response (MIME-sniff / clickjacking /
