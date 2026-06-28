@@ -4,7 +4,7 @@ Notable changes to Apache SkyWalking Horizon UI, written from the operator's poi
 
 The version line is shared by every package in the monorepo (apps + shared packages) plus the BFF's `HORIZON_VERSION` default.
 
-## 1.1.0
+## 1.0.0
 
 ### Deployment & configuration
 
@@ -23,10 +23,6 @@ The version line is shared by every package in the monorepo (apps + shared packa
 - **Network profiling picks its target instance in the create box and checks it has processes before you submit.** The create modal selects the instance inline and lists that instance's rover-monitored processes; if it has none, **Create** is blocked with a clear reason (OAP rejects a network task on a process-less instance) instead of failing after submit.
 
 - **pprof and async-profiling tasks open a detail modal with their captured logs.**
-
-### Logs
-
-- **Log and browser-error lists query on demand, not on every edit.** The per-layer Logs tab, cross-layer Log inspect, and the Browser Errors tab now stage condition changes and fetch only when you press **Run query** — a fresh tab shows a "Pick your conditions, then click Run query" prompt, and switching service resets to that prompt (clearing the level / tag / category filters), so the previous service's data never lingers under the new one.
 
 ### Alarms
 
@@ -48,8 +44,6 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **The Kubernetes Node dashboard gains a Pod Total card.** A compact card now sits directly under Node Status showing the current count of pods scheduled on the selected node (all phases) — the latest value of the same metric the "Pods on Node" trend already charts — so the space beside the status card is no longer blank.
 
-## 1.0.0
-
 ### Performance & behavior tuning
 
 - **New `performance` section in `horizon.yaml`.** Tune how hard the BFF fans metric queries out to OAP — per-route bulk (request) sizes and concurrency for the topology, 3D-map, landing, and dashboard fan-outs — plus protective caps: the service-map render valve (`topologyMaxNodes` / `topologyMaxEdges`) and per-request record caps for traces / logs / browser logs. Operational, hot-reloaded, per-deployment; defaults match the previous built-in values, so the whole block is optional. Raise it for a beefy OAP + storage backend, lower it to protect a modest deployment; every value clamps to a hard ceiling.
@@ -65,6 +59,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ### Logs
 
+- **Log and browser-error lists query on demand, not on every edit.** The per-layer Logs tab, cross-layer Log inspect, and the Browser Errors tab now stage condition changes and fetch only when you press **Run query** — a fresh tab shows a "Pick your conditions, then click Run query" prompt, and switching service resets to that prompt (clearing the level / tag / category filters), so the previous service's data never lingers under the new one.
 - **Log inspect uses the full width.** The cross-layer Log inspect form (Target + Tags / Trace ID / Time / Limit conditions) now spans the whole page instead of sharing a two-column strip with empty space.
 - **Clicking a log row opens a centered popout.** Both the cross-layer Log inspect and the per-layer Logs tab now open the same full-payload popout on row click — format-aware pretty-print (JSON pretty-printed by content type), the tags table, service / instance / endpoint / time meta, a copy button, and the trace link. Escape or the close button dismisses it.
 - **Log inspect can now query Browser errors across the page.** A new **Browser** source on Log inspect (beside Raw) queries the BROWSER layer's JS error logs from anywhere — pick a browser service or type a service name (or leave it blank for all services), then narrow by category (AJAX / RESOURCE / VUE / PROMISE / JS / UNKNOWN), version, page, and time window, and read the error list (message, category, page path, app version, time, minified `line:col`). Upload and manage source maps inline, then click a row to open a popout with the error meta, the raw stack, and the source-map de-obfuscation control — resolve the minified stack back to the original frames + source snippet.
