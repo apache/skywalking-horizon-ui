@@ -55,8 +55,23 @@ export function parseLabeledSeries(
   fallbackLabel: string,
 ): Array<{ label: string; data: Array<number | null> }> | null {
   if (!r || r.error) return null;
+  const results = r.results ?? [];
+  // Name each series by its DISCRIMINATING label(s). A labeled metric can
+  // carry both an identity dimension (`pipe` / `pipeline`) and a constant
+  // aggregation dimension (`status='all'`); naming off the last label alone
+  // collapses every series onto the constant. Keep only labels whose value
+  // varies across the whole result, then join them for the series name.
+  const varyingKeys = new Set<string>();
+  {
+    const keys = new Set<string>();
+    for (const rs of results) for (const l of rs.metric?.labels ?? []) keys.add(l.key);
+    for (const key of keys) {
+      const vals = new Set(results.map((rs) => (rs.metric?.labels ?? []).find((l) => l.key === key)?.value));
+      if (vals.size > 1) varyingKeys.add(key);
+    }
+  }
   const out: Array<{ label: string; data: Array<number | null> }> = [];
-  for (const rs of r.results ?? []) {
+  for (const rs of results) {
     const values = rs.values ?? [];
     if (values.length === 0) continue;
     const data = values.map((v) => {
@@ -64,12 +79,15 @@ export function parseLabeledSeries(
       const n = Number(v.value);
       return Number.isFinite(n) ? n : null;
     });
-    // For relabels() results OAP returns multi-result responses with
-    // metric.labels populated — take the last (most-derived) label
-    // value, e.g. `percentile='99'`. Single-series results have no
-    // labels; fall back to the operator's expression text.
+    // Series name = the varying label(s). Single-label relabels()/percentile
+    // (`p='99'`) keep their lone varying label; a constant-only or unlabeled
+    // series falls back to the last label, then the expression text.
     const labels = rs.metric?.labels ?? [];
-    const lbl = labels.length > 0 ? labels[labels.length - 1].value : fallbackLabel;
+    const varying = labels.filter((l) => varyingKeys.has(l.key));
+    const lbl =
+      varying.length > 0 ? varying.map((l) => l.value).join(', ')
+      : labels.length > 0 ? labels[labels.length - 1].value
+      : fallbackLabel;
     out.push({ label: lbl, data });
   }
   return out.length > 0 ? out : null;

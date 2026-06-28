@@ -44,6 +44,8 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **The Kubernetes Node dashboard gains a Pod Total card.** A compact card now sits directly under Node Status showing the current count of pods scheduled on the selected node (all phases) — the latest value of the same metric the "Pods on Node" trend already charts — so the space beside the status card is no longer blank.
 
+- **Satellite event and queue widgets break out per pipeline.** The SO11Y_SATELLITE Receive Events, Fetch Events, Queue Input / Output, and Queue Used widgets now label each series by its Satellite pipeline (`tracingpipe`, `jvmpipe`, `logpipe`, …) instead of collapsing every line onto a single `all`, so you can see which collection pipeline drives the rate.
+
 ### Performance & behavior tuning
 
 - **New `performance` section in `horizon.yaml`.** Tune how hard the BFF fans metric queries out to OAP — per-route bulk (request) sizes and concurrency for the topology, 3D-map, landing, and dashboard fan-outs — plus protective caps: the service-map render valve (`topologyMaxNodes` / `topologyMaxEdges`) and per-request record caps for traces / logs / browser logs. Operational, hot-reloaded, per-deployment; defaults match the previous built-in values, so the whole block is optional. Raise it for a beefy OAP + storage backend, lower it to protect a modest deployment; every value clamps to a hard ceiling.

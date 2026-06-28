@@ -30,7 +30,7 @@ The layer landing page lists every Satellite service that has reported. This lay
 
 ## Service dashboard
 
-The dashboard for one selected Satellite collector. Every widget is a time-series line over the selected window, covering the collector's connection load, host CPU, internal queue, and the four stages of its event pipeline.
+The dashboard for one selected Satellite collector. Every widget is a time-series line over the selected window, covering the collector's connection load, host CPU, internal queue, and the four stages of its event pipeline. The queue and event widgets break their series out **per Satellite pipeline** (`tracingpipe`, `jvmpipe`, `logpipe`, `meterpipe`, …), so you can see which collection pipeline is driving the rate; Connection Count and CPU are single series.
 
 - **Connection Count** — the number of gRPC connections the collector currently holds, i.e. how many upstream agents and downstream OAP links are attached (`satellite_service_grpc_connect_count`).
 
