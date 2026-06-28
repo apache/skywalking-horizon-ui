@@ -25,6 +25,7 @@
 import { computed, onMounted } from 'vue';
 import type { ProcessTopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
+import { rowKey } from './row-key';
 
 const config = defineModel<ProcessTopologyConfig | undefined>('config');
 
@@ -74,8 +75,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in clientMetrics"
-            :key="i"
+            v-for="(m, i) in clientMetrics"
+            :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
             mqe-placeholder="process_relation_client_write_cpm"
             :can-move-up="i > 0"
@@ -96,8 +97,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in serverMetrics"
-            :key="i"
+            v-for="(m, i) in serverMetrics"
+            :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
             mqe-placeholder="process_relation_server_write_cpm"
             :can-move-up="i > 0"

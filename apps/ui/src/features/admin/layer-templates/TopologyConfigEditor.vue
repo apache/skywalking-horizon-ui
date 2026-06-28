@@ -28,6 +28,7 @@ import { computed, onMounted } from 'vue';
 import type { TopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
+import { rowKey } from './row-key';
 
 const config = defineModel<TopologyConfig | undefined>('config');
 defineProps<{ serviceNoun: string; instanceNoun: string }>();
@@ -111,8 +112,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in nodeMetrics"
-            :key="i"
+            v-for="(m, i) in nodeMetrics"
+            :key="rowKey(m)"
             v-model:metric="nodeMetrics[i]"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
@@ -137,8 +138,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in serverMetrics"
-            :key="i"
+            v-for="(m, i) in serverMetrics"
+            :key="rowKey(m)"
             v-model:metric="serverMetrics[i]"
             :can-move-up="i > 0"
             :can-move-down="i < serverMetrics.length - 1"
@@ -158,8 +159,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in clientMetrics"
-            :key="i"
+            v-for="(m, i) in clientMetrics"
+            :key="rowKey(m)"
             v-model:metric="clientMetrics[i]"
             :can-move-up="i > 0"
             :can-move-down="i < clientMetrics.length - 1"
@@ -192,8 +193,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <div v-if="instNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
-                v-for="(_m, i) in instNodeMetrics"
-                :key="i"
+                v-for="(m, i) in instNodeMetrics"
+                :key="rowKey(m)"
                 v-model:metric="instNodeMetrics[i]"
                 :role-options="TOPOLOGY_ROLE_OPTIONS"
                 show-role
@@ -218,8 +219,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <div v-if="instServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
-                v-for="(_m, i) in instServerMetrics"
-                :key="i"
+                v-for="(m, i) in instServerMetrics"
+                :key="rowKey(m)"
                 v-model:metric="instServerMetrics[i]"
                 :can-move-up="i > 0"
                 :can-move-down="i < instServerMetrics.length - 1"
@@ -239,8 +240,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
             <div v-if="instClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
-                v-for="(_m, i) in instClientMetrics"
-                :key="i"
+                v-for="(m, i) in instClientMetrics"
+                :key="rowKey(m)"
                 v-model:metric="instClientMetrics[i]"
                 :can-move-up="i > 0"
                 :can-move-down="i < instClientMetrics.length - 1"

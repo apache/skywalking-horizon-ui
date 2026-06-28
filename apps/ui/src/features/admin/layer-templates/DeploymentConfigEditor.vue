@@ -41,6 +41,7 @@ import type {
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import RoleMetricRow from './RoleMetricRow.vue';
+import { rowKey } from './row-key';
 
 const config = defineModel<DeploymentConfig | undefined>('config');
 defineProps<{ instanceNoun: string }>();
@@ -465,7 +466,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         </header>
         <div v-if="deploymentRoles.length === 0" class="topo-cfg-empty">No roles defined. Add one per role (e.g. liaison / data / lifecycle) to give each its own metrics.</div>
         <div v-else class="role-list">
-          <article v-for="(r, ri) in deploymentRoles" :key="ri" class="role-card">
+          <article v-for="(r, ri) in deploymentRoles" :key="rowKey(r)" class="role-card">
             <div class="role-head">
               <label class="mf mf-narrow"><span>key</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" /></label>
               <label class="mf"><span>label</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" /></label>
@@ -484,8 +485,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
               <div v-if="!r.nodeMetrics || r.nodeMetrics.length === 0" class="topo-cfg-empty">No metrics — this role falls back to the node metrics below.</div>
               <div v-else class="metric-list">
                 <RoleMetricRow
-                  v-for="(_m, mi) in r.nodeMetrics"
-                  :key="mi"
+                  v-for="(m, mi) in r.nodeMetrics"
+                  :key="rowKey(m)"
                   v-model:metric="r.nodeMetrics[mi]"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
@@ -514,7 +515,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         </header>
         <div v-if="deploymentRoleToRole.length === 0" class="topo-cfg-empty">No role pairs. Add one per edge type (e.g. liaison → data); otherwise edges use the link fallback below.</div>
         <div v-else class="role-list">
-          <article v-for="(p, pi) in deploymentRoleToRole" :key="pi" class="role-card">
+          <article v-for="(p, pi) in deploymentRoleToRole" :key="rowKey(p)" class="role-card">
             <div class="role-head">
               <label class="mf mf-narrow"><span>from</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" /></label>
               <label class="mf mf-narrow"><span>to</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" /></label>
@@ -533,8 +534,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
               <div v-if="!p.metrics || p.metrics.length === 0" class="topo-cfg-empty">No metrics — this edge falls back to the link metrics below.</div>
               <div v-else class="metric-list">
                 <RoleMetricRow
-                  v-for="(_m, mi) in p.metrics"
-                  :key="mi"
+                  v-for="(m, mi) in p.metrics"
+                  :key="rowKey(m)"
                   v-model:metric="p.metrics[mi]"
                   :role-options="TOPOLOGY_ROLE_OPTIONS"
                   show-role
@@ -563,8 +564,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in deploymentNodeMetrics"
-            :key="i"
+            v-for="(m, i) in deploymentNodeMetrics"
+            :key="rowKey(m)"
             v-model:metric="deploymentNodeMetrics[i]"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
@@ -589,8 +590,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in deploymentServerMetrics"
-            :key="i"
+            v-for="(m, i) in deploymentServerMetrics"
+            :key="rowKey(m)"
             v-model:metric="deploymentServerMetrics[i]"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentServerMetrics.length - 1"
@@ -610,8 +611,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
         <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in deploymentClientMetrics"
-            :key="i"
+            v-for="(m, i) in deploymentClientMetrics"
+            :key="rowKey(m)"
             v-model:metric="deploymentClientMetrics[i]"
             :can-move-up="i > 0"
             :can-move-down="i < deploymentClientMetrics.length - 1"

@@ -27,6 +27,7 @@ import { computed, onMounted } from 'vue';
 import type { EndpointDependencyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
+import { rowKey } from './row-key';
 
 const config = defineModel<EndpointDependencyConfig | undefined>('config');
 
@@ -90,8 +91,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">No node metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in nodeMetrics"
-            :key="i"
+            v-for="(m, i) in nodeMetrics"
+            :key="rowKey(m)"
             v-model:metric="nodeMetrics[i]"
             :role-options="TOPOLOGY_ROLE_OPTIONS"
             show-role
@@ -115,8 +116,8 @@ function remove(list: TopologyMetricDef[], i: number): void {
         <div v-if="linkMetrics.length === 0" class="topo-cfg-empty">No link metrics.</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
-            v-for="(_m, i) in linkMetrics"
-            :key="i"
+            v-for="(m, i) in linkMetrics"
+            :key="rowKey(m)"
             v-model:metric="linkMetrics[i]"
             :can-move-up="i > 0"
             :can-move-down="i < linkMetrics.length - 1"

@@ -28,6 +28,7 @@
 import { computed, onMounted } from 'vue';
 import type { AdminLayerTemplate } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
+import { rowKey } from './row-key';
 
 const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
 defineProps<{ serviceLabel: string }>();
@@ -62,6 +63,13 @@ function addMetricColumn(): void {
 function deleteMetricColumn(i: number): void {
   if (!config.value?.columns) return;
   config.value.columns.splice(i, 1);
+}
+// Number inputs clear to undefined, not "" — scale/precision are optional
+// numbers, so an empty string would serialize an invalid value into the saved
+// template and break the renderer's numeric coercion.
+function setNum(col: { scale?: number; precision?: number }, key: 'scale' | 'precision', e: Event): void {
+  const v = (e.target as HTMLInputElement).value;
+  col[key] = v === '' ? undefined : Number(v);
 }
 
 /** Sample rows for the service-list preview — three fake services with
@@ -120,7 +128,7 @@ const effectiveOrderBy = computed(
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(c, i) in metricsColumns" :key="i">
+        <tr v-for="(c, i) in metricsColumns" :key="rowKey(c)">
           <td><input class="mono" v-model="c.metric" /></td>
           <td><input v-model="c.label" /></td>
           <td><input v-model="c.unit" placeholder="—" /></td>
@@ -131,8 +139,8 @@ const effectiveOrderBy = computed(
             </select>
           </td>
           <td><input class="mono" v-model="c.mqe" placeholder="catalog default" /></td>
-          <td><input type="number" step="any" v-model.number="c.scale" placeholder="1" /></td>
-          <td><input type="number" min="0" max="6" v-model.number="c.precision" placeholder="auto" /></td>
+          <td><input type="number" step="any" :value="c.scale" placeholder="1" @input="setNum(c, 'scale', $event)" /></td>
+          <td><input type="number" min="0" max="6" :value="c.precision" placeholder="auto" @input="setNum(c, 'precision', $event)" /></td>
           <td>
             <button class="sw-btn is-icon danger" type="button" title="Remove column" @click="deleteMetricColumn(i)">✕</button>
           </td>
