@@ -41,6 +41,7 @@ import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
 import PprofTaskDetailModal from '@/layer/profiling/PprofTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -69,6 +70,7 @@ const taskDetailFor = ref<PprofTask | null>(null);
 const taskDetailLogs = ref<AsyncProfilingProgressLog[]>([]);
 
 const showNewTask = ref(false);
+useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTask = reactive({
   instances: [] as string[],
   // OAP measures pprof duration in MINUTES (capped at 15).
@@ -81,7 +83,7 @@ const newTask = reactive({
   dumpPeriod: 1,
 });
 const newTaskError = ref<string | null>(null);
-const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
+const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 
 const PPROF_EVENTS = ['CPU', 'HEAP', 'BLOCK', 'GOROUTINE', 'MUTEX', 'ALLOCS', 'THREADCREATE'];
 // Per OAP: duration applies to CPU/BLOCK/MUTEX; dumpPeriod to BLOCK/MUTEX.
@@ -239,7 +241,7 @@ function instanceName(id: string): string {
           <button class="btn-new" :disabled="!serviceId" :title="serviceId ? 'Create a new pprof task' : 'Pick a service first'" @click="showNewTask = true">+ New Task</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Waiting for new task… ({{ pollRound }}/4)</div>
+      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
       <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
       <div v-else-if="!tasks.length" class="side-empty">
@@ -292,7 +294,7 @@ function instanceName(id: string): string {
           <label class="lbl">Event</label>
           <span class="event-fixed">{{ currentTask?.events ?? '—' }}</span>
         </div>
-        <button class="btn-primary" :disabled="analyzeLoading || !currentTask" @click="runAnalyze">
+        <button class="btn-primary" :disabled="analyzeLoading || !currentTask || !selectedInstances.length" :title="!selectedInstances.length ? 'Select at least one instance' : 'Analyze the selected instances'" @click="runAnalyze">
           {{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}
         </button>
       </div>

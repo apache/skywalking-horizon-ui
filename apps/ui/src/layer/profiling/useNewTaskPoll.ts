@@ -20,18 +20,18 @@
  * (trace / async / eBPF cpu / eBPF network / pprof). OAP acks a task
  * creation before the task is queryable — the task has to propagate to
  * the task-list query, which can take several seconds. So after a create
- * we refresh the list repeatedly until the new task shows up rather than
+ * we count down ~10s once and refresh the list a single time, rather than
  * leaving the operator looking at the stale pre-create list.
  *
  * Detection is id-based: capture the visible task ids *before* the create,
- * then after each refresh look for any id that wasn't there before. That
+ * then after the refresh look for any id that wasn't there before. That
  * covers both "empty → first task" and "a newer task appended on top of
  * existing ones", without depending on per-family timestamp field names.
  */
 
 import { ref } from 'vue';
 
-export const POLL_ROUNDS = 4;
+export const POLL_ROUNDS = 1;
 export const POLL_INTERVAL_MS = 10_000;
 
 export function useNewTaskPoll() {
@@ -39,6 +39,8 @@ export function useNewTaskPoll() {
   const polling = ref(false);
   /** 1-based round currently in flight (0 when idle). */
   const pollRound = ref(0);
+  /** Seconds until the next refresh (0 when idle) — drives the visible countdown. */
+  const countdown = ref(0);
 
   async function pollForNewTask(opts: {
     /** Task ids visible before the create call. */
@@ -56,7 +58,12 @@ export function useNewTaskPoll() {
     try {
       for (let i = 1; i <= POLL_ROUNDS; i++) {
         pollRound.value = i;
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        // Count the inter-refresh wait down by the second so the operator sees
+        // the next check approaching, not an opaque round number.
+        for (let s = POLL_INTERVAL_MS / 1000; s >= 1; s--) {
+          countdown.value = s;
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
         await opts.refresh();
         if (appeared()) return true;
       }
@@ -64,8 +71,9 @@ export function useNewTaskPoll() {
     } finally {
       polling.value = false;
       pollRound.value = 0;
+      countdown.value = 0;
     }
   }
 
-  return { polling, pollRound, pollForNewTask };
+  return { polling, pollRound, countdown, pollForNewTask };
 }

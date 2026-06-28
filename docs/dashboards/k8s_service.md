@@ -18,7 +18,7 @@ limitations under the License.
 
 The **K8S_SERVICE** layer monitors the network behavior of Kubernetes services, observed at the kernel level by SkyWalking Rover's eBPF probes. It captures the HTTP and TCP traffic flowing in and out of each service's pods — call rate, latency, status codes, header / body sizes, packet counts, and connection activity — without instrumenting the application. It belongs to the **Kubernetes** layer group.
 
-In Horizon's sidebar this layer is named **Kubernetes Services**. Its services are listed as **K8s services**, instances as **Pods**, and endpoints as **Endpoints** — service names are grouped and displayed by their Kubernetes namespace. The K8S_SERVICE layer enables the Service, Pod, Endpoint, Topology, eBPF Profiling, and Pod Logs sub-tabs. It does not enable an endpoint-dependency map, Traces, or Logs.
+In Horizon's sidebar this layer is named **Kubernetes Services**. Its services are listed as **K8s services**, instances as **Pods**, and endpoints as **Endpoints** — service names are grouped and displayed by their Kubernetes namespace. The K8S_SERVICE layer enables the Service, Pod, Endpoint, Topology, eBPF Profiling, Network Profiling, and Pod Logs sub-tabs. It does not enable an endpoint-dependency map, Traces, or Logs.
 
 This page is the **operator reference** for the bundled K8S_SERVICE dashboard: what you see on each scope and what each widget means.
 
@@ -120,11 +120,13 @@ The K8S_SERVICE layer ships a service topology with an instance-level drill-down
 
 For how these maps are read and navigated, see the [3D Infrastructure Map](../operate/infra-3d-map.md) for the cross-layer view, and the topology section of [Layer Dashboard Templates](../customization/layer-templates.md) for how the node and edge metrics are configured.
 
-## eBPF Profiling and Pod Logs
+## eBPF Profiling, Network Profiling, and Pod Logs
 
-Because K8S_SERVICE data comes from eBPF probes, this layer also enables two investigation tabs alongside the dashboards:
+Because K8S_SERVICE data comes from eBPF probes, this layer also enables three investigation tabs alongside the dashboards:
 
-- **eBPF Profiling** — on-CPU / off-CPU and network profiling tasks targeted at a selected service, with the flame-graph and span-attached results SkyWalking Rover reports.
+- **eBPF Profiling** — on-CPU / off-CPU profiling tasks targeted at a selected service, with the flame-graph and span-attached results SkyWalking Rover reports.
+
+- **Network Profiling** — the process-to-process network conversations within the service, rendered as a process-level topology, captured by SkyWalking Rover on a selected pod.
 
 - **Pod Logs** — the container logs collected from the service's pods, with the same filtering and search the logs surface provides elsewhere.
 

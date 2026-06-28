@@ -67,7 +67,7 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
   const analyzeLoading = ref(false);
 
   const newTaskError = ref<string | null>(null);
-  const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
+  const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 
   watch(
     () => layerKey.value + '|' + (selectedId.value ?? ''),
@@ -299,6 +299,6 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
     newTaskError,
     submitNewTask,
     polling,
-    pollRound,
+    countdown,
   };
 }

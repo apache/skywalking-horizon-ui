@@ -24,6 +24,12 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **pprof and async-profiling tasks open a detail modal with their captured logs.**
 
+- **K8S_SERVICE gains a Network Profiling tab.** Kubernetes services, already observed by SkyWalking Rover's eBPF probes, now expose Network Profiling — pick a pod and capture the process-to-process network conversations as a topology, the same capability the Mesh layer offers.
+
+- **Profiling create dialogs are clearer and harder to misuse.** After a create the hint counts down to its single list refresh (`refreshing in Ns`), Escape closes the Async and pprof create dialogs, and Analyze stays disabled until at least one instance is selected.
+
+- **The Async result's event-type picker shows only what the task captured.** It lists just the JFR trees the selected task's events produce (EXECUTION_SAMPLE, LOCK, OBJECT_ALLOCATION_*), dropping options like PROFILER_LIVE_OBJECT that no Horizon-created task can produce — so you can't pick a type that renders an empty graph.
+
 ### Alarms
 
 - **The alarm timeline reads more clearly** — a clearer selection band and legend, and the detail sidebar reflows cleanly on narrow windows. Hovering the timeline now hints both affordances — click a minute to filter, or drag across the timeline to select a range — so range-selection is no longer hidden.

@@ -281,7 +281,7 @@ useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTaskError = ref<string | null>(null);
 const { processes: networkProcesses, loading: processesLoading } =
   useNetworkProcesses(selectedInstanceId, showNewTask);
-const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
+const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 // requireComplete{Request,Response} are Boolean! — every sampling row must
 // carry the settings block or create 400s.
 const DEFAULT_SETTINGS = (): NetworkProfilingSampling['settings'] => ({
@@ -362,7 +362,7 @@ function fmtTime(ms: number): string {
           >+ New Task</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Waiting for new task… ({{ pollRound }}/4)</div>
+      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
       <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
       <div v-else-if="!tasks.length" class="side-empty">

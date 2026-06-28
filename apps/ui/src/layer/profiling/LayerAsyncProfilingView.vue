@@ -42,6 +42,7 @@ import ProfileFlameGraph from '@/layer/profiling/ProfileFlameGraph.vue';
 import AsyncProfilingTaskDetailModal from '@/layer/profiling/AsyncProfilingTaskDetailModal.vue';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
+import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
 const { t } = useI18n();
 const route = useRoute();
@@ -71,6 +72,7 @@ const analyzeError = ref<string | null>(null);
 const analyzeLoading = ref(false);
 
 const showNewTask = ref(false);
+useEscapeToClose(() => showNewTask.value, () => (showNewTask.value = false));
 const newTask = reactive({
   instances: [] as string[],
   duration: 60,
@@ -78,7 +80,7 @@ const newTask = reactive({
   execArgs: '',
 });
 const newTaskError = ref<string | null>(null);
-const { polling, pollRound, pollForNewTask } = useNewTaskPoll();
+const { polling, countdown, pollForNewTask } = useNewTaskPoll();
 
 const DURATION_OPTS = [
   { v: 30, label: '30 sec' },
@@ -88,6 +90,30 @@ const DURATION_OPTS = [
   { v: 900, label: '15 min' },
 ];
 const EVENTS: AsyncProfilingEvent[] = ['CPU', 'ALLOC', 'LOCK', 'WALL', 'CTIMER', 'ITIMER'];
+// Each capture event produces one or more JFR trees (the analyze result holds
+// one tree per type). The result-side EVENT TYPE picker offers only the types
+// THIS task captured — never PROFILER_LIVE_OBJECT (no capture event above
+// produces it). ALLOC yields both the in- and outside-TLAB allocation trees.
+const EVENT_TO_JFR_TYPES: Record<string, string[]> = {
+  CPU: ['EXECUTION_SAMPLE'],
+  WALL: ['EXECUTION_SAMPLE'],
+  CTIMER: ['EXECUTION_SAMPLE'],
+  ITIMER: ['EXECUTION_SAMPLE'],
+  LOCK: ['LOCK'],
+  ALLOC: ['OBJECT_ALLOCATION_IN_NEW_TLAB', 'OBJECT_ALLOCATION_OUTSIDE_TLAB'],
+};
+const availableEventTypes = computed<Array<{ value: string; label: string }>>(() => {
+  const seen = new Set<string>();
+  const out: Array<{ value: string; label: string }> = [];
+  for (const ev of currentTask.value?.events ?? []) {
+    for (const jfr of EVENT_TO_JFR_TYPES[ev] ?? []) {
+      if (seen.has(jfr)) continue;
+      seen.add(jfr);
+      out.push({ value: jfr, label: jfr === 'EXECUTION_SAMPLE' ? 'EXECUTION_SAMPLE (CPU/Wall/Timer)' : jfr });
+    }
+  }
+  return out;
+});
 
 watch(
   () => layerKey.value + '|' + (serviceId.value ?? ''),
@@ -260,7 +286,7 @@ function instanceName(id: string): string {
           >+ New Task</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Waiting for new task… ({{ pollRound }}/4)</div>
+      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
       <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
       <div v-else-if="!tasks.length" class="side-empty">
@@ -310,16 +336,13 @@ function instanceName(id: string): string {
         <div class="tb-block">
           <label class="lbl">Event type</label>
           <select v-model="eventType" class="sel">
-            <option value="EXECUTION_SAMPLE">EXECUTION_SAMPLE (CPU/Wall/Timer)</option>
-            <option value="LOCK">LOCK</option>
-            <option value="OBJECT_ALLOCATION_IN_NEW_TLAB">OBJECT_ALLOCATION_IN_NEW_TLAB</option>
-            <option value="OBJECT_ALLOCATION_OUTSIDE_TLAB">OBJECT_ALLOCATION_OUTSIDE_TLAB</option>
-            <option value="PROFILER_LIVE_OBJECT">PROFILER_LIVE_OBJECT</option>
+            <option v-for="o in availableEventTypes" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
         </div>
         <button
           class="btn-primary"
-          :disabled="analyzeLoading || !currentTask"
+          :disabled="analyzeLoading || !currentTask || !selectedInstances.length"
+          :title="!selectedInstances.length ? 'Select at least one instance' : 'Analyze the selected instances'"
           @click="runAnalyze"
         >{{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}</button>
       </div>

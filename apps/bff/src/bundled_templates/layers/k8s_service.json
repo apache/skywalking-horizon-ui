@@ -24,6 +24,7 @@
     "traces": false,
     "logs": false,
     "ebpfProfiling": true,
+    "networkProfiling": true,
     "podLogs": true
   },
   "layer-header": {
