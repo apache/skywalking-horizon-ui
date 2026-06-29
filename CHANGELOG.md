@@ -42,6 +42,8 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Denser Kubernetes dashboard tables** — the K8s layer's table widgets show more rows without scrolling.
 
+- **Live debugger reads cleanly on tall and wide results.** The LAL pipeline matrix's frozen first column now stays pinned when you scroll the grid sideways (it used to drift off with the rest of the matrix), clicking a source line flashes the whole matching step row — not just its label — and the MAL / LAL / OAL debugger pages now scroll as one page for tall captures instead of trapping the result in a fixed-height inner box.
+
 ### Dashboards
 
 - **Cards can render values as colored status chips.** A card widget with `format: enum` now takes an optional chip color per value-map entry — `ok` (green), `warn` (amber), `err` (red), `info` (blue), `neutral` (grey) — and renders each matched value, or metric label, as a colored chip instead of a bare number. Set it in the layer-dashboard admin's value-map editor, next to the existing value → label mapping.

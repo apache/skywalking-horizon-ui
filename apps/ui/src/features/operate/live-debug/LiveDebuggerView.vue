@@ -92,8 +92,7 @@ function selectTab(t: Tab): void {
 .dbg {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 0;
+  min-height: 100%;
   padding: 18px 24px;
   gap: 12px;
 }

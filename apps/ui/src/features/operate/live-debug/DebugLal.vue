@@ -523,9 +523,10 @@ const blockHookByLine = computed<Map<number, string>>(() => {
 });
 
 /** Soft-highlight: when an operator clicks a line in the source
- *  panel, the corresponding step row in the matrix gets a brief
- *  outline. We track the highlighted step key and clear it after a
- *  short delay so the cue is visible without being permanent. */
+ *  panel, the corresponding step row in the matrix briefly flashes
+ *  (label outline + full-row wash). We track the highlighted step key
+ *  and clear it after a short delay so the cue is visible without
+ *  being permanent. */
 const highlightedStepKey = ref<string | null>(null);
 let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -819,6 +820,7 @@ function recordTitle(view: LalRecordView): string {
               :key="`${step.key}-${rv.recIdx}`"
               class="lal__cell"
               :class="{
+                'lal__cell--rowflash': highlightedStepKey === step.key,
                 'lal__cell--selected':
                   selectedCell !== null &&
                   selectedCell.recIdx === rv.recIdx &&
@@ -1134,6 +1136,7 @@ function recordTitle(view: LalRecordView): string {
   font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-base);
   background: var(--rr-bg);
+  width: max-content;
   min-width: 100%;
 }
 
@@ -1320,7 +1323,7 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__cell--pinned {
-  background: rgba(143, 175, 199, 0.05);
+  background: color-mix(in srgb, var(--rr-accent, var(--rr-active)) 6%, var(--rr-bg));
 }
 
 .lal__cell--selected,
@@ -1340,6 +1343,12 @@ function recordTitle(view: LalRecordView): string {
   color: var(--rr-dim);
   font-style: italic;
   font-size: var(--sw-fs-sm);
+}
+
+.lal__steplbl--flash,
+.lal__cell--rowflash {
+  background: color-mix(in srgb, var(--rr-accent, var(--rr-active)) 20%, var(--rr-bg));
+  transition: background 0.5s ease;
 }
 
 .lal__histbanner {
