@@ -44,13 +44,16 @@ import { bff } from '@/api/client';
 import { useDebugSession } from '@/features/operate/live-debug/useDebugSession';
 import { useDebugHistory, type HistoryEntry } from '@/features/operate/live-debug/useDebugHistory';
 import Btn from '@/components/primitives/Btn.vue';
+import Icon from '@/components/icons/Icon.vue';
 import DebugView from './DebugView.vue';
 import LalCell from './LalCell.vue';
+import LalCellPopout from './LalCellPopout.vue';
 import { isLalSamplePayload } from './payload.js';
 import {
   cellAt,
   cssEscape,
   formatTime,
+  fullJson,
   nodeKey,
   recordMatches,
   stepKeyOf,
@@ -199,6 +202,10 @@ const displaySession = computed<SessionResponse | null>(
  * functions, an `?historyId=` deep-link would throw a TDZ
  * ReferenceError and blank the page. */
 const selectedCell = ref<LalCellData | null>(null);
+/** Node that owns the selected cell. The column-pin highlight keys on
+ *  recIdx, which collides across nodes (each node numbers its records
+ *  from 0), so the pin must also match this node. */
+const selectedNodeKey = ref<string | null>(null);
 
 function loadHistorical(entry: HistoryEntry): void {
   historicalEntry.value = entry;
@@ -356,8 +363,14 @@ const nodeViews = computed<LalNodeView[]>(() => {
  *  `<mark>` highlight inside the captured DSL. `selectedCell` itself
  *  is declared above `loadHistorical` (TDZ guard). */
 
-function selectCell(cell: LalCellData): void {
-  selectedCell.value = selectedCell.value === cell ? null : cell;
+function selectCell(cell: LalCellData, nKey: string): void {
+  if (selectedCell.value === cell) {
+    selectedCell.value = null;
+    selectedNodeKey.value = null;
+  } else {
+    selectedCell.value = cell;
+    selectedNodeKey.value = nKey;
+  }
 }
 
 // ── Single-record expand mode ─────────────────────────────────────
@@ -383,6 +396,101 @@ function toggleExpandRecord(nKey: string, recIdx: number): void {
   } else {
     expandedRecord.value = { nodeKey: nKey, recIdx };
   }
+}
+
+// ── Per-row "has-data" filter ─────────────────────────────────────
+
+/** Per-node active row filter (`nodeKey → step key`). When a node has one
+ *  set, its matrix keeps only the records (columns) that produced data for
+ *  that step — e.g. filter the OUTPUT row to the records that actually
+ *  emitted output. Keyed by node so each OAP node's matrix filters
+ *  independently; a cluster renders one matrix per node. */
+const rowFilter = ref<Record<string, string>>({});
+
+function toggleRowFilter(nKey: string, stepKey: string): void {
+  const next = { ...rowFilter.value };
+  if (next[nKey] === stepKey) delete next[nKey];
+  else next[nKey] = stepKey;
+  rowFilter.value = next;
+}
+
+// ── Single-cell full-data popout ──────────────────────────────────
+
+/** The cell whose complete data (all fields + full pretty-printed
+ *  content) is shown in the popout modal; null when closed. The dense
+ *  matrix clips each cell, so the expand icon opens this to read it all. */
+const popoutOpen = ref<boolean>(false);
+const popoutTitle = ref<string>('');
+const popoutScript = ref<string>('');
+const popoutJson = ref<string>('');
+const popoutComparable = ref<
+  { label: string; script: string; json: string; lineStart: number; lineEnd: number }[]
+>([]);
+const popoutDslLines = ref<string[]>([]);
+const popoutCurrentLine = ref<number>(0);
+
+/** Brace-match a top-level DSL block (`extractor {` … `}`) and return its
+ *  1-based line span, or null when the opener isn't present. */
+function blockRange(openRe: RegExp): { start: number; end: number } | null {
+  const lines = sourceDslLines.value;
+  let start = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (openRe.test(lines[i]!)) {
+      start = i;
+      break;
+    }
+  }
+  if (start < 0) return null;
+  let depth = 0;
+  for (let i = start; i < lines.length; i++) {
+    for (const ch of lines[i]!) {
+      if (ch === '{') depth++;
+      else if (ch === '}' && --depth === 0) return { start: start + 1, end: i + 1 };
+    }
+  }
+  return { start: start + 1, end: lines.length };
+}
+
+/** A step's DSL span: one line for per-statement steps; the whole block
+ *  for the block-level snapshots so the picker shows them as ranges. The
+ *  `output` snapshot maps to the `sink {}` block (where the built log
+ *  goes); the post-extractor snapshot maps to `extractor {}`. */
+function stepLines(step: LalStep): { start: number; end: number } {
+  if (step.sourceLine > 0) return { start: step.sourceLine, end: step.sourceLine };
+  const r = blockRange(step.type === 'output' ? /^\s*sink\s*\{/ : /^\s*extractor\s*\{/);
+  return r ?? { start: 0, end: 0 };
+}
+
+function openCellPopout(cell: LalCellData, step: LalStep, node: LalNodeView): void {
+  popoutTitle.value = `${step.kindLabel} · ${recordTitle({ rec: cell.rec, recIdx: cell.recIdx })}`;
+  popoutScript.value = cell.sample.sourceText.trim();
+  popoutJson.value = fullJson(cell.payload, step.type);
+  popoutDslLines.value = sourceDslLines.value;
+  popoutCurrentLine.value = stepLines(step).start;
+  // Comparable = the record's other same-format (builder) cells. Per-
+  // statement snapshots map to their DSL line; the post-extractor /
+  // output snapshots map to their whole block range, so the captured
+  // script doubles as the row selector. The input row (different proto
+  // format, no builder output) has no comparator.
+  const isBuilder = !!cell.payload?.output;
+  popoutComparable.value = node.steps
+    .filter((s) => s.key !== step.key)
+    .map((s) => ({ s, c: cellAt(node, s, cell.recIdx) }))
+    .filter((x) => x.c !== undefined && !!x.c.payload?.output === isBuilder)
+    .map((x) => {
+      const r = stepLines(x.s);
+      return {
+        label: x.s.kindLabel,
+        script: x.c!.sample.sourceText.trim(),
+        json: fullJson(x.c!.payload, x.s.type),
+        lineStart: r.start,
+        lineEnd: r.end,
+      };
+    });
+  popoutOpen.value = true;
+}
+function closeCellPopout(): void {
+  popoutOpen.value = false;
 }
 
 // ── Search + display limit ────────────────────────────────────────
@@ -428,10 +536,15 @@ const displayedByNode = computed<Map<string, DisplayedShape>>(() => {
         continue;
       }
     }
-    const matched =
+    const searched =
       q === ''
         ? view.recordViews
         : view.recordViews.filter((rv) => recordMatches(rv.rec, q));
+    const rf = rowFilter.value[nKey];
+    const matched =
+      rf === undefined
+        ? searched
+        : searched.filter((rv) => view.cells.get(rf)?.get(rv.recIdx) !== undefined);
     map.set(nKey, {
       records: matched.slice(0, limit),
       matched: matched.length,
@@ -523,9 +636,10 @@ const blockHookByLine = computed<Map<number, string>>(() => {
 });
 
 /** Soft-highlight: when an operator clicks a line in the source
- *  panel, the corresponding step row in the matrix gets a brief
- *  outline. We track the highlighted step key and clear it after a
- *  short delay so the cue is visible without being permanent. */
+ *  panel, the corresponding step row in the matrix briefly flashes
+ *  (label outline + full-row wash). We track the highlighted step key
+ *  and clear it after a short delay so the cue is visible without
+ *  being permanent. */
 const highlightedStepKey = ref<string | null>(null);
 let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -534,7 +648,7 @@ function jumpToStep(stepKey: string): void {
   if (highlightTimer !== null) clearTimeout(highlightTimer);
   highlightTimer = setTimeout(() => {
     highlightedStepKey.value = null;
-  }, 1500);
+  }, 10000);
   // Scroll the matrix's matching step label into view inside the
   // wrapper. The element id is set on the step row's leading label
   // cell so this works for both the sticky-pinned column and free-
@@ -768,7 +882,7 @@ function recordTitle(view: LalRecordView): string {
         <div
           v-else
           class="lal__matrix"
-          :style="`grid-template-columns: 180px repeat(${displayedRecords(node).length}, minmax(200px, 1fr));`"
+          :style="`grid-template-columns: 180px repeat(${displayedRecords(node).length}, ${expandedRecord ? '1fr' : 'minmax(220px, 380px)'});`"
         >
           <div class="lal__hdrlbl">
             {{ t('block ▾ / record →') }}
@@ -786,7 +900,9 @@ function recordTitle(view: LalRecordView): string {
             class="lal__hdrec"
             :class="{
               'lal__hdrec--pinned':
-                selectedCell !== null && selectedCell.recIdx === rv.recIdx,
+                selectedCell !== null &&
+                selectedNodeKey === nodeKey(node) &&
+                selectedCell.recIdx === rv.recIdx,
             }"
           >
             <div class="lal__hdrtitle">
@@ -811,7 +927,15 @@ function recordTitle(view: LalRecordView): string {
                 <code>{{ step.nameLabel }}</code>
               </div>
               <div class="lal__stepct">
-                {{ t('{n} / {total} records', { n: displayedRecords(node).filter((rv) => cellAt(node, step, rv.recIdx) !== undefined).length, total: displayedRecords(node).length }) }}
+                <span>{{ t('{n} / {total} records', { n: node.cells.get(step.key)?.size ?? 0, total: node.recordViews.length }) }}</span>
+                <button
+                  v-if="(node.cells.get(step.key)?.size ?? 0) < node.recordViews.length"
+                  type="button"
+                  class="lal__rowfilter"
+                  :class="{ 'lal__rowfilter--on': rowFilter[nodeKey(node)] === step.key }"
+                  :title="rowFilter[nodeKey(node)] === step.key ? t('show all records') : t('show only records with data in this row')"
+                  @click.stop="toggleRowFilter(nodeKey(node), step.key)"
+                ><Icon name="filter" :size="12" /></button>
               </div>
             </div>
             <div
@@ -819,24 +943,35 @@ function recordTitle(view: LalRecordView): string {
               :key="`${step.key}-${rv.recIdx}`"
               class="lal__cell"
               :class="{
+                'lal__cell--rowflash': highlightedStepKey === step.key,
                 'lal__cell--selected':
                   selectedCell !== null &&
+                  selectedNodeKey === nodeKey(node) &&
                   selectedCell.recIdx === rv.recIdx &&
                   selectedCell.sample === cellAt(node, step, rv.recIdx)?.sample,
                 'lal__cell--pinned':
-                  selectedCell !== null && selectedCell.recIdx === rv.recIdx,
+                  selectedCell !== null &&
+                  selectedNodeKey === nodeKey(node) &&
+                  selectedCell.recIdx === rv.recIdx,
                 'lal__cell--missing': cellAt(node, step, rv.recIdx) === undefined,
               }"
-              @click="(() => { const c = cellAt(node, step, rv.recIdx); if (c) selectCell(c); })()"
+              @click="(() => { const c = cellAt(node, step, rv.recIdx); if (c) selectCell(c, nodeKey(node)); })()"
             >
               <template v-if="cellAt(node, step, rv.recIdx) === undefined">
                 <span class="lal__cellabsent">—</span>
               </template>
-              <LalCell
-                v-else
-                :step-type="step.type"
-                :payload="cellAt(node, step, rv.recIdx)?.payload ?? null"
-              />
+              <template v-else>
+                <button
+                  type="button"
+                  class="lal__cellfull"
+                  :title="t('show complete data')"
+                  @click.stop="openCellPopout(cellAt(node, step, rv.recIdx)!, step, node)"
+                ><Icon name="expand" :size="11" /><span>{{ step.type === 'input' ? t('view') : t('diff') }}</span></button>
+                <LalCell
+                  :step-type="step.type"
+                  :payload="cellAt(node, step, rv.recIdx)?.payload ?? null"
+                />
+              </template>
             </div>
           </template>
         </div>
@@ -845,6 +980,16 @@ function recordTitle(view: LalRecordView): string {
       </div>
     </template>
   </DebugView>
+  <LalCellPopout
+    :open="popoutOpen"
+    :title="popoutTitle"
+    :script="popoutScript"
+    :json="popoutJson"
+    :comparable="popoutComparable"
+    :dsl-lines="popoutDslLines"
+    :current-line="popoutCurrentLine"
+    @close="closeCellPopout"
+  />
 </template>
 
 <style scoped>
@@ -1134,6 +1279,7 @@ function recordTitle(view: LalRecordView): string {
   font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-base);
   background: var(--rr-bg);
+  width: max-content;
   min-width: 100%;
 }
 
@@ -1301,9 +1447,37 @@ function recordTitle(view: LalRecordView): string {
 .lal__stepct {
   color: var(--rr-dim);
   font-size: var(--sw-fs-xs);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.lal__rowfilter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 3px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--rr-dim);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.lal__rowfilter:hover {
+  color: var(--rr-ink2);
+  border-color: var(--rr-border);
+}
+
+.lal__rowfilter--on {
+  color: var(--rr-accent, var(--rr-active));
+  border-color: var(--rr-accent, var(--rr-active));
 }
 
 .lal__cell {
+  position: relative;
   padding: 8px 10px;
   border-right: 1px solid var(--rr-border);
   border-bottom: 1px solid var(--rr-border);
@@ -1313,6 +1487,37 @@ function recordTitle(view: LalRecordView): string {
   cursor: pointer;
   background: transparent;
   min-width: 0;
+  /* Clip a runaway record (huge ALS field set / content); the expand
+     icon opens the full data in the popout. */
+  max-height: 300px;
+  overflow: hidden;
+}
+
+/* Persistent (always-visible) inspect button — accent-outlined + labeled
+   so it reads unmistakably as a button, not a ghost icon. */
+.lal__cellfull {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px 1px 4px;
+  background: var(--rr-bg2);
+  border: 1px solid var(--rr-accent, var(--rr-active));
+  border-radius: 3px;
+  color: var(--rr-accent, var(--rr-active));
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+  cursor: pointer;
+}
+
+.lal__cellfull:hover {
+  color: var(--rr-heading);
+  background: color-mix(in srgb, var(--rr-accent, var(--rr-active)) 16%, var(--rr-bg));
 }
 
 .lal__cell:hover {
@@ -1320,7 +1525,7 @@ function recordTitle(view: LalRecordView): string {
 }
 
 .lal__cell--pinned {
-  background: rgba(143, 175, 199, 0.05);
+  background: color-mix(in srgb, var(--rr-accent, var(--rr-active)) 6%, var(--rr-bg));
 }
 
 .lal__cell--selected,
@@ -1340,6 +1545,12 @@ function recordTitle(view: LalRecordView): string {
   color: var(--rr-dim);
   font-style: italic;
   font-size: var(--sw-fs-sm);
+}
+
+.lal__steplbl--flash,
+.lal__cell--rowflash {
+  background: color-mix(in srgb, var(--rr-accent, var(--rr-active)) 20%, var(--rr-bg));
+  transition: background 0.5s ease;
 }
 
 .lal__histbanner {

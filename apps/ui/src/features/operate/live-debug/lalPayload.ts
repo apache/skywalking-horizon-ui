@@ -106,7 +106,10 @@ export function cellAt(
 
 export function logBuilderOutput(p: LalSamplePayload | null): LalLogBuilderOutput | null {
   if (!p?.output) return null;
-  if (p.output.type !== 'LogBuilder') return null;
+  // The snapshot's concrete type is the builder class — `LogBuilder` for
+  // generic logs, `EnvoyAccessLogBuilder` for Envoy ALS — all LogBuilder-
+  // shaped. Accept any `*Builder`, or every Envoy output renders blank.
+  if (!p.output.type.endsWith('Builder')) return null;
   return p.output as LalLogBuilderOutput;
 }
 
@@ -116,15 +119,38 @@ export function logDataInput(p: LalSamplePayload | null): LalLogDataInput | null
   return p.input as LalLogDataInput;
 }
 
-export function inputEntries(p: LalSamplePayload | null): KvEntry[] {
-  const inp = logDataInput(p);
-  if (!inp) return [];
-  return [
-    { k: 'service', v: inp.service ?? '—' },
-    { k: 'endpoint', v: inp.endpoint ?? '—' },
-    { k: 'instance', v: inp.serviceInstance ?? '—' },
-    { k: 'layer', v: inp.layer ?? '—' },
-  ];
+/** Keys rendered in their own groups (or as the cell's format kicker),
+ *  not as scalar rows. */
+const STRUCTURAL_KEYS = new Set(['type', 'tags', 'body', 'content']);
+
+/** Generic scalar dump of an LAL payload object. LAL inputs and outputs
+ *  are OAP-serialized JSON whose field set varies by log format — a
+ *  `LogData` carries service/endpoint/layer, an `EnvoyAccessLogBuilder`
+ *  adds responseCode/responseFlags/…, a proto the recorder couldn't
+ *  serialize carries `error`/`detail`. Render whatever scalar keys are
+ *  present rather than a fixed subset; structural keys (tags/body/content)
+ *  and nullish values are skipped, objects are stringified. */
+export function objectEntries(
+  obj: Record<string, unknown> | null | undefined,
+  full = false,
+): KvEntry[] {
+  if (!obj) return [];
+  const out: KvEntry[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (STRUCTURAL_KEYS.has(k)) continue;
+    if (v === null || v === undefined || v === '') continue;
+    // Complex object fields are OAP-serialized JSON — pretty-print them in
+    // the popout (`full`) so nested structures read cleanly; keep them
+    // compact in the dense matrix cell.
+    const value =
+      typeof v === 'object' ? JSON.stringify(v, null, full ? 2 : undefined) : String(v);
+    out.push({ k, v: value });
+  }
+  return out;
+}
+
+export function inputEntries(p: LalSamplePayload | null, full = false): KvEntry[] {
+  return objectEntries(p?.input, full);
 }
 
 /** The agent-supplied log tags (`code.filepath`, `os.type`,
@@ -157,29 +183,56 @@ export function addedTags(p: LalSamplePayload | null): LalLogBuilderTag[] {
   return out.tags.filter((t) => t.status === 'lal-added' || t.status === 'lal-override');
 }
 
-export function outputEntries(p: LalSamplePayload | null): KvEntry[] {
-  const out = logBuilderOutput(p);
-  if (!out) return [];
-  return [
-    { k: 'service', v: out.service ?? '—' },
-    { k: 'endpoint', v: out.endpoint ?? '—' },
-    { k: 'timestamp', v: out.timestamp ? String(out.timestamp) : '—' },
-  ];
+export function outputEntries(p: LalSamplePayload | null, full = false): KvEntry[] {
+  return objectEntries(p?.output, full);
 }
 
-export function bodyPreview(p: LalSamplePayload | null): string {
-  const inp = logDataInput(p);
-  const text = inp?.body?.text;
+/** Pretty-print JSON content (ALS / structured-log content is JSON);
+ *  fall back to the raw trimmed string when it isn't parseable JSON. */
+function prettyJson(s: string): string {
+  const t = s.trim();
+  try {
+    return JSON.stringify(JSON.parse(t), null, 2);
+  } catch {
+    return t;
+  }
+}
+
+/** Input body / output content text. `full` returns the complete value
+ *  (pretty-printed if JSON) for the cell popout; otherwise a one-glance
+ *  preview clipped to 80 chars for the dense matrix cell. */
+export function bodyPreview(p: LalSamplePayload | null, full = false): string {
+  const text = logDataInput(p)?.body?.text;
   if (!text) return '';
+  if (full) return prettyJson(text);
   const t = text.trim();
   return t.length > 80 ? `${t.slice(0, 80)}…` : t;
 }
 
-export function contentPreview(p: LalSamplePayload | null): string {
-  const lb = logBuilderOutput(p);
-  if (!lb?.content) return '';
-  const t = lb.content.trim();
+export function contentPreview(p: LalSamplePayload | null, full = false): string {
+  const content = logBuilderOutput(p)?.content;
+  if (!content) return '';
+  if (full) return prettyJson(content);
+  const t = content.trim();
   return t.length > 80 ? `${t.slice(0, 80)}…` : t;
+}
+
+/** The cell's complete payload object (the `input` or `output` side) as
+ *  pretty JSON — the source for the inspect popout's JSON viewer and the
+ *  same-format diff. The builder's `content` is itself a JSON string, so
+ *  inline it as nested JSON rather than leave it an escaped blob. */
+export function fullJson(p: LalSamplePayload | null, stepType: SampleType): string {
+  const obj = stepType === 'input' ? p?.input : p?.output;
+  if (!obj) return '';
+  const clone: Record<string, unknown> = { ...(obj as Record<string, unknown>) };
+  if (typeof clone.content === 'string') {
+    try {
+      clone.content = JSON.parse(clone.content);
+    } catch {
+      /* not JSON — leave the raw string */
+    }
+  }
+  return JSON.stringify(clone, null, 2);
 }
 
 /** Free-text filter on log content. A record matches when ANY of its
@@ -194,13 +247,10 @@ export function recordMatches(rec: SessionRecord, q: string): boolean {
   for (const sample of rec.samples ?? []) {
     if (!isLalSamplePayload(sample.payload)) continue;
     const p = sample.payload;
-    if (p.input?.type === 'LogData') {
-      const body = (p.input as LalLogDataInput).body;
-      const text = body?.text;
-      if (typeof text === 'string' && text.toLowerCase().includes(needle)) return true;
-    }
-    if (p.output?.type === 'LogBuilder') {
-      const out = p.output as LalLogBuilderOutput;
+    const text = logDataInput(p)?.body?.text;
+    if (typeof text === 'string' && text.toLowerCase().includes(needle)) return true;
+    const out = logBuilderOutput(p);
+    if (out) {
       if (typeof out.content === 'string' && out.content.toLowerCase().includes(needle)) {
         return true;
       }

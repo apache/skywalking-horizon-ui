@@ -46,6 +46,14 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Denser Kubernetes dashboard tables** — the K8s layer's table widgets show more rows without scrolling.
 
+- **Live debugger reads cleanly on tall and wide results.** The LAL pipeline matrix's frozen first column now stays pinned when you scroll the grid sideways (it used to drift off with the rest of the matrix), clicking a source line flashes the whole matching step row — not just its label — and the MAL / LAL / OAL debugger pages now scroll as one page for tall captures instead of trapping the result in a fixed-height inner box.
+
+- **The LAL pipeline matrix renders Envoy access-log (ALS) and any non-generic log format.** Each cell now shows whatever fields OAP serialized for the record rather than a fixed `LogData` subset — so an `EnvoyAccessLogBuilder` snapshot displays its service / endpoint / response data where it used to render blank, a record whose raw proto input OAP couldn't serialize surfaces the reason (`jsonformat-failed …`) instead of an empty cell, and each cell names its payload class. The free-text search and the cell popout follow the same format-agnostic rendering.
+
+- **The LAL matrix gains per-row filtering and is correct across cluster nodes.** A filter on each step row — shown only when that row has gaps — narrows the grid to the records that actually produced data for that step (e.g. just the records that emitted output), and the row counts now reflect the whole capture rather than the visible page. Each OAP node's matrix filters and column-pins independently, so acting on one node's grid no longer changes another's. Oversized cells are height-capped so one huge record can't blow out the grid, and statement-mode step labels read `function @7` rather than a raw template.
+
+- **Inspect a LAL cell's full data and diff pipeline stages.** Every cell carries a persistent button — `VIEW` on the input row, `DIFF` on the builder rows — that opens the complete payload in a syntax-highlighted JSON viewer with the nested log `content` inlined as real JSON. For the builder snapshots a compare picker renders the captured DSL itself, with per-statement steps marked on their line and the `extractor` / `sink` block snapshots drawn as selectable ranges; picking one shows a side-by-side diff, so you can see exactly what a statement or stage changed in the built log.
+
 ### Dashboards
 
 - **Cards can render values as colored status chips.** A card widget with `format: enum` now takes an optional chip color per value-map entry — `ok` (green), `warn` (amber), `err` (red), `info` (blue), `neutral` (grey) — and renders each matched value, or metric label, as a colored chip instead of a bare number. Set it in the layer-dashboard admin's value-map editor, next to the existing value → label mapping.
