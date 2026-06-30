@@ -58,6 +58,18 @@ When a stage emits many samples that share a metric name, they are grouped under
 
 Very large groups render a capped number of detail rows with a "+ N more" note; the summary count is always exact.
 
+## The LAL pipeline matrix
+
+A LAL capture renders as a grid — one column per captured record, one row per pipeline step (input, the per-statement or per-block function steps, output). The first column names each step and stays pinned as you scroll sideways through the records; each cell holds that record's data at that step.
+
+**It reads any log format.** A cell shows whatever fields OAP serialized for the record — a plain `LogData` input shows service / endpoint / tags / body, while an Envoy access-log (ALS) record shows its built snapshot (service, endpoint, response data, and the access-log content as JSON). When OAP cannot serialize a record's raw input, the cell shows the reason (for example `jsonformat-failed …`) instead of rendering blank, and a small label names each cell's payload class.
+
+**Filter a row to the records that have data.** A step row that has gaps carries a filter; turning it on narrows the grid to just the records that produced data for that step — for example the output row to only the records that emitted output (an abnormal-only rule aborts most records, so only a few reach output). The row count shows how many of all captured records reached that step.
+
+**Inspect and diff a cell.** Each cell has a button — `VIEW` on the input row, `DIFF` on the builder rows — that opens the cell's complete payload in a JSON viewer with the log content shown as formatted JSON. For the built-log snapshots you can compare stages: a picker presents the captured rule with each per-statement step on its line and the extractor / sink blocks as selectable ranges, and choosing one shows a side-by-side diff of the two snapshots — the quickest way to see which statement or stage added, changed, or dropped a field.
+
+Each OAP node renders its own matrix; filtering or selecting in one node's grid does not affect another's.
+
 ## Capture history
 
 Every session you run is saved to **capture history**, browse it at `/operate/live-debug/history` (or the *history* link on each tab). History is stored locally in your browser — it is not shared between users or machines and survives reloads, with the most recent captures kept per DSL family.

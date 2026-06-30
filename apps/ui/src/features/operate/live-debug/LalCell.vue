@@ -16,13 +16,15 @@
 -->
 <script setup lang="ts">
 /**
- * The inner body of one matrix cell in `DebugLal.vue` — the repetitive
- * per-cell markup that renders an `input` LogData (service/endpoint kv +
- * carried tags + body preview) or a `function`/`output` LogBuilder
- * snapshot (kv + carried/added tag groups + content preview). The view
- * owns the surrounding `.lal__cell` wrapper (selection/pin/click state);
- * this renders only what's inside it for a given step type + payload.
+ * The inner body of one matrix cell in `DebugLal.vue`. The payload is
+ * OAP-serialized JSON whose field set varies by log format (LogData,
+ * EnvoyAccessLogBuilder, a raw proto, …), so scalar fields render as a
+ * generic key/value dump rather than a fixed subset; tags and body /
+ * content keep their own groups. The view owns the surrounding
+ * `.lal__cell` wrapper (selection/pin/click state); this renders only
+ * what's inside it for a given step type + payload.
  */
+import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { LalSamplePayload, SampleType } from '@skywalking-horizon-ui/api-client';
 import {
@@ -38,16 +40,30 @@ import {
 const props = defineProps<{
   stepType: SampleType;
   payload: LalSamplePayload | null;
+  /** When set (the cell popout), body/content shows its complete pretty-
+   *  printed value instead of the 80-char dense-matrix preview. */
+  full?: boolean;
 }>();
 
 const { t } = useI18n({ useScope: 'global' });
+
+/** Concrete payload class (LogData / LogBuilder / EnvoyAccessLogBuilder /
+ *  the raw proto on the Envoy path) — shown as the cell's format kicker
+ *  since the field set below depends on it. */
+const ptype = computed(
+  () => (props.stepType === 'input' ? props.payload?.input : props.payload?.output)?.type ?? '',
+);
+const bodyTxt = computed(() => bodyPreview(props.payload, props.full));
+const contentTxt = computed(() => contentPreview(props.payload, props.full));
+const inputKvs = computed(() => inputEntries(props.payload, props.full));
+const outputKvs = computed(() => outputEntries(props.payload, props.full));
 </script>
 
 <template>
-  <!-- input: LogData -->
+  <div v-if="ptype" class="lal__ptype">{{ ptype }}</div>
   <template v-if="props.stepType === 'input'">
     <div class="lal__kvs">
-      <div v-for="kv in inputEntries(props.payload)" :key="kv.k" class="lal__kv">
+      <div v-for="kv in inputKvs" :key="kv.k" class="lal__kv">
         <span class="lal__kvk">{{ kv.k }}</span>
         <span class="lal__kvv">{{ kv.v }}</span>
       </div>
@@ -62,15 +78,15 @@ const { t } = useI18n({ useScope: 'global' });
         class="lal__tag lal__tag--orig"
       >{{ tag.key }}={{ tag.value }}</span>
     </div>
-    <div v-if="bodyPreview(props.payload)" class="lal__body">
-      {{ bodyPreview(props.payload) }}
+    <div v-if="bodyTxt" class="lal__body" :class="{ 'lal__body--full': props.full }">
+      {{ bodyTxt }}
     </div>
   </template>
 
-  <!-- function / output: LogBuilder snapshot -->
+  <!-- function / output -->
   <template v-else>
     <div class="lal__kvs">
-      <div v-for="kv in outputEntries(props.payload)" :key="kv.k" class="lal__kv">
+      <div v-for="kv in outputKvs" :key="kv.k" class="lal__kv">
         <span class="lal__kvk">{{ kv.k }}</span>
         <span class="lal__kvv">{{ kv.v }}</span>
       </div>
@@ -98,8 +114,8 @@ const { t } = useI18n({ useScope: 'global' });
         :class="tag.status === 'lal-override' ? 'lal__tag--over' : 'lal__tag--add'"
       >{{ tag.key }}={{ tag.value }}</span>
     </div>
-    <div v-if="contentPreview(props.payload)" class="lal__body">
-      {{ contentPreview(props.payload) }}
+    <div v-if="contentTxt" class="lal__body" :class="{ 'lal__body--full': props.full }">
+      {{ contentTxt }}
     </div>
   </template>
   <div v-if="props.payload?.aborted" class="lal__abort">{{ t('aborted') }}</div>
@@ -118,16 +134,16 @@ const { t } = useI18n({ useScope: 'global' });
 
 .lal__kvk {
   color: var(--sw-fg-3);
+  font-family: var(--rr-font-mono);
   font-size: var(--sw-fs-xs);
   font-weight: var(--sw-fw-bold);
-  text-transform: uppercase;
-  letter-spacing: var(--sw-ls-caps);
-  align-self: center;
+  align-self: start;
 }
 
 .lal__kvv {
   color: var(--rr-ink);
   word-break: break-all;
+  white-space: pre-wrap;
   font-size: var(--sw-fs-sm);
 }
 
@@ -140,6 +156,20 @@ const { t } = useI18n({ useScope: 'global' });
   line-height: 1.4;
   word-break: break-all;
   white-space: pre-wrap;
+}
+
+/* Cell popout: the complete pretty-printed content, slightly larger and
+   more legible than the dense one-line preview. */
+.lal__body--full {
+  font-size: var(--sw-fs-sm);
+  color: var(--rr-ink);
+}
+
+.lal__ptype {
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  color: var(--rr-dim);
+  word-break: break-all;
 }
 
 .lal__tags {
