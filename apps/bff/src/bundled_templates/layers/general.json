@@ -63,6 +63,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["100 - service_sla/100"],
+        "traceDrill": { "mode": "error" },
         "span": 3,
         "rowSpan": 2
       },
@@ -72,6 +73,7 @@
         "tip": "User-satisfaction score on a 0 – 1 scale.",
         "type": "line",
         "expressions": ["service_apdex/10000"],
+        "traceDrill": { "mode": "error" },
         "span": 3,
         "rowSpan": 2
       },
@@ -84,6 +86,7 @@
         "expressions": [
           "relabels(service_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
         ],
+        "traceDrill": { "mode": "latency" },
         "span": 3,
         "rowSpan": 2
       },
@@ -93,6 +96,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["service_resp_time"],
+        "traceDrill": { "mode": "latency" },
         "span": 3,
         "rowSpan": 2
       },
@@ -169,6 +173,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["service_instance_resp_time"],
+        "traceDrill": { "mode": "latency" },
         "span": 4,
         "rowSpan": 2
       },
@@ -178,6 +183,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["service_instance_sla/100"],
+        "traceDrill": { "mode": "error" },
         "span": 4,
         "rowSpan": 2
       },
@@ -969,6 +975,7 @@
         "type": "line",
         "unit": "ms",
         "expressions": ["endpoint_resp_time"],
+        "traceDrill": { "mode": "latency" },
         "span": 4,
         "rowSpan": 2
       },
@@ -978,6 +985,7 @@
         "type": "line",
         "unit": "%",
         "expressions": ["endpoint_sla/100"],
+        "traceDrill": { "mode": "error" },
         "span": 4,
         "rowSpan": 2
       },
@@ -989,6 +997,7 @@
         "expressions": [
           "relabels(endpoint_percentile{p='50,75,90,95,99'},p='50,75,90,95,99',percentile='50,75,90,95,99')"
         ],
+        "traceDrill": { "mode": "latency" },
         "span": 12,
         "rowSpan": 2
       },
@@ -1000,6 +1009,7 @@
         "unit": "ms",
         "expressions": ["endpoint_mq_consume_latency"],
         "visibleWhen": { "kind": "mqe", "expression": "endpoint_mq_consume_latency", "op": "exists" },
+        "traceDrill": { "mode": "latency" },
         "span": 12,
         "rowSpan": 2
       }

@@ -296,17 +296,13 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // in Step 3. Probes here only run when such gates are present, so
       // the common all-self-gate templates keep today's query cost.
       const entityGated = widgets.some((w) => vwOf(w)?.kind === 'entity');
-      // Group-gate probes keyed by (expression + layerScope): a
-      // layer-scoped widget's gate must be probed at `{ scope: All }` and
-      // a normally-scoped one at the active entity scope, so the two can
-      // never share a verdict.
-      const gateKey = (expr: string, layerScope: boolean): string => `${layerScope ? 'L' : 'S'}|${expr}`;
-      const groupGates = new Map<string, { expression: string; layerScope: boolean }>();
+      // Group-gate probes keyed by expression: a group gate is probed once at
+      // the active entity scope and shared by every widget that carries it.
+      const groupGates = new Map<string, { expression: string }>();
       for (const w of widgets) {
         const vw = vwOf(w);
         if (vw?.kind === 'mqe' && !isSelfGate(w, vw)) {
-          const ls = w.layerScope === true;
-          groupGates.set(gateKey(vw.expression, ls), { expression: vw.expression, layerScope: ls });
+          groupGates.set(vw.expression, { expression: vw.expression });
         }
       }
       // `null` = no entity context / probe failed → entity gates no-op.
@@ -340,9 +336,8 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
           try {
             const fragments = entries.map(([, g], i) =>
               buildFragment(`g${i}`, g.expression, serviceName, normal, window, {
-                layerScope: g.layerScope,
-                serviceInstanceName: g.layerScope || !scopeHonorsInstance ? null : selectedInstance,
-                endpointName: g.layerScope || !scopeHonorsEndpoint ? null : selectedEndpoint,
+                serviceInstanceName: scopeHonorsInstance ? selectedInstance : null,
+                endpointName: scopeHonorsEndpoint ? selectedEndpoint : null,
                 coldStage: !!req.coldStage,
               }),
             );
@@ -369,7 +364,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
           return;
         }
         if (!isSelfGate(w, vw)) {
-          const vals = groupGateVals.get(gateKey(vw.expression, w.layerScope === true));
+          const vals = groupGateVals.get(vw.expression);
           if (vals == null) return; // probe failed / missing → fail open
           if (!mqeGatePass(vw.op, 'value' in vw ? vw.value : undefined, vals)) skipped.add(i);
         }
@@ -409,11 +404,8 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
               const alias = `w${wIdx}_e${eIdx}`;
               fragments.push(
                 buildFragment(alias, expr, serviceName, normal, window, {
-                  layerScope: widget.layerScope === true,
-                  serviceInstanceName:
-                    widget.layerScope !== true && scopeHonorsInstance ? selectedInstance : null,
-                  endpointName:
-                    widget.layerScope !== true && scopeHonorsEndpoint ? selectedEndpoint : null,
+                  serviceInstanceName: scopeHonorsInstance ? selectedInstance : null,
+                  endpointName: scopeHonorsEndpoint ? selectedEndpoint : null,
                   coldStage: !!req.coldStage,
                 }),
               );

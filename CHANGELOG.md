@@ -20,6 +20,12 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Six instance dashboard line widgets for Node.js runtime metrics** — process CPU, V8 heap used/total/limit, RSS, and external memory (`meter_instance_nodejs_*`). Each line widget uses `visibleWhen` so widgets render only when the Node.js agent reports runtime data.
 
+### General Service — metric-to-trace drill-down
+
+- **Removed the deprecated "Layer-scoped" widget toggle from the dashboard editor.** It emitted OAP's `scope: All` entity — deprecated in the query-protocol since OAP 9.4.0 — and no bundled dashboard used it. Any legacy stored dashboard that still carries the flag now renders at normal service scope (the unknown key is ignored). Layer-wide rollups belong on the Overview dashboards.
+
+- **Click a latency or error point on a General-service chart to open the matching traces.** Drill-capable line widgets — Avg Response Time, Response Time Percentile, Error Rate, Apdex, Success Rate, and MQ consume latency, across the Service, Instance, and Endpoint scopes — carry a **traces** flag in their header, and their datapoints are clickable. Clicking a point opens the native Traces list in a **new browser tab**, pre-filtered to that service (and the selected instance / endpoint) and centered on the clicked bucket's time window. A latency widget opens slowest-first with a minimum trace duration of the clicked value; an error-rate / success-rate widget opens with the trace status set to Error. Throughput (Traffic) and runtime/resource widgets offer no drill — only latency and success/error metrics have a natural trace criterion. Dashboard authors enable the drill per line widget with a new **Trace drill** option in the widget editor (none / latency / error), so it also works on custom General-service dashboards.
+
 ### Profiling
 
 - **Profiling task creation is consistent and tells you upfront what it needs.** Across all five task types (Trace / eBPF / Network / pprof / Async) the **New Task** button enables as soon as the basic entity is chosen and always carries a tooltip, and inside the create box a missing target — no profilable processes, or no instances on the service — is shown as a clear message next to a disabled **Create** rather than a silently greyed-out button.

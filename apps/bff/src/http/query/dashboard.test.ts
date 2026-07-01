@@ -74,35 +74,6 @@ describe('buildFragment — entity scope construction', () => {
     expect(entity).not.toContain('serviceInstanceName');
   });
 
-  it('layerScope:true → {scope: All}, no serviceName / normal / instance / endpoint in entity', () => {
-    const entity = entityOf(
-      buildFragment('w0', 'top_n(endpoint_cpm,20,des)', 'frontend', true, W, {
-        layerScope: true,
-      }),
-    );
-    expect(entity).toContain('scope: All');
-    expect(entity).not.toContain('serviceName');
-    expect(entity).not.toContain('serviceInstanceName');
-    expect(entity).not.toContain('endpointName');
-    expect(entity).not.toContain('normal:');
-  });
-
-  it('layerScope:true wins over both serviceInstanceName AND endpointName', () => {
-    // Defensive: if a caller sets layerScope:true AND instance/endpoint,
-    // we should still produce All scope (layerScope is the explicit
-    // opt-out from per-entity filtering).
-    const entity = entityOf(
-      buildFragment('w0', 'endpoint_cpm', 'frontend', true, W, {
-        layerScope: true,
-        serviceInstanceName: 'should-be-ignored',
-        endpointName: '/should/be/ignored',
-      }),
-    );
-    expect(entity).toContain('scope: All');
-    expect(entity).not.toContain('should-be-ignored');
-    expect(entity).not.toContain('/should/be/ignored');
-  });
-
   it('serviceInstanceName takes precedence over endpointName when both set', () => {
     const entity = entityOf(
       buildFragment('w0', 'm', 'svc', true, W, {

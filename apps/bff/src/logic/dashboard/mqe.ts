@@ -56,10 +56,6 @@ export interface MqeResultShape {
 
 /** Build one aliased `execExpression` GraphQL fragment for a single
  *  widget expression. The entity scope flips based on opts:
- *    - `layerScope: true` → `{ scope: All }` (no service filter — GLOBAL,
- *      not layer-restricted; use with care since OAP's Entity has no
- *      `layer` field, so this leaks across layers if the metric is
- *      shared between layers)
  *    - `serviceInstanceName` set → ServiceInstance scope
  *    - `endpointName` set → Endpoint scope
  *    - otherwise → Service scope with the supplied serviceName
@@ -72,7 +68,6 @@ export function buildFragment(
   normal: boolean,
   w: Window,
   opts: {
-    layerScope?: boolean;
     serviceInstanceName?: string | null;
     endpointName?: string | null;
     /** When true, splice `coldStage: true` into the Duration literal.
@@ -86,9 +81,7 @@ export function buildFragment(
   // owner.endpointName (TopList widgets — top_n() returns a sorted list of
   // entities + values).
   let entity: string;
-  if (opts.layerScope) {
-    entity = '{ scope: All }';
-  } else if (opts.serviceInstanceName) {
+  if (opts.serviceInstanceName) {
     entity =
       `{ scope: ServiceInstance, serviceName: ${JSON.stringify(serviceName)},` +
       ` serviceInstanceName: ${JSON.stringify(opts.serviceInstanceName)},` +

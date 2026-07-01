@@ -27,8 +27,9 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { LayerDef, DashboardWidget } from '@skywalking-horizon-ui/api-client';
+import FloatingPanel from '@/components/primitives/FloatingPanel.vue';
 import type { TabHostCtx } from '@/render/widgets/tabHostCtx';
 import LayerInstancePicker from '@/render/layer-dashboard/LayerInstancePicker.vue';
 import LayerEndpointPicker from '@/render/layer-dashboard/LayerEndpointPicker.vue';
@@ -391,11 +392,16 @@ const fetchKey = computed(
     `${layerKey.value}|${scope.value}|${serviceName.value ?? ''}|${selectedInstance.value ?? ''}|${selectedEndpoint.value ?? ''}|${timeRange.range.startMs}|${timeRange.range.endMs}|${timeRange.step}`,
 );
 const lastFreshKey = ref<string | null>(null);
-watch(data, (d) => {
-  if (d !== null && d !== undefined) {
-    lastFreshKey.value = fetchKey.value;
-  }
-});
+// `immediate`: a warm cache on remount (Back from Traces within staleTime)
+// populates `data` synchronously with no change event — without it the
+// "Reading data…" gate hangs until the next auto-refresh.
+watch(
+  data,
+  (d) => {
+    if (d !== null && d !== undefined) lastFreshKey.value = fetchKey.value;
+  },
+  { immediate: true },
+);
 const dataIsFresh = computed(() => lastFreshKey.value === fetchKey.value);
 
 const resultsById = computed(() => {
@@ -450,6 +456,92 @@ function widgetColor(w: { id?: string; title?: string; expressions?: string[] })
     if (c2.includes('err') || c2.includes('error') || c2.includes('failure')) return 'var(--sw-err)';
   }
   return colorForMetric(w.id || w.title || w.expressions?.[0] || '');
+}
+
+// Metric→trace drill: a `line` widget opts in via `traceDrill` (native-trace
+// layers only); the declared `mode` maps a click to a pre-filtered Traces tab.
+const router = useRouter();
+const layerHasNativeTraces = computed<boolean>(() => {
+  const src = layer.value?.traces?.source ?? 'native';
+  return src === 'native' || src === 'both';
+});
+function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
+  if (w.type !== 'line' || !layerHasNativeTraces.value) return null;
+  const m = w.traceDrill?.mode;
+  return m === 'latency' || m === 'error' ? m : null;
+}
+// Half-window (ms) around the clicked bucket, scaled to step, capped at 6h.
+const DRILL_STEP_MS: Record<string, number> = { MINUTE: 60_000, HOUR: 3_600_000, DAY: 86_400_000 };
+function drillHalfWindowMs(): number {
+  const step = DRILL_STEP_MS[timeRange.step] ?? 60_000;
+  return Math.min(Math.max(5 * 60_000, step / 2), 6 * 60 * 60_000);
+}
+function drillCenterMs(dataIndex: number, len: number): number {
+  const { startMs, endMs } = timeRange.range;
+  if (len <= 1) return endMs;
+  return Math.round(startMs + ((endMs - startMs) * dataIndex) / (len - 1));
+}
+// datetime-local wall-clock — must match the Traces tab's custom-range format.
+function toLocalInput(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// Pinned drill hint; anchored to the grid so re-clicking repositions.
+const gridEl = ref<HTMLElement | null>(null);
+const drill = ref<{
+  widgetId: string;
+  point: { x: number; y: number };
+  query: Record<string, string>;
+  title: string;
+  meta: string;
+  label: string;
+} | null>(null);
+function onDrillPoint(
+  w: DashboardWidget,
+  p: { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
+): void {
+  const mode = traceDrillMode(w);
+  if (!mode) return;
+  const len = resultsById.value.get(w.id)?.series?.[0]?.data.length ?? 0;
+  const center = drillCenterMs(p.dataIndex, len);
+  const half = drillHalfWindowMs();
+  const ms = Math.max(0, Math.round(p.value));
+  const query: Record<string, string> = {
+    dMode: mode,
+    dFrom: toLocalInput(center - half),
+    dTo: toLocalInput(center + half),
+    // Unique per click so a drill→drill navigation on the same tab re-fires.
+    dNonce: `${center}:${p.dataIndex}:${w.id}`,
+  };
+  if (mode === 'latency') query.dValue = String(ms);
+  // service (id) seeds the fresh tab's selection; instance/endpoint go by name
+  // and the Traces tab resolves the id from its own lists.
+  if (selectedId.value) query.service = selectedId.value;
+  if (scope.value === 'instance' && selectedInstance.value) query.dInstance = selectedInstance.value;
+  if (scope.value === 'endpoint' && selectedEndpoint.value) query.dEndpoint = selectedEndpoint.value;
+  const band = p.seriesName ? `${p.seriesName} · ` : '';
+  drill.value = {
+    widgetId: w.id,
+    point: { x: p.x, y: p.y },
+    query,
+    title: w.title,
+    meta:
+      band +
+      t('around {t}', { t: bucketTimeLabel(timeRange.step, center) }) +
+      (mode === 'latency' ? ` · ≥ ${ms} ms` : ''),
+    label: mode === 'latency' ? t('View slow traces') : t('View error traces'),
+  };
+}
+function openDrill(): void {
+  const d = drill.value;
+  if (!d) return;
+  drill.value = null;
+  const href = router.resolve({ path: `/layer/${layerKey.value}/trace`, query: d.query }).href;
+  window.open(href, '_blank', 'noopener');
+}
+function closeDrill(): void {
+  drill.value = null;
 }
 
 // Pop-out wiring for top / record widgets. The TopList renders inside the
@@ -661,7 +753,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
     <!-- Tile grid keeps its normal layout in compare mode; each widget
          renders all N entities inline (card rows / overlaid lines /
          per-entity tabs). -->
-    <div class="grid">
+    <div ref="gridEl" class="grid">
       <LayerWidgetTile
         v-for="w in widgets.filter((wi) => !isHidden(wi.id))"
         :key="w.id"
@@ -690,10 +782,34 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         :has-multi-top-data="hasMultiTopData"
         :compare-table-rows="compareTableRows"
         :compare-table-entities="compareTableEntities"
+        :trace-drill-mode="traceDrillMode"
+        :on-drill-point="onDrillPoint"
+        :drill-open-id="drill?.widgetId ?? null"
         @switch-tab="setActiveTab(w.id, $event)"
       />
     </div>
     </template>
+
+    <!-- Metric→trace drill hint: pinned at the clicked datapoint, offers the
+         pre-filtered Traces link. Anchored to the grid so clicking another
+         point repositions instead of dismissing. -->
+    <FloatingPanel
+      :open="!!drill"
+      :anchor="gridEl"
+      :point="drill?.point ?? null"
+      :width="240"
+      @close="closeDrill"
+    >
+      <div v-if="drill" class="drill-pop">
+        <div class="drill-meta">
+          <span class="drill-title">{{ drill.title }}</span>
+          <span class="drill-sub">{{ drill.meta }}</span>
+        </div>
+        <button type="button" class="drill-link" @click="openDrill">
+          {{ drill.label }} <span class="arr" aria-hidden="true">→</span>
+        </button>
+      </div>
+    </FloatingPanel>
   </div>
 </template>
 
@@ -880,5 +996,55 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
   .grid {
     grid-template-columns: repeat(12, 1fr);
   }
+}
+
+/* Metric→trace drill hint (inside the teleported FloatingPanel). */
+.drill-pop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+}
+.drill-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.drill-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--sw-fg-0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drill-sub {
+  font-size: 10.5px;
+  color: var(--sw-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.drill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 5px 10px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 5px;
+  color: var(--sw-accent);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.drill-link:hover {
+  background: var(--sw-bg-3);
+  border-color: var(--sw-accent);
+}
+.drill-link .arr {
+  font-size: 12px;
+  line-height: 1;
 }
 </style>
