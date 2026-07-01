@@ -284,11 +284,16 @@ watch(
   overflow: hidden;
 }
 .gantt-empty { padding: 28px; text-align: center; font-size: 12px; color: var(--sw-fg-3); }
-/* The one scroll surface — both axes live here so the page never scrolls. */
-.gantt-scroll { overflow: auto; }
-.gantt-canvas { position: relative; width: max(100%, calc(var(--label-w) + var(--time-min))); padding-bottom: 14px; }
+/* The one scroll surface — both axes live here so the page never scrolls. A
+   default min-height keeps the lane area a comfortable size (and the scrollbar
+   off the rows) when a service has only a row or two. */
+.gantt-scroll { overflow: auto; min-height: 240px; }
+.gantt-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.gantt-scroll::-webkit-scrollbar-thumb { background: var(--sw-line-2); border-radius: 4px; }
+.gantt-scroll::-webkit-scrollbar-track { background: transparent; }
+.gantt-canvas { position: relative; width: max(100%, calc(var(--label-w) + var(--time-min))); }
 
-.gantt-grid { position: absolute; top: var(--head-h); left: var(--label-w); right: 0; bottom: 14px; pointer-events: none; }
+.gantt-grid { position: absolute; top: var(--head-h); left: var(--label-w); right: 0; bottom: 0; pointer-events: none; }
 .gantt-gline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tick-color); transform: translateX(-50%); }
 
 .gantt-headrow { display: flex; position: sticky; top: 0; z-index: 3; height: var(--head-h); }

@@ -67,7 +67,7 @@ function onClose(): void {
 </script>
 
 <template>
-  <Modal :open="open" :title="title" width="min(1200px, 92vw)" :fit-body="true" @close="onClose">
+  <Modal :open="open" :title="title" width="min(1200px, 92vw)" @close="onClose">
     <div class="evtp">
       <div class="evtp__bar">
         <div class="evtp__window">
@@ -136,7 +136,7 @@ function onClose(): void {
 </template>
 
 <style scoped>
-.evtp { display: flex; flex-direction: column; gap: 12px; min-height: 0; height: 100%; }
+.evtp { display: flex; flex-direction: column; gap: 12px; }
 .evtp__bar { display: flex; align-items: center; gap: 12px; }
 .evtp__window { display: flex; gap: 2px; background: var(--sw-bg-1); border: 1px solid var(--sw-line); border-radius: 6px; padding: 3px; }
 .evtp__window-btn { background: transparent; border: 0; color: var(--sw-fg-2); font: inherit; font-size: 11.5px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
@@ -154,7 +154,7 @@ function onClose(): void {
 .evtp__custom-hint { font-size: 10.5px; color: var(--sw-fg-3); }
 .evtp__custom-btn { background: transparent; border: 1px solid var(--sw-line-2); color: var(--sw-fg-1); font: inherit; font-size: 11.5px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
 .evtp__custom-btn--primary { background: var(--sw-accent); border-color: var(--sw-accent); color: #0a0d12; font-weight: 600; }
-.evtp__split { display: grid; grid-template-columns: 1fr 320px; gap: 14px; align-items: start; min-height: 0; flex: 1; }
+.evtp__split { display: grid; grid-template-columns: 1fr 320px; gap: 14px; align-items: start; }
 @media (max-width: 900px) { .evtp__split { grid-template-columns: 1fr; } }
 .evtp__main { min-width: 0; }
 .evtp__empty { padding: 28px; text-align: center; font-size: 12px; color: var(--sw-fg-3); background: var(--sw-bg-1); border: 1px dashed var(--sw-line); border-radius: 8px; }
