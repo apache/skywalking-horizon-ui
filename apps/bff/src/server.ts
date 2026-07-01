@@ -46,6 +46,7 @@ import { registerTraceTagRoutes } from './http/query/trace-tag.js';
 import { registerZipkinRoutes } from './http/query/zipkin.js';
 import { registerLogRoute } from './http/query/log.js';
 import { registerBrowserErrorsRoute } from './http/query/browser-errors.js';
+import { registerEventsRoute } from './http/query/events.js';
 import { registerExploreRoutes } from './http/query/explore.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
@@ -269,6 +270,7 @@ registerTraceTagRoutes(app, { config: source, sessions });
 registerZipkinRoutes(app, { config: source, sessions });
 registerLogRoute(app, { config: source, sessions });
 registerBrowserErrorsRoute(app, { config: source, sessions });
+registerEventsRoute(app, { config: source, sessions });
 registerExploreRoutes(app, { config: source, sessions });
 registerPodLogRoutes(app, { config: source, sessions });
 registerDashboardQueryRoute(app, {

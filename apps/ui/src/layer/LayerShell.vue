@@ -32,6 +32,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { LayerDef, LandingServiceRow } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { useAuthStore } from '@/state/auth';
+import { useEventsPopout } from '@/features/events/useEventsPopout';
 import Icon from '@/components/icons/Icon.vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import LayerServiceSelector from './LayerServiceSelector.vue';
@@ -123,6 +124,7 @@ const menuLayer = computed<LayerDef | null>(
 // viewers still hit the normal gate. Empty metrics are expected — there
 // are no services to query.
 const auth = useAuthStore();
+const eventsPopout = useEventsPopout();
 const isAdmin = computed<boolean>(() => !!auth.user?.roles?.includes('admin'));
 // Single canonical form: `?mode=preview`. The admin "Open live page"
 // link generates exactly this.
@@ -594,6 +596,20 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
           <Icon name="share" />
           <span v-if="shareCopied" class="svc-share-flash">copied</span>
         </button>
+        <!-- Per-service events — open the popout scoped to THIS service so the
+             operator sees its instances without leaving the layer. Gated on
+             events:read so it never opens a modal whose query would 403.
+             Passes the FULL OAP service NAME (events filter on the literal
+             `<group>::<base>` name, not the group-stripped display label). -->
+        <button
+          v-if="auth.hasVerb('events:read') && selectedRow?.serviceName"
+          class="sw-btn ghost svc-events"
+          type="button"
+          :title="`View events for ${selectedName}`"
+          @click="() => eventsPopout.open(layerKey, selectedRow!.serviceName)"
+        >
+          <Icon name="event" />
+        </button>
         <div v-if="serviceKpis.length > 0" class="kpi-strip service-kpis">
           <div v-for="(k, i) in serviceKpis" :key="i" class="kpi compact">
             <span class="kpi-label inline">
@@ -680,6 +696,17 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
 }
 .svc-share {
   position: relative;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+/* Match the refresh/share icon buttons — the Events deep-link is a
+   RouterLink (`<a>`), so it needs the same 32×32 flex box; without it the
+   `<a>` shrink-wraps the icon and renders it undersized/off-center. */
+.svc-events {
   width: 32px;
   height: 32px;
   display: inline-flex;

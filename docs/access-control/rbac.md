@@ -21,6 +21,7 @@ Known verbs are grouped into areas:
 |---|---|
 | `metrics:read` | Layer dashboards, overview widgets that fetch MQE values. |
 | `alarms:read` | Alarms page, alarm widgets on overviews. |
+| `events:read` | Events popout on a service banner: that service's lifecycle events. |
 | `traces:read` | Traces tab on any layer, trace detail page. |
 | `logs:read` | Logs tab on any layer, log detail page. |
 | `browser-errors:read` | Browser Logs tab (BROWSER layer): list JS error logs, list source maps, resolve a stack. |
@@ -97,7 +98,7 @@ Default definitions (used when `rbac.roles` is not overridden):
 Read-only data catalog. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or platform internals.
 
 ```
-metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read
+metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read
 ```
 
 ### `maintainer`

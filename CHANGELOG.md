@@ -38,6 +38,12 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **The alarm timeline reads more clearly** — a clearer selection band and legend, and the detail sidebar reflows cleanly on narrow windows. Hovering the timeline now hints both affordances — click a minute to filter, or drag across the timeline to select a range — so range-selection is no longer hidden.
 
+### Events
+
+- **A per-service events popout on the service banner.** Every layer drill-down's service banner gains an Events button that opens a modal for that one service's lifecycle events — agent restarts, Kubernetes events, and other point-in-time records from OAP `queryEvents` — without leaving the page you're on. The service is fixed, so the view is a swimlane of **instance × time**: one row per service instance in its own color, each event a bar on a time axis (an event with no end time is an instant marker), Error events ringed red. Overlapping events on one instance stack into sub-lanes; the time axis marks the date at day boundaries; the popout owns its own window (6h / 1d / 2d plus a custom range up to 7 days) and queries at second precision.
+
+- **Built for scale and honest about limits.** A rolling restart of a large service is one bar per instance stacked at the same moment — the granularity is the point, and a search box filters the instance rows by name for services that run hundreds of them. Scrolling is fully internal (sticky time-axis header + sticky instance column, horizontal scroll for long ranges, opened scrolled to the newest events). The newest events are fetched up to a configurable cap (200 by default); the popout shows "newest N · all in range shown" or, when the window holds more, "more available — narrow the range". Clicking a bar opens a detail panel with the instance, Started / Ended / Duration, message, and reported parameters. The button is permission-gated; viewer / maintainer / operator roles gain `events:read`. Events are lifecycle facts, not alerts — for threshold breaches, the Alarms page is unchanged.
+
 ### User experience
 
 - **Escape closes any dismissible panel** — modals, row popouts, and the topology focus / node-filter dropdowns all dismiss on Esc.

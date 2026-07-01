@@ -115,7 +115,7 @@ function roleBlurb(role: string): string {
   if (role === 'admin') return t('Full access including user & access management.');
   if (role === 'operator') return t('Configures alerts, dashboards, rules, and runs diagnostics.');
   if (role === 'maintainer') return t('Watches the SkyWalking platform itself (cluster, internals).');
-  if (role === 'viewer') return t('Reads dashboards, traces, logs, and alarms.');
+  if (role === 'viewer') return t('Reads dashboards, traces, logs, alarms, and events.');
   return '';
 }
 
@@ -124,6 +124,7 @@ function roleBlurb(role: string): string {
 const VERB_LABELS = computed<Record<string, { label: string; hint?: string }>>(() => ({
   'metrics:read':           { label: t('See metric dashboards') },
   'alarms:read':            { label: t('See alarms') },
+  'events:read':            { label: t('See service events') },
   'traces:read':            { label: t('See traces') },
   'logs:read':              { label: t('See logs') },
   'topology:read':          { label: t('See service & endpoint topology') },
@@ -186,8 +187,9 @@ const VERB_GROUPS = computed<VerbGroup[]>(() => [
       { label: t('Profiling results'), icon: '▦' },
       { label: t('3D infrastructure map'), icon: '⬡' },
       { label: t('Alarms'), icon: '!' },
+      { label: t('Service events'), icon: '◔' },
     ],
-    verbs: ['metrics:read', 'alarms:read', 'traces:read', 'logs:read', 'topology:read', 'profile:read', 'infra-3d:read'],
+    verbs: ['metrics:read', 'alarms:read', 'events:read', 'traces:read', 'logs:read', 'topology:read', 'profile:read', 'infra-3d:read'],
   },
   {
     title: t('Platform monitoring'),

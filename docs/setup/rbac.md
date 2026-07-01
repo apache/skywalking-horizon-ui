@@ -8,8 +8,8 @@ Role-Based Access Control. Defines the role → verb grants and the post-login l
 rbac:
   enabled: true
   roles:
-    viewer:     [metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read]
-    maintainer: [metrics:read, alarms:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read, cluster:read, ttl:read, config:read, inspect:read]
+    viewer:     [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read]
+    maintainer: [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read, cluster:read, ttl:read, config:read, inspect:read]
     operator:   [metrics:read, ..., rule:*, live-debug:*, profile:enable]
     admin:      ["*"]
   landingByRole:
@@ -31,7 +31,7 @@ rbac:
 
 | Role | Purpose | Grants |
 |---|---|---|
-| `viewer` | Read-only data catalog and public overviews. | `metrics:read`, `alarms:read`, `traces:read`, `logs:read`, `browser-errors:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or platform internals. |
+| `viewer` | Read-only data catalog and public overviews. | `metrics:read`, `alarms:read`, `events:read`, `traces:read`, `logs:read`, `browser-errors:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or platform internals. |
 | `maintainer` | Viewer + platform monitoring. | viewer baseline + `cluster:read`, `ttl:read`, `config:read`, `inspect:read`. |
 | `operator` | Configures observability. | maintainer baseline + `overview:write`, `setup:read/write`, `dashboard:read/write`, `alarm-setup:read/write`, `alarm-rule:read/write`, `rule:*` (including `rule:write:structural`, `rule:delete`, `rule:debug`), `live-debug:*`, `profile:enable`. |
 | `admin` | Unrestricted. | `*`. |

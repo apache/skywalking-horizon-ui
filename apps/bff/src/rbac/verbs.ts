@@ -29,6 +29,7 @@ export const VERBS = {
   tracesRead: 'traces:read',
   logsRead: 'logs:read',
   browserErrorsRead: 'browser-errors:read',
+  eventsRead: 'events:read',
   topologyRead: 'topology:read',
   profileRead: 'profile:read',
   infra3dRead: 'infra-3d:read',

@@ -137,6 +137,14 @@ export type {
   ResolvedFrame,
   ResolveResponse,
 } from './browser-errors.js';
+export type {
+  EventType,
+  EventOrder,
+  EventSource,
+  EventRow,
+  EventsQueryRequest,
+  EventsResponse,
+} from './events.js';
 export type { OapInfo, OapCapabilities, OapBackend } from './oap-info.js';
 export type {
   RecordsTTL,

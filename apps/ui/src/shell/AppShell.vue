@@ -25,6 +25,7 @@ import GlobalConnectivityBanner from './GlobalConnectivityBanner.vue';
 import ColdStageTrapBanner from './ColdStageTrapBanner.vue';
 import PreviewModeBanner from './PreviewModeBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
+import EventsPopout from '@/features/events/EventsPopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
 import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
 import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
@@ -156,6 +157,10 @@ function startSidebarResize(e: PointerEvent): void {
     <!-- Shares `?traceId=`; native vs Zipkin self-select by ID shape
          (see isZipkinTraceId). -->
     <ZipkinTracePopout />
+    <!-- Per-service events popout: a layer's service banner calls
+         useEventsPopout().open(layer, service) to peek that service's
+         instance events without leaving the page. -->
+    <EventsPopout />
     <TemplateConflictPrompt />
     <!-- Always mounted (even when hidden) so the Admin "Debug events"
          toggle responds without a re-mount race. -->

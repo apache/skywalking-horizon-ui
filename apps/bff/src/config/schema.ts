@@ -172,6 +172,7 @@ const rbacSchema = z
         viewer: [
           'metrics:read',
           'alarms:read',
+          'events:read',
           'traces:read',
           'logs:read',
           'browser-errors:read',
@@ -187,6 +188,7 @@ const rbacSchema = z
         maintainer: [
           'metrics:read',
           'alarms:read',
+          'events:read',
           'traces:read',
           'logs:read',
           'browser-errors:read',
@@ -205,6 +207,7 @@ const rbacSchema = z
         operator: [
           'metrics:read',
           'alarms:read',
+          'events:read',
           'traces:read',
           'logs:read',
           'browser-errors:read',
@@ -448,6 +451,9 @@ const performanceSchema = z
             traces: z.number().int().min(1).max(500).default(100),
             logs: z.number().int().min(1).max(500).default(100),
             browserLogs: z.number().int().min(1).max(500).default(100),
+            // Events are grouped client-side (one deploy = many per-instance
+            // rows), so we fetch a deeper raw page than the other feeds.
+            events: z.number().int().min(1).max(500).default(200),
           })
           .strict()
           .default({}),
