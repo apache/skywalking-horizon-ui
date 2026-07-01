@@ -286,9 +286,9 @@ watch(
 .gantt-empty { padding: 28px; text-align: center; font-size: 12px; color: var(--sw-fg-3); }
 /* The one scroll surface — both axes live here so the page never scrolls. */
 .gantt-scroll { overflow: auto; }
-.gantt-canvas { position: relative; width: max(100%, calc(var(--label-w) + var(--time-min))); }
+.gantt-canvas { position: relative; width: max(100%, calc(var(--label-w) + var(--time-min))); padding-bottom: 14px; }
 
-.gantt-grid { position: absolute; top: var(--head-h); left: var(--label-w); right: 0; bottom: 0; pointer-events: none; }
+.gantt-grid { position: absolute; top: var(--head-h); left: var(--label-w); right: 0; bottom: 14px; pointer-events: none; }
 .gantt-gline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--tick-color); transform: translateX(-50%); }
 
 .gantt-headrow { display: flex; position: sticky; top: 0; z-index: 3; height: var(--head-h); }
