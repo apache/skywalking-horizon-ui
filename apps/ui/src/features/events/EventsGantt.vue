@@ -39,7 +39,6 @@ const props = defineProps<{
   startTime: number;
   endTime: number;
   selectedUuid?: string | null;
-  maxBodyHeight?: number;
   /** Flatten to instance rows only, dropping the Layer / Service headers. Used
    *  by the per-service popout, where the service is fixed (shown in the title)
    *  so the only axes that matter are instance (rows) and time (columns). */
@@ -102,7 +101,7 @@ const rows = computed<DisplayRow[]>(() => {
     for (const lg of layers.value) {
       for (const svc of lg.services) {
         for (const r of svc.rows) {
-          out.push({ kind: 'lane', key: `${svc.key}/${r.instance}`, label: r.instance || svc.service, indent: 10, color: `hsl(${Math.round((210 + i * 137.508) % 360)}, 60%, 62%)`, dot: true, bars: r.bars, subLanes: r.subLanes });
+          out.push({ kind: 'lane', key: `${svc.key}/${r.instance}`, label: r.instance || t('(service-scoped)'), indent: 10, color: `hsl(${Math.round((210 + i * 137.508) % 360)}, 60%, 62%)`, dot: true, bars: r.bars, subLanes: r.subLanes });
           i++;
         }
       }
@@ -198,7 +197,7 @@ watch(
 <template>
   <div class="gantt">
     <div v-if="isEmpty" class="gantt-empty">{{ t('No events in the current window.') }}</div>
-    <div v-else ref="scrollEl" class="gantt-scroll" :style="{ maxHeight: (maxBodyHeight ?? 420) + 'px' }">
+    <div v-else ref="scrollEl" class="gantt-scroll">
       <div class="gantt-canvas" :style="{ '--time-min': timeMinPx + 'px' }">
         <!-- Full-height vertical gridlines behind the lanes. -->
         <div class="gantt-grid">
@@ -284,10 +283,11 @@ watch(
   overflow: hidden;
 }
 .gantt-empty { padding: 28px; text-align: center; font-size: 12px; color: var(--sw-fg-3); }
-/* The one scroll surface — both axes live here so the page never scrolls. A
-   default min-height keeps the lane area a comfortable size (and the scrollbar
-   off the rows) when a service has only a row or two. */
-.gantt-scroll { overflow: auto; min-height: 240px; }
+/* The only scroll surface (both axes). max-height reserves the modal chrome
+   (header + bar + optional range editor) so many rows scroll HERE, not in a
+   nested modal-body scrollbar; min() lets the 240px floor yield on very short
+   viewports so it never exceeds the ceiling. */
+.gantt-scroll { overflow: auto; min-height: min(240px, calc(100vh - 260px)); max-height: calc(100vh - 260px); }
 .gantt-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .gantt-scroll::-webkit-scrollbar-thumb { background: var(--sw-line-2); border-radius: 4px; }
 .gantt-scroll::-webkit-scrollbar-track { background: transparent; }

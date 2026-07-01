@@ -123,7 +123,6 @@ function onClose(): void {
             :start-time="win.startTime.value"
             :end-time="win.endTime.value"
             :selected-uuid="selectedUuid"
-            :max-body-height="480"
             :flat="true"
             :row-filter="search"
             @select-event="selectEvent"
