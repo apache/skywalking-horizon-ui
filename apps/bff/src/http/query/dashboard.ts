@@ -296,8 +296,7 @@ export function registerDashboardQueryRoute(app: FastifyInstance, deps: Dashboar
       // in Step 3. Probes here only run when such gates are present, so
       // the common all-self-gate templates keep today's query cost.
       const entityGated = widgets.some((w) => vwOf(w)?.kind === 'entity');
-      // Group-gate probes keyed by expression: a group gate is probed once at
-      // the active entity scope and shared by every widget that carries it.
+      // Each unique group-gate expression is probed once, shared across widgets.
       const groupGates = new Map<string, { expression: string }>();
       for (const w of widgets) {
         const vw = vwOf(w);

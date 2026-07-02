@@ -261,13 +261,10 @@ function removeTag(i: number): void {
   tagsList.value = tagsList.value.filter((_, idx) => idx !== i);
 }
 
-// Metric→trace drill deep-link. The dashboard opens this tab with the filter
-// pre-seeded via route query (?dMode=&dValue=&dFrom=&dTo=&dInstance=&dEndpoint=
-// &dNonce=). Instance/endpoint arrive by NAME and resolve to ids from this tab's
-// own lists; `dNonce` changes per click so a drill→drill nav re-fires.
+// Metric→trace drill deep-link: filter pre-seeded via route query
+// (?dMode/dValue/dFrom/dTo/dInstance/dEndpoint/dNonce); names resolve to ids here.
 const pendingDrillInstance = ref<string | null>(null);
 const pendingDrillEndpoint = ref<string | null>(null);
-// The first query defers until the service name resolves (async from landing).
 const drillArmed = ref<boolean>(false);
 function resolveDrillEntities(): boolean {
   let changed = false;
@@ -282,7 +279,9 @@ function resolveDrillEntities(): boolean {
   return changed;
 }
 function maybeRunDrill(): void {
+  // Wait for service + any pending entity id, else the first query runs unfiltered.
   if (!drillArmed.value || !serviceName.value) return;
+  if (pendingDrillInstance.value || pendingDrillEndpoint.value) return;
   drillArmed.value = false;
   runQuery();
 }
@@ -290,7 +289,6 @@ function applyDrillFromRoute(): void {
   const q = route.query;
   const mode = typeof q.dMode === 'string' ? q.dMode : null;
   if (mode !== 'latency' && mode !== 'error') return;
-  // Cascade-clear: reset the filter surface, then seed the drill criterion.
   traceState.value = mode === 'error' ? 'ERROR' : 'ALL';
   queryOrder.value = mode === 'latency' ? 'BY_DURATION' : 'BY_START_TIME';
   minDuration.value =
@@ -305,18 +303,18 @@ function applyDrillFromRoute(): void {
   }
   pendingDrillInstance.value = typeof q.dInstance === 'string' ? q.dInstance : null;
   pendingDrillEndpoint.value = typeof q.dEndpoint === 'string' ? q.dEndpoint : null;
+  // Seed the endpoint keyword so a >50-endpoint service still fetches this one.
+  if (pendingDrillEndpoint.value) endpointQuery.value = pendingDrillEndpoint.value;
   resolveDrillEntities();
   drillArmed.value = true;
   maybeRunDrill();
 }
-// Run the drill once the service resolves (service-scope drills), and re-run
-// once the id lists arrive so an instance/endpoint drill picks up its filter.
 watch(serviceName, maybeRunDrill);
 watch([instances, endpoints], () => {
-  if (!pendingDrillInstance.value && !pendingDrillEndpoint.value) return;
-  if (resolveDrillEntities() && !drillArmed.value) runQuery();
+  if (!drillArmed.value) return;
+  resolveDrillEntities();
+  maybeRunDrill();
 });
-// Seed on mount and on every subsequent drill navigation (dNonce changes).
 watch(() => route.query.dNonce, applyDrillFromRoute, { immediate: true });
 
 const selectedTraceId = ref<string | null>(null);

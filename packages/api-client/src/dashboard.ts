@@ -89,26 +89,10 @@ export type VisibleWhen =
   | { kind: 'entity'; attribute: string; op: 'eq'; value: string };
 
 /**
- * Opt a `line` widget into metric→trace drill-down. Config-driven, not bound
- * to any specific layer: when this is set AND the layer's Traces component is
- * on in native (or both) mode, clicking a datapoint offers a link into the
- * pre-filtered native Traces tab, centered on the clicked bucket and scoped to
- * the active service / instance / endpoint. (Zipkin-only layers are excluded —
- * their trace view doesn't consume the minDuration/state filter.)
- *
- * The `mode` is the whole "link" — no metric↔trace mapping table, no
- * inference at render time. It declares how the click's Y-value is read:
- *   - `latency` — the clicked value is a duration in ms; the trace query
- *                 opens slowest-first (`queryOrder: BY_DURATION`) with
- *                 `minTraceDuration` = the clicked value. Requires the
- *                 widget's series to be an unscaled ms duration
- *                 (`*_resp_time`, `*_percentile`, `*_mq_consume_latency`).
- *   - `error`  — the value is a ratio (sla / apdex); the trace query opens
- *                 with `traceState: ERROR`. The Y-value is ignored.
- *   - `off`    — explicitly suppress the drill on an otherwise-eligible
- *                 widget (e.g. a combined throughput+latency chart).
- *
- * Absent ⇒ no drill (the renderer never guesses from the metric name).
+ * Opt a `line` widget into metric→trace drill-down (only on a native-trace
+ * layer). `latency` opens slowest-first traces with `minTraceDuration` = the
+ * clicked ms value; `error` opens `traceState: ERROR`; `off` suppresses it.
+ * Absent ⇒ no drill.
  */
 export type TraceDrill = { mode: 'off' | 'latency' | 'error' };
 
@@ -255,11 +239,7 @@ export interface DashboardWidget {
    *  own order — `asc` (worst/lowest first, e.g. success-rate) vs `des`.
    *  Absent for non-`top_n` widgets; the UI then falls back to `des`. */
   topNOrder?: 'asc' | 'des';
-  /**
-   * Optional metric→native-trace drill-down — see {@link TraceDrill}. Only
-   * meaningful on `line` widgets in a layer that exposes a `trace` scope.
-   * Absent ⇒ the widget offers no trace drill.
-   */
+  /** Optional metric→trace drill on a `line` widget — see {@link TraceDrill}. */
   traceDrill?: TraceDrill;
   /** Legacy 24-col grid coordinates — kept for back-compat during the
    *  span-based flow-layout migration. New widgets should leave these

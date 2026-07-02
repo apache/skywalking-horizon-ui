@@ -73,8 +73,7 @@ const leafWidgetSchema = z.object({
     ])
     .optional()
     .catch(undefined),
-  // Metric→trace drill opt-in. Tolerant like `visibleWhen`: an unknown/legacy
-  // value maps to `undefined` (no drill) rather than failing the widget parse.
+  // Tolerant like `visibleWhen`: a bad value maps to undefined, not a parse fail.
   traceDrill: z
     .object({ mode: z.enum(['off', 'latency', 'error']) })
     .optional()

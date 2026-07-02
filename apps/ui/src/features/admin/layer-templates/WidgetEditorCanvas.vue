@@ -568,17 +568,12 @@ function setWidgetFormat(v: string): void {
   else delete w.format;
 }
 
-// Metric→trace drill on a `line` widget. Empty ⇒ no drill. Only meaningful on
-// a layer that serves native traces (GENERAL); the renderer ignores it elsewhere.
 function setWidgetTraceDrill(v: string): void {
   const w = editingWidget.value;
   if (!w) return;
   if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
   else delete w.traceDrill;
 }
-// The drill only works when THIS layer's Traces component is on in native (or
-// both) mode — the native trace view consumes the drill filter; Zipkin ignores
-// it. When off, the control is disabled with a notice.
 const layerTracesEnabled = computed<boolean>(() => {
   const tpl = props.draft.template;
   if (!tpl?.components?.traces) return false;
@@ -1328,8 +1323,6 @@ onBeforeUnmount(() => {
                   <code>line</code> each is a series. Label / unit / axis apply per expression.
                 </p>
               </div>
-              <!-- Metric→trace drill: line widgets only, enabled only when this
-                   layer's native Traces component is on. -->
               <div v-if="editingWidget.type === 'line'" class="d-section">
                 <span class="d-label">Trace drill</span>
                 <div class="d-row">

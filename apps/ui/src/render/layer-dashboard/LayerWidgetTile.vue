@@ -72,16 +72,11 @@ const props = defineProps<{
   hasTopData: (w: { id: string; type: string }) => boolean;
   popOutTopList: (id: string) => void;
   setTopListRef: (id: string, el: unknown) => void;
-  // Metric→trace drill. `traceDrillMode` returns the resolved criterion for a
-  // line widget (null ⇒ not drill-eligible); `onDrillPoint` receives the raw
-  // chart click and the host turns it into a trace-tab link.
   traceDrillMode: (w: DashboardWidget) => 'latency' | 'error' | null;
   onDrillPoint: (
     w: DashboardWidget,
     p: { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
   ) => void;
-  /** Widget id whose drill popover is currently open (null when none) —
-   *  suppresses that chart's hover tooltip so it doesn't stack under it. */
   drillOpenId: string | null;
   // Compare-mode helpers (null-safe: only read when compareMode is true).
   compareHue: (key: string) => string;
@@ -384,7 +379,6 @@ function chipRows(w: DashboardWidget, res: DashboardWidgetResult | undefined): C
   color: var(--sw-fg-0);
   border-color: var(--sw-line-2);
 }
-/* Drill indicator on a line widget — its datapoints open traces on click. */
 .drill-flag {
   display: inline-flex;
   align-items: center;

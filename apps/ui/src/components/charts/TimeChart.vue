@@ -64,9 +64,7 @@ const props = withDefaults(
      *  these replace the default relative `-Nm` markers — e.g. a caller
      *  with a known window can pass `mm:ss` elapsed labels. */
     xLabels?: string[];
-    /** Make datapoints/lines clickable (pointer cursor + `pointClick`). */
     clickable?: boolean;
-    /** Hide the hover tooltip while a drill popover is pinned on this widget. */
     tipSuppressed?: boolean;
   }>(),
   {
@@ -75,16 +73,12 @@ const props = withDefaults(
   },
 );
 
-/** Raw datapoint hit — the host turns `dataIndex`→time and `value`→criterion.
- *  `x`/`y` are viewport coords for anchoring a popover. */
 const emit = defineEmits<{
   pointClick: [
     { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
   ];
 }>();
 
-// Captured on mousedown (precedes the ECharts click) so the emit can report
-// where the point was hit.
 const lastPointer = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 function onPointerDown(e: MouseEvent): void {
   lastPointer.value = { x: e.clientX, y: e.clientY };
@@ -387,7 +381,6 @@ function buildOption(): echarts.EChartsCoreOption {
         symbol: 'circle',
         symbolSize: 4,
         showSymbol: true,
-        // triggerLineEvent: make the whole line a click target, not just the 4px symbol.
         ...(props.clickable ? { triggerLineEvent: true, cursor: 'pointer' } : {}),
         yAxisIndex: s.yAxisIndex ?? 0,
         lineStyle: { width: 1.5 },
@@ -429,15 +422,26 @@ onMounted(() => {
   chart = echarts.init(container.value, null, { renderer: 'canvas' });
   chart.setOption(buildOption());
   prevFingerprint = seriesFingerprint(props.series);
-  // Registered unconditionally (clickable can be toggled on AFTER mount) and
-  // gated inside on `props.clickable`. Ignores legend/axis clicks and gaps.
+  // A line-body click may lack dataIndex/value — recover from the click pixel
+  // and read the value from series data.
   chart.on('click', (p) => {
-    if (!props.clickable) return;
-    if (p.componentType !== 'series' || typeof p.value !== 'number') return;
+    if (!props.clickable || p.componentType !== 'series' || !chart) return;
+    const si = p.seriesIndex ?? 0;
+    let di = typeof p.dataIndex === 'number' ? p.dataIndex : -1;
+    if (di < 0 && container.value) {
+      const r = container.value.getBoundingClientRect();
+      const at = chart.convertFromPixel({ gridIndex: 0 }, [
+        lastPointer.value.x - r.left,
+        lastPointer.value.y - r.top,
+      ]);
+      if (Array.isArray(at) && typeof at[0] === 'number') di = Math.round(at[0]);
+    }
+    const val = props.series[si]?.data[di];
+    if (di < 0 || typeof val !== 'number') return;
     emit('pointClick', {
-      seriesIndex: p.seriesIndex ?? 0,
-      dataIndex: p.dataIndex ?? 0,
-      value: p.value,
+      seriesIndex: si,
+      dataIndex: di,
+      value: val,
       seriesName: typeof p.seriesName === 'string' ? p.seriesName : '',
       x: lastPointer.value.x,
       y: lastPointer.value.y,
@@ -489,14 +493,10 @@ watch(
     prevFingerprint = seriesFingerprint(props.series);
   },
 );
-// Toggled after mount (the drill on/off flag) → rebuild series so
-// triggerLineEvent + pointer cursor apply to the whole line.
 watch(
   () => props.clickable,
   () => chart?.setOption(buildOption(), { replaceMerge: ['series'] }),
 );
-// While the drill popover is pinned on this widget, hide the crosshair tooltip
-// so the two cards don't stack at the same point (re-enabled on close).
 watch(
   () => props.tipSuppressed,
   (suppressed) => {
