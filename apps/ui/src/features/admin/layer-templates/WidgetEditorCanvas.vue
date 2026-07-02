@@ -568,6 +568,24 @@ function setWidgetFormat(v: string): void {
   else delete w.format;
 }
 
+// Metric→trace drill on a `line` widget. Empty ⇒ no drill. Only meaningful on
+// a layer that serves native traces (GENERAL); the renderer ignores it elsewhere.
+function setWidgetTraceDrill(v: string): void {
+  const w = editingWidget.value;
+  if (!w) return;
+  if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
+  else delete w.traceDrill;
+}
+// The drill only works when THIS layer's Traces component is on in native (or
+// both) mode — the native trace view consumes the drill filter; Zipkin ignores
+// it. When off, the control is disabled with a notice.
+const layerTracesEnabled = computed<boolean>(() => {
+  const tpl = props.draft.template;
+  if (!tpl?.components?.traces) return false;
+  const src = tpl.traces?.source ?? 'native';
+  return src === 'native' || src === 'both';
+});
+
 // `format: 'enum'` value→label editor — the valueMap is a coded-value → label
 // table (e.g. 1 → OK). Keys are renamed on blur to avoid focus loss mid-edit.
 const valueMapEntries = computed<Array<[string, string]>>(() => {
@@ -1310,6 +1328,31 @@ onBeforeUnmount(() => {
                   <code>line</code> each is a series. Label / unit / axis apply per expression.
                 </p>
               </div>
+              <!-- Metric→trace drill: line widgets only, enabled only when this
+                   layer's native Traces component is on. -->
+              <div v-if="editingWidget.type === 'line'" class="d-section">
+                <span class="d-label">Trace drill</span>
+                <div class="d-row">
+                  <label>
+                    <span>Mode</span>
+                    <select
+                      :value="editingWidget.traceDrill?.mode ?? ''"
+                      :disabled="!layerTracesEnabled"
+                      @change="setWidgetTraceDrill(($event.target as HTMLSelectElement).value)"
+                    >
+                      <option value="">none</option>
+                      <option value="latency">latency → slow traces</option>
+                      <option value="error">error → error traces</option>
+                    </select>
+                  </label>
+                </div>
+                <p v-if="!layerTracesEnabled" class="d-hint drill-off">
+                  Disabled — metric→trace drill needs this layer's <b>Traces</b> component on in native mode; the Zipkin trace view can't consume the drill filter.
+                </p>
+                <p v-else class="d-hint">
+                  Click a datapoint on this widget to open the pre-filtered Traces tab. <code>latency</code> ⇒ slowest traces ≥ the clicked value; <code>error</code> ⇒ error-status traces. Centered on the clicked time bucket.
+                </p>
+              </div>
               <div class="d-section">
                 <span class="d-label" :title="visibleWhenHint(activeScope)">
                   Visible when (optional)
@@ -1352,12 +1395,6 @@ onBeforeUnmount(() => {
                   Set a metric expression — an empty gate is ignored and the widget always shows.
                 </p>
                 <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
-              </div>
-              <div class="d-section">
-                <label class="d-check">
-                  <input type="checkbox" v-model="editingWidget.layerScope" />
-                  <span>Layer-scoped (run MQE across the whole layer, ignore selected service)</span>
-                </label>
               </div>
             </template>
           </template>
@@ -2111,6 +2148,9 @@ onBeforeUnmount(() => {
   background: var(--sw-bg-2);
   border-radius: 2px;
   color: var(--sw-fg-1);
+}
+.d-hint.drill-off {
+  color: var(--sw-warn);
 }
 .d-check {
   display: flex;

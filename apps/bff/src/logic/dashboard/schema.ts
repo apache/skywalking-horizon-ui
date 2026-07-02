@@ -73,7 +73,12 @@ const leafWidgetSchema = z.object({
     ])
     .optional()
     .catch(undefined),
-  layerScope: z.boolean().optional(),
+  // Metric→trace drill opt-in. Tolerant like `visibleWhen`: an unknown/legacy
+  // value maps to `undefined` (no drill) rather than failing the widget parse.
+  traceDrill: z
+    .object({ mode: z.enum(['off', 'latency', 'error']) })
+    .optional()
+    .catch(undefined),
   // Legacy x/y/w/h kept optional for back-compat.
   x: z.number().int().min(0).optional(),
   y: z.number().int().min(0).optional(),
