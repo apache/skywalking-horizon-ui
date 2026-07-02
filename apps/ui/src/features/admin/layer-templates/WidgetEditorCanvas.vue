@@ -576,15 +576,9 @@ function setWidgetTraceDrill(v: string): void {
   if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
   else delete w.traceDrill;
 }
-// The drill can only open a trace list when THIS layer's native Traces
-// component is on (source native/both). When off, the control is disabled with
-// a notice — a drill would have nowhere to land.
-const layerHasNativeTraces = computed<boolean>(() => {
-  const tpl = props.draft.template;
-  if (!tpl?.components?.traces) return false;
-  const src = tpl.traces?.source ?? 'native';
-  return src === 'native' || src === 'both';
-});
+// The drill can only open a trace list when THIS layer's Traces component is
+// activated. When off, the control is disabled with a notice.
+const layerTracesEnabled = computed<boolean>(() => props.draft.template?.components?.traces === true);
 
 // `format: 'enum'` value→label editor — the valueMap is a coded-value → label
 // table (e.g. 1 → OK). Keys are renamed on blur to avoid focus loss mid-edit.
@@ -1337,7 +1331,7 @@ onBeforeUnmount(() => {
                     <span>Mode</span>
                     <select
                       :value="editingWidget.traceDrill?.mode ?? ''"
-                      :disabled="!layerHasNativeTraces"
+                      :disabled="!layerTracesEnabled"
                       @change="setWidgetTraceDrill(($event.target as HTMLSelectElement).value)"
                     >
                       <option value="">none</option>
@@ -1346,8 +1340,8 @@ onBeforeUnmount(() => {
                     </select>
                   </label>
                 </div>
-                <p v-if="!layerHasNativeTraces" class="d-hint drill-off">
-                  Disabled — enable this layer's native <b>Traces</b> component to use metric→trace drill-down; without it a click would have no trace list to open.
+                <p v-if="!layerTracesEnabled" class="d-hint drill-off">
+                  Disabled — activate this layer's <b>Traces</b> component to use metric→trace drill-down; without it a click would have no trace list to open.
                 </p>
                 <p v-else class="d-hint">
                   Click a datapoint on this widget to open the pre-filtered Traces tab. <code>latency</code> ⇒ slowest traces ≥ the clicked value; <code>error</code> ⇒ error-status traces. Centered on the clicked time bucket.

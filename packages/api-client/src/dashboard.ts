@@ -89,10 +89,11 @@ export type VisibleWhen =
   | { kind: 'entity'; attribute: string; op: 'eq'; value: string };
 
 /**
- * Opt a `line` widget into metric→native-trace drill-down. When set (and
- * the layer exposes a native `trace` scope), clicking a datapoint on the
- * chart offers a link into the pre-filtered Traces tab, centered on the
- * clicked bucket and scoped to the active service / instance / endpoint.
+ * Opt a `line` widget into metric→trace drill-down. Config-driven, not bound
+ * to any specific layer: when this is set AND the layer's Traces component is
+ * activated, clicking a datapoint offers a link into the pre-filtered Traces
+ * tab, centered on the clicked bucket and scoped to the active
+ * service / instance / endpoint.
  *
  * The `mode` is the whole "link" — no metric↔trace mapping table, no
  * inference at render time. It declares how the click's Y-value is read:

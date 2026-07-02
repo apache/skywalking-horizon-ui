@@ -458,15 +458,12 @@ function widgetColor(w: { id?: string; title?: string; expressions?: string[] })
   return colorForMetric(w.id || w.title || w.expressions?.[0] || '');
 }
 
-// Metric→trace drill: a `line` widget opts in via `traceDrill` (native-trace
-// layers only); the declared `mode` maps a click to a pre-filtered Traces tab.
+// Metric→trace drill. Two gates only: the widget opts in via `traceDrill`, and
+// the layer has its Traces component activated. Not bound to any specific layer.
 const router = useRouter();
-const layerHasNativeTraces = computed<boolean>(() => {
-  const src = layer.value?.traces?.source ?? 'native';
-  return src === 'native' || src === 'both';
-});
+const layerTracesEnabled = computed<boolean>(() => layer.value?.caps?.traces === true);
 function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
-  if (w.type !== 'line' || !layerHasNativeTraces.value) return null;
+  if (w.type !== 'line' || !layerTracesEnabled.value) return null;
   const m = w.traceDrill?.mode;
   return m === 'latency' || m === 'error' ? m : null;
 }
