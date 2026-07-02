@@ -459,9 +459,15 @@ function widgetColor(w: { id?: string; title?: string; expressions?: string[] })
 }
 
 // Metric→trace drill. Two gates only: the widget opts in via `traceDrill`, and
-// the layer has its Traces component activated. Not bound to any specific layer.
+// the layer has its Traces component on in NATIVE (or both) mode — the native
+// trace view is the one that consumes the drill's minDuration/state filter;
+// Zipkin's view ignores them. Not bound to any specific layer.
 const router = useRouter();
-const layerTracesEnabled = computed<boolean>(() => layer.value?.caps?.traces === true);
+const layerTracesEnabled = computed<boolean>(() => {
+  if (layer.value?.caps?.traces !== true) return false;
+  const src = layer.value.traces?.source ?? 'native';
+  return src === 'native' || src === 'both';
+});
 function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
   if (w.type !== 'line' || !layerTracesEnabled.value) return null;
   const m = w.traceDrill?.mode;

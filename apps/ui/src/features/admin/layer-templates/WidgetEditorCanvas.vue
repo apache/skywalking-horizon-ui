@@ -576,9 +576,15 @@ function setWidgetTraceDrill(v: string): void {
   if (v === 'latency' || v === 'error' || v === 'off') w.traceDrill = { mode: v };
   else delete w.traceDrill;
 }
-// The drill can only open a trace list when THIS layer's Traces component is
-// activated. When off, the control is disabled with a notice.
-const layerTracesEnabled = computed<boolean>(() => props.draft.template?.components?.traces === true);
+// The drill only works when THIS layer's Traces component is on in native (or
+// both) mode — the native trace view consumes the drill filter; Zipkin ignores
+// it. When off, the control is disabled with a notice.
+const layerTracesEnabled = computed<boolean>(() => {
+  const tpl = props.draft.template;
+  if (!tpl?.components?.traces) return false;
+  const src = tpl.traces?.source ?? 'native';
+  return src === 'native' || src === 'both';
+});
 
 // `format: 'enum'` value→label editor — the valueMap is a coded-value → label
 // table (e.g. 1 → OK). Keys are renamed on blur to avoid focus loss mid-edit.
@@ -1341,7 +1347,7 @@ onBeforeUnmount(() => {
                   </label>
                 </div>
                 <p v-if="!layerTracesEnabled" class="d-hint drill-off">
-                  Disabled — activate this layer's <b>Traces</b> component to use metric→trace drill-down; without it a click would have no trace list to open.
+                  Disabled — metric→trace drill needs this layer's <b>Traces</b> component on in native mode; the Zipkin trace view can't consume the drill filter.
                 </p>
                 <p v-else class="d-hint">
                   Click a datapoint on this widget to open the pre-filtered Traces tab. <code>latency</code> ⇒ slowest traces ≥ the clicked value; <code>error</code> ⇒ error-status traces. Centered on the clicked time bucket.
