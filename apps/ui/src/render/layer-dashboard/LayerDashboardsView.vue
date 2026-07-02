@@ -474,15 +474,27 @@ function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
   return m === 'latency' || m === 'error' ? m : null;
 }
 // Half-window (ms) around the clicked bucket, scaled to step, capped at 6h.
-const DRILL_STEP_MS: Record<string, number> = { MINUTE: 60_000, HOUR: 3_600_000, DAY: 86_400_000 };
-function drillHalfWindowMs(): number {
-  const step = DRILL_STEP_MS[timeRange.step] ?? 60_000;
-  return Math.min(Math.max(5 * 60_000, step / 2), 6 * 60 * 60_000);
-}
 function drillCenterMs(dataIndex: number, len: number): number {
   const { startMs, endMs } = timeRange.range;
   if (len <= 1) return endMs;
   return Math.round(startMs + ((endMs - startMs) * dataIndex) / (len - 1));
+}
+// Trace window for the clicked bucket. MINUTE → a ±5min neighborhood; HOUR/DAY
+// → the whole clicked hour/day (snapped to the local boundary) so the search
+// matches the bucket the operator clicked, not a mid-bucket slice. `labelMs` is
+// the bucket start, used for the popover's "around …" label.
+function drillWindow(dataIndex: number, len: number): { fromMs: number; toMs: number; labelMs: number } {
+  const center = drillCenterMs(dataIndex, len);
+  if (timeRange.step === 'MINUTE') {
+    const half = 5 * 60_000;
+    return { fromMs: center - half, toMs: center + half, labelMs: center };
+  }
+  const d = new Date(center);
+  d.setMinutes(0, 0, 0);
+  if (timeRange.step === 'DAY') d.setHours(0);
+  const fromMs = d.getTime();
+  const spanMs = timeRange.step === 'DAY' ? 86_400_000 : 3_600_000;
+  return { fromMs, toMs: fromMs + spanMs, labelMs: fromMs };
 }
 // datetime-local wall-clock — must match the Traces tab's custom-range format.
 function toLocalInput(ms: number): string {
@@ -507,15 +519,14 @@ function onDrillPoint(
   const mode = traceDrillMode(w);
   if (!mode) return;
   const len = resultsById.value.get(w.id)?.series?.[0]?.data.length ?? 0;
-  const center = drillCenterMs(p.dataIndex, len);
-  const half = drillHalfWindowMs();
+  const win = drillWindow(p.dataIndex, len);
   const ms = Math.max(0, Math.round(p.value));
   const query: Record<string, string> = {
     dMode: mode,
-    dFrom: toLocalInput(center - half),
-    dTo: toLocalInput(center + half),
+    dFrom: toLocalInput(win.fromMs),
+    dTo: toLocalInput(win.toMs),
     // Unique per click so a drill→drill navigation on the same tab re-fires.
-    dNonce: `${center}:${p.dataIndex}:${w.id}`,
+    dNonce: `${win.fromMs}:${p.dataIndex}:${w.id}`,
   };
   if (mode === 'latency') query.dValue = String(ms);
   // service (id) seeds the fresh tab's selection; instance/endpoint go by name
@@ -531,7 +542,7 @@ function onDrillPoint(
     title: w.title,
     meta:
       band +
-      t('around {t}', { t: bucketTimeLabel(timeRange.step, center) }) +
+      t('around {t}', { t: bucketTimeLabel(timeRange.step, win.labelMs) }) +
       (mode === 'latency' ? ` · ≥ ${ms} ms` : ''),
     label: mode === 'latency' ? t('View slow traces') : t('View error traces'),
   };
