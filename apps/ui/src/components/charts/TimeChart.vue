@@ -315,7 +315,10 @@ function buildOption(): echarts.EChartsCoreOption {
       type: 'category',
       data: xLabels,
       axisLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-      axisLabel: { color: '#64748b', fontSize: 9, interval: Math.floor(length / 6) },
+      // hideOverlap drops any label that would collide — wide HOUR labels
+      // ("07-02 05:00") otherwise overlap once the ~length/6 interval isn't
+      // enough. interval stays as the density target; hideOverlap is the guard.
+      axisLabel: { color: '#64748b', fontSize: 9, interval: Math.floor(length / 6), hideOverlap: true },
       splitLine: { show: false },
     },
     /* Dual y-axis when any series asks for axis 1. Right axis label
