@@ -30,8 +30,8 @@ export interface LogListParams {
   page: Ref<number>;
   pageSize: Ref<number>;
   windowMinutes?: Ref<number>;
-  startTime?: Ref<string | null>;
-  endTime?: Ref<string | null>;
+  startMs?: Ref<number | null>;
+  endMs?: Ref<number | null>;
   /** Gate the query — when false it never runs. Manual-fire pages hold it
    *  until the operator presses Run query. Defaults to always-on. */
   enabled?: Ref<boolean>;
@@ -51,8 +51,8 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
       params.page,
       params.pageSize,
       params.windowMinutes ?? computed(() => 0),
-      params.startTime ?? computed(() => null),
-      params.endTime ?? computed(() => null),
+      params.startMs ?? computed(() => null),
+      params.endMs ?? computed(() => null),
     ],
     queryFn: () =>
       bffClient.log.list(layerKey.value, {
@@ -63,8 +63,8 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
         ...(params.keywords.value.length > 0 ? { keywordsOfContent: params.keywords.value } : {}),
         ...(params.tags.value.length > 0 ? { tags: params.tags.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
-        ...(params.startTime?.value && params.endTime?.value
-          ? { startTime: params.startTime.value, endTime: params.endTime.value }
+        ...(params.startMs?.value && params.endMs?.value
+          ? { startMs: params.startMs.value, endMs: params.endMs.value }
           : {}),
         page: params.page.value,
         pageSize: params.pageSize.value,
@@ -97,8 +97,8 @@ export interface LogFacetParams {
   traceId: Ref<string | null>;
   keywords: Ref<string[]>;
   windowMinutes?: Ref<number>;
-  startTime?: Ref<string | null>;
-  endTime?: Ref<string | null>;
+  startMs?: Ref<number | null>;
+  endMs?: Ref<number | null>;
   enabled?: Ref<boolean>;
 }
 
@@ -113,8 +113,8 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
       params.traceId,
       params.keywords,
       params.windowMinutes ?? computed(() => 0),
-      params.startTime ?? computed(() => null),
-      params.endTime ?? computed(() => null),
+      params.startMs ?? computed(() => null),
+      params.endMs ?? computed(() => null),
     ],
     queryFn: () =>
       bffClient.log.facets(layerKey.value, {
@@ -124,8 +124,8 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),
         ...(params.keywords.value.length > 0 ? { keywordsOfContent: params.keywords.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
-        ...(params.startTime?.value && params.endTime?.value
-          ? { startTime: params.startTime.value, endTime: params.endTime.value }
+        ...(params.startMs?.value && params.endMs?.value
+          ? { startMs: params.startMs.value, endMs: params.endMs.value }
           : {}),
         sampleSize: 200,
       }),

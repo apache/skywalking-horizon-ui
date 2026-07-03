@@ -45,8 +45,8 @@ export class TraceApi {
       pageSize?: number;
       tags?: Array<{ key: string; value: string }>;
       windowMinutes?: number;
-      start?: string;
-      end?: string;
+      startMs?: number;
+      endMs?: number;
       /** Admin preview: the operator's draft `traces` block (JSON string). */
       previewConfig?: string;
     } = {},

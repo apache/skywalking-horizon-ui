@@ -93,16 +93,12 @@ function rollingWindow(minutes: number, offsetMinutes: number): { start: string;
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 function explicitWindow(
-  startIso: string,
-  endIso: string,
+  startMs: number,
+  endMs: number,
   offsetMinutes: number,
 ): { start: string; end: string } | null {
-  const s = new Date(startIso);
-  const e = new Date(endIso);
-  if (!Number.isFinite(s.getTime()) || !Number.isFinite(e.getTime()) || e.getTime() < s.getTime()) {
-    return null;
-  }
-  return { start: fmtSecond(s.getTime(), offsetMinutes), end: fmtSecond(e.getTime(), offsetMinutes) };
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) return null;
+  return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
 export interface TraceListBody {
@@ -123,11 +119,10 @@ export interface TraceListBody {
   tags?: Array<{ key: string; value: string }>;
   /** Rolling window in minutes. Default 30; clamped to [1, 10080]. */
   windowMinutes?: number;
-  /** Explicit ISO start (UTC). When both `start` and `end` are
-   *  provided they override `windowMinutes`. */
-  start?: string;
-  /** Explicit ISO end (UTC). Pair with `start`. */
-  end?: string;
+  /** Explicit absolute epoch ms. When both are set they override
+   *  `windowMinutes`; the BFF applies the OAP offset. */
+  startMs?: number;
+  endMs?: number;
   /** Admin Preview: the operator's draft `traces` block (JSON string).
    *  When present + valid, it picks the source instead of the remote
    *  template — same preview path as topology / endpoint-dependency. */
@@ -300,7 +295,10 @@ export async function fetchNativeList(
   const api = await detectTraceQueryApi(opts);
   // Explicit start+end takes precedence over windowMinutes; falling
   // back to the rolling default when the explicit range is invalid.
-  const explicit = body.start && body.end ? explicitWindow(body.start, body.end, offsetMinutes) : null;
+  const explicit =
+    typeof body.startMs === 'number' && typeof body.endMs === 'number'
+      ? explicitWindow(body.startMs, body.endMs, offsetMinutes)
+      : null;
   const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
   let serviceId: string | null = null;
   try {

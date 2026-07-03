@@ -74,10 +74,10 @@ function resolveNativeEntity(e: ExploreEntity): {
 }
 
 /** Explicit epoch-ms window overrides the rolling minutes; trace.ts reads
- *  `start`/`end` as ISO and `windowMinutes` as the fallback. */
-function traceWindowFields(w: ExploreWindow): Pick<TraceListBody, 'windowMinutes' | 'start' | 'end'> {
+ *  `startMs`/`endMs` and `windowMinutes` as the fallback. */
+function traceWindowFields(w: ExploreWindow): Pick<TraceListBody, 'windowMinutes' | 'startMs' | 'endMs'> {
   if (typeof w.startMs === 'number' && typeof w.endMs === 'number' && w.endMs > w.startMs) {
-    return { start: new Date(w.startMs).toISOString(), end: new Date(w.endMs).toISOString() };
+    return { startMs: w.startMs, endMs: w.endMs };
   }
   return { windowMinutes: w.windowMinutes };
 }

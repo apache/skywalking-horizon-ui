@@ -98,7 +98,12 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
         pageSize: params.pageSize.value,
         ...(params.tags.value.length > 0 ? { tags: params.tags.value } : {}),
         ...(params.customStart.value && params.customEnd.value
-          ? { start: params.customStart.value, end: params.customEnd.value }
+          ? // datetime-local is browser-local; send absolute epoch ms so the BFF
+            // applies the OAP offset — same as every other query surface.
+            {
+              startMs: new Date(params.customStart.value).getTime(),
+              endMs: new Date(params.customEnd.value).getTime(),
+            }
           : { windowMinutes: params.windowMinutes.value }),
         ...(previewCfg.value ? { previewConfig: previewCfg.value } : {}),
       }),

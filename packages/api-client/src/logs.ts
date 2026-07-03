@@ -66,13 +66,12 @@ export interface LogQueryRequest {
   pageSize?: number;
   /** Rolling time-window for the query in minutes, ending at "now".
    *  Falls back to the BFF default (~60min) when omitted. Ignored when
-   *  an explicit `startTime` / `endTime` pair is supplied. */
+   *  an explicit `startMs` / `endMs` pair is supplied. */
   windowMinutes?: number;
-  /** Explicit absolute window — `YYYY-MM-DD HHmm` (OAP minute-step
-   *  format). When both `startTime` + `endTime` are set, the rolling
-   *  `windowMinutes` is ignored. */
-  startTime?: string;
-  endTime?: string;
+  /** Explicit absolute window in epoch ms. When both are set the rolling
+   *  `windowMinutes` is ignored; the BFF applies the OAP offset. */
+  startMs?: number;
+  endMs?: number;
 }
 
 export interface LogsResponse {

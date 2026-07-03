@@ -23,11 +23,10 @@
  * dropdown for two `datetime-local` inputs (cap is 7 days, enforced
  * server-side too). Mirrors the trace tab's Custom… escape hatch.
  *
- * Exposes the OAP-shaped query refs the log/facet composables consume:
+ * Exposes the query refs the log/facet composables consume:
  *   - `windowMinutesEffective` — preset minutes, or 0 in custom mode.
- *   - `startTime`/`endTime` — `YYYY-MM-DD HHmm` (OAP minute) in custom
- *     mode, else null. The BFF forwards these to the same
- *     `queryDuration.start/end` slot the trace tab uses.
+ *   - `startMs`/`endMs` — absolute epoch ms in custom mode, else null.
+ *     The BFF applies the OAP offset (same as the trace tab).
  */
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
@@ -48,23 +47,13 @@ function fmtDateTimeLocal(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
- *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
- *  same `queryDuration.start/end` slot the trace tab uses. */
-function toOapMinute(local: string | null): string | null {
-  if (!local) return null;
-  const [d, t] = local.split('T');
-  if (!d || !t) return null;
-  return `${d} ${t.replace(':', '')}`;
-}
-
 export interface LogTimeRange {
   windowMinutes: Ref<number>;
   customStart: Ref<string | null>;
   customEnd: Ref<string | null>;
   isCustomRange: ComputedRef<boolean>;
-  startTime: ComputedRef<string | null>;
-  endTime: ComputedRef<string | null>;
+  startMs: ComputedRef<number | null>;
+  endMs: ComputedRef<number | null>;
   windowMinutesEffective: ComputedRef<number>;
 }
 
@@ -88,11 +77,11 @@ export function useLogTimeRange(initialMinutes = 30): LogTimeRange {
     }
   });
 
-  const startTime = computed<string | null>(() =>
-    isCustomRange.value ? toOapMinute(customStart.value) : null,
+  const startMs = computed<number | null>(() =>
+    isCustomRange.value && customStart.value ? new Date(customStart.value).getTime() : null,
   );
-  const endTime = computed<string | null>(() =>
-    isCustomRange.value ? toOapMinute(customEnd.value) : null,
+  const endMs = computed<number | null>(() =>
+    isCustomRange.value && customEnd.value ? new Date(customEnd.value).getTime() : null,
   );
   const windowMinutesEffective = computed<number>(() =>
     isCustomRange.value ? 0 : windowMinutes.value,
@@ -103,8 +92,8 @@ export function useLogTimeRange(initialMinutes = 30): LogTimeRange {
     customStart,
     customEnd,
     isCustomRange,
-    startTime,
-    endTime,
+    startMs,
+    endMs,
     windowMinutesEffective,
   };
 }

@@ -67,20 +67,22 @@ function clampPageSize(requested: number | undefined, fallback: number, max: num
  *  round off the most recent log lines for up to a minute, which is
  *  exactly when an operator is triaging.
  *
- *  Three input shapes:
- *    - explicit MINUTE form `YYYY-MM-DD HHmm` (legacy UI custom-range) —
- *      padded to seconds with `00`. The UI emits these in its current TZ;
- *      OAP reads them in OAP-TZ. (Same convention as booster-ui.)
- *    - explicit SECOND form `YYYY-MM-DD HHmmss` — forwarded verbatim.
- *    - no explicit form → rolling fallback, formatted OAP-local at
- *      SECOND precision using the cached server offset. */
+ *  Two shapes: an explicit absolute window (epoch ms) formatted OAP-local
+ *  via `fmtSecond`, or a rolling fallback in minutes ending at "now". */
 function defaultWindow(
   offsetMinutes: number,
   minutes?: number,
-  explicit?: { startTime?: string; endTime?: string },
+  explicit?: { startMs?: number; endMs?: number },
 ): { start: string; end: string } {
-  if (explicit?.startTime && explicit.endTime) {
-    return { start: toSecond(explicit.startTime), end: toSecond(explicit.endTime) };
+  if (
+    typeof explicit?.startMs === 'number' &&
+    typeof explicit.endMs === 'number' &&
+    explicit.startMs < explicit.endMs
+  ) {
+    return {
+      start: fmtSecond(explicit.startMs, offsetMinutes),
+      end: fmtSecond(explicit.endMs, offsetMinutes),
+    };
   }
   const m = Number.isFinite(minutes) && (minutes as number) > 0
     ? Math.min(60 * 24 * 7, Math.round(minutes as number))
@@ -88,12 +90,6 @@ function defaultWindow(
   const endMs = Date.now();
   const startMs = endMs - m * 60_000;
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
-}
-
-function toSecond(s: string): string {
-  // Pad MINUTE-precision strings ("YYYY-MM-DD HHmm") to seconds. Pass
-  // SECOND-precision strings through unchanged.
-  return /\s\d{4}$/.test(s) ? `${s}00` : s;
 }
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
@@ -263,8 +259,8 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultWindow(offset, body.windowMinutes, {
-        startTime: body.startTime,
-        endTime: body.endTime,
+        startMs: body.startMs,
+        endMs: body.endMs,
       });
 
       // Resolve a service NAME to an id if the caller used one.
@@ -328,8 +324,8 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultWindow(offset, body.windowMinutes, {
-        startTime: body.startTime,
-        endTime: body.endTime,
+        startMs: body.startMs,
+        endMs: body.endMs,
       });
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {

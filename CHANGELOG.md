@@ -6,6 +6,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ## 1.0.0
 
+### Traces & logs
+
+- **Custom time ranges on the Traces and Logs tabs now return results when your browser and the OAP server sit in different timezones.** A custom range (and the metric→trace drill's centered window) was sent as a browser-local wall-clock string that the server re-read in its own timezone — so on a UTC-container deployment the window shifted by your UTC offset and came back empty, while the rolling presets kept working. Both paths now send absolute timestamps and the server applies the OAP timezone offset, consistent with every other query surface.
+
 ### Deployment & configuration
 
 - **Run on the bundled templates, read-only — no OAP ui_template API needed.** A new `templates.mode` setting (`HORIZON_TEMPLATES_MODE`) adds a `readonly` mode: Horizon renders every dashboard / overview / alert-page / 3D-map / translation from the **local bundle** and never calls OAP's ui_template admin API. The whole config surface goes **read-only** — the admin pages still open and show the bundled config, but editing and publishing are disabled (and the BFF rejects a write even if it's fired directly). OAP's **query** API is still used and health-checked, so metrics / traces / logs / topology work exactly as before; only the config-template store is local. Default stays `live` (seed-to-OAP, editable). The Cluster Status page shows the active mode and ui_template availability.

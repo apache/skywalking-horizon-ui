@@ -182,8 +182,8 @@ const {
   customStart,
   customEnd,
   isCustomRange,
-  startTime: startTimeRef,
-  endTime: endTimeRef,
+  startMs: startMsRef,
+  endMs: endMsRef,
   windowMinutesEffective,
 } = useLogTimeRange(30);
 
@@ -205,8 +205,8 @@ interface AppliedLogConditions {
   keywords: string[];
   tags: LogTagFilter[];
   windowMinutes: number;
-  startTime: string | null;
-  endTime: string | null;
+  startMs: number | null;
+  endMs: number | null;
 }
 function snapshotConditions(): AppliedLogConditions {
   return {
@@ -217,8 +217,8 @@ function snapshotConditions(): AppliedLogConditions {
     keywords: keywordsRef.value,
     tags: allTags.value,
     windowMinutes: windowMinutesEffective.value,
-    startTime: startTimeRef.value,
-    endTime: endTimeRef.value,
+    startMs: startMsRef.value,
+    endMs: endMsRef.value,
   };
 }
 const applied = ref<AppliedLogConditions>(snapshotConditions());
@@ -246,8 +246,8 @@ const aTraceId = computed(() => applied.value.traceId);
 const aKeywords = computed(() => applied.value.keywords);
 const aTags = computed(() => applied.value.tags);
 const aWindowMinutes = computed(() => applied.value.windowMinutes);
-const aStartTime = computed(() => applied.value.startTime);
-const aEndTime = computed(() => applied.value.endTime);
+const aStartMs = computed(() => applied.value.startMs);
+const aEndMs = computed(() => applied.value.endMs);
 
 const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   service: aService,
@@ -259,8 +259,8 @@ const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   page,
   pageSize,
   windowMinutes: aWindowMinutes,
-  startTime: aStartTime,
-  endTime: aEndTime,
+  startMs: aStartMs,
+  endMs: aEndMs,
   enabled: hasQueried,
 });
 
@@ -271,8 +271,8 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   traceId: aTraceId,
   keywords: aKeywords,
   windowMinutes: aWindowMinutes,
-  startTime: aStartTime,
-  endTime: aEndTime,
+  startMs: aStartMs,
+  endMs: aEndMs,
   enabled: hasQueried,
 });
 
