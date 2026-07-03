@@ -40,6 +40,8 @@ const props = defineProps<{
   script: string;
   /** The opened cell's complete payload, pretty JSON. */
   json: string;
+  /** Why this step stopped the pipeline, or null when it continued. */
+  reason?: string | null;
   /** Same-format sibling cells. `lineStart..lineEnd` is the DSL span
    *  (equal for per-statement steps, the block range for block steps). */
   comparable: { label: string; script: string; json: string; lineStart: number; lineEnd: number }[];
@@ -113,6 +115,11 @@ function clearCompare(): void {
   <Modal :open="open" :title="title" width="82vw" :fit-body="true" @close="$emit('close')">
     <div class="lpop">
       <pre v-if="script" class="lpop__script">{{ script }}</pre>
+
+      <div v-if="reason" class="lpop__reason">
+        <span class="lpop__reasonlabel">{{ t('drop reason') }}</span>
+        <span class="lpop__reasontext">{{ reason }}</span>
+      </div>
 
       <div v-if="comparable.length > 0" class="lpop__bar">
         <span class="lpop__lbl">{{ t('compare with') }}</span>
@@ -215,6 +222,31 @@ function clearCompare(): void {
   white-space: pre-wrap;
   word-break: break-word;
   flex-shrink: 0;
+}
+
+.lpop__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 9px;
+  border-left: 2px solid var(--rr-warn, #d6a96d);
+  background: var(--rr-bg);
+  flex-shrink: 0;
+}
+.lpop__reasonlabel {
+  color: var(--rr-warn, #d6a96d);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+}
+.lpop__reasontext {
+  color: var(--rr-ink);
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .lpop__bar {

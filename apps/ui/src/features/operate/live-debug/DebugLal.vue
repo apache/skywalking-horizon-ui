@@ -428,6 +428,7 @@ const popoutComparable = ref<
 >([]);
 const popoutDslLines = ref<string[]>([]);
 const popoutCurrentLine = ref<number>(0);
+const popoutReason = ref<string | null>(null);
 
 /** Brace-match a top-level DSL block (`extractor {` … `}`) and return its
  *  1-based line span, or null when the opener isn't present. */
@@ -467,6 +468,7 @@ function openCellPopout(cell: LalCellData, step: LalStep, node: LalNodeView): vo
   popoutJson.value = fullJson(cell.payload, step.type);
   popoutDslLines.value = sourceDslLines.value;
   popoutCurrentLine.value = stepLines(step).start;
+  popoutReason.value = cell.sample.reason ?? null;
   // Comparable = the record's other same-format (builder) cells. Per-
   // statement snapshots map to their DSL line; the post-extractor /
   // output snapshots map to their whole block range, so the captured
@@ -986,6 +988,7 @@ function recordTitle(view: LalRecordView): string {
     :title="popoutTitle"
     :script="popoutScript"
     :json="popoutJson"
+    :reason="popoutReason"
     :comparable="popoutComparable"
     :dsl-lines="popoutDslLines"
     :current-line="popoutCurrentLine"
