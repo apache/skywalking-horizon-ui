@@ -432,13 +432,19 @@ export type SamplePayload =
  *  - `payload`: per-DSL shape — see the per-DSL types above.
  *  - `sourceLine`: 1-based line number in the rule body. Omitted when
  *     0 / not applicable (block-level LAL probes, MAL chain stages on
- *     a one-liner rule). */
+ *     a one-liner rule).
+ *  - `reason`: human-readable explanation of WHY this step stopped the
+ *     pipeline (a parse exception, a non-matching regexp, an input-type
+ *     mismatch), paired with `continueOn: false`. Optional — LAL-only
+ *     today, and absent from OAP versions before it was added, so the
+ *     UI must treat its absence as "no reason available". */
 export interface SessionSample {
   type: SampleType;
   sourceText: string;
   continueOn: boolean;
   payload: SamplePayload;
   sourceLine?: number;
+  reason?: string;
 }
 
 /** Catalog-specific structured rule metadata. The recorder fills in

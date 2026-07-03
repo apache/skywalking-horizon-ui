@@ -335,6 +335,7 @@
   "carried": "carried",
   "+ added": "+ added",
   "aborted": "aborted",
+  "drop reason": "drop reason",
   "file": "file",
   "select an .oal file…": "select an .oal file…",
   "metric": "metric",

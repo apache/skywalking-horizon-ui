@@ -970,6 +970,7 @@ function recordTitle(view: LalRecordView): string {
                 <LalCell
                   :step-type="step.type"
                   :payload="cellAt(node, step, rv.recIdx)?.payload ?? null"
+                  :reason="cellAt(node, step, rv.recIdx)?.sample.reason ?? null"
                 />
               </template>
             </div>

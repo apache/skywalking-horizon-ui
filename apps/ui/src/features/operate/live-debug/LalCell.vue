@@ -40,6 +40,9 @@ import {
 const props = defineProps<{
   stepType: SampleType;
   payload: LalSamplePayload | null;
+  /** Why this step stopped the pipeline (parse failure, non-matching regexp, …),
+   *  or null/undefined when it continued or the OAP version doesn't report it. */
+  reason?: string | null;
   /** When set (the cell popout), body/content shows its complete pretty-
    *  printed value instead of the 80-char dense-matrix preview. */
   full?: boolean;
@@ -119,6 +122,10 @@ const outputKvs = computed(() => outputEntries(props.payload, props.full));
     </div>
   </template>
   <div v-if="props.payload?.aborted" class="lal__abort">{{ t('aborted') }}</div>
+  <div v-if="props.reason" class="lal__reason">
+    <span class="lal__reasonlabel">{{ t('drop reason') }}</span>
+    <span class="lal__reasontext">{{ props.reason }}</span>
+  </div>
 </template>
 
 <style scoped>
@@ -228,5 +235,30 @@ const outputKvs = computed(() => outputEntries(props.payload, props.full));
   font-weight: var(--sw-fw-bold);
   text-transform: uppercase;
   letter-spacing: var(--sw-ls-caps);
+}
+
+.lal__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 2px solid var(--rr-warn, #d6a96d);
+  padding-left: 6px;
+}
+
+.lal__reasonlabel {
+  color: var(--rr-warn, #d6a96d);
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--sw-ls-caps);
+}
+
+.lal__reasontext {
+  color: var(--rr-ink2);
+  font-family: var(--rr-font-mono);
+  font-size: var(--sw-fs-xs);
+  line-height: 1.4;
+  word-break: break-all;
+  white-space: pre-wrap;
 }
 </style>

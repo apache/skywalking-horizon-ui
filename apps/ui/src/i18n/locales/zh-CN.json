@@ -331,6 +331,7 @@
   "carried": "继承",
   "+ added": "+ 新增",
   "aborted": "已中止",
+  "drop reason": "丢弃原因",
   "file": "文件",
   "select an .oal file…": "选择一个 .oal 文件…",
   "metric": "指标",
