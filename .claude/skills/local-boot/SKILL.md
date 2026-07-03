@@ -1,6 +1,6 @@
 ---
 name: local-boot
-description: Boot the Horizon UI dev env (BFF + UI) against a local OAP or the public Apache demo OAP. Uses the repo's committed, env-driven horizon.yaml — the same config the image ships — and injects the OAP target + dev users purely via HORIZON_* environment variables. Handles the apps/bff cwd / HORIZON_CONFIG gotcha and the demo OAP password (kept out of git via the cached oap-password.local).
+description: Boot the Horizon UI dev env (BFF + UI) against a local OAP or the public Apache demo OAP. Uses the repo's committed, env-driven horizon.yaml — the same config the image ships — and injects the OAP target + dev users purely via HORIZON_* environment variables. Handles the apps/bff cwd / HORIZON_CONFIG gotcha and the demo OAP password (kept out of git via the cached oap-demo-env-auth.key).
 user-invocable: true
 ---
 
@@ -47,7 +47,7 @@ config loader's `${VAR:default}` interpolation; Vite reads `BFF_PORT` +
 | `HORIZON_OAP_ADMIN_URL`     | `http://127.0.0.1:17128`   | BFF     | OAP admin REST endpoint. Often a different port from GraphQL (the demo splits on `:17128`) — if the BFF logs `UITemplate 404`, this is wrong. |
 | `HORIZON_OAP_ZIPKIN_URL`    | `http://127.0.0.1:9412/zipkin` | BFF | Zipkin query endpoint (Zipkin trace layer). |
 | `HORIZON_OAP_TIMEOUT_MS`    | `15000`                    | BFF     | OAP request timeout. Lower it (`4000`) when previewing the "OAP unreachable" landing block so errors surface fast. |
-| `HORIZON_OAP_AUTH`          | _(none)_                   | BFF     | OAP basic-auth as JSON, e.g. `{"username":"admin","password":"…"}`. The demo needs it (password from `oap-password.local`). |
+| `HORIZON_OAP_AUTH`          | _(none)_                   | BFF     | OAP basic-auth as JSON, e.g. `{"username":"admin","password":"…"}`. The demo needs it (password from `oap-demo-env-auth.key`). |
 | `HORIZON_AUTH_LOCAL_USERS`  | `[]`                       | BFF     | Local login users (JSON array, single-line). Use `$(cat dev-users.json)`. |
 | `HORIZON_AUTH_BACKEND`      | `local`                    | BFF     | `local` or `ldap`. |
 | `HORIZON_AUTH_LDAP`         | _(none)_                   | BFF     | LDAP config (JSON, single-line) when backend=ldap. Use `$(cat dev-ldap.json)`. |
@@ -95,13 +95,13 @@ The browser uses its OWN proxy settings (not the shell's), so the developer must
 ## Boot against the public demo OAP
 
 The demo OAP needs basic-auth (network username `admin`). The password is NOT
-committed — it lives in `oap-password.local` next to this file (git-ignored via
-the repo-wide `*.local` rule). Source it; if missing, ask the developer and
+committed — it lives in `oap-demo-env-auth.key` next to this file (git-ignored via
+the `.claude/skills/local-boot/*.key` rule). Source it; if missing, ask the developer and
 recreate it (one line, the password only).
 
 ```bash
 REPO="$(git rev-parse --show-toplevel)"
-SECRET="$REPO/.claude/skills/local-boot/oap-password.local"
+SECRET="$REPO/.claude/skills/local-boot/oap-demo-env-auth.key"
 if [ -s "$SECRET" ]; then
   OAP_PASSWORD="$(cat "$SECRET")"; export OAP_PASSWORD
 else
@@ -232,6 +232,6 @@ curl -s --noproxy '*' -c /tmp/sw.cookies -H 'Content-Type: application/json' -X 
 `horizon.yaml` (repo root) is the committed, env-driven config — leave it as-is
 and override via `HORIZON_*` env vars. The dev users / LDAP config live in
 `dev-users.json` / `dev-ldap.json` here (throwaway, single-line JSON). Real OAP
-or LDAP passwords stay out of git: the demo OAP password in `oap-password.local`
+or LDAP passwords stay out of git: the demo OAP password in `oap-demo-env-auth.key`
 (git-ignored), real bind passwords supplied at boot. To mint a new local-user
 hash: `pnpm --filter @skywalking-horizon-ui/bff cli:hash`.
