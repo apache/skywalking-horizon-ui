@@ -138,7 +138,7 @@ async function send(text: string): Promise<void> {
   const conv = ensureCurrent();
   if (!conv.title) conv.title = q.slice(0, 60);
 
-  conv.messages.push({ id: uid(), role: 'user', blocks: [{ kind: 'text', text: q }] });
+  conv.messages.push({ id: uid(), role: 'user', blocks: [{ kind: 'text', text: q }], at: Date.now() });
   // Prior turns (including the just-added user turn) become the LLM history;
   // the not-yet-streamed assistant placeholder is excluded.
   const history: AiTurn[] = conv.messages
@@ -172,6 +172,7 @@ async function send(text: string): Promise<void> {
   } finally {
     streamController = null;
     assistant.streaming = false;
+    assistant.at = Date.now(); // reply-finished time
     streaming.value = false;
     conv.updatedAt = Date.now();
     persist();

@@ -29,7 +29,12 @@ WIDGET TOOLS — pick by the MQE SHAPE (the outermost function):
 - show_top — a sorted top-N list: MQE wrapped in top_n(...).
 - show_table — a labeled table: latest(...) of a LABELED metric (per-label rows), or a status/count table.
 - show_record — RECORD rows: sampled records / slow-statement or slow-trace lists (top_n(top_n_...)).
-Every one takes: title, layer, service (name), expressions (catalog MQE, verbatim), optional unit, optional instance OR endpoint (the finer scope), and an optional `group`.
+SETTING THE QUERY PARAMETERS (every widget tool takes title, layer, service, expressions, and optional unit / instance / endpoint / group):
+- layer — the entity's OAP layer key, the SAME layer you browsed the catalog for. The same service in another layer is a DIFFERENT catalog; never carry a metric across layers.
+- service — the exact service NAME from list_services (the name, not the id, not a guess).
+- scope — Service by default; pass `instance` (a ServiceInstance NAME) for instance scope, OR `endpoint` (an Endpoint NAME) for endpoint scope — NEVER both. The MQE MUST match the scope: service_* at service scope, service_instance_* / JVM / runtime at instance scope, endpoint_* at endpoint scope. A service-scope MQE with an instance param (or the reverse) comes back empty.
+- expressions — the catalog MQE for THAT (layer, scope), VERBATIM. To drill finer: kb_resolve_scope_drill for the child, then render with the child NAME in instance/endpoint AND the child-scope MQE — OAP does not roll up, so both change together.
+- unit — the catalog unit (ms, %, rpm, …) so the axis + tooltip read correctly; a response-time chart is ms, not rpm.
 - MULTIPLE lines on ONE chart: when you pass 2+ expressions (e.g. TCP read + write bytes), ALSO pass `labels` — one short label per expression (["read","write"]). Without it every line inherits the title and the operator can't tell them apart. A single expression needs no labels.
 
 SCOPES you can render (load-bearing):

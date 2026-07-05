@@ -17,7 +17,7 @@
 <!-- Full-page /ai: a fullscreen route outside AppShell — history sidebar + wide
      conversation column. Same conversation + history as the docked drawer. -->
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
@@ -26,6 +26,7 @@ import ChatComposer from './ChatComposer.vue';
 import ChatScopeBar from './ChatScopeBar.vue';
 import { useAiChat } from './useAiChat';
 import { useAiConversations } from './useAiConversations';
+import { useChatScroll } from './useChatScroll';
 import type { Conversation } from './types';
 
 const { t } = useI18n({ useScope: 'global' });
@@ -39,18 +40,13 @@ const conv = useAiConversations();
 const ordered = computed<Conversation[]>(() => [...conv.conversations.value].sort((a, b) => b.updatedAt - a.updatedAt));
 const messages = computed(() => conv.current.value?.messages ?? []);
 const body = ref<HTMLElement | null>(null);
-
-function scrollToBottom(): void {
-  if (body.value) body.value.scrollTop = body.value.scrollHeight;
-}
-const scrollSignal = computed<string>(() => {
-  const ms = messages.value;
-  const last = ms[ms.length - 1];
-  const lb = last?.blocks[last.blocks.length - 1];
-  const tlen = lb && lb.kind === 'text' ? lb.text.length : 0;
-  return `${conv.currentId.value ?? ''}:${ms.length}:${last?.blocks.length ?? 0}:${tlen}`;
+// Pin the message you just sent to the top of the scroll area; the answer
+// streams in below it. Switching conversations lands on the latest turn.
+useChatScroll({
+  container: body,
+  messages,
+  conversationId: computed<string | null>(() => conv.currentId.value ?? null),
 });
-watch(scrollSignal, () => void nextTick(scrollToBottom));
 
 function onSend(text: string): void {
   void conv.send(text);
@@ -69,13 +65,28 @@ function when(ts: number): string {
       <span class="aifp__mark" aria-hidden="true"><Icon name="ai" :size="16" /></span>
       <strong class="aifp__brand">{{ t('AI Assistant') }}</strong>
       <div class="aifp__top-acts">
-        <ChatScopeBar />
-        <button type="button" class="aifp__btn" @click="conv.newChat()"><Icon name="plus" :size="13" />{{ t('New chat') }}</button>
+        <template v-if="chat.ready.value">
+          <ChatScopeBar />
+          <button type="button" class="aifp__btn" @click="conv.newChat()"><Icon name="plus" :size="13" />{{ t('New chat') }}</button>
+        </template>
         <button type="button" class="aifp__btn" @click="dockToSide"><Icon name="expand" :size="13" />{{ t('Dock to side') }}</button>
       </div>
     </header>
 
-    <div class="aifp__main">
+    <!-- Read-only setup state: the assistant is reachable by everyone, but can
+         only chat once an admin has configured a model provider. -->
+    <div v-if="!chat.ready.value" class="aifp__setup">
+      <span class="aifp__setup-mark" aria-hidden="true"><Icon name="ai" :size="34" /></span>
+      <h2 class="aifp__setup-title">{{ t('The AI Assistant is not set up yet') }}</h2>
+      <p class="aifp__setup-text">
+        {{ t('It answers questions about your services, metrics, traces and logs from live data — but a model provider must be configured first.') }}
+      </p>
+      <p class="aifp__setup-tip">
+        {{ t('Ask your administrator to enable it and configure a model provider and API key.') }}
+      </p>
+    </div>
+
+    <div v-else class="aifp__main">
       <aside class="aifp__hist">
         <div class="aifp__hist-head">{{ t('History') }}</div>
         <div v-if="ordered.length === 0" class="aifp__hist-empty">{{ t('No conversations yet.') }}</div>
@@ -264,7 +275,15 @@ function when(ts: number): string {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 24px 20px;
+  /* Don't let the browser follow streamed content growth — the pin-to-top
+     scroll owns the position (see useChatScroll). */
+  overflow-anchor: none;
+  /* The full-page conversation sits over --sw-bg-0 (not the drawer's bg-1);
+     tell the sticky question header to match. */
+  --tx-sticky-bg: var(--sw-bg-0);
+  /* Top padding lives on .tx (it scrolls) so the sticky question header can
+     stick flush to the top with no gap above it. */
+  padding: 0 20px 24px;
 }
 .aifp__composer {
   flex: 0 0 auto;
@@ -276,5 +295,51 @@ function when(ts: number): string {
 .aifp__col {
   max-width: 900px;
   margin: 0 auto;
+}
+
+.aifp__setup {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 40px;
+}
+.aifp__setup-mark {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--sw-accent) 0%, var(--sw-purple) 115%);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.aifp__setup-title {
+  margin: 0;
+  font-size: var(--sw-fs-xl);
+  font-weight: var(--sw-fw-semibold);
+  color: var(--sw-fg-0);
+}
+.aifp__setup-text {
+  margin: 0;
+  max-width: 52ch;
+  font-size: var(--sw-fs-base);
+  color: var(--sw-fg-2);
+  line-height: var(--sw-lh-normal);
+}
+.aifp__setup-tip {
+  margin: 6px 0 0;
+  max-width: 52ch;
+  font-size: var(--sw-fs-base);
+  font-weight: var(--sw-fw-medium);
+  color: var(--sw-fg-1);
+  padding: 12px 16px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 10px;
+  background: var(--sw-bg-1);
 }
 </style>

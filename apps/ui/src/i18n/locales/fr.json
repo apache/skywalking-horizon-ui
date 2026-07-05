@@ -1091,7 +1091,6 @@
   "Observability Analysis Language": "Observability Analysis Language",
   "Operate · Data retention": "Exploitation · Rétention des données",
   "Per-data-class · widths proportional to total retention": "Par classe de données · largeurs proportionnelles à la rétention totale",
-  "Pin the OAP layers that get their own KPI tile at the top of {alarms}. Defaults are {general} + {mesh}.": "Épinglez les couches OAP qui obtiennent leur propre tuile KPI en haut de {alarms}. Les valeurs par défaut sont {general} + {mesh}.",
   "Push one with": "Poussez-en un avec",
   "Records": "Enregistrements",
   "Retention": "Rétention",
@@ -1654,5 +1653,9 @@
   "Content filter": "Filtre de contenu",
   "match": "correspond",
   "exclude": "exclut",
-  "No lines matched this content filter in the window.": "Aucune ligne ne correspond à ce filtre de contenu dans la fenêtre."
+  "No lines matched this content filter in the window.": "Aucune ligne ne correspond à ce filtre de contenu dans la fenêtre.",
+  "Pin the OAP layers that get their own KPI tile at the top of {alarms}.": "Épinglez les couches OAP qui obtiennent leur propre tuile KPI en haut de {alarms}.",
+  "The AI Assistant is not set up yet": "L'assistant IA n'est pas encore configuré",
+  "It answers questions about your services, metrics, traces and logs from live data — but a model provider must be configured first.": "Il répond aux questions sur vos services, métriques, traces et logs à partir de données en direct, mais un fournisseur de modèle doit d'abord être configuré.",
+  "Ask your administrator to enable it and configure a model provider and API key.": "Demandez à votre administrateur de l'activer et de configurer un fournisseur de modèle et une clé d'API."
 }

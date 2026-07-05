@@ -30,13 +30,10 @@
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {
-  createOverviewDashboard,
-  deleteOverviewDashboard,
   findOverviewFile,
   getOverviewDashboard,
   loadOverviewDashboards,
@@ -156,47 +153,4 @@ export function registerOverviewTemplatesAdminRoutes(
     },
   );
 
-  /* POST /api/admin/overview-templates — create a brand-new
-   * dashboard. The body is a full OverviewDashboard JSON; the id is
-   * pulled from the body (matching the editor flow where the
-   * operator types the id once at creation time). */
-  app.post(
-    '/api/admin/overview-templates',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const parsed = dashboardSchema.safeParse(req.body);
-      if (!parsed.success) {
-        return reply.code(400).send({ error: 'invalid_body', detail: parsed.error.flatten() });
-      }
-      try {
-        createOverviewDashboard(parsed.data as OverviewDashboard);
-      } catch (err) {
-        return reply.code(409).send({
-          error: 'create_failed',
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-      return reply.send({ ok: true, id: parsed.data.id });
-    },
-  );
-
-  /* DELETE /api/admin/overview-templates/:id — remove the file.
-   * No-op when the file doesn't exist; the cache is invalidated
-   * either way so the list reflects the removal. */
-  app.delete(
-    '/api/admin/overview-templates/:id',
-    { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      const { id } = req.params as { id: string };
-      try {
-        deleteOverviewDashboard(id);
-      } catch (err) {
-        return reply.code(500).send({
-          error: 'delete_failed',
-          message: err instanceof Error ? err.message : String(err),
-        });
-      }
-      return reply.send({ ok: true, id });
-    },
-  );
 }

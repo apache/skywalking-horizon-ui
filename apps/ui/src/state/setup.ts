@@ -16,7 +16,7 @@
  */
 
 import { defineStore } from 'pinia';
-import { computed, reactive, ref } from 'vue';
+import { reactive } from 'vue';
 import type {
   AggregationKind,
   LandingConfig,
@@ -26,7 +26,6 @@ import type {
   LayerOverviewConfig,
   LayerSlots,
 } from '@skywalking-horizon-ui/api-client';
-import { bffClient } from '@/api/client';
 import {
   defaultColumnsForLayer,
   defaultOrderByForLayer,
@@ -206,77 +205,24 @@ export function defaultLayerConfig(
 }
 
 /**
- * Layer customization store.
+ * Layer config resolver.
  *
- * Lifecycle:
- *   1. `bootstrap()` hydrates the persisted overrides from `GET /api/setup`.
- *   2. `ensure(key, defaults)` returns the editable config — creating one
- *      from `defaults` on first touch.
- *   3. UI mutations mark `dirty` true.
- *   4. `save()` POSTs `/api/setup` and clears `dirty`.
- *   5. `reset(key, defaults)` rebuilds a single layer from defaults.
- *   6. `discard()` re-hydrates from server, dropping local changes.
- *
- * The BFF JSON store is the source of truth until OAP-side template
- * management lands. See packages/api-client/src/setup.ts for the wire
- * shape.
+ * Derives each layer's rendered `LayerConfig` (slots / caps / landing) from that
+ * layer's template defaults and caches it per layer so many components can read a
+ * stable object. The layer template is the source of truth — authored in the
+ * Layer dashboards admin and OAP-synced; this store holds NO server state and
+ * persists nothing (there is no separate per-layer override store).
  */
 export const useSetupStore = defineStore('setup', () => {
   const configs = reactive<Record<string, LayerConfig>>({});
-  const dirty = ref(false);
-  const loading = ref(false);
-  const saving = ref(false);
-  const lastError = ref<string | null>(null);
-  const bootstrapped = ref(false);
-  /** Last server-known shape; used by `discard()` to revert. */
-  let serverSnapshot: Record<string, LayerConfig> = {};
-  /** Set of layers whose persisted config has been reconciled against the
-   *  current bundle defaults. Each layer is reconciled exactly ONCE per
-   *  server snapshot — re-running the patches on every `ensure()` call
-   *  was unconditionally re-assigning `landing.headerColumns` (and
-   *  similar) and triggering a reactive cascade. With many components
-   *  reading `ensure(...).landing` from inside a `computed`, the cascade
-   *  hit Vue's recursive-update cap and froze the page. The bootstrap +
-   *  discard paths reset this set so the next reconciliation pass runs
-   *  against the freshly-loaded server data. */
-  const reconciledLayers = new Set<string>();
-
-  function applyServerSnapshot(layers: Record<string, LayerConfig>): void {
-    serverSnapshot = JSON.parse(JSON.stringify(layers));
-    for (const k of Object.keys(configs)) delete configs[k];
-    for (const [k, v] of Object.entries(layers)) configs[k] = JSON.parse(JSON.stringify(v));
-    reconciledLayers.clear();
-    dirty.value = false;
-  }
-
-  async function bootstrap(): Promise<void> {
-    if (bootstrapped.value || loading.value) return;
-    loading.value = true;
-    lastError.value = null;
-    try {
-      const res = await bffClient.setup.load();
-      applyServerSnapshot(res.layers);
-      bootstrapped.value = true;
-    } catch (err) {
-      lastError.value = err instanceof Error ? err.message : 'failed to load setup';
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  // Form bindings mutate `configs[layer]…` through the Vue proxy, and we
-  // can't tell a user edit from a programmatic write on that proxy — so
-  // dirty tracking needs an explicit signal: callers (LayerSetupCard on
-  // input) must call markDirty from the form handler.
-  function markDirty(): void {
-    if (!dirty.value) dirty.value = true;
-  }
 
   /**
-   * Return the operator's config for a layer, creating one from defaults
-   * on first touch. Calls into this from a `computed()` MUTATE the store —
-   * intentional: the Pinia reactive proxy then makes every form-field
-   * binding write-through.
+   * Return the resolved config for a layer, deriving it from `defaults` on first
+   * touch and caching it. Called from `computed()` deliberately: the cache write
+   * happens once per layer, and every subsequent read returns the cached object
+   * WITHOUT mutating — so a computed reading `ensure(...).landing` never triggers
+   * a reactive cascade (an earlier per-read reconciliation pass did, which froze
+   * AppSidebar / LayerShell with "Maximum recursive updates exceeded").
    */
   function ensure(
     layerKey: string,
@@ -291,145 +237,15 @@ export const useSetupStore = defineStore('setup', () => {
     if (!cfg) {
       cfg = defaultLayerConfig(layerKey, defaults);
       configs[layerKey] = cfg;
-      // Freshly built from defaults — already in canonical shape.
-      reconciledLayers.add(layerKey);
-      return cfg;
-    }
-    // Reconciliation is a one-time bootstrap step per server snapshot,
-    // not a per-read action. The earlier code re-ran the reconciliation
-    // on every `ensure()` call, and several of those writes were
-    // unconditional (e.g. `cfg.landing.headerColumns = fresh...`). Since
-    // many computeds call `ensure()`, that turned every read into a
-    // reactive mutation and produced "Maximum recursive updates exceeded"
-    // in AppSidebar / LayerShell. Now we early-return for already-
-    // reconciled layers — the reactive read stays pure.
-    if (reconciledLayers.has(layerKey)) return cfg;
-    reconciledLayers.add(layerKey);
-    {
-      // Reconcile stale persisted state — three issues to patch:
-      //   1. caps fields added after the persisted snapshot. We fill
-      //      undefined caps from the template defaults so checkbox
-      //      toggles read the right state (undefined → defaults).
-      //   2. overview groups / metric ids that don't resolve to any
-      //      column → seed the fresh group set.
-      //   3. columns that DO resolve but carry stale data (empty mqe
-      //      from an old schema) → patch the missing fields from the
-      //      fresh template. Operator-edited fields stay untouched
-      //      (we never overwrite a non-empty persisted value).
-      for (const [k, v] of Object.entries(defaults.caps)) {
-        const key = k as keyof typeof cfg.caps;
-        if (cfg.caps[key] === undefined) cfg.caps[key] = v;
-      }
-      const fresh = defaultLandingFor(layerKey, defaults.metrics, defaults.overview);
-      // When the bundled template now ships `columns: []` (e.g.
-      // so11y_* layers whose meters are SERVICE_INSTANCE-only and have
-      // no service-level KPIs), clear any leftover persisted columns —
-      // they're stale baggage from a prior bundle version and would
-      // resurrect a row of `—` cells. Operators that explicitly want
-      // custom columns can re-add them via the setup admin.
-      if (fresh.columns.length === 0 && cfg.landing.columns.length > 0) {
-        cfg.landing.columns = [];
-        cfg.landing.orderBy = fresh.orderBy;
-      }
-      // Always re-derive `headerColumns` from the fresh template — it's
-      // the operator-defined header set (excludes overview-promoted
-      // synthetic cols). New field; legacy persisted configs won't
-      // have it. We trust the template here rather than preserving
-      // stale persisted state because the field is a pure derivation,
-      // not operator-editable.
-      cfg.landing.headerColumns = fresh.headerColumns;
-      // Patch / add columns from the fresh template — only fields
-      // that are missing on the persisted column get filled. mqe is
-      // the common stale field; this is also where label fixes from
-      // a renamed catalog land for un-customized columns.
-      for (const fc of fresh.columns) {
-        const existing = cfg.landing.columns.find((c) => c.metric === fc.metric);
-        if (!existing) {
-          cfg.landing.columns.push(fc);
-          continue;
-        }
-        if (!existing.mqe && fc.mqe) existing.mqe = fc.mqe;
-        if (existing.label === existing.metric && fc.label) existing.label = fc.label;
-        if (!existing.unit && fc.unit) existing.unit = fc.unit;
-        if (!existing.aggregation && fc.aggregation) existing.aggregation = fc.aggregation;
-        if (!existing.tip && fc.tip) existing.tip = fc.tip;
-      }
-      // Refresh overviewMetrics / overviewGroups when persisted state
-      // is stale (missing groups, or ids that don't resolve).
-      const ids = cfg.landing.overviewMetrics ?? [];
-      const allResolve = ids.length > 0 && ids.every(
-        (id) => cfg.landing.columns.some((c) => c.metric === id),
-      );
-      const hasGroups = (cfg.landing.overviewGroups?.length ?? 0) > 0;
-      if (!allResolve || !hasGroups) {
-        cfg.landing.overviewMetrics = fresh.overviewMetrics;
-        cfg.landing.overviewGroups = fresh.overviewGroups;
-      }
     }
     return cfg;
   }
 
-  function reset(
-    layerKey: string,
-    defaults: {
-      slots: LayerSlots;
-      caps: LayerCaps;
-      metrics?: LayerMetricsConfig;
-      overview?: LayerOverviewConfig;
-    },
-  ): void {
-    configs[layerKey] = defaultLayerConfig(layerKey, defaults);
-    markDirty();
-  }
-
-  async function save(): Promise<void> {
-    if (saving.value) return;
-    saving.value = true;
-    lastError.value = null;
-    try {
-      // Client sends the full touched set; the server stores it sparse.
-      const payload = JSON.parse(JSON.stringify(configs)) as Record<string, LayerConfig>;
-      const res = await bffClient.setup.save({ layers: payload });
-      applyServerSnapshot(res.layers);
-    } catch (err) {
-      lastError.value = err instanceof Error ? err.message : 'save failed';
-      throw err;
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  async function discard(): Promise<void> {
-    applyServerSnapshot(serverSnapshot);
-  }
-
-  /** Side-effect-free priority read. Returns the persisted priority
-   *  for a layer when one exists, or the static default otherwise.
-   *
-   *  Critically, this MUST NOT call `ensure()` or otherwise mutate the
-   *  store. `useLandingOrder` reads priority from inside a computed —
-   *  using `ensure()` there triggered a recursive-update loop
-   *  ("Maximum recursive updates exceeded in component <AppSidebar>")
-   *  because `ensure` writes to `configs.<layer>.landing.headerColumns`
-   *  on every call, and that's a dependency of the same computed. */
+  /** Side-effect-free priority read — used from `useLandingOrder` inside a
+   *  computed, so it MUST NOT call `ensure()` or otherwise mutate the store. */
   function priorityFor(layerKey: string): number {
     return configs[layerKey]?.landing.priority ?? defaultPriority(layerKey);
   }
 
-  return {
-    configs,
-    dirty,
-    loading,
-    saving,
-    bootstrapped,
-    lastError,
-    layerCount: computed(() => Object.keys(configs).length),
-    bootstrap,
-    ensure,
-    priorityFor,
-    reset,
-    markDirty,
-    save,
-    discard,
-  };
+  return { configs, ensure, priorityFor };
 });

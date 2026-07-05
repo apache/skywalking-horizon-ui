@@ -4,6 +4,7 @@ Audit log file path. The format and event schema are documented in [Access Contr
 
 ```yaml
 audit:
+  enabled: true
   file: ./horizon-audit.jsonl
 ```
 
@@ -11,6 +12,7 @@ audit:
 
 | Field | Type | Default | Required | Notes |
 |---|---|---|---|---|
+| `enabled` | boolean | `true` | no | Whether to record the audit trail. **On by default** — the audit log is a security record, so silencing it is an explicit opt-out. When `false`, no file is opened and every event is dropped. Env: `HORIZON_AUDIT_ENABLED`. |
 | `file` | string | `./horizon-audit.jsonl` | no | Filesystem path to the JSON Lines audit log. Relative paths resolve from the BFF working directory. The BFF appends; it never rotates. |
 
 ## Operational notes

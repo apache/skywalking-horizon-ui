@@ -74,7 +74,6 @@ export function withBase(path: string): string {
 }
 import { MenuApi } from './scopes/menu';
 import { OverviewApi } from './scopes/overview';
-import { SetupApi } from './scopes/setup';
 import { LayerApi } from './scopes/layer';
 import { TraceApi } from './scopes/trace';
 import { ZipkinApi } from './scopes/zipkin';
@@ -115,8 +114,6 @@ export type {
   OapTtlResponse,
   OapConfigEntry,
   OapConfigResponse,
-  SetupResponse,
-  SetupSavePayload,
   LayerConfig,
   LandingConfig,
   LandingColumn,
@@ -643,33 +640,18 @@ export interface AlertingRuleContextResponse {
   error?: string;
   nodes: Array<{ address: string; ok: boolean; error?: string; context: AlarmRunningContext | null }>;
 }
-/** Allowed values for `AlarmsConfig.defaultWindowMs`, in ms. Matches
- *  the alarms page's preset list so the admin's choice always
- *  corresponds to a real tab. */
-export const ALARMS_WINDOW_OPTIONS = [
-  20 * 60_000,
-  2 * 60 * 60_000,
-  4 * 60 * 60_000,
-] as const;
-export type AlarmsWindowMs = (typeof ALARMS_WINDOW_OPTIONS)[number];
-
-export const OVERVIEW_ALARMS_LIMIT_MIN = 10;
-export const OVERVIEW_ALARMS_LIMIT_MAX = 500;
-export const OVERVIEW_ALARMS_LIMIT_DEFAULT = 200;
-
-export interface AlarmsConfig {
-  /** OAP layer keys (canonical `GENERAL`, `MESH`, …) that get a
-   *  dedicated tile on the alarms page header. Render order matches
-   *  the array order. */
-  pinnedLayers: string[];
-  /** Default time window in milliseconds for the topbar alarm badge
-   *  AND the alarms page's initial picker selection. */
-  defaultWindowMs: number;
-  /** Fetch cap for the overview "Active alarms" widget. Default 200,
-   *  range [10, 500]. Bigger = more incident variety; smaller =
-   *  cheaper poll. */
-  overviewAlarmsLimit: number;
-}
+// Alarms page-setup config + parse/validate helper live in a leaf module (no
+// cycle with the alarms scope, which reads it from OAP). Re-exported here so
+// `@/api/client` stays the single import site for consumers.
+export {
+  ALARMS_WINDOW_OPTIONS,
+  OVERVIEW_ALARMS_LIMIT_MIN,
+  OVERVIEW_ALARMS_LIMIT_MAX,
+  OVERVIEW_ALARMS_LIMIT_DEFAULT,
+  DEFAULT_ALARMS_CONFIG,
+  normalizeAlarmsConfig,
+} from './alarmsConfig';
+export type { AlarmsConfig, AlarmsWindowMs } from './alarmsConfig';
 
 // ── 3D Infrastructure Map admin config ───────────────────────────────
 // Mirrors `apps/bff/src/logic/infra-3d/types.ts`. Kept structurally
@@ -916,7 +898,6 @@ export class BffClient {
   readonly session = new SessionApi(this);
   readonly menu = new MenuApi(this);
   readonly overview = new OverviewApi(this);
-  readonly setup = new SetupApi(this);
   readonly layer = new LayerApi(this);
   readonly trace = new TraceApi(this);
   readonly zipkin = new ZipkinApi(this);

@@ -31,7 +31,7 @@ Crucially, that skill is **not immutable** — it is *your* configuration, edite
 
 ## Enabling it
 
-The assistant is disabled until you turn it on and point it at a model. The launcher (a floating **AI Assistant** button on the right edge, after login) stays hidden until the feature is enabled *and* a usable provider is configured.
+The launcher — a floating **AI Assistant** button on the right edge, after login — shows for every signed-in user, so the assistant is discoverable across the product. Until you turn the feature on and point it at a model, the panel opens **read-only**: it explains what the assistant does and shows a short "ask your administrator to set it up" notice instead of a chat box. Who may actually use it once configured is controlled by RBAC — the `ai:read` permission, granted to every role by default; a user without it still sees the launcher but their request is rejected when sent.
 
 Configure it under the `ai:` block of `horizon.yaml`, or entirely via `HORIZON_AI_*` environment variables:
 

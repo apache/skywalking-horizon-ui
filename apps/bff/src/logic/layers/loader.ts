@@ -21,8 +21,8 @@
  * shape (landing card columns, dashboard widgets, MQE expressions).
  *
  * The bundled defaults live under `../bundled_templates/layers/<key>.json`,
- * one file per OAP layer enum. Operator overrides land in the SetupStore
- * (JSON file on disk) and merge on top.
+ * one file per OAP layer enum. Operator edits are authored in the Layer
+ * dashboards admin and persisted to OAP as `horizon.layer.<KEY>` templates.
  *
  * Lifting these from TS code into JSON gets us:
  *   - One file per layer to review or copy
@@ -32,7 +32,7 @@
  *     widget catalog)
  */
 
-import { readdirSync, readFileSync, watch as fsWatch, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, watch as fsWatch } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type {
@@ -671,22 +671,6 @@ export function logConfigFor(template: LayerTemplate | null): LogConfig {
   return { scope: 'service' };
 }
 
-/**
- * Persist an operator-edited template back to its JSON file. Validates
- * the basic shape, sorts keys for stable diffs, then refreshes the
- * in-memory cache so subsequent reads see the new state. Intentionally
- * naive: no concurrency control, no schema migrations — operators on
- * single-node BFF deployments, single admin user.
- */
-export function writeLayerTemplate(template: LayerTemplate): void {
-  if (!template.key || !/^[A-Z][A-Z0-9_]*$/.test(template.key)) {
-    throw new Error('invalid template key (must be UPPER_SNAKE_CASE)');
-  }
-  const file = join(CONFIG_DIR, `${template.key.toLowerCase()}.json`);
-  const serialised = JSON.stringify(template, null, 2) + '\n';
-  writeFileSync(file, serialised, 'utf-8');
-  reloadLayerTemplates();
-}
 
 /**
  * Lookup a layer template by enum key (case-insensitive). Returns

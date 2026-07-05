@@ -103,21 +103,16 @@ session:
   cookieName: "${HORIZON_SESSION_COOKIE_NAME:horizon_sid}"
   cookieSecure: ${HORIZON_SESSION_COOKIE_SECURE:false}   # set true behind HTTPS
 
-# State files. The image sets HORIZON_*_FILE=/data/* (its writable volume);
-# a local run defaults to ./horizon-* in the working dir. Set an explicit
-# path only if you need one the running process can write.
-audit:
-  file: "${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}"
-setup:
-  file: "${HORIZON_SETUP_FILE:./horizon-setup.json}"
-alarms:
-  file: "${HORIZON_ALARMS_FILE:./horizon-alarms.json}"
-
 debugLog:
   enabled: ${HORIZON_DEBUG_LOG_ENABLED:false}
   file: "${HORIZON_WIRE_LOG_FILE:./horizon-wire.jsonl}"
   maxBodyChars: ${HORIZON_DEBUG_LOG_MAX_BODY_CHARS:8192}
   redactAuthHeaders: ${HORIZON_DEBUG_LOG_REDACT_AUTH:true}
+audit:
+  # On by default (the audit trail is a security record). Set false to disable
+  # audit logging entirely — no file is written.
+  enabled: ${HORIZON_AUDIT_ENABLED:true}
+  file: "${HORIZON_AUDIT_FILE:./horizon-audit.jsonl}"
 
 query:
   # Max services a layer landing runs metric MQE for, per request.

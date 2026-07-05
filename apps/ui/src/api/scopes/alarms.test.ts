@@ -85,23 +85,37 @@ describe('AlarmsApi.services + config + count', () => {
     expect(calls[0][1]).toBe('/api/alarms/services?layer=MESH');
   });
 
-  it('config GET / saveConfig POST hit /api/alarms/config', async () => {
-    const { bff, calls } = makeStub();
-    const api = new AlarmsApi(bff);
-    await api.config();
-    await api.saveConfig({
-      pinnedLayers: ['GENERAL', 'MESH'],
-      defaultWindowMs: 1200000,
-      overviewAlarmsLimit: 200,
-    });
-    expect(calls[0]).toEqual(['GET', '/api/alarms/config', undefined]);
-    expect(calls[1][0]).toBe('POST');
-    expect(calls[1][1]).toBe('/api/alarms/config');
-    expect(calls[1][2]).toEqual({
-      pinnedLayers: ['GENERAL', 'MESH'],
-      defaultWindowMs: 1200000,
-      overviewAlarmsLimit: 200,
-    });
+  function stubSyncStatus(rows: unknown[]) {
+    const { bff } = makeStub();
+    (bff as unknown as { templateSync: { syncStatus: () => Promise<unknown> } }).templateSync = {
+      syncStatus: vi.fn(async () => ({ rows })),
+    };
+    return bff;
+  }
+
+  it('config reads + normalizes the alert page-setup from the template sync status', async () => {
+    const bff = stubSyncStatus([
+      {
+        name: 'horizon.alert.page-setup',
+        effective: 'remote',
+        remote: {
+          configuration: JSON.stringify({
+            name: 'horizon.alert.page-setup',
+            kind: 'alert',
+            version: 1,
+            content: { pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 },
+          }),
+        },
+        bundled: null,
+      },
+    ]);
+    const cfg = await new AlarmsApi(bff).config();
+    expect(cfg).toEqual({ pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 });
+  });
+
+  it('config falls back to shipped defaults when the alert row is absent', async () => {
+    const cfg = await new AlarmsApi(stubSyncStatus([])).config();
+    expect(cfg).toEqual({ pinnedLayers: ['GENERAL', 'MESH'], defaultWindowMs: 1200000, overviewAlarmsLimit: 200 });
   });
 
   it('adminRules + adminRule hit /api/admin/alarm-rules', async () => {

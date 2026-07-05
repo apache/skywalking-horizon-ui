@@ -269,6 +269,10 @@ export interface ChatMessage {
   streaming?: boolean;
   /** The user stopped this answer mid-stream (ESC / Stop). */
   interrupted?: boolean;
+  /** Epoch ms — user turn: when it was sent; assistant turn: when the reply
+   *  finished streaming. Optional: messages persisted before this field
+   *  existed have none, and render without a timestamp. */
+  at?: number;
 }
 
 export interface Conversation {

@@ -81,8 +81,6 @@ ENV NODE_ENV=production \
     HORIZON_STATIC_DIR=/app/static \
     HORIZON_CONFIG=/app/horizon.yaml \
     HORIZON_AUDIT_FILE=/data/horizon-audit.jsonl \
-    HORIZON_SETUP_FILE=/data/horizon-setup.json \
-    HORIZON_ALARMS_FILE=/data/horizon-alarms.json \
     HORIZON_WIRE_LOG_FILE=/data/horizon-wire.jsonl \
     HORIZON_SOURCEMAPS_DIR=/app/sourcemaps \
     # Match this to the container memory limit and your sourceMaps budget — the in-heap map cache lives inside it.

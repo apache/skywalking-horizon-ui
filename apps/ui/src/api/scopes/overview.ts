@@ -64,17 +64,4 @@ export class OverviewApi {
       `/api/admin/overview-templates/${encodeURIComponent(id)}`,
     );
   }
-  adminCreate(body: OverviewDashboard): Promise<{ ok: true; id: string }> {
-    return this.bff.request<{ ok: true; id: string }>(
-      'POST',
-      '/api/admin/overview-templates',
-      body,
-    );
-  }
-  adminDelete(id: string): Promise<{ ok: true; id: string }> {
-    return this.bff.request<{ ok: true; id: string }>(
-      'DELETE',
-      `/api/admin/overview-templates/${encodeURIComponent(id)}`,
-    );
-  }
 }

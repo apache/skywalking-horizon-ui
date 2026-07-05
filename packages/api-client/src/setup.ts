@@ -16,12 +16,11 @@
  */
 
 /**
- * Wire shape for the per-layer customization persisted by the BFF.
- *
- * Eventually these configs will live in OAP via `addTemplate` mutations
- * (under the `horizon-` ID prefix) — see PLAN.md "Locked decisions" #2.
- * Until then, the BFF stores them in a JSON file on disk. The UI and
- * server agree on this shape so the swap is a one-place change.
+ * The resolved per-layer config shape. The UI derives a `LayerConfig` for each
+ * layer from that layer's template (slots / caps / metrics / overview) — see the
+ * setup resolver in `apps/ui/src/state/setup.ts`. Layer config is authored in the
+ * layer template (OAP-synced via the Layer dashboards admin); this is the shape
+ * the renderer reads, not a separately-persisted override.
  */
 
 import type { LayerCaps, LayerSlots } from './menu.js';
@@ -128,13 +127,3 @@ export interface LayerConfig {
   landing: LandingConfig;
 }
 
-export interface SetupResponse {
-  generatedAt: number;
-  /** Layer key → operator-overridden config. Layers without an override
-   *  fall through to horizon-side defaults at render time. */
-  layers: Record<string, LayerConfig>;
-}
-
-export interface SetupSavePayload {
-  layers: Record<string, LayerConfig>;
-}

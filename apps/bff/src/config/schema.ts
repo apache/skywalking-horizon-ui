@@ -273,30 +273,17 @@ const sessionSchema = z
 // that omits these blocks) gets writes routed to the writable `/data`
 // volume instead of `/app` (which is root-owned and EACCESes).
 const auditDefault = process.env.HORIZON_AUDIT_FILE ?? './horizon-audit.jsonl';
-const setupDefault = process.env.HORIZON_SETUP_FILE ?? './horizon-setup.json';
-const alarmsDefault = process.env.HORIZON_ALARMS_FILE ?? './horizon-alarms.json';
 const wireLogDefault = process.env.HORIZON_WIRE_LOG_FILE ?? './horizon-wire.jsonl';
 
 const auditSchema = z
   .object({
+    // On by default — the audit trail is a security record; disabling it is an
+    // explicit opt-out. Mirrors `debugLog.enabled` (which is opt-IN instead).
+    enabled: z.boolean().default(true),
     file: z.string().default(auditDefault),
   })
   .strict()
-  .default({ file: auditDefault });
-
-const setupSchema = z
-  .object({
-    file: z.string().default(setupDefault),
-  })
-  .strict()
-  .default({ file: setupDefault });
-
-const alarmsSchema = z
-  .object({
-    file: z.string().default(alarmsDefault),
-  })
-  .strict()
-  .default({ file: alarmsDefault });
+  .default({ enabled: true, file: auditDefault });
 
 
 const debugLogSchema = z
@@ -546,8 +533,6 @@ export const configSchema = z
     rbac: rbacSchema,
     session: sessionSchema,
     audit: auditSchema,
-    setup: setupSchema,
-    alarms: alarmsSchema,
     debugLog: debugLogSchema,
     query: querySchema,
     sourceMaps: sourceMapsSchema,

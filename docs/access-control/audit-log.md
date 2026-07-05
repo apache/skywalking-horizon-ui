@@ -1,6 +1,6 @@
 # Audit Log
 
-The audit log records sensitive operations as JSON Lines, one event per line, append-only. Configure the path via `audit.file` in `horizon.yaml` (see [Setup → audit](../setup/audit.md)).
+The audit log records sensitive operations as JSON Lines, one event per line, append-only. It is **on by default**; disable it with `audit.enabled: false` and set the path via `audit.file` in `horizon.yaml` (see [Setup → audit](../setup/audit.md)).
 
 ## Event Fields
 
@@ -36,8 +36,6 @@ The recorded set can grow between releases. The current set:
 | `addOrUpdate` | OAP `applyStatus`, or `http_<code>` on failure | DSL Management — create / update a rule. `details.name` is the rule name; `details.catalog` is the rule catalog (alarm, MAL, OAL, …). |
 | `inactivate` | OAP `applyStatus`, or `http_<code>` | DSL Management — deactivate a rule. |
 | `delete` | OAP `applyStatus`, or `http_<code>` | DSL Management — delete a rule. `details.mode` is the delete mode. |
-| `alarms.config.save` | `ok` | Alarm page setup save. Recorded on success only — an invalid payload is rejected before any audit entry. |
-| `setup.save` | `success` | Per-user setup state write (service / instance / endpoint setup). Recorded on success only — an invalid payload is rejected before any audit entry. |
 | `debug.start` | `ok`, or an error status on failure | Live Debugger — start a session. |
 | `debug.stop` | `ok`, or an error status on failure | Live Debugger — stop a session. |
 

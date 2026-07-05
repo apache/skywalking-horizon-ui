@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { useQuery } from '@tanstack/vue-query';
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
 import { useLayers } from '@/shell/useLayers';
 import {
   ALARMS_WINDOW_OPTIONS,
@@ -40,8 +40,10 @@ import {
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import TemplateDiffModal from '@/features/admin/_shared/TemplateDiffModal.vue';
 import { useTemplateSync } from '@/features/admin/_shared/useTemplateSync';
+import { refreshConfigBundle } from '@/controls/configBundle';
 
 const { t } = useI18n({ useScope: 'global' });
+const queryClient = useQueryClient();
 
 // OAP UI-template sync status for the alert page-setup template
 // (`horizon.alert.page-setup`). Drives the read-only banner + Save
@@ -163,12 +165,18 @@ async function onSave(): Promise<void> {
       defaultWindowMs: draftWindowMs.value,
       overviewAlarmsLimit: Number(draftLimit.value),
     };
-    // Save to OAP via the template-sync proxy (canonical envelope
-    // wrapped server-side). The local AlarmsStore is still the read
-    // source for /api/alarms/config; the BFF refreshes it after the
-    // OAP write succeeds.
+    // Save to OAP via the template-sync proxy (canonical envelope wrapped
+    // server-side) — the alert page-setup is the `horizon.alert.page-setup`
+    // singleton, stored only on OAP like every other template.
     await bff.templateSync.save('horizon.alert.page-setup', next);
-    await bff.alarms.saveConfig(next);
+    // Wait for the write to land, then refresh so BOTH the page's sync-status
+    // badge and every reader reflect it: resync drops the BFF's 30s sync cache,
+    // then re-pull the config bundle (which drives the "Synced / Diverged"
+    // badge) and invalidate the shared ['alarms/config'] query (alarms page +
+    // topbar badge + overview widget). Mirrors the singleton editor's push.
+    await bff.templateSync.resync();
+    await refreshConfigBundle({ force: true });
+    await queryClient.invalidateQueries({ queryKey: ['alarms/config'] });
     draft.value = [...next.pinnedLayers];
     draftWindowMs.value = next.defaultWindowMs;
     draftLimit.value = next.overviewAlarmsLimit;
@@ -228,10 +236,8 @@ function prettyLayer(k: string): string {
                sentence; the agent's earlier split-into-three-t-calls left
                operators on zh-CN/de seeing English prose with one Chinese
                word in the middle. -->
-          <i18n-t keypath="Pin the OAP layers that get their own KPI tile at the top of {alarms}. Defaults are {general} + {mesh}." tag="span" scope="global">
+          <i18n-t keypath="Pin the OAP layers that get their own KPI tile at the top of {alarms}." tag="span" scope="global">
             <template #alarms><RouterLink to="/alarms">{{ t('Alarms') }}</RouterLink></template>
-            <template #general><code>GENERAL</code></template>
-            <template #mesh><code>MESH</code></template>
           </i18n-t>
           {{ ' ' }}
           {{ t('Every other layer with at least one firing alarm appears in the overflow chip row underneath. Reorder with the arrows — left-to-right matches the page header. Up to {n} layers.', { n: MAX_PINNED }) }}

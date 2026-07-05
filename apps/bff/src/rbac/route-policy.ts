@@ -33,18 +33,17 @@ import { logger } from '../logger.js';
 
 export type RoutePolicy = 'public' | 'auth' | string;
 
-/** A config-surface write. The template routes push to OAP's ui_template store;
- *  `/api/alarms/config` writes the alert page-setup (the `horizon.alert.page-setup`
- *  template, file-backed). In `templates.mode=readonly` the whole config surface
- *  is served from the local bundle and read-only, so these are denied at the edge
+/** A config-surface write. The template routes push to OAP's ui_template store
+ *  (the alert page-setup rides this path too, as the `horizon.alert.page-setup`
+ *  singleton). In `templates.mode=readonly` the whole config surface is served
+ *  from the local bundle and read-only, so these are denied at the edge
  *  regardless of the verb grant (the UI hides them too, but a direct request must
  *  still fail — the BFF is the authority). */
 export function isTemplateWriteRoute(method: string, url: string): boolean {
   if (method === 'GET' || method === 'HEAD') return false;
   return (
     url.startsWith('/api/admin/templates') ||
-    url.startsWith('/api/admin/overview-templates') ||
-    url.startsWith('/api/alarms/config')
+    url.startsWith('/api/admin/overview-templates')
   );
 }
 export async function denyTemplateWriteWhenReadOnly(
@@ -168,9 +167,13 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/infra-3d/config':                      'infra-3d:read',
   'POST /api/infra-3d/metrics':                    'infra-3d:read',
 
-  // AI assistant. Chat entry is read-tier; each of the agent's data tools
-  // ALSO checks its own read verb, so the agent inherits the caller's scopes.
-  'GET /api/ai/config':                            'ai:read',
+  // AI assistant. The config probe is readable by any signed-in user so the
+  // launcher shows for everyone (discoverable) and the panel reflects whether a
+  // model is configured; `ai:read` is enforced on the CHAT request itself — a
+  // user without it still sees the launcher, but their send is rejected (403).
+  // Each of the agent's data tools ALSO checks its own read verb, so the agent
+  // inherits the caller's scopes.
+  'GET /api/ai/config':                            'auth',
   'POST /api/ai/chat':                             'ai:read',
 
   // ── Maintainer — platform-monitoring reads ──
@@ -185,10 +188,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/oap/config':                           'config:read',
 
   // ── Operator — config / dashboard / rule / diagnostics writes ──
-  'GET /api/setup':                                'setup:read',
-  'POST /api/setup':                               'setup:write',
-  'GET /api/alarms/config':                        'alarm-setup:read',
-  'POST /api/alarms/config':                       'alarm-setup:write',
 
   'GET /api/admin/layer-templates':                'dashboard:read',
 
@@ -196,16 +195,11 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   // write even to read it; rendered overviews stay 'overview:read' above.
   'GET /api/admin/overview-templates':             'overview:write',
   'GET /api/admin/overview-templates/:id':         'overview:write',
-  'POST /api/admin/overview-templates':            'overview:write',
-  'DELETE /api/admin/overview-templates/:id':      'overview:write',
   'POST /api/admin/templates/resync':              'overview:write',
   'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save-translation':    'overview:write',
   'POST /api/admin/templates/delete-translation':  'overview:write',
-  // `save-local` is gated 'auth'; same per-kind verb as `save` runs in the handler.
-  'POST /api/admin/templates/save-local':          'auth',
   'POST /api/admin/templates/disable':             'overview:write',
-  'POST /api/admin/templates/revert-local':        'overview:write',
   'POST /api/admin/templates/:name/push-bundled':  'overview:write',
   'POST /api/admin/templates/sync-all':            'overview:write',
   // `save` is gated 'auth'; the real per-kind verb (layer → dashboard:write,

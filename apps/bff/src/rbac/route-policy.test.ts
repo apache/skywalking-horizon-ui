@@ -27,13 +27,10 @@ describe('isTemplateWriteRoute — which routes the readonly backstop covers', (
     expect(isTemplateWriteRoute('POST', '/api/admin/templates/sync-all')).toBe(true);
     expect(isTemplateWriteRoute('POST', '/api/admin/overview-templates')).toBe(true);
     expect(isTemplateWriteRoute('DELETE', '/api/admin/overview-templates/x')).toBe(true);
-    // The alert page-setup (horizon.alert.page-setup) is config-surface too.
-    expect(isTemplateWriteRoute('POST', '/api/alarms/config')).toBe(true);
   });
   it('does NOT match reads, nor non-config writes (runtime-rule / live-debug stay editable)', () => {
     expect(isTemplateWriteRoute('GET', '/api/admin/templates/sync-status')).toBe(false);
     expect(isTemplateWriteRoute('HEAD', '/api/admin/templates/sync-status')).toBe(false);
-    expect(isTemplateWriteRoute('GET', '/api/alarms/config')).toBe(false); // read stays open
     expect(isTemplateWriteRoute('POST', '/api/rule')).toBe(false); // runtime rule
     expect(isTemplateWriteRoute('POST', '/api/debug/session')).toBe(false); // live-debug
   });

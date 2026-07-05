@@ -61,10 +61,8 @@ import { registerAsyncProfileRoutes } from './http/query/async-profile.js';
 import { registerDashboardConfigRoute } from './http/config/dashboard.js';
 import { registerLayerTemplateRoutes } from './http/config/layer-template.js';
 import { startLayerTemplateWatcher } from './logic/layers/loader.js';
-import { registerAlarmsConfigRoutes } from './http/config/alarms.js';
 import { registerInfra3dConfigRoutes } from './http/config/infra-3d.js';
 import { registerInfra3dMetricsRoute } from './http/query/infra-3d-metrics.js';
-import { registerSetupRoutes } from './http/config/setup.js';
 import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
@@ -88,8 +86,6 @@ import { registerSourceMapRoutes } from './http/admin/source-maps.js';
 import { registerAuthHealthRoute } from './http/auth-health.js';
 import { registerColdStageHook } from './util/duration.js';
 // Logic / stores
-import { AlarmsStore } from './logic/alarms/store.js';
-import { SetupStore } from './logic/setup/store.js';
 import { SourceMapStore } from './logic/browser-errors/store.js';
 import { serviceLayerCatalog } from './logic/services/service-layer-catalog.js';
 import { HttpError } from './errors.js';
@@ -181,14 +177,10 @@ app.addHook('onSend', (_req, reply, payload, done) => {
 });
 
 const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
-const audit = new AuditLogger(source.current.audit.file);
+const audit = new AuditLogger(source.current.audit.file, source.current.audit.enabled);
 await audit.open();
 const ldapHealth = new LdapHealth();
 const seenCache = new UserSeenCache();
-const setupStore = new SetupStore(source.current.setup.file);
-await setupStore.load();
-const alarmsStore = new AlarmsStore(source.current.alarms.file);
-await alarmsStore.load();
 // In-memory source-map cache for the Browser Errors tab (#6784). Process-
 // global (NOT per-session); statically-mounted maps are indexed once here.
 // The store reads config through a live getter so `enabled` + the budgets
@@ -312,14 +304,12 @@ registerLayerTemplateRoutes(app, { config: source, sessions });
 // before (each test file imports the loader; a watcher per import
 // would exhaust the fd ceiling on low-ulimit CI).
 if (process.env.NODE_ENV === 'development') startLayerTemplateWatcher();
-registerAlarmsConfigRoutes(app, { config: source, sessions, audit, store: alarmsStore, serviceLayer });
 registerInfra3dConfigRoutes(app, {
   config: source,
   sessions,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerInfra3dMetricsRoute(app, { config: source, sessions });
-registerSetupRoutes(app, { config: source, sessions, audit, store: setupStore });
 registerOverviewRoutes(app, {
   config: source,
   sessions,

@@ -38,18 +38,28 @@ export interface AuditEvent {
 export class AuditLogger {
   private stream: WriteStream | null = null;
   private readonly absPath: string;
+  /** When false (`audit.enabled=false`) the logger is a no-op — no file is
+   *  opened and `record()` drops every event. On by default: the audit trail is
+   *  a security record, so silencing it takes an explicit opt-out. */
+  private readonly enabled: boolean;
 
-  constructor(filePath: string) {
+  constructor(filePath: string, enabled = true) {
     this.absPath = resolve(filePath);
+    this.enabled = enabled;
   }
 
   async open(): Promise<void> {
+    if (!this.enabled) {
+      logger.info('audit disabled (audit.enabled=false) — no audit log is written');
+      return;
+    }
     await mkdir(dirname(this.absPath), { recursive: true });
     this.stream = createWriteStream(this.absPath, { flags: 'a' });
     this.stream.on('error', (err) => logger.error({ err }, 'audit stream error'));
   }
 
   record(evt: Omit<AuditEvent, 'ts'>): void {
+    if (!this.enabled) return;
     const line: AuditEvent = { ts: new Date().toISOString(), ...evt };
     if (!this.stream) {
       logger.warn({ evt: line }, 'audit logged before open()');

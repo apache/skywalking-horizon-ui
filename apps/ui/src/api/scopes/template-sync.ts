@@ -117,17 +117,6 @@ export class TemplateSyncApi {
     });
   }
 
-  /** Save a template to the LOCAL bundled file (not OAP). The template
-   *  immediately renders locally and shows as `diverged` until pushed to
-   *  OAP via {@link syncAll}. This is the edit-locally→preview→publish
-   *  path; `save()` (direct-to-OAP) is retained for callers that want it. */
-  saveLocal(name: string, content: unknown): Promise<TemplateSyncStatus> {
-    return this.bff.request<TemplateSyncStatus>('POST', '/api/admin/templates/save-local', {
-      name,
-      content,
-    });
-  }
-
   /** "Delete" a template — OAP has no hard DELETE, so this soft-disables
    *  the remote UI-template. The BFF refuses (409 `bundled_not_deletable`)
    *  when the template ships a bundled default; only remote-only templates
@@ -144,17 +133,6 @@ export class TemplateSyncApi {
     return this.bff.request<TemplateSyncStatus>(
       'POST',
       `/api/admin/templates/${encodeURIComponent(name)}/push-bundled`,
-    );
-  }
-
-  /** Discard local edits: overwrite the bundled file with the REMOTE
-   *  (live) version for every diverged template. The "use live, override
-   *  local" reconciliation. Optionally scoped by `kind`. */
-  revertLocal(kind?: TemplateKind): Promise<TemplateSyncStatus> {
-    return this.bff.request<TemplateSyncStatus>(
-      'POST',
-      '/api/admin/templates/revert-local',
-      kind ? { kind } : {},
     );
   }
 

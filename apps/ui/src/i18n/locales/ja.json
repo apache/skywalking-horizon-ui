@@ -1091,7 +1091,6 @@
   "Observability Analysis Language": "Observability Analysis Language",
   "Operate · Data retention": "運用 · データ保持",
   "Per-data-class · widths proportional to total retention": "データクラスごと · 幅は合計保持期間に比例",
-  "Pin the OAP layers that get their own KPI tile at the top of {alarms}. Defaults are {general} + {mesh}.": "{alarms} の上部に独自の KPI タイルを持つ OAP レイヤーをピン留めします。デフォルトは {general} + {mesh}。",
   "Push one with": "次でプッシュ:",
   "Records": "レコード",
   "Retention": "保持期間",
@@ -1654,5 +1653,9 @@
   "Content filter": "コンテンツフィルター",
   "match": "一致",
   "exclude": "除外",
-  "No lines matched this content filter in the window.": "このウィンドウ内でこのコンテンツフィルターに一致するログ行はありません。"
+  "No lines matched this content filter in the window.": "このウィンドウ内でこのコンテンツフィルターに一致するログ行はありません。",
+  "Pin the OAP layers that get their own KPI tile at the top of {alarms}.": "{alarms} の上部に独自の KPI タイルを持つ OAP レイヤーをピン留めします。",
+  "The AI Assistant is not set up yet": "AI アシスタントはまだセットアップされていません",
+  "It answers questions about your services, metrics, traces and logs from live data — but a model provider must be configured first.": "サービス、メトリクス、トレース、ログに関する質問にライブデータから回答しますが、先にモデルプロバイダーを構成する必要があります。",
+  "Ask your administrator to enable it and configure a model provider and API key.": "管理者に有効化とモデルプロバイダー・API キーの構成を依頼してください。"
 }

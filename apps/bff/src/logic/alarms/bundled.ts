@@ -29,7 +29,18 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AlarmsConfig } from './store.js';
+
+/** The Alert page-setup config — the whole of the `horizon.alert.page-setup`
+ *  template. Authored in the Alert-page admin, persisted to OAP like every other
+ *  template; the UI reads the effective (bundled ↔ OAP) copy from the config
+ *  bundle's sync status. `pinnedLayers` get a header KPI tile on the Alarms page;
+ *  `defaultWindowMs` is the shared default window for the badge + page + widget;
+ *  `overviewAlarmsLimit` caps the overview "Active alarms" widget's per-poll fetch. */
+export interface AlarmsConfig {
+  pinnedLayers: string[];
+  defaultWindowMs: number;
+  overviewAlarmsLimit: number;
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 

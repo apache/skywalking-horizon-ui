@@ -55,7 +55,7 @@ The renderer is template-driven (see [Customization → Layer Dashboard Template
 
 Every visual decision a site operator wants to make is template-driven:
 
-- **Sidebar layer order** — per-user layer priority, persisted in the setup state file.
+- **Sidebar layer order** — a default priority by layer family (General → Virtual* → Mesh → K8s).
 - **Layer alias / color / group / visibility** — layer template fields (`alias`, `color`, `group`, `visibility`).
 - **Which tabs appear on a layer** — `components` flags on the layer template.
 - **What appears under each tab** — `dashboards.<scope>` widget arrays.

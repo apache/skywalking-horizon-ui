@@ -17,7 +17,7 @@
 <!-- Docked slide-over drawer (non-blocking). Expand ⤢ → full-page /ai; ↗ → a new browser
      tab (hydrates from shared localStorage history). Mounted once in AppShell. -->
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
@@ -26,6 +26,7 @@ import ChatComposer from './ChatComposer.vue';
 import ChatScopeBar from './ChatScopeBar.vue';
 import { useAiChat } from './useAiChat';
 import { useAiConversations } from './useAiConversations';
+import { useChatScroll } from './useChatScroll';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
@@ -34,19 +35,13 @@ const conv = useAiConversations();
 
 const messages = computed(() => conv.current.value?.messages ?? []);
 const body = ref<HTMLElement | null>(null);
-
-function scrollToBottom(): void {
-  if (body.value) body.value.scrollTop = body.value.scrollHeight;
-}
-// React to new messages, new blocks, and streamed-token growth.
-const scrollSignal = computed<string>(() => {
-  const ms = messages.value;
-  const last = ms[ms.length - 1];
-  const lb = last?.blocks[last.blocks.length - 1];
-  const tlen = lb && lb.kind === 'text' ? lb.text.length : 0;
-  return `${ms.length}:${last?.blocks.length ?? 0}:${tlen}`;
+// Pin the message you just sent to the top of the scroll area; the answer
+// streams in below it (rather than following the tail to the bottom).
+useChatScroll({
+  container: body,
+  messages,
+  conversationId: computed<string | null>(() => conv.currentId.value ?? null),
 });
-watch(scrollSignal, () => void nextTick(scrollToBottom));
 
 function onSend(text: string): void {
   void conv.send(text);
@@ -164,15 +159,30 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <div class="ai-drawer__scopebar"><ChatScopeBar /></div>
+        <template v-if="chat.ready.value">
+          <div class="ai-drawer__scopebar"><ChatScopeBar /></div>
 
-        <div ref="body" class="ai-drawer__body">
-          <ChatTranscript :messages="messages" :starters="chat.starters.value" @ask="onSend" />
+          <div ref="body" class="ai-drawer__body">
+            <ChatTranscript :messages="messages" :starters="chat.starters.value" @ask="onSend" />
+          </div>
+
+          <footer class="ai-drawer__composer">
+            <ChatComposer :streaming="conv.streaming.value" @send="onSend" @stop="conv.stop()" />
+          </footer>
+        </template>
+
+        <!-- Read-only setup state: the launcher shows for everyone, but the panel
+             can only chat once an admin has configured a model provider. -->
+        <div v-else class="ai-drawer__body ai-drawer__setup">
+          <span class="ai-drawer__setup-mark" aria-hidden="true"><Icon name="ai" :size="30" /></span>
+          <h3 class="ai-drawer__setup-title">{{ t('The AI Assistant is not set up yet') }}</h3>
+          <p class="ai-drawer__setup-text">
+            {{ t('It answers questions about your services, metrics, traces and logs from live data — but a model provider must be configured first.') }}
+          </p>
+          <p class="ai-drawer__setup-tip">
+            {{ t('Ask your administrator to enable it and configure a model provider and API key.') }}
+          </p>
         </div>
-
-        <footer class="ai-drawer__composer">
-          <ChatComposer :streaming="conv.streaming.value" @send="onSend" @stop="conv.stop()" />
-        </footer>
       </aside>
     </Transition>
   </Teleport>
@@ -291,12 +301,60 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: 16px 14px;
+  /* Don't let the browser follow streamed content growth — the pin-to-top
+     scroll owns the position (see useChatScroll). */
+  overflow-anchor: none;
+  /* Top padding lives on .tx (it scrolls) so the sticky question header can
+     stick flush to the top with no gap above it. */
+  padding: 0 14px 16px;
 }
 .ai-drawer__composer {
   flex: 0 0 auto;
   padding: 10px 12px;
   border-top: 1px solid var(--sw-line);
+  background: var(--sw-bg-2);
+}
+.ai-drawer__setup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+  padding: 32px 28px;
+}
+.ai-drawer__setup-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--sw-accent) 0%, var(--sw-purple) 115%);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.ai-drawer__setup-title {
+  margin: 0;
+  font-size: var(--sw-fs-lg);
+  font-weight: var(--sw-fw-semibold);
+  color: var(--sw-fg-0);
+}
+.ai-drawer__setup-text {
+  margin: 0;
+  max-width: 46ch;
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-2);
+  line-height: var(--sw-lh-normal);
+}
+.ai-drawer__setup-tip {
+  margin: 4px 0 0;
+  max-width: 46ch;
+  font-size: var(--sw-fs-sm);
+  font-weight: var(--sw-fw-medium);
+  color: var(--sw-fg-1);
+  padding: 10px 14px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 8px;
   background: var(--sw-bg-2);
 }
 .ai-drawer__scopebar {

@@ -143,8 +143,6 @@ Two changes still require a BFF restart:
 |---|---|---|
 | Config | `./horizon.yaml` | `HORIZON_CONFIG=` |
 | Audit log | `./horizon-audit.jsonl` | `audit.file` |
-| Setup state | `./horizon-setup.json` | `setup.file` |
-| Alarm rules | `./horizon-alarms.json` | `alarms.file` |
 | Wire debug log | `./horizon-wire.jsonl` | `debugLog.file` |
 | Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages |
 

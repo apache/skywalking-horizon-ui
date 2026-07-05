@@ -30,7 +30,7 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
 | `/app/horizon.yaml` | root | no | The **active** config — a **baked, fully tokenized default** (every field is a `${HORIZON_…:default}` env token). The image runs with no mounted file; override any field via env (see [Run with env vars only](#run-with-env-vars-only-no-mounted-file)), or bind-mount your own to replace it. |
 | `/app/bundled_templates/` | **horizon** | **yes** | Layer + overview JSON templates. Owned by `horizon` because the admin **Layer-Templates** and **Overview-Templates** editors write into per-key files here. |
-| `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log, setup state, alarm state, and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
+| `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
 | `/app/sourcemaps/` | **horizon** | (read) | Static source maps for the **Browser Logs** tab. Bind-mount or copy `.map` files here and they're loaded at boot — durable across restarts. Optional; runtime uploads work without it. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
 The runtime stage runs as the non-root user `horizon`. Two locations are owned by `horizon` so writes work without operator intervention: `bundled_templates/` (so the admin editors save) and `/data/` (so state files land somewhere durable).
@@ -44,12 +44,10 @@ The runtime stage runs as the non-root user `horizon`. Two locations are owned b
 | `HORIZON_CONFIG` | `/app/horizon.yaml` | Where the BFF looks for `horizon.yaml`. Override to mount elsewhere. |
 | `HORIZON_STATIC_DIR` | `/app/static` | Where the BFF serves UI assets from. |
 | `HORIZON_AUDIT_FILE` | `/data/horizon-audit.jsonl` | Default for `audit.file` when `horizon.yaml` doesn't override it. |
-| `HORIZON_SETUP_FILE` | `/data/horizon-setup.json` | Default for `setup.file`. |
-| `HORIZON_ALARMS_FILE` | `/data/horizon-alarms.json` | Default for `alarms.file`. |
 | `HORIZON_WIRE_LOG_FILE` | `/data/horizon-wire.jsonl` | Default for `debugLog.file`. |
 | `HORIZON_SOURCEMAPS_DIR` | `/app/sourcemaps` | Default for `sourceMaps.bootMountDir` — the directory scanned at boot for statically-provisioned `.map` files. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
-The four `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/setup/alarms/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
+The two `HORIZON_*_FILE` env vars seed the **defaults** the config schema uses when `horizon.yaml` doesn't supply a value. An explicit value in `horizon.yaml` always wins. The intent: an operator who runs the published image with only a minimal `horizon.yaml` (no `audit/debugLog` blocks) gets state files routed to `/data/` automatically, no manual path overrides needed.
 
 `server.host` and `server.port` come from the YAML when present. If they are omitted, the image supplies defaults via `HORIZON_SERVER_HOST=0.0.0.0` and `HORIZON_SERVER_PORT=8081`. The image sets `EXPOSE 8081`; if you change `server.port`, also publish the new port.
 
@@ -240,13 +238,13 @@ Notes:
 
 - `subPath: horizon.yaml` mounts the single file rather than the directory, so it doesn't shadow `/app`'s other contents.
 - Mount with `readOnly: true` on the config — the BFF only reads it.
-- `/data` is the image's declared `VOLUME` for runtime state (audit log, setup, alarms, wire debug). The four `HORIZON_*_FILE` env vars baked into the image point at `/data/*`, so mounting a PVC here is enough — no path overrides in `horizon.yaml` are required.
+- `/data` is the image's declared `VOLUME` for runtime state (audit log, wire debug). The two `HORIZON_*_FILE` env vars baked into the image point at `/data/*`, so mounting a PVC here is enough — no path overrides in `horizon.yaml` are required.
 - `fsGroup: 101` is the typical alpine `nobody` GID that `adduser -S -G horizon horizon` falls into. Run `docker run --rm <image> id horizon` to confirm if you've forked the image.
 - Run a single replica unless you accept that sessions are per-pod (the in-memory session store does not federate; see [session](session.md)).
 
-### Persisting state files (`audit`, `setup`, `alarms`, `debugLog`)
+### Persisting state files (`audit`, `debugLog`)
 
-The BFF writes runtime state to JSON Lines / JSON files. The image declares `/data` as a `VOLUME` and points the four defaults at `/data/*` via env vars, so **no `horizon.yaml` configuration is required** to get writable, persistable paths — operators just mount a volume at `/data`:
+The BFF writes runtime state to JSON Lines files. The image declares `/data` as a `VOLUME` and points the two defaults at `/data/*` via env vars, so **no `horizon.yaml` configuration is required** to get writable, persistable paths — operators just mount a volume at `/data`:
 
 ```sh
 docker run -d --name horizon \
@@ -265,8 +263,6 @@ If you want to override the locations, you can either:
 
   ```yaml
   audit:    { file: /var/log/horizon/audit.jsonl }
-  setup:    { file: /var/lib/horizon/setup.json }
-  alarms:   { file: /var/lib/horizon/alarms.json }
   debugLog: { file: /var/log/horizon/wire.jsonl }
   ```
 

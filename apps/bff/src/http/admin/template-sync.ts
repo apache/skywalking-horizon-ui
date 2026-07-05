@@ -75,10 +75,6 @@ import {
   serializeEnvelope,
   type TemplateKind,
 } from '../../logic/templates/names.js';
-import type { LayerTemplate } from '../../logic/layers/loader.js';
-import { writeLayerTemplate } from '../../logic/layers/loader.js';
-import type { OverviewDashboard } from '@skywalking-horizon-ui/api-client';
-import { writeOverviewDashboard } from '../../logic/overview/loader.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
 import { dashboardSchema } from './overview-templates.js';
@@ -455,107 +451,6 @@ export function registerTemplateSyncAdminRoutes(
     return reply.send({ ...fresh, synced, failed });
   });
 
-  // Revert-local: discard local edits by overwriting the BUNDLED file
-  // with the REMOTE (live) version for every diverged template — the
-  // "use live, override local" reconciliation when OAP holds the newer
-  // copy. Optionally scoped by `kind`. Requires OAP reachable (we need
-  // the remote content).
-  app.post<{
-    Body: { kind?: TemplateKind };
-  }>('/api/admin/templates/revert-local', { preHandler: auth }, async (req, reply) => {
-    const kind = req.body?.kind;
-    const status = await loadStatus(deps);
-    if (status.unreachable) {
-      return reply.code(409).send({
-        code: 'oap_unreachable',
-        message: 'OAP admin port unreachable — cannot fetch the remote version',
-      });
-    }
-    const targets = status.rows.filter(
-      (r) => (!kind || r.kind === kind) && r.status === 'diverged' && !!r.remote,
-    );
-    const reverted: string[] = [];
-    const failed: Array<{ name: string; error: string }> = [];
-    for (const row of targets) {
-      try {
-        const env = parseEnvelope(row.remote!.configuration);
-        if (!env) throw new Error('remote envelope not parseable');
-        if (row.kind === 'layer') {
-          writeLayerTemplate(env.content as LayerTemplate);
-        } else if (row.kind === 'overview') {
-          writeOverviewDashboard(row.key, env.content as OverviewDashboard);
-        } else {
-          throw new Error(`revert supports layer + overview, not ${row.kind}`);
-        }
-        reverted.push(row.name);
-      } catch (err) {
-        logger.warn({ err: errMsg(err), name: row.name }, 'revert-local failed');
-        failed.push({ name: row.name, error: errMsg(err) });
-      }
-    }
-    resync();
-    const fresh = await loadStatus(deps);
-    return reply.send({ ...fresh, reverted, failed });
-  });
-
-  // Save-local: write the edited template to the BUNDLED file on disk
-  // (the local seed), NOT to OAP. The in-memory cache is refreshed so
-  // the local instance immediately renders the edit; the template then
-  // shows as `diverged` until the operator manually pushes it to OAP
-  // via sync-all. This is the "edit locally → preview → publish" flow.
-  app.post<{
-    Body: { name?: string; content?: unknown };
-  }>('/api/admin/templates/save-local', { preHandler: auth }, async (req, reply) => {
-    const { name, content } = req.body ?? {};
-    if (typeof name !== 'string' || content === undefined || content === null || typeof content !== 'object') {
-      return reply.code(400).send({
-        code: 'invalid_save_body',
-        message: 'body must be { name: string, content: object }',
-      });
-    }
-    const parsed = parseName(name);
-    if (!parsed) {
-      return reply.code(400).send({
-        code: 'invalid_template_name',
-        message: `expected horizon.<overview|layer|alert>.<key>, got ${JSON.stringify(name)}`,
-      });
-    }
-    // Same per-kind write authority as the OAP-backed save: a layer draft
-    // needs dashboard:write, everything else overview:write.
-    const saveVerb = parsed.kind === 'layer' ? 'dashboard:write' : 'overview:write';
-    const session = req.session;
-    if (!session) {
-      return reply.code(401).send({ error: 'unauthenticated' });
-    }
-    if (!sessionHasVerb(deps.config.current, session.roles, saveVerb)) {
-      return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
-    }
-    if (parsed.kind === 'overview') {
-      const v = dashboardSchema.safeParse(content);
-      if (!v.success) {
-        const issues = v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-        return reply.code(400).send({ code: 'invalid_content', issues });
-      }
-    }
-    try {
-      if (parsed.kind === 'layer') {
-        writeLayerTemplate(content as Parameters<typeof writeLayerTemplate>[0]);
-      } else if (parsed.kind === 'overview') {
-        writeOverviewDashboard(parsed.key, content as Parameters<typeof writeOverviewDashboard>[1]);
-      } else {
-        return reply.code(400).send({
-          code: 'unsupported_kind',
-          message: `local save supports layer + overview templates, not ${parsed.kind}`,
-        });
-      }
-    } catch (err) {
-      logger.warn({ err: errMsg(err), name }, 'save-local (bundled write) failed');
-      return reply.code(500).send({ code: 'local_write_failed', message: errMsg(err) });
-    }
-    resync();
-    const fresh = await loadStatus(deps);
-    return reply.send(fresh);
-  });
 
   app.post<{
     Body: {

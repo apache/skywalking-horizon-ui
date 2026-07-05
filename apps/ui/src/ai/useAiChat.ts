@@ -57,8 +57,13 @@ async function ensureConfig(): Promise<void> {
 export interface AiChatController {
   /** Whether the slide-over panel is open. */
   open: Ref<boolean>;
-  /** Whether the launcher should be shown: authenticated AND the server reports ready. */
+  /** Whether the launcher + panel are shown — any authenticated user. */
   available: ComputedRef<boolean>;
+  /** Whether the assistant can actually chat (feature enabled + a usable
+   *  provider). When false, the panel is read-only with a setup notice. */
+  ready: ComputedRef<boolean>;
+  /** Whether the operator has enabled the AI feature at all (`ai.enabled`). */
+  enabled: ComputedRef<boolean>;
   /** Whether to play the first-run attention nudge on the launcher. */
   showHint: ComputedRef<boolean>;
   /** Server-supplied starter prompts (empty until config loads). */
@@ -74,8 +79,18 @@ export interface AiChatController {
 
 export function useAiChat(): AiChatController {
   const auth = useAuthStore();
-  const available = computed<boolean>(() => auth.isAuthenticated && (aiConfig.value?.ready ?? false));
-  const showHint = computed<boolean>(() => available.value && !hintSeen.value);
+  // The launcher + panel show for ANY authenticated user — to surface the
+  // AI-powered APM to everyone. `ai:read` is default for all roles; a user
+  // without it (custom RBAC) still sees the launcher and just gets the chat
+  // request rejected on send. `ready` (feature enabled + a usable provider)
+  // gates whether the panel can chat vs. show a read-only "ask your admin"
+  // setup notice.
+  const available = computed<boolean>(() => auth.isAuthenticated);
+  const ready = computed<boolean>(() => aiConfig.value?.ready ?? false);
+  const enabled = computed<boolean>(() => aiConfig.value?.enabled ?? false);
+  // Only nudge with the first-run hint when the assistant actually works —
+  // don't draw attention to a read-only, not-yet-configured panel.
+  const showHint = computed<boolean>(() => ready.value && !hintSeen.value);
   const starters = computed<string[]>(() => aiConfig.value?.starters ?? []);
 
   function dismissHint(): void {
@@ -100,5 +115,5 @@ export function useAiChat(): AiChatController {
     else openPanel();
   }
 
-  return { open: openState, available, showHint, starters, ensureConfig, openPanel, closePanel, toggle, dismissHint };
+  return { open: openState, available, ready, enabled, showHint, starters, ensureConfig, openPanel, closePanel, toggle, dismissHint };
 }

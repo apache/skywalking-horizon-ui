@@ -16,7 +16,6 @@
  */
 
 import type {
-  AlarmsConfig,
   AlarmsCountResponse,
   AlarmsQuery,
   AlarmsResponse,
@@ -25,6 +24,7 @@ import type {
   AlertingRulesListResponse,
   BffClient,
 } from '../client';
+import { normalizeAlarmsConfig, type AlarmsConfig } from '../alarmsConfig';
 
 /** `bff.alarms` — alarm list + topbar count probe + alarm-page
  *  config CRUD. */
@@ -66,12 +66,19 @@ export class AlarmsApi {
     return this.bff.request('GET', `/api/alarms/services?${p.toString()}`);
   }
 
+  /** The alarms page-setup — the `horizon.alert.page-setup` singleton template.
+   *  Read its effective (OAP-remote ↔ bundled) copy from the config bundle's
+   *  sync status, like the theme / time-defaults singletons; there is no local
+   *  BFF store. Edits are saved to OAP via `bff.templateSync.save`. */
   config(): Promise<AlarmsConfig> {
-    return this.bff.request<AlarmsConfig>('GET', '/api/alarms/config');
-  }
-
-  saveConfig(next: AlarmsConfig): Promise<AlarmsConfig> {
-    return this.bff.request<AlarmsConfig>('POST', '/api/alarms/config', next);
+    return this.bff.templateSync.syncStatus().then((status) => {
+      const row = status.rows.find((r) => r.name === 'horizon.alert.page-setup');
+      const source =
+        row?.effective === 'remote' && row.remote
+          ? row.remote.configuration
+          : row?.bundled?.configuration;
+      return normalizeAlarmsConfig(source);
+    });
   }
 
   /** OAP `/status/alarm/rules` fan-out + per-rule detail merge.

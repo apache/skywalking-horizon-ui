@@ -1092,7 +1092,6 @@
   "Observability Analysis Language": "Observability Analysis Language",
   "Operate · Data retention": "运维 · 数据保留",
   "Per-data-class · widths proportional to total retention": "按数据类别 · 宽度与总保留期成正比",
-  "Pin the OAP layers that get their own KPI tile at the top of {alarms}. Defaults are {general} + {mesh}.": "固定要在 {alarms} 顶部拥有独立 KPI 图块的 OAP layer。默认值为 {general} + {mesh}。",
   "Push one with": "请通过以下方式推送：",
   "Records": "记录",
   "Retention": "保留期",
@@ -1654,5 +1653,9 @@
   "Content filter": "内容过滤",
   "match": "匹配",
   "exclude": "排除",
-  "No lines matched this content filter in the window.": "该窗口内没有日志行匹配此内容过滤。"
+  "No lines matched this content filter in the window.": "该窗口内没有日志行匹配此内容过滤。",
+  "Pin the OAP layers that get their own KPI tile at the top of {alarms}.": "固定要在 {alarms} 顶部拥有独立 KPI 图块的 OAP layer。",
+  "The AI Assistant is not set up yet": "AI 助手尚未配置",
+  "It answers questions about your services, metrics, traces and logs from live data — but a model provider must be configured first.": "它基于实时数据回答有关服务、指标、trace 和日志的问题，但需要先配置模型提供方。",
+  "Ask your administrator to enable it and configure a model provider and API key.": "请让管理员启用它并配置模型提供方和 API 密钥。"
 }
