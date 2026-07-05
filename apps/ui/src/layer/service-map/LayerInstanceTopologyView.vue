@@ -45,13 +45,42 @@ import { resolveServiceIdentity } from '@/utils/serviceName';
 import Sparkline from '@/components/charts/Sparkline.vue';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 
+// The AI chat mounts this view embedded (read-only) for a source→dest service
+// pair. The props are additive + default-off: the interactive route passes none
+// and stays URL-driven (?client=&server=). Embedded mode seeds the pair from
+// props, keeps any in-view swap LOCAL, and NEVER navigates the app route.
+const props = defineProps<{
+  layerKey?: string;
+  embedded?: boolean;
+  /** Source (client) + destination (server) service ids to seed the pair. */
+  focusClientServiceId?: string;
+  focusServerServiceId?: string;
+  /** Embedded look-back window (minutes); the query owns it and skips the global
+   *  topbar picker + auto-refresh ticker, like the topology / deployment blocks. */
+  focusWindowMinutes?: number;
+}>();
+
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
+// Embedded (chat) look-back window — threaded into BOTH the picker's layer-graph
+// query and the instance-topology query so the whole block owns its own frozen
+// window and nothing in it rides the global auto-refresh ticker. Embedded mode is
+// chat-only here, so it ALWAYS owns a window (default 60m = the chat default) even
+// if the spec omits windowMinutes — the frozen-window/ticker-skip contract can't
+// be silently bypassed by an absent optional field.
+const focusWindowMinutes = computed<number | null>(() =>
+  embedded.value ? (props.focusWindowMinutes ?? 60) : null,
+);
 const { layers } = useLayers();
-const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
+// Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
+// arrive lowercased (the AI chat block passes spec.layer.toLowerCase()).
+const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null);
 const instanceWord = computed(() => layer.value?.slots?.instances ?? 'Instances');
 const serviceWord = computed(() => layer.value?.slots?.services ?? 'Services');
 const instanceMapLabel = computed(() => layer.value?.slots?.instanceTopology || t('Instance map'));
@@ -78,10 +107,17 @@ function displayName(name: string | null | undefined): string {
 // fetch the layer-wide graph (the service map's default; usually already
 // cached from the drill-down). The roster is kept only for the name
 // fallback on a selection the graph hasn't loaded yet.
-const roster = useLayerServices(layerKey);
+// Embedded blocks own a frozen window, so the roster (name fallback for the
+// pickers) must not ride the global ticker either.
+const roster = useLayerServices(layerKey, { rideTicker: !props.embedded });
 const topoFocus = ref<string | null>(null);
 const topoDepth = ref(2);
-const { nodes: topoNodes, calls: topoCalls } = useLayerTopology(layerKey, topoFocus, topoDepth);
+const { nodes: topoNodes, calls: topoCalls } = useLayerTopology(
+  layerKey,
+  topoFocus,
+  topoDepth,
+  focusWindowMinutes,
+);
 
 const topoNameById = computed<Map<string, string>>(() => {
   const m = new Map<string, string>();
@@ -135,23 +171,43 @@ function nameOf(id: string | null): string {
   );
 }
 
-// ── URL-driven service pair. The pickers + the Service-map drill-down
-// both write `?client=&server=`; we mirror the query into local refs.
-const clientId = ref<string | null>((route.query.client as string) || null);
-const serverId = ref<string | null>((route.query.server as string) || null);
+// ── Service pair. On the interactive route it is URL-driven (?client=&server=)
+// — the pickers + the Service-map drill-down write it and the watch mirrors it.
+// Embedded mode seeds the pair from props and keeps any in-view swap LOCAL (the
+// query watch is skipped, pick() writes the refs) so a chat block never touches
+// the app URL.
+const clientId = ref<string | null>(
+  props.embedded ? (props.focusClientServiceId ?? null) : ((route.query.client as string) || null),
+);
+const serverId = ref<string | null>(
+  props.embedded ? (props.focusServerServiceId ?? null) : ((route.query.server as string) || null),
+);
 watch(
   () => [route.query.client, route.query.server] as const,
   ([c, s]) => {
+    if (embedded.value) return; // seeded from props; ignore the app URL
     clientId.value = (c as string) || null;
     serverId.value = (s as string) || null;
   },
 );
 function pick(which: 'client' | 'server', val: string): void {
+  if (embedded.value) {
+    // Keep the swap LOCAL — never navigate the app route from a chat block.
+    if (which === 'client') clientId.value = val;
+    else serverId.value = val;
+    return;
+  }
   void router.replace({ query: { ...route.query, view: 'instance', [which]: val } });
 }
 
 const enabled = computed(() => !!clientId.value && !!serverId.value);
-const { data, nodes, calls, isFetching } = useInstanceTopology(layerKey, clientId, serverId, enabled);
+const { data, nodes, calls, isFetching } = useInstanceTopology(
+  layerKey,
+  clientId,
+  serverId,
+  enabled,
+  focusWindowMinutes,
+);
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
 // Resolve both names through the SAME layer naming rule the service map
@@ -523,9 +579,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 </script>
 
 <template>
-  <div class="imv">
+  <div class="imv" :class="{ 'is-embedded': embedded }">
     <div class="imv-toolbar">
-      <button class="sw-btn small ghost imv-back" type="button" @click="backToServiceMap">← {{ t('Service map') }}</button>
+      <!-- The back-to-service-map affordance navigates the app route, so it is
+           hidden in embedded (chat) mode — the pair pickers stay for in-view swap. -->
+      <button v-if="!embedded" class="sw-btn small ghost imv-back" type="button" @click="backToServiceMap">← {{ t('Service map') }}</button>
       <span class="imv-title">{{ instanceMapLabel }}</span>
       <span class="imv-divider" />
       <span class="imv-pick-label">{{ serviceWord }}:</span>
@@ -554,7 +612,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
       <span v-else class="imv-fixed-svc mono">{{ serverName }}</span>
       <span v-if="isFetching" class="imv-hint">{{ t('Reading data…') }}</span>
       <div class="imv-spacer" />
-      <div v-if="cfg.nodeMetrics.length > 0" class="imv-legend">
+      <!-- The node-metric legend is dropped in embedded (chat) mode to save the
+           bounded stage's width; the in-canvas ring legend still explains colour. -->
+      <div v-if="cfg.nodeMetrics.length > 0 && !embedded" class="imv-legend">
         <span v-for="def in cfg.nodeMetrics" :key="def.id" class="lg-item">
           <span class="lg-dot" :class="def.role || 'plain'" />{{ def.label }}<span v-if="def.unit" class="lg-unit"> ({{ def.unit }})</span>
         </span>
@@ -752,6 +812,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 
 .imv-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 380px; gap: 10px; }
 .imv-body.no-selection { grid-template-columns: 1fr; }
+/* Embedded (chat): a 380px detail column would crush the canvas at a narrow chat
+   width, so keep the body single-column and float the edge panel as an overlay
+   drawer over the graph — the click-edge-for-detail interaction is preserved. */
+.imv.is-embedded .imv-body { grid-template-columns: 1fr; position: relative; }
+.imv.is-embedded .imv-panel {
+  position: absolute; inset: 0 0 0 auto; width: min(340px, 85%); z-index: 6;
+  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.4);
+}
+/* Drop the 420px canvas floor in embedded: in a narrow chat drawer the toolbar
+   wraps and would push the canvas past the bounded stage, clipping the bottom-
+   anchored zoom controls + ring legend. Let the canvas fit the stage instead
+   (fit-to-screen + zoom handle a smaller graph). */
+.imv.is-embedded .imv-canvas { min-height: 0; }
 .imv-canvas {
   position: relative; overflow: hidden; min-width: 0; min-height: 420px;
   border: 1px solid var(--sw-line); border-radius: 6px;

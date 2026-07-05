@@ -169,3 +169,11 @@ export async function zipkinFetchTraceById(
   const path = `/api/v2/trace/${encodeURIComponent(traceId)}`;
   return zipkinFetch<ZipkinSpan[]>(opts, path);
 }
+
+/** The Zipkin service universe (`localEndpoint.serviceName` of recent spans) —
+ *  a flat list of names, GLOBAL (Zipkin has no layer concept). The AI assistant
+ *  reads this to match a user/SkyWalking service to its Zipkin-side name. */
+export async function zipkinFetchServices(opts: ZipkinClientOpts): Promise<string[]> {
+  const body = await zipkinFetch<unknown>(opts, '/api/v2/services');
+  return Array.isArray(body) ? (body as unknown[]).filter((s): s is string => typeof s === 'string') : [];
+}

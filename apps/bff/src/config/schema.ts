@@ -181,6 +181,7 @@ const rbacSchema = z
           'profile:read',
           'overview:read',
           'infra-3d:read',
+          'ai:read',
         ],
         // Viewer baseline plus the platform-monitoring reads (cluster
         // health + OAP internals). Maintainer's whole job is watching
@@ -200,6 +201,7 @@ const rbacSchema = z
           'ttl:read',
           'config:read',
           'infra-3d:read',
+          'ai:read',
         ],
         // Configures observability: dashboards, alarm rules, DSL/OAL,
         // diagnostics. Inherits viewer + platform reads so operators
@@ -237,6 +239,7 @@ const rbacSchema = z
           'live-debug:read',
           'live-debug:write',
           'profile:enable',
+          'ai:read',
         ],
         admin: ['*'],
       }),
@@ -359,6 +362,60 @@ const sourceMapsSchema = z
      *  on demand, so they survive restarts and aren't deletable from the
      *  UI. Empty disables the static mount. */
     bootMountDir: z.string().default(sourceMapsDirDefault),
+  })
+  .strict()
+  .default({});
+
+// AI assistant (chat/LLM). OFF by default. Transport-pluggable + vendor-neutral:
+// the DEFAULT is `openai-compatible` (any OpenAI-shaped endpoint — OpenAI,
+// DeepSeek-direct, local models, AI gateways, Azure-OpenAI, or Claude behind a
+// gateway), configured with just model + baseUrl + apiKey. `provider` is only
+// set for a non-OpenAI-shaped SERVICE — today `bedrock` (AWS Converse + bearer).
+// The API key is a SECRET: set it via `${HORIZON_AI_API_KEY:}` env interpolation
+// only — never inline in the YAML — and it is redacted from logs + excluded from
+// the audit trail. Env-overridable defaults let a file-less container enable the
+// feature with `HORIZON_AI_*` alone (mirrors sourceMaps / templates.mode).
+const aiEnabledDefault = process.env.HORIZON_AI_ENABLED === 'true';
+const aiProviderDefault: 'openai-compatible' | 'bedrock' =
+  process.env.HORIZON_AI_PROVIDER === 'bedrock' ? 'bedrock' : 'openai-compatible';
+const aiModelDefault = process.env.HORIZON_AI_MODEL ?? '';
+const aiBaseUrlDefault = process.env.HORIZON_AI_BASE_URL ?? '';
+const aiRegionDefault = process.env.HORIZON_AI_REGION ?? '';
+const aiApiKeyDefault = process.env.HORIZON_AI_API_KEY ?? '';
+const aiSchema = z
+  .object({
+    /** Master switch. When false, the chat route rejects (503) and the UI
+     *  launcher is hidden — no provider is ever constructed. */
+    enabled: z.boolean().default(aiEnabledDefault),
+    /** Transport. `openai-compatible` (default) = any OpenAI-shaped endpoint via
+     *  `baseUrl` (OpenAI, DeepSeek-direct, local models, gateways, Claude behind
+     *  a gateway); `bedrock` = Amazon Bedrock Converse (needs a Bedrock model
+     *  id + a Bedrock bearer key; region can come from AWS env/config). Set
+     *  `provider` only for a non-OpenAI-shaped service. */
+    provider: z.enum(['openai-compatible', 'bedrock']).default(aiProviderDefault),
+    /** Model id. For `bedrock` this MUST be the Bedrock / inference-profile id
+     *  (e.g. `deepseek.v3.2`, `us.anthropic.claude-...`), NOT the bare Anthropic
+     *  id — do not auto-prefix, the operator/user supplies the exact id. */
+    model: z.string().default(aiModelDefault),
+    /** OpenAI-compatible base URL. Used only when `provider: 'openai-compatible'`. */
+    baseUrl: z.string().default(aiBaseUrlDefault),
+    /** AWS region for `provider: 'bedrock'`. OPTIONAL — leave blank to read it
+     *  from AWS_REGION / AWS_DEFAULT_REGION in the environment. Set it only to
+     *  pin a region in Horizon config. */
+    region: z.string().default(aiRegionDefault),
+    /** SECRET — env-only (`${HORIZON_AI_API_KEY:}`). For `bedrock` this is the
+     *  Bedrock bearer API key (ABSK…). Redacted from logs, never audited. */
+    apiKey: z.string().default(aiApiKeyDefault),
+    // Inference params (temperature, output-token caps) are deliberately NOT
+    // config knobs — the gateway / provider / model owns them. The agent fixes
+    // temperature at 0 internally for tool-calling determinism.
+    /** OVERRIDE the bundled system prompt. Empty → use the shipped default.
+     *  Best set as a YAML block scalar (multi-line); `${HORIZON_AI_SYSTEM_PROMPT}`
+     *  also works for a single-line override. */
+    systemPrompt: z.string().default(''),
+    /** OVERRIDE the bundled starter prompts (the chat's example chips). Empty →
+     *  use the shipped defaults. Each string is one starter shown to the user. */
+    starters: z.array(z.string().min(1)).default([]),
   })
   .strict()
   .default({});
@@ -494,6 +551,7 @@ export const configSchema = z
     debugLog: debugLogSchema,
     query: querySchema,
     sourceMaps: sourceMapsSchema,
+    ai: aiSchema,
     performance: performanceSchema,
     // Deprecated + ignored. The 3D-map config moved to OAP (a template kind);
     // the old file-backed `infra3d.file` knob is gone. Accepted here (rather
@@ -504,6 +562,7 @@ export const configSchema = z
   .strict();
 
 export type HorizonConfig = z.infer<typeof configSchema>;
+export type AiConfig = z.infer<typeof aiSchema>;
 export type TemplatesConfig = z.infer<typeof templatesSchema>;
 export type SourceMapsConfig = z.infer<typeof sourceMapsSchema>;
 export type LdapConfig = z.infer<typeof ldapSchema>;

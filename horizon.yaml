@@ -134,6 +134,28 @@ sourceMaps:
   maxFileCount: ${HORIZON_SOURCEMAPS_MAX_FILE_COUNT:128}
   bootMountDir: "${HORIZON_SOURCEMAPS_DIR:}"
 
+# AI assistant (chat/LLM). OFF by default. Transport is pluggable + vendor-neutral:
+#   • openai-compatible (default) — any OpenAI-shaped endpoint via `baseUrl`:
+#     OpenAI, DeepSeek-direct, local models, AI gateways, Azure-OpenAI, or Claude
+#     behind a gateway. Just set model + baseUrl + apiKey.
+#   • bedrock — Amazon Bedrock Converse: model = a Bedrock model / inference-profile
+#     id (e.g. deepseek.v3.2, us.anthropic.claude-...), apiKey = the Bedrock bearer
+#     key (ABSK…); region falls back to AWS_REGION / AWS_DEFAULT_REGION when blank.
+# Set `provider` only for a non-OpenAI-shaped service (bedrock). The api key is a
+# SECRET — env-only, never bake it into this file. Inference params (temperature,
+# output caps) are owned by the gateway/provider — not exposed here.
+ai:
+  enabled: ${HORIZON_AI_ENABLED:false}
+  provider: "${HORIZON_AI_PROVIDER:openai-compatible}"
+  model: "${HORIZON_AI_MODEL:}"
+  baseUrl: "${HORIZON_AI_BASE_URL:}"                # openai-compatible
+  region: "${HORIZON_AI_REGION:}"                   # bedrock only; blank → AWS_REGION/AWS_DEFAULT_REGION env
+  apiKey: "${HORIZON_AI_API_KEY:}"                  # SECRET — env-only, never commit
+  # Prompt overrides — blank = use the bundled defaults. For a multi-line system
+  # prompt, replace the value with a YAML block scalar ( |- ). starters: JSON array.
+  systemPrompt: "${HORIZON_AI_SYSTEM_PROMPT:}"
+  starters: ${HORIZON_AI_STARTERS:null}
+
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in
 # the docs); override the whole tree with a JSON object env var, e.g.

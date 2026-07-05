@@ -49,16 +49,24 @@ export interface LayerServiceRow {
  * without a navigation. Pages that own their time range suspend the
  * ticker, so they don't thrash it either.
  */
-export function useLayerServices(layerKey: Ref<string>) {
+export function useLayerServices(
+  layerKey: Ref<string>,
+  /** Embedded (chat) callers pass `{ rideTicker: false }` so the roster does not
+   *  subscribe to the global auto-refresh ticker — an embedded block owns its own
+   *  frozen window and must not add a ticker-driven refetch. Default rides it. */
+  opts: { rideTicker?: boolean } = {},
+) {
   const q = useQuery({
     queryKey: ['layer-services', layerKey],
     queryFn: () => bffClient.layer.services(layerKey.value),
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 60_000,
   });
-  useAutoRefreshSubscribe(() => {
-    if (layerKey.value.length > 0) void q.refetch();
-  });
+  if (opts.rideTicker !== false) {
+    useAutoRefreshSubscribe(() => {
+      if (layerKey.value.length > 0) void q.refetch();
+    });
+  }
   return {
     data: computed(() => q.data.value ?? null),
     services: computed<LayerServiceRow[]>(() => q.data.value?.services ?? []),

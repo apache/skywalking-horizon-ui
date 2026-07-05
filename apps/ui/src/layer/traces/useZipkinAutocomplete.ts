@@ -49,8 +49,13 @@ export function useZipkinAutocomplete(opts: {
   annotationQuery: Ref<string>;
   spanName: Ref<string>;
   remoteServiceName: Ref<string>;
+  /** Only the interactive toolbar needs these option lists. Pass false (the
+   *  embedded chat block, whose toolbar is hidden) to skip ALL autocomplete
+   *  fetches — services / span names / remote services / annotation keys. */
+  enabled?: boolean;
 }) {
   const { layerKey, serviceFilter, annotationQuery, spanName, remoteServiceName } = opts;
+  const enabled = opts.enabled ?? true;
 
   const serviceOptions = ref<string[]>([]);
   // Best-effort: a failed fetch leaves the input as plain text.
@@ -61,7 +66,7 @@ export function useZipkinAutocomplete(opts: {
       serviceOptions.value = Array.from(new Set(Array.isArray(res) ? res : []));
     } catch { /* noop */ }
   }
-  watch(layerKey, () => { void loadServiceOptions(); }, { immediate: true });
+  watch(layerKey, () => { if (enabled) void loadServiceOptions(); }, { immediate: true });
 
   const spanNameOptions = ref<string[]>([]);
   const remoteSvcOptions = ref<string[]>([]);
@@ -86,6 +91,7 @@ export function useZipkinAutocomplete(opts: {
   // otherwise silently filter out everything.
   let autocompleteTimer: ReturnType<typeof setTimeout> | null = null;
   watch(serviceFilter, (v) => {
+    if (!enabled) return;
     if (autocompleteTimer) clearTimeout(autocompleteTimer);
     const trimmed = v.trim();
     if (!trimmed) {
@@ -130,7 +136,7 @@ export function useZipkinAutocomplete(opts: {
   });
   // Eagerly load keys once we know the layer — keys aren't service-
   // scoped, so a single load on mount is enough.
-  watch(layerKey, (k) => { if (k) void loadAnnotationKeys(); }, { immediate: true });
+  watch(layerKey, (k) => { if (enabled && k) void loadAnnotationKeys(); }, { immediate: true });
 
   onBeforeUnmount(() => {
     if (autocompleteTimer) clearTimeout(autocompleteTimer);

@@ -27,6 +27,8 @@ import PreviewModeBanner from './PreviewModeBanner.vue';
 import TracePopout from '@/layer/traces/TracePopout.vue';
 import EventsPopout from '@/features/events/EventsPopout.vue';
 import ZipkinTracePopout from '@/layer/traces/ZipkinTracePopout.vue';
+import AiChatLauncher from '@/ai/AiChatLauncher.vue';
+import AiChatPanel from '@/ai/AiChatPanel.vue';
 import TemplateConflictPrompt from './TemplateConflictPrompt.vue';
 import { ensureConfigBundle, useConfigBundle } from '@/controls/configBundle';
 import { useClickTracking } from '@/controls/useClickTracking';
@@ -165,6 +167,10 @@ function startSidebarResize(e: PointerEvent): void {
     <!-- Always mounted (even when hidden) so the Admin "Debug events"
          toggle responds without a re-mount race. -->
     <DebugEventPanel />
+    <!-- Floating AI-chat launcher + slide-over panel: available on every page,
+         mounted once, driven by useAiChat(). Both teleport to <body>. -->
+    <AiChatLauncher />
+    <AiChatPanel />
   </div>
 </template>
 

@@ -66,12 +66,29 @@ import { useLayers } from '@/shell/useLayers';
 import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
 
+// The AI chat mounts this view embedded (read-only, focused on one service). The
+// props are additive + default-off: the interactive route passes none and keeps
+// reading the route param + the shell header's useSelectedService store. Embedded
+// mode drives the layer/service from props and NEVER writes the shared store.
+const props = defineProps<{
+  layerKey?: string;
+  embedded?: boolean;
+  /** Focus service id (embedded): drives the deployment query directly. */
+  focusServiceId?: string;
+  /** Embedded look-back window (minutes); the query owns it and skips the global
+   *  topbar picker + auto-refresh ticker, like the topology block. */
+  focusWindowMinutes?: number;
+}>();
+
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
 
 const { layers } = useLayers();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 const layer = computed<LayerDef | null>(
   () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
 );
@@ -82,11 +99,20 @@ function displayServiceName(name: string | null | undefined): string {
   return resolveServiceIdentity(name, namingRule.value).display;
 }
 
-// ── Selected service comes from the shell header (useSelectedService) —
-// this view is service-scoped, so it does NOT own a service picker.
-const { selectedId } = useSelectedService();
+// ── Selected service comes from the shell header (useSelectedService) on the
+// interactive route — this view owns no service picker. Embedded (chat) mode
+// drives it from focusServiceId and never touches the shared store.
+const { selectedId: headerSelectedId } = useSelectedService();
+const selectedId = computed<string | null>(() =>
+  embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
+);
 const enabled = computed(() => !!selectedId.value);
-const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled);
+// Embedded mode is chat-only, so it ALWAYS owns a frozen window (default 60m)
+// even if the spec omits windowMinutes — never silently rides the global ticker.
+const focusWindowMinutes = computed<number | null>(() =>
+  embedded.value ? (props.focusWindowMinutes ?? 60) : null,
+);
+const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled, focusWindowMinutes);
 const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 
@@ -303,7 +329,14 @@ const H = computed(() => layout.value.h);
 const CARD_MIN = 468;
 const CARD_MAX = 1100;
 const HEIGHT_SCALE = 1.5;
-const canvasHeightPx = computed<number>(() => Math.round(Math.max(CARD_MIN, Math.min(CARD_MAX, H.value + 80)) * HEIGHT_SCALE));
+// Embedded (chat) mode uses a fixed, bounded stage so a focused graph fills its
+// block; fit-to-screen + the zoom controls handle exploration (like the topology
+// block). The interactive route sizes to the graph, clamped + scaled up.
+const canvasHeightPx = computed<number>(() =>
+  embedded.value
+    ? 460
+    : Math.round(Math.max(CARD_MIN, Math.min(CARD_MAX, H.value + 80)) * HEIGHT_SCALE),
+);
 function posR(id: string): number {
   return pos.value.get(id)?.r ?? MAIN_R;
 }
@@ -707,7 +740,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 </script>
 
 <template>
-  <div class="sit">
+  <div class="sit" :class="{ 'is-embedded': embedded }">
     <div class="sit-toolbar">
       <span class="sit-title">{{ title }}</span>
       <span v-if="serviceName" class="sit-divider" />
@@ -866,6 +899,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 
 <style scoped>
 .sit { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+/* Embedded (chat) mode: the block is content-sized, so the canvas' explicit
+   pixel height drives layout — a height:100% flex column would collapse here. */
+.sit.is-embedded { height: auto; }
 .banner.warn { padding: 8px 12px; background: var(--sw-warn-soft); border: 1px solid var(--sw-warn); border-radius: 6px; color: var(--sw-warn); font-size: 11.5px; }
 .sit-toolbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -891,6 +927,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeyDown, true));
 
 .sit-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 380px; gap: 10px; }
 .sit-body.no-selection { grid-template-columns: 1fr; }
+/* Embedded (chat): a 380px detail column would crush the canvas at a narrow chat
+   width, so keep the body single-column and float the edge panel as an overlay
+   drawer over the graph — the click-edge-for-detail interaction is preserved. */
+.sit.is-embedded .sit-body { grid-template-columns: 1fr; position: relative; }
+.sit.is-embedded .sit-panel {
+  position: absolute; inset: 0 0 0 auto; width: min(340px, 85%); z-index: 6;
+  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.4);
+}
 .sit-canvas {
   position: relative; overflow: hidden; min-width: 0;
   border: 1px solid var(--sw-line); border-radius: 6px;

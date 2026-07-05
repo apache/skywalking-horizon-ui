@@ -41,6 +41,18 @@ const isDev = process.env.NODE_ENV === 'development';
  */
 export const loggerOptions: LoggerOptions = {
   level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'error'),
+  // Backstop redaction for LLM-provider secrets. The AI api key is env-only and
+  // never intentionally logged, but a stray `logger.info({ config })` must not
+  // leak it. Paths cover the config shape, any `*.apiKey`, and the raw SDK field.
+  redact: {
+    paths: [
+      'ai.apiKey',
+      'config.ai.apiKey',
+      '*.apiKey',
+      '*.bedrockBearerToken',
+    ],
+    censor: '[redacted]',
+  },
   ...(isDev
     ? {
         transport: {

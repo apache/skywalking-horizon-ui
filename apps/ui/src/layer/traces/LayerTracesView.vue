@@ -59,8 +59,22 @@ import TagInput from '@/components/primitives/TagInput.vue';
 import TraceDetailCard from '@/render/widgets/TraceDetailCard.vue';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 
+const props = defineProps<{
+  /** Embedded (AI-chat) mode: seed the focus from props, bypass the shared
+   *  layerSelection store + the filter chrome, and auto-run on mount. Default
+   *  off → the /layer/:key/trace route is unchanged. */
+  embedded?: boolean;
+  layerKey?: string;
+  focusService?: string;
+  focusEndpointId?: string;
+  focusInstanceId?: string;
+  focusWindowMinutes?: number;
+}>();
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
@@ -77,11 +91,18 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = useLayerServiceName(layerKey, landing);
+// Embedded mode takes the focus service straight from the prop; the route uses
+// the shared layerSelection store (resolved to a name). Overriding here means
+// the chat block never touches that global selection.
+const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceName = computed<string | null>(() =>
+  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
   (rows) => {
+    if (embedded.value) return; // never auto-pick into the shared store from the chat
     if (selectedId.value) return;
     const first = rows[0];
     if (first) setSelectedService(first.serviceId);
@@ -184,6 +205,7 @@ const endpointIdSel = computed<string>({
 });
 
 watch([serviceName], () => {
+  if (embedded.value) return; // focus (incl. seeded endpoint/instance) is fixed by props
   instanceId.value = null;
   endpointId.value = null;
 });
@@ -317,6 +339,16 @@ watch([instances, endpoints], () => {
 });
 watch(() => route.query.dNonce, applyDrillFromRoute, { immediate: true });
 
+// Embedded (chat) auto-run: seed the committed filters from props and fire the
+// query on mount, so the block renders self-contained without a Run-query click.
+onMounted(() => {
+  if (!embedded.value) return;
+  if (props.focusInstanceId) instanceId.value = props.focusInstanceId;
+  if (props.focusEndpointId) endpointId.value = props.focusEndpointId;
+  if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
+  runQuery();
+});
+
 const selectedTraceId = ref<string | null>(null);
 const selectedTraceIds = ref<string[]>([]);
 const selectedRowKey = ref<string | null>(null);
@@ -416,8 +448,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 </script>
 
 <template>
-  <div class="tr-tab">
-    <div class="tr-top-strip">
+  <div class="tr-tab" :class="{ 'is-embedded': embedded }">
+    <div v-if="!embedded" class="tr-top-strip">
       <header class="tr-toolbar sw-card">
         <div class="tr-toolbar-head">
           <!-- No service name in the head row: the layer header's Switch
@@ -754,6 +786,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
 .tr-scatter :deep(.scatter-wrap) { flex: 1; min-height: 0; }
 
 .tr-list-card { padding: 0; display: flex; flex-direction: column; min-height: 0; max-height: calc(100vh - 80px); overflow: hidden; }
+/* Embedded (chat) — fill the bounded host box instead of the viewport, and let
+   the list + the detail waterfall each SCROLL inside it (a long trace can far
+   exceed the fixed block height). */
+.tr-tab.is-embedded { height: 100%; gap: 8px; padding: 0; min-height: 0; overflow: hidden; }
+.tr-tab.is-embedded .tr-list-card { max-height: none; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* Bound the split to the leftover height and STRETCH its cells (the base grid
+   is `align-items: start` with auto rows, so the detail card would otherwise
+   grow to the full waterfall height and clip). minmax(0,1fr) caps the single
+   row; each column then scrolls its own overflow. */
+.tr-tab.is-embedded .tr-detail-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+.tr-tab.is-embedded .tr-detail-split > * { min-height: 0; overflow-y: auto; }
 .tr-list-head {
   display: flex;
   align-items: baseline;

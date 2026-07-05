@@ -1,0 +1,6 @@
+[
+  "What's unhealthy in the system right now?",
+  "Investigate latency for <service>",
+  "Break down <service> by its slowest endpoints",
+  "Check errors and logs for <service>"
+]

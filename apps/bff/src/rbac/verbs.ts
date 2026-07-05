@@ -64,6 +64,11 @@ export const VERBS = {
   ttlRead: 'ttl:read',
   configRead: 'config:read',
 
+  /** Use the AI assistant (chat). Read-tier: the assistant's own data tools
+   *  each additionally check their underlying read verb, so the agent inherits
+   *  the caller's read scopes — never widens them. */
+  aiRead: 'ai:read',
+
   userRead: 'user:read',
   userWrite: 'user:write',
   roleRead: 'role:read',

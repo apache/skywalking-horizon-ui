@@ -25,7 +25,7 @@
      full payload (auto-detected as JSON or text) + tags + trace link.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
@@ -48,8 +48,20 @@ import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 
+const props = defineProps<{
+  /** Embedded (AI-chat) mode: seed the focus service from props, bypass the
+   *  shared layerSelection store + filter chrome, and auto-run on mount.
+   *  Default off → the /layer/:key/logs route is unchanged. */
+  embedded?: boolean;
+  layerKey?: string;
+  focusService?: string;
+  focusWindowMinutes?: number;
+}>();
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 const { openTrace } = useTracePopout();
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
@@ -67,11 +79,18 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = useLayerServiceName(layerKey, landing);
+// Embedded takes the focus service from the prop; the route resolves it from
+// the shared layerSelection store — overriding here means the chat block never
+// touches that global selection.
+const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceName = computed<string | null>(() =>
+  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
   (rows) => {
+    if (embedded.value) return; // never auto-pick into the shared store from the chat
     const first = rows[0];
     if (!first) return;
     // Auto-pick only when nothing is selected. A valid tail selection
@@ -108,6 +127,7 @@ const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
 // for metrics-scope pages (instance / endpoint dashboards), where a
 // chosen entity is needed to render the metric widgets at all.
 watch(serviceName, (next, prev) => {
+  if (embedded.value) return;
   if (prev !== undefined && next !== prev && selectedInstance.value) {
     setSelectedInstance(null);
   }
@@ -140,6 +160,7 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
 watch(serviceName, (next, prev) => {
+  if (embedded.value) return;
   if (prev !== undefined && next !== prev) {
     if (selectedEndpoint.value) setSelectedEndpoint(null);
     endpointQuery.value = '';
@@ -172,8 +193,15 @@ const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-const instanceIdRef = computed<string | null>(() => instanceIdForQuery.value);
-const endpointIdRef = computed<string | null>(() => endpointIdForQuery.value);
+// Embedded (chat) mode advertises a service-wide stream and hides the pickers,
+// so it must NOT inherit an instance/endpoint the operator left selected in the
+// shared layerSelection store on a real Logs page — force All by short-circuiting.
+const instanceIdRef = computed<string | null>(() =>
+  embedded.value ? null : instanceIdForQuery.value,
+);
+const endpointIdRef = computed<string | null>(() =>
+  embedded.value ? null : endpointIdForQuery.value,
+);
 const keywordsRef = computed<string[]>(() => []);
 
 // Time range (presets + Custom…) — owns the OAP-shaped window refs.
@@ -233,6 +261,7 @@ function applyConditions(): void {
 // prompt (cascade-clear: never show the prior service's logs under the
 // new one). Filter edits just stage; they wait for Run query.
 watch(serviceName, () => {
+  if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   hasQueried.value = false;
   selectedLevel.value = null;
   customTags.value = [];
@@ -286,6 +315,14 @@ function runQuery(): void {
   void refetch();
   void refetchFacets();
 }
+
+// Embedded (chat) auto-run: seed the look-back and fire on mount so the block
+// renders self-contained (instance/endpoint stay All — a service-wide stream).
+onMounted(() => {
+  if (!embedded.value) return;
+  if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
+  runQuery();
+});
 
 // Density histogram counts come from the loaded page only — total-window
 // density would need a server aggregation we don't have yet.
@@ -366,10 +403,11 @@ watch(
 </script>
 
 <template>
-  <div class="lg-tab">
+  <div class="lg-tab" :class="{ 'is-embedded': embedded }">
     <!-- Toolbar mirrors the trace tab: head row (kicker + Run query)
-         on top, conditions grid below, active tag chips at the foot. -->
-    <header class="lg-toolbar sw-card">
+         on top, conditions grid below, active tag chips at the foot.
+         Hidden in embedded (chat) mode — the focus is fixed by the prompt. -->
+    <header v-if="!embedded" class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
         <span class="kicker">Logs</span>
         <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
@@ -524,6 +562,9 @@ watch(
 
 <style scoped>
 .lg-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
+/* Embedded (chat) — fill the bounded host box instead of the viewport. */
+.lg-tab.is-embedded { height: 100%; gap: 8px; padding: 0; min-height: 0; }
+.lg-tab.is-embedded .lg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .lg-toolbar {
   display: flex;
   align-items: baseline;

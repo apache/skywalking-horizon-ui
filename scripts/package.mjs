@@ -101,6 +101,13 @@ cpSync(
   resolve(dist, 'bundled_templates'),
   { recursive: true },
 );
+// AI prose resources (system prompt, RCA playbooks) — the bundled server reads
+// them from <dist>/resources at runtime (see ai/resources/loader.ts).
+cpSync(
+  resolve(root, 'apps/bff/src/ai/resources'),
+  resolve(dist, 'resources'),
+  { recursive: true },
+);
 cpSync(resolve(root, 'apps/ui/dist'), resolve(dist, 'static'), { recursive: true });
 cpSync(resolve(root, 'horizon.yaml'), resolve(dist, 'horizon.yaml'));
 

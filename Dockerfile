@@ -65,6 +65,7 @@ COPY --from=build /src/dist/static                 ./static
 COPY --from=build /src/dist/horizon.yaml           ./horizon.yaml
 
 COPY --from=build --chown=horizon:horizon /src/dist/bundled_templates  ./bundled_templates
+COPY --from=build --chown=horizon:horizon /src/dist/resources           ./resources
 
 RUN mkdir -p /data && chown horizon:horizon /data
 VOLUME ["/data"]

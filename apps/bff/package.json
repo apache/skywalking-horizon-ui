@@ -8,7 +8,7 @@
     "dist"
   ],
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch src/server.ts",
+    "dev": "NODE_ENV=development tsx watch --include 'src/ai/resources/**' src/server.ts",
     "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/server.js --packages=external",
     "cli:hash": "tsx src/cli/hash.ts",
     "i18n:seed": "tsx src/i18n/seed.ts",
@@ -24,6 +24,10 @@
     "@fastify/multipart": "^10.0.0",
     "@fastify/static": "^9.1.1",
     "@jridgewell/trace-mapping": "^0.3.31",
+    "@langchain/aws": "^1.4.2",
+    "@langchain/core": "^1.2.1",
+    "@langchain/langgraph": "^1.4.7",
+    "@langchain/openai": "^1.5.3",
     "@skywalking-horizon-ui/api-client": "workspace:*",
     "argon2": "^0.41.1",
     "chokidar": "^4.0.1",

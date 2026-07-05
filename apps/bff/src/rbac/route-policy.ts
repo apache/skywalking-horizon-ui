@@ -168,6 +168,11 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/infra-3d/config':                      'infra-3d:read',
   'POST /api/infra-3d/metrics':                    'infra-3d:read',
 
+  // AI assistant. Chat entry is read-tier; each of the agent's data tools
+  // ALSO checks its own read verb, so the agent inherits the caller's scopes.
+  'GET /api/ai/config':                            'ai:read',
+  'POST /api/ai/chat':                             'ai:read',
+
   // ── Maintainer — platform-monitoring reads ──
   'GET /api/cluster/state':                        'cluster:read',
   'GET /api/inspect/metrics':                      'inspect:read',

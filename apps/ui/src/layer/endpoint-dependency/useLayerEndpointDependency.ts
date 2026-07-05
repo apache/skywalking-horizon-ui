@@ -24,7 +24,7 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
-import { useTimeRangeStore } from '../../controls/timeRange';
+import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
@@ -32,15 +32,27 @@ export function useLayerEndpointDependency(
   layerKey: Ref<string>,
   service: Ref<string | null>,
   endpoint: Ref<string | null>,
+  /** Embedded (chat) override: when a positive minute count, the query owns its
+   *  OWN frozen look-back window and does NOT follow the global topbar picker or
+   *  auto-refresh ticker — the interactive route omits it. */
+  windowMinutes?: Ref<number | null>,
 ) {
+  const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   // Preview-only: forward the draft `endpointDependency` block.
   const previewCfg = usePreviewLayerBlock(layerKey, 'endpointDependency');
   const timeRange = useTimeRangeStore();
-  const rangeKey = computed(() => ({
-    step: timeRange.step,
-    startMs: timeRange.range.startMs,
-    endMs: timeRange.range.endMs,
-  }));
+  const rangeKey = computed(() => {
+    if (ownsWindow) {
+      const min = windowMinutes!.value ?? 0;
+      const endMs = Date.now();
+      return { step: stepForMinutes(min), startMs: endMs - min * 60_000, endMs };
+    }
+    return {
+      step: timeRange.step,
+      startMs: timeRange.range.startMs,
+      endMs: timeRange.range.endMs,
+    };
+  });
   const q = useQuery({
     queryKey: ['layer-endpoint-dependency', layerKey, service, endpoint, rangeKey, previewCfg],
     queryFn: () =>
@@ -56,7 +68,7 @@ export function useLayerEndpointDependency(
     ),
     staleTime: 30_000,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
+  if (!ownsWindow) useAutoRefreshSubscribe(() => q.refetch());
 
   return {
     data: computed(() => q.data.value ?? null),

@@ -28,7 +28,7 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
-import { useTimeRangeStore } from '../../controls/timeRange';
+import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
@@ -36,7 +36,12 @@ export function useLayerTopology(
   layerKey: Ref<string>,
   service: Ref<string | null>,
   depth: Ref<number>,
+  /** Embedded (chat) override: when a positive minute count, the query owns its
+   *  OWN window (a frozen look-back snapshot) and does NOT follow the global
+   *  topbar picker or auto-refresh ticker — the interactive route omits it. */
+  windowMinutes?: Ref<number | null>,
 ) {
+  const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   const timeRange = useTimeRangeStore();
   // In `?mode=preview` only: forward the operator's draft `topology` block
   // so the map renders the unpublished edit. Empty otherwise — a normal
@@ -45,12 +50,21 @@ export function useLayerTopology(
   const previewCfg = usePreviewLayerBlock(layerKey, 'topology');
   // Re-resolve range / step on every read so the queryKey changes on
   // picker flips. A stable triplet (step + ms-rounded bounds) prevents
-  // identity-thrash on every store tick.
-  const rangeKey = computed(() => ({
-    step: timeRange.step,
-    startMs: timeRange.range.startMs,
-    endMs: timeRange.range.endMs,
-  }));
+  // identity-thrash on every store tick. In embedded mode the triplet is
+  // derived from the fixed windowMinutes (Date.now() captured once — a frozen
+  // snapshot), so it never follows the global picker.
+  const rangeKey = computed(() => {
+    if (ownsWindow) {
+      const min = windowMinutes!.value ?? 0;
+      const endMs = Date.now();
+      return { step: stepForMinutes(min), startMs: endMs - min * 60_000, endMs };
+    }
+    return {
+      step: timeRange.step,
+      startMs: timeRange.range.startMs,
+      endMs: timeRange.range.endMs,
+    };
+  });
   const q = useQuery({
     queryKey: ['layer-topology', layerKey, service, depth, rangeKey, previewCfg],
     queryFn: () =>
@@ -64,7 +78,9 @@ export function useLayerTopology(
     enabled: computed(() => layerKey.value.length > 0),
     staleTime: 30_000,
   });
-  useAutoRefreshSubscribe(() => q.refetch());
+  // The embedded chat map owns its own frozen window, so it must NOT refetch on
+  // the global ticker — only the interactive route subscribes.
+  if (!ownsWindow) useAutoRefreshSubscribe(() => q.refetch());
 
   return {
     data: computed(() => q.data.value ?? null),

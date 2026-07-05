@@ -60,15 +60,39 @@ import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceNam
 import { watch } from 'vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 
+// The AI chat mounts this view embedded (read-only, focused on one service — it
+// auto-picks that service's top endpoint and draws its dependency chain). The
+// props are additive + default-off: the interactive route passes none and keeps
+// reading the route param + the shell header's service/endpoint selection.
+// Embedded mode drives layer/service/endpoint from props + a LOCAL endpoint ref
+// and NEVER writes the shared layerSelection store.
+const props = defineProps<{
+  layerKey?: string;
+  embedded?: boolean;
+  focusService?: string;
+  focusServiceId?: string;
+  /** Embedded look-back window (minutes); the query owns it and skips the global
+   *  topbar picker + auto-refresh ticker, like the topology / deployment blocks. */
+  focusWindowMinutes?: number;
+}>();
+
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n({ useScope: 'global' });
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 
-const { selectedId, setSelected: setSelectedService } = useSelectedService();
+const { selectedId: headerSelectedId, setSelected: setSelectedService } = useSelectedService();
+const selectedId = computed<string | null>(() =>
+  embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
+);
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key === layerKey.value) ?? null,
+  // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
+  // arrive lowercased (the AI chat block passes spec.layer.toLowerCase()).
+  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
 );
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -89,10 +113,24 @@ function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, namingRule.value);
 }
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = useLayerServiceName(layerKey, landing);
+const resolvedServiceName = useLayerServiceName(layerKey, landing);
+const serviceName = computed<string | null>(() =>
+  embedded.value ? (props.focusService ?? null) : resolvedServiceName.value,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 
-const { selectedEndpoint, setSelectedEndpoint } = useSelectedEndpoint();
+// Embedded (chat) mode keeps its endpoint pick LOCAL so the auto-pick never
+// writes the shared layerSelection store a real Dependency page owns; the
+// interactive route reads/writes the shared selection as before.
+const { selectedEndpoint: sharedEndpoint, setSelectedEndpoint: setSharedEndpoint } = useSelectedEndpoint();
+const localEndpoint = ref<string | null>(null);
+const selectedEndpoint = computed<string | null>(() =>
+  embedded.value ? localEndpoint.value : sharedEndpoint.value,
+);
+function setSelectedEndpoint(name: string | null): void {
+  if (embedded.value) localEndpoint.value = name;
+  else setSharedEndpoint(name);
+}
 const endpointSearchInput = ref('');
 const endpointQuery = ref('');
 const endpointLimit = ref(30);
@@ -119,20 +157,31 @@ watch(serviceName, (next, prev) => {
 // before `serviceName` has propagated and the endpoint list refreshed.
 watchEffect(() => {
   if (!selectedId.value) {
-    const first = landingRows.value[0];
-    if (first) setSelectedService(first.serviceId);
+    // Embedded mode is pinned to props.focusServiceId and must never seed the
+    // shared service store; only the interactive route auto-picks a service.
+    if (!embedded.value) {
+      const first = landingRows.value[0];
+      if (first) setSelectedService(first.serviceId);
+    }
     return;
   }
   if (selectedEndpoint.value) return;
   if (endpointsLoading.value) return;
+  // Auto-pick the top endpoint (embedded → local ref via setSelectedEndpoint).
   const first = endpointList.value[0];
   if (first) setSelectedEndpoint(first.name);
 });
 
+// Embedded mode is chat-only, so it ALWAYS owns a frozen window (default 60m)
+// even if the spec omits windowMinutes — never silently rides the global ticker.
+const focusWindowMinutes = computed<number | null>(() =>
+  embedded.value ? (props.focusWindowMinutes ?? 60) : null,
+);
 const { nodes: baseNodes, calls: baseCalls, isLoading, isFetching, data } = useLayerEndpointDependency(
   layerKey,
   serviceName,
   selectedEndpoint,
+  focusWindowMinutes,
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
@@ -248,6 +297,12 @@ const {
   dragOffsets,
   t,
 });
+// Embedded (chat) mode caps the graph card to a bounded stage; the SVG fits +
+// pan/zoom + horizontal scroll handle a wider graph. The interactive route uses
+// the layout's own adaptive height.
+const effectiveCardHeightPx = computed<number>(() =>
+  embedded.value ? Math.min(cardHeightPx.value, 460) : cardHeightPx.value,
+);
 
 // ── Pan / zoom. The SVG fits the whole graph by default (viewBox = full
 // extent, aspect-preserved), so every column is visible — no edge dangles
@@ -554,8 +609,11 @@ function edgeRowCrosshair(rowId: string): number | null {
 </script>
 
 <template>
-  <div class="ep-tab">
-    <section class="ep-picker sw-card">
+  <div class="ep-tab" :class="{ 'is-embedded': embedded }">
+    <!-- Embedded (chat) mode hides the endpoint search/list card: it auto-picks
+         the service's top endpoint and shows just its dependency graph. The
+         focused endpoint name is surfaced in the graph header below. -->
+    <section v-if="!embedded" class="ep-picker sw-card">
       <header class="picker-head">
         <span class="kicker">{{ t('API dependency') }}</span>
         <span v-if="serviceName" class="for-svc">
@@ -624,7 +682,7 @@ function edgeRowCrosshair(rowId: string): number | null {
       {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — some endpoints or links may be missing.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
     </div>
 
-    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
+    <section v-if="selectedEndpoint" class="ep-graph-card sw-card" :class="{ 'has-detail': selectedNode || selectedCall }" :style="{ height: effectiveCardHeightPx + 'px' }">
       <!-- Two-column layout: graph on the left, selection detail
            panel on the right. Mirrors the topology view's sidebar so
            operators get the same interaction pattern across the two
@@ -632,6 +690,7 @@ function edgeRowCrosshair(rowId: string): number | null {
       <div class="ep-graph">
         <header class="graph-head">
           <h4>{{ t('API dependency chain') }}</h4>
+          <span v-if="embedded && selectedEndpoint" class="hint mono ep-embed-ep">{{ selectedEndpoint }}</span>
           <span class="hint">
             {{ t('{cols} columns · {eps} endpoints · click a node or edge for details', { cols: layerColumns.length, eps: nodes.length }) }}
           </span>
@@ -1119,6 +1178,10 @@ function edgeRowCrosshair(rowId: string): number | null {
   gap: 12px;
   padding: 4px 0 0;
 }
+/* Embedded (chat) mode: no top padding, tighter gap; the endpoint name shown in
+   the graph header (the picker card is hidden) truncates instead of wrapping. */
+.ep-tab.is-embedded { padding: 0; gap: 8px; }
+.ep-embed-ep { max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Per-node outward expand handle. */
 .ep-expand {
   cursor: pointer;
@@ -1269,6 +1332,15 @@ function edgeRowCrosshair(rowId: string): number | null {
 }
 .ep-graph-card.has-detail {
   grid-template-columns: 1fr 320px;
+}
+/* Embedded (chat): a 320px detail column would crush the graph at a narrow chat
+   width, so keep the card single-column and float the detail panel as an overlay
+   drawer over the graph — the click-for-detail interaction is preserved. */
+.ep-tab.is-embedded .ep-graph-card { position: relative; }
+.ep-tab.is-embedded .ep-graph-card.has-detail { grid-template-columns: 1fr; }
+.ep-tab.is-embedded .ep-detail {
+  position: absolute; inset: 0 0 0 auto; width: min(320px, 85%); z-index: 6;
+  box-shadow: -8px 0 22px rgba(0, 0, 0, 0.4);
 }
 /* Legend strip at the bottom of the graph column. Sits inside
    `.ep-graph` so it shares the card height with the SVG scroll. */

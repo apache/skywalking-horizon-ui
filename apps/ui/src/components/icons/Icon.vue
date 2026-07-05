@@ -53,7 +53,11 @@ export type IconName =
   | 'cache'
   | 'topic'
   | 'snowflake'
-  | 'pin';
+  | 'pin'
+  | 'ai'
+  | 'external'
+  | 'close'
+  | 'trash';
 </script>
 
 <template>
@@ -232,6 +236,23 @@ export type IconName =
       <!-- Pushpin — "lock this entity into the comparison set". -->
       <path d="M9 3h6l-1 5 3 3v2H7v-2l3-3z" />
       <path d="M12 13v8" />
+    </template>
+    <template v-else-if="name === 'ai'">
+      <!-- AI-assistant mark — a large four-point sparkle plus a small one. -->
+      <path fill="currentColor" stroke="none" d="M10 4 Q11.7 9.3 17 11 Q11.7 12.7 10 18 Q8.3 12.7 3 11 Q8.3 9.3 10 4 Z" />
+      <path fill="currentColor" stroke="none" d="M18.5 3.2 Q19.3 5.5 21.6 6.3 Q19.3 7.1 18.5 9.4 Q17.7 7.1 15.4 6.3 Q17.7 5.5 18.5 3.2 Z" />
+    </template>
+    <template v-else-if="name === 'external'">
+      <!-- Open in a new tab / external link. -->
+      <path d="M14 4h6v6M20 4l-9 9" />
+      <path d="M18 13v5a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2h5" />
+    </template>
+    <template v-else-if="name === 'close'">
+      <path stroke-width="2" d="M6 6l12 12M18 6L6 18" />
+    </template>
+    <template v-else-if="name === 'trash'">
+      <path d="M5 7h14M10 7V5h4v2M8 7l1 13h6l1-13" />
+      <path d="M10.5 11v5M13.5 11v5" />
     </template>
   </svg>
 </template>

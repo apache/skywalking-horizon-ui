@@ -317,6 +317,16 @@ const router = createRouter({
       name: 'infra-3d-map',
       component: () => import('@/features/infra-3d/Infra3DView.vue'),
     },
+    // AI Assistant — the roomy full-page mode of the chat. A standalone fullscreen
+    // route OUTSIDE the AppShell (max canvas for wide charts, tab-grouped figures and
+    // pinned sub-pages) sharing the same conversation + localStorage history as the
+    // docked drawer. Requires auth via the global guard; the `ai:read` verb lands with
+    // the BFF (M2), so no `meta.verb` yet.
+    {
+      path: '/ai',
+      name: 'ai',
+      component: () => import('@/ai/AiFullPageView.vue'),
+    },
     {
       path: '/',
       component: () => import('@/shell/AppShell.vue'),

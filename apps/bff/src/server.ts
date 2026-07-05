@@ -51,6 +51,7 @@ import { registerExploreRoutes } from './http/query/explore.js';
 import { registerPodLogRoutes } from './http/query/pod-log.js';
 import { registerDashboardQueryRoute } from './http/query/dashboard.js';
 import { registerAlarmsQueryRoutes } from './http/query/alarms.js';
+import { registerAiRoutes } from './ai/http/chat.js';
 import { registerPreflightRoutes } from './http/query/preflight.js';
 import { registerTtlRoute } from './http/query/ttl.js';
 import { registerProfileRoutes } from './http/query/profile.js';
@@ -279,6 +280,11 @@ registerDashboardQueryRoute(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerAlarmsQueryRoutes(app, { config: source, sessions, serviceLayer });
+registerAiRoutes(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
 registerPreflightRoutes(app, { config: source, sessions });
 registerTtlRoute(app, { config: source, sessions });
 registerProfileRoutes(app, { config: source, sessions });

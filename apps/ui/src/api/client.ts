@@ -98,6 +98,8 @@ import { ConfigsApi } from './scopes/configs';
 import { AdminAuthApi } from './scopes/admin-auth';
 import { AdminUsersApi } from './scopes/admin-users';
 import { TemplateSyncApi } from './scopes/template-sync';
+import { AiApi } from './scopes/ai';
+export type { AiConfigResponse } from './scopes/ai';
 
 // ── Wire types re-exported from @skywalking-horizon-ui/api-client ────
 // Re-exported so consumers can import everything from this module.
@@ -938,6 +940,7 @@ export class BffClient {
   readonly adminAuth = new AdminAuthApi(this);
   readonly adminUsers = new AdminUsersApi(this);
   readonly templateSync = new TemplateSyncApi(this);
+  readonly ai = new AiApi(this);
 }
 
 export const bffClient = new BffClient();

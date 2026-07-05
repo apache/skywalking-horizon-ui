@@ -44,8 +44,26 @@ import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 // belong to the SkyWalking metric stack. Service filtering happens
 // entirely through the operator's input + the Zipkin `/api/v2/services`
 // autocomplete list.
+// The AI chat mounts this view embedded (read-only), seeded with a ZIPKIN service
+// name (span localEndpoint.serviceName — NOT a SkyWalking service name) + window,
+// and auto-runs the query. Additive + default-off: the interactive route passes
+// none and is byte-behaviour-identical. This view already owns its own time range
+// and writes no shared store, so embedded needs no ticker/store guard — just seed
+// + auto-run + hide the toolbar chrome.
+const props = defineProps<{
+  embedded?: boolean;
+  layerKey?: string;
+  /** MUST be a Zipkin service name (localEndpoint.serviceName), matched by the
+   *  assistant from list_zipkin_services — it differs from the SkyWalking name. */
+  focusService?: string;
+  focusWindowMinutes?: number;
+}>();
+const embedded = computed(() => Boolean(props.embedded));
+
 const route = useRoute();
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 
 // Sentinel duration meaning "use the custom start/end instead of a preset
 // window." Picked as -1 so it can't collide with any real ms value.
@@ -179,6 +197,9 @@ const {
   annotationQuery,
   spanName,
   remoteServiceName,
+  // Embedded (chat) hides the whole toolbar, so skip the autocomplete fetches
+  // that only feed its dropdowns.
+  enabled: !embedded.value,
 });
 
 const serviceSelectOptions = computed(() => [
@@ -237,6 +258,17 @@ function onPageKeyDown(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener('keydown', onPageKeyDown, true));
 onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true));
 
+// Embedded (chat): seed the focus Zipkin service + window and auto-run once —
+// the same "commit refs + refetch on mount" contract the native trace view uses.
+onMounted(() => {
+  if (!embedded.value) return;
+  if (props.focusService) zipkinServiceFilter.value = props.focusService;
+  if (props.focusWindowMinutes && props.focusWindowMinutes > 0) {
+    lookbackMs.value = props.focusWindowMinutes * 60_000;
+  }
+  runQuery();
+});
+
 // Adapt each Zipkin row onto `NativeTraceListRow` (µs → ms, traceId stays the
 // row key) so the shared native-trace widgets can render them.
 const nativeRows = computed<NativeTraceListRow[]>(() =>
@@ -282,8 +314,8 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 </script>
 
 <template>
-  <div class="ztr-tab">
-    <div class="ztr-top-strip">
+  <div class="ztr-tab" :class="{ 'is-embedded': embedded }">
+    <div v-if="!embedded" class="ztr-top-strip">
     <header class="ztr-toolbar sw-card">
       <div class="ztr-head">
         <span class="kicker">{{ t('Traces · Zipkin') }}</span>
@@ -472,6 +504,25 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 
 <style scoped>
 .ztr-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
+/* Embedded (chat): bound to the host stage and scroll INSIDE. The results state
+   wraps the list in a `.ztr-split` GRID and the detail state is `.ztr-detail-split`
+   — both are the direct flex child of `.ztr-tab`, so BOTH need the height cap
+   (min-height:0 + minmax(0,1fr) row); then the list card / detail columns scroll
+   their own overflow instead of clipping at the stage. */
+.ztr-tab.is-embedded { height: 100%; gap: 8px; padding: 0; min-height: 0; overflow: hidden; }
+.ztr-tab.is-embedded .ztr-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.ztr-tab.is-embedded .ztr-list { min-height: 0; overflow-y: auto; }
+.ztr-tab.is-embedded .ztr-detail-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  grid-template-rows: minmax(0, 1fr);
+}
+.ztr-tab.is-embedded .ztr-detail-split > * { min-height: 0; overflow-y: auto; }
 .ztr-top-strip {
   display: grid;
   grid-template-columns: 4fr 1fr;

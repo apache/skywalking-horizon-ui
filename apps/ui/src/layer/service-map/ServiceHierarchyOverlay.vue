@@ -60,13 +60,28 @@ const props = defineProps<{
    *  `<group>::` prefix as a chip — mirrored on the overlay so its
    *  service-name affordances match the topology's. */
   showLegacyGroup?: boolean;
+  /** STANDALONE mode: render the Smartscape fan on its own (the AI chat's
+   *  hierarchy block) with NO topology underneath — no dim, no d3-zoom mirror,
+   *  no store. The focus comes from `focus` and the fan is centred + auto-fit
+   *  into the SVG's own viewBox. Everything store/topology-specific below is
+   *  guarded on this, so the interactive topology overlay is unchanged. */
+  standalone?: boolean;
+  focus?: { serviceId: string; layer: string; serviceName: string };
 }>();
 
 const store = useHierarchyOverlayStore();
 const { layers: allLayers, findLayer } = useLayers();
 
-const layerKey = computed(() => (store.focusLayer ?? '').toLowerCase());
-const focusServiceId = computed(() => store.focusServiceId);
+// Focus + open state come from props in standalone mode, else the shared store.
+const fLayer = computed<string | null>(() => (props.standalone ? props.focus?.layer : store.focusLayer) ?? null);
+const fServiceId = computed<string | null>(() => (props.standalone ? props.focus?.serviceId : store.focusServiceId) ?? null);
+const fServiceName = computed<string | null>(
+  () => (props.standalone ? props.focus?.serviceName : store.focusServiceName) ?? null,
+);
+const isOpen = computed<boolean>(() => (props.standalone ? true : store.isOpen));
+
+const layerKey = computed(() => (fLayer.value ?? '').toLowerCase());
+const focusServiceId = computed(() => fServiceId.value);
 const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId);
 
 /** Look up a layer's color from the menu registry; fall back to the
@@ -100,13 +115,18 @@ function identityFor(name: string, layer: string): ServiceIdentity {
  *  the zoom to the overlay's content group below, so the focus hex
  *  visually overlaps the underlying hex pixel-for-pixel. */
 const focusPos = computed(() => {
+  // Standalone: the fan is centred on the origin and the whole thing is fit into
+  // the SVG viewBox below — there is no topology node to anchor to.
+  if (props.standalone) return { cx: 0, cy: 0 };
   const id = focusServiceId.value;
   return id ? props.resolveNodePos(id) : null;
 });
 
 /** Mirror the topology's live d3 zoom transform onto the overlay so
- *  focus + peers track pan/zoom of the underlying topology. */
+ *  focus + peers track pan/zoom of the underlying topology. Identity when
+ *  standalone (the viewBox does the scaling). */
 const zoomTransform = computed(() => {
+  if (props.standalone) return 'translate(0, 0) scale(1)';
   const z = store.zoom;
   return `translate(${z.x}, ${z.y}) scale(${z.k})`;
 });
@@ -139,11 +159,12 @@ interface RenderedPeer {
  *  tiebreaker. */
 const sortedLayers = computed<string[]>(() => {
   const d = data.value;
-  if (!d || !store.focusLayer) return [];
+  const fl = fLayer.value;
+  if (!d || !fl) return [];
   const levelOf = new Map<string, number>(d.levels.map((L: LayerLevel) => [L.layer, L.level]));
-  const all = new Set<string>([store.focusLayer]);
+  const all = new Set<string>([fl]);
   for (const g of d.peers) {
-    if (g.services.some((s) => s.role !== 'self') || g.layer === store.focusLayer) {
+    if (g.services.some((s) => s.role !== 'self') || g.layer === fl) {
       all.add(g.layer);
     }
   }
@@ -158,7 +179,7 @@ const sortedLayers = computed<string[]>(() => {
 });
 
 const focusLayerIdx = computed<number>(() =>
-  sortedLayers.value.indexOf(store.focusLayer ?? ''),
+  sortedLayers.value.indexOf(fLayer.value ?? ''),
 );
 
 const renderedPeers = computed<RenderedPeer[]>(() => {
@@ -234,8 +255,31 @@ const laneLabels = computed<LaneLabel[]>(() => {
  *  `<group>::` / cluster chips on the focus card match what the right
  *  detail panel of the topology displays for this service. */
 const focusIdentity = computed<ServiceIdentity | null>(() => {
-  if (!store.focusLayer || !store.focusServiceName) return null;
-  return identityFor(store.focusServiceName, store.focusLayer);
+  const fl = fLayer.value;
+  const fn = fServiceName.value;
+  if (!fl || !fn) return null;
+  return identityFor(fn, fl);
+});
+
+/** Bounding box for the standalone fan → the SVG viewBox, so the whole
+ *  Smartscape scales to fit the chat block regardless of how many lanes/peers
+ *  it has (focus is centred on the origin; peers + lane labels fan around it). */
+const standaloneViewBox = computed<string>(() => {
+  const xs: number[] = [0];
+  const ys: number[] = [0];
+  for (const p of renderedPeers.value) {
+    xs.push(p.x);
+    ys.push(p.y);
+  }
+  for (const l of laneLabels.value) {
+    xs.push(l.x);
+    ys.push(l.y);
+  }
+  const minX = Math.min(...xs) - 150; // room for the lane-label chip on the left
+  const maxX = Math.max(...xs) + 140; // room for the name / action chip on the right
+  const minY = Math.min(...ys) - 80;
+  const maxY = Math.max(...ys) + 90; // name sits below the hex
+  return `${minX} ${minY} ${maxX - minX} ${maxY - minY}`;
 });
 
 /** Six-vertex flat-top hex outline — matches LayerServiceMapView's
@@ -328,6 +372,7 @@ function truncate(s: string, n: number): string {
 // ESC closes the overlay — the dim click is the primary affordance,
 // but operators reach for ESC reflexively on modal-style overlays.
 function onKeydown(ev: KeyboardEvent): void {
+  if (props.standalone) return; // no modal to close in the inline chat block
   if (ev.key === 'Escape' && store.isOpen) {
     store.close();
   }
@@ -337,20 +382,21 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
 </script>
 
 <template>
-  <div v-if="store.isOpen" class="sm-hierarchy-overlay">
+  <div v-if="isOpen" class="sm-hierarchy-overlay" :class="{ 'is-standalone': standalone }">
     <!-- Dim background — click-to-close. The topology stays visible
-         underneath so the operator keeps spatial context. -->
-    <div class="sm-hierarchy-dim" @click="onDimClick" />
+         underneath so the operator keeps spatial context. Standalone
+         (inline chat) has nothing underneath, so no dim / no close. -->
+    <div v-if="!standalone" class="sm-hierarchy-dim" @click="onDimClick" />
 
-    <!-- IMPORTANT: no viewBox. The topology SVG also has no viewBox
-         (it lets browsers interpret coords as raw pixels and lets d3
-         do the zoom). Adding a viewBox here would introduce a second
-         scaling step and the focus hex would no longer overlap the
-         underlying topology hex pixel-for-pixel. -->
+    <!-- Overlay mode: NO viewBox — the topology SVG has none either, so the
+         focus hex overlaps the underlying topology hex pixel-for-pixel and d3
+         does the zoom. Standalone mode: a viewBox bounding the fan, so the
+         whole Smartscape scales to fit the inline block. -->
     <svg
       class="sm-hierarchy-svg"
       width="100%"
       height="100%"
+      :viewBox="standalone ? standaloneViewBox : undefined"
     >
       <!-- Zoom-mirrored content: focus + peers + labels all sit
            inside this transform so they visually overlap the
@@ -464,7 +510,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
             font-family="var(--sw-mono)"
             font-weight="700"
           >
-            {{ truncate(focusIdentity?.display ?? store.focusServiceName ?? '', 22) }}
+            {{ truncate(focusIdentity?.display ?? fServiceName ?? '', 22) }}
           </text>
           <!-- Cluster + legacy-group chips beneath the name (only
                when the layer's naming rule surfaces them, and only
@@ -703,6 +749,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
          close too, but a visible × is the conventional discoverable
          affordance for a modal-style overlay. -->
     <button
+      v-if="!standalone"
       class="sm-hierarchy-close"
       type="button"
       aria-label="Close hierarchy"

@@ -90,6 +90,17 @@ export function isValidRange(step: TimeStep, durationMs: number): boolean {
   return durationMs >= lim.minMs && durationMs <= lim.maxMs;
 }
 
+/** Pick OAP's step precision for a look-back window given in MINUTES, using the
+ *  same downsampling boundaries as {@link STEP_LIMITS} (MINUTE ≤ 4h, HOUR ≤ 14d,
+ *  else DAY). Used by the embedded (chat) topology / deployment views to derive
+ *  their own frozen window instead of following the global picker. */
+export function stepForMinutes(minutes: number): TimeStep {
+  const ms = minutes * 60_000;
+  if (ms <= STEP_LIMITS.MINUTE.maxMs) return 'MINUTE';
+  if (ms <= STEP_LIMITS.HOUR.maxMs) return 'HOUR';
+  return 'DAY';
+}
+
 export const useTimeRangeStore = defineStore('time-range', () => {
   /** Selected preset id (`'1h'`, `'7d'`, …) or `'custom'` for an
    *  explicit start/end range. */

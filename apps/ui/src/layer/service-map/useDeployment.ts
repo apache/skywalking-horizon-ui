@@ -27,7 +27,7 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
-import { useTimeRangeStore } from '../../controls/timeRange';
+import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
 
@@ -35,16 +35,28 @@ export function useDeployment(
   layerKey: Ref<string>,
   serviceId: Ref<string | null>,
   enabled: Ref<boolean>,
+  /** Embedded (chat) override: when a positive minute count, the query owns its
+   *  OWN frozen look-back window and does NOT follow the global topbar picker or
+   *  auto-refresh ticker — the interactive route omits it. */
+  windowMinutes?: Ref<number | null>,
 ) {
+  const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   const timeRange = useTimeRangeStore();
   // Preview-only: the draft top-level `deployment` block, so
   // the tab previews the operator's unpublished config.
   const previewCfg = usePreviewLayerBlock(layerKey, 'deployment');
-  const rangeKey = computed(() => ({
-    step: timeRange.step,
-    startMs: timeRange.range.startMs,
-    endMs: timeRange.range.endMs,
-  }));
+  const rangeKey = computed(() => {
+    if (ownsWindow) {
+      const min = windowMinutes!.value ?? 0;
+      const endMs = Date.now();
+      return { step: stepForMinutes(min), startMs: endMs - min * 60_000, endMs };
+    }
+    return {
+      step: timeRange.step,
+      startMs: timeRange.range.startMs,
+      endMs: timeRange.range.endMs,
+    };
+  });
   const isEnabled = computed(
     () => enabled.value && layerKey.value.length > 0 && !!serviceId.value,
   );
@@ -61,10 +73,13 @@ export function useDeployment(
     staleTime: 30_000,
   });
   // Only ride the global ticker while the view is active — a forced refetch
-  // on a closed/disabled query would fetch needlessly.
-  useAutoRefreshSubscribe(() => {
-    if (isEnabled.value) void q.refetch();
-  });
+  // on a closed/disabled query would fetch needlessly. The embedded chat map
+  // owns a frozen window, so it does not subscribe at all.
+  if (!ownsWindow) {
+    useAutoRefreshSubscribe(() => {
+      if (isEnabled.value) void q.refetch();
+    });
+  }
 
   return {
     data: computed(() => q.data.value ?? null),

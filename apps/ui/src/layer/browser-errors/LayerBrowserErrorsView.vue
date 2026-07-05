@@ -23,7 +23,7 @@
   one addition is the row-expand panel: raw stack + source-map resolution.
 -->
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import type { BrowserErrorCategory, BrowserErrorRow, LayerDef } from '@/api/client';
@@ -41,9 +41,21 @@ import SourceMapManager from '@/layer/browser-errors/SourceMapManager.vue';
 import DensityHistogram from '@/layer/_shared/DensityHistogram.vue';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
 
+const props = defineProps<{
+  /** Embedded (AI-chat) mode: seed the focus service from props, bypass the
+   *  shared layerSelection store + filter chrome, and auto-run on mount.
+   *  Default off → the browser layer's route is unchanged. */
+  embedded?: boolean;
+  layerKey?: string;
+  focusService?: string;
+  focusWindowMinutes?: number;
+}>();
 const route = useRoute();
 const { t } = useI18n({ useScope: 'global' });
-const layerKey = computed(() => String(route.params.layerKey ?? ''));
+const embedded = computed(() => Boolean(props.embedded));
+const layerKey = computed(() =>
+  props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
+);
 
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(() => layers.value.find((l) => l.key === layerKey.value) ?? null);
@@ -72,11 +84,18 @@ const safeCfg = computed(() => {
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
-const serviceName = useLayerServiceName(layerKey, landing);
+// Embedded takes the focus service from the prop; the route resolves it from
+// the shared layerSelection store — overriding here keeps the chat block from
+// touching that global selection.
+const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceName = computed<string | null>(() =>
+  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
   (rows) => {
+    if (embedded.value) return; // never auto-pick into the shared store from the chat
     const first = rows[0];
     if (first && !selectedId.value) setSelected(first.serviceId);
   },
@@ -209,9 +228,18 @@ function runQuery(): void {
   void refetch();
 }
 
+// Embedded (chat) auto-run: seed the look-back and fire on mount so the block
+// renders self-contained (version/page filters stay All — service-wide errors).
+onMounted(() => {
+  if (!embedded.value) return;
+  if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
+  runQuery();
+});
+
 // Service switch is a context change → cascade-clear back to the Run-query
 // prompt; never show the prior service's errors under the new one.
 watch(serviceName, () => {
+  if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   selectedVersionId.value = '';
   clearPage();
   hasQueried.value = false;
@@ -316,8 +344,8 @@ function loc(row: BrowserErrorRow): string {
 </script>
 
 <template>
-  <div class="lg-tab">
-    <section class="lg-toolbar sw-card">
+  <div class="lg-tab" :class="{ 'is-embedded': embedded }">
+    <section v-if="!embedded" class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
         <span class="kicker">{{ t('Browser Logs') }}</span>
         <div class="be-head-right">
@@ -497,6 +525,9 @@ function loc(row: BrowserErrorRow): string {
    (LayerLogsView keeps its own scoped copy — they intentionally don't
    share a stylesheet so neither can regress the other). */
 .lg-tab { display: flex; flex-direction: column; gap: 12px; padding: 4px 0 0; }
+/* Embedded (chat) — fill the bounded host box instead of the viewport. */
+.lg-tab.is-embedded { height: 100%; gap: 8px; padding: 0; min-height: 0; }
+.lg-tab.is-embedded .lg-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
 /* overflow:visible so the Page combobox dropdown isn't clipped by the
    card's rounded-corner overflow. */

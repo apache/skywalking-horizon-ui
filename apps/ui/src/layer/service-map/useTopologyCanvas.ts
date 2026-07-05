@@ -51,10 +51,16 @@ interface TopologyCanvasOptions {
   nodePos: Ref<Map<string, Pos>>;
   /** Drag override map; the composable writes the dropped position here. */
   dragOverrides: Ref<Map<string, Pos>>;
+  /** Cap for the fit-to-screen scale. The full page keeps the readable 0.79
+   *  default (don't blow the canvas up); an embedded host with a small stage
+   *  (the AI chat) passes a higher value so a small focused graph fills its box
+   *  instead of sitting tiny. */
+  maxFitScale?: number;
 }
 
 export function useTopologyCanvas(opts: TopologyCanvasOptions) {
   const { svgEl, zoomLayerEl, containerEl, W, H, nodeCount, nodePos, dragOverrides } = opts;
+  const maxFitScale = opts.maxFitScale ?? 0.79;
   let zoomBehaviour: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   const zoomT = ref<{ k: number; x: number; y: number }>({ k: 1, x: 0, y: 0 });
 
@@ -76,12 +82,11 @@ export function useTopologyCanvas(opts: TopologyCanvasOptions) {
       (vp.width - pad * 2) / W.value,
       (vp.height - pad * 2) / H.value,
     );
-    // Operator-validated readable scale: at ~79% the node labels +
-    // metric line both stay legible. Default to that unless the graph is
-    // so wide / tall it forces a smaller fit. Never overshoot above 79% —
-    // blowing the canvas up past that just wastes pixels.
-    const READABLE_K = 0.79;
-    const k = Math.max(0.15, Math.min(fit, READABLE_K));
+    // Operator-validated readable scale: at ~79% the node labels + metric line
+    // both stay legible. Default cap is that; an embedded small-stage host (the
+    // chat) raises it so a small focused graph fills its box. Never overshoot
+    // the cap — blowing the canvas up past it just wastes pixels.
+    const k = Math.max(0.15, Math.min(fit, maxFitScale));
     const tx = (vp.width - W.value * k) / 2;
     const ty = (vp.height - H.value * k) / 2;
     const sel = d3.select(svgEl.value);

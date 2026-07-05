@@ -92,7 +92,26 @@ import {
  *  read-only variant. In the normal `/layer/:key/topology` route, both
  *  props are absent and we fall back to the route param + full
  *  interactive UI. */
-const props = defineProps<{ layerKey?: string; embedded?: boolean }>();
+const props = defineProps<{
+  layerKey?: string;
+  embedded?: boolean;
+  /** Seed the focus service(s) + BFS depth (e.g. the AI chat mounts this
+   *  embedded, focused on one service at depth 1 for a one-hop map). Absent on
+   *  the interactive route + the overview widget, which start layer-wide. */
+  focusServices?: string[];
+  focusDepth?: number;
+  /** Fit-to-screen scale cap. Omit for the readable 0.79 default; a small
+   *  embedded stage (chat) raises it so a small graph fills its box. */
+  fitScale?: number;
+  /** Keep the zoom in/out/fit controls in embedded mode (the chat wants them;
+   *  the dashboard-widget snapshot does not). Ignored on the full route, which
+   *  always shows them. */
+  zoomControls?: boolean;
+  /** Embedded (chat) look-back window in minutes. When set, the topology query
+   *  owns this window and ignores the global topbar picker + auto-refresh
+   *  ticker — the chat block owns its time like the traces/logs blocks. */
+  focusWindowMinutes?: number;
+}>();
 const route = useRoute();
 const router = useRouter();
 const layerKey = computed(() =>
@@ -102,7 +121,9 @@ const embedded = computed(() => Boolean(props.embedded));
 
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(
-  () => layers.value.find((l) => l.key === layerKey.value) ?? null,
+  // Case-insensitive: layer defs key on the uppercase OAP enum, but layerKey can
+  // arrive lowercased (e.g. the AI chat block passes spec.layer.toLowerCase()).
+  () => layers.value.find((l) => l.key.toUpperCase() === layerKey.value.toUpperCase()) ?? null,
 );
 const store = useSetupStore();
 const safeLayer = computed<LayerDef>(() => layer.value ?? {
@@ -133,7 +154,7 @@ const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.ro
 //     layer-overview graph
 //   - one or more entries = comma-joined and passed as `?service=` so the
 //     BFF seeds BFS from each selected service (multi-select)
-const focusServiceNames = ref<string[]>([]);
+const focusServiceNames = ref<string[]>(props.focusServices ?? []);
 const serviceName = computed<string | null>(() =>
   focusServiceNames.value.length === 0 ? null : focusServiceNames.value.join(','),
 );
@@ -164,11 +185,13 @@ function truncateLabel(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 2) + '…' : s;
 }
 
-const depth = ref<number>(2);
+const depth = ref<number>(props.focusDepth ?? 2);
+const focusWindowMinutes = computed<number | null>(() => props.focusWindowMinutes ?? null);
 const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
   layerKey,
   serviceName,
   depth,
+  focusWindowMinutes,
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
@@ -711,6 +734,7 @@ const { zoomT, fitToScreen, zoomBy } = useTopologyCanvas({
   nodeCount,
   nodePos,
   dragOverrides,
+  maxFitScale: props.fitScale,
 });
 
 // ── Smartscape hierarchy overlay — lazy-probed on node-select; chip on
@@ -742,14 +766,17 @@ function resolveNodePos(id: string): { cx: number; cy: number } | null {
 }
 // Mirror live pan/zoom into the overlay's snapshot — the overlay re-draws
 // the focused hex at its underlying topology position + scale, so it must
-// follow whatever pan/zoom the operator does while the overlay is up.
+// follow whatever pan/zoom the operator does while the overlay is up. The
+// !embedded guard is load-bearing: the store is a singleton, so an embedded
+// (chat) map's own fit/pan would otherwise yank a real page's open overlay.
 watch(zoomT, (z) => {
-  if (hierarchy.isOpen) hierarchy.updateZoom({ k: z.k, x: z.x, y: z.y });
+  if (!embedded.value && hierarchy.isOpen) hierarchy.updateZoom({ k: z.k, x: z.x, y: z.y });
 });
 // Tear down the overlay (and re-enable the ticker) on unmount — otherwise
-// leaving the tab while open would freeze refresh indefinitely.
+// leaving the tab while open would freeze refresh indefinitely. Guarded on
+// !embedded so dismissing a chat block never closes a real page's overlay.
 onBeforeUnmount(() => {
-  if (hierarchy.isOpen) hierarchy.close();
+  if (!embedded.value && hierarchy.isOpen) hierarchy.close();
 });
 </script>
 
@@ -1195,9 +1222,9 @@ onBeforeUnmount(() => {
 
         <!-- Floating zoom controls — top-right, mirror the map
              toolbar's affordance vocabulary (small ghost buttons).
-             Hidden in embedded (dashboard widget) mode — the snapshot
-             is non-interactive. -->
-        <div v-if="!embedded && layoutNodes.length > 0" class="sm-zoom-ctrls">
+             Hidden in embedded dashboard-widget mode (non-interactive
+             snapshot); the chat opts back in via `zoomControls`. -->
+        <div v-if="(!embedded || zoomControls) && layoutNodes.length > 0" class="sm-zoom-ctrls">
           <button class="sw-btn small" type="button" title="Zoom in (wheel up)" @click="zoomBy(1.25)">+</button>
           <button class="sw-btn small" type="button" title="Zoom out (wheel down)" @click="zoomBy(1 / 1.25)">−</button>
           <button class="sw-btn small" type="button" title="Fit to screen (double-click canvas)" @click="fitToScreen(true)">Fit</button>
