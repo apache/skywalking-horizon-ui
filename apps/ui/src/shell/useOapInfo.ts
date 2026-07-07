@@ -94,6 +94,11 @@ export function useOapInfo() {
    *  bootstrap rather than flashing on then disappearing. */
   const backend = computed<OapBackend>(() => info.value?.backend ?? 'unknown');
 
+  /** Resolved `query.overviewTopN` — the value the BFF substitutes for the
+   *  `{{topn}}` placeholder in Overview KPI MQE. Falls back to 100 (the
+   *  config default) until the info call lands. */
+  const overviewTopN = computed<number>(() => info.value?.overviewTopN ?? 100);
+
   /** Health status pill colour: ok / warn / err / unknown. */
   const healthState = computed<'ok' | 'warn' | 'err' | 'unknown'>(() => {
     if (!reachable.value) return 'err';
@@ -114,6 +119,7 @@ export function useOapInfo() {
     healthState,
     capabilities,
     backend,
+    overviewTopN,
     toServerTzString,
     refetch: q.refetch,
   };

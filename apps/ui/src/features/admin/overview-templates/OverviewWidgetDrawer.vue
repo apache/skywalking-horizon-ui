@@ -27,9 +27,11 @@
   description) instead of a real one.
 -->
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { OverviewDashboard, OverviewKpi, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
+import { useOapInfo } from '@/shell/useOapInfo';
 import { META_SEL } from './constants';
 
 defineProps<{
@@ -48,6 +50,17 @@ const emit = defineEmits<{
 }>();
 
 useEscapeToClose(() => true, () => emit('close'));
+
+// `{{topn}}` is the only MQE variable — the layer-wide top-N window the BFF
+// substitutes at query time. Surface its live value so authors know what the
+// raw placeholder means (and that it IS intentional, not a typo).
+const { overviewTopN } = useOapInfo();
+const topnHint = computed(
+  () =>
+    `{{topn}} → the layer-wide top-N window, replaced at query time with ` +
+    `HORIZON_QUERY_OVERVIEW_TOPN (currently ${overviewTopN.value}). ` +
+    `Use in a self-aggregating MQE, e.g. sum(top_n(service_cpm,{{topn}},DES,attr0='GENERAL')).`,
+);
 
 function widgetKindLabel(type: OverviewWidget['type']): string {
   switch (type) {
@@ -197,7 +210,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
 
       <div v-if="w.type === 'metric'" class="ot__row">
         <label class="ot__field ot__field--wide">
-          <span>MQE</span>
+          <span>MQE <span class="ot__hint" :title="topnHint">ⓘ</span></span>
           <MqeExpressionInput v-model="w.mqe" placeholder="service_cpm" title="Widget MQE" />
         </label>
         <label class="ot__field">
@@ -222,19 +235,18 @@ function onKpiStyleChange(k: OverviewKpi): void {
       </div>
 
       <template v-if="w.type === 'kpi-tile' || w.type === 'metric-composite'">
-        <div v-if="w.type === 'kpi-tile'" class="ot__row">
-          <label class="ot__field">
+        <!-- Toggles on one row (density). Aggregation mode — off (default):
+             each KPI's MQE self-aggregates the layer server-side — write
+             `sum|avg(top_n(<metric>,{{topn}},DES[,attr0='<layer>']))` and the
+             BFF fires it once. On: the KPIs are plain per-service metrics and
+             the BFF fans out + rolls up the top-N services page-side (for
+             series that can't be top_n-wrapped: cluster/meter metrics,
+             latest(...), ratios). -->
+        <div class="ot__row">
+          <label v-if="w.type === 'kpi-tile'" class="ot__field">
             <span>Show service count</span>
             <input type="checkbox" v-model="w.showCount" />
           </label>
-        </div>
-        <!-- Aggregation mode. Off (default): each KPI's MQE self-aggregates
-             the layer server-side — write `sum|avg(top_n(<metric>,{{topn}},
-             DES[,attr0='<layer>']))` and the BFF fires it once. On: the KPIs
-             are plain per-service metrics and the BFF fans out + rolls up the
-             top-N services page-side (for series that can't be top_n-wrapped:
-             cluster/meter metrics, latest(...), ratios). -->
-        <div class="ot__row">
           <label class="ot__field">
             <span>Aggregate on page (fan-out)</span>
             <input type="checkbox" v-model="w.aggregateOnPage" />
@@ -290,7 +302,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
                 </select>
               </label>
               <label v-if="(k.source ?? 'mqe') === 'mqe'" class="ot__field ot__field--full">
-                <span>MQE</span>
+                <span>MQE <span class="ot__hint" :title="topnHint">ⓘ</span></span>
                 <MqeExpressionInput v-model="k.mqe" title="KPI MQE" />
               </label>
               <p v-else class="ot__none">Value comes from the service count (listServices) — no MQE.</p>
@@ -409,6 +421,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
 }
 .ot__field input[type='checkbox'] { width: 14px; height: 14px; margin: 4px 0 0; cursor: pointer; }
 .ot__none { color: var(--sw-fg-3); font-size: 11px; }
+.ot__hint { cursor: help; color: var(--sw-accent, var(--sw-fg-2)); opacity: 0.75; text-transform: none; }
 
 .ot__meta {
   background: var(--sw-bg-2);

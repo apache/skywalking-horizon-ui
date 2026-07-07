@@ -126,6 +126,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
         zipkinUrl,
         zipkinReachable: zipkin.reachable,
         zipkinError: zipkin.error,
+        overviewTopN: cfg.query.overviewTopN,
       };
       return reply.send(body);
     } catch (err) {
@@ -137,6 +138,7 @@ export function registerOapInfoRoute(app: FastifyInstance, deps: InfoRouteDeps):
         zipkinUrl,
         zipkinReachable: zipkin.reachable,
         zipkinError: zipkin.error,
+        overviewTopN: cfg.query.overviewTopN,
       };
       return reply.status(200).send(body);
     }

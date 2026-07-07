@@ -77,6 +77,7 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_SESSION_COOKIE_NAME` | `horizon_sid` | string | Session cookie name. |
 | `HORIZON_SESSION_COOKIE_SECURE` | `false` | bool | Set `true` behind HTTPS. |
 | `HORIZON_QUERY_LANDING_SERVICE_CAP` | `100` | int | Max services a layer landing fetches metrics for per request. |
+| `HORIZON_QUERY_OVERVIEW_TOPN` | `100` | int | Top-N window the Overview KPI tiles' `top_n(...)` rollups use (the `{{topn}}` placeholder). Raise it only if a single layer holds more than 100 services and the tail matters to the aggregate. |
 | `HORIZON_SOURCEMAPS_ENABLED` | `true` | bool | Source-map upload / resolve capability. |
 | `HORIZON_SOURCEMAPS_MAX_FILE_BYTES` | `67108864` | int | Reject a `.map` larger than this (64 MiB). |
 | `HORIZON_SOURCEMAPS_MAX_TOTAL_BYTES` | `536870912` | int | In-memory map budget (512 MiB, LRU-evicted). |

@@ -57,6 +57,12 @@ export interface OapInfo {
    *  (query port can be up while Zipkin is off, and vice versa). */
   zipkinReachable?: boolean;
   zipkinError?: string;
+  /** Horizon's resolved `query.overviewTopN` (`HORIZON_QUERY_OVERVIEW_TOPN`,
+   *  default 100) — the value the BFF substitutes for the `{{topn}}`
+   *  placeholder in Overview KPI MQE. Surfaced so the Overview-templates
+   *  editor can show the live value in its `{{topn}}` hint. Always present
+   *  (a static Horizon config), independent of OAP reachability. */
+  overviewTopN?: number;
 }
 
 export interface OapCapabilities {
