@@ -409,13 +409,16 @@ function load(): Map<string, LayerTemplate> {
       }
       delete legacyComponents.profiling;
     }
-    // Header block: read the `layer-header` JSON key. Internal callers
-    // read `template.header`; we mirror it to `template.metrics` so
-    // callers reading the old field name keep working.
+    // Header block: read the `layer-header` JSON key, falling back to the
+    // legacy top-level `metrics` alias (custom / older templates still ship
+    // it — see the `LayerDef.metrics` doc). Internal callers read
+    // `template.header`; we mirror it back to `template.metrics` so callers
+    // reading the old field name keep working.
     const headerSrc = (parsed as unknown as Record<string, unknown>)['layer-header'] as
       | LayerHeaderConfig
       | undefined;
     if (headerSrc && !parsed.header) parsed.header = headerSrc;
+    if (!parsed.header && parsed.metrics) parsed.header = parsed.metrics;
     if (!parsed.header) parsed.header = { columns: [] };
     parsed.metrics = parsed.header;
 

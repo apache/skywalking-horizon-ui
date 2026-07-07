@@ -58,12 +58,26 @@ interface MqeRequest {
   isServiceCount?: boolean;
 }
 
+/** One landing call's worth of requests: the KPIs on one layer that share a
+ *  page-side aggregation `limit`. */
+interface LayerGroup {
+  layer: string;
+  /** Page-side top-N window (the `topN` sent to the landing route). Self-
+   *  aggregating columns ignore it; page-side (`aggregateOnPage`) widgets
+   *  aggregate over their top-`limit` services. */
+  limit: number;
+  reqs: MqeRequest[];
+}
+
 /**
- * Group every data-bound widget by its `layer`. Section-breaks, alarms,
- * and topology widgets are skipped (no aggregate to evaluate).
+ * Group every data-bound widget into landing calls keyed by
+ * (layer, page-limit). Section-breaks, alarms, and topology widgets are
+ * skipped (no aggregate). Grouping by limit — not just layer — keeps two
+ * page-aggregated widgets on the same layer with DIFFERENT `limit`s on
+ * separate calls, so neither is computed over the other's window.
  */
-function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
-  const out = new Map<string, MqeRequest[]>();
+function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
+  const out = new Map<string, LayerGroup>();
   for (const w of widgets) {
     const layer = w.layer;
     if (!layer) continue;
@@ -72,8 +86,8 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
     // aggregation. Service-count rows never fire an MQE, so the flag is
     // moot for them.
     const selfAggregate = !(w.aggregateOnPage ?? false);
+    const reqs: MqeRequest[] = [];
     if (w.type === 'metric' && w.mqe) {
-      const reqs = out.get(layer) ?? [];
       reqs.push({
         widgetId: w.id,
         mqe: w.mqe,
@@ -81,11 +95,7 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
         unit: w.unit,
         selfAggregate,
       });
-      out.set(layer, reqs);
-      continue;
-    }
-    if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && w.kpis) {
-      const reqs = out.get(layer) ?? [];
+    } else if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && w.kpis) {
       for (const k of w.kpis) {
         const isCount = k.source === 'service-count';
         reqs.push({
@@ -98,10 +108,18 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
           selfAggregate: selfAggregate && !isCount,
         });
       }
-      out.set(layer, reqs);
     }
+    if (reqs.length === 0) continue;
+    // Page-side widgets bucket by their own limit; self-aggregating widgets
+    // fire once and ignore topN, so they bucket at 1. Clamp to the route's
+    // 1..8 bound.
+    const limit = w.aggregateOnPage ? Math.min(8, Math.max(1, w.limit ?? 1)) : 1;
+    const key = `${layer}#${limit}`;
+    const g = out.get(key) ?? { layer, limit, reqs: [] };
+    g.reqs.push(...reqs);
+    out.set(key, g);
   }
-  return out;
+  return Array.from(out.values());
 }
 
 /**
@@ -132,7 +150,7 @@ export function useOverviewDashboard(idRef: Ref<string>) {
   );
 
   const widgets = computed<OverviewWidget[]>(() => dashboard.value?.widgets ?? []);
-  const layerRequests = computed(() => groupByLayer(widgets.value));
+  const layerGroups = computed(() => groupRequests(widgets.value));
 
   // The topbar time picker is part of every overview query so flipping
   // the time / cold pills refires the per-layer landing calls instead
@@ -146,46 +164,27 @@ export function useOverviewDashboard(idRef: Ref<string>) {
     endMs: timeRange.range.endMs,
   }));
 
-  // One landing call per referenced layer. Bundling all that layer's
-  // MQEs in one request keeps the round-trip count to N, where N is the
-  // distinct layer count in the dashboard — usually 1–3.
+  // One landing call per (layer, page-limit) group — usually 1–3 total.
   const layerQueries = useQueries({
     queries: computed(() => {
-      const entries = Array.from(layerRequests.value.entries());
       const range = rangeKey.value;
-      return entries.map(([layer, reqs]) => ({
-        // Include the MQE column set (`reqs`), not just the overview id:
-        // a remote sync or preview edit that keeps the id but changes a
-        // widget's MQE must refire, or the cache serves stale data.
-        queryKey: ['overview-dashboard-data', idRef.value, layer, range, JSON.stringify(reqs)],
+      return layerGroups.value.map((g) => ({
+        // Key on the MQE column set (`reqs`) + the group's limit, not just
+        // the overview id: a remote sync or preview edit that keeps the id
+        // but changes a widget's MQE / limit must refire.
+        queryKey: ['overview-dashboard-data', idRef.value, g.layer, g.limit, range, JSON.stringify(g.reqs)],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
            * a synthetic MQE upstream. They still ride in `reqs` so
            * the value-pickup pass below can inject the count. */
-          const mqeReqs = reqs.filter((r) => !r.isServiceCount);
-          // Page-side aggregation window for this layer's fan-out columns
-          // (aggregateOnPage widgets): sum/avg over the top-`limit` services.
-          // Self-aggregating columns ignore topN — they roll up server-side.
-          // Composites default to 1 (single-entity, e.g. a K8s cluster); a
-          // multi-replica control plane sets a higher `limit` (istiod → 5).
-          // Clamp to the route's 1..8 bound. alarms/topology `limit` is
-          // unrelated, so scope to aggregateOnPage widgets only.
-          const topN = Math.min(
-            8,
-            Math.max(
-              1,
-              ...widgets.value
-                .filter((w) => w.layer === layer && w.aggregateOnPage)
-                .map((w) => w.limit ?? 1),
-            ),
-          );
-          // priority + style are required by the LandingConfig type
-          // but ignored by the BFF route — the client only forwards
-          // topN/orderBy/columns. Stubbed to satisfy the type.
+          const mqeReqs = g.reqs.filter((r) => !r.isServiceCount);
+          // priority is required by the LandingConfig type but ignored by
+          // the BFF route (it forwards only topN/orderBy/columns). topN is
+          // the group's page-side window; self-aggregating columns ignore it.
           const cfg: LandingConfig = {
             priority: 0,
-            topN,
+            topN: g.limit,
             // orderBy keys the ranking/sort by COLUMN id (`w_<idx>`), not the
             // raw MQE — the BFF stores per-row metrics under the column key.
             orderBy: 'w_0',
@@ -198,9 +197,9 @@ export function useOverviewDashboard(idRef: Ref<string>) {
               selfAggregate: r.selfAggregate,
             })),
           };
-          return bffClient.layer.landing(layer, cfg, range).then((res) => ({
-            layer,
-            reqs,
+          return bffClient.layer.landing(g.layer, cfg, range).then((res) => ({
+            layer: g.layer,
+            reqs: g.reqs,
             mqeReqs,
             aggregates: res.aggregates,
           }));

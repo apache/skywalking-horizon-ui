@@ -251,7 +251,15 @@ function buildMqeFragment(aliasName: string, m: MqeRequest, w: Window, coldStage
 
 /** Fragment for a self-aggregating column — the MQE (`sum|avg(top_n(...))`)
  *  already rolls the whole layer up server-side, so the entity carries no
- *  `serviceName`: OAP's `top_n` ranks across every service of the scope. */
+ *  `serviceName`: OAP's `top_n` ranks across every service of the scope.
+ *
+ *  `normal: true` is safe here even for the VIRTUAL_* layers whose services
+ *  are `normal: false`: `top_n` is a cross-entity scan over the METRIC's own
+ *  entities (`database_access_*` etc. belong only to virtual services), and
+ *  it ignores the query entity's `normal` flag. Verified against the demo —
+ *  `sum(top_n(database_access_cpm,100,DES))` returns the same value with
+ *  `normal: true` and `normal: false`. (The flag only matters for a
+ *  single-entity metric query that names one service.) */
 function buildAggFragment(aliasName: string, expression: string, w: Window, coldStage: boolean): string {
   const coldFrag = coldStage ? ', coldStage: true' : '';
   return (

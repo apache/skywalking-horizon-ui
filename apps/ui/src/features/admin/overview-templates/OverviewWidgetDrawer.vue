@@ -62,6 +62,14 @@ const topnHint = computed(
     `HORIZON_QUERY_OVERVIEW_TOPN (currently ${overviewTopN.value}). ` +
     `Use in a self-aggregating MQE, e.g. sum(top_n(service_cpm,{{topn}},DES,attr0='GENERAL')).`,
 );
+const aggOnPageHint =
+  'On: Horizon queries the metric per service and sums/averages the top-N of them here — for ' +
+  "metrics a server-side top_n() can't wrap (cluster / meter series, latest(...), ratios). " +
+  "Off (default): the KPI's own MQE self-aggregates the whole layer server-side (one top_n(...) expression).";
+const topNServicesHint =
+  'How many of the layer’s services feed the page-side aggregate — ranked by the FIRST KPI’s ' +
+  'metric, highest first (no separate ranking MQE; the BFF sorts the per-service rows). A ' +
+  'single-entity layer (one cluster / one control plane) is unaffected; raise it for a multi-instance layer.';
 
 function widgetKindLabel(type: OverviewWidget['type']): string {
   switch (type) {
@@ -250,10 +258,10 @@ function onKpiStyleChange(k: OverviewKpi): void {
           </label>
           <label class="ot__field ot__field--check">
             <input type="checkbox" v-model="w.aggregateOnPage" />
-            <span>Aggregate on page (fan-out)</span>
+            <span>Aggregate on page <WidgetTip :tip="aggOnPageHint" /></span>
           </label>
           <label v-if="w.aggregateOnPage" class="ot__field">
-            <span>Top-N services</span>
+            <span>Top-N services <WidgetTip :tip="topNServicesHint" /></span>
             <input v-model.number="w.limit" type="number" min="1" max="8" class="ot__in ot__in--num" />
           </label>
         </div>
