@@ -36,6 +36,7 @@
       "layer": "MESH_CP",
       "aggregateOnPage": true,
       "limit": 5,
+      "rankBy": { "kpi": 1 },
       "span": 8,
       "rowSpan": 2,
       "kpis": [

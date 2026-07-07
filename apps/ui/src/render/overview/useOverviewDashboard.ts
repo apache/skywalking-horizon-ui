@@ -58,26 +58,47 @@ interface MqeRequest {
   isServiceCount?: boolean;
 }
 
-/** One landing call's worth of requests: the KPIs on one layer that share a
- *  page-side aggregation `limit`. */
+/** One landing call's worth of requests. */
 interface LayerGroup {
   layer: string;
   /** Page-side top-N window (the `topN` sent to the landing route). Self-
-   *  aggregating columns ignore it; page-side (`aggregateOnPage`) widgets
-   *  aggregate over their top-`limit` services. */
+   *  aggregating groups ignore it (their columns fire once). */
   limit: number;
   reqs: MqeRequest[];
+  /** Page-side ranking basis. `column` = sort by an existing column index;
+   *  `mqe` = a standalone ranking metric (probed per service, sorted on,
+   *  NOT displayed). Absent → rank by the first column. */
+  rank?: { column?: number; mqe?: string };
+}
+
+/** Resolve a page-side widget's `rankBy` to a landing-column reference. An
+ *  `mqe` passes straight through; a KPI index is mapped to its position
+ *  among the widget's MQE (non-service-count) KPIs — a `service-count` KPI
+ *  can't be ranked by, so that falls back to the first column. */
+function resolveRank(w: OverviewWidget): LayerGroup['rank'] {
+  const rb = w.rankBy;
+  if (!rb) return undefined;
+  if (rb.mqe) return { mqe: rb.mqe };
+  if (rb.kpi != null && w.kpis) {
+    const target = w.kpis[rb.kpi];
+    if (target && (target.source ?? 'mqe') === 'mqe') {
+      const column = w.kpis.slice(0, rb.kpi).filter((k) => (k.source ?? 'mqe') === 'mqe').length;
+      return { column };
+    }
+  }
+  return undefined;
 }
 
 /**
- * Group every data-bound widget into landing calls keyed by
- * (layer, page-limit). Section-breaks, alarms, and topology widgets are
- * skipped (no aggregate). Grouping by limit — not just layer — keeps two
- * page-aggregated widgets on the same layer with DIFFERENT `limit`s on
- * separate calls, so neither is computed over the other's window.
+ * Group data-bound widgets into landing calls. Self-aggregating columns
+ * batch by layer (they fire once and ignore topN/ranking). Each page-side
+ * (`aggregateOnPage`) widget gets its OWN call — it carries its own `limit`
+ * AND ranking, which a shared per-layer call couldn't honour. Section-
+ * breaks, alarms, and topology widgets are skipped (no aggregate).
  */
 function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
-  const out = new Map<string, LayerGroup>();
+  const selfByLayer = new Map<string, LayerGroup>();
+  const pageGroups: LayerGroup[] = [];
   for (const w of widgets) {
     const layer = w.layer;
     if (!layer) continue;
@@ -110,16 +131,15 @@ function groupRequests(widgets: OverviewWidget[]): LayerGroup[] {
       }
     }
     if (reqs.length === 0) continue;
-    // Page-side widgets bucket by their own limit; self-aggregating widgets
-    // fire once and ignore topN, so they bucket at 1. Clamp to the route's
-    // 1..8 bound.
-    const limit = w.aggregateOnPage ? Math.min(8, Math.max(1, w.limit ?? 1)) : 1;
-    const key = `${layer}#${limit}`;
-    const g = out.get(key) ?? { layer, limit, reqs: [] };
-    g.reqs.push(...reqs);
-    out.set(key, g);
+    if (w.aggregateOnPage) {
+      pageGroups.push({ layer, limit: Math.min(8, Math.max(1, w.limit ?? 1)), reqs, rank: resolveRank(w) });
+    } else {
+      const g = selfByLayer.get(layer) ?? { layer, limit: 1, reqs: [] };
+      g.reqs.push(...reqs);
+      selfByLayer.set(layer, g);
+    }
   }
-  return Array.from(out.values());
+  return [...selfByLayer.values(), ...pageGroups];
 }
 
 /**
@@ -172,31 +192,38 @@ export function useOverviewDashboard(idRef: Ref<string>) {
         // Key on the MQE column set (`reqs`) + the group's limit, not just
         // the overview id: a remote sync or preview edit that keeps the id
         // but changes a widget's MQE / limit must refire.
-        queryKey: ['overview-dashboard-data', idRef.value, g.layer, g.limit, range, JSON.stringify(g.reqs)],
+        queryKey: ['overview-dashboard-data', idRef.value, g.layer, g.limit, JSON.stringify(g.rank ?? null), range, JSON.stringify(g.reqs)],
         queryFn: () => {
           /* Service-count KPIs read from `aggregates.serviceCount`
            * — strip them from the MQE column list to avoid sending
            * a synthetic MQE upstream. They still ride in `reqs` so
            * the value-pickup pass below can inject the count. */
           const mqeReqs = g.reqs.filter((r) => !r.isServiceCount);
+          // Columns are keyed by COLUMN id (`w_<idx>`), not the raw MQE — the
+          // BFF stores per-row metrics under the column key.
+          const columns: LandingConfig['columns'] = mqeReqs.map((r, i) => ({
+            metric: `w_${i}`,
+            label: r.kpiLabel ?? r.widgetId,
+            mqe: r.mqe,
+            aggregation: r.aggregation,
+            unit: r.unit,
+            selfAggregate: r.selfAggregate,
+          }));
+          // Ranking basis for the page-side top-N slice (default: first
+          // column). `rank.column` sorts by an existing KPI column; `rank.mqe`
+          // appends a ranking-ONLY column — fan-out probed + sorted on, but
+          // never read back (the value pickup only maps w_0..w_{n-1}).
+          let orderBy = 'w_0';
+          if (g.rank?.mqe) {
+            const rankKey = `w_${mqeReqs.length}`;
+            columns.push({ metric: rankKey, label: '__rank', mqe: g.rank.mqe, aggregation: 'sum', selfAggregate: false });
+            orderBy = rankKey;
+          } else if (g.rank?.column != null) {
+            orderBy = `w_${g.rank.column}`;
+          }
           // priority is required by the LandingConfig type but ignored by
-          // the BFF route (it forwards only topN/orderBy/columns). topN is
-          // the group's page-side window; self-aggregating columns ignore it.
-          const cfg: LandingConfig = {
-            priority: 0,
-            topN: g.limit,
-            // orderBy keys the ranking/sort by COLUMN id (`w_<idx>`), not the
-            // raw MQE — the BFF stores per-row metrics under the column key.
-            orderBy: 'w_0',
-            columns: mqeReqs.map((r, i) => ({
-              metric: `w_${i}`,
-              label: r.kpiLabel ?? r.widgetId,
-              mqe: r.mqe,
-              aggregation: r.aggregation,
-              unit: r.unit,
-              selfAggregate: r.selfAggregate,
-            })),
-          };
+          // the BFF route (it forwards only topN/orderBy/columns).
+          const cfg: LandingConfig = { priority: 0, topN: g.limit, orderBy, columns };
           return bffClient.layer.landing(g.layer, cfg, range).then((res) => ({
             layer: g.layer,
             reqs: g.reqs,

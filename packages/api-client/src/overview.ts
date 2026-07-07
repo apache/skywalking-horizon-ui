@@ -141,6 +141,17 @@ export interface OverviewWidget {
    *  suits single-entity composites like a K8s cluster; set higher for
    *  multi-instance control planes, e.g. 5 for a multi-replica istiod). */
   limit?: number;
+  /** For `aggregateOnPage` widgets — how the top-`limit` services are RANKED
+   *  before the aggregate. Default (absent): by the FIRST KPI. Set it when
+   *  the first KPI is a `LABELED_VALUE` metric (a poor ranking basis) or to
+   *  rank by something not shown as a KPI. `mqe` wins over `kpi`. */
+  rankBy?: {
+    /** Rank by an existing KPI, 0-based index into `kpis` (must be an `mqe`
+     *  KPI, not `service-count`). */
+    kpi?: number;
+    /** Rank by a standalone MQE, not shown as a KPI. */
+    mqe?: string;
+  };
   /** Grid span in 12-col grid. */
   span?: number;
   /** Grid row span. */

@@ -108,6 +108,17 @@ function parseKpis(raw: unknown): OverviewKpi[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+/** Page-side ranking override — `{ kpi?: number, mqe?: string }`. Dropped
+ *  when neither is present so absent stays absent. */
+function parseRankBy(raw: unknown): { kpi?: number; mqe?: string } | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const kpi = typeof r.kpi === 'number' && Number.isInteger(r.kpi) && r.kpi >= 0 ? r.kpi : undefined;
+  const mqe = isString(r.mqe) ? r.mqe : undefined;
+  if (kpi === undefined && mqe === undefined) return undefined;
+  return { ...(kpi !== undefined ? { kpi } : {}), ...(mqe ? { mqe } : {}) };
+}
+
 function validate(raw: unknown, file: string): OverviewDashboard | null {
   if (!raw || typeof raw !== 'object') {
     console.warn(`overview/${file}: not an object, skipped`);
@@ -155,6 +166,7 @@ function validate(raw: unknown, file: string): OverviewDashboard | null {
       showCount: w.showCount === true ? true : undefined,
       aggregateOnPage: w.aggregateOnPage === true ? true : undefined,
       limit: typeof w.limit === 'number' ? w.limit : undefined,
+      rankBy: parseRankBy(w.rankBy),
       span: typeof w.span === 'number' ? w.span : undefined,
       rowSpan: typeof w.rowSpan === 'number' ? w.rowSpan : undefined,
     })),
