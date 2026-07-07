@@ -25,7 +25,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import type { NativeTraceListRow, ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
+import type { NativeTraceListRow, ZipkinSpan, ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
@@ -235,9 +235,21 @@ watch([cService, cLookback, cLimit, cSpan, cRemote, cAnno], () => {
   selectedTraceId.value = null;
 });
 
-// Full Zipkin span set for the selected trace — rendered by the shared
-// ZipkinTraceDetailCard (waterfall + KPIs + span modal).
-const { spans: selectedSpans, isLoading: selectedLoading } = useZipkinTrace(selectedTraceId);
+// The selected trace's spans already ride on the list row (Zipkin's /traces
+// ships the full span tree), so the inline detail renders from it with no
+// extra query. Fall back to the by-id fetch only when a selected id isn't in
+// the current list — defensive; the row-click path always has it.
+const selectedRowSpans = computed<ZipkinSpan[] | null>(() => {
+  const id = selectedTraceId.value;
+  if (!id) return null;
+  return traces.value.find((r) => r.traceId === id)?.spans ?? null;
+});
+const fallbackTraceId = computed<string | null>(() =>
+  selectedTraceId.value && !selectedRowSpans.value ? selectedTraceId.value : null,
+);
+const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId);
+const selectedSpans = computed<ZipkinSpan[]>(() => selectedRowSpans.value ?? fetchedSpans.value);
+const selectedLoading = computed<boolean>(() => Boolean(fallbackTraceId.value) && fetchLoading.value);
 
 // Esc cascade: the detail card owns the span modal — close it first
 // (via the card's `closeSpanModal`), then the inline detail.

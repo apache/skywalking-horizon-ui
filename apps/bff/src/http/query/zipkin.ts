@@ -58,10 +58,9 @@ export interface ZipkinRouteDeps {
   fetch?: FetchLike;
 }
 
-/** Derive a one-row summary (`ZipkinTraceListRow`) from a trace's
- *  full span array. Zipkin's REST list endpoint returns the full span
- *  set per trace — the SPA's list view doesn't need every span, just
- *  the root + counts. */
+/** Derive the summary fields (`ZipkinTraceListRow` minus `spans`) from a
+ *  trace's full span array — the root entry + counts. The caller attaches
+ *  the spans themselves so the inline detail can render from the list. */
 function summariseTrace(spans: ZipkinSpan[]): ZipkinTraceListRow {
   // Root = span with no parent. Falls back to the earliest span when
   // every span has a parentId (broken trace).
@@ -187,16 +186,16 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
           limit,
         },
       );
-      // Zipkin's `/traces` returns `Array<Array<Span>>` — one inner
-      // array per trace. Compress each into a `ZipkinTraceListRow`
-      // (root summary + counts) so the SPA's list view doesn't have
-      // to ship the full span tree just to render rows. The detail
-      // route serves the full spans for the popout.
+      // Zipkin's `/traces` returns `Array<Array<Span>>` — one inner array
+      // per trace, spans included. Summarise the root for the list row AND
+      // carry the spans through, so the inline detail renders without a
+      // redundant `/trace/{id}` re-query. (The `/trace/{id}` route stays for
+      // the paste-an-id / deep-link popout, which has no list row.)
       const raw = Array.isArray(body) ? (body as ZipkinSpan[][]) : [];
-      const summaries: ZipkinTraceListRow[] = raw.map(summariseTrace);
+      const rows: ZipkinTraceListRow[] = raw.map((spans) => ({ ...summariseTrace(spans), spans }));
       const response: ZipkinTraceListResponse = {
         source: 'zipkin',
-        traces: summaries,
+        traces: rows,
         reachable: true,
       };
       return reply.code(status).send(response);

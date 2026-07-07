@@ -22,6 +22,7 @@ The version line is shared by every package in the monorepo (apps + shared packa
 ### Traces & logs
 
 - **Custom time ranges on the Traces and Logs tabs now return results when your browser and the OAP server sit in different timezones.** A custom range (and the metric→trace drill's centered window) was sent as a browser-local wall-clock string that the server re-read in its own timezone — so on a UTC-container deployment the window shifted by your UTC offset and came back empty, while the rolling presets kept working. Both paths now send absolute timestamps and the server applies the OAP timezone offset, consistent with every other query surface.
+- **Opening a Zipkin trace's spans is now instant — no second query to OAP.** On a Zipkin-tracing layer (mesh / Kubernetes), clicking a trace in the results list rendered its span waterfall by re-fetching the trace by id — even though Zipkin's list response already contained every span. The list now carries those spans through, so the waterfall opens immediately from what's already on screen, one round-trip lighter. Opening a trace by a pasted id or a shared deep link still fetches it directly.
 
 ### Deployment & configuration
 

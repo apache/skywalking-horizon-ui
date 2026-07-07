@@ -184,6 +184,11 @@ export interface ZipkinTraceListRow {
   duration: number | null;
   spanCount: number;
   errorCount: number;
+  /** The trace's full span tree. Zipkin's `/traces` already ships every
+   *  span per trace, so the list route carries them through and the inline
+   *  detail renders without a second `/trace/{id}` round-trip (mirrors
+   *  native `queryTraces`). Optional — the AI-assistant list path omits it. */
+  spans?: ZipkinSpan[];
 }
 
 export interface ZipkinTraceListResponse {
