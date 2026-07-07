@@ -304,8 +304,11 @@ function onKpiStyleChange(k: OverviewKpi): void {
               </label>
               <label class="ot__field ot__field--full">
                 <span>Source</span>
-                <select v-model="k.source" class="ot__in">
-                  <option :value="undefined">mqe</option>
+                <select
+                  :value="k.source ?? 'mqe'"
+                  class="ot__in"
+                  @change="k.source = ($event.target as HTMLSelectElement).value as OverviewKpi['source']"
+                >
                   <option value="mqe">mqe</option>
                   <option value="service-count">service-count</option>
                 </select>
