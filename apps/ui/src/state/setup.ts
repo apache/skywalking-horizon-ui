@@ -23,7 +23,6 @@ import type {
   LayerCaps,
   LayerConfig,
   LayerMetricsConfig,
-  LayerOverviewConfig,
   LayerSlots,
 } from '@skywalking-horizon-ui/api-client';
 import {
@@ -80,7 +79,6 @@ function defaultAggregationFor(metricKey: string): AggregationKind {
 export function defaultLandingFor(
   layerKey: string,
   fromHeader?: LayerMetricsConfig,
-  fromOverview?: LayerOverviewConfig,
 ): LandingConfig {
   // ---- Per-layer page header (service-list columns + default sort).
   //      Drives the per-layer Service page's picker table. Overview is
@@ -117,74 +115,11 @@ export function defaultLandingFor(
     headerCols[0]?.metric ??
     defaultOrderByForLayer(layerKey);
 
-  // ---- Overview tile groups. Each group becomes one tile on the
-  //      Overview strip with its own title + size. Metrics inside a
-  //      group are still self-contained (mqe / label / aggregation),
-  //      promoted into synthetic landing columns so the BFF batches
-  //      every Overview MQE in the same query. ----
-  let counter = 0;
-  const ovCols: LandingConfig['columns'] = [];
-  const overviewGroups: NonNullable<LandingConfig['overviewGroups']> = [];
-  const sourceGroups = fromOverview?.groups ??
-    (fromOverview?.metrics && fromOverview.metrics.length > 0
-      ? [{ title: '', size: 'auto' as const, metrics: fromOverview.metrics }]
-      : []);
-  for (const g of sourceGroups) {
-    const ids: string[] = [];
-    for (const m of g.metrics) {
-      const id = m.id ?? `ov_${counter++}`;
-      // Dedupe across groups: if two groups reference the same id, the
-      // column lands once and both groups share the result.
-      if (!ovCols.some((c) => c.metric === id)) {
-        ovCols.push({
-          metric: id,
-          label: m.label,
-          ...(m.tip ? { tip: m.tip } : {}),
-          ...(m.unit ? { unit: m.unit } : {}),
-          mqe: m.mqe,
-          aggregation: m.aggregation ?? defaultAggregationFor(id),
-          ...(m.scale !== undefined ? { scale: m.scale } : {}),
-          ...(m.precision !== undefined ? { precision: m.precision } : {}),
-        });
-      }
-      ids.push(id);
-    }
-    overviewGroups.push({
-      title: g.title ?? '',
-      size: g.size === 'square' ? 'square' : 'auto',
-      metricIds: ids,
-    });
-  }
-  const ovIds = ovCols.map((c) => c.metric);
-
-  // Combine: header columns first (so order-by lookups stay stable),
-  // then Overview metrics. Duplicates collapse — Overview wins because
-  // it carries the operator's intent for the tile.
-  const combined: LandingConfig['columns'] = [];
-  for (const c of headerCols) {
-    if (!ovIds.includes(c.metric)) combined.push(c);
-  }
-  for (const c of ovCols) combined.push(c);
-
   return {
     priority: defaultPriority(layerKey),
     topN: 5,
     orderBy,
-    columns: combined,
-    // The original header-column set, preserved here so the LayerShell
-    // KPI strip can render ONLY these (the combined `columns` above
-    // also carries overview-promoted entries which would otherwise
-    // bleed into the header — wrong for so11y_* layers whose overview
-    // metrics are SERVICE_INSTANCE-only and show as `—` on the
-    // Service page header).
-    headerColumns: headerCols,
-    // Flat list of overview metric ids (legacy back-compat for any
-    // code path still reading it). Same set, flattened from groups.
-    overviewMetrics: ovIds.length > 0 ? ovIds : [orderBy],
-    overviewGroups: overviewGroups.length > 0
-      ? overviewGroups
-      : [{ title: '', size: 'auto', metricIds: [orderBy] }],
-    style: 'table',
+    columns: headerCols,
   };
 }
 
@@ -194,13 +129,12 @@ export function defaultLayerConfig(
     slots: LayerSlots;
     caps: LayerCaps;
     metrics?: LayerMetricsConfig;
-    overview?: LayerOverviewConfig;
   },
 ): LayerConfig {
   return {
     slots: { ...defaults.slots },
     caps: { ...defaults.caps },
-    landing: defaultLandingFor(layerKey, defaults.metrics, defaults.overview),
+    landing: defaultLandingFor(layerKey, defaults.metrics),
   };
 }
 
@@ -230,7 +164,6 @@ export const useSetupStore = defineStore('setup', () => {
       slots: LayerSlots;
       caps: LayerCaps;
       metrics?: LayerMetricsConfig;
-      overview?: LayerOverviewConfig;
     },
   ): LayerConfig {
     let cfg = configs[layerKey];

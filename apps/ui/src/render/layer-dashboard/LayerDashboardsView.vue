@@ -99,8 +99,8 @@ function cardText(w: { id: string; format?: MetricFormat; valueMap?: Record<stri
   return fmtMetricAs(v, w.format);
 }
 const safeCfg = computed(() => {
-  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [], style: 'table' as const };
-  return store.ensure(layer.value.key, { slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics, overview: layer.value.overview }).landing;
+  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [] };
+  return store.ensure(layer.value.key, { slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics }).landing;
 });
 // Global time-range — picker change refires the landing rollup
 // AND the widget batch via queryKey. Each downstream control

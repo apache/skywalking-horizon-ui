@@ -85,9 +85,9 @@ const safeLayer = computed<LayerDef>(() => layer.value ?? {
   serviceCount: -1, active: false, level: null, slots: {}, caps: {},
 });
 const safeCfg = computed(() => {
-  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [], style: 'table' as const };
+  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [] };
   return store.ensure(layer.value.key, {
-    slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics, overview: layer.value.overview,
+    slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);

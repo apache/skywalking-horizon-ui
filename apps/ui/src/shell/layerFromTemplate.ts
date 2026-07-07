@@ -36,7 +36,6 @@ export interface LayerTemplateContent {
   components?: Record<string, boolean | undefined>;
   slots?: LayerDef['slots'];
   metrics?: LayerDef['metrics'];
-  overview?: LayerDef['overview'];
   naming?: LayerDef['naming'];
   traces?: LayerDef['traces'];
   /** Only the `instanceTopology` presence is read here, to gate the
@@ -93,9 +92,7 @@ export function layerContentToDef(t: LayerTemplateContent): LayerDef {
     documentLink: t.documentLink,
     slots: t.slots ?? {},
     caps: componentsToCaps(t.components, t.topology, t.deployment),
-    header: t.metrics,
     metrics: t.metrics,
-    overview: t.overview,
     naming: t.naming,
     traces: t.traces,
   };

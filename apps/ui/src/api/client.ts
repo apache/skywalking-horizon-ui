@@ -37,7 +37,6 @@ import type {
   DashboardWidget,
   DslDebuggingStatus,
   EndpointDependencyConfig,
-  LayerOverviewConfig,
   LocalState,
   MetricRow,
   ProcessTopologyConfig,
@@ -333,10 +332,6 @@ export interface AdminLayerTemplate {
       precision?: number;
     }>;
   };
-  /** Overview-tile config (group list). Edited on the Overview-templates
-   *  admin, not here — surfaced for the translation preview + so a
-   *  round-trip save preserves it. */
-  overview?: LayerOverviewConfig;
   widgets: DashboardWidget[];
   /** Per-scope widget sets (keyed by AdminScope); `widgets` is the legacy
    *  service-scope fallback. */

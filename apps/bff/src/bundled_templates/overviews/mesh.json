@@ -21,9 +21,9 @@
       "layer": "MESH",
       "showCount": true,
       "kpis": [
-        { "label": "RPM", "mqe": "service_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "P95", "mqe": "service_percentile{p='95'}", "unit": "ms", "aggregation": "avg" },
-        { "label": "SLA", "mqe": "service_sla/100", "unit": "%", "aggregation": "avg" }
+        { "label": "RPM", "mqe": "sum(top_n(service_cpm,{{topn}},DES,attr0='MESH'))", "unit": "rpm" },
+        { "label": "Latency", "mqe": "avg(top_n(service_resp_time,{{topn}},DES,attr0='MESH'))", "unit": "ms" },
+        { "label": "SLA", "mqe": "avg(top_n(service_sla,{{topn}},DES,attr0='MESH'))/100", "unit": "%" }
       ],
       "span": 4,
       "rowSpan": 2
@@ -34,6 +34,8 @@
       "tip": "xDS push count + reject errors + the layer's service count.",
       "type": "metric-composite",
       "layer": "MESH_CP",
+      "aggregateOnPage": true,
+      "limit": 5,
       "span": 8,
       "rowSpan": 2,
       "kpis": [
@@ -84,6 +86,7 @@
       "tip": "Nodes / namespaces / workloads + cluster-wide CPU, memory, and disk usage.",
       "type": "metric-composite",
       "layer": "K8S",
+      "aggregateOnPage": true,
       "span": 12,
       "rowSpan": 3,
       "kpis": [

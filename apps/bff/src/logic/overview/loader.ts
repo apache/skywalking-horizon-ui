@@ -153,6 +153,7 @@ function validate(raw: unknown, file: string): OverviewDashboard | null {
       cols: typeof w.cols === 'number' ? w.cols : undefined,
       kpis: parseKpis(w.kpis),
       showCount: w.showCount === true ? true : undefined,
+      aggregateOnPage: w.aggregateOnPage === true ? true : undefined,
       limit: typeof w.limit === 'number' ? w.limit : undefined,
       span: typeof w.span === 'number' ? w.span : undefined,
       rowSpan: typeof w.rowSpan === 'number' ? w.rowSpan : undefined,

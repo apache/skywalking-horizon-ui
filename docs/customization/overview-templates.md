@@ -82,6 +82,14 @@ The 72 px row height is tuned for KPI tile content; widgets that need more verti
 | `mqe`, `unit`, `aggregation` | Metric-specific fields. |
 | `cols` | Section-break column count for following widgets. |
 | `kpis`, `showCount`, `limit` | Type-specific fields described below. |
+| `aggregateOnPage` | Data widgets only. `false` (default): each KPI's expression already rolls the whole layer up (see *Aggregation modes*). `true`: the KPIs are plain per-service metrics and Horizon aggregates the top-`limit` services itself. |
+
+## Aggregation modes
+
+An Overview KPI reports one number for a whole layer (e.g. "General services · RPM"). There are two ways to get there, chosen per widget with `aggregateOnPage`:
+
+- **Server-side (default, `aggregateOnPage` omitted).** The KPI's `mqe` is written to aggregate the layer itself — `sum(top_n(<metric>,{{topn}},DES[,attr0='<layer>']))` for a sum, `avg(top_n(…))` for an average. `top_n` ranks every service in the layer and the outer `sum`/`avg` collapses them to one value; the `{{topn}}` placeholder is filled from the `HORIZON_QUERY_OVERVIEW_TOPN` setting (default 100). `attr0='<layer>'` narrows a metric that several layers share (e.g. `service_cpm` on both `GENERAL` and `MESH`) to the tile's own layer. This is the right choice for standard service metrics.
+- **Page-side (`aggregateOnPage: true`, with `limit`).** Horizon evaluates the plain metric across the layer's services and sums/averages the top-`limit` of them. Use it for metrics that can't be wrapped in `top_n` — single-entity cluster or meter series, `latest(...)` totals, and ratios (the Kubernetes cluster-capacity and Istio pilot composites). `limit` defaults to `1` (fine for a single-entity cluster); raise it for a multi-instance control plane (the bundled Istio pilot tile uses `5`).
 
 ## `OverviewKpi`
 
@@ -92,7 +100,7 @@ Used by `kpi-tile` and `metric-composite`:
 | `label` | Row label. |
 | `mqe` | Required when `source === 'mqe'` (the default). |
 | `unit` | Unit suffix. |
-| `aggregation` | `sum` for throughput / count; `avg` for ratios and rates. |
+| `aggregation` | Only used by `aggregateOnPage` widgets — `sum` for throughput / count, `avg` for ratios and rates. A server-side KPI carries its aggregation inside the `mqe` instead. |
 | `style` | `number` (default) or `progress-bar`. |
 | `max` | Required when `style === 'progress-bar'` — the 100% value. |
 | `source` | `mqe` (default) or `service-count` — the latter reads the layer's service count from the menu response instead of evaluating MQE. |
@@ -130,23 +138,20 @@ Single scalar tile. The MQE collapses to one number (here, `sum` over the time w
   "rowSpan": 3,
   "kpis": [
     {
-      "label": "Apdex",
-      "mqe": "avg(service_apdex/10000)",
-      "aggregation": "avg",
-      "style": "progress-bar",
-      "max": 1
+      "label": "RPM",
+      "mqe": "sum(top_n(service_cpm,{{topn}},DES,attr0='GENERAL'))",
+      "unit": "rpm"
     },
     {
-      "label": "P95",
-      "mqe": "avg(service_percentile{p='95'})",
-      "unit": "ms",
-      "aggregation": "avg"
+      "label": "SLA",
+      "mqe": "avg(top_n(service_sla,{{topn}},DES,attr0='GENERAL'))/100",
+      "unit": "%"
     }
   ]
 }
 ```
 
-`showCount: true` adds a service-count header row above the KPIs.
+`showCount: true` adds a service-count header row above the KPIs. The KPIs are server-side aggregated (see *Aggregation modes*): each `mqe` rolls the whole `GENERAL` layer up, so the tile shows the layer total / average, not one service.
 
 ### `metric-composite` — mixed number + bar grid
 
@@ -156,6 +161,7 @@ Single scalar tile. The MQE collapses to one number (here, `sum` over the time w
   "title": "Cluster capacity & utilisation",
   "type": "metric-composite",
   "layer": "K8S",
+  "aggregateOnPage": true,
   "span": 12,
   "rowSpan": 3,
   "kpis": [
@@ -172,6 +178,8 @@ Single scalar tile. The MQE collapses to one number (here, `sum` over the time w
   ]
 }
 ```
+
+`aggregateOnPage: true` marks these as page-side (see *Aggregation modes*) — the cluster / meter series and `latest(...)` totals here can't be wrapped in `top_n`, so Horizon aggregates the top-`limit` services itself (`limit` defaults to `1`, right for a single cluster).
 
 The widget auto-splits KPIs:
 

@@ -117,52 +117,6 @@ export interface LayerHeaderConfig {
   columns?: LayerMetricColumn[];
 }
 
-/** @deprecated alias kept for callers — same shape as LayerHeaderConfig. */
-export type LayerMetricsConfig = LayerHeaderConfig;
-
-/**
- * One Overview-tile metric. Self-contained: carries its own MQE +
- * presentation hints (label / tip / unit / aggregation / scale /
- * precision). The Overview tile no longer cross-references the
- * per-layer header columns.
- *
- * `id` is auto-assigned by the loader (`ov_0`, `ov_1`, …) when the
- * source JSON omits it, so the SPA + BFF always have a stable key to
- * thread requests + results on.
- */
-export interface OverviewMetric {
-  id?: string;
-  label: string;
-  mqe: string;
-  tip?: string;
-  unit?: string;
-  aggregation?: 'sum' | 'avg';
-  scale?: number;
-  precision?: number;
-}
-
-/**
- * One Overview-tile group — a layer can have N groups, each rendered
- * as its own tile in the Overview strip with the group's `title` in
- * the header. `size: square` is the dense-fleet variant and should
- * carry exactly 1 metric.
- */
-export interface OverviewGroup {
-  title: string;
-  size: 'auto' | 'square';
-  metrics: OverviewMetric[];
-}
-
-/**
- * Overview-tile config. `groups` is the canonical shape; legacy
- * `metrics` is migrated to a single auto-size group at load time.
- */
-export interface LayerOverviewConfig {
-  groups?: OverviewGroup[];
-  /** @deprecated — wrapped into a single auto-size group on load. */
-  metrics?: OverviewMetric[];
-}
-
 /**
  * Per-scope dashboards bundled with a layer template. Each scope is an
  * independent widget set; the SPA picks one based on the active route
@@ -214,8 +168,6 @@ export interface LayerTemplate {
   /** @deprecated alias for `header` — populated by the loader so old
    *  callers reading `template.metrics` keep working. */
   metrics: LayerHeaderConfig;
-  /** Overview-tile config. Self-contained metric entries. */
-  overview?: LayerOverviewConfig;
   /** Per-scope widget sets. `service` is the layer's primary landing. */
   dashboards?: LayerDashboards;
   /** Legacy single widget list — treated as `dashboards.service`. */
@@ -272,9 +224,6 @@ export interface LogConfig {
    *     selector is shown alongside.
    *  Matches booster-ui's ConditionTags routing (`EntityType[1|2|3]`). */
   scope?: 'service' | 'instance' | 'endpoint';
-  /** Default tag filters appended to every log query. Operators can
-   *  add more on the page via the conditions bar. */
-  defaultTags?: Array<{ key: string; value: string }>;
 }
 
 /**
@@ -424,7 +373,7 @@ function load(): Map<string, LayerTemplate> {
     // i18n store, not by the layer loader.
     if (isOverlayFilename(file)) continue;
     const raw = readFileSync(join(CONFIG_DIR, file), 'utf-8');
-    let parsed: LayerTemplate & { alias_terms?: LayerSlotsConfig; alias?: LayerSlotsConfig | string };
+    let parsed: LayerTemplate;
     try {
       parsed = JSON.parse(raw);
     } catch (err) {
@@ -446,11 +395,6 @@ function load(): Map<string, LayerTemplate> {
     if (!parsed.slots && aliases) {
       parsed.slots = aliases;
     }
-    // Migrate legacy `widgets` (flat array) → `dashboards.service` so
-    // the rest of the codebase only needs to know about the new shape.
-    if (parsed.widgets && (!parsed.dashboards || !parsed.dashboards.service)) {
-      parsed.dashboards = { ...parsed.dashboards, service: parsed.widgets };
-    }
     // Profiling split: the old shape had a single `profiling` component
     // / dashboards bucket; we now split into Trace / eBPF / Async
     // profiling. Older JSONs are migrated by promoting the legacy
@@ -465,101 +409,16 @@ function load(): Map<string, LayerTemplate> {
       }
       delete legacyComponents.profiling;
     }
-    const legacyDashboards = parsed.dashboards as
-      | (LayerDashboards & { profiling?: DashboardWidget[] })
-      | undefined;
-    if (legacyDashboards && legacyDashboards.profiling) {
-      if (!legacyDashboards.traceProfiling) {
-        legacyDashboards.traceProfiling = legacyDashboards.profiling;
-      }
-      delete legacyDashboards.profiling;
-    }
-    // Header block: accept the new `layer-header` JSON key (preferred)
-    // and the legacy `metrics` alias. Internal callers read
-    // `template.header`; we also populate `template.metrics` so older
-    // code paths keep working without churn.
+    // Header block: read the `layer-header` JSON key. Internal callers
+    // read `template.header`; we mirror it to `template.metrics` so
+    // callers reading the old field name keep working.
     const headerSrc = (parsed as unknown as Record<string, unknown>)['layer-header'] as
       | LayerHeaderConfig
       | undefined;
     if (headerSrc && !parsed.header) parsed.header = headerSrc;
-    if (!parsed.header && parsed.metrics) parsed.header = parsed.metrics;
     if (!parsed.header) parsed.header = { columns: [] };
     parsed.metrics = parsed.header;
 
-    // Overview tile schema: self-contained `OverviewMetric[]`. Support
-    // two input shapes and normalize to the new one:
-    //   1. `metrics: OverviewMetric[]`   ← new shape, pass through.
-    //   2. `metrics: string[]`           ← previous shape (key refs
-    //      into the header columns); resolve each ref to a full entry.
-    if (parsed.overview) {
-      const ov = parsed.overview as LayerOverviewConfig & {
-        metrics?: unknown;
-      };
-      const columns = parsed.header?.columns ?? [];
-      const findCol = (key: string): LayerMetricColumn | undefined =>
-        columns.find((c) => c.metric === key);
-      const fromRef = (key: string, fallbackLabel?: string): OverviewMetric => {
-        const col = findCol(key);
-        // mqe falls back to the bare metric key — the BFF landing
-        // route resolves unknown keys through the metric catalog, so
-        // legacy short keys like `cpm` keep working without an
-        // explicit expression in the JSON.
-        return {
-          id: key,
-          label: col?.label ?? fallbackLabel ?? key,
-          mqe: col?.mqe ?? key,
-          ...(col?.unit ? { unit: col.unit } : {}),
-          ...(col?.aggregation ? { aggregation: col.aggregation } : {}),
-          ...(col?.scale !== undefined ? { scale: col.scale } : {}),
-          ...(col?.precision !== undefined ? { precision: col.precision } : {}),
-        };
-      };
-      let resolved: OverviewMetric[] = [];
-      if (Array.isArray(ov.metrics)) {
-        for (const m of ov.metrics as Array<OverviewMetric | string>) {
-          if (typeof m === 'string') {
-            resolved.push(fromRef(m));
-          } else if (m && typeof m === 'object' && 'mqe' in m) {
-            resolved.push(m);
-          } else if (m && typeof m === 'object' && 'label' in m) {
-            // Object without an explicit mqe — treat the label as a
-            // metric-key ref so older JSONs writing { label: "cpm" }
-            // keep working.
-            resolved.push(fromRef((m as { label: string }).label, (m as { label: string }).label));
-          }
-        }
-      }
-      // Assign auto-ids to any unkeyed entry. The id is what the SPA
-      // threads through the landing query as the synthetic column key.
-      resolved = resolved.map((m, i) => ({ id: m.id ?? `ov_${i}`, ...m }));
-
-      // Groups migration: if the JSON didn't supply `groups`, wrap the
-      // resolved metric list into a single auto-size group so older
-      // configs still light up. JSON authors writing `groups` directly
-      // win.
-      const ovGroups = (ov as { groups?: OverviewGroup[] }).groups;
-      if (!ovGroups || ovGroups.length === 0) {
-        ov.groups = resolved.length > 0
-          ? [{ title: '', size: 'auto', metrics: resolved }]
-          : [];
-      } else {
-        // For author-supplied groups, also assign ov_* ids to any
-        // unkeyed entries so the SPA has a stable synthetic column key
-        // to query through.
-        let counter = 0;
-        ov.groups = ovGroups.map((g) => ({
-          title: g.title ?? '',
-          size: g.size === 'square' ? 'square' : 'auto',
-          metrics: (g.metrics ?? []).map((m) => ({
-            id: m.id ?? `ov_${counter++}`,
-            ...m,
-          })),
-        }));
-      }
-      // Keep the legacy `metrics` array in sync with the flattened
-      // groups so any caller still reading the old field keeps working.
-      ov.metrics = (ov.groups ?? []).flatMap((g) => g.metrics);
-    }
     out.set(parsed.key.toUpperCase(), parsed);
   }
   return out;

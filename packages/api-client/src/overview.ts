@@ -27,25 +27,23 @@
  * dashboard pull metrics from multiple layers (e.g. an overview
  * combining General service metrics with Kubernetes service counts).
  *
- * Widget types:
- *   - `service-count`  — count of services reporting on the layer.
- *   - `metric`         — an MQE expression evaluated layer-wide.
- *   - `topology`       — static service-map snapshot for the layer with
- *                        click-through to the full topology view.
- *   - `section-break`  — visual row header; pure layout, no data.
- *   - `kpi-tile`       — compound tile: optional service count + 1–N
- *                        KPI rows for one layer. Used for the
- *                        per-service-type rows on the Services / Mesh
- *                        dashboards.
- *   - `alarms`         — active-alarm rail. Carries no MQE — the
- *                        renderer queries `getAlarms` directly. Layer
- *                        filter is best-effort (server-side scope tags
- *                        today, no native layer filter).
- *   - `k8s-summary`    — fixed-shape Kubernetes capacity + utilisation
- *                        block. Renderer-driven so the JSON stays
- *                        compact.
- *   - `pilot-summary`  — fixed-shape Istio pilot push / error / push-
- *                        time block. Renderer-driven, see `k8s-summary`.
+ * Widget types (`OverviewWidgetType`):
+ *   - `metric`          — an MQE expression evaluated layer-wide.
+ *   - `topology`        — static service-map snapshot for the layer with
+ *                         click-through to the full topology view.
+ *   - `section-break`   — visual row header; pure layout, no data.
+ *   - `kpi-tile`        — compound tile: optional service count + 1–N
+ *                         KPI rows for one layer. Used for the
+ *                         per-service-type rows on the Services / Mesh
+ *                         dashboards.
+ *   - `alarms`          — active-alarm rail. Carries no MQE — the
+ *                         renderer queries `getAlarms` directly. Layer
+ *                         filter is best-effort (server-side scope tags
+ *                         today, no native layer filter).
+ *   - `metric-composite`— mixed KPI grid (number tiles + progress-bar
+ *                         rows) — the Kubernetes capacity + Istio pilot
+ *                         blocks. `service-count` is a KPI *source*
+ *                         within a tile, not a widget type.
  *
  * The layout uses the same 12-col / `span` + `rowSpan` model as the
  * per-layer dashboard, so the same renderer can place these widgets
@@ -113,8 +111,21 @@ export interface OverviewWidget {
   mqe?: string;
   /** Display unit. */
   unit?: string;
-  /** `sum` for throughput-shaped metrics, `avg` otherwise. */
+  /** `sum` for throughput-shaped metrics, `avg` otherwise. Consulted only
+   *  when `aggregateOnPage` is set (page-side fan-out); a self-aggregating
+   *  tile carries its aggregation inside the MQE. */
   aggregation?: 'sum' | 'avg';
+  /** For data widgets (`kpi-tile` / `metric-composite` / `metric`) — how the
+   *  layer-wide KPI is aggregated:
+   *   - omitted / false (the tile default): each KPI's `mqe` is
+   *     self-aggregating (`sum|avg(top_n(<metric>,{{topn}},DES[,attr0=…]))`)
+   *     and the BFF fires it ONCE — OAP does the rollup server-side.
+   *   - true: the KPIs are plain per-service metrics; the BFF fans out
+   *     across the layer's services and aggregates the top-`limit` of them
+   *     page-side. Use for metrics that can't be `top_n`-wrapped (single-
+   *     entity cluster/meter series, `latest(...)`, ratios) — e.g. the K8s
+   *     cluster + Istio pilot composites. */
+  aggregateOnPage?: boolean;
   /** For `section-break` — overrides the grid column count for widgets
    *  that follow this break, up to the next break. Default 12. Use 5
    *  for "five tiles across", etc. */
@@ -124,7 +135,11 @@ export interface OverviewWidget {
   /** For `kpi-tile` — also render the layer's service count above the
    *  KPIs. Defaults to false. */
   showCount?: boolean;
-  /** For `alarms` — cap the alarm list at this many rows. */
+  /** For `alarms` — cap the alarm list at this many rows.
+   *  For `aggregateOnPage` widgets — the page-side aggregation window: the
+   *  tile sums/averages the layer's top-`limit` services (default 1, which
+   *  suits single-entity composites like a K8s cluster; set higher for
+   *  multi-instance control planes, e.g. 5 for a multi-replica istiod). */
   limit?: number;
   /** Grid span in 12-col grid. */
   span?: number;
@@ -182,15 +197,3 @@ export interface OverviewDashboardResponse {
   error?: string;
 }
 
-/** Wire shape for one resolved widget value when the BFF runs
- *  `POST /api/overview/dashboards/:id/data` (out of scope for the
- *  first cut — the SPA will fetch widget data widget-by-widget). */
-export interface OverviewWidgetResult {
-  id: string;
-  /** For `service-count` and `metric` — single value. */
-  value?: number | null;
-  /** For `topology` — the topology response is returned via the
-   *  existing `/api/layer/:key/topology` route directly. This block
-   *  carries only widget metadata. */
-  error?: string;
-}

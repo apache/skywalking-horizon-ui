@@ -212,7 +212,7 @@ watch(
 const store = useSetupStore();
 const cfg = computed(() => {
   if (!layer.value) return null;
-  return store.ensure(layer.value.key, { slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics, overview: layer.value.overview });
+  return store.ensure(layer.value.key, { slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics });
 });
 
 // Build a non-null LayerDef ref for the landing composable.
@@ -231,7 +231,6 @@ const safeCfg = computed(() => cfg.value?.landing ?? {
   topN: 5,
   orderBy: 'cpm',
   columns: [],
-  style: 'table' as const,
 });
 // Header KPIs honor the topbar time picker so they line up with what
 // the dashboard widgets below are showing — without this, the header
@@ -452,11 +451,7 @@ const layerKpis = computed<HeaderKpi[]>(() => {
   if (!c) return [];
   const a = aggregates.value;
   const out: HeaderKpi[] = [];
-  // Prefer the operator-defined header set (`headerColumns`) over the
-  // combined `columns` array — the combined set carries overview
-  // promotions that aren't real service-level KPIs. Falls back to
-  // `columns` for legacy persisted configs that pre-date this field.
-  const headerCols = c.landing.headerColumns ?? c.landing.columns;
+  const headerCols = c.landing.columns;
   for (const col of headerCols.slice(0, 5)) {
     const m = metricMeta(col.metric);
     out.push({
@@ -487,7 +482,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
   const row = selectedRow.value;
   if (!row) return [];
   const out: HeaderKpi[] = [];
-  const headerCols = c.landing.headerColumns ?? c.landing.columns;
+  const headerCols = c.landing.columns;
   for (const col of headerCols.slice(0, 5)) {
     const m = metricMeta(col.metric);
     out.push({

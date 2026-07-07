@@ -70,10 +70,6 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     pprofProfiling: !!components.pprofProfiling,
     podLogs: !!components.podLogs,
     events: false,
-    // Bundled service-count tile defaults on — every layer benefits
-    // from the headline count, and operators can opt out per-layer
-    // from the setup card's Features section.
-    serviceCountTile: true,
   };
 }
 
@@ -310,9 +306,7 @@ function deriveLayer(
           c.deployment && !!rawTpl?.deployment;
         return c;
       })(),
-      header: tpl.header,
       metrics: tpl.metrics,
-      overview: tpl.overview,
       log: tpl.log,
       traces: tpl.traces,
       naming: tpl.naming,

@@ -228,6 +228,22 @@ function onKpiStyleChange(k: OverviewKpi): void {
             <input type="checkbox" v-model="w.showCount" />
           </label>
         </div>
+        <!-- Aggregation mode. Off (default): each KPI's MQE self-aggregates
+             the layer server-side — write `sum|avg(top_n(<metric>,{{topn}},
+             DES[,attr0='<layer>']))` and the BFF fires it once. On: the KPIs
+             are plain per-service metrics and the BFF fans out + rolls up the
+             top-N services page-side (for series that can't be top_n-wrapped:
+             cluster/meter metrics, latest(...), ratios). -->
+        <div class="ot__row">
+          <label class="ot__field">
+            <span>Aggregate on page (fan-out)</span>
+            <input type="checkbox" v-model="w.aggregateOnPage" />
+          </label>
+          <label v-if="w.aggregateOnPage" class="ot__field">
+            <span>Top-N services</span>
+            <input v-model.number="w.limit" type="number" min="1" max="8" class="ot__in ot__in--num" />
+          </label>
+        </div>
         <div class="ot__kpis">
           <div class="ot__kpis-head">
             <span>KPI rows ({{ (w.kpis ?? []).length }})</span>

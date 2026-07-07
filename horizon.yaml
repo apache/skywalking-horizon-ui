@@ -117,6 +117,8 @@ audit:
 query:
   # Max services a layer landing runs metric MQE for, per request.
   landingServiceCap: ${HORIZON_QUERY_LANDING_SERVICE_CAP:100}
+  # N for the Overview KPI tiles' self-aggregating `top_n(...)` MQE.
+  overviewTopN: ${HORIZON_QUERY_OVERVIEW_TOPN:100}
 
 # JS source maps for the BROWSER-layer "Browser Errors" tab (#6784). Held
 # in BFF process memory only (no OAP storage), per-instance + ephemeral.

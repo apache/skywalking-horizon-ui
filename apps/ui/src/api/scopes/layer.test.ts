@@ -47,7 +47,6 @@ describe('LayerApi.landing', () => {
         topN: 5,
         orderBy: 'cpm',
         columns: [{ metric: 'cpm', label: 'CPM', mqe: 'service_cpm', aggregation: 'sum' }],
-        style: 'table',
       },
       { step: 'MINUTE', startMs: 1, endMs: 2 },
     );
@@ -71,7 +70,6 @@ describe('LayerApi.landing', () => {
       topN: 5,
       orderBy: 'cpm',
       columns: [],
-      style: 'table',
     });
     const body = calls[0][2] as Record<string, unknown>;
     expect(body.step).toBeUndefined();
@@ -86,7 +84,6 @@ describe('LayerApi.landing', () => {
       topN: 5,
       orderBy: 'cpm',
       columns: [],
-      style: 'table',
     });
     expect(calls[0][1]).toBe('/api/layer/aws_eks/landing');
   });

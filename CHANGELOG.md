@@ -96,6 +96,11 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 - **Satellite event and queue widgets break out per pipeline.** The SO11Y_SATELLITE Receive Events, Fetch Events, Queue Input / Output, and Queue Used widgets now label each series by its Satellite pipeline (`tracingpipe`, `jvmpipe`, `logpipe`, …) instead of collapsing every line onto a single `all`, so you can see which collection pipeline drives the rate.
 
+### Overview dashboards
+
+- **The per-layer KPI tiles now report the whole layer, not a single service.** A tile such as "General services · RPM / Latency / SLA" was aggregating just one service (an internal top-1 cap), so a busy layer read far too low. Each tile now rolls up **every** service in its layer — throughput summed, latency and SLA averaged — for General, Mesh, and the Virtual Database / Cache / MQ / GenAI layers. Mesh's second tile is now **Latency** (average response time) in place of the old P95.
+- **New per-widget aggregation control for Overview composites.** An Overview data widget defaults to a self-aggregating expression that OAP rolls up server-side; a widget can instead opt into **page-side aggregation** (a new `aggregateOnPage` toggle in the Overview templates admin, with a top-`limit` services window) for metrics that can't be expressed that way — the Kubernetes cluster-capacity and Istio pilot composites use it (pilot over up to 5 control-plane services). The self-aggregating window is bounded by a new `HORIZON_QUERY_OVERVIEW_TOPN` setting (default 100).
+
 ### Performance & behavior tuning
 
 - **New `performance` section in `horizon.yaml`.** Tune how hard the BFF fans metric queries out to OAP — per-route bulk (request) sizes and concurrency for the topology, 3D-map, landing, and dashboard fan-outs — plus protective caps: the service-map render valve (`topologyMaxNodes` / `topologyMaxEdges`) and per-request record caps for traces / logs / browser logs. Operational, hot-reloaded, per-deployment; defaults match the previous built-in values, so the whole block is optional. Raise it for a beefy OAP + storage backend, lower it to protect a modest deployment; every value clamps to a hard ceiling.

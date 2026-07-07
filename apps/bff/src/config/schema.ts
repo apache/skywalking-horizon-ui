@@ -312,9 +312,17 @@ const querySchema = z
      *  storage backend can take the larger fan-out; lower it to protect a
      *  modest deployment. Default 100. */
     landingServiceCap: z.number().int().positive().default(100),
+    /** N for the Overview KPI tiles' self-aggregating MQE. Each tile column
+     *  is `sum|avg(top_n(<metric>,{{topn}},DES[,attr0='<layer>']))` — the
+     *  layer-wide rollup happens SERVER-SIDE via OAP's `top_n`, so the BFF
+     *  substitutes this into the `{{topn}}` placeholder before firing (one
+     *  global query per tile, no per-service fan-out). 100 covers every
+     *  layer on a normal deployment; raise it only if a single layer holds
+     *  more than 100 services and the tail matters to the aggregate. */
+    overviewTopN: z.number().int().positive().default(100),
   })
   .strict()
-  .default({ landingServiceCap: 100 });
+  .default({ landingServiceCap: 100, overviewTopN: 100 });
 
 // JS source maps for de-obfuscating BROWSER-layer error stacks (#6784).
 // Maps live in the BFF process heap — there is NO OAP-side storage — so

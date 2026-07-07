@@ -29,8 +29,8 @@ import { useSetupStore } from '@/state/setup';
  * section (row order) so the two stay in lockstep.
  *
  * IMPORTANT: read priority via `store.priorityFor()` (side-effect-free),
- * never `store.ensure()` — `ensure` writes `configs.<layer>.landing.
- * headerColumns`, and inside a computed that READS the store those writes
+ * never `store.ensure()` — `ensure` writes `configs.<layer>.landing`,
+ * and inside a computed that READS the store those writes
  * invalidate the same computed → "Maximum recursive updates exceeded in
  * component <AppSidebar>", freezing the page on any layer route. Setup
  * reconciliation runs on the admin pages that explicitly call `ensure`.

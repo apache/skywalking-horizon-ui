@@ -24,10 +24,7 @@ export type {
   LayerMetricsColumn,
   LayerMetricsConfig,
   LayerHeaderConfig,
-  LayerOverviewConfig,
   MenuResponse,
-  OverviewGroup,
-  OverviewMetric,
   ServiceNamingRule,
 } from './menu.js';
 export type {
@@ -231,7 +228,6 @@ export type {
   OverviewDashboard,
   OverviewDashboardListResponse,
   OverviewDashboardResponse,
-  OverviewWidgetResult,
 } from './overview.js';
 export { parseOapTimezoneMinutes } from './oap-info.js';
 export {

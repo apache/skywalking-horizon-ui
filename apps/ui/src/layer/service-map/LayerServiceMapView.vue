@@ -140,9 +140,9 @@ function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, namingRule.value);
 }
 const safeCfg = computed(() => {
-  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [], style: 'table' as const };
+  if (!layer.value) return { priority: 99, topN: 5, orderBy: 'cpm', columns: [] };
   return store.ensure(layer.value.key, {
-    slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics, overview: layer.value.overview,
+    slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
@@ -250,7 +250,6 @@ const setupCfg = computed(() => store.ensure(layerKey.value, {
   slots: safeLayer.value.slots,
   caps: safeLayer.value.caps,
   metrics: safeLayer.value.metrics,
-  overview: safeLayer.value.overview,
 }));
 function mergeThresholdOverride(def: TopologyMetricDef, scope: 'topology' | 'dependency'): TopologyMetricDef {
   const ov = setupCfg.value.landing.thresholdOverrides?.[`${scope}.${def.id}`];

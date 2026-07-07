@@ -23,8 +23,9 @@
  *
  * `caps` flags reflect what the LAYER supports; the UI hides rows whose
  * cap is false. `slots` carries per-layer term aliases (e.g. General's
- * endpoint → "API"). Layer-level overrides (term aliases, menu mode) live
- * in `horizon.yaml` and per-user state — the BFF merges all three sources.
+ * endpoint → "API"). Layer-level overrides (term aliases, color, caps)
+ * come from OAP-published UI-template rows (remote wins over the in-code
+ * defaults) plus OAP translation overlays.
  */
 
 export interface LayerSlots {
@@ -77,10 +78,6 @@ export interface LayerCaps {
    *  per-layer "Pod Logs" tab; only K8s-deployed layers set it. */
   podLogs?: boolean;
   events?: boolean;
-  /** Bundle a dedicated square tile per layer on the Overview strip,
-   *  showing live service count. When on, regular tiles drop the
-   *  "N services" counter from their header (no duplicate). */
-  serviceCountTile?: boolean;
 }
 
 /**
@@ -106,9 +103,7 @@ export interface LayerMetricsColumn {
  *
  * Renamed from `metrics` in the JSON to `layer-header` to reflect
  * where the data actually surfaces; the old `metrics` key is still
- * accepted by the loader for back-compat. Overview tile config lives
- * separately on `LayerOverviewConfig` with its own self-contained
- * metrics.
+ * accepted by the loader for back-compat.
  */
 export interface LayerHeaderConfig {
   /** Default sort metric for the service list. */
@@ -151,69 +146,6 @@ export interface ServiceNamingRule {
   /** Human label for the dimension (e.g. `namespace`, `group`,
    *  `tenant`). Surfaced as a chip prefix and group-box title. */
   alias: string;
-}
-
-/**
- * One self-contained metric on the Overview tile. Each carries its own
- * MQE expression + label + presentation hints; the Overview tile does
- * NOT cross-reference the per-layer header columns any more.
- *
- * `id` is optional in source JSON — the loader assigns `ov_0`,
- * `ov_1`, … on load so the SPA has a stable key to thread through
- * the landing query (the BFF treats each as a synthetic column).
- */
-export interface OverviewMetric {
-  id?: string;
-  label: string;
-  mqe: string;
-  /** Hover tip (string only, no markdown). */
-  tip?: string;
-  unit?: string;
-  aggregation?: 'sum' | 'avg';
-  scale?: number;
-  precision?: number;
-}
-
-/**
- * One Overview tile **group** — a layer can have multiple groups, each
- * rendered as its own tile in the Overview strip. The group is the
- * unit of layout decisions:
- *
- *   - `title`  is shown in the tile header, alongside the layer name.
- *     Operators use it to label a group's purpose (e.g. "Throughput",
- *     "Health", "Cache hit rate").
- *   - `size`   = "auto" (full tile with up to 3 metric cells, 5/row)
- *               or "square" (compact 1-metric tile, 8/row).
- *     Square is for at-a-glance density; the recommendation is to put
- *     exactly ONE metric in a square group — the layer's primary
- *     headline (RPM for services, Msg/s for MQ, QPS for DB, …).
- *   - `metrics` are self-contained `OverviewMetric` entries (mqe +
- *     label + tip + unit + aggregation + scale + precision).
- */
-export interface OverviewGroup {
-  title: string;
-  size: 'auto' | 'square';
-  metrics: OverviewMetric[];
-}
-
-/**
- * Overview-page-only settings. A layer's overview is now a list of
- * groups; each group becomes one tile in the Overview strip. Most
- * layers carry a single auto-size group (the headline metrics), and
- * may add additional square groups to surface a primary KPI in dense
- * fleet views.
- *
- * Legacy shapes (migrated at load time):
- *   - `metrics: OverviewMetric[]`   → wrapped into a single group
- *                                     `{title: '', size: 'auto'}`.
- *   - `metrics: string[]` of column-key refs → resolved against
- *                                     `layer-header.columns` then
- *                                     wrapped as above.
- */
-export interface LayerOverviewConfig {
-  groups?: OverviewGroup[];
-  /** @deprecated — wrapped into a single auto-size group on load. */
-  metrics?: OverviewMetric[];
 }
 
 export interface LayerDef {
@@ -261,14 +193,7 @@ export interface LayerDef {
    *  JSON template's `layer-header` block (or legacy `metrics`). UI
    *  uses it for the per-layer Service page picker columns. Falls
    *  back to static catalog defaults when absent. */
-  header?: LayerHeaderConfig;
-  /** @deprecated — same data as `header`. Kept for back-compat with
-   *  callers reading the old field name. */
   metrics?: LayerHeaderConfig;
-  /** Overview-tile settings — the 1 – 3 self-contained metric cells
-   *  on the per-layer Overview tile. Empty when the layer template
-   *  omits the `overview` block. */
-  overview?: LayerOverviewConfig;
   /** Logs-tab config. Layers like `MESH_DP` carry per-instance
    *  (sidecar) logs and need an instance picker on the Logs tab; most
    *  agent-traced layers carry per-service logs. Drives the UI scope +
@@ -313,7 +238,6 @@ export interface LogConfig {
    *
    *  The pinned entity is the one the layer's data is indexed by. */
   scope?: 'service' | 'instance' | 'endpoint';
-  defaultTags?: Array<{ key: string; value: string }>;
 }
 
 export interface MenuResponse {

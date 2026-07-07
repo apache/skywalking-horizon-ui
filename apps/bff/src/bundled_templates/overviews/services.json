@@ -28,9 +28,9 @@
       "layer": "GENERAL",
       "showCount": true,
       "kpis": [
-        { "label": "RPM", "mqe": "service_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Latency", "mqe": "service_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "label": "SLA", "mqe": "service_sla/100", "unit": "%", "aggregation": "avg" }
+        { "label": "RPM", "mqe": "sum(top_n(service_cpm,{{topn}},DES,attr0='GENERAL'))", "unit": "rpm" },
+        { "label": "Latency", "mqe": "avg(top_n(service_resp_time,{{topn}},DES,attr0='GENERAL'))", "unit": "ms" },
+        { "label": "SLA", "mqe": "avg(top_n(service_sla,{{topn}},DES,attr0='GENERAL'))/100", "unit": "%" }
       ],
       "span": 1,
       "rowSpan": 2
@@ -43,9 +43,9 @@
       "layer": "VIRTUAL_DATABASE",
       "showCount": true,
       "kpis": [
-        { "label": "RPM", "mqe": "database_access_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Latency", "mqe": "database_access_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "label": "SLA", "mqe": "database_access_sla/100", "unit": "%", "aggregation": "avg" }
+        { "label": "RPM", "mqe": "sum(top_n(database_access_cpm,{{topn}},DES))", "unit": "rpm" },
+        { "label": "Latency", "mqe": "avg(top_n(database_access_resp_time,{{topn}},DES))", "unit": "ms" },
+        { "label": "SLA", "mqe": "avg(top_n(database_access_sla,{{topn}},DES))/100", "unit": "%" }
       ],
       "span": 1,
       "rowSpan": 2
@@ -58,9 +58,9 @@
       "layer": "VIRTUAL_CACHE",
       "showCount": true,
       "kpis": [
-        { "label": "RPM", "mqe": "cache_access_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Latency", "mqe": "cache_access_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "label": "SLA", "mqe": "cache_access_sla/100", "unit": "%", "aggregation": "avg" }
+        { "label": "RPM", "mqe": "sum(top_n(cache_access_cpm,{{topn}},DES))", "unit": "rpm" },
+        { "label": "Latency", "mqe": "avg(top_n(cache_access_resp_time,{{topn}},DES))", "unit": "ms" },
+        { "label": "SLA", "mqe": "avg(top_n(cache_access_sla,{{topn}},DES))/100", "unit": "%" }
       ],
       "span": 1,
       "rowSpan": 2
@@ -73,9 +73,9 @@
       "layer": "VIRTUAL_MQ",
       "showCount": true,
       "kpis": [
-        { "label": "Consume", "mqe": "mq_service_consume_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Produce", "mqe": "mq_service_produce_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Consume latency", "mqe": "mq_service_consume_latency", "unit": "ms", "aggregation": "avg" }
+        { "label": "Consume", "mqe": "sum(top_n(mq_service_consume_cpm,{{topn}},DES))", "unit": "rpm" },
+        { "label": "Produce", "mqe": "sum(top_n(mq_service_produce_cpm,{{topn}},DES))", "unit": "rpm" },
+        { "label": "Consume latency", "mqe": "avg(top_n(mq_service_consume_latency,{{topn}},DES))", "unit": "ms" }
       ],
       "span": 1,
       "rowSpan": 2
@@ -88,9 +88,9 @@
       "layer": "VIRTUAL_GENAI",
       "showCount": true,
       "kpis": [
-        { "label": "RPM", "mqe": "gen_ai_provider_cpm", "unit": "rpm", "aggregation": "sum" },
-        { "label": "Latency", "mqe": "gen_ai_provider_resp_time", "unit": "ms", "aggregation": "avg" },
-        { "label": "SLA", "mqe": "gen_ai_provider_sla/100", "unit": "%", "aggregation": "avg" }
+        { "label": "RPM", "mqe": "sum(top_n(gen_ai_provider_cpm,{{topn}},DES))", "unit": "rpm" },
+        { "label": "Latency", "mqe": "avg(top_n(gen_ai_provider_resp_time,{{topn}},DES))", "unit": "ms" },
+        { "label": "SLA", "mqe": "avg(top_n(gen_ai_provider_sla,{{topn}},DES))/100", "unit": "%" }
       ],
       "span": 1,
       "rowSpan": 2
@@ -132,6 +132,7 @@
       "tip": "Nodes / namespaces / workloads + cluster-wide CPU, memory, and disk usage.",
       "type": "metric-composite",
       "layer": "K8S",
+      "aggregateOnPage": true,
       "span": 12,
       "rowSpan": 3,
       "kpis": [

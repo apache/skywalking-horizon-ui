@@ -117,12 +117,14 @@ const aggSchema = z.enum(['sum', 'avg']);
 const columnSchema = z.object({
   metric: z.string().min(1),
   label: z.string().min(1),
-  tip: z.string().optional(),
   unit: z.string().optional(),
   mqe: z.string().optional(),
   aggregation: aggSchema.optional(),
   scale: z.number().finite().optional(),
   precision: z.number().int().min(0).max(6).optional(),
+  // Self-aggregating column: the `mqe` folds the layer to one scalar
+  // server-side, so the BFF fires it once (no per-service fan-out).
+  selfAggregate: z.boolean().optional(),
 });
 const bodySchema = z.object({
   topN: z.number().int().min(1).max(8),
@@ -247,6 +249,20 @@ function buildMqeFragment(aliasName: string, m: MqeRequest, w: Window, coldStage
   );
 }
 
+/** Fragment for a self-aggregating column — the MQE (`sum|avg(top_n(...))`)
+ *  already rolls the whole layer up server-side, so the entity carries no
+ *  `serviceName`: OAP's `top_n` ranks across every service of the scope. */
+function buildAggFragment(aliasName: string, expression: string, w: Window, coldStage: boolean): string {
+  const coldFrag = coldStage ? ', coldStage: true' : '';
+  return (
+    `${aliasName}: execExpression(\n` +
+    `      expression: ${JSON.stringify(expression)},\n` +
+    `      entity: { scope: Service, normal: true },\n` +
+    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
+    `    ) { type error results { values { value } } }`
+  );
+}
+
 export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDeps): void {
   const auth = requireAuth(deps);
   app.post(
@@ -335,11 +351,29 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         return reply.send(body);
       }
 
-      const resolved = cfg.columns.map((c) => ({
+      const coldStage = !!req.coldStage;
+
+      // Split header columns by the caller's explicit `selfAggregate` flag.
+      //  - self-aggregating columns fold the whole layer to one scalar
+      //    server-side (`sum|avg(top_n(<metric>,{{topn}},DES[,attr0=…]))`);
+      //    the BFF fires each ONCE globally. A per-service fan-out here would
+      //    re-aggregate an already-aggregated number (the Overview `topN:1`
+      //    bug). `{{topn}}` is substituted with `query.overviewTopN`.
+      //  - every other column keeps the per-service fan-out + page-side topN
+      //    rollup below (composite KPIs, the per-layer landing header). The
+      //    flag is opt-in, so legacy callers stay on the fan-out path.
+      const overviewTopN = deps.config.current.query.overviewTopN;
+      const allResolved = cfg.columns.map((c) => ({
         column: c,
         expression: resolveMqe(c.metric, c.mqe, layerKey),
       }));
-      const coldStage = !!req.coldStage;
+      const aggResolved = allResolved
+        .filter((r) => r.column.selfAggregate === true && r.expression !== null)
+        .map((r) => ({
+          column: r.column,
+          expression: (r.expression as string).replace(/\{\{\s*topn\s*\}\}/g, String(overviewTopN)),
+        }));
+      const resolved = allResolved.filter((r) => r.column.selfAggregate !== true);
 
       // Probe `cols` for every service in `svcList`, chunked into
       // per-request batches and drained through the bounded pool. Keyed by
@@ -468,7 +502,7 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         metrics: {},
         seriesByMetric: {},
       };
-      for (const col of cfg.columns) {
+      for (const { column: col } of resolved) {
         const kind: AggregationKind = col.aggregation ?? 'avg';
         aggregates.metrics[col.metric] = aggregate(
           topRows.map((r) => r.metrics[col.metric] ?? null),
@@ -481,6 +515,29 @@ export function registerLandingRoute(app: FastifyInstance, deps: LandingRouteDep
         );
         const agg = aggregateSeries(colSeries, kind);
         if (agg) aggregates.seriesByMetric[col.metric] = agg;
+      }
+
+      // Self-aggregating columns — one global execExpression each. The MQE
+      // collapses to a SINGLE_VALUE, so the lone scalar IS the KPI: no rows,
+      // no page-side rollup. Batched in one GraphQL trip; a batch failure
+      // leaves those KPIs null (the plain-column aggregates still stand).
+      if (aggResolved.length > 0) {
+        const back = aggResolved.map((r, i) => ({ a: `agg${i}`, column: r.column, expression: r.expression }));
+        try {
+          const data = await graphqlPost<Record<string, MqeResultShape>>(
+            opts,
+            `query LandingAggMqe { ${back.map((b) => buildAggFragment(b.a, b.expression, window, coldStage)).join('\n    ')} }`,
+          );
+          for (const { a, column } of back) {
+            aggregates.metrics[column.metric] = postProcess(
+              collapseToScalar(data[a]),
+              column.scale,
+              column.precision,
+            );
+          }
+        } catch {
+          for (const { column } of back) aggregates.metrics[column.metric] = null;
+        }
       }
 
       const body: LandingResponse = {

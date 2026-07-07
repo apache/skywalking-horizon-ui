@@ -45,6 +45,11 @@ interface MqeRequest {
   mqe: string;
   aggregation: 'sum' | 'avg';
   unit?: string;
+  /** When true, the `mqe` self-aggregates the layer server-side and the
+   *  BFF fires it once (no per-service fan-out). Derived from the widget's
+   *  `aggregateOnPage`: self-aggregating unless the widget opts into
+   *  page-side aggregation. */
+  selfAggregate: boolean;
   /** When set, the widget+kpi expects the layer's service count (from
    *  the landing aggregate's `serviceCount`) instead of an MQE
    *  result. The `mqe` field is filled with a placeholder so the
@@ -63,6 +68,10 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
     const layer = w.layer;
     if (!layer) continue;
     if (w.type === 'section-break' || w.type === 'alarms' || w.type === 'topology') continue;
+    // Self-aggregating unless the widget opts into page-side (fan-out)
+    // aggregation. Service-count rows never fire an MQE, so the flag is
+    // moot for them.
+    const selfAggregate = !(w.aggregateOnPage ?? false);
     if (w.type === 'metric' && w.mqe) {
       const reqs = out.get(layer) ?? [];
       reqs.push({
@@ -70,6 +79,7 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
         mqe: w.mqe,
         aggregation: w.aggregation ?? 'avg',
         unit: w.unit,
+        selfAggregate,
       });
       out.set(layer, reqs);
       continue;
@@ -85,6 +95,7 @@ function groupByLayer(widgets: OverviewWidget[]): Map<string, MqeRequest[]> {
           aggregation: k.aggregation ?? 'avg',
           unit: k.unit,
           isServiceCount: isCount,
+          selfAggregate: selfAggregate && !isCount,
         });
       }
       out.set(layer, reqs);
@@ -153,20 +164,38 @@ export function useOverviewDashboard(idRef: Ref<string>) {
            * a synthetic MQE upstream. They still ride in `reqs` so
            * the value-pickup pass below can inject the count. */
           const mqeReqs = reqs.filter((r) => !r.isServiceCount);
+          // Page-side aggregation window for this layer's fan-out columns
+          // (aggregateOnPage widgets): sum/avg over the top-`limit` services.
+          // Self-aggregating columns ignore topN — they roll up server-side.
+          // Composites default to 1 (single-entity, e.g. a K8s cluster); a
+          // multi-replica control plane sets a higher `limit` (istiod → 5).
+          // Clamp to the route's 1..8 bound. alarms/topology `limit` is
+          // unrelated, so scope to aggregateOnPage widgets only.
+          const topN = Math.min(
+            8,
+            Math.max(
+              1,
+              ...widgets.value
+                .filter((w) => w.layer === layer && w.aggregateOnPage)
+                .map((w) => w.limit ?? 1),
+            ),
+          );
           // priority + style are required by the LandingConfig type
           // but ignored by the BFF route — the client only forwards
           // topN/orderBy/columns. Stubbed to satisfy the type.
           const cfg: LandingConfig = {
             priority: 0,
-            style: 'table',
-            topN: 1,
-            orderBy: mqeReqs[0]?.mqe ?? 'service_cpm',
+            topN,
+            // orderBy keys the ranking/sort by COLUMN id (`w_<idx>`), not the
+            // raw MQE — the BFF stores per-row metrics under the column key.
+            orderBy: 'w_0',
             columns: mqeReqs.map((r, i) => ({
               metric: `w_${i}`,
               label: r.kpiLabel ?? r.widgetId,
               mqe: r.mqe,
               aggregation: r.aggregation,
               unit: r.unit,
+              selfAggregate: r.selfAggregate,
             })),
           };
           return bffClient.layer.landing(layer, cfg, range).then((res) => ({
