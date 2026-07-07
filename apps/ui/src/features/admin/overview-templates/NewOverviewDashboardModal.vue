@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import Modal from '@/features/operate/_shared/Modal.vue';
+import { vAutosize } from '@/utils/autosize';
 
 const props = defineProps<{
   open: boolean;
@@ -71,7 +72,7 @@ function submit(): void {
       </label>
       <label class="nod__field">
         <span>Description (optional)</span>
-        <textarea v-model="description" class="nod__in nod__in--ta" rows="2" placeholder="Short, one-paragraph description shown under the dashboard title." />
+        <textarea v-autosize="description" v-model="description" class="nod__in nod__in--ta" rows="2" placeholder="Short, one-paragraph description shown under the dashboard title." />
       </label>
       <div v-if="error" class="nod__err">{{ error }}</div>
     </div>

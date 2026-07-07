@@ -31,6 +31,7 @@ import { computed } from 'vue';
 import type { OverviewDashboard, OverviewKpi, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
+import { vAutosize } from '@/utils/autosize';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { META_SEL } from './constants';
@@ -165,6 +166,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
       <label class="ot__field ot__field--wide">
         <span>Description</span>
         <textarea
+          v-autosize="draft.description"
           :value="draft.description"
           class="ot__in ot__in--ta"
           rows="3"
