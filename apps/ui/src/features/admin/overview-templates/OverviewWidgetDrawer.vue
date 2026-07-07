@@ -30,6 +30,7 @@
 import { computed } from 'vue';
 import type { OverviewDashboard, OverviewKpi, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import MqeExpressionInput from '@/features/admin/_shared/MqeExpressionInput.vue';
+import WidgetTip from '@/components/primitives/WidgetTip.vue';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { META_SEL } from './constants';
@@ -210,7 +211,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
 
       <div v-if="w.type === 'metric'" class="ot__row">
         <label class="ot__field ot__field--wide">
-          <span>MQE <span class="ot__hint" :title="topnHint">ⓘ</span></span>
+          <span>MQE <WidgetTip :tip="topnHint" /></span>
           <MqeExpressionInput v-model="w.mqe" placeholder="service_cpm" title="Widget MQE" />
         </label>
         <label class="ot__field">
@@ -243,13 +244,13 @@ function onKpiStyleChange(k: OverviewKpi): void {
              series that can't be top_n-wrapped: cluster/meter metrics,
              latest(...), ratios). -->
         <div class="ot__row">
-          <label v-if="w.type === 'kpi-tile'" class="ot__field">
-            <span>Show service count</span>
+          <label v-if="w.type === 'kpi-tile'" class="ot__field ot__field--check">
             <input type="checkbox" v-model="w.showCount" />
+            <span>Show service count</span>
           </label>
-          <label class="ot__field">
-            <span>Aggregate on page (fan-out)</span>
+          <label class="ot__field ot__field--check">
             <input type="checkbox" v-model="w.aggregateOnPage" />
+            <span>Aggregate on page (fan-out)</span>
           </label>
           <label v-if="w.aggregateOnPage" class="ot__field">
             <span>Top-N services</span>
@@ -302,7 +303,7 @@ function onKpiStyleChange(k: OverviewKpi): void {
                 </select>
               </label>
               <label v-if="(k.source ?? 'mqe') === 'mqe'" class="ot__field ot__field--full">
-                <span>MQE <span class="ot__hint" :title="topnHint">ⓘ</span></span>
+                <span>MQE <WidgetTip :tip="topnHint" /></span>
                 <MqeExpressionInput v-model="k.mqe" title="KPI MQE" />
               </label>
               <p v-else class="ot__none">Value comes from the service count (listServices) — no MQE.</p>
@@ -420,8 +421,10 @@ function onKpiStyleChange(k: OverviewKpi): void {
   font-size: 12px;
 }
 .ot__field input[type='checkbox'] { width: 14px; height: 14px; margin: 4px 0 0; cursor: pointer; }
+/* Checkbox + label on one line (checkbox first, then the words). */
+.ot__field--check { flex-direction: row; align-items: center; gap: 7px; min-width: 0; cursor: pointer; }
+.ot__field--check input[type='checkbox'] { margin: 0; }
 .ot__none { color: var(--sw-fg-3); font-size: 11px; }
-.ot__hint { cursor: help; color: var(--sw-accent, var(--sw-fg-2)); opacity: 0.75; text-transform: none; }
 
 .ot__meta {
   background: var(--sw-bg-2);
