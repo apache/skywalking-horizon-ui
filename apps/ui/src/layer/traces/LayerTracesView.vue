@@ -42,6 +42,7 @@ import type {
   LayerDef,
   NativeSpan,
   NativeTraceListRow,
+  TraceListResponse,
   TraceQueryOrder,
   TraceQueryState,
 } from '@/api/client';
@@ -69,9 +70,15 @@ const props = defineProps<{
   focusEndpointId?: string;
   focusInstanceId?: string;
   focusWindowMinutes?: number;
+  /** REPLAY (captured chat): render the frozen list from `replayData` and fire NO
+   *  OAP query — no auto-run, no aux toolbar fetches, no pager. */
+  replay?: boolean;
+  replayData?: TraceListResponse | null;
 }>();
 const route = useRoute();
 const embedded = computed(() => Boolean(props.embedded));
+const replay = computed(() => Boolean(props.replay));
+const replayDataRef = computed<TraceListResponse | null>(() => props.replayData ?? null);
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -90,11 +97,12 @@ const safeCfg = computed(() => {
     slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// Replay hides the whole toolbar this rollup feeds, so it fires zero queries.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded mode takes the focus service straight from the prop; the route uses
 // the shared layerSelection store (resolved to a name). Overriding here means
 // the chat block never touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
 );
@@ -184,8 +192,12 @@ watch(isCustomRange, (custom) => {
 const NATIVE_SOURCE = ref<'native'>('native');
 const sourceRef = computed<'native'>(() => 'native');
 
-const { instances } = useLayerInstances(layerKey, serviceName);
-const { endpoints } = useLayerEndpoints(layerKey, serviceName, endpointQuery, ref(50));
+// The instance/endpoint lists feed the hidden filter chrome; in replay they must
+// fire NO query. Endpoints takes a replay gate; instances has none, so we starve
+// it of a service (its `enabled` needs one).
+const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const { instances } = useLayerInstances(layerKey, toolbarService);
+const { endpoints } = useLayerEndpoints(layerKey, toolbarService, endpointQuery, ref(50), replay);
 // '' ↔ null bridges the All sentinel (TypeaheadSelect value is a string).
 const instanceSelectOptions = computed(() => [
   { value: '', label: t('All') },
@@ -234,6 +246,7 @@ const { native, isFetching, refetch } = useLayerTraces(layerKey, {
   customStart: cCustomStart,
   customEnd: cCustomEnd,
   enabled: queryEnabled,
+  replayData: replayDataRef,
 });
 
 // Which OAP query answered. `queryBasicTraces` (Trace Query v1 API)
@@ -308,6 +321,10 @@ function maybeRunDrill(): void {
   runQuery();
 }
 function applyDrillFromRoute(): void {
+  // The metric→trace drill belongs to the ROUTE. An embedded (chat) block must
+  // never consume the host page's drill params: it would arm a query — and
+  // refetch() bypasses `enabled`, so a frozen replay block would hit OAP.
+  if (embedded.value) return;
   const q = route.query;
   const mode = typeof q.dMode === 'string' ? q.dMode : null;
   if (mode !== 'latency' && mode !== 'error') return;
@@ -343,6 +360,12 @@ watch(() => route.query.dNonce, applyDrillFromRoute, { immediate: true });
 // query on mount, so the block renders self-contained without a Run-query click.
 onMounted(() => {
   if (!embedded.value) return;
+  // Replay: render the captured list (query stays disabled, data comes from
+  // replayData) — flip `hasQueried` so the list path shows, but fire nothing.
+  if (replay.value) {
+    hasQueried.value = true;
+    return;
+  }
   if (props.focusInstanceId) instanceId.value = props.focusInstanceId;
   if (props.focusEndpointId) endpointId.value = props.focusEndpointId;
   if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
@@ -372,10 +395,14 @@ function changeSelectedTraceId(id: string): void {
 }
 
 const traceIdRef = computed(() => selectedTraceId.value);
-const { nativeDetail, isFetching: detailFetching } = useTraceDetail(traceIdRef, sourceRef);
+const { nativeDetail, isFetching: detailFetching } = useTraceDetail(traceIdRef, sourceRef, undefined, replay);
 // Spans fed to the shared detail card: list-embedded (`queryTraces`)
 // when present, else the on-demand `queryTrace` fetch.
 const detailSpans = computed<NativeSpan[]>(() => embeddedSpans.value ?? nativeDetail.value?.spans ?? []);
+// A frozen block fires no detail query, so a row the capture couldn't hydrate
+// (per-trace soft-fail) — or a trace id it never hydrated — would otherwise show
+// an empty waterfall that reads like "this trace has no spans".
+const replayGap = computed(() => replay.value && !!selectedTraceId.value && detailSpans.value.length === 0);
 
 const maxTraceDuration = computed(() => {
   const arr = visibleTraces.value;
@@ -591,6 +618,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       <template v-else>
         {{ t('Full traces are returned inline.') }}
       </template>
+    </div>
+
+    <div v-if="replayGap" class="tr-replay-note">
+      {{ t('No spans were captured for this trace — the frozen block replays only what was read and never re-queries OAP.') }}
     </div>
 
     <template v-if="!selectedTraceId">
@@ -838,6 +869,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   color: var(--sw-accent);
 }
 .tr-api-banner b { color: var(--sw-fg-0); }
+.tr-replay-note {
+  padding: 7px 12px;
+  border: 1px solid var(--sw-line);
+  border-left: 2px solid var(--sw-warn);
+  border-radius: 6px;
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
 .tr-empty { padding: 24px; text-align: center; color: var(--sw-fg-3); font-size: 11.5px; }
 .tr-detail-split {
   display: grid;

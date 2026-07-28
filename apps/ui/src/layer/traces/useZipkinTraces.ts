@@ -50,13 +50,20 @@ export interface ZipkinTracesParams {
   /** Run only when the user has clicked Run query — mirrors the native
    *  trace tab's "explicit fetch" model. */
   enabled?: Ref<boolean>;
+  /** REPLAY mode: the captured list (with inline spans) to render from. When
+   *  present the query NEVER fetches — a reloaded conversation replays the exact
+   *  data with zero OAP round-trip and survives an offline OAP. */
+  replayData?: Ref<ZipkinTraceListResponse | null>;
 }
 
 export function useLayerZipkinTraces(params: ZipkinTracesParams) {
+  // Replay is on whenever captured data is supplied.
+  const replay = computed(() => !!params.replayData?.value);
   // Zipkin allows "all services" — a blank serviceName queries every
   // local endpoint. Only gate on the operator's explicit `enabled`
-  // flag (Run query click), not on serviceName presence.
-  const enabled = computed(() => (params.enabled ? params.enabled.value : true));
+  // flag (Run query click), not on serviceName presence. Replay is static:
+  // never fetch (data comes from replayData below).
+  const enabled = computed(() => (params.enabled ? params.enabled.value : true) && !replay.value);
   const q = useQuery<ZipkinTraceListResponse>({
     queryKey: [
       'zipkin-traces',
@@ -87,21 +94,35 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
     enabled,
     staleTime: 15_000,
   });
+  // Replay renders straight from the captured payload — NOT through the shared
+  // query cache. Seeding initialData under the live query key would let a chat
+  // snapshot serve a live view during staleTime (and vice-versa).
+  const data = computed(() => (replay.value ? (params.replayData?.value ?? null) : (q.data.value ?? null)));
+  // A read fails two ways: the request itself (live only) or a `reachable:false`
+  // payload. Both are derived from whichever payload is in play, so a captured
+  // failure replays as a failure instead of an innocent empty window.
+  const reachable = computed<boolean>(() => data.value?.reachable ?? true);
+  const error = computed<string | null>(() => {
+    if (!replay.value && q.error.value) return String(q.error.value);
+    return data.value && !data.value.reachable ? (data.value.error ?? null) : null;
+  });
   return {
-    data: computed(() => q.data.value ?? null),
-    traces: computed(() => q.data.value?.traces ?? []),
+    data,
+    traces: computed(() => data.value?.traces ?? []),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
-    error: q.error,
+    reachable,
+    error,
     refetch: q.refetch,
   };
 }
 
-export function useZipkinTrace(traceId: Ref<string | null>) {
+export function useZipkinTrace(traceId: Ref<string | null>, replay?: Ref<boolean>) {
   const q = useQuery<ZipkinTraceDetailResponse>({
     queryKey: ['zipkin-trace', traceId],
     queryFn: () => bffClient.zipkin.trace(traceId.value!),
-    enabled: computed(() => Boolean(traceId.value)),
+    // Replay rows carry their spans inline, so the by-id fallback never fires.
+    enabled: computed(() => Boolean(traceId.value) && !replay?.value),
     staleTime: 60_000,
   });
   return {

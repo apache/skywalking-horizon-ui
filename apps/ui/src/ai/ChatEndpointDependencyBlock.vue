@@ -23,15 +23,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerEndpointDependencyView from '@/layer/endpoint-dependency/LayerEndpointDependencyView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { EndpointDependencySpec } from './types';
 
-defineProps<{ n: number; spec: EndpointDependencySpec }>();
+defineProps<{ n: number; spec: EndpointDependencySpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="ced">
-    <div class="ced__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="ced__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="ced__view">
       <LayerEndpointDependencyView
         :embedded="true"
@@ -39,6 +42,8 @@ const { t } = useI18n({ useScope: 'global' });
         :focus-service="spec.service"
         :focus-service-id="spec.serviceId"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

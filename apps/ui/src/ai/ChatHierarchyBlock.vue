@@ -21,9 +21,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import ServiceHierarchyOverlay from '@/layer/service-map/ServiceHierarchyOverlay.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { HierarchySpec } from './types';
 
-defineProps<{ n: number; spec: HierarchySpec }>();
+defineProps<{ n: number; spec: HierarchySpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 
 // resolveNodePos is unused in standalone mode (the fan centres on the origin),
@@ -35,11 +36,15 @@ function noNodePos(): null {
 
 <template>
   <div class="chb">
-    <div class="chb__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="chb__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="chb__view">
       <ServiceHierarchyOverlay
         :standalone="true"
         :focus="{ serviceId: spec.serviceId, layer: spec.layer, serviceName: spec.service }"
+        :replay="true"
+        :replay-data="spec.replayData"
         :view-box-w="0"
         :view-box-h="0"
         :resolve-node-pos="noNodePos"

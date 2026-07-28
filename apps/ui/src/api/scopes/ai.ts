@@ -28,6 +28,11 @@ export interface AiConfigResponse {
   provider: string;
   /** Starter prompts (bundled defaults or the operator's `ai.starters`). */
   starters: string[];
+  /** Client history: `mode` selects the store impl (only `client` today); `clientMaxBytes` caps IndexedDB. */
+  history: {
+    mode: 'client' | 'server';
+    clientMaxBytes: number;
+  };
 }
 
 export class AiApi {

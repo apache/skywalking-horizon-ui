@@ -1,0 +1,61 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `triggers` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/triggers/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+propose_profiling:
+  description: >-
+    PROPOSE a profiling task (does NOT start it — the user approves a decision card first). Use only when metrics + traces cannot localise the cause and a profile would confirm a specific hypothesis (a hot method, lock contention, a slow call, a saturated process). FIRST pick the profilingType by READING, not assuming: kb_layer_capabilities(layer).components lists which profiling this layer supports (traceProfiling / asyncProfiling / pprofProfiling / ebpfProfiling / networkProfiling) — propose only a type the layer declares. Match the type to the runtime: async-profiler is JVM-only and pprof is Go-only (read the service's instance language via kb_resolve_scope_drill before choosing between them); trace and eBPF are language-agnostic; network profiling captures the process conversation graph. The tool re-checks the type against the layer and resolves target instances for you. You MUST supply cause (what you found), rationale (why profiling), and expectation (what it should reveal). Provide the endpoint for trace when known.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    serviceId: >-
+      OAP service id (from list_services)
+    service: >-
+      service NAME
+    profilingType: >-
+      the profiling flavor to propose — trace (in-process sampling), async (JVM async-profiler), pprof (Go), ebpf (kernel on/off-CPU), or network (process conversation graph). MUST be one the layer supports (kb_layer_capabilities.components); async needs a JVM service, pprof needs a Go service (check instance language).
+    durationMinutes: >-
+      collection window in minutes, 1–15 (converted to each type's unit on start)
+    endpoint: >-
+      trace only — endpoint (API) name to profile, when known
+    event: >-
+      async/pprof only — the event to profile (default CPU; async also ALLOC/LOCK/WALL, pprof also HEAP/BLOCK/MUTEX)
+    targetType: >-
+      ebpf only — ON_CPU (default) or OFF_CPU
+    cause: >-
+      the analyzed cause SO FAR — what the investigation found
+    rationale: >-
+      why profiling is the right next step
+    expectation: >-
+      what the profile is expected to reveal or confirm
+
+analyze_profiling:
+  description: >-
+    Read a COMPLETED profiling task and render its result inline as a CAPTURED block. Call this in a LATER turn, after a task the user approved has finished collecting (or when the user asks you to analyze an existing profile). It fetches the most recent task of the given type for the service and analyses it. trace/async/pprof/ebpf render the flame graph (a trace profile also shows the profiled trace's span waterfall beside the flame), and the reply lists the hottest frames so you can name the cause (by self time for trace/async/pprof; eBPF carries no self time, so its frames are ranked by inclusive sample share). network CAPTURES the process-conversation graph and renders it as a frozen process-topology block (process nodes + the conversations between them); it falls back to TEXT only when no Rover/eBPF agent reports any process — in that case relay that network profiling is unavailable at this deployment instead of retrying. If it reports no data collected yet, tell the user to wait for the task to finish, then analyze again — do NOT retry immediately.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL
+    service: >-
+      service NAME to analyze the profile for
+    profilingType: >-
+      which profiling result to read — trace (in-process sampling; flame plus the profiled trace's span waterfall), pprof (Go), async (Java async-profiler), ebpf (on/off-CPU), or network (captures the process-conversation graph and renders it as a frozen graph block, not a flame; text-only when no process reports)
+    taskId: >-
+      a specific task id to analyze; omit to use the most recent task of this type

@@ -374,6 +374,20 @@ export async function fetchNativeList(
   }
 }
 
+/** Fetch one native trace's spans (queryTrace). Hydrates v1 (queryBasicTraces)
+ *  list rows — which carry no inline spans — so a captured list can replay the
+ *  waterfall offline (the AI trace-capture path). Never throws: one unreadable
+ *  trace degrades to no spans (that row replays without a waterfall) instead of
+ *  failing the whole capture. */
+export async function fetchNativeTraceSpans(opts: GraphqlOptions, traceId: string): Promise<NativeSpan[]> {
+  try {
+    const env = await graphqlPost<{ trace: { spans: NativeSpan[] } | null }>(opts, QUERY_TRACE_DETAIL, { traceId });
+    return env.trace?.spans ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchZipkinList(
   opts: GraphqlOptions,
   body: TraceListBody,

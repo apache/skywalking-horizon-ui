@@ -44,11 +44,41 @@ const cardText = computed<string>(() => {
   if (spec.value.format === 'enum' && m && v != null) return m[String(Math.round(v))] ?? '—';
   return fmtMetricAs(v, spec.value.format);
 });
+
+// Document the captured analysis: the metric's explanation (template tip) + the
+// exact MQE that produced this frozen result.
+const mqe = computed<string>(() => (spec.value.expressions ?? []).filter(Boolean).join('  ·  '));
+
+// A captured figure is a static file of what was read — if the read had no value
+// (empty window or a failed read at capture), replay says so, the same frozen
+// no-value contract the map blocks follow. A real 0 is a value, not no-value.
+const noValue = computed<boolean>(() => {
+  const r = result.value;
+  if (r.error) return true;
+  switch (spec.value.type) {
+    case 'card':
+      return r.value == null;
+    case 'line':
+      return !r.series?.some((s) => s.data?.some((v) => v != null));
+    case 'top':
+      return !(r.topList?.length || r.topGroups?.length);
+    case 'table':
+      return !r.table?.length;
+    case 'record':
+      return !r.records?.length;
+    default:
+      return false;
+  }
+});
 </script>
 
 <template>
   <div class="cwr">
-    <div v-if="spec.type === 'card'" class="cwr-card">
+    <div v-if="noValue" class="cwr-empty">
+      {{ result.error ? 'No data — the read failed when this was captured.' : 'No data in the captured window.' }}
+    </div>
+
+    <div v-else-if="spec.type === 'card'" class="cwr-card">
       <span class="cwr-card-val">{{ cardText }}</span>
       <span v-if="spec.unit" class="cwr-card-unit">{{ spec.unit }}</span>
     </div>
@@ -85,6 +115,11 @@ const cardText = computed<string>(() => {
     />
 
     <div v-else class="cwr-unsupported">{{ spec.title }}</div>
+
+    <div v-if="spec.tip || mqe" class="cwr-meta">
+      <div v-if="spec.tip" class="cwr-tip">{{ spec.tip }}</div>
+      <code v-if="mqe" class="cwr-mqe">{{ mqe }}</code>
+    </div>
   </div>
 </template>
 
@@ -114,5 +149,30 @@ const cardText = computed<string>(() => {
   font-size: var(--sw-fs-sm);
   color: var(--sw-fg-3);
   padding: 8px;
+}
+.cwr-empty {
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-3);
+  padding: 14px 8px;
+  text-align: center;
+}
+.cwr-meta {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--sw-line);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.cwr-tip {
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-2);
+  line-height: 1.4;
+}
+.cwr-mqe {
+  font-family: var(--sw-font-mono);
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-3);
+  word-break: break-word;
 }
 </style>

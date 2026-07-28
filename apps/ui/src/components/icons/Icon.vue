@@ -57,7 +57,8 @@ export type IconName =
   | 'ai'
   | 'external'
   | 'close'
-  | 'trash';
+  | 'trash'
+  | 'replay';
 </script>
 
 <template>
@@ -253,6 +254,12 @@ export type IconName =
     <template v-else-if="name === 'trash'">
       <path d="M5 7h14M10 7V5h4v2M8 7l1 13h6l1-13" />
       <path d="M10.5 11v5M13.5 11v5" />
+    </template>
+    <!-- history / replay: a rewound arc + a clock hand — frozen point-in-time data -->
+    <template v-else-if="name === 'replay'">
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.4-5.9" />
+      <path d="M3 4v4h4" />
+      <path d="M12 8v4l2.5 1.5" />
     </template>
   </svg>
 </template>

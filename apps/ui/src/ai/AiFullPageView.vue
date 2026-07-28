@@ -17,27 +17,93 @@
 <!-- Full-page /ai: a fullscreen route outside AppShell — history sidebar + wide
      conversation column. Same conversation + history as the docked drawer. -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import Icon from '@/components/icons/Icon.vue';
 import ChatTranscript from './ChatTranscript.vue';
 import ChatComposer from './ChatComposer.vue';
 import ChatScopeBar from './ChatScopeBar.vue';
+import { useAuthStore } from '@/state/auth';
 import { useAiChat } from './useAiChat';
-import { useAiConversations } from './useAiConversations';
+import { useAiConversations, type ConversationStatus } from './useAiConversations';
 import { useChatScroll } from './useChatScroll';
 import type { Conversation } from './types';
 
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
+const auth = useAuthStore();
 const chat = useAiChat();
-// This route is fullscreen (outside AppShell, so the launcher isn't mounted) —
-// load the AI config here too so starters render on a direct /ai landing.
-onMounted(() => void chat.ensureConfig());
 const conv = useAiConversations();
+// This route is fullscreen (outside AppShell, so the launcher — which owns the
+// config probe + hydrate — isn't mounted). Load config + this user's history
+// here on mount AND whenever auth settles, so a reload before the session has
+// bootstrapped still hydrates history once the user is known.
+function loadHistory(): void {
+  void chat
+    .ensureConfig()
+    .then(() => conv.hydrate())
+    .then(() => {
+      savingHistory.value = conv.historyEnabled();
+      refreshUsage();
+    });
+}
+onMounted(loadHistory);
+watch(() => auth.isAuthenticated, loadHistory);
 
 const ordered = computed<Conversation[]>(() => [...conv.conversations.value].sort((a, b) => b.updatedAt - a.updatedAt));
+
+// A row the store has no entry for was loaded from an earlier session and never
+// touched here, so it is at rest — same as `saved`, never `active`.
+const rows = computed<{ c: Conversation; status: ConversationStatus }[]>(() =>
+  ordered.value.map((c) => ({ c, status: conv.status.value[c.id] ?? 'saved' })),
+);
+function statusLabel(s: ConversationStatus): string {
+  return s === 'conflicted' ? t('Not saved') : t('In progress');
+}
+function statusHint(s: ConversationStatus): string {
+  return s === 'conflicted'
+    ? t('Also continued in another tab, so this version was not saved. Open it to pick the version to keep.')
+    : t('A turn is still in flight — the newest state is not saved yet.');
+}
+
+const savingHistory = ref(conv.historyEnabled());
+const confirmingClear = ref(false);
+const usedBytes = ref(0);
+const maxBytes = computed(() => chat.history.value?.clientMaxBytes ?? 0);
+const showUnencryptedWarning = computed(() => savingHistory.value && chat.history.value?.mode === 'client');
+
+function refreshUsage(): void {
+  void conv.usageBytes().then((b) => (usedBytes.value = b));
+}
+function toggleSaving(): void {
+  savingHistory.value = !savingHistory.value;
+  void conv.setHistoryEnabled(savingHistory.value).then(refreshUsage);
+}
+function clickClear(): void {
+  if (!confirmingClear.value) {
+    confirmingClear.value = true;
+    return;
+  }
+  confirmingClear.value = false;
+  void conv.clearAll().then(refreshUsage);
+}
+// Adaptive unit: real usage is KB-scale against a huge (500 MB) cap, so a
+// fixed "MB, 1 decimal" reads 0.0 forever. Show B / KB / MB so small usage — and
+// its growth — is actually visible.
+function fmtSize(bytes: number): string {
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+// Refresh usage when a turn finishes — covers growth WITHIN a conversation, not
+// just a change in conversation count.
+watch(
+  () => conv.streaming.value,
+  (v) => {
+    if (!v) refreshUsage();
+  },
+);
 const messages = computed(() => conv.current.value?.messages ?? []);
 const body = ref<HTMLElement | null>(null);
 // Pin the message you just sent to the top of the scroll area; the answer
@@ -89,19 +155,52 @@ function when(ts: number): string {
     <div v-else class="aifp__main">
       <aside class="aifp__hist">
         <div class="aifp__hist-head">{{ t('History') }}</div>
-        <div v-if="ordered.length === 0" class="aifp__hist-empty">{{ t('No conversations yet.') }}</div>
-        <button
-          v-for="c in ordered"
-          :key="c.id"
-          type="button"
-          class="aifp__hist-row"
-          :class="{ active: c.id === conv.currentId.value }"
-          @click="conv.select(c.id)"
-        >
-          <span class="aifp__hist-title">{{ c.title || t('New chat') }}</span>
-          <span class="aifp__hist-time">{{ when(c.updatedAt) }}</span>
-          <span class="aifp__hist-del" :title="t('Delete')" @click.stop="conv.remove(c.id)"><Icon name="trash" :size="12" /></span>
-        </button>
+        <div class="aifp__hist-list">
+          <div v-if="ordered.length === 0" class="aifp__hist-empty">{{ t('No conversations yet.') }}</div>
+          <button
+            v-for="{ c, status } in rows"
+            :key="c.id"
+            type="button"
+            class="aifp__hist-row"
+            :class="{ active: c.id === conv.currentId.value }"
+            @click="conv.select(c.id)"
+          >
+            <span class="aifp__hist-title">{{ c.title || t('New chat') }}</span>
+            <span class="aifp__hist-meta">
+              <span class="aifp__hist-time">{{ when(c.updatedAt) }}</span>
+              <!-- `saved` is the resting state of every row, so it carries no tag —
+                   only the two states that mean "not written yet" are marked, and the
+                   conflicted one also gets an icon so it doesn't read by colour alone. -->
+              <span v-if="status !== 'saved'" class="aifp__hist-tag" :class="status" :title="statusHint(status)">
+                <Icon v-if="status === 'conflicted'" name="alert" :size="10" />{{ statusLabel(status) }}
+              </span>
+            </span>
+            <span class="aifp__hist-del" :title="t('Delete')" @click.stop="conv.remove(c.id)"><Icon name="trash" :size="12" /></span>
+          </button>
+        </div>
+
+        <div class="aifp__hist-foot">
+          <label class="aifp__save">
+            <input type="checkbox" :checked="savingHistory" @change="toggleSaving" />
+            <span>{{ t('Save history') }}</span>
+          </label>
+          <p v-if="showUnencryptedWarning" class="aifp__warn">
+            {{ t('History is stored unencrypted in this browser.') }}
+          </p>
+          <div v-if="savingHistory && maxBytes > 0" class="aifp__usage">
+            <div class="aifp__usage-bar">
+              <div class="aifp__usage-fill" :style="{ width: Math.min(100, (usedBytes / maxBytes) * 100) + '%' }" />
+            </div>
+            <span class="aifp__usage-txt">{{ fmtSize(usedBytes) }} / {{ fmtSize(maxBytes) }}</span>
+          </div>
+          <div v-if="ordered.length > 0" class="aifp__clear">
+            <button v-if="!confirmingClear" type="button" class="aifp__clear-btn" @click="clickClear">{{ t('Clear all') }}</button>
+            <template v-else>
+              <button type="button" class="aifp__clear-btn danger" @click="clickClear">{{ t('Confirm clear all') }}</button>
+              <button type="button" class="aifp__clear-btn" @click="confirmingClear = false">{{ t('Cancel') }}</button>
+            </template>
+          </div>
+        </div>
       </aside>
 
       <section class="aifp__conv">
@@ -195,8 +294,15 @@ function when(ts: number): string {
 .aifp__hist {
   border-right: 1px solid var(--sw-line);
   background: var(--sw-bg-1);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 8px;
+}
+.aifp__hist-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .aifp__hist-head {
   font-size: var(--sw-fs-xs);
@@ -205,6 +311,79 @@ function when(ts: number): string {
   letter-spacing: var(--sw-ls-caps);
   color: var(--sw-fg-3);
   padding: 8px 8px 6px;
+}
+.aifp__hist-foot {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--sw-line);
+  margin-top: 8px;
+  padding: 10px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aifp__save {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--sw-fs-sm);
+  color: var(--sw-fg-1);
+  cursor: pointer;
+}
+.aifp__save input {
+  accent-color: var(--sw-accent);
+  cursor: pointer;
+}
+.aifp__warn {
+  margin: 0;
+  font-size: var(--sw-fs-xs);
+  line-height: var(--sw-lh-normal);
+  color: var(--sw-warn);
+}
+.aifp__usage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aifp__usage-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--sw-bg-3);
+  overflow: hidden;
+}
+.aifp__usage-fill {
+  height: 100%;
+  background: var(--sw-accent);
+}
+.aifp__usage-txt {
+  font-size: var(--sw-fs-xs);
+  color: var(--sw-fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.aifp__clear {
+  display: flex;
+  gap: 6px;
+}
+.aifp__clear-btn {
+  height: 26px;
+  padding: 0 10px;
+  background: var(--sw-bg-2);
+  border: 1px solid var(--sw-line-2);
+  border-radius: 6px;
+  color: var(--sw-fg-2);
+  font: inherit;
+  font-size: var(--sw-fs-sm);
+  cursor: pointer;
+}
+.aifp__clear-btn:hover {
+  background: var(--sw-bg-3);
+  color: var(--sw-fg-0);
+}
+.aifp__clear-btn.danger {
+  border-color: var(--sw-err);
+  color: var(--sw-err);
+}
+.aifp__clear-btn.danger:hover {
+  background: var(--sw-err-soft);
 }
 .aifp__hist-empty {
   font-size: var(--sw-fs-sm);
@@ -242,9 +421,34 @@ function when(ts: number): string {
   text-overflow: ellipsis;
   max-width: 100%;
 }
+.aifp__hist-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
 .aifp__hist-time {
   font-size: var(--sw-fs-xs);
   color: var(--sw-fg-3);
+}
+.aifp__hist-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 14px;
+  padding: 0 5px;
+  border: 1px solid var(--sw-line-2);
+  border-radius: 4px;
+  font-size: var(--sw-fs-xs);
+  font-weight: var(--sw-fw-semibold);
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--sw-fg-3);
+}
+.aifp__hist-tag.conflicted {
+  border-color: var(--sw-warn);
+  background: var(--sw-warn-soft);
+  color: var(--sw-warn);
 }
 .aifp__hist-del {
   position: absolute;

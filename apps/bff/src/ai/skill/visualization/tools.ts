@@ -33,35 +33,65 @@ import type {
   DashboardWidget,
   DashboardWidgetResult,
   DashboardWidgetType,
+  NativeSpan,
+  TopologyResponse,
+  TraceListResponse,
+  ZipkinTraceListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { AiRequestContext } from '../../context.js';
-import type { HierarchyGroup, SubPageKind } from '../../types.js';
+import type { HierarchyGroup, TopoPeer } from '../../types.js';
 import { runWidgets } from '../../../logic/dashboard/run.js';
+import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
+import {
+  widgetsForScope,
+  topologyConfigFor,
+  deploymentConfigFor,
+  instanceTopologyConfigFor,
+  endpointDependencyConfigFor,
+} from '../../../logic/layers/loader.js';
+import { flattenTabWidgets } from '../../../logic/dashboard/gates.js';
 import { serviceLayerCatalog } from '../../../logic/services/service-layer-catalog.js';
 import { getServiceHierarchy } from '../../../logic/oap/hierarchy.js';
-import { getServiceEgoTopology } from '../../../logic/oap/topology.js';
-import { zipkinFetchServices } from '../../../client/zipkin.js';
+import { buildServiceTopology, emptyTopologyResponse } from '../../../logic/oap/service-topology.js';
+import { buildDeployment } from '../../../logic/oap/deployment.js';
+import { buildInstanceTopology } from '../../../logic/oap/instance-topology.js';
+import { buildEndpointDependency } from '../../../logic/oap/endpoint-dependency.js';
+import { zipkinFetchServices, zipkinFetchTraces } from '../../../client/zipkin.js';
+// Reuse the exported list fetchers so a captured triage block freezes the EXACT
+// response the interactive route produces (no re-derived query, no drift). They
+// take a resolved serviceId + OAP-local window and reach OAP only through
+// client/graphqlPost — the load-bearing rule holds. They live in http/query only
+// because their trace core (detectTraceQueryApi / TraceListBody / fetchZipkinList)
+// is entangled there; a move to logic/oap would relocate that whole core.
+import { fetchNativeList, fetchNativeTraceSpans } from '../../../http/query/trace.js';
+import { fetchLogs } from '../../../http/query/log.js';
+import { fetchBrowserErrors } from '../../../http/query/browser-errors.js';
+import { getServerOffsetMinutes, fmtSecond } from '../../../util/window.js';
+import { toolPrompt } from '../../resources/loader.js';
 
+// Capture caps for the frozen triage lists — each is further clamped by the
+// operator's `performance.limits.maxPageSize.*`. Native v2 (queryTraces) +
+// Zipkin carry spans inline so 30 replays cheaply; v1 (queryBasicTraces) needs
+// a per-trace span fetch, so cap to 10. Logs/browser freeze up to 100 rows.
+const TRACE_CAP = 30;
+const V1_TRACE_CAP = 10;
+const LIST_CAP = 100;
+// Derive the captured window (minutes) from the chat's global range — the same
+// value the map tools emit, so the frozen block's window matches what was read.
+const rangeWindowMinutes = (r: { startMs: number; endMs: number }): number =>
+  Math.max(1, Math.round((r.endMs - r.startMs) / 60_000));
+
+const ri = toolPrompt('visualization', '_render_input');
 const renderInput = z.object({
-  title: z.string().describe('Human title shown above the figure'),
-  layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-  service: z.string().describe('Service NAME (from list_services)'),
-  expressions: z.array(z.string()).min(1).describe('MQE expression(s) — use catalog MQE verbatim'),
-  labels: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'One short human label PER expression. REQUIRED when you pass 2+ expressions on one chart (e.g. ["read","write"]) — without it every line inherits the title and the operator cannot tell them apart. Omit for a single expression.',
-    ),
-  instance: z.string().optional().describe('ServiceInstance name → renders at instance scope'),
-  endpoint: z.string().optional().describe('Endpoint name → renders at endpoint scope'),
-  unit: z.string().optional().describe('Unit suffix, e.g. ms, %, cpm'),
-  group: z
-    .string()
-    .optional()
-    .describe(
-      'Optional group label. Give several related figures the SAME group to cluster them into ONE tabbed block (e.g. an entity breakdown); omit for a standalone figure.',
-    ),
+  title: z.string().describe(ri.p('title')),
+  layer: z.string().describe(ri.p('layer')),
+  service: z.string().describe(ri.p('service')),
+  expressions: z.array(z.string()).min(1).describe(ri.p('expressions')),
+  labels: z.array(z.string()).optional().describe(ri.p('labels')),
+  instance: z.string().optional().describe(ri.p('instance')),
+  endpoint: z.string().optional().describe(ri.p('endpoint')),
+  unit: z.string().optional().describe(ri.p('unit')),
+  group: z.string().optional().describe(ri.p('group')),
 });
 type RenderInput = z.infer<typeof renderInput>;
 
@@ -90,6 +120,129 @@ function summarize(type: DashboardWidgetType, r: DashboardWidgetResult): string 
     default:
       return 'rendered';
   }
+}
+
+// Compact value formatter for topology node/edge metrics — the same
+// magnitude-aware rounding the UI uses, so the agent reads real numbers.
+function fmtTopoVal(v: number | null | undefined, unit?: string): string {
+  if (v == null) return '—';
+  const s = Math.abs(v) >= 100 ? String(Math.round(v)) : String(Math.round(v * 10) / 10);
+  return unit ? (unit === '%' ? `${s}%` : `${s} ${unit}`) : s;
+}
+// Structural metric legend — both TopologyMetricDef and DeploymentMetricDef fit.
+type MetricLegend = { id: string; label?: string; unit?: string };
+function dedupeLegend(defs: MetricLegend[]): MetricLegend[] {
+  const seen = new Set<string>();
+  return defs.filter((d) => (seen.has(d.id) ? false : (seen.add(d.id), true)));
+}
+function topoMetricLine(metrics: Record<string, number | null>, defs: MetricLegend[]): string {
+  return defs
+    .map((d) => `${d.label ?? d.id} ${fmtTopoVal(metrics[d.id], d.unit)}`)
+    .join(', ');
+}
+
+// Compact "N nodes: name (metrics); …" line for the map builders' model text —
+// the WS2 rich read for deployment / instance / endpoint graphs.
+function summarizeMapNodes(
+  nodes: Array<{ name: string; metrics: Record<string, number | null> }>,
+  nodeDefs: MetricLegend[],
+  cap: number,
+): string {
+  if (nodes.length === 0) return '';
+  const head = nodes
+    .slice(0, cap)
+    .map((n) => {
+      const line = topoMetricLine(n.metrics, nodeDefs);
+      return line ? `${n.name} (${line})` : n.name;
+    })
+    .join('; ');
+  return `${head}${nodes.length > cap ? `; …${nodes.length - cap} more` : ''}`;
+}
+
+// Metric ids measured on BOTH sides of an edge (server ∩ client), so a client-vs-
+// server delta is comparable.
+function pairedLinkDefs(srv: MetricLegend[], cli: MetricLegend[]): MetricLegend[] {
+  const cliIds = new Set(cli.map((d) => d.id));
+  return srv.filter((d) => cliIds.has(d.id));
+}
+
+/**
+ * The two-sided edge read a human gets by CLICKING an edge — surfaced for the
+ * model so RCA reasons about it without a click. On one hop, the caller's client
+ * metric minus the callee's server metric is the slice spent OUTSIDE the server:
+ * a client>server LATENCY gap ⇒ network / firewall / TLS / big-payload
+ * (de)serialization; a client>server THROUGHPUT gap ⇒ calls that never landed
+ * (drops / timeouts / retries). Only flags gaps past a relative floor so it stays
+ * signal, not noise.
+ */
+function edgeGapSummary(
+  calls: Array<{ source: string; target: string; serverMetrics?: Record<string, number | null>; clientMetrics?: Record<string, number | null> }>,
+  nameOf: (id: string) => string,
+  defs: MetricLegend[],
+  cap: number,
+): string {
+  if (defs.length === 0) return '';
+  const gaps: string[] = [];
+  for (const c of calls) {
+    const notes: string[] = [];
+    for (const d of defs) {
+      const cl = c.clientMetrics?.[d.id];
+      const sv = c.serverMetrics?.[d.id];
+      if (cl == null || sv == null) continue;
+      const diff = cl - sv;
+      const rel = Math.abs(sv) > 0 ? Math.abs(diff) / Math.abs(sv) : Math.abs(diff) > 0 ? 1 : 0;
+      if (rel >= 0.25 && Math.abs(diff) > 0) {
+        notes.push(`${d.label ?? d.id} client ${fmtTopoVal(cl, d.unit)} vs server ${fmtTopoVal(sv, d.unit)}`);
+      }
+    }
+    if (notes.length) gaps.push(`${nameOf(c.source)}→${nameOf(c.target)}: ${notes.join(', ')}`);
+  }
+  if (gaps.length === 0) return '';
+  return ` CLIENT↔SERVER edge gaps (delta is outside-the-server time/calls — suspect network / firewall / (de)serialization): ${gaps.slice(0, cap).join('; ')}${gaps.length > cap ? `; …${gaps.length - cap} more` : ''}.`;
+}
+
+/**
+ * Turn the captured ego graph into a metric-carrying text summary for the
+ * model — the WS2 "rich read": real focus/peer/edge VALUES (server-side edge
+ * metrics = the callee's view of the traffic), not bare upstream/downstream
+ * counts. The full graph rides the figure snapshot; this is what the LLM
+ * reasons over.
+ */
+function summarizeTopology(snap: TopologyResponse, focusId: string, service: string): string {
+  const nodeById = new Map(snap.nodes.map((n) => [n.id, n]));
+  const nodeDefs = snap.config.nodeMetrics ?? [];
+  const srvDefs = snap.config.linkServerMetrics ?? [];
+  const CAP = 12;
+  const lines: string[] = [];
+  const focus = nodeById.get(focusId);
+  if (focus) lines.push(`Focus ${service}: ${topoMetricLine(focus.metrics, nodeDefs)}.`);
+  // Read BOTH the peer's OWN health (its node metrics — what a human sees by
+  // clicking the peer hex) AND the edge to it. A real peer carries node metrics;
+  // a virtual peer (untraced DB/cache/external) has none, so only the edge shows.
+  const peerLine = (callId: string, peerId: string): string => {
+    const call = snap.calls.find((c) => c.id === callId);
+    const node = nodeById.get(peerId);
+    const name = node?.name ?? peerId;
+    const hasNodeVal = !!node && Object.values(node.metrics ?? {}).some((v) => v != null);
+    const health = hasNodeVal ? topoMetricLine(node!.metrics, nodeDefs) : '';
+    const edge = call ? topoMetricLine(call.serverMetrics, srvDefs) : '';
+    const parts = [health && `node ${health}`, edge && `edge ${edge}`].filter(Boolean);
+    return parts.length ? `${name} (${parts.join(' · ')})` : name;
+  };
+  const up = snap.calls.filter((c) => c.target === focusId);
+  const down = snap.calls.filter((c) => c.source === focusId);
+  lines.push(
+    up.length
+      ? `Upstream callers (${up.length}): ${up.slice(0, CAP).map((c) => peerLine(c.id, c.source)).join('; ')}${up.length > CAP ? `; …${up.length - CAP} more` : ''}.`
+      : 'No upstream callers in this window.',
+  );
+  lines.push(
+    down.length
+      ? `Downstream dependencies (${down.length}): ${down.slice(0, CAP).map((c) => peerLine(c.id, c.target)).join('; ')}${down.length > CAP ? `; …${down.length - CAP} more` : ''}.`
+      : 'No downstream dependencies in this window.',
+  );
+  const gapDefs = pairedLinkDefs(srvDefs, snap.config.linkClientMetrics ?? []);
+  return lines.join(' ') + edgeGapSummary(snap.calls, (id) => nodeById.get(id)?.name ?? id, gapDefs, 6);
 }
 
 export function visualizationTools(ctx: AiRequestContext): StructuredToolInterface[] {
@@ -156,50 +309,91 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
     return `Rendered ${type} "${input.title}" (${summarize(type, result)}).`;
   }
 
-  const make = (type: DashboardWidgetType, when: string): StructuredToolInterface =>
+  const make = (type: DashboardWidgetType): StructuredToolInterface =>
     tool((input: RenderInput) => render(type, input), {
       name: `show_${type}`,
-      description: `Render a ${type} figure in the chat. ${when} Provide the layer, service name, and the MQE expression(s) (use catalog MQE verbatim). Pass instance/endpoint to render at that finer scope. Give several related figures the same group label to cluster them into one tabbed block.`,
+      description: toolPrompt('visualization', '_widget')
+        .description.replace('{type}', type)
+        .replace('{when}', toolPrompt('visualization', `show_${type}`).description),
       schema: renderInput,
     });
 
-  // Sub-page tools mount an embeddable feature VIEW inline (not a widget). They
-  // carry only params — the UI view fetches its own data over the chat's range.
-  const SUBPAGES: Array<{
-    kind: SubPageKind;
-    verb: string;
-    when: string;
-    needsService: boolean;
-  }> = [
-    { kind: 'service-list', verb: 'metrics:read', when: 'the services in a layer with their key metrics', needsService: false },
-  ];
-  const subPageTools = SUBPAGES.map(({ kind, verb, when, needsService }) =>
-    tool(
-      async ({ layer, service, title }: { layer: string; service?: string; title?: string }): Promise<string> => {
-        if (!ctx.hasVerb(verb)) return `Permission denied: the current user lacks ${verb}.`;
-        if (needsService && !service) return `${kind} needs a service name.`;
-        const heading = title || `${kind} — ${service ?? layer}`;
-        ctx.emitSubPage({ kind, title: heading, layer: layer.toUpperCase(), service, range: ctx.range });
-        return `Mounted the ${kind} view for ${service ?? layer}. It renders interactively in the chat.`;
-      },
-      {
-        name: `show_${kind.replace(/-/g, '_')}`,
-        description: `Render ${when} inline in the chat as an interactive view (the same component the dashboards use). Provide the layer${needsService ? ' and the service name' : ' (and optionally a service to focus)'}.`,
-        schema: z.object({
-          layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-          service: needsService
-            ? z.string().describe('service NAME')
-            : z.string().optional().describe('optional service NAME to focus on'),
-          title: z.string().optional().describe('optional heading for the view'),
-        }),
-      },
-    ),
+  // show_widget renders an EXISTING catalog widget by id with the template's
+  // FULL config (tip/explanation, unit, format, valueMap, thresholds, per-rank
+  // legends) — captured whole, so the figure persists mqe + explanation +
+  // response + config. Preferred over show_line/etc. for a catalog metric.
+  const widgetPrompt = toolPrompt('visualization', 'show_widget');
+  const widgetTool = tool(
+    async ({
+      layer,
+      scope,
+      service,
+      widgetId,
+      instance,
+      endpoint,
+      group,
+    }: {
+      layer: string;
+      scope?: DashboardScope;
+      service: string;
+      widgetId: string;
+      instance?: string;
+      endpoint?: string;
+      group?: string;
+    }): Promise<string> => {
+      if (!ctx.hasVerb('metrics:read')) return 'Permission denied: the current user lacks metrics:read.';
+      if (instance && endpoint) return 'Invalid scope: pass instance OR endpoint, not both.';
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked || !eff.template)
+        return `No template for layer "${layer.toUpperCase()}" (${eff.blocked ? 'template store unreachable' : 'unknown layer'}).`;
+      const sc: DashboardScope = scope ?? (instance ? 'instance' : endpoint ? 'endpoint' : 'service');
+      const widget = flattenTabWidgets(widgetsForScope(eff.template, sc)).find((w) => w.id === widgetId);
+      if (!widget)
+        return `No widget "${widgetId}" on ${layer.toUpperCase()}/${sc}. Call kb_browse_catalog(${layer}, ${sc}) for the widget ids.`;
+      if (widget.type === 'tab') return `"${widgetId}" is a tab container — pass one of its inner widget ids.`;
+      const cat = await catalog();
+      const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
+      const { widgets } = await runWidgets(
+        [widget],
+        {
+          service,
+          serviceId: row?.id,
+          instance: instance ?? null,
+          endpoint: endpoint ?? null,
+          scope: sc,
+          normal: row ? row.normal !== false : true,
+        },
+        ctx.window,
+        { opts: ctx.opts, bulkSize: ctx.bulkSize },
+      );
+      const result = widgets[0] ?? { id: widget.id, error: 'no result' };
+      ctx.emitFigure({
+        title: widget.title,
+        group,
+        figures: [{ spec: widget, result, xaxis: widget.type === 'line' ? ctx.range : undefined }],
+      });
+      return `Rendered "${widget.title}" (${summarize(widget.type, result)})${widget.tip ? ` — ${widget.tip}` : ''}.`;
+    },
+    {
+      name: 'show_widget',
+      description: widgetPrompt.description,
+      schema: z.object({
+        layer: z.string().describe(widgetPrompt.p('layer')),
+        scope: z.enum(['service', 'instance', 'endpoint']).optional().describe(widgetPrompt.p('scope')),
+        service: z.string().describe(widgetPrompt.p('service')),
+        widgetId: z.string().describe(widgetPrompt.p('widgetId')),
+        instance: z.string().optional().describe(widgetPrompt.p('instance')),
+        endpoint: z.string().optional().describe(widgetPrompt.p('endpoint')),
+        group: z.string().optional().describe(widgetPrompt.p('group')),
+      }),
+    },
   );
 
   // show_hierarchy renders the topology page's cross-layer Smartscape overlay
   // inline: the focus service + the same logical service projected into upper
   // (K8S_SERVICE ← MESH ← GENERAL) and lower (→ infra) layers. Params only — the
   // BFF resolves the peers from getServiceHierarchy; the UI draws the ribbon.
+  const hierarchyPrompt = toolPrompt('visualization', 'show_hierarchy');
   const hierarchyTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
@@ -230,6 +424,9 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
         groups,
         reachable: res.reachable,
         errorReason: res.reachable ? null : (res.error ?? 'hierarchy unreachable'),
+        // Always frozen: carry the raw hierarchy so the embedded overlay replays
+        // statically (or its empty/unreachable state); it never re-queries.
+        replayData: res,
       });
       const peerCount = groups.reduce((n, g) => n + g.peers.filter((p) => p.role !== 'self').length, 0);
       return res.reachable
@@ -238,60 +435,102 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'show_hierarchy',
-      description:
-        "Render a service's CROSS-LAYER hierarchy inline (the topology page's Smartscape overlay): the focused service plus the same logical service projected into its upper layers (e.g. a GENERAL service's MESH / K8S_SERVICE mirrors) and lower layers (backing infrastructure). Use this to show how one service maps across layers — NOT for same-layer dependencies (use show_topology for those). Provide the layer and service name.",
+      description: hierarchyPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key of the focused service, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
+        layer: z.string().describe(hierarchyPrompt.p('layer')),
+        service: z.string().describe(hierarchyPrompt.p('service')),
+        title: z.string().optional().describe(hierarchyPrompt.p('title')),
       }),
     },
   );
 
   // show_topology renders the service's FOCUSED one-hop dependency topology
   // inline — the ego graph: the service + its DIRECT upstream callers and DIRECT
-  // downstream dependencies. NOT the whole-layer map. The BFF resolves the one
-  // hop from getServiceEgoTopology; the UI draws two lanes around the focus.
+  // downstream dependencies. NOT the whole-layer map. It runs the SAME builder
+  // the Topology tab uses (depth 1), so the block carries the WHOLE graph —
+  // nodes+edges WITH metric values + edge series — as a snapshot: the embedded
+  // view seeds from it (static on reload) and the model reads real values.
+  const topologyPrompt = toolPrompt('visualization', 'show_topology');
   const topologyTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
-      const ego = await getServiceEgoTopology(ctx.config.current, row.id, service, ctx.window, ctx.fetch);
-      const toPeer = (p: { id: string; name: string; isReal: boolean; type: string | null; layer: string | null }) => ({
-        id: p.id,
-        name: p.name,
-        isReal: p.isReal,
-        type: p.type,
-        layer: p.layer,
+      // Same window we hand the embedded map, so it owns its time like the
+      // traces/logs blocks rather than following the global topbar picker.
+      const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked) {
+        ctx.emitTopology({
+          title: title || `Topology — ${service}`,
+          layer: layer.toUpperCase(),
+          service,
+          serviceId: row.id,
+          upstream: [],
+          downstream: [],
+          reachable: false,
+          errorReason: 'template store unreachable',
+          windowMinutes,
+          // Frozen empty response so the seeded view replays the unreachable
+          // state on reload instead of treating a missing payload as live and
+          // re-querying — the same zero-query contract as the success path.
+          replayData: emptyTopologyResponse(
+            layer.toUpperCase(),
+            row.id,
+            1,
+            topologyConfigFor(null),
+            false,
+            'template store unreachable',
+          ),
+        });
+        return `Topology for ${service} is unavailable (template store unreachable).`;
+      }
+      const snapshot = await buildServiceTopology({
+        opts: ctx.opts,
+        perf: ctx.config.current.performance,
+        window: ctx.window,
+        coldStage: false,
+        cfg: topologyConfigFor(eff.template),
+        layerKey: layer.toUpperCase(),
+        serviceArg: row.id,
+        depth: 1,
       });
+      const nodeById = new Map(snapshot.nodes.map((n) => [n.id, n]));
+      const toPeer = (id: string): TopoPeer | null => {
+        const n = nodeById.get(id);
+        return n ? { id: n.id, name: n.name, isReal: n.isReal, type: n.type, layer: n.layers?.[0] ?? null } : null;
+      };
+      const upstream = snapshot.calls.filter((c) => c.target === row.id).map((c) => toPeer(c.source)).filter((p): p is TopoPeer => !!p);
+      const downstream = snapshot.calls.filter((c) => c.source === row.id).map((c) => toPeer(c.target)).filter((p): p is TopoPeer => !!p);
+      const tooLarge = !!snapshot.tooLarge;
       ctx.emitTopology({
         title: title || `Topology — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        upstream: ego.upstream.map(toPeer),
-        downstream: ego.downstream.map(toPeer),
-        reachable: ego.reachable,
-        errorReason: ego.reachable ? null : (ego.error ?? 'topology unreachable'),
-        // Hand the embedded map the same window we resolved the ego graph over,
-        // so it owns its time like the traces/logs blocks instead of following
-        // the global topbar picker (or the /ai default).
-        windowMinutes: Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000)),
+        upstream,
+        downstream,
+        reachable: snapshot.reachable,
+        errorReason: snapshot.reachable ? null : (snapshot.error ?? 'topology unreachable'),
+        windowMinutes,
+        // ALWAYS carry the replayData — the block is a static file of what was read.
+        // If the read had no value (empty / unreachable / too-large), the seeded
+        // view replays THAT state ("no data" / "unreachable" / "too large"),
+        // frozen; it never re-queries on reload.
+        replayData: snapshot,
       });
-      return ego.reachable
-        ? `Rendered the one-hop topology for ${service}: ${ego.upstream.length} upstream caller(s), ${ego.downstream.length} downstream dependency(ies).`
-        : `Topology for ${service} is unreachable (${ego.error ?? 'no data'}).`;
+      if (!snapshot.reachable) return `Topology for ${service} is unreachable (${snapshot.error ?? 'no data'}).`;
+      if (tooLarge) return `Topology for ${service} is too large to draw legibly (${snapshot.tooLarge!.nodes} nodes, ${snapshot.tooLarge!.edges} edges). Narrow the scope.`;
+      return summarizeTopology(snapshot, row.id, service);
     },
     {
       name: 'show_topology',
-      description:
-        "Render a service's FOCUSED one-hop dependency topology inline (the ego graph): the service plus its DIRECT upstream callers (services that call it) and DIRECT downstream dependencies (services it calls). This is one hop each way — NOT the whole-layer map. Use it to show who a service talks to / walk the dependency step of an investigation. Provide the layer and service name.",
+      description: topologyPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
+        layer: z.string().describe(topologyPrompt.p('layer')),
+        service: z.string().describe(topologyPrompt.p('service')),
+        title: z.string().optional().describe(topologyPrompt.p('title')),
       }),
     },
   );
@@ -301,29 +540,53 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // scoped, so the tool resolves the serviceId (the deployment query keys on it)
   // and hands the UI a frozen window; the UI view fetches its own graph and owns
   // the pan/zoom + node/edge detail.
+  const deploymentPrompt = toolPrompt('visualization', 'show_deployment');
   const deploymentTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked) return `Deployment for ${service} is unavailable (template store unreachable).`;
+      const cfg = deploymentConfigFor(eff.template);
+      if (!cfg) return `The ${layer.toUpperCase()} layer doesn't configure a deployment view (no intra-service instance graph).`;
+      const snapshot = await buildDeployment({
+        opts: ctx.opts,
+        perf: ctx.config.current.performance,
+        window: ctx.window,
+        coldStage: false,
+        cfg,
+        layerKey: layer.toUpperCase(),
+        serviceId: row.id,
+      });
       ctx.emitDeployment({
         title: title || `Deployment — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        windowMinutes: Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000)),
+        windowMinutes,
+        // Always frozen: replay the captured graph (or its empty/unreachable state).
+        replayData: snapshot,
       });
-      return `Mounted the deployment view for ${service} — the instance-to-instance call graph within the service. The operator browses it inline.`;
+      if (!snapshot.reachable) return `Deployment for ${service} is unreachable (${snapshot.error ?? 'no data'}).`;
+      // A role-clustered deployment (e.g. BanyanDB) keeps its metric defs under
+      // roles[].nodeMetrics, not the top-level list — union both, else the node
+      // values (which ARE populated, keyed by the role's metric ids) read blank.
+      const depLegend = dedupeLegend([...(cfg.nodeMetrics ?? []), ...(cfg.roles ?? []).flatMap((r) => r.nodeMetrics ?? [])]);
+      const nodes = summarizeMapNodes(snapshot.nodes, depLegend, 8);
+      const depName = new Map(snapshot.nodes.map((n) => [n.id, n.name]));
+      const depGap = edgeGapSummary(snapshot.calls, (id) => depName.get(id) ?? id, pairedLinkDefs(cfg.linkServerMetrics ?? [], cfg.linkClientMetrics ?? []), 6);
+      return `Deployment of ${service}: ${snapshot.nodes.length} instance(s), ${snapshot.calls.length} intra-service edge(s).${nodes ? ` ${nodes}.` : ''}${depGap}`;
     },
     {
       name: 'show_deployment',
-      description:
-        "Mount the per-service DEPLOYMENT view inline (read-only): the instance-to-instance call graph WITHIN one service (its instances/pods and the intra-service relations between them), the same view as the layer Deployment tab. Use it to show how a service's own instances talk to each other — NOT the cross-service topology (use show_topology for that). Provide the layer and service name.",
+      description: deploymentPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
+        layer: z.string().describe(deploymentPrompt.p('layer')),
+        service: z.string().describe(deploymentPrompt.p('service')),
+        title: z.string().optional().describe(deploymentPrompt.p('title')),
       }),
     },
   );
@@ -333,6 +596,7 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // as two columns, with the instance-to-instance calls between them. The tool
   // resolves BOTH service ids; the two must have a call relationship (client →
   // server) or the map is empty. The UI owns pan/zoom + node/edge detail.
+  const instanceTopologyPrompt = toolPrompt('visualization', 'show_instance_topology');
   const instanceTopologyTool = tool(
     async ({ layer, sourceService, destService, title }: { layer: string; sourceService: string; destService: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
@@ -342,6 +606,21 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
       if (!client) return `Unknown source service "${sourceService}" in layer ${layer}. Use list_services first.`;
       const server = rows.find((s) => s.name === destService);
       if (!server) return `Unknown dest service "${destService}" in layer ${layer}. Use list_services first.`;
+      const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked) return `The instance map is unavailable (template store unreachable).`;
+      const cfg = instanceTopologyConfigFor(eff.template);
+      if (!cfg) return `The ${layer.toUpperCase()} layer doesn't configure an instance map.`;
+      const snapshot = await buildInstanceTopology({
+        opts: ctx.opts,
+        perf: ctx.config.current.performance,
+        window: ctx.window,
+        coldStage: false,
+        cfg,
+        layerKey: layer.toUpperCase(),
+        clientServiceId: client.id,
+        serverServiceId: server.id,
+      });
       ctx.emitInstanceTopology({
         title: title || `Instance map — ${sourceService} → ${destService}`,
         layer: layer.toUpperCase(),
@@ -349,19 +628,25 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
         clientServiceId: client.id,
         serverService: destService,
         serverServiceId: server.id,
-        windowMinutes: Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000)),
+        windowMinutes,
+        // Always frozen: replay the captured pair map (or its empty/unreachable state).
+        replayData: snapshot,
       });
-      return `Mounted the instance map for ${sourceService} → ${destService} — the instances of each service and the calls between them. The operator browses it inline. (If the two services have no call relationship in this window, the map is empty.)`;
+      if (!snapshot.reachable) return `The instance map for ${sourceService} → ${destService} is unreachable (${snapshot.error ?? 'no data'}).`;
+      if (snapshot.nodes.length === 0) return `${sourceService} → ${destService}: no instance-level call relationship in this window (empty map).`;
+      const nodes = summarizeMapNodes(snapshot.nodes, cfg.nodeMetrics ?? [], 8);
+      const instName = new Map(snapshot.nodes.map((n) => [n.id, n.name]));
+      const instGap = edgeGapSummary(snapshot.calls, (id) => instName.get(id) ?? id, pairedLinkDefs(cfg.linkServerMetrics ?? [], cfg.linkClientMetrics ?? []), 6);
+      return `Instance map ${sourceService} → ${destService}: ${snapshot.nodes.length} instance(s), ${snapshot.calls.length} edge(s).${nodes ? ` ${nodes}.` : ''}${instGap}`;
     },
     {
       name: 'show_instance_topology',
-      description:
-        "Mount the per-PAIR INSTANCE-TOPOLOGY view inline (read-only): the instances of a SOURCE (client) service and a DEST (server) service as two columns, with the instance-to-instance calls BETWEEN them (the same instance-map drill-down the Topology tab opens from a call edge). Requires BOTH a source and a dest service that have a call relationship (source calls dest) — use it to show how one service's instances talk to another's. Distinct from show_deployment (one service's OWN instances) and show_topology (service-level one-hop). Provide the layer, the source (client) service name, and the dest (server) service name.",
+      description: instanceTopologyPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        sourceService: z.string().describe('SOURCE (client) service NAME — the caller (from list_services)'),
-        destService: z.string().describe('DEST (server) service NAME — the callee it calls (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
+        layer: z.string().describe(instanceTopologyPrompt.p('layer')),
+        sourceService: z.string().describe(instanceTopologyPrompt.p('sourceService')),
+        destService: z.string().describe(instanceTopologyPrompt.p('destService')),
+        title: z.string().optional().describe(instanceTopologyPrompt.p('title')),
       }),
     },
   );
@@ -370,29 +655,49 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // inline (read-only). Service-scoped: the tool resolves the serviceId; the
   // embedded view auto-picks the service's top endpoint and draws its upstream/
   // downstream dependency chain. The UI owns the expand + node/edge detail.
+  const endpointDependencyPrompt = toolPrompt('visualization', 'show_endpoint_dependency');
   const endpointDependencyTool = tool(
     async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const windowMinutes = Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000));
+      const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+      if (eff.blocked) return `API dependency for ${service} is unavailable (template store unreachable).`;
+      // An empty endpointArg lets the builder pick the service's first endpoint;
+      // the response's endpointId PINS it so a reload replays the SAME chain.
+      const snapshot = await buildEndpointDependency({
+        opts: ctx.opts,
+        perf: ctx.config.current.performance,
+        window: ctx.window,
+        coldStage: false,
+        cfg: endpointDependencyConfigFor(eff.template),
+        layerKey: layer.toUpperCase(),
+        serviceArg: row.id,
+        endpointArg: '',
+      });
       ctx.emitEndpointDependency({
         title: title || `API dependency — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        windowMinutes: Math.max(1, Math.round((ctx.range.endMs - ctx.range.startMs) / 60_000)),
+        windowMinutes,
+        // Always frozen: replay the captured chain (or its empty/no-endpoint state).
+        replayData: snapshot,
       });
-      return `Mounted the API-dependency view for ${service} — its top endpoint's upstream/downstream dependency chain. The operator browses it inline (and can expand any node).`;
+      if (!snapshot.reachable) return `API dependency for ${service} is unreachable (${snapshot.error ?? 'no data'}).`;
+      if (!snapshot.endpointId) return `${service} exposes no endpoints in this window (no dependency chain to draw).`;
+      const nodes = summarizeMapNodes(snapshot.nodes, snapshot.config.nodeMetrics ?? [], 8);
+      return `API dependency for ${service} (its primary endpoint): ${snapshot.nodes.length} node(s), ${snapshot.calls.length} dependency edge(s).${nodes ? ` ${nodes}.` : ''}`;
     },
     {
       name: 'show_endpoint_dependency',
-      description:
-        "Mount the per-endpoint API-DEPENDENCY view inline (read-only): the focused endpoint's upstream callers and downstream callees as a dependency chain (the same view as the layer API-dependency tab). The embedded view auto-picks the service's busiest endpoint and draws its chain; the operator can expand any node. Use it to show what a service's endpoints depend on across services. Provide the layer and service name.",
+      description: endpointDependencyPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
+        layer: z.string().describe(endpointDependencyPrompt.p('layer')),
+        service: z.string().describe(endpointDependencyPrompt.p('service')),
+        title: z.string().optional().describe(endpointDependencyPrompt.p('title')),
       }),
     },
   );
@@ -401,30 +706,65 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // on the service — the operator gets the actual trace LIST + span WATERFALL to
   // browse. Params only; the UI view fetches its own traces + owns the
   // list→detail interaction.
+  const tracesPrompt = toolPrompt('visualization', 'show_traces');
   const tracesTool = tool(
-    async ({ layer, service, title, windowMinutes }: { layer: string; service: string; title?: string; windowMinutes?: number }): Promise<string> => {
+    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      // Freeze the native list (frozen-always) so the block replays offline.
+      const windowMinutes = rangeWindowMinutes(ctx.range);
+      const offsetMinutes = await getServerOffsetMinutes(ctx.config, ctx.fetch);
+      const cfgTraceCap = ctx.config.current.performance.limits.maxPageSize.traces;
+      const maxTraces = Math.min(TRACE_CAP, cfgTraceCap);
+      const native = await fetchNativeList(
+        ctx.opts,
+        { service, serviceId: row.id, startMs: ctx.range.startMs, endMs: ctx.range.endMs, pageSize: maxTraces },
+        layer.toUpperCase(),
+        false,
+        offsetMinutes,
+        cfgTraceCap,
+      );
+      // v2 rows carry inline spans (keep the capture cap); v1 rows have none, so
+      // cap tighter and hydrate with spans so the waterfall replays offline.
+      if (native.api === 'queryBasicTraces') {
+        native.traces = native.traces.slice(0, Math.min(V1_TRACE_CAP, maxTraces));
+        // v1 rows are SEGMENT-shaped: several rows can share one traceId, so
+        // fetch each distinct trace once and share its spans across its rows.
+        const spansByTrace = new Map<string, NativeSpan[]>();
+        for (const t of native.traces) {
+          const tid = t.traceIds[0];
+          if (!tid) continue;
+          let spans = spansByTrace.get(tid);
+          if (!spans) {
+            spans = await fetchNativeTraceSpans(ctx.opts, tid);
+            spansByTrace.set(tid, spans);
+          }
+          t.spans = spans;
+        }
+      } else {
+        native.traces = native.traces.slice(0, maxTraces);
+      }
+      const replayData: TraceListResponse = { generatedAt: Date.now(), source: 'native', native };
       ctx.emitTraces({
         title: title || `Traces — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        windowMinutes: windowMinutes && windowMinutes > 0 ? windowMinutes : undefined,
+        windowMinutes,
+        replayData,
       });
-      return `Mounted the native Traces view for ${service}. The operator can browse the trace list and open a span waterfall in the chat.`;
+      if (!native.reachable) return `Traces for ${service} are unavailable (${native.error ?? 'unreachable'}).`;
+      return `Captured ${native.traces.length} native trace(s) for ${service} (${native.api === 'queryBasicTraces' ? 'v1' : 'v2'}). The operator can browse the frozen list and open a span waterfall in the chat.`;
     },
     {
       name: 'show_traces',
-      description:
-        "Mount the native distributed-tracing view inline for a service — the real trace LIST plus the span WATERFALL, which the operator browses (click a trace to open its spans). Use it to surface slow / erroring traces for a service so a human can inspect them; there is no tool to read individual span data yourself. Provide the layer and service name; optionally a look-back windowMinutes (default 30). ONLY for a layer whose traces run NATIVE (SkyWalking segments) — for a Zipkin-tracing layer use list_zipkin_services + show_zipkin_traces instead.",
+      description: tracesPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
-        windowMinutes: z.number().optional().describe('look-back window in minutes (default 30)'),
+        layer: z.string().describe(tracesPrompt.p('layer')),
+        service: z.string().describe(tracesPrompt.p('service')),
+        title: z.string().optional().describe(tracesPrompt.p('title')),
       }),
     },
   );
@@ -433,6 +773,7 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // localEndpoint.serviceName), which is GLOBAL and differs from the SkyWalking
   // service names. So the assistant first LISTS the Zipkin services (this tool),
   // matches the intended service by name, then renders with show_zipkin_traces.
+  const listZipkinServicesPrompt = toolPrompt('visualization', 'list_zipkin_services');
   const listZipkinServicesTool = tool(
     async ({ keyword }: { keyword?: string }): Promise<string> => {
       if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
@@ -456,36 +797,55 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'list_zipkin_services',
-      description:
-        "List the ZIPKIN service names (the span localEndpoint.serviceName universe — GLOBAL, not per-layer, and DIFFERENT from the SkyWalking service names). Use this for a Zipkin-tracing layer to find the Zipkin-side service name that matches the SkyWalking service (or the user's phrasing), THEN pass the matched name to show_zipkin_traces. Optionally pass a keyword to narrow the list.",
+      description: listZipkinServicesPrompt.description,
       schema: z.object({
-        keyword: z.string().optional().describe('case-insensitive substring to narrow the Zipkin service list'),
+        keyword: z.string().optional().describe(listZipkinServicesPrompt.p('keyword')),
       }),
     },
   );
 
   // show_zipkin_traces mounts the real Zipkin Traces view inline (read-only),
   // focused on a ZIPKIN service name the model matched via list_zipkin_services.
+  const zipkinTracesPrompt = toolPrompt('visualization', 'show_zipkin_traces');
   const zipkinTracesTool = tool(
-    async ({ layer, service, title, windowMinutes }: { layer: string; service: string; title?: string; windowMinutes?: number }): Promise<string> => {
+    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('traces:read')) return 'Permission denied: the current user lacks traces:read.';
+      const oap = ctx.config.current.oap;
+      const zopts = { queryUrl: oap.zipkinUrl, timeoutMs: oap.timeoutMs, auth: oap.auth, fetch: ctx.fetch };
+      // Freeze the Zipkin list WITH spans so the waterfall replays offline.
+      let replayData: ZipkinTraceListResponse;
+      try {
+        const rows = await zipkinFetchTraces(
+          zopts,
+          {
+            serviceName: service,
+            endTs: ctx.range.endMs,
+            lookback: ctx.range.endMs - ctx.range.startMs,
+            limit: Math.min(TRACE_CAP, ctx.config.current.performance.limits.maxPageSize.traces),
+          },
+          true,
+        );
+        replayData = { source: 'zipkin', traces: rows, reachable: true };
+      } catch (err) {
+        replayData = { source: 'zipkin', traces: [], reachable: false, error: err instanceof Error ? err.message : String(err) };
+      }
       ctx.emitZipkinTraces({
         title: title || `Zipkin traces — ${service}`,
         layer: layer.toUpperCase(),
         service,
-        windowMinutes: windowMinutes && windowMinutes > 0 ? windowMinutes : undefined,
+        windowMinutes: rangeWindowMinutes(ctx.range),
+        replayData,
       });
-      return `Mounted the Zipkin Traces view for ${service}. The operator can browse the trace list and open a span waterfall in the chat. (If no traces match, the service name may not be a Zipkin service — re-check with list_zipkin_services.)`;
+      if (!replayData.reachable) return `Could not reach Zipkin for ${service} (${replayData.error}).`;
+      return `Captured ${replayData.traces.length} Zipkin trace(s) for ${service}. The operator can browse the frozen list and open a span waterfall in the chat. (If empty, the name may not be a Zipkin service — re-check with list_zipkin_services.)`;
     },
     {
       name: 'show_zipkin_traces',
-      description:
-        "Mount the Zipkin distributed-tracing view inline — the real trace LIST + span WATERFALL for a ZIPKIN service, which the operator browses. `service` MUST be a Zipkin service name from list_zipkin_services (NOT the SkyWalking name — they differ). Use this for a layer whose traces run on Zipkin (Envoy ALS / rover) after matching the service. Provide the layer (for context) and the matched Zipkin service name; optionally a look-back windowMinutes (default 30).",
+      description: zipkinTracesPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. MESH'),
-        service: z.string().describe('ZIPKIN service name (from list_zipkin_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
-        windowMinutes: z.number().optional().describe('look-back window in minutes (default 30)'),
+        layer: z.string().describe(zipkinTracesPrompt.p('layer')),
+        service: z.string().describe(zipkinTracesPrompt.p('service')),
+        title: z.string().optional().describe(zipkinTracesPrompt.p('title')),
       }),
     },
   );
@@ -493,30 +853,43 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // show_logs mounts the real layer Logs view inline (read-only), focused on the
   // service — the operator gets the actual log stream + row→detail. Distinct
   // from fetch_pod_logs (the k8s on-demand live tail); this is the layer Logs tab.
+  const logsPrompt = toolPrompt('visualization', 'show_logs');
   const logsTool = tool(
-    async ({ layer, service, title, windowMinutes }: { layer: string; service: string; title?: string; windowMinutes?: number }): Promise<string> => {
+    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('logs:read')) return 'Permission denied: the current user lacks logs:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const maxLogs = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.logs);
+      // Logs query at SECOND step — format the window in SECOND (ctx.window is the
+      // chat's MINUTE-step string; mixing step + format throws verifyDateTimeString).
+      const logOffset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
+      const logWindow = { start: fmtSecond(ctx.range.startMs, logOffset), end: fmtSecond(ctx.range.endMs, logOffset) };
+      const replayData = await fetchLogs(
+        ctx.opts,
+        { serviceId: row.id },
+        logWindow,
+        { pageNum: 1, pageSize: maxLogs },
+        false,
+      );
       ctx.emitLogs({
         title: title || `Logs — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        windowMinutes: windowMinutes && windowMinutes > 0 ? windowMinutes : undefined,
+        windowMinutes: rangeWindowMinutes(ctx.range),
+        replayData,
       });
-      return `Mounted the Logs view for ${service}. The operator can browse the log stream and open a record's detail in the chat.`;
+      if (!replayData.reachable) return `Logs for ${service} are unavailable (${replayData.error ?? 'unreachable'}).`;
+      return `Captured ${replayData.logs.length} log row(s) for ${service}. The operator can browse the frozen stream and open a record's detail in the chat.`;
     },
     {
       name: 'show_logs',
-      description:
-        "Mount the layer LOGS view inline for a service — the real log stream the operator browses (click a row for its detail). Use it to surface a service's logs for a human to read. This is the layer Logs tab (stored logs); it is NOT fetch_pod_logs (that is the Kubernetes on-demand live tail). Provide the layer and service name; optionally a look-back windowMinutes (default 30).",
+      description: logsPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL'),
-        service: z.string().describe('service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
-        windowMinutes: z.number().optional().describe('look-back window in minutes (default 30)'),
+        layer: z.string().describe(logsPrompt.p('layer')),
+        service: z.string().describe(logsPrompt.p('service')),
+        title: z.string().optional().describe(logsPrompt.p('title')),
       }),
     },
   );
@@ -524,41 +897,52 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
   // show_browser_logs mounts the real browser-monitoring error list inline
   // (read-only), focused on the browser app — the operator gets the client-side
   // error stream + its row→stack-trace detail (BROWSER-family layers only).
+  const browserErrorsPrompt = toolPrompt('visualization', 'show_browser_logs');
   const browserErrorsTool = tool(
-    async ({ layer, service, title, windowMinutes }: { layer: string; service: string; title?: string; windowMinutes?: number }): Promise<string> => {
+    async ({ layer, service, title }: { layer: string; service: string; title?: string }): Promise<string> => {
       if (!ctx.hasVerb('browser-errors:read')) return 'Permission denied: the current user lacks browser-errors:read.';
       const cat = await catalog();
       const row = (cat.byLayer.get(layer.toUpperCase()) ?? []).find((s) => s.name === service);
       if (!row) return `Unknown service "${service}" in layer ${layer}. Use list_services first.`;
+      const maxBrowser = Math.min(LIST_CAP, ctx.config.current.performance.limits.maxPageSize.browserLogs);
+      const beOffset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
+      const beWindow = { start: fmtSecond(ctx.range.startMs, beOffset), end: fmtSecond(ctx.range.endMs, beOffset) };
+      const replayData = await fetchBrowserErrors(
+        ctx.opts,
+        { serviceId: row.id },
+        beWindow,
+        { pageNum: 1, pageSize: maxBrowser },
+        false,
+      );
       ctx.emitBrowserErrors({
         title: title || `Browser errors — ${service}`,
         layer: layer.toUpperCase(),
         service,
         serviceId: row.id,
-        windowMinutes: windowMinutes && windowMinutes > 0 ? windowMinutes : undefined,
+        windowMinutes: rangeWindowMinutes(ctx.range),
+        replayData,
       });
-      return `Mounted the Browser errors view for ${service}. The operator can browse the client-side error list and open a stack trace in the chat.`;
+      if (!replayData.reachable) return `Browser errors for ${service} are unavailable (${replayData.error ?? 'unreachable'}).`;
+      return `Captured ${replayData.logs.length} browser error(s) for ${service}. The operator can browse the frozen list and open a stack trace in the chat.`;
     },
     {
       name: 'show_browser_logs',
-      description:
-        "Mount the browser-monitoring ERROR list inline for a browser app — the client-side JS error stream the operator browses (click a row for its stack trace). Use it for a BROWSER-family layer's app to surface front-end errors for a human. Provide the layer and service (browser-app) name; optionally a look-back windowMinutes (default 30).",
+      description: browserErrorsPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP browser-layer key'),
-        service: z.string().describe('browser-app service NAME (from list_services)'),
-        title: z.string().optional().describe('optional heading for the block'),
-        windowMinutes: z.number().optional().describe('look-back window in minutes (default 30)'),
+        layer: z.string().describe(browserErrorsPrompt.p('layer')),
+        service: z.string().describe(browserErrorsPrompt.p('service')),
+        title: z.string().optional().describe(browserErrorsPrompt.p('title')),
       }),
     },
   );
 
   return [
-    make('line', 'Use for a time series (a metric that varies over the window).'),
-    make('card', 'Use ONLY when the MQE collapses to a single scalar (latest/max/min/avg-of-plain/sum).'),
-    make('top', 'Use for a sorted top-N list (an MQE wrapped in top_n(...)).'),
-    make('table', 'Use for a labeled table (e.g. latest(...) of a labeled metric).'),
-    make('record', 'Use for RECORD-typed rows (e.g. sampled records / slow traces list).'),
-    ...subPageTools,
+    make('line'),
+    make('card'),
+    make('top'),
+    make('table'),
+    make('record'),
+    widgetTool,
     hierarchyTool,
     topologyTool,
     deploymentTool,

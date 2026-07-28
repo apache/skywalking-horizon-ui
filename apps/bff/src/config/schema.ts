@@ -377,6 +377,11 @@ const aiModelDefault = process.env.HORIZON_AI_MODEL ?? '';
 const aiBaseUrlDefault = process.env.HORIZON_AI_BASE_URL ?? '';
 const aiRegionDefault = process.env.HORIZON_AI_REGION ?? '';
 const aiApiKeyDefault = process.env.HORIZON_AI_API_KEY ?? '';
+// Client IndexedDB conversation-history cap (MB); server-side history is a future mode.
+const aiHistoryMaxMbDefault = ((): number => {
+  const n = Number(process.env.HORIZON_AI_HISTORY_MAX_MB);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : 500;
+})();
 const aiSchema = z
   .object({
     /** Master switch. When false, the chat route rejects (503) and the UI
@@ -411,6 +416,11 @@ const aiSchema = z
     /** OVERRIDE the bundled starter prompts (the chat's example chips). Empty →
      *  use the shipped defaults. Each string is one starter shown to the user. */
     starters: z.array(z.string().min(1)).default([]),
+    /** Client IndexedDB conversation-history cap (MB). */
+    history: z
+      .object({ maxMb: z.number().int().positive().default(aiHistoryMaxMbDefault) })
+      .strict()
+      .default({}),
   })
   .strict()
   .default({});

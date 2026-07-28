@@ -27,6 +27,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import type { TopologyResponse } from '@skywalking-horizon-ui/api-client';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
@@ -40,7 +41,14 @@ export function useLayerTopology(
    *  OWN window (a frozen look-back snapshot) and does NOT follow the global
    *  topbar picker or auto-refresh ticker — the interactive route omits it. */
   windowMinutes?: Ref<number | null>,
+  /** REPLAY mode: the captured graph to render from. When present the query
+   *  starts with it and NEVER fetches — a reloaded conversation replays the exact
+   *  data (nodes+edges+series) with zero OAP round-trip, so it can't slide to a
+   *  fresh window and survives an offline OAP. */
+  replayData?: Ref<TopologyResponse | null>,
 ) {
+  // replay mode is on whenever captured data is supplied.
+  const replay = computed(() => !!replayData?.value);
   const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   const timeRange = useTimeRangeStore();
   // In `?mode=preview` only: forward the operator's draft `topology` block
@@ -75,17 +83,23 @@ export function useLayerTopology(
         rangeKey.value,
         previewCfg.value,
       ),
-    enabled: computed(() => layerKey.value.length > 0),
+    // Replay is static: never fetch (data comes from replayData below).
+    enabled: computed(() => layerKey.value.length > 0 && !replay.value),
     staleTime: 30_000,
   });
   // The embedded chat map owns its own frozen window, so it must NOT refetch on
-  // the global ticker — only the interactive route subscribes.
-  if (!ownsWindow) useAutoRefreshSubscribe(() => q.refetch());
+  // the global ticker — only the interactive route subscribes. A replay map never
+  // fetches either.
+  if (!ownsWindow && !replay.value) useAutoRefreshSubscribe(() => q.refetch());
 
+  // Replay renders straight from the captured payload — NOT through the shared
+  // query cache. Seeding initialData under the live query key would let a chat
+  // snapshot serve a live view during staleTime (and vice-versa).
+  const data = computed(() => (replay.value ? (replayData?.value ?? null) : (q.data.value ?? null)));
   return {
-    data: computed(() => q.data.value ?? null),
-    nodes: computed(() => q.data.value?.nodes ?? []),
-    calls: computed(() => q.data.value?.calls ?? []),
+    data,
+    nodes: computed(() => data.value?.nodes ?? []),
+    calls: computed(() => data.value?.calls ?? []),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

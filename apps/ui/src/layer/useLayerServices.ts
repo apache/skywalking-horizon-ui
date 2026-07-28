@@ -53,18 +53,21 @@ export function useLayerServices(
   layerKey: Ref<string>,
   /** Embedded (chat) callers pass `{ rideTicker: false }` so the roster does not
    *  subscribe to the global auto-refresh ticker — an embedded block owns its own
-   *  frozen window and must not add a ticker-driven refetch. Default rides it. */
-  opts: { rideTicker?: boolean } = {},
+   *  frozen window and must not add a ticker-driven refetch. Default rides it.
+   *  `replay: true` suppresses the fetch entirely — a replay map hides the pickers
+   *  this roster feeds and must fire ZERO queries. */
+  opts: { rideTicker?: boolean; replay?: Ref<boolean> } = {},
 ) {
+  const isEnabled = computed(() => !(opts.replay?.value ?? false) && layerKey.value.length > 0);
   const q = useQuery({
     queryKey: ['layer-services', layerKey],
     queryFn: () => bffClient.layer.services(layerKey.value),
-    enabled: computed(() => layerKey.value.length > 0),
+    enabled: isEnabled,
     staleTime: 60_000,
   });
   if (opts.rideTicker !== false) {
     useAutoRefreshSubscribe(() => {
-      if (layerKey.value.length > 0) void q.refetch();
+      if (isEnabled.value) void q.refetch();
     });
   }
   return {

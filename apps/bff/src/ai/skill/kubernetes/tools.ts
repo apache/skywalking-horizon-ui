@@ -43,8 +43,9 @@ import type { AiRequestContext } from '../../context.js';
 import type { PodLogLine } from '../../types.js';
 import { graphqlPost } from '../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../util/window.js';
+import { toolPrompt } from '../../resources/loader.js';
 
-const DEFAULT_WINDOW_SEC = 300; // 5m trailing look-back for the agent's read
+const DEFAULT_WINDOW_SEC = 120; // 2m trailing look-back for the agent's read
 const MAX_WINDOW_SEC = 30 * 60; // 30m — same ceiling as the Pod Logs tab
 const MODEL_LINE_CAP = 80; // lines returned to the model (operator sees the full fetched result)
 const MODEL_CHAR_CAP = 8_000;
@@ -120,6 +121,7 @@ export function kubernetesTools(ctx: AiRequestContext): StructuredToolInterface[
     }
   }
 
+  const listPrompt = toolPrompt('kubernetes', 'list_pod_containers');
   const list = tool(
     async ({ serviceInstanceId }): Promise<string> => {
       if (!ctx.hasVerb('logs:read')) return denied();
@@ -137,14 +139,14 @@ export function kubernetesTools(ctx: AiRequestContext): StructuredToolInterface[
     },
     {
       name: 'list_pod_containers',
-      description:
-        "List the containers of a Kubernetes pod so you can pick which one to read logs from. `serviceInstanceId` is the pod's ServiceInstance id (from kb_resolve_scope_drill(serviceId, 'instance')). On-demand pod logs are OAP-gated (off by default) — if unavailable, this says so.",
+      description: listPrompt.description,
       schema: z.object({
-        serviceInstanceId: z.string().describe("the pod's ServiceInstance id (from kb_resolve_scope_drill)"),
+        serviceInstanceId: z.string().describe(listPrompt.p('serviceInstanceId')),
       }),
     },
   );
 
+  const fetchPrompt = toolPrompt('kubernetes', 'fetch_pod_logs');
   const fetchLogs = tool(
     async (input): Promise<string> => {
       if (!ctx.hasVerb('logs:read')) return denied();
@@ -236,33 +238,22 @@ export function kubernetesTools(ctx: AiRequestContext): StructuredToolInterface[
     },
     {
       name: 'fetch_pod_logs',
-      description:
-        'Read a Kubernetes pod container\'s LIVE logs (on-demand, pulled from the K8s API through OAP, never stored) and show the fetched lines to the operator inline (a read-only result, not a live tail). Use this to find the ERROR STACK once metrics point at a pod, and as the main move for a middleware LEAF (a DB/MQ/cache has no downstream to walk — read its logs instead). `serviceInstanceId` is the pod\'s ServiceInstance id (from kb_resolve_scope_drill). Omit `container` to auto-pick the first. FETCH UNFILTERED and read the returned lines YOURSELF to find the error — do NOT guess keywordsOfContent up front: a server-side regex silently drops any error that does not contain your guessed word, and an empty filtered pane looks like a silent pod (misleading the operator). If nothing looks wrong, that IS the finding (the pod is clean); widen the window before concluding it is silent. Use keywordsOfContent (OAP full-line regex) ONLY to grep for an error signature you ALREADY know — e.g. a message seen in a trace span log or an app-log search. OAP-gated: if disabled it tells you so.',
+      description: fetchPrompt.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key of the pod, e.g. K8S_SERVICE'),
-        serviceInstanceId: z.string().describe("the pod's ServiceInstance id (from kb_resolve_scope_drill)"),
-        container: z
-          .string()
-          .optional()
-          .describe('container name (from list_pod_containers); omit to auto-pick the first'),
-        service: z.string().optional().describe('service name (for the block heading)'),
-        pod: z.string().optional().describe('pod / instance name (for the block heading)'),
-        windowSeconds: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe(
-            'trailing look-back seconds (default 300, max 1800). On-demand logs are collected over time — use a WIDE window (e.g. 1800) and widen before concluding a pod is silent; a narrow window on a quiet pod returns nothing.',
-          ),
+        layer: z.string().describe(fetchPrompt.p('layer')),
+        serviceInstanceId: z.string().describe(fetchPrompt.p('serviceInstanceId')),
+        container: z.string().optional().describe(fetchPrompt.p('container')),
+        service: z.string().optional().describe(fetchPrompt.p('service')),
+        pod: z.string().optional().describe(fetchPrompt.p('pod')),
+        windowSeconds: z.number().int().positive().optional().describe(fetchPrompt.p('windowSeconds')),
         keywordsOfContent: z
           .array(z.string().min(1))
           .optional()
-          .describe('include only lines matching these (OAP full-line regex) — use ONLY for a KNOWN error signature, never as a first-pass guess; fetch unfiltered otherwise'),
+          .describe(fetchPrompt.p('keywordsOfContent')),
         excludingKeywordsOfContent: z
           .array(z.string().min(1))
           .optional()
-          .describe('drop lines matching these (OAP full-line regex)'),
+          .describe(fetchPrompt.p('excludingKeywordsOfContent')),
       }),
     },
   );

@@ -21,7 +21,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // self-contained; the mocked fns are pulled back in via import + cast below.
 vi.mock('../../../logic/dashboard/run.js', () => ({ runWidgets: vi.fn() }));
 vi.mock('../../../logic/oap/hierarchy.js', () => ({ getServiceHierarchy: vi.fn() }));
-vi.mock('../../../logic/oap/topology.js', () => ({ getServiceEgoTopology: vi.fn() }));
+// The map tools now call the shared logic/oap builders (the same fan-out the
+// layer routes use) and attach the response as spec.replayData.
+vi.mock('../../../logic/oap/service-topology.js', () => ({ buildServiceTopology: vi.fn() }));
+vi.mock('../../../logic/oap/instance-topology.js', () => ({ buildInstanceTopology: vi.fn() }));
+vi.mock('../../../logic/oap/deployment.js', () => ({ buildDeployment: vi.fn() }));
+vi.mock('../../../logic/oap/endpoint-dependency.js', () => ({ buildEndpointDependency: vi.fn() }));
+vi.mock('../../../logic/layers/effective.js', () => ({ resolveEffectiveLayer: vi.fn() }));
+vi.mock('../../../logic/layers/loader.js', () => ({
+  widgetsForScope: vi.fn(() => []),
+  topologyConfigFor: vi.fn(() => ({ nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] })),
+  deploymentConfigFor: vi.fn(() => null),
+  instanceTopologyConfigFor: vi.fn(() => ({ nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] })),
+  endpointDependencyConfigFor: vi.fn(() => ({ nodeMetrics: [], linkMetrics: [] })),
+}));
 // Catalog resolves the service row (id + normal) used to build the entity.
 vi.mock('../../../logic/services/service-layer-catalog.js', () => ({
   serviceLayerCatalog: () => ({
@@ -43,33 +56,42 @@ vi.mock('../../../logic/services/service-layer-catalog.js', () => ({
 import { visualizationTools } from './tools.js';
 import { runWidgets } from '../../../logic/dashboard/run.js';
 import { getServiceHierarchy } from '../../../logic/oap/hierarchy.js';
-import { getServiceEgoTopology } from '../../../logic/oap/topology.js';
+import { buildServiceTopology } from '../../../logic/oap/service-topology.js';
+import { buildInstanceTopology } from '../../../logic/oap/instance-topology.js';
+import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
 import type { AiRequestContext } from '../../context.js';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
 const runWidgetsMock = runWidgets as unknown as ReturnType<typeof vi.fn>;
 const getHierarchy = getServiceHierarchy as unknown as ReturnType<typeof vi.fn>;
-const getEgoTopology = getServiceEgoTopology as unknown as ReturnType<typeof vi.fn>;
+const buildTopo = buildServiceTopology as unknown as ReturnType<typeof vi.fn>;
+const buildInstTopo = buildInstanceTopology as unknown as ReturnType<typeof vi.fn>;
+const resolveEff = resolveEffectiveLayer as unknown as ReturnType<typeof vi.fn>;
 
 function mockCtx(hasVerb = true) {
   const emitFigure = vi.fn();
   const emitHierarchy = vi.fn();
   const emitTopology = vi.fn();
   const emitInstanceTopology = vi.fn();
+  const emitDeployment = vi.fn();
+  const emitEndpointDependency = vi.fn();
   const ctx = {
     hasVerb: () => hasVerb,
     emitFigure,
     emitHierarchy,
     emitTopology,
     emitInstanceTopology,
+    emitDeployment,
+    emitEndpointDependency,
     opts: {},
-    config: { current: {} },
+    config: { current: { performance: {} } },
+    uiTemplateClient: () => ({}),
     fetch: undefined,
     window: {},
     range: { startMs: 0, endMs: 600_000, step: 'MINUTE' },
     bulkSize: 5,
   } as unknown as AiRequestContext;
-  return { ctx, emitFigure, emitHierarchy, emitTopology, emitInstanceTopology };
+  return { ctx, emitFigure, emitHierarchy, emitTopology, emitInstanceTopology, emitDeployment, emitEndpointDependency };
 }
 function byName(ctx: AiRequestContext): Record<string, StructuredToolInterface> {
   const map: Record<string, StructuredToolInterface> = {};
@@ -81,7 +103,11 @@ const base = { title: 'T', layer: 'GENERAL', service: 'agent::songs' };
 beforeEach(() => {
   runWidgetsMock.mockReset();
   getHierarchy.mockReset();
-  getEgoTopology.mockReset();
+  buildTopo.mockReset();
+  buildInstTopo.mockReset();
+  resolveEff.mockReset();
+  // Default: template store reachable, layer resolves to an (empty) template.
+  resolveEff.mockResolvedValue({ blocked: false, template: {} });
 });
 
 describe('visualization render tools', () => {
@@ -126,34 +152,78 @@ describe('visualization render tools', () => {
     });
     const { ctx, emitHierarchy } = mockCtx();
     await byName(ctx).show_hierarchy.invoke({ layer: 'GENERAL', service: 'agent::songs' });
-    expect(getHierarchy).toHaveBeenCalledWith({}, 'svc-1', 'GENERAL', undefined);
+    expect(getHierarchy).toHaveBeenCalledWith(expect.anything(), 'svc-1', 'GENERAL', undefined);
     const spec = emitHierarchy.mock.calls[0][0] as {
       groups: Array<{ layer: string; peers: Array<{ role: string }> }>;
+      replayData?: unknown;
     };
     expect(spec.groups.map((g) => g.layer)).toEqual(['GENERAL', 'K8S_SERVICE']);
     expect(spec.groups[0].peers[0].role).toBe('self');
+    // Reachable ⇒ the raw hierarchy rides along as the seed for static replay.
+    expect(spec.replayData).toBeDefined();
   });
 
-  it('show_topology emits the resolved one-hop ego graph (upstream + downstream)', async () => {
-    getEgoTopology.mockResolvedValue({
+  it('show_topology runs the depth-1 builder and emits the ego graph + snapshot', async () => {
+    buildTopo.mockResolvedValue({
+      layer: 'GENERAL',
+      service: 'svc-1',
+      depth: 1,
       reachable: true,
-      focus: { id: 'svc-1', name: 'agent::songs' },
-      upstream: [{ id: 'gw', name: 'agent::gateway', isReal: true, type: 'Tomcat', layer: 'GENERAL' }],
-      downstream: [{ id: 'db', name: 'localhost:3306', isReal: false, type: 'mysql', layer: 'VIRTUAL_DATABASE' }],
+      generatedAt: 0,
+      config: {
+        nodeMetrics: [{ id: 'sla', label: 'SLA', unit: '%' }],
+        linkServerMetrics: [{ id: 'cpm', label: 'Load', unit: 'rpm' }],
+        linkClientMetrics: [],
+      },
+      nodes: [
+        { id: 'svc-1', name: 'agent::songs', type: null, isReal: true, layers: ['GENERAL'], metrics: { sla: 100 } },
+        { id: 'gw', name: 'agent::gateway', type: 'Tomcat', isReal: true, layers: ['GENERAL'], metrics: { sla: 99 } },
+        { id: 'db', name: 'localhost:3306', type: 'mysql', isReal: false, layers: ['VIRTUAL_DATABASE'], metrics: {} },
+      ],
+      calls: [
+        { id: 'c1', source: 'gw', target: 'svc-1', serverMetrics: { cpm: 5 }, clientMetrics: {}, serverMetricSeries: {}, clientMetricSeries: {} },
+        { id: 'c2', source: 'svc-1', target: 'db', serverMetrics: { cpm: 2 }, clientMetrics: {}, serverMetricSeries: {}, clientMetricSeries: {} },
+      ],
     });
     const { ctx, emitTopology } = mockCtx();
     const out = String(await byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs' }));
-    expect(getEgoTopology).toHaveBeenCalledWith({}, 'svc-1', 'agent::songs', expect.anything(), undefined);
+    expect(buildTopo).toHaveBeenCalledWith(expect.objectContaining({ layerKey: 'GENERAL', serviceArg: 'svc-1', depth: 1 }));
     const spec = emitTopology.mock.calls[0][0] as {
       upstream: Array<{ name: string }>;
       downstream: Array<{ name: string; isReal: boolean }>;
+      replayData?: unknown;
     };
+    // call target === focus ⇒ its source is upstream; call source === focus ⇒ downstream.
     expect(spec.upstream[0].name).toBe('agent::gateway');
     expect(spec.downstream[0].isReal).toBe(false);
-    expect(out).toContain('1 upstream');
+    expect(spec.replayData).toBeDefined();
+    expect(out).toMatch(/upstream caller/i);
   });
 
-  it('show_instance_topology resolves BOTH services and emits client=source, server=dest', async () => {
+  it('show_topology still carries the snapshot on an unreachable read (frozen replay of the no-value state)', async () => {
+    buildTopo.mockResolvedValue({
+      layer: 'GENERAL', service: 'svc-1', depth: 1, reachable: false, generatedAt: 0,
+      config: { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+      nodes: [], calls: [], error: 'oap down',
+    });
+    const { ctx, emitTopology } = mockCtx();
+    const out = String(await byName(ctx).show_topology.invoke({ layer: 'GENERAL', service: 'agent::songs' }));
+    const spec = emitTopology.mock.calls[0][0] as { replayData?: { reachable?: boolean } };
+    // Always frozen — the block replays the captured (unreachable) state, never re-queries.
+    expect(spec.replayData).toBeDefined();
+    expect(spec.replayData?.reachable).toBe(false);
+    expect(out).toMatch(/unreachable/i);
+  });
+
+  it('show_instance_topology resolves BOTH services and emits client=source, server=dest with a snapshot', async () => {
+    buildInstTopo.mockResolvedValue({
+      reachable: true,
+      nodes: [{ id: 'i1', name: 'gw-1', serviceId: 'svc-2', serviceName: 'agent::gateway', isReal: true, metrics: {} }],
+      calls: [],
+      config: { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] },
+      clientServiceName: 'agent::gateway',
+      serverServiceName: 'agent::songs',
+    });
     const { ctx, emitInstanceTopology } = mockCtx();
     const out = String(
       await byName(ctx).show_instance_topology.invoke({
@@ -168,6 +238,7 @@ describe('visualization render tools', () => {
       serverService: string;
       serverServiceId: string;
       windowMinutes?: number;
+      replayData?: unknown;
     };
     // source → client, dest → server (must NOT be swapped).
     expect(spec.clientService).toBe('agent::gateway');
@@ -175,6 +246,7 @@ describe('visualization render tools', () => {
     expect(spec.serverService).toBe('agent::songs');
     expect(spec.serverServiceId).toBe('svc-1');
     expect(spec.windowMinutes).toBe(10); // (endMs 600_000 - 0) / 60_000
+    expect(spec.replayData).toBeDefined();
     expect(out).toContain('agent::gateway');
   });
 
