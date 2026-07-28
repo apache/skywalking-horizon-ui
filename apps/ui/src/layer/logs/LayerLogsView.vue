@@ -27,7 +27,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
+import type { LayerDef, LogRow, LogsResponse, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
@@ -56,9 +56,15 @@ const props = defineProps<{
   layerKey?: string;
   focusService?: string;
   focusWindowMinutes?: number;
+  /** REPLAY mode: render the captured log list with zero re-query — no mount
+   *  auto-run, no pager (paging would refetch). Implies embedded. */
+  replay?: boolean;
+  replayData?: LogsResponse | null;
 }>();
 const route = useRoute();
 const embedded = computed(() => Boolean(props.embedded));
+const replay = computed(() => Boolean(props.replay));
+const replayDataRef = computed<LogsResponse | null>(() => props.replayData ?? null);
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -78,11 +84,14 @@ const safeCfg = computed(() => {
     slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// The landing / instance / endpoint feeds power the hidden filter chrome; in
+// replay they must fire NO OAP request. Landing + endpoints take a replay gate;
+// instances has none, so starve its service to null in replay.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here means the chat block never
 // touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
 );
@@ -120,7 +129,8 @@ const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 // How the picked instance is used depends on `logScope`: pinned primary
 // selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
+const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const { instances: instanceList } = useLayerInstances(layerKey, toolbarService);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
 // narrowing by picking from the dropdown. Auto-selection is reserved
@@ -156,6 +166,7 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
   serviceName,
   endpointQuery,
   endpointLimit,
+  replay,
 );
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
@@ -278,7 +289,7 @@ const aWindowMinutes = computed(() => applied.value.windowMinutes);
 const aStartMs = computed(() => applied.value.startMs);
 const aEndMs = computed(() => applied.value.endMs);
 
-const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
+const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
   service: aService,
   instanceId: aInstanceId,
   endpointId: aEndpointId,
@@ -291,7 +302,12 @@ const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   startMs: aStartMs,
   endMs: aEndMs,
   enabled: hasQueried,
+  replayData: replayDataRef,
 });
+
+// An unreachable read carries no rows — say so rather than let it read as an
+// empty scope (in replay that's the failure the capture recorded).
+const failed = computed<boolean>(() => !reachable.value || error.value !== null);
 
 const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   service: aService,
@@ -303,6 +319,7 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   startMs: aStartMs,
   endMs: aEndMs,
   enabled: hasQueried,
+  replay,
 });
 
 // Run query refetches BOTH the log stream and the facet sample (level
@@ -321,6 +338,11 @@ function runQuery(): void {
 onMounted(() => {
   if (!embedded.value) return;
   if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
+  // Replay renders the captured rows — flip past the Run-query prompt, never fetch.
+  if (replay.value) {
+    hasQueried.value = true;
+    return;
+  }
   runQuery();
 });
 
@@ -495,8 +517,9 @@ watch(
       </div>
     </header>
 
-    <div v-if="error" class="banner err">
-      <strong>Logs feed failed.</strong> {{ String(error) }}
+    <div v-if="failed" class="banner err">
+      <strong>{{ replay ? 'This log read failed when it was captured.' : 'Logs feed failed.' }}</strong>
+      <template v-if="error"> {{ error }}</template>
     </div>
 
     <section class="lg-body sw-card">
@@ -513,7 +536,8 @@ watch(
             type="button"
             class="lg-legend-chip"
             :class="{ on: selectedLevel === l, disabled: l === 'other' }"
-            :disabled="l === 'other'"
+            :disabled="l === 'other' || replay"
+            :title="replay ? 'Captured counts — the level filter runs on OAP, so it is inert in replay.' : undefined"
             @click="toggleLevel(l)"
           >
             <span class="lvl-dot" :style="{ background: LEVEL_COLOR[l] }" />
@@ -528,7 +552,9 @@ watch(
         <DensityHistogram :data="histogram" :keys="LEVEL_ORDER" :colors="LEVEL_COLOR" />
 
         <div v-if="filteredLogs.length === 0" class="lg-empty">
-          {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
+          <template v-if="failed">The log read failed — nothing to show.</template>
+          <template v-else-if="logs.length === 0">No logs returned for this scope.</template>
+          <template v-else>No logs match the active filters.</template>
         </div>
         <LogStreamPanel
           v-else
@@ -537,8 +563,11 @@ watch(
           @jump-trace="jumpToTrace($event.traceId, $event.ts)"
         />
         <div class="lg-pager">
-          <span class="hint">page {{ page }} · showing {{ filteredLogs.length }} of {{ total }} total</span>
-          <div class="lg-pager-ctrls">
+          <span class="hint">
+            <template v-if="replay">showing {{ filteredLogs.length }} of {{ total }} captured</template>
+            <template v-else>page {{ page }} · showing {{ filteredLogs.length }} of {{ total }} total</template>
+          </span>
+          <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">Prev</button>
             <button
               class="sw-btn small"
@@ -710,12 +739,14 @@ watch(
   font-size: 11.5px;
   cursor: pointer;
 }
-.lg-legend-chip:hover { color: var(--sw-fg-0); border-color: var(--sw-line); }
+.lg-legend-chip:hover:not(:disabled) { color: var(--sw-fg-0); border-color: var(--sw-line); }
 .lg-legend-chip.on {
   color: var(--sw-accent-2);
   background: var(--sw-accent-soft);
   border-color: var(--sw-accent-line);
 }
+/* Replay disables every chip — it stays a full-strength legend, only inert. */
+.lg-legend-chip:disabled { cursor: default; }
 .lg-legend-chip.disabled { opacity: 0.45; cursor: not-allowed; }
 .lg-legend-name { text-transform: capitalize; }
 .lg-legend-count {

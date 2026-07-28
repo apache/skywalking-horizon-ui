@@ -22,6 +22,7 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { useAuthStore } from '@/state/auth';
 import { bff, type AiConfigResponse } from '@/api/client';
+import type { HistoryMode } from './historyStore';
 
 const HINT_SEEN_KEY = 'sw.ai.hintSeen';
 
@@ -54,6 +55,12 @@ async function ensureConfig(): Promise<void> {
   }
 }
 
+// History persistence settings from the once-per-session config probe, null until it loads.
+export function aiHistorySettings(): { mode: HistoryMode; maxBytes: number } | null {
+  const h = aiConfig.value?.history;
+  return h ? { mode: h.mode, maxBytes: h.clientMaxBytes } : null;
+}
+
 export interface AiChatController {
   /** Whether the slide-over panel is open. */
   open: Ref<boolean>;
@@ -68,6 +75,8 @@ export interface AiChatController {
   showHint: ComputedRef<boolean>;
   /** Server-supplied starter prompts (empty until config loads). */
   starters: ComputedRef<string[]>;
+  /** Client history settings (mode + cap), null until config loads. */
+  history: ComputedRef<AiConfigResponse['history'] | null>;
   /** Fetch the AI config once (call from the launcher on mount / auth change). */
   ensureConfig: () => Promise<void>;
   openPanel: () => void;
@@ -92,6 +101,7 @@ export function useAiChat(): AiChatController {
   // don't draw attention to a read-only, not-yet-configured panel.
   const showHint = computed<boolean>(() => ready.value && !hintSeen.value);
   const starters = computed<string[]>(() => aiConfig.value?.starters ?? []);
+  const history = computed<AiConfigResponse['history'] | null>(() => aiConfig.value?.history ?? null);
 
   function dismissHint(): void {
     if (hintSeen.value) return;
@@ -115,5 +125,5 @@ export function useAiChat(): AiChatController {
     else openPanel();
   }
 
-  return { open: openState, available, ready, enabled, showHint, starters, ensureConfig, openPanel, closePanel, toggle, dismissHint };
+  return { open: openState, available, ready, enabled, showHint, starters, history, ensureConfig, openPanel, closePanel, toggle, dismissHint };
 }

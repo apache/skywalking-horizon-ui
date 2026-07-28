@@ -21,21 +21,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerBrowserErrorsView from '@/layer/browser-errors/LayerBrowserErrorsView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { BrowserErrorsSpec } from './types';
 
-defineProps<{ n: number; spec: BrowserErrorsSpec }>();
+defineProps<{ n: number; spec: BrowserErrorsSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="cbe">
-    <div class="cbe__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="cbe__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="cbe__view">
       <LayerBrowserErrorsView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service="spec.service"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

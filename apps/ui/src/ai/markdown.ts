@@ -16,12 +16,12 @@
  */
 
 // Minimal, SAFE markdown to HTML for the assistant's streamed prose (headings,
-// bold, italic, inline code, code fences, ordered/unordered lists, links). No
-// dependency: the source is HTML-escaped FIRST, so any raw HTML the model emits
-// is rendered inert - only the whitelist of tags this function generates can
-// appear, and link hrefs are restricted to http(s). That is why the result is
-// safe to pass to v-html. Unsupported constructs (tables, blockquotes, nested
-// lists) degrade to plain text rather than breaking.
+// bold, italic, inline code, code fences, ordered/unordered lists, links, GFM
+// tables). No dependency: the source is HTML-escaped FIRST, so any raw HTML the
+// model emits is rendered inert - only the whitelist of tags this function
+// generates can appear, and link hrefs are restricted to http(s). That is why
+// the result is safe to pass to v-html. Unsupported constructs (blockquotes,
+// nested lists) degrade to plain text rather than breaking.
 
 const URL_OK = /^https?:\/\//i;
 // A control char that cannot appear in the escaped source - used to park inline
@@ -60,6 +60,20 @@ function inline(s: string): string {
   return out;
 }
 
+// GFM table helpers. A table is a header row + a delimiter row (|---|:--:|), then
+// body rows. These operate on already-escaped lines (cell text is escaped, then
+// inline() formats it), so the escape-first safety guarantee is preserved.
+function isTableDelimiter(l: string): boolean {
+  const t = l.trim();
+  return t.includes('|') && t.includes('-') && /^[\s|:-]+$/.test(t);
+}
+function tableCells(l: string): string[] {
+  let s = l.trim();
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+  return s.split('|').map((c) => c.trim());
+}
+
 export function renderMarkdown(src: string): string {
   const lines = esc(src).split('\n');
   const out: string[] = [];
@@ -95,6 +109,25 @@ export function renderMarkdown(src: string): string {
       }
       i++; // skip the closing fence
       out.push('<pre><code>' + buf.join('\n') + '</code></pre>');
+      continue;
+    }
+
+    // GFM table: a row containing `|` immediately followed by a delimiter row.
+    if (line.includes('|') && i + 1 < lines.length && isTableDelimiter(lines[i + 1])) {
+      flushPara();
+      flushList();
+      const header = tableCells(line);
+      i += 2; // consume the header + delimiter rows
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].trim() !== '' && lines[i].includes('|')) {
+        rows.push(tableCells(lines[i]));
+        i++;
+      }
+      const th = header.map((c) => '<th>' + inline(c) + '</th>').join('');
+      const body = rows
+        .map((r) => '<tr>' + r.map((c) => '<td>' + inline(c) + '</td>').join('') + '</tr>')
+        .join('');
+      out.push('<table><thead><tr>' + th + '</tr></thead><tbody>' + body + '</tbody></table>');
       continue;
     }
 

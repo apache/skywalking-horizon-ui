@@ -37,21 +37,31 @@ import { bffClient } from '@/api/client';
 export function useServiceHierarchy(
   layerKey: Ref<string>,
   serviceId: Ref<string | null>,
+  /** REPLAY mode: the captured hierarchy to render from. Present ⇒ start with it
+   *  and NEVER fetch, so a reloaded fan replays statically. */
+  replayData?: Ref<ServiceHierarchyResponse | null>,
 ) {
+  const replay = computed(() => !!replayData?.value);
   const q = useQuery({
     queryKey: ['layer-service-hierarchy', layerKey, serviceId],
     queryFn: (): Promise<ServiceHierarchyResponse> =>
       bffClient.layer.serviceHierarchy(layerKey.value, serviceId.value!),
-    enabled: computed(() => layerKey.value.length > 0 && !!serviceId.value),
+    enabled: computed(() => layerKey.value.length > 0 && !!serviceId.value && !replay.value),
     staleTime: 60_000,
   });
 
+  // Replay renders straight from the captured payload — NOT through the shared
+  // query cache. Seeding initialData under the live query key would let a chat
+  // snapshot serve a live probe during staleTime (and vice-versa).
+  const data = computed<ServiceHierarchyResponse | null>(() =>
+    replay.value ? (replayData?.value ?? null) : (q.data.value ?? null),
+  );
   return {
-    data: computed<ServiceHierarchyResponse | null>(() => q.data.value ?? null),
+    data,
     /** `true` once a probe lands AND the focused service has at least
      *  one cross-layer peer. The expand chip on the selected hex reads
      *  from this — it stays hidden until the probe confirms peers. */
-    hasPeers: computed<boolean>(() => (q.data.value?.relations ?? 0) > 0),
+    hasPeers: computed<boolean>(() => (data.value?.relations ?? 0) > 0),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

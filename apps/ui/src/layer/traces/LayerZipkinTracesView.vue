@@ -25,7 +25,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import type { NativeTraceListRow, ZipkinSpan, ZipkinTraceListRow } from '@skywalking-horizon-ui/api-client';
+import type {
+  NativeTraceListRow,
+  ZipkinSpan,
+  ZipkinTraceListResponse,
+  ZipkinTraceListRow,
+} from '@skywalking-horizon-ui/api-client';
 
 const { t } = useI18n({ useScope: 'global' });
 import { useLayerZipkinTraces, useZipkinTrace } from '@/layer/traces/useZipkinTraces';
@@ -57,8 +62,12 @@ const props = defineProps<{
    *  assistant from list_zipkin_services — it differs from the SkyWalking name. */
   focusService?: string;
   focusWindowMinutes?: number;
+  /** REPLAY (chat reload): render the captured list+spans, never re-query. */
+  replay?: boolean;
+  replayData?: ZipkinTraceListResponse | null;
 }>();
 const embedded = computed(() => Boolean(props.embedded));
+const replay = computed(() => Boolean(props.replay));
 
 const route = useRoute();
 const layerKey = computed(() =>
@@ -129,7 +138,7 @@ const cAnno = ref<string | null>(null);
 const hasQueried = ref<boolean>(false);
 const queryEnabled = computed(() => hasQueried.value);
 
-const { traces, isFetching, error, refetch } = useLayerZipkinTraces({
+const { traces, isFetching, reachable, error, refetch } = useLayerZipkinTraces({
   serviceName: cService,
   remoteServiceName: cRemote,
   spanName: cSpan,
@@ -140,8 +149,12 @@ const { traces, isFetching, error, refetch } = useLayerZipkinTraces({
   limit: cLimit,
   annotationQuery: cAnno,
   enabled: queryEnabled,
+  replayData: computed(() => props.replayData ?? null),
 });
 const { openTrace } = useZipkinTracePopout();
+// An unreachable read carries no rows — say so rather than let it read as an
+// empty window (in replay that's the failure the capture recorded).
+const failed = computed<boolean>(() => !reachable.value || error.value !== null);
 
 // hasQueried gate: a layer switch leaves cached `traces` stale until refetch.
 const shownTraces = computed<ZipkinTraceListRow[]>(() => (hasQueried.value ? traces.value : []));
@@ -198,8 +211,8 @@ const {
   spanName,
   remoteServiceName,
   // Embedded (chat) hides the whole toolbar, so skip the autocomplete fetches
-  // that only feed its dropdowns.
-  enabled: !embedded.value,
+  // that only feed its dropdowns. Replay must never re-query OAP either.
+  enabled: !embedded.value && !replay.value,
 });
 
 const serviceSelectOptions = computed(() => [
@@ -247,7 +260,7 @@ const selectedRowSpans = computed<ZipkinSpan[] | null>(() => {
 const fallbackTraceId = computed<string | null>(() =>
   selectedTraceId.value && !selectedRowSpans.value ? selectedTraceId.value : null,
 );
-const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId);
+const { spans: fetchedSpans, isLoading: fetchLoading } = useZipkinTrace(fallbackTraceId, replay);
 const selectedSpans = computed<ZipkinSpan[]>(() => selectedRowSpans.value ?? fetchedSpans.value);
 const selectedLoading = computed<boolean>(() => Boolean(fallbackTraceId.value) && fetchLoading.value);
 
@@ -277,6 +290,12 @@ onMounted(() => {
   if (props.focusService) zipkinServiceFilter.value = props.focusService;
   if (props.focusWindowMinutes && props.focusWindowMinutes > 0) {
     lookbackMs.value = props.focusWindowMinutes * 60_000;
+  }
+  // Replay renders the captured list straight from replayData — mark queried so
+  // the results show, but never fire the query.
+  if (replay.value) {
+    hasQueried.value = true;
+    return;
   }
   runQuery();
 });
@@ -470,8 +489,9 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
           <span class="kicker">{{ t('Results') }}</span>
           <span class="hint">{{ t('{n} traces', { n: visibleRows.length }) }}</span>
         </header>
-        <div v-if="error" class="banner err">
-          <strong>{{ t('Zipkin query failed.') }}</strong> {{ String(error) }}
+        <div v-if="failed" class="banner err">
+          <strong>{{ replay ? t('This Zipkin read failed when it was captured.') : t('Zipkin query failed.') }}</strong>
+          <template v-if="error"> {{ error }}</template>
         </div>
         <div v-else-if="!hasQueried" class="ztr-empty">
           {{ t('Click Run query to fetch Zipkin traces for this service.') }}
@@ -491,6 +511,7 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 
     <section v-else class="ztr-detail-split" :class="{ 'rail-collapsed': !railOpen }">
       <TraceListPanel
+        class="ztr-detail-rail"
         foldable
         :rail-open="railOpen"
         :rows="visibleRows"
@@ -677,8 +698,13 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
 }
 .dim { color: var(--sw-fg-3); }
 
+/* Narrow page: the detail takes over the full width and the rail is hidden,
+   rather than stacking the list on top of the detail (which overlapped the
+   sticky time-axis over the list rows). Switch traces by closing back to the
+   list, then selecting another. */
 @media (max-width: 1100px) {
   .ztr-detail-split { grid-template-columns: 1fr !important; }
+  .ztr-detail-rail { display: none; }
 }
 
 .ztr-detail-split {

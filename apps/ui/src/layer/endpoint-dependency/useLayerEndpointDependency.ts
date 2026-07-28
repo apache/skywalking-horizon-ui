@@ -23,6 +23,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
+import type { EndpointDependencyResponse } from '@skywalking-horizon-ui/api-client';
 import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
@@ -36,7 +37,11 @@ export function useLayerEndpointDependency(
    *  OWN frozen look-back window and does NOT follow the global topbar picker or
    *  auto-refresh ticker — the interactive route omits it. */
   windowMinutes?: Ref<number | null>,
+  /** REPLAY mode: the captured chain to render from. Present ⇒ start with it and
+   *  NEVER fetch, so a reload replays the SAME pinned endpoint chain offline. */
+  replayData?: Ref<EndpointDependencyResponse | null>,
 ) {
+  const replay = computed(() => !!replayData?.value);
   const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   // Preview-only: forward the draft `endpointDependency` block.
   const previewCfg = usePreviewLayerBlock(layerKey, 'endpointDependency');
@@ -64,16 +69,20 @@ export function useLayerEndpointDependency(
         previewCfg.value,
       ),
     enabled: computed(
-      () => layerKey.value.length > 0 && !!service.value && !!endpoint.value,
+      () => layerKey.value.length > 0 && !!service.value && !!endpoint.value && !replay.value,
     ),
     staleTime: 30_000,
   });
-  if (!ownsWindow) useAutoRefreshSubscribe(() => q.refetch());
+  if (!ownsWindow && !replay.value) useAutoRefreshSubscribe(() => q.refetch());
 
+  // Replay renders straight from the captured payload — NOT through the shared
+  // query cache. Seeding initialData under the live query key would let a chat
+  // snapshot serve a live view during staleTime (and vice-versa).
+  const data = computed(() => (replay.value ? (replayData?.value ?? null) : (q.data.value ?? null)));
   return {
-    data: computed(() => q.data.value ?? null),
-    nodes: computed(() => q.data.value?.nodes ?? []),
-    calls: computed(() => q.data.value?.calls ?? []),
+    data,
+    nodes: computed(() => data.value?.nodes ?? []),
+    calls: computed(() => data.value?.calls ?? []),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

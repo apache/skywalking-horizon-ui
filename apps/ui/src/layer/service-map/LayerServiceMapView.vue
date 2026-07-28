@@ -59,6 +59,7 @@ import type {
   TopologyCall,
   TopologyMetricDef,
   TopologyNode,
+  TopologyResponse,
 } from '@/api/client';
 import { useLayerTopology } from '@/layer/service-map/useLayerTopology';
 import { useLayerLanding } from '@/layer/useLayerLanding';
@@ -111,6 +112,13 @@ const props = defineProps<{
    *  owns this window and ignores the global topbar picker + auto-refresh
    *  ticker — the chat block owns its time like the traces/logs blocks. */
   focusWindowMinutes?: number;
+  /** REPLAY mode (AI chat): render statically from `replayData` — no OAP fetch,
+   *  frozen point-in-time — AND re-enable the embedded detail panel so a click
+   *  shows the captured node/edge metrics + edge part-graph sparklines. The
+   *  overview widget is embedded but NOT replay, so it stays non-interactive. */
+  replay?: boolean;
+  /** The captured graph to render in replay mode. */
+  replayData?: TopologyResponse;
 }>();
 const route = useRoute();
 const router = useRouter();
@@ -145,7 +153,9 @@ const safeCfg = computed(() => {
     slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// A replay map hides the service picker this rollup feeds, so it fires no landing
+// fetch and no ticker — gated by replay mode.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, computed(() => props.replay ?? false));
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 
 // Focus-service is local to the topology view (NOT the header's
@@ -187,11 +197,13 @@ function truncateLabel(s: string, n: number): string {
 
 const depth = ref<number>(props.focusDepth ?? 2);
 const focusWindowMinutes = computed<number | null>(() => props.focusWindowMinutes ?? null);
+const replayDataRef = computed<TopologyResponse | null>(() => props.replayData ?? null);
 const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
   layerKey,
   serviceName,
   depth,
   focusWindowMinutes,
+  replayDataRef,
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
@@ -573,13 +585,14 @@ function edgeMidpoint(c: TopologyCall): { x: number; y: number } | null {
 const selectedNodeId = ref<string | null>(null);
 const selectedCallId = ref<string | null>(null);
 function selectNode(id: string | null): void {
-  // Embedded snapshot mode renders the same map but with no detail
-  // sidebar — click is therefore a no-op.
-  if (embedded.value) return;
+  // The overview widget (embedded, not replay) renders a static map with no
+  // detail sidebar — click is a no-op. A chat REPLAY (embedded WITH replay)
+  // re-enables click so the captured node/edge detail can open.
+  if (embedded.value && !props.replay) return;
   selectedNodeId.value = selectedNodeId.value === id ? null : id;
 }
 function selectCall(id: string | null): void {
-  if (embedded.value) return;
+  if (embedded.value && !props.replay) return;
   selectedCallId.value = selectedCallId.value === id ? null : id;
 }
 // Escape closes whichever detail panel (node or edge) is open.
@@ -742,7 +755,11 @@ const { zoomT, fitToScreen, zoomBy } = useTopologyCanvas({
 // background topology doesn't shift while the operator pans through
 // peers. Disabled in embedded (widget) mode.
 const hierarchy = useHierarchyOverlayStore();
-const { hasPeers: hierarchyHasPeers } = useServiceHierarchy(layerKey, selectedNodeId);
+// The hierarchy chip is hidden in embedded mode, so never probe OAP for it there
+// — otherwise a seeded chat map (click re-enabled) fires a wasted round-trip on a
+// static replay. Null id ⇒ the probe query stays disabled.
+const hierarchyProbeId = computed(() => (embedded.value ? null : selectedNodeId.value));
+const { hasPeers: hierarchyHasPeers } = useServiceHierarchy(layerKey, hierarchyProbeId);
 
 function openHierarchy(): void {
   if (embedded.value) return;
@@ -1203,7 +1220,7 @@ onBeforeUnmount(() => {
           All nodes are hidden by the current filter.
           <button class="sw-btn small" type="button" @click="resetFilter">Reset filter</button>
         </div>
-        <div v-else-if="!tooLarge" class="loader">
+        <div v-else-if="!tooLarge && reachable" class="loader">
           No services with metric data in this layer for the last 15 minutes.
         </div>
 

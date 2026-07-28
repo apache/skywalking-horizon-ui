@@ -22,21 +22,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerDeploymentView from '@/layer/service-map/LayerDeploymentView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { DeploymentSpec } from './types';
 
-defineProps<{ n: number; spec: DeploymentSpec }>();
+defineProps<{ n: number; spec: DeploymentSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="cdp">
-    <div class="cdp__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="cdp__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="cdp__view">
       <LayerDeploymentView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service-id="spec.serviceId"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

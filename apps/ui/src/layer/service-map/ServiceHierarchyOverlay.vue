@@ -40,6 +40,7 @@ import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
 import type {
   HierarchyPeer,
   LayerLevel,
+  ServiceHierarchyResponse,
   ServiceNamingRule,
 } from '@skywalking-horizon-ui/api-client';
 import { firstLayerTab, useLayers } from '@/shell/useLayers';
@@ -67,6 +68,10 @@ const props = defineProps<{
    *  guarded on this, so the interactive topology overlay is unchanged. */
   standalone?: boolean;
   focus?: { serviceId: string; layer: string; serviceName: string };
+  /** REPLAY mode (AI chat, standalone only): render statically from `replayData`,
+   *  never re-query — a reloaded fan replays statically. */
+  replay?: boolean;
+  replayData?: ServiceHierarchyResponse;
 }>();
 
 const store = useHierarchyOverlayStore();
@@ -82,7 +87,8 @@ const isOpen = computed<boolean>(() => (props.standalone ? true : store.isOpen))
 
 const layerKey = computed(() => (fLayer.value ?? '').toLowerCase());
 const focusServiceId = computed(() => fServiceId.value);
-const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId);
+const replayDataRef = computed<ServiceHierarchyResponse | null>(() => props.replayData ?? null);
+const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId, replayDataRef);
 
 /** Look up a layer's color from the menu registry; fall back to the
  *  accent for layers we don't have an entry for (e.g. SO11Y_OAP). */

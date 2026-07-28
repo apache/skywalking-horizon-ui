@@ -30,6 +30,22 @@ describe('renderMarkdown', () => {
     expect(renderMarkdown('1. first\n2. second')).toBe('<ol><li>first</li><li>second</li></ol>');
   });
 
+  it('renders a GFM table (header + delimiter + body rows)', () => {
+    const src = '| Service | Alert |\n|---|---|\n| agent::app | slow |\n| agent::songs | ok |';
+    expect(renderMarkdown(src)).toBe(
+      '<table><thead><tr><th>Service</th><th>Alert</th></tr></thead>' +
+        '<tbody><tr><td>agent::app</td><td>slow</td></tr>' +
+        '<tr><td>agent::songs</td><td>ok</td></tr></tbody></table>',
+    );
+  });
+
+  it('formats inline markup inside table cells (aligned delimiter)', () => {
+    const out = renderMarkdown('| A | B |\n| :-- | --: |\n| **bold** | `code` |');
+    expect(out).toContain('<th>A</th>');
+    expect(out).toContain('<td><strong>bold</strong></td>');
+    expect(out).toContain('<td><code>code</code></td>');
+  });
+
   it('renders a code fence verbatim (escaped, not formatted)', () => {
     expect(renderMarkdown('```\nkubectl get pods\n```')).toBe('<pre><code>kubectl get pods</code></pre>');
   });

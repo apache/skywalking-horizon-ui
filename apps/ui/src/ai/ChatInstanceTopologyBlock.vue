@@ -23,15 +23,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerInstanceTopologyView from '@/layer/service-map/LayerInstanceTopologyView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { InstanceTopologySpec } from './types';
 
-defineProps<{ n: number; spec: InstanceTopologySpec }>();
+defineProps<{ n: number; spec: InstanceTopologySpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="cit">
-    <div class="cit__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="cit__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="cit__view">
       <LayerInstanceTopologyView
         :embedded="true"
@@ -39,6 +42,8 @@ const { t } = useI18n({ useScope: 'global' });
         :focus-client-service-id="spec.clientServiceId"
         :focus-server-service-id="spec.serverServiceId"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

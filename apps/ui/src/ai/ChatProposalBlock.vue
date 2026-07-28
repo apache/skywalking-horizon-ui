@@ -18,36 +18,90 @@
      reasoning — the analysed cause, why profiling, what it expects — and only
      on Approve does it call the existing verb-gated profile-create route. -->
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
+import type { AsyncProfilingEvent, PprofTaskCreationRequest } from '@skywalking-horizon-ui/api-client';
 import Icon from '@/components/icons/Icon.vue';
 import { useAiConversations } from './useAiConversations';
-import type { ProposalBlock } from './types';
+import type { ProposalBlock, ProposalSpec } from './types';
+
+// pprof: only CPU/BLOCK/MUTEX carry a duration; only BLOCK/MUTEX carry a dump
+// period. Sending them for point-in-time events (HEAP/GOROUTINE/…) is invalid.
+const PPROF_DURATION_EVENTS = ['CPU', 'BLOCK', 'MUTEX'];
+const PPROF_DUMP_PERIOD_EVENTS = ['BLOCK', 'MUTEX'];
 
 const props = defineProps<{ block: ProposalBlock }>();
 const { t } = useI18n({ useScope: 'global' });
 const conv = useAiConversations();
 const busy = ref(false);
 
+const pprofEvent = (s: ProposalSpec): string => s.events?.[0] ?? 'CPU';
+
+// Whether the task this spec creates actually carries a collection window, so
+// the card never advertises a duration the create call omits.
+function hasDuration(s: ProposalSpec): boolean {
+  if (s.profilingType === 'network') return false;
+  if (s.profilingType === 'pprof') return PPROF_DURATION_EVENTS.includes(pprofEvent(s));
+  return true;
+}
+
+// The five create calls share nothing but serviceId — fire the right one per
+// type, converting the agent-facing minutes to each call's unit. Returns a
+// normalised ok/error (eBPF/network signal success via `status`) plus the task
+// id — `id` is nullable on every OAP creation result, so ok does not imply one.
+async function fireTask(s: ProposalSpec): Promise<{ ok: boolean; taskId?: string; error?: string }> {
+  const layer = s.layer.toLowerCase();
+  const mins = s.durationMinutes;
+  if (s.profilingType === 'trace') {
+    // OAP's endpointName is non-null and rejects an empty string — an endpoint-less
+    // proposal can only fail on create, so fail the card instead of firing it.
+    if (!s.endpoint) return { ok: false, error: t('Trace profiling requires an endpoint, and this proposal carries none.') };
+    const r = await bff.profile.create(layer, {
+      serviceId: s.serviceId, endpointName: s.endpoint, startTime: Date.now(),
+      duration: mins, minDurationThreshold: 0, dumpPeriod: 10, maxSamplingCount: 5,
+    });
+    return { ok: r.reachable && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
+  }
+  if (s.profilingType === 'async') {
+    const r = await bff.asyncProfile.create(layer, {
+      serviceId: s.serviceId, serviceInstanceIds: s.instanceIds ?? [],
+      duration: mins * 60, events: (s.events ?? ['CPU']) as AsyncProfilingEvent[], execArgs: '',
+    });
+    return { ok: r.reachable && !r.errorReason && r.code !== 'ARGUMENT_ERROR', taskId: r.id, error: r.errorReason ?? r.error };
+  }
+  if (s.profilingType === 'pprof') {
+    const ev = pprofEvent(s);
+    const body: PprofTaskCreationRequest = { serviceId: s.serviceId, serviceInstanceIds: s.instanceIds ?? [], events: ev };
+    if (hasDuration(s)) body.duration = mins;
+    if (PPROF_DUMP_PERIOD_EVENTS.includes(ev)) body.dumpPeriod = 1;
+    const r = await bff.pprof.create(layer, body);
+    return { ok: r.reachable && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
+  }
+  if (s.profilingType === 'ebpf') {
+    const r = await bff.ebpf.create(layer, {
+      serviceId: s.serviceId, processLabels: s.processLabels ?? [], startTime: Date.now(),
+      duration: mins * 60, targetType: s.targetType ?? 'ON_CPU',
+    });
+    return { ok: r.reachable && r.status && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
+  }
+  const r = await bff.networkProfile.create({
+    instanceId: s.instanceIds?.[0] ?? '',
+    samplings: [{ when4xx: true, when5xx: true, settings: { requireCompleteRequest: true, requireCompleteResponse: true } }],
+  });
+  return { ok: r.reachable && r.status && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
+}
+
 async function approve(): Promise<void> {
-  const s = props.block.spec;
   busy.value = true;
   try {
-    const res = await bff.profile.create(s.layer.toLowerCase(), {
-      serviceId: s.serviceId,
-      endpointName: s.endpoint ?? '',
-      startTime: Date.now(),
-      duration: s.durationMinutes,
-      minDurationThreshold: 0,
-      dumpPeriod: 10,
-      maxSamplingCount: 5,
-    });
-    if (!res.reachable || res.errorReason) {
-      conv.resolveProposal(props.block, 'failed', { error: res.errorReason ?? res.error ?? '' });
-    } else {
-      conv.resolveProposal(props.block, 'approved', { taskId: res.id });
-    }
+    const res = await fireTask(props.block.spec);
+    if (!res.ok) conv.resolveProposal(props.block, 'failed', { error: res.error ?? '' });
+    // A create that succeeded without returning an id leaves the task RUNNING on
+    // OAP, so failing the card would strand it (and async/pprof would then reject
+    // the retry as already-profiling). It stays approved, but unbound: `taskId`
+    // is the binding, and the card renders the caveat when there is none.
+    else conv.resolveProposal(props.block, 'approved', res.taskId ? { taskId: res.taskId } : undefined);
   } catch (e) {
     conv.resolveProposal(props.block, 'failed', { error: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -57,13 +111,37 @@ async function approve(): Promise<void> {
 function dismiss(): void {
   conv.resolveProposal(props.block, 'dismissed');
 }
+
+// One whole sentence per type — interpolating a type name into a generic header
+// leaves the card half-English. Product nouns (JVM, async-profiler, pprof, eBPF)
+// stay verbatim in every locale. The Record is keyed by the union, so a new
+// profiling type is a compile error rather than a silently mislabelled card;
+// the values are the literal en.json keys.
+const HEADER_KEY: Record<ProposalSpec['profilingType'], string> = {
+  trace: 'Suggested action: start trace profiling',
+  async: 'Suggested action: start JVM async-profiler profiling',
+  pprof: 'Suggested action: start Go pprof profiling',
+  ebpf: 'Suggested action: start eBPF profiling',
+  network: 'Suggested action: start network profiling',
+};
+const headerText = computed<string>(() => t(HEADER_KEY[props.block.spec.profilingType]));
+const showDuration = computed<boolean>(() => hasDuration(props.block.spec));
+// One target line adapted to the type: endpoint for trace, resolved instances
+// for async/pprof/network, the CPU target for eBPF.
+const targetDetail = computed<string>(() => {
+  const s = props.block.spec;
+  if (s.profilingType === 'trace' && s.endpoint) return s.endpoint;
+  if (s.profilingType === 'ebpf') return s.targetType ?? 'ON_CPU';
+  if (s.instanceLabel) return s.instanceLabel;
+  return '';
+});
 </script>
 
 <template>
   <div class="prop" :class="`is-${block.status}`">
     <div class="prop__head">
       <Icon name="ai" :size="15" />
-      <span>{{ t('Suggested action: start trace profiling') }}</span>
+      <span>{{ headerText }}</span>
     </div>
     <dl class="prop__facts">
       <div><dt>{{ t('Cause') }}</dt><dd>{{ block.spec.cause }}</dd></div>
@@ -71,7 +149,7 @@ function dismiss(): void {
       <div><dt>{{ t('Expected') }}</dt><dd>{{ block.spec.expectation }}</dd></div>
     </dl>
     <div class="prop__target">
-      {{ block.spec.service }}<template v-if="block.spec.endpoint"> · {{ block.spec.endpoint }}</template> · {{ block.spec.durationMinutes }}m
+      {{ block.spec.service }}<template v-if="targetDetail"> · {{ targetDetail }}</template><template v-if="showDuration"> · {{ block.spec.durationMinutes }}m</template>
     </div>
     <div v-if="block.status === 'pending'" class="prop__actions">
       <button type="button" class="prop__btn" :disabled="busy" @click="dismiss">{{ t('Dismiss') }}</button>
@@ -79,9 +157,15 @@ function dismiss(): void {
         {{ busy ? t('Starting…') : t('Approve & start') }}
       </button>
     </div>
-    <p v-else-if="block.status === 'approved'" class="prop__out">
-      {{ t('Profiling started — ask me to analyze the results once it has collected data.') }}
-    </p>
+    <template v-else-if="block.status === 'approved'">
+      <p class="prop__out">
+        {{ t('Profiling started — ask me to analyze the results once it has collected data.') }}
+      </p>
+      <div v-if="block.taskId" class="prop__target">{{ t('Task') }} {{ block.taskId }}</div>
+      <p v-else class="prop__out prop__out--warn">
+        {{ t('Started, but OAP returned no task id — this card is not bound to the task it created, so a follow-up analysis may read a different recent task of the same type.') }}
+      </p>
+    </template>
     <p v-else-if="block.status === 'dismissed'" class="prop__out">{{ t('Dismissed.') }}</p>
     <p v-else class="prop__out prop__out--err">{{ t('Could not start profiling.') }} {{ block.error }}</p>
   </div>
@@ -177,5 +261,8 @@ function dismiss(): void {
 }
 .prop__out--err {
   color: var(--sw-red, #d1242f);
+}
+.prop__out--warn {
+  color: var(--sw-warn);
 }
 </style>

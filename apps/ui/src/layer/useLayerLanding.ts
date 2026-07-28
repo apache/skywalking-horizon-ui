@@ -43,6 +43,10 @@ export function useLayerLanding(
    *  + queryKey so a time-picker change refires the landing
    *  rollup the same way a layer change does. */
   range?: Ref<LandingRange | null>,
+  /** REPLAY mode gate: a replay (captured) map hides the service picker this
+   *  rollup feeds and must fire ZERO queries, so it passes a true ref to suppress
+   *  the fetch. Defaults off (live) for the interactive route. */
+  replay?: Ref<boolean>,
 ) {
   const layerKey = computed(() => layer.value.key);
   // Cache key reflects every field that changes the server response —
@@ -68,6 +72,7 @@ export function useLayerLanding(
   //   2. The manual refresh button in LayerShell — `q.refetch()`.
   // No silent vue-query-driven refetch under the operator, so the
   // service list never moves on its own between operator actions.
+  const isEnabled = computed(() => !(replay?.value ?? false));
   const q = useQuery({
     queryKey: ['layer-landing', layerKey, cfgHash, rangeKey],
     queryFn: () =>
@@ -76,12 +81,15 @@ export function useLayerLanding(
         cfg.value,
         rangeRef.value ?? undefined,
       ),
+    enabled: isEnabled,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 1,
   });
 
-  useAutoRefreshSubscribe(() => q.refetch());
+  useAutoRefreshSubscribe(() => {
+    if (isEnabled.value) void q.refetch();
+  });
 
   const data = computed<LandingResponse | null>(() => q.data.value ?? null);
   const rows = computed(() => data.value?.rows ?? []);

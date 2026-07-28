@@ -29,6 +29,7 @@ import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { AiRequestContext } from '../../context.js';
 import { graphqlPost } from '../../../client/graphql.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../../util/window.js';
+import { toolPrompt } from '../../resources/loader.js';
 
 const ALARM_WINDOW_MS = 3 * 60 * 60_000; // under OAP's 4h alarm cap
 
@@ -51,6 +52,7 @@ interface AlarmMsg {
 }
 
 export function telemetryTools(ctx: AiRequestContext): StructuredToolInterface[] {
+  const alarms = toolPrompt('telemetry', 'list_alarms');
   const listAlarms = tool(
     async ({ layer, keyword }): Promise<string> => {
       if (!ctx.hasVerb('alarms:read')) {
@@ -94,11 +96,10 @@ export function telemetryTools(ctx: AiRequestContext): StructuredToolInterface[]
     },
     {
       name: 'list_alarms',
-      description:
-        "List recently firing alarms — SkyWalking's health signal. Start here for 'what is unhealthy / abnormal?': each alarm names the alarmed entity, scope, and the rule message. Active (unrecovered) alarms are listed first. Then drill into the alarmed entity's metrics to explain the anomaly. Optionally filter by layer or a keyword.",
+      description: alarms.description,
       schema: z.object({
-        layer: z.string().optional().describe('OAP layer key filter, e.g. GENERAL'),
-        keyword: z.string().optional().describe('alarm-name / entity keyword filter'),
+        layer: z.string().optional().describe(alarms.p('layer')),
+        keyword: z.string().optional().describe(alarms.p('keyword')),
       }),
     },
   );

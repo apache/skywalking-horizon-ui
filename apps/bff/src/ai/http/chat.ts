@@ -78,6 +78,10 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
       ready: aiEffectivelyReady(ai),
       provider: ai.provider,
       starters: resolveStarters(ai),
+      history: {
+        mode: 'client' as const,
+        clientMaxBytes: ai.history.maxMb * 1024 * 1024,
+      },
     });
   });
 
@@ -158,8 +162,9 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
 
     const {
       emitFigure,
-      emitSubPage,
       emitProposal,
+      emitProfiling,
+      emitProcessTopology,
       emitPodLogs,
       emitHierarchy,
       emitTopology,
@@ -182,8 +187,9 @@ export function registerAiRoutes(app: FastifyInstance, deps: AiChatRouteDeps): v
       bulkSize: cfg.performance.bulk.dashboard.bulkSize,
       hasVerb: (verb) => sessionHasVerb(cfg, roles, verb),
       emitFigure,
-      emitSubPage,
       emitProposal,
+      emitProfiling,
+      emitProcessTopology,
       emitPodLogs,
       emitHierarchy,
       emitTopology,

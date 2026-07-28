@@ -18,36 +18,20 @@
 /**
  * `GET /api/layer/:key/topology?service=<id|name>&depth=<1-3>`
  *
- * Service-map feed for the per-layer Topology tab.
- *
- *  - The graph itself comes from OAP's `getServicesTopology(serviceIds,
- *    duration)`, expanded BFS to `depth`.
- *  - Per-node + per-edge metrics are driven by the LAYER TEMPLATE's
- *    `topology` block (see `apps/bff/src/layers/loader.ts`). The MQE
- *    expressions, units, labels, and visual-role bindings live there;
- *    this route is a thin executor that builds aliased fragments and
- *    folds the OAP response back into `metrics: Record<id, value>`.
- *
- * Nodes / edges that come back with NO metric values are dropped from
- * the response — operators don't want phantom services cluttering the
- * graph just because OAP returned a stub row.
+ * Service-map feed for the per-layer Topology tab. This is the HTTP edge:
+ * it parses the request, resolves the (preview OR effective) `topology`
+ * config + the time window, then delegates the OAP fan-out to
+ * `buildServiceTopology` (logic/oap/service-topology.ts) — the same builder
+ * the AI assistant's `show_topology` tool calls, so both draw the identical
+ * metric-carrying graph.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
-import type {
-  FetchLike,
-  TopologyCall,
-  TopologyConfig,
-  TopologyMetricDef,
-  TopologyNode,
-  TopologyResponse,
-  UITemplateClient,
-} from '@skywalking-horizon-ui/api-client';
+import type { FetchLike, TopologyConfig, UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
-import { graphqlPost, buildOapOpts, fetchAliasedChunks } from '../../client/graphql.js';
-import { withColdStage } from '../../util/duration.js';
+import { buildOapOpts } from '../../client/graphql.js';
 import {
   defaultMinuteWindow,
   getServerOffsetMinutes,
@@ -59,6 +43,7 @@ import { topologyConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
+import { buildServiceTopology, emptyTopologyResponse } from '../../logic/oap/service-topology.js';
 
 export interface TopologyRouteDeps {
   config: ConfigSource;
@@ -69,192 +54,7 @@ export interface TopologyRouteDeps {
   uiTemplateClient?: () => UITemplateClient;
 }
 
-interface OapTopoNode {
-  id: string;
-  name: string;
-  type: string | null;
-  isReal: boolean;
-  layers: string[];
-}
-interface OapTopoCall {
-  id: string;
-  source: string;
-  target: string;
-  detectPoints: string[];
-}
-interface ServicesTopologyResp {
-  topology: { nodes: OapTopoNode[]; calls: OapTopoCall[] };
-}
-
-const SERVICES_TOPOLOGY = /* GraphQL */ `
-  query ServicesTopology($duration: Duration!, $serviceIds: [ID!]!) {
-    topology: getServicesTopology(duration: $duration, serviceIds: $serviceIds) {
-      nodes { id name type isReal layers }
-      calls { id source target detectPoints }
-    }
-  }
-`;
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForTopology($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-      group
-    }
-  }
-`;
-
 const DEFAULT_WINDOW_MIN = 60;
-
-interface MqeValueRow {
-  value: string | number | null;
-}
-interface MqeResult {
-  values?: MqeValueRow[];
-}
-export interface MqeShape {
-  type?: string;
-  error?: string | null;
-  results?: MqeResult[];
-}
-
-function nodeFragment(
-  alias: string,
-  m: TopologyMetricDef,
-  serviceName: string,
-  normal: boolean,
-  w: Window,
-  coldStage: boolean,
-): string {
-  const coldFrag = coldStage ? ', coldStage: true' : '';
-  return (
-    `${alias}: execExpression(\n` +
-    `      expression: ${JSON.stringify(m.mqe)},\n` +
-    `      entity: { scope: Service, serviceName: ${JSON.stringify(serviceName)},` +
-    ` normal: ${normal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
-    `    ) { type error results { values { value } } }`
-  );
-}
-
-/**
- * ServiceRelation entity fragment. Booster-ui's hooks build the same
- * shape — notice we do NOT set `scope` here. OAP infers scope from
- * the MQE metric name (`service_relation_server_*` → ServiceRelation
- * server, `service_relation_client_*` → ServiceRelation client),
- * and forcing the scope explicitly empties the result on some OAP
- * versions. Booster's hook fills `sourceNormal` / `destNormal` from
- * `isReal || normal`, so we accept that pre-resolved value verbatim
- * (route handler picks the right thing per node).
- */
-function relationFragment(
-  alias: string,
-  m: TopologyMetricDef,
-  sourceName: string,
-  sourceNormal: boolean,
-  destName: string,
-  destNormal: boolean,
-  w: Window,
-  coldStage: boolean,
-): string {
-  const coldFrag = coldStage ? ', coldStage: true' : '';
-  return (
-    `${alias}: execExpression(\n` +
-    `      expression: ${JSON.stringify(m.mqe)},\n` +
-    `      entity: {` +
-    ` serviceName: ${JSON.stringify(sourceName)},` +
-    ` normal: ${sourceNormal ? 'true' : 'false'},` +
-    ` destServiceName: ${JSON.stringify(destName)},` +
-    ` destNormal: ${destNormal ? 'true' : 'false'} },\n` +
-    `      duration: { start: ${JSON.stringify(w.start)}, end: ${JSON.stringify(w.end)}, step: ${w.step}${coldFrag} }\n` +
-    `    ) { type error results { values { value } } }`
-  );
-}
-
-export function aggregateMqe(env: MqeShape | undefined, kind: 'avg' | 'sum'): number | null {
-  if (!env || env.error) return null;
-  const values = env.results?.[0]?.values ?? [];
-  const nums: number[] = [];
-  for (const v of values) {
-    if (v.value === null || v.value === undefined) continue;
-    const n = Number(v.value);
-    if (Number.isFinite(n)) nums.push(n);
-  }
-  if (nums.length === 0) return null;
-  const sum = nums.reduce((a, b) => a + b, 0);
-  return kind === 'sum' ? sum : sum / nums.length;
-}
-
-/**
- * Series extractor — same MQE response, returns the per-bucket values
- * as a `(number | null)[]`. Used for the edge detail panel's twin
- * sparkline chart (client | server) so the operator sees the trend
- * shape over the duration window rather than a single scalar.
- */
-export function seriesFromMqe(env: MqeShape | undefined): Array<number | null> | null {
-  if (!env || env.error) return null;
-  const values = env.results?.[0]?.values ?? [];
-  if (values.length === 0) return null;
-  return values.map((v) => {
-    if (v.value === null || v.value === undefined) return null;
-    const n = Number(v.value);
-    return Number.isFinite(n) ? n : null;
-  });
-}
-
-function emptyResponse(
-  layerKey: string,
-  serviceArg: string | null,
-  depth: number,
-  cfg: TopologyConfig,
-  reachable: boolean,
-  err?: string,
-): TopologyResponse {
-  return {
-    layer: layerKey,
-    service: serviceArg,
-    depth,
-    generatedAt: Date.now(),
-    config: cfg,
-    nodes: [],
-    calls: [],
-    reachable,
-    ...(err ? { error: err } : {}),
-  };
-}
-
-// Legacy back-compat fields. Older callers read `cpm` / `respTime` /
-// `sla` directly off the node — we still emit them so we don't churn
-// every reader.
-function legacyNodeView(metrics: Record<string, number | null>): {
-  cpm: number | null;
-  respTime: number | null;
-  sla: number | null;
-} {
-  return {
-    cpm: metrics.cpm ?? null,
-    respTime: metrics.respTime ?? null,
-    sla: metrics.sla ?? null,
-  };
-}
-function legacyEdgeView(
-  serverMetrics: Record<string, number | null>,
-  clientMetrics: Record<string, number | null>,
-): {
-  serverCpm: number | null;
-  serverRespTime: number | null;
-  clientCpm: number | null;
-  clientRespTime: number | null;
-} {
-  return {
-    serverCpm: serverMetrics.cpm ?? null,
-    serverRespTime: serverMetrics.respTime ?? null,
-    clientCpm: clientMetrics.cpm ?? null,
-    clientRespTime: clientMetrics.respTime ?? null,
-  };
-}
 
 export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteDeps): void {
   const auth = requireAuth(deps);
@@ -274,6 +74,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         startMs?: string;
         endMs?: string;
         previewConfig?: string;
+        group?: string;
       };
       const serviceArg = (q.service ?? '').trim();
       const depth = Math.max(1, Math.min(3, Number(q.depth) || 1));
@@ -295,14 +96,13 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           // connectivity banner explains the empty state (unreachable); a
           // disabled layer is hidden from the sidebar so it isn't reached.
           return reply.send(
-            emptyResponse(layerKey, serviceArg, depth, { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] }, true),
+            emptyTopologyResponse(layerKey, serviceArg, depth, { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] }, true),
           );
         }
         topoCfg = topologyConfigFor(eff.template);
       }
 
       const cfgCurrent = deps.config.current;
-      const perf = cfgCurrent.performance;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       // Honor the SPA's topbar time picker when all three triplet
@@ -320,309 +120,19 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
           ? windowFromRange(stepArg, startMs, endMs, offset) ??
             defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN)
           : defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
-      const oapLayer = layerKey.toUpperCase();
-      const durationVar = withColdStage(req, { start: window.start, end: window.end, step: window.step });
-      const coldStage = !!req.coldStage;
 
-      let seedIds: string[] = [];
-      const knownServices = new Map<string, { id: string; name: string; normal: boolean }>();
-      try {
-        const data = await graphqlPost<{
-          services: Array<{ id: string; name: string; normal?: boolean | null }>;
-        }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: oapLayer });
-        for (const s of data.services) {
-          knownServices.set(s.id, { id: s.id, name: s.name, normal: s.normal !== false });
-        }
-        if (serviceArg) {
-          // `service` accepts a comma-separated list of names/ids so
-          // the SPA can multi-seed without a separate query param. Any
-          // entry that doesn't resolve is reported back individually
-          // instead of failing the whole request.
-          const wants = serviceArg.split(',').map((s) => s.trim()).filter(Boolean);
-          const matches = wants.map((w) =>
-            data.services.find((s) => s.id === w) ??
-            data.services.find((s) => s.name === w) ??
-            null,
-          );
-          const missing = wants.filter((_, i) => matches[i] === null);
-          if (matches.every((m) => m === null)) {
-            return reply.send(
-              emptyResponse(layerKey, serviceArg, depth, topoCfg, true, `service${wants.length === 1 ? '' : 's'} not found: ${missing.join(', ')}`),
-            );
-          }
-          seedIds = matches.filter((m): m is { id: string; name: string; normal?: boolean | null } => m !== null).map((m) => m.id);
-        } else {
-          // Layer-overview topology — seed with EVERY service the layer
-          // exposes. Booster-ui does the same: it computes the topology
-          // off `selectorStore.services.map(d => d.id)`, no cap. The
-          // earlier 30-service cap was leftover from a per-node MQE
-          // batch-size worry, but the MQE step already chunks at 150
-          // fragments per query (see below), so a layer with hundreds
-          // of services scales fine.
-          // `?group=` (split-by-service-group menu entry) scopes the
-          // layer-overview seed to one OAP Service.group; absent ⇒ all.
-          const group = (req.query as { group?: string }).group;
-          seedIds = data.services
-            .filter((s) => group === undefined || ((s as { group?: string }).group ?? '') === group)
-            .map((s) => s.id);
-        }
-      } catch (err) {
-        return reply.send(
-          emptyResponse(
-            layerKey,
-            serviceArg || null,
-            depth,
-            topoCfg,
-            false,
-            err instanceof Error ? err.message : String(err),
-          ),
-        );
-      }
-
-      // BFS-expand the seed services out to `depth` hops.
-      const nodes = new Map<string, OapTopoNode>();
-      const calls = new Map<string, OapTopoCall>();
-      let frontier = seedIds.slice();
-      const seen = new Set<string>(frontier);
-      try {
-        for (let d = 0; d < depth && frontier.length > 0; d++) {
-          const data = await graphqlPost<ServicesTopologyResp>(opts, SERVICES_TOPOLOGY, {
-            duration: durationVar,
-            serviceIds: frontier,
-          });
-          for (const n of data.topology.nodes) {
-            if (!nodes.has(n.id)) nodes.set(n.id, n);
-          }
-          for (const c of data.topology.calls) {
-            if (!calls.has(c.id)) calls.set(c.id, c);
-          }
-          const next: string[] = [];
-          for (const n of data.topology.nodes) {
-            if (!seen.has(n.id)) {
-              seen.add(n.id);
-              if (n.isReal) next.push(n.id);
-            }
-          }
-          frontier = next;
-        }
-      } catch (err) {
-        return reply.send(
-          emptyResponse(
-            layerKey,
-            serviceArg || null,
-            depth,
-            topoCfg,
-            false,
-            err instanceof Error ? err.message : String(err),
-          ),
-        );
-      }
-
-      // Reject-with-guidance instead of a partial graph: too large to draw
-      // legibly + risks OOMing the browser. UI shows a narrow-scope hint.
-      if (
-        nodes.size > perf.limits.topologyMaxNodes ||
-        calls.size > perf.limits.topologyMaxEdges
-      ) {
-        return reply.send({
-          ...emptyResponse(layerKey, serviceArg, depth, topoCfg, true),
-          tooLarge: { nodes: nodes.size, edges: calls.size },
-        } satisfies TopologyResponse);
-      }
-
-      // ── Per-node MQE. Builds fragments off the layer's
-      // `topology.nodeMetrics`. Synthetic nodes (User / external) are
-      // skipped since OAP has no metrics for them.
-      const realNodes = [...nodes.values()].filter((n) => n.isReal);
-      const nodeMetricVals = new Map<string, Record<string, number | null>>();
-      const serverMetricVals = new Map<string, Record<string, number | null>>();
-      const clientMetricVals = new Map<string, Record<string, number | null>>();
-      // Per-edge time series for the right-sidebar line charts.
-      const serverMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
-      const clientMetricSeries = new Map<string, Record<string, Array<number | null> | null>>();
-
-      // Build the per-node and per-edge MQE fragments, then fan BOTH families
-      // out concurrently: they query disjoint OAP entities (node metrics vs
-      // service-relation metrics) and fill disjoint result maps, so there's no
-      // reason to await one before the other. Each family chunks internally and
-      // soft-fails per chunk, keeping the graph with null metrics on a hiccup.
-      const nodeAliasMap = new Map<string, { nodeId: string; metric: TopologyMetricDef }>();
-      const nodeFragments: string[] = [];
-      if (realNodes.length > 0 && topoCfg.nodeMetrics.length > 0) {
-        realNodes.forEach((n, i) => {
-          const meta = knownServices.get(n.id);
-          const normal = meta?.normal ?? true;
-          topoCfg.nodeMetrics.forEach((m, j) => {
-            const alias = `n${i}_${j}`;
-            nodeAliasMap.set(alias, { nodeId: n.id, metric: m });
-            nodeFragments.push(nodeFragment(alias, m, n.name, normal, window, coldStage));
-          });
-        });
-      }
-
-      // ── Per-edge MQE. Only real → real edges have a relation entity
-      // in OAP. We split into server / client families and fan both out
-      // concurrently in chunked aliased queries (see the Promise.all below).
-      //   - server metrics need a real DEST (the callee that records
-      //     the incoming call) — `User → consumer` works on the
-      //     server side, `provider → localhost:-1` does not.
-      //   - client metrics need a real SOURCE — `provider → external`
-      //     works on the client side, `User → consumer` does not.
-      // Filtering edges per-side keeps OAP from rejecting queries that
-      // would never have data and avoids empty result rows.
-      const candidateEdges = [...calls.values()].filter((c) => {
-        const a = nodes.get(c.source);
-        const b = nodes.get(c.target);
-        return !!a && !!b && !!a.name && !!b.name;
-      });
-      const linkSrv = topoCfg.linkServerMetrics ?? [];
-      const linkCli = topoCfg.linkClientMetrics ?? [];
-      const edgeAliasMap = new Map<
-        string,
-        { callId: string; metric: TopologyMetricDef; side: 'server' | 'client' }
-      >();
-      const edgeFragments: string[] = [];
-      if (candidateEdges.length > 0 && (linkSrv.length > 0 || linkCli.length > 0)) {
-        candidateEdges.forEach((c, i) => {
-          const src = nodes.get(c.source)!;
-          const dst = nodes.get(c.target)!;
-          const srcMeta = knownServices.get(src.id);
-          const dstMeta = knownServices.get(dst.id);
-          // Booster's hook resolves `normal = node.normal || node.isReal`.
-          // `listServices.normal` (when known) wins; otherwise we fall
-          // back to the graph node's `isReal`.
-          const srcNormal = srcMeta?.normal ?? src.isReal;
-          const dstNormal = dstMeta?.normal ?? dst.isReal;
-          // Server metrics live on the DEST — fetch only when the dest is real.
-          if (dst.isReal) {
-            linkSrv.forEach((m, j) => {
-              const alias = `s${i}_${j}`;
-              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'server' });
-              edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
-            });
-          }
-          // Client metrics live on the SOURCE — fetch only when the source is real.
-          if (src.isReal) {
-            linkCli.forEach((m, j) => {
-              const alias = `c${i}_${j}`;
-              edgeAliasMap.set(alias, { callId: c.id, metric: m, side: 'client' });
-              edgeFragments.push(relationFragment(alias, m, src.name, srcNormal, dst.name, dstNormal, window, coldStage));
-            });
-          }
-        });
-      }
-
-      // Accumulate failed metric chunks so the response can flag "blank =
-      // unavailable, not zero" rather than letting an OAP 5xx read as no-traffic.
-      const mstats = { failed: 0, total: 0 };
-      const [nodeEnv, edgeEnv] = await Promise.all([
-        fetchAliasedChunks<MqeShape>(opts, nodeFragments, perf.bulk.topology.nodeBulkSize, 'NodeMetrics', perf.bulk.topology.concurrency, mstats),
-        fetchAliasedChunks<MqeShape>(opts, edgeFragments, perf.bulk.topology.edgeBulkSize, 'EdgeMetrics', perf.bulk.topology.concurrency, mstats),
-      ]);
-
-      for (const [alias, shape] of Object.entries(nodeEnv)) {
-        const info = nodeAliasMap.get(alias);
-        if (!info) continue;
-        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-        const rec = nodeMetricVals.get(info.nodeId) ?? {};
-        rec[info.metric.id] = v;
-        nodeMetricVals.set(info.nodeId, rec);
-      }
-      for (const [alias, shape] of Object.entries(edgeEnv)) {
-        const info = edgeAliasMap.get(alias);
-        if (!info) continue;
-        const v = aggregateMqe(shape, info.metric.aggregation ?? 'avg');
-        const seriesBucket = info.side === 'server' ? serverMetricSeries : clientMetricSeries;
-        const valBucket = info.side === 'server' ? serverMetricVals : clientMetricVals;
-        const valRec = valBucket.get(info.callId) ?? {};
-        valRec[info.metric.id] = v;
-        valBucket.set(info.callId, valRec);
-        const sRec = seriesBucket.get(info.callId) ?? {};
-        sRec[info.metric.id] = seriesFromMqe(shape);
-        seriesBucket.set(info.callId, sRec);
-      }
-
-      // ── Build response. Connected nodes only — a service with zero
-      // edges in the duration window doesn't belong on the topology
-      // map; it's a "service" not a "topology participant". The canvas
-      // only renders nodes that are endpoints of at least one call
-      // edge. We keep idle-but-still-connected nodes (their metrics may
-      // be null on the windowed sample, but they still take part in
-      // the topology graph). Same rule booster-ui's Service Mesh and
-      // Kubernetes topology pages use.
-      const connectedNodeIds = new Set<string>();
-      for (const c of calls.values()) {
-        connectedNodeIds.add(c.source);
-        connectedNodeIds.add(c.target);
-      }
-      const liveNodes: TopologyNode[] = [];
-      for (const n of nodes.values()) {
-        if (!connectedNodeIds.has(n.id)) continue;
-        const m = nodeMetricVals.get(n.id) ?? {};
-        // Pad with explicit nulls so every metric id is present in the
-        // wire shape — UI binds by id, an absent key would look the
-        // same as `null` but with worse iteration ergonomics.
-        const filled: Record<string, number | null> = {};
-        for (const def of topoCfg.nodeMetrics) {
-          filled[def.id] = m[def.id] ?? null;
-        }
-        liveNodes.push({
-          id: n.id,
-          name: n.name,
-          type: n.type,
-          isReal: n.isReal,
-          layers: n.layers ?? [],
-          metrics: filled,
-          ...legacyNodeView(filled),
-        });
-      }
-      // Re-prune edges whose endpoint(s) were dropped.
-      const liveNodeIds = new Set(liveNodes.map((n) => n.id));
-      const liveCalls: TopologyCall[] = [];
-      for (const c of calls.values()) {
-        if (!liveNodeIds.has(c.source) || !liveNodeIds.has(c.target)) continue;
-        const sm = serverMetricVals.get(c.id) ?? {};
-        const cm = clientMetricVals.get(c.id) ?? {};
-        const ss = serverMetricSeries.get(c.id) ?? {};
-        const cs = clientMetricSeries.get(c.id) ?? {};
-        const filledSrv: Record<string, number | null> = {};
-        const filledSrvSeries: Record<string, Array<number | null> | null> = {};
-        for (const def of linkSrv) {
-          filledSrv[def.id] = sm[def.id] ?? null;
-          filledSrvSeries[def.id] = ss[def.id] ?? null;
-        }
-        const filledCli: Record<string, number | null> = {};
-        const filledCliSeries: Record<string, Array<number | null> | null> = {};
-        for (const def of linkCli) {
-          filledCli[def.id] = cm[def.id] ?? null;
-          filledCliSeries[def.id] = cs[def.id] ?? null;
-        }
-        liveCalls.push({
-          id: c.id,
-          source: c.source,
-          target: c.target,
-          detectPoints: c.detectPoints ?? [],
-          serverMetrics: filledSrv,
-          clientMetrics: filledCli,
-          serverMetricSeries: filledSrvSeries,
-          clientMetricSeries: filledCliSeries,
-          ...legacyEdgeView(filledSrv, filledCli),
-        });
-      }
-
-      return reply.send({
-        layer: layerKey,
-        service: serviceArg || null,
+      const response = await buildServiceTopology({
+        opts,
+        perf: cfgCurrent.performance,
+        window,
+        coldStage: !!req.coldStage,
+        cfg: topoCfg,
+        layerKey,
+        serviceArg,
         depth,
-        generatedAt: Date.now(),
-        config: topoCfg,
-        nodes: liveNodes,
-        calls: liveCalls,
-        reachable: true,
-        ...(mstats.failed > 0
-          ? { metricsPartial: { failedChunks: mstats.failed, totalChunks: mstats.total } }
-          : {}),
-      } satisfies TopologyResponse);
+        group: q.group,
+      });
+      return reply.send(response);
     },
   );
 

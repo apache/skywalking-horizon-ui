@@ -17,11 +17,12 @@
 <!-- Renders a conversation as an ordered narrative: user bubbles, assistant prose
      interleaved with numbered figure blocks + tool chips. Pure display. -->
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ChatFigureBlock from './ChatFigureBlock.vue';
-import ChatSubPageBlock from './ChatSubPageBlock.vue';
 import ChatProposalBlock from './ChatProposalBlock.vue';
+import ChatProfilingBlock from './ChatProfilingBlock.vue';
+import ChatProcessTopologyBlock from './ChatProcessTopologyBlock.vue';
 import ChatPodLogsBlock from './ChatPodLogsBlock.vue';
 import ChatHierarchyBlock from './ChatHierarchyBlock.vue';
 import ChatTopologyBlock from './ChatTopologyBlock.vue';
@@ -33,6 +34,8 @@ import ChatZipkinTracesBlock from './ChatZipkinTracesBlock.vue';
 import ChatLogsBlock from './ChatLogsBlock.vue';
 import ChatBrowserErrorsBlock from './ChatBrowserErrorsBlock.vue';
 import ChatStarters from './ChatStarters.vue';
+import Icon from '@/components/icons/Icon.vue';
+import { useAiConversations } from './useAiConversations';
 import { renderMarkdown } from './markdown';
 import type { ChatMessage } from './types';
 
@@ -41,6 +44,21 @@ const props = withDefaults(defineProps<{ messages: ChatMessage[]; starters?: str
 });
 const emit = defineEmits<{ (e: 'ask', text: string): void }>();
 const { t } = useI18n({ useScope: 'global' });
+const conv = useAiConversations();
+const resolving = ref(false);
+const isConflicted = computed(
+  () => !!conv.currentId.value && conv.status.value[conv.currentId.value] === 'conflicted',
+);
+async function resolve(choice: 'mine' | 'theirs'): Promise<void> {
+  const id = conv.currentId.value;
+  if (!id) return;
+  resolving.value = true;
+  try {
+    await conv.resolveConflict(id, choice);
+  } finally {
+    resolving.value = false;
+  }
+}
 
 // The most recent question stays stuck to the top of the scroll area while its
 // answer streams / is scrolled through (see .tx__msg--sticky).
@@ -66,6 +84,20 @@ function fmtTime(at: number): string {
 
 <template>
   <div class="tx">
+    <!-- This conversation was continued in another tab and the two diverged.
+         NOTHING was overwritten — the operator picks which version wins. -->
+    <div v-if="isConflicted" class="tx__conflict">
+      <Icon name="alert" :size="13" />
+      <div class="tx__conflict-body">
+        <p class="tx__conflict-lead">{{ t('This conversation was also continued in another tab, so it was not saved here.') }}</p>
+        <p class="tx__conflict-hint">{{ t('Keep this version to overwrite the other one, or load the other version to discard the turns shown here.') }}</p>
+        <div class="tx__conflict-acts">
+          <button type="button" class="sw-btn small" :disabled="resolving" @click="resolve('mine')">{{ t('Keep this version') }}</button>
+          <button type="button" class="sw-btn small" :disabled="resolving" @click="resolve('theirs')">{{ t('Load the other version') }}</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="messages.length === 0" class="tx__empty">
       <p class="tx__empty-lead">{{ t('Ask a question to get started.') }}</p>
       <p class="tx__empty-hint">
@@ -92,18 +124,19 @@ function fmtTime(at: number): string {
           <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown escapes HTML before formatting (see markdown.ts), so LLM output cannot inject -->
           <div v-if="b.kind === 'text'" class="tx__prose" v-html="renderMarkdown(b.text)"></div>
           <ChatFigureBlock v-else-if="b.kind === 'figure'" :block="b" />
-          <ChatSubPageBlock v-else-if="b.kind === 'subpage'" :n="b.n" :spec="b.spec" />
           <ChatProposalBlock v-else-if="b.kind === 'proposal'" :block="b" />
-          <ChatPodLogsBlock v-else-if="b.kind === 'podlogs'" :n="b.n" :spec="b.spec" />
-          <ChatHierarchyBlock v-else-if="b.kind === 'hierarchy'" :n="b.n" :spec="b.spec" />
-          <ChatTopologyBlock v-else-if="b.kind === 'topology'" :n="b.n" :spec="b.spec" />
-          <ChatDeploymentBlock v-else-if="b.kind === 'deployment'" :n="b.n" :spec="b.spec" />
-          <ChatInstanceTopologyBlock v-else-if="b.kind === 'instance-topology'" :n="b.n" :spec="b.spec" />
-          <ChatEndpointDependencyBlock v-else-if="b.kind === 'endpoint-dependency'" :n="b.n" :spec="b.spec" />
-          <ChatTracesBlock v-else-if="b.kind === 'traces'" :n="b.n" :spec="b.spec" />
-          <ChatZipkinTracesBlock v-else-if="b.kind === 'zipkin-traces'" :n="b.n" :spec="b.spec" />
-          <ChatLogsBlock v-else-if="b.kind === 'logs'" :n="b.n" :spec="b.spec" />
-          <ChatBrowserErrorsBlock v-else-if="b.kind === 'browser-errors'" :n="b.n" :spec="b.spec" />
+          <ChatProfilingBlock v-else-if="b.kind === 'profiling'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatProcessTopologyBlock v-else-if="b.kind === 'process-topology'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatPodLogsBlock v-else-if="b.kind === 'podlogs'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatHierarchyBlock v-else-if="b.kind === 'hierarchy'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatTopologyBlock v-else-if="b.kind === 'topology'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatDeploymentBlock v-else-if="b.kind === 'deployment'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatInstanceTopologyBlock v-else-if="b.kind === 'instance-topology'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatEndpointDependencyBlock v-else-if="b.kind === 'endpoint-dependency'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatTracesBlock v-else-if="b.kind === 'traces'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatZipkinTracesBlock v-else-if="b.kind === 'zipkin-traces'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatLogsBlock v-else-if="b.kind === 'logs'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
+          <ChatBrowserErrorsBlock v-else-if="b.kind === 'browser-errors'" :n="b.n" :spec="b.spec" :captured-at="b.capturedAt" />
           <span v-else class="tx__tool" :class="b.status">
             <span class="tx__tool-dot" />{{ b.name }}
           </span>
@@ -117,6 +150,37 @@ function fmtTime(at: number): string {
 </template>
 
 <style scoped>
+.tx__conflict {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--sw-warn, #d9a441);
+  border-radius: 6px;
+  background: var(--sw-bg-0);
+  color: var(--sw-warn, #d9a441);
+  font-size: var(--sw-fs-xs);
+  line-height: var(--sw-lh-normal);
+}
+.tx__conflict-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.tx__conflict-lead,
+.tx__conflict-hint {
+  margin: 0;
+}
+.tx__conflict-hint {
+  color: var(--sw-fg-2);
+}
+.tx__conflict-acts {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
 .tx {
   display: flex;
   flex-direction: column;
@@ -256,6 +320,32 @@ function fmtTime(at: number): string {
   background: none;
   border: 0;
   padding: 0;
+}
+/* GFM tables (renderMarkdown). Dense + dark; scroll sideways when wide so a
+   many-column table never blows out the chat width. */
+.tx__prose :deep(table) {
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 8px;
+  font-size: var(--sw-fs-sm);
+}
+.tx__prose :deep(th),
+.tx__prose :deep(td) {
+  border: 1px solid var(--sw-line-2);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.tx__prose :deep(th) {
+  background: var(--sw-bg-2);
+  color: var(--sw-fg-0);
+  font-weight: var(--sw-fw-semibold);
+  white-space: nowrap;
+}
+.tx__prose :deep(td) {
+  color: var(--sw-fg-1);
 }
 .tx__tool {
   display: inline-flex;

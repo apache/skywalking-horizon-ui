@@ -33,6 +33,7 @@ import { useRoute, useRouter } from 'vue-router';
 import type {
   InstanceTopologyCall,
   InstanceTopologyNode,
+  InstanceTopologyResponse,
   LayerDef,
   TopologyMetricDef,
 } from '@/api/client';
@@ -58,6 +59,10 @@ const props = defineProps<{
   /** Embedded look-back window (minutes); the query owns it and skips the global
    *  topbar picker + auto-refresh ticker, like the topology / deployment blocks. */
   focusWindowMinutes?: number;
+  /** REPLAY mode (AI chat): render statically from `replayData`, never fetch — a
+   *  reload replays the exact map + edge part-graphs offline. */
+  replay?: boolean;
+  replayData?: InstanceTopologyResponse;
 }>();
 
 const route = useRoute();
@@ -109,11 +114,17 @@ function displayName(name: string | null | undefined): string {
 // fallback on a selection the graph hasn't loaded yet.
 // Embedded blocks own a frozen window, so the roster (name fallback for the
 // pickers) must not ride the global ticker either.
-const roster = useLayerServices(layerKey, { rideTicker: !props.embedded });
+// A replay map uses replayData node names + hides the pickers, so the roster
+// (name fallback for the pickers) fires ZERO queries — gated by replay mode.
+const roster = useLayerServices(layerKey, { rideTicker: !props.embedded, replay: computed(() => props.replay ?? false) });
 const topoFocus = ref<string | null>(null);
 const topoDepth = ref(2);
+// A seeded (replayed) block is static — suppress the layer-wide topology fetch
+// that only feeds the interactive swap pickers, so a reload stays offline (it
+// would otherwise fire a fresh-Date.now()-window request). Empty key ⇒ disabled.
+const pickerLayerKey = computed(() => (props.replay ? '' : layerKey.value));
 const { nodes: topoNodes, calls: topoCalls } = useLayerTopology(
-  layerKey,
+  pickerLayerKey,
   topoFocus,
   topoDepth,
   focusWindowMinutes,
@@ -201,12 +212,14 @@ function pick(which: 'client' | 'server', val: string): void {
 }
 
 const enabled = computed(() => !!clientId.value && !!serverId.value);
+const replayDataRef = computed<InstanceTopologyResponse | null>(() => props.replayData ?? null);
 const { data, nodes, calls, isFetching } = useInstanceTopology(
   layerKey,
   clientId,
   serverId,
   enabled,
   focusWindowMinutes,
+  replayDataRef,
 );
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 

@@ -20,6 +20,7 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ChatWidgetRenderer from './ChatWidgetRenderer.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { FigureBlock } from './types';
 
 const props = defineProps<{ block: FigureBlock }>();
@@ -38,7 +39,9 @@ const label = computed<string>(() => {
 
 <template>
   <figure class="cfb">
-    <figcaption class="cfb__label">{{ label }}</figcaption>
+    <figcaption class="cfb__label">
+      {{ label }}<ChatCapturedTag :at="block.capturedAt" />
+    </figcaption>
 
     <!-- single -->
     <div v-if="block.layout === 'single' || block.figures.length === 1" class="cfb__one">

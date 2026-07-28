@@ -152,6 +152,9 @@ ai:
   # prompt, replace the value with a YAML block scalar ( |- ). starters: JSON array.
   systemPrompt: "${HORIZON_AI_SYSTEM_PROMPT:}"
   starters: ${HORIZON_AI_STARTERS:null}
+  # Client-side chat-history cap (MB); browser IndexedDB, per user.
+  history:
+    maxMb: ${HORIZON_AI_HISTORY_MAX_MB:500}
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in

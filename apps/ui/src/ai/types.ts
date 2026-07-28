@@ -17,7 +17,22 @@
 
 // AI-assistant wire + client model. SseEvent is the BFF→panel streaming contract; a
 // figure carries a dashboard widget spec + resolved result (drawn with the same widgets).
-import type { DashboardWidget, DashboardWidgetResult } from '@skywalking-horizon-ui/api-client';
+import type {
+  DashboardWidget,
+  DashboardWidgetResult,
+  DeploymentResponse,
+  EndpointDependencyResponse,
+  InstanceTopologyResponse,
+  ProfileAnalyzationTree,
+  ServiceHierarchyResponse,
+  TopologyResponse,
+  TraceListResponse,
+  ZipkinTraceListResponse,
+  LogsResponse,
+  BrowserErrorsResponse,
+  ProcessTopologyResponse,
+  ProfileSpan,
+} from '@skywalking-horizon-ui/api-client';
 
 export type FigureLayout = 'single' | 'tabs' | 'stack' | 'grid';
 
@@ -34,33 +49,74 @@ export interface ChatFigure {
   xaxis?: FigureXAxis;
 }
 
-// A sub-page figure: a feature view surfaced as a card that opens the real full
-// page in a new tab. Graph/triage views (topology, deployment, traces, logs,
-// browser errors) embed inline via their own specs; this is the remaining
-// link-out (the layer service list).
-export type SubPageKind = 'service-list';
-
-export interface SubPageSpec {
-  kind: SubPageKind;
-  title: string;
-  layer: string;
-  service?: string;
-  range: FigureXAxis;
-}
-
 // A proposed mutating action (profiling) — a decision card the user approves in
-// a popout; the agent never fires it. Carries the reasoning it must justify.
+// a popout; the agent never fires it. Carries the reasoning it must justify plus
+// the type-specific params the approve handler fires with. Mirror of BFF ProposalSpec.
+export type ProfilingProposalType = 'trace' | 'async' | 'pprof' | 'ebpf' | 'network';
 export interface ProposalSpec {
   kind: 'profiling';
-  profilingType: 'trace';
+  profilingType: ProfilingProposalType;
   layer: string;
   serviceId: string;
   service: string;
-  endpoint?: string;
   durationMinutes: number;
+  endpoint?: string;
+  instanceIds?: string[];
+  instanceLabel?: string;
+  events?: string[];
+  targetType?: 'ON_CPU' | 'OFF_CPU';
+  processLabels?: string[];
   cause: string;
   rationale: string;
   expectation: string;
+}
+
+// Mirror of the BFF profiling analysis shapes (apps/bff/.../logic/oap/profiling.ts).
+export type ProfilingType = 'trace' | 'pprof' | 'async' | 'ebpf';
+export interface ProfilingLogLine {
+  instanceName: string;
+  operationType: string;
+  operationTime: number;
+}
+export interface ProfilingSummary {
+  service: string;
+  endpoint?: string | null;
+  instances?: string[];
+  events?: string[];
+  durationLabel?: string | null;
+  startTime?: number | null;
+  segmentCount?: number | null;
+  frameCount: number;
+}
+// A captured, frozen profiling result — the flame trees + task facts; renders
+// statically from `trees` and never re-queries (an empty trees is "no data yet").
+export interface ProfilingResultSpec {
+  title: string;
+  profilingType: ProfilingType;
+  layer: string;
+  service: string;
+  taskId: string | null;
+  trees: ProfileAnalyzationTree[];
+  metricKey: 'count' | 'duration';
+  tip?: string | null;
+  logs: ProfilingLogLine[];
+  summary: ProfilingSummary;
+  // trace only — the profiled segment's trace, rendered as a span waterfall
+  // beside the flame (the trace+profiling combination).
+  traceContext?: { traceId: string; spans: ProfileSpan[] };
+  reachable: boolean;
+  error?: string | null;
+}
+
+// A captured network process-conversation graph (network profiling's result).
+// ProcessTopologyGraph is a stateless renderer, so the block replays replayData
+// directly — no re-query. Mirror of the BFF spec.
+export interface ProcessTopologySpec {
+  title: string;
+  layer: string;
+  service: string;
+  instanceName: string | null;
+  replayData: ProcessTopologyResponse;
 }
 
 // One line of on-demand pod-log output. `timestamp` is epoch-ms (or null).
@@ -109,6 +165,9 @@ export interface HierarchySpec {
   groups: HierarchyGroup[];
   reachable: boolean;
   errorReason?: string | null;
+  /** Captured raw hierarchy (the overlay's native shape). Present ⇒ the embedded
+   *  overlay seeds from it and never re-queries — a reloaded fan replays static. */
+  replayData?: ServiceHierarchyResponse;
 }
 
 // A focused one-hop ego topology drawn inline: the focus service + its DIRECT
@@ -133,6 +192,10 @@ export interface TopologySpec {
   /** The chat window (minutes) the ego graph was resolved over, so the embedded
    *  map re-queries the SAME window — not the global topbar picker. */
   windowMinutes?: number;
+  /** Captured render-ready graph (nodes+edges WITH metric values + edge series).
+   *  Present ⇒ the embedded map SEEDS from it and never re-queries OAP, so a
+   *  reloaded conversation replays the exact map + edge part-graphs statically. */
+  replayData?: TopologyResponse;
 }
 
 // A mounted Deployment view (real feature view, embedded read-only) focused on a
@@ -144,6 +207,9 @@ export interface DeploymentSpec {
   service: string;
   serviceId: string;
   windowMinutes?: number;
+  /** Captured render-ready graph (instances + edges WITH values + edge series).
+   *  Present ⇒ replay statically + the edge part-graphs. */
+  replayData?: DeploymentResponse;
 }
 
 // A mounted instance-topology view (real feature view, embedded read-only) for a
@@ -157,6 +223,9 @@ export interface InstanceTopologySpec {
   serverService: string;
   serverServiceId: string;
   windowMinutes?: number;
+  /** Captured render-ready pair map (instances + edges WITH values + edge series).
+   *  Present ⇒ replay statically + the edge part-graphs. */
+  replayData?: InstanceTopologyResponse;
 }
 
 // A mounted endpoint-dependency view (real feature view, embedded read-only)
@@ -168,6 +237,10 @@ export interface EndpointDependencySpec {
   service: string;
   serviceId: string;
   windowMinutes?: number;
+  /** Captured render-ready chain (endpoints + edges WITH values + edge series);
+   *  its `endpointId` PINS which endpoint was drawn so a reload replays the SAME
+   *  chain, not the now-busiest endpoint. */
+  replayData?: EndpointDependencyResponse;
 }
 
 // A mounted native Traces view (real feature view, embedded read-only) focused
@@ -178,6 +251,7 @@ export interface TracesSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  replayData?: TraceListResponse;
 }
 
 // A mounted Zipkin Traces view (real feature view, embedded read-only) focused on
@@ -188,6 +262,7 @@ export interface ZipkinTracesSpec {
   layer: string;
   service: string;
   windowMinutes?: number;
+  replayData?: ZipkinTraceListResponse;
 }
 
 // A mounted layer Logs view (real feature view, embedded read-only) focused on a
@@ -198,6 +273,7 @@ export interface LogsSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  replayData?: LogsResponse;
 }
 
 // A mounted browser-monitoring error list (real feature view, embedded
@@ -208,6 +284,7 @@ export interface BrowserErrorsSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  replayData?: BrowserErrorsResponse;
 }
 
 export type SseEvent =
@@ -215,8 +292,9 @@ export type SseEvent =
   | { type: 'thinking'; text: string }
   | { type: 'tool'; name: string; status: 'running' | 'done' | 'denied' }
   | { type: 'figure'; n: number; title?: string; layout: FigureLayout; figures: ChatFigure[] }
-  | { type: 'subpage'; n: number; spec: SubPageSpec }
   | { type: 'proposal'; n: number; spec: ProposalSpec }
+  | { type: 'profiling'; n: number; spec: ProfilingResultSpec }
+  | { type: 'process-topology'; n: number; spec: ProcessTopologySpec }
   | { type: 'podlogs'; n: number; spec: PodLogSpec }
   | { type: 'hierarchy'; n: number; spec: HierarchySpec }
   | { type: 'topology'; n: number; spec: TopologySpec }
@@ -234,19 +312,20 @@ export type ProposalStatus = 'pending' | 'approved' | 'dismissed' | 'failed';
 
 export type Block =
   | { kind: 'text'; text: string }
-  | { kind: 'figure'; n: number; title?: string; layout: FigureLayout; figures: ChatFigure[] }
-  | { kind: 'subpage'; n: number; spec: SubPageSpec }
+  | { kind: 'figure'; n: number; title?: string; layout: FigureLayout; figures: ChatFigure[]; capturedAt?: number }
   | { kind: 'proposal'; n: number; spec: ProposalSpec; status: ProposalStatus; taskId?: string; error?: string }
-  | { kind: 'podlogs'; n: number; spec: PodLogSpec }
-  | { kind: 'hierarchy'; n: number; spec: HierarchySpec }
-  | { kind: 'topology'; n: number; spec: TopologySpec }
-  | { kind: 'deployment'; n: number; spec: DeploymentSpec }
-  | { kind: 'instance-topology'; n: number; spec: InstanceTopologySpec }
-  | { kind: 'endpoint-dependency'; n: number; spec: EndpointDependencySpec }
-  | { kind: 'traces'; n: number; spec: TracesSpec }
-  | { kind: 'zipkin-traces'; n: number; spec: ZipkinTracesSpec }
-  | { kind: 'logs'; n: number; spec: LogsSpec }
-  | { kind: 'browser-errors'; n: number; spec: BrowserErrorsSpec }
+  | { kind: 'profiling'; n: number; spec: ProfilingResultSpec; capturedAt?: number }
+  | { kind: 'process-topology'; n: number; spec: ProcessTopologySpec; capturedAt?: number }
+  | { kind: 'podlogs'; n: number; spec: PodLogSpec; capturedAt?: number }
+  | { kind: 'hierarchy'; n: number; spec: HierarchySpec; capturedAt?: number }
+  | { kind: 'topology'; n: number; spec: TopologySpec; capturedAt?: number }
+  | { kind: 'deployment'; n: number; spec: DeploymentSpec; capturedAt?: number }
+  | { kind: 'instance-topology'; n: number; spec: InstanceTopologySpec; capturedAt?: number }
+  | { kind: 'endpoint-dependency'; n: number; spec: EndpointDependencySpec; capturedAt?: number }
+  | { kind: 'traces'; n: number; spec: TracesSpec; capturedAt?: number }
+  | { kind: 'zipkin-traces'; n: number; spec: ZipkinTracesSpec; capturedAt?: number }
+  | { kind: 'logs'; n: number; spec: LogsSpec; capturedAt?: number }
+  | { kind: 'browser-errors'; n: number; spec: BrowserErrorsSpec; capturedAt?: number }
   | { kind: 'tool'; name: string; status: 'running' | 'done' | 'denied' };
 
 export type FigureBlock = Extract<Block, { kind: 'figure' }>;

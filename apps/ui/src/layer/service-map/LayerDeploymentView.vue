@@ -41,6 +41,7 @@ import type {
   DeploymentConfig,
   DeploymentNode,
   DeploymentMetricDef,
+  DeploymentResponse,
   RolePairMetrics,
 } from '@/api/client';
 import { useDeployment } from '@/layer/service-map/useDeployment';
@@ -78,6 +79,10 @@ const props = defineProps<{
   /** Embedded look-back window (minutes); the query owns it and skips the global
    *  topbar picker + auto-refresh ticker, like the topology block. */
   focusWindowMinutes?: number;
+  /** REPLAY mode (AI chat): render statically from `replayData`, never fetch — a
+   *  reload replays the exact graph + edge part-graphs offline. */
+  replay?: boolean;
+  replayData?: DeploymentResponse;
 }>();
 
 const route = useRoute();
@@ -112,7 +117,8 @@ const enabled = computed(() => !!selectedId.value);
 const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
-const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled, focusWindowMinutes);
+const replayDataRef = computed<DeploymentResponse | null>(() => props.replayData ?? null);
+const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled, focusWindowMinutes, replayDataRef);
 const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 

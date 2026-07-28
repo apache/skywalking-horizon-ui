@@ -26,7 +26,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import type { BrowserErrorCategory, BrowserErrorRow, LayerDef } from '@/api/client';
+import type { BrowserErrorCategory, BrowserErrorRow, BrowserErrorsResponse, LayerDef } from '@/api/client';
 import { useLayers } from '@/shell/useLayers';
 import { useSetupStore } from '@/state/setup';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -49,10 +49,15 @@ const props = defineProps<{
   layerKey?: string;
   focusService?: string;
   focusWindowMinutes?: number;
+  /** REPLAY (chat reload): render the frozen captured error list, never query.
+   *  The mount auto-run is skipped and the Prev/Next pager is hidden. */
+  replay?: boolean;
+  replayData?: BrowserErrorsResponse | null;
 }>();
 const route = useRoute();
 const { t } = useI18n({ useScope: 'global' });
 const embedded = computed(() => Boolean(props.embedded));
+const replay = computed(() => Boolean(props.replay));
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -82,11 +87,14 @@ const safeCfg = computed(() => {
     metrics: layer.value.metrics,
   }).landing;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// Aux feeds power the hidden version/page filter chrome; in replay they must fire
+// NO OAP request. Landing + endpoints take a replay gate; instances has none, so
+// starve its service to null in replay.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here keeps the chat block from
 // touching that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
 );
@@ -155,7 +163,8 @@ const allCategories = ref<BrowserErrorCategory>('ALL');
 // the BROWSER "Versions" are instances → serviceVersionId; "Pages" are
 // endpoints → pagePathId. Reuse the shared layer instance/endpoint feeds.
 const selectedVersionId = ref('');
-const { instances: versionList } = useLayerInstances(layerKey, serviceName);
+const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const { instances: versionList } = useLayerInstances(layerKey, toolbarService);
 
 // Page (endpoint) is a searchable combobox (shared EndpointCombo), not a
 // plain dropdown: OAP returns only a top-N endpoint list, so the typed
@@ -168,7 +177,7 @@ const selectedPageId = ref('');
 const selectedPageLabel = ref('');
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit);
+const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit, replay);
 function pickPage(name: string): void {
   selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
   selectedPageLabel.value = name;
@@ -184,7 +193,9 @@ function clearPage(): void {
 // the query reads that snapshot, so it fires only on Run query — never the
 // prior service's errors on a fresh tab. page + pageSize stay live (paging
 // is a direct action, not a staged filter).
-const hasQueried = ref(false);
+// Replay seeds this true so the frozen rows render straight past the
+// "Run query" gate; the composable keeps the query itself disabled.
+const hasQueried = ref(replay.value);
 interface AppliedBrowserConditions {
   service: string | null;
   serviceVersionId: string;
@@ -219,6 +230,7 @@ const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrow
   startMs: computed(() => applied.value.startMs),
   endMs: computed(() => applied.value.endMs),
   enabled: hasQueried,
+  replayData: computed(() => props.replayData ?? null),
 });
 function runQuery(): void {
   applyConditions();
@@ -231,6 +243,7 @@ function runQuery(): void {
 // renders self-contained (version/page filters stay All — service-wide errors).
 onMounted(() => {
   if (!embedded.value) return;
+  if (replay.value) return; // frozen snapshot: no query, hasQueried is pre-seeded
   if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
   runQuery();
 });
@@ -509,7 +522,7 @@ function loc(row: BrowserErrorRow): string {
 
         <div class="lg-pager">
           <span class="hint">{{ t('page {page} · showing {shown} of {total} loaded', { page, shown: filteredLogs.length, total }) }}</span>
-          <div class="lg-pager-ctrls">
+          <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1 || isFetching" @click="page--">{{ t('Prev') }}</button>
             <button class="sw-btn small" type="button" :disabled="!hasMorePages || isFetching" @click="page++">{{ t('Next') }}</button>
           </div>

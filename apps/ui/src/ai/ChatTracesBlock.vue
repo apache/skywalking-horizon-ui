@@ -27,20 +27,28 @@ import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRouter } from 'vue-router';
 import LayerTracesView from '@/layer/traces/LayerTracesView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import { useLayers } from '@/shell/useLayers';
 import type { TracesSpec } from './types';
 
-const props = defineProps<{ n: number; spec: TracesSpec }>();
+const props = defineProps<{ n: number; spec: TracesSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 const router = useRouter();
 const { layers } = useLayers();
 
+// A captured block is a static file of what was read — it replays from its own
+// snapshot and must NOT gate on the live layer list (empty or still in flight
+// would refuse to render an offline-safe block). The layer info is consulted for
+// the non-captured path only.
+const captured = computed(() => Boolean(props.spec.replayData));
 const layerDef = computed(() =>
   layers.value.find((L) => L.key.toUpperCase() === props.spec.layer.toUpperCase()),
 );
-const hasTraces = computed(() => Boolean(layerDef.value?.caps?.traces));
+const noTraces = computed(() => !captured.value && !layerDef.value?.caps?.traces);
 // 'native' | 'zipkin' | 'both' — only pure-'zipkin' can't be embedded here.
-const isZipkinOnly = computed(() => (layerDef.value?.traces?.source ?? 'native') === 'zipkin');
+const isZipkinOnly = computed(
+  () => !captured.value && (layerDef.value?.traces?.source ?? 'native') === 'zipkin',
+);
 
 function openZipkinTab(): void {
   const href = router.resolve({ path: `/layer/${props.spec.layer.toLowerCase()}/zipkin-trace` }).href;
@@ -50,9 +58,11 @@ function openZipkinTab(): void {
 
 <template>
   <div class="ctr">
-    <div class="ctr__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="ctr__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
 
-    <div v-if="!hasTraces" class="ctr__note">{{ t('This layer has no traces component.') }}</div>
+    <div v-if="noTraces" class="ctr__note">{{ t('This layer has no traces component.') }}</div>
     <div v-else-if="isZipkinOnly" class="ctr__note ctr__note--act">
       <span>{{ t('This layer uses Zipkin tracing.') }}</span>
       <button type="button" class="ctr__btn" @click="openZipkinTab">{{ t('Open in a new tab') }}</button>
@@ -63,6 +73,8 @@ function openZipkinTab(): void {
         :layer-key="spec.layer.toLowerCase()"
         :focus-service="spec.service"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

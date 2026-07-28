@@ -30,6 +30,8 @@ import type { AiRequestContext } from '../../context.js';
 import { graphqlPost } from '../../../client/graphql.js';
 import { serviceLayerCatalog } from '../../../logic/services/service-layer-catalog.js';
 import { getServiceHierarchy } from '../../../logic/oap/hierarchy.js';
+import { layerCapabilities } from '../../../logic/layers/capabilities.js';
+import { toolPrompt } from '../../resources/loader.js';
 import { getLayerCatalog } from './catalog.js';
 
 const SEARCH_CAP = 40;
@@ -38,7 +40,7 @@ const SCOPES = ['service', 'instance', 'endpoint'] as const;
 
 const LIST_INSTANCES = /* GraphQL */ `
   query DrillInstances($serviceId: ID!, $duration: Duration!) {
-    instances: listInstances(serviceId: $serviceId, duration: $duration) { id name }
+    instances: listInstances(serviceId: $serviceId, duration: $duration) { id name language }
   }
 `;
 const FIND_ENDPOINTS = /* GraphQL */ `
@@ -51,6 +53,22 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
   const duration = () => ({ start: ctx.window.start, end: ctx.window.end, step: ctx.window.step });
   const denied = (): string => 'Permission denied: the current user lacks metrics:read.';
 
+  const cap0 = toolPrompt('metric-catalog', 'kb_layer_capabilities');
+  const capabilities = tool(
+    async ({ layer }): Promise<string> => {
+      if (!ctx.hasVerb('metrics:read')) return denied();
+      const cap = await layerCapabilities(ctx.uiTemplateClient, layer);
+      if (!cap) return `No capabilities for layer "${layer}" (unknown/unsynced layer or no template).`;
+      return JSON.stringify(cap);
+    },
+    {
+      name: 'kb_layer_capabilities',
+      description: cap0.description,
+      schema: z.object({ layer: z.string().describe(cap0.p('layer')) }),
+    },
+  );
+
+  const brw = toolPrompt('metric-catalog', 'kb_browse_catalog');
   const browse = tool(
     async ({ layer, scope }): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
@@ -78,28 +96,28 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'kb_browse_catalog',
-      description:
-        'List the metrics available on a layer dashboard page: the curated title, ready MQE expression(s), unit, widget type, and (when present) a human explanation. ALWAYS use these MQE expressions verbatim rather than inventing metric names — they are scope-correct. scope is one of service | instance | endpoint (default service).',
+      description: brw.description,
       schema: z.object({
-        layer: z.string().describe('OAP layer key, e.g. GENERAL, MESH, K8S_SERVICE'),
-        scope: z.enum(SCOPES).optional().describe('service (default) | instance | endpoint'),
+        layer: z.string().describe(brw.p('layer')),
+        scope: z.enum(SCOPES).optional().describe(brw.p('scope')),
       }),
     },
   );
 
+  const drl = toolPrompt('metric-catalog', 'kb_resolve_scope_drill');
   const drill = tool(
     async ({ serviceId, toScope, keyword }): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
       try {
         if (toScope === 'instance') {
-          const data = await graphqlPost<{ instances: Array<{ id: string; name: string }> }>(
+          const data = await graphqlPost<{ instances: Array<{ id: string; name: string; language?: string | null }> }>(
             ctx.opts,
             LIST_INSTANCES,
             { serviceId, duration: duration() },
           );
           return JSON.stringify({
             toScope,
-            note: 'Re-query the SAME metric family at instance scope for each — OAP does not roll up between scopes.',
+            note: 'Re-query the SAME metric family at instance scope for each — OAP does not roll up between scopes. Each instance carries its runtime language (use it to pick a language-specific profiler: async→JVM, pprof→Go).',
             children: data.instances ?? [],
           });
         }
@@ -119,16 +137,16 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'kb_resolve_scope_drill',
-      description:
-        'Drill DOWN from a service to its child entities so you can re-query the same metric at a finer scope. Returns the child instance/endpoint ids+names. Entity-scope is load-bearing: to see a Service metric per-instance you MUST re-query at instance scope with the child id — there is no automatic rollup.',
+      description: drl.description,
       schema: z.object({
-        serviceId: z.string().describe('OAP service id (from list_services)'),
-        toScope: z.enum(['instance', 'endpoint']).describe('drill target scope'),
-        keyword: z.string().optional().describe('endpoint name filter (endpoint drill only)'),
+        serviceId: z.string().describe(drl.p('serviceId')),
+        toScope: z.enum(['instance', 'endpoint']).describe(drl.p('toScope')),
+        keyword: z.string().optional().describe(drl.p('keyword')),
       }),
     },
   );
 
+  const dsc = toolPrompt('metric-catalog', 'kb_describe_metric');
   const describe = tool(
     async ({ layer, scope, id }): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
@@ -153,16 +171,16 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'kb_describe_metric',
-      description:
-        'Get the full catalog detail for ONE metric on a (layer, scope) page — title, MQE, unit, explanation, widget type — looked up by its widget id (from kb_browse_catalog) or a metric id it contains.',
+      description: dsc.description,
       schema: z.object({
         layer: z.string(),
         scope: z.enum(SCOPES).optional(),
-        id: z.string().describe('widget id (from kb_browse_catalog) or a raw metric id'),
+        id: z.string().describe(dsc.p('id')),
       }),
     },
   );
 
+  const srch = toolPrompt('metric-catalog', 'kb_search_metrics');
   const search = tool(
     async ({ keyword, scope }): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
@@ -200,15 +218,15 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'kb_search_metrics',
-      description:
-        'Search the metric catalog ACROSS all layers by keyword (matches a metric title, id, or explanation) at a given scope (default service). Use when you do not already know which layer exposes the metric you need.',
+      description: srch.description,
       schema: z.object({
-        keyword: z.string().describe('e.g. "gc", "heap", "latency", "cpu"'),
+        keyword: z.string().describe(srch.p('keyword')),
         scope: z.enum(SCOPES).optional(),
       }),
     },
   );
 
+  const hier = toolPrompt('metric-catalog', 'kb_resolve_hierarchy');
   const hierarchy = tool(
     async ({ serviceId, layer }): Promise<string> => {
       if (!ctx.hasVerb('topology:read')) return 'Permission denied: the current user lacks topology:read.';
@@ -236,14 +254,13 @@ export function metricCatalogTools(ctx: AiRequestContext): StructuredToolInterfa
     },
     {
       name: 'kb_resolve_hierarchy',
-      description:
-        'Resolve a service\'s CROSS-LAYER hierarchy — the same entity projected into other layers (a K8S_SERVICE linked DOWN to its backing PostgreSQL / MongoDB infra layer, or a MESH service to its GENERAL / K8S mirror). Use to continue root-cause ACROSS a layer boundary: when the root service depends on an infra/database layer, follow the hierarchy there and check that layer\'s metrics (memory, disk, connections). Distinct from kb_resolve_scope_drill (which stays within a layer, drilling to instances/endpoints).',
+      description: hier.description,
       schema: z.object({
-        serviceId: z.string().describe('OAP service id (from list_services)'),
-        layer: z.string().describe("the service's current layer, e.g. K8S_SERVICE"),
+        serviceId: z.string().describe(hier.p('serviceId')),
+        layer: z.string().describe(hier.p('layer')),
       }),
     },
   );
 
-  return [browse, describe, search, drill, hierarchy];
+  return [capabilities, browse, describe, search, drill, hierarchy];
 }

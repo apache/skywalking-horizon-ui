@@ -36,6 +36,7 @@ const AI_BEDROCK: AiConfig = {
   apiKey: 'secret',
   systemPrompt: '',
   starters: [],
+  history: { maxMb: 500 },
 };
 const AI_OAI: AiConfig = {
   ...AI_BEDROCK,
@@ -56,6 +57,7 @@ describe('ai config schema', () => {
       apiKey: '',
       systemPrompt: '',
       starters: [],
+      history: { maxMb: 500 },
     });
   });
 

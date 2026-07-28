@@ -26,6 +26,8 @@ import { z } from 'zod';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { AiRequestContext } from '../../context.js';
 import { serviceLayerCatalog } from '../../../logic/services/service-layer-catalog.js';
+import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
+import { toolPrompt } from '../../resources/loader.js';
 
 export function contextTools(ctx: AiRequestContext): StructuredToolInterface[] {
   const catalog = () => serviceLayerCatalog({ config: ctx.config, fetch: ctx.fetch }).get();
@@ -35,19 +37,23 @@ export function contextTools(ctx: AiRequestContext): StructuredToolInterface[] {
     async (): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
       const cat = await catalog();
-      return JSON.stringify(
-        cat.layers.map((layer) => ({ layer, services: cat.byLayer.get(layer)?.length ?? 0 })),
+      const rows = await Promise.all(
+        cat.layers.map(async (layer) => {
+          const eff = await resolveEffectiveLayer(ctx.uiTemplateClient, layer);
+          return { layer, alias: eff.template?.alias, services: cat.byLayer.get(layer)?.length ?? 0 };
+        }),
       );
+      return JSON.stringify(rows);
     },
     {
       name: 'list_layers',
-      description:
-        'List the observability layers OAP reports (GENERAL, MESH, K8S_SERVICE, …) with how many services each has. Start here to orient before browsing metrics or picking a service.',
+      description: toolPrompt('context', 'list_layers').description,
       schema: z.object({}),
     },
   );
 
   const SERVICE_CAP = 100;
+  const svc = toolPrompt('context', 'list_services');
   const listServices = tool(
     async ({ layer, keyword }): Promise<string> => {
       if (!ctx.hasVerb('metrics:read')) return denied();
@@ -67,17 +73,10 @@ export function contextTools(ctx: AiRequestContext): StructuredToolInterface[] {
     },
     {
       name: 'list_services',
-      description:
-        'List services with their id, name AND layer. Pass a layer to list that layer only, OR OMIT the layer to search ACROSS ALL layers by name — do that (with a keyword) to find a service when you do not know its layer, instead of guessing. Use the returned id as serviceId for drilling and the layer for kb_browse_catalog / rendering. A service that lives in several layers appears once per layer. Capped at 100 rows (truncated:true when more) — narrow with keyword.',
+      description: svc.description,
       schema: z.object({
-        layer: z
-          .string()
-          .optional()
-          .describe('OAP layer key (e.g. GENERAL); OMIT to search every layer by name'),
-        keyword: z
-          .string()
-          .optional()
-          .describe('case-insensitive service-name filter (recommended when no layer is given)'),
+        layer: z.string().optional().describe(svc.p('layer')),
+        keyword: z.string().optional().describe(svc.p('keyword')),
       }),
     },
   );
