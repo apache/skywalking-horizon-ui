@@ -159,6 +159,14 @@ const hasTopology = computed(() =>
       <Icon name="prof" /><span>Network Profiling</span>
     </RouterLink>
     <RouterLink
+      v-if="L.caps.continuousProfiling"
+      :to="`/layer/${L.key}/continuous-profiling`"
+      class="sw-nav-item"
+      :class="{ 'is-active': isActive(`/layer/${L.key}/continuous-profiling`) }"
+    >
+      <Icon name="set" /><span>Continuous Profiling</span>
+    </RouterLink>
+    <RouterLink
       v-if="L.caps.pprofProfiling"
       :to="`/layer/${L.key}/pprof`"
       class="sw-nav-item"

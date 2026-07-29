@@ -24,6 +24,7 @@
     "traces": true,
     "logs": true,
     "ebpfProfiling": true,
+    "continuousProfiling": true,
     "networkProfiling": true,
     "podLogs": true
   },

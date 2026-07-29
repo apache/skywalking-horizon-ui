@@ -68,6 +68,7 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     asyncProfiling: !!components.asyncProfiling,
     networkProfiling: !!components.networkProfiling,
     pprofProfiling: !!components.pprofProfiling,
+    continuousProfiling: !!components.continuousProfiling,
     podLogs: !!components.podLogs,
     events: false,
   };

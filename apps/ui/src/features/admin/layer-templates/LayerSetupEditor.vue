@@ -66,6 +66,7 @@ const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string 
   { key: 'traceProfiling', label: 'Trace Profiling', hint: 'Trace-driven thread profiling — the original SkyWalking profile.' },
   { key: 'ebpfProfiling', label: 'eBPF Profiling', hint: 'Kernel-level CPU / off-CPU profiling via eBPF agents.' },
   { key: 'asyncProfiling', label: 'Async Profiling', hint: 'JVM async-profiler integration (Java-only).' },
+  { key: 'continuousProfiling', label: 'Continuous Profiling', hint: 'Auto-trigger policies — rules that make an eBPF agent start an ON_CPU / OFF_CPU / NETWORK task by itself. Needs the same Rover agent as eBPF Profiling; there is no continuous trace / async / pprof profiling.' },
 ];
 
 function ensureComponents(): AdminLayerTemplate['components'] {
@@ -98,6 +99,9 @@ const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
   traceProfiling: 'traceProfiling',
   ebpfProfiling: 'ebpfProfiling',
   asyncProfiling: 'asyncProfiling',
+  // Continuous profiling authors POLICIES, not widgets — there is no scope of
+  // its own to edit, so this points at the eBPF scope it arms tasks for.
+  continuousProfiling: 'ebpfProfiling',
   // Legacy umbrella flag — no checkbox of its own (the three granular
   // profiling toggles drive the menu), so this entry only satisfies the
   // exhaustive Record; it is never surfaced as a menu item.

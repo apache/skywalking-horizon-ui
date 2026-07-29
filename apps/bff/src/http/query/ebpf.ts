@@ -53,6 +53,7 @@ import type {
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
+import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
@@ -238,6 +239,12 @@ function softErr<T extends { reachable: boolean; error?: string }>(p: T, e: unkn
  *                               KiB so a stray large value can't blow
  *                               OAP's serializer.
  */
+// OAP's own floor: `EBPFProfilingMutationService.FIXED_TIME_MIN_DURATION` = 60s,
+// enforced as "the fixed time duration must be greater than or equals 60s". It
+// sets NO maximum, so the ceiling below is ours — a route-level guard, not a
+// backend rule. Rejecting below the floor here only turns OAP's own refusal into
+// a clearer message; it never widens what OAP accepts.
+const MIN_EBPF_DURATION_SEC = 60;
 const MAX_EBPF_DURATION_SEC = 30 * 60;
 const MAX_PROCESS_LABELS = 32;
 const MAX_LABEL_LEN = 128;
@@ -248,10 +255,20 @@ const MAX_URI_REGEX_LEN = 256;
 const MAX_PAYLOAD_BYTES = 64 * 1024;
 const MAX_MIN_DURATION_MS = 60 * 60 * 1000;
 
-function clampPositiveInt(v: unknown, max: number, fallback: number | null): number | null {
-  if (v == null) return fallback;
-  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback;
-  return Math.min(max, Math.round(v));
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v > 0;
+}
+
+/** `'over'` rather than a clamp, so an approved task never runs a shorter
+ *  window than the card said it would. */
+function boundedPositiveInt(v: unknown, max: number): number | 'over' | null {
+  if (v == null) return null;
+  // No Math.round: a fractional duration is a caller error, not ours to fix.
+  // 0.4 rounding to 0 previously forwarded a ZERO-second task as if it were
+  // valid; a whole number is required, exactly as the error message already
+  // claimed.
+  if (!isPositiveInt(v)) return null;
+  return v > max ? 'over' : v;
 }
 
 function clampNonNegativeInt(v: unknown, max: number): number | undefined {
@@ -358,14 +375,42 @@ function relationSeries(env: MqeEnv | undefined): Array<number | null> {
   });
 }
 
+// `detectType` matters because the two sides disagree on VIRTUAL processes:
+// GraphQL listProcesses calls the DAO with includeVirtual = TRUE, while the gate
+// that decides whether a network task may be created —
+// getProcessCount(instanceId) — passes FALSE. Counting the rows this returns as
+// "processes OAP will accept" therefore over-counts, and the operator gets
+// "The instance doesn't have processes." for an instance we just listed some for.
 const LIST_PROCESSES = /* GraphQL */ `
   query listNetworkProcesses($instanceId: ID!, $duration: Duration!) {
     listProcesses(instanceId: $instanceId, duration: $duration) {
       id
       name
+      detectType
     }
   }
 `;
+
+/** Both trigger types, newest first. `queryEBPFProfilingTasks` takes ONE
+ *  `triggerType` and defaults a missing one to FIXED_TIME, so asking once
+ *  returns only operator-started tasks — and a firing continuous policy would
+ *  look like it never ran. */
+async function queryEbpfTasksBothTriggers(
+  opts: GraphqlOptions,
+  vars: Record<string, unknown>,
+): Promise<EBPFTaskListResponse['tasks']> {
+  // Neither half is caught. A failure here means OAP is unreachable, rejecting
+  // us, or answering a shape we do not know — and "no tasks" is a different
+  // statement from "we could not ask". Both propagate to the route's softErr,
+  // which reports the failure instead of an empty list.
+  const ask = (triggerType: string) =>
+    graphqlPost<{ queryEBPFTasks: EBPFTaskListResponse['tasks'] }>(opts, QUERY_EBPF_TASKS, {
+      ...vars,
+      triggerType,
+    }).then((d) => d.queryEBPFTasks ?? []);
+  const [fixed, continuous] = await Promise.all([ask('FIXED_TIME'), ask('CONTINUOUS_PROFILING')]);
+  return [...fixed, ...continuous].sort((a, b) => (b.taskStartTime ?? 0) - (a.taskStartTime ?? 0));
+}
 
 export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): void {
   const auth = requireAuth(deps);
@@ -395,15 +440,11 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
             QUERY_CREATE_TASK_DATA,
             { serviceId },
           ).catch(() => ({ createTaskData: { couldProfiling: false, processLabels: [] } })),
-          graphqlPost<{ queryEBPFTasks: EBPFTaskListResponse['tasks'] }>(opts, QUERY_EBPF_TASKS, {
-            serviceId,
-            targets: ['ON_CPU', 'OFF_CPU'],
-            triggerType: 'FIXED_TIME',
-          }),
+          queryEbpfTasksBothTriggers(opts, { serviceId, targets: ['ON_CPU', 'OFF_CPU'] }),
         ]);
         payload.couldProfiling = meta.createTaskData?.couldProfiling ?? false;
         payload.processLabels = meta.createTaskData?.processLabels ?? [];
-        payload.tasks = list.queryEBPFTasks ?? [];
+        payload.tasks = list;
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));
@@ -428,15 +469,19 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         payload.errorReason = 'targetType must be ON_CPU, OFF_CPU, or NETWORK';
         return reply.send(payload);
       }
-      const duration = clampPositiveInt(raw.duration, MAX_EBPF_DURATION_SEC, null);
-      if (duration === null) {
-        payload.errorReason = `duration is required and must be 1..${MAX_EBPF_DURATION_SEC} seconds`;
+      const duration = boundedPositiveInt(raw.duration, MAX_EBPF_DURATION_SEC);
+      if (duration === null || duration === 'over' || duration < MIN_EBPF_DURATION_SEC) {
+        payload.errorReason = `duration is required and must be ${MIN_EBPF_DURATION_SEC}..${MAX_EBPF_DURATION_SEC} seconds`;
         return reply.send(payload);
       }
+      // Absent or <= 0 means ASAP, per OAP's schema — pass the sentinel through
+      // rather than substituting a clock. Stamping our own `Date.now()` here
+      // made the task start relative to the BFF's clock, which OAP then compares
+      // against its own; ASAP has no clock to disagree about.
       const startTime =
         typeof raw.startTime === 'number' && Number.isFinite(raw.startTime) && raw.startTime > 0
           ? Math.round(raw.startTime)
-          : Date.now();
+          : 0;
       const sanitised: EBPFTaskCreationRequest = {
         serviceId: raw.serviceId,
         processLabels: sanitiseProcessLabels(raw.processLabels),
@@ -506,17 +551,11 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         const serviceId = serviceArg
           ? await resolveServiceId(opts, params.key, serviceArg)
           : null;
-        const data = await graphqlPost<{ queryEBPFTasks: EBPFTaskListResponse['tasks'] }>(
-          opts,
-          QUERY_EBPF_TASKS,
-          {
-            serviceId: serviceId ?? undefined,
-            serviceInstanceId: instanceArg || undefined,
-            targets: ['NETWORK'],
-            triggerType: 'FIXED_TIME',
-          },
-        );
-        payload.tasks = data.queryEBPFTasks ?? [];
+        payload.tasks = await queryEbpfTasksBothTriggers(opts, {
+          serviceId: serviceId ?? undefined,
+          serviceInstanceId: instanceArg || undefined,
+          targets: ['NETWORK'],
+        });
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));
@@ -603,7 +642,9 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
             duration: { start: fmtMinute(startMs, offset), end: fmtMinute(endMs, offset), step: 'MINUTE' },
           },
         );
-        payload.processes = data.listProcesses ?? [];
+        // Drop VIRTUAL rows so this list means what its callers read it as:
+        // the processes a network task can actually be created against.
+        payload.processes = (data.listProcesses ?? []).filter((p) => p.detectType !== 'VIRTUAL');
         return reply.send(payload);
       } catch (err) {
         return reply.send(softErr(payload, err));

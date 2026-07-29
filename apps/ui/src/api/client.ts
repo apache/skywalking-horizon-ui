@@ -82,6 +82,7 @@ import { EventsApi } from './scopes/events';
 import { ProfileApi } from './scopes/profile';
 import { EbpfApi } from './scopes/ebpf';
 import { NetworkProfileApi } from './scopes/network-profile';
+import { ContinuousProfilingApi } from './scopes/continuous-profiling';
 import { AsyncProfileApi } from './scopes/async-profile';
 import { PprofApi } from './scopes/pprof';
 import { DslApi } from './scopes/dsl';
@@ -319,6 +320,10 @@ export interface AdminLayerTemplate {
     traceProfiling?: boolean;
     ebpfProfiling?: boolean;
     asyncProfiling?: boolean;
+    /** Auto-trigger (continuous) profiling policies. Same eBPF agent and same
+     *  three targets as `ebpfProfiling`, so it belongs on the layers that
+     *  carry it — there is no continuous trace / async / pprof profiling. */
+    continuousProfiling?: boolean;
   };
   metrics: {
     orderBy?: string;
@@ -900,6 +905,7 @@ export class BffClient {
   readonly browserErrors = new BrowserErrorsApi(this);
   readonly events = new EventsApi(this);
   readonly profile = new ProfileApi(this);
+  readonly continuousProfiling = new ContinuousProfilingApi(this);
   readonly ebpf = new EbpfApi(this);
   readonly networkProfile = new NetworkProfileApi(this);
   readonly asyncProfile = new AsyncProfileApi(this);

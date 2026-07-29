@@ -72,6 +72,16 @@ function layerRoute(): RouteRecordRaw {
       { path: 'async-profiling', component: () => import('@/layer/profiling/LayerAsyncProfilingView.vue') },
       { path: 'network-profiling', component: () => import('@/layer/profiling/LayerNetworkProfilingView.vue') },
       { path: 'pprof', component: () => import('@/layer/profiling/LayerPprofProfilingView.vue') },
+      // Continuous-profiling POLICIES — the auto-trigger rules behind the eBPF
+      // and Network tabs above. Same agent, same three targets; gated by the
+      // layer template's `continuousProfiling` component flag.
+      {
+        path: 'continuous-profiling',
+        component: () => import('@/layer/continuous-profiling/LayerContinuousProfilingView.vue'),
+        // The page carries its own Target service picker — the policy is defined
+        // against a service, so the choice belongs where the rules are.
+        meta: { ownsServiceSelector: true },
+      },
       // Old single-profiling URL → redirect to the trace-profiling page
       // for back-compat with bookmarks taken before the split.
       {

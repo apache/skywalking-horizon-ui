@@ -34,6 +34,9 @@ export interface LayerServiceRow {
   id: string;
   name: string;
   normal: boolean | null;
+  /** OAP `Service.group` — the `<group>::` prefix, empty when the service has
+   *  none. Lets a caller section a long roster instead of listing it flat. */
+  group: string;
 }
 
 /**

@@ -73,6 +73,7 @@ export function componentsToCaps(
     traceProfiling: !!c.traceProfiling,
     ebpfProfiling: !!c.ebpfProfiling,
     asyncProfiling: !!c.asyncProfiling,
+    continuousProfiling: !!c.continuousProfiling,
   };
 }
 

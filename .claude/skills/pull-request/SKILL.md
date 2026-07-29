@@ -152,6 +152,37 @@ BODY
 
 No AI footer in the body. Capture the returned PR URL/number for step 4.
 
+### The PR body describes the feature, not how it was reviewed
+
+The body is what a reviewer or a future archaeologist reads to understand the
+**change** — what it does, why, how it was validated. It is never a log of the
+process that produced it.
+
+**Never add a "Review round N" (or "Round N feedback", "Findings from review",
+etc.) section**, even when a branch goes through several rounds of external
+review (human or automated — `codex`, ultrareview, a colleague's pass) before
+merge. Each round's fixes fold silently into the relevant `## What` /
+`## Validation` paragraph as if they had always been there — the reader does
+not need to know a bug was found on round 5 and fixed on round 6; they need to
+know the shipped behavior is correct now. If a fix is worth a sentence, it
+earns that sentence in the section describing the feature it touches, phrased
+as a fact about the code, not as a narrated correction ("X is now refused"
+instead of "round 6 found that X was silently rounded, now fixed").
+
+This applies whether the PR was **squashed to one commit** (the common case
+here) or kept as several — either way, the description is authored once, for
+the state being merged, not accreted turn-by-turn as review comments land.
+
+When you're updating an already-open PR's body after another review pass:
+**rewrite the relevant section in place**, don't append a new one. If a
+section starts to read like a changelog of the review itself, that's the
+signal to fold it back into the feature description and delete the seams.
+
+Operator-visible fixes still belong in `CHANGELOG.md` per the usual house
+style (see the preflight gate above) — that file *is* allowed to say what
+changed, because it's read chronologically across releases. The PR body is
+not; it's read once, describing one final state.
+
 ## 4 — After the PR is MERGED: return to main, update, delete the branch
 
 Only run this once the PR actually shows `MERGED`. Don't assume — check.

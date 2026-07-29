@@ -52,6 +52,8 @@ export interface ProfilingSummary {
   instances?: string[];
   events?: string[];
   durationLabel?: string | null;
+  /** The collection window in SECONDS — `durationLabel` is display-only. */
+  durationSec?: number | null;
   startTime?: number | null;
   segmentCount?: number | null;
   /** Total stack frames across all trees — 0 ⇒ nothing collected yet. */
@@ -83,19 +85,71 @@ export interface ProfilingAnalysis {
 // async-profiler events fold into one JFR tree type; pick it to select which
 // tree the analyze returns. Inlined (not imported from the http route) to keep
 // the logic→client direction clean.
-const ASYNC_EVENT_TO_JFR: Record<string, string> = {
-  CPU: 'EXECUTION_SAMPLE',
-  WALL: 'EXECUTION_SAMPLE',
-  CTIMER: 'EXECUTION_SAMPLE',
-  ITIMER: 'EXECUTION_SAMPLE',
-  LOCK: 'LOCK',
-  ALLOC: 'OBJECT_ALLOCATION_IN_NEW_TLAB',
+// One capture event can yield MORE THAN ONE JFR tree, and a task legitimately
+// carries several events — so this maps to a LIST and every entry is read.
+// ALLOC is the trap: OAP's JFRConverter splits each AllocationSample on
+// `tlabSize != 0` into OBJECT_ALLOCATION_IN_NEW_TLAB vs _OUTSIDE_TLAB, so
+// reading only the in-TLAB half silently drops every large-object allocation
+// path — the one an allocation profile is usually opened to find.
+export const ASYNC_EVENT_TO_JFR: Record<string, string[]> = {
+  CPU: ['EXECUTION_SAMPLE'],
+  WALL: ['EXECUTION_SAMPLE'],
+  CTIMER: ['EXECUTION_SAMPLE'],
+  ITIMER: ['EXECUTION_SAMPLE'],
+  LOCK: ['LOCK'],
+  ALLOC: ['OBJECT_ALLOCATION_IN_NEW_TLAB', 'OBJECT_ALLOCATION_OUTSIDE_TLAB'],
 };
+
+function jfrKeyOf(event: string): string {
+  return (ASYNC_EVENT_TO_JFR[event] ?? ['EXECUTION_SAMPLE']).join(',');
+}
+
+/** Which captured event this call renders (`wantEvent` if the task actually
+ *  has it, else the task's first), and which of the REST are worth naming as
+ *  "call again to see this one" — only those resolving to a DIFFERENT
+ *  underlying JFR request. CPU / WALL / CTIMER / ITIMER all produce the exact
+ *  same EXECUTION_SAMPLE query, so a task capturing two of them has ONE
+ *  dataset, not two; advertising the sibling as a distinct result to fetch
+ *  would return the identical tree and read as a broken "try again". This
+ *  applies to the "other" events AMONG THEMSELVES too, not just against the
+ *  primary — a CPU+WALL+ALLOC task analyzed as ALLOC must offer ONE of
+ *  {CPU, WALL} as the follow-up, not both. */
+export function pickAnalyzedEvent(
+  events: readonly string[],
+  wantEvent: string | undefined,
+): { primaryEvent: string; otherEvents: string[] } {
+  const primaryEvent = wantEvent && events.includes(wantEvent) ? wantEvent : (events[0] ?? 'CPU');
+  const seenJfrKeys = new Set([jfrKeyOf(primaryEvent)]);
+  const otherEvents: string[] = [];
+  for (const e of events) {
+    if (e === primaryEvent) continue;
+    const key = jfrKeyOf(e);
+    if (seenJfrKeys.has(key)) continue;
+    seenJfrKeys.add(key);
+    otherEvents.push(e);
+  }
+  return { primaryEvent, otherEvents };
+}
+
+/** ALL captured events, primaryEvent first — for the task-fact summary. NOT
+ *  `pickAnalyzedEvent`'s `otherEvents`, which drops same-JFR siblings (CPU +
+ *  WALL) because reading them again is redundant for RE-ANALYSIS purposes.
+ *  That is a different question from "what did this task capture" — a task
+ *  that recorded both must still say so. */
+export function summaryEventOrder(events: readonly string[], primaryEvent: string): string[] {
+  return [primaryEvent, ...events.filter((e) => e !== primaryEvent)];
+}
 
 // Cap the trace analyze fan-out: each profiled span becomes one analyze query,
 // and OAP snapshots the request (returns `tip` when it only analyzes part). We
 // take the slowest segments first so the busiest call paths dominate the flame.
 const MAX_TRACE_ANALYZE_QUERIES = 100;
+
+// OAP's EBPFProfilingAnalyzer.FETCH_DATA_DURATION — the chunk size it splits
+// every submitted eBPF time range into. Ours only has to MATCH it to budget the
+// fan-out; OAP still does the splitting.
+const EBPF_CHUNK_MS = 10_000;
+const MAX_EBPF_ANALYZE_CHUNKS = 600;
 
 const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
   query ListServicesForProfilingResolve($layer: String!) {
@@ -287,6 +341,9 @@ export interface AnalyzeNetworkProfilingInput {
   service: string;
   /** FALLBACK scope only — used when no NETWORK task pins an instance + window. */
   window: { start: string; end: string; step: string };
+  /** Epoch-ms mirror of `window`, so the process-graph probe can be re-cut at
+   *  MINUTE granularity (see `minuteWindow`). */
+  rangeMs: { startMs: number; endMs: number };
   /** OAP-server UTC offset, to render a task's epoch-ms window OAP-local. */
   offsetMinutes: number;
   /** Read this task; when absent, the service's most recent NETWORK task. */
@@ -305,28 +362,50 @@ interface NetworkTask {
   fixedTriggerDuration: number | null;
 }
 
-// OAP sorts tasks createTime-descending, so [0] is the most recent. triggerType
-// is sent explicitly even though OAP defaults a missing one to FIXED_TIME
-// (EBPFProcessProfilingQuery.queryEBPFProfilingTasks) — network tasks ARE stored
-// as FIXED_TIME (EBPFProfilingMutationService.createTask), and stating it keeps
-// the filter from silently changing if that default ever moves.
+/** Every eBPF task for a service, newest first, across BOTH trigger types —
+ *  `queryEBPFProfilingTasks` defaults a missing `triggerType` to FIXED_TIME, so
+ *  one call misses everything a continuous policy started. */
+async function ebpfTasksBothTriggers<T extends { taskStartTime?: number }>(
+  opts: GraphqlOptions,
+  vars: Record<string, unknown>,
+): Promise<T[]> {
+  // Not caught — see the note in ebpf.ts. A swallowed failure here makes the
+  // assistant answer "no eBPF-profiling task found" for an OAP that is simply
+  // unreachable, which is a wrong answer rather than a missing one.
+  const ask = (triggerType: string) =>
+    graphqlPost<{ tasks: T[] }>(opts, QUERY_EBPF_TASKS, { ...vars, triggerType }).then(
+      (d) => d.tasks ?? [],
+    );
+  const [fixed, continuous] = await Promise.all([ask('FIXED_TIME'), ask('CONTINUOUS_PROFILING')]);
+  return [...fixed, ...continuous].sort((a, b) => (b.taskStartTime ?? 0) - (a.taskStartTime ?? 0));
+}
+
 async function findNetworkTask(
   opts: GraphqlOptions,
   serviceId: string,
   wantTaskId: string | undefined,
 ): Promise<NetworkTask | null> {
-  const tl = await graphqlPost<{ tasks: NetworkTask[] }>(opts, QUERY_EBPF_TASKS, {
+  const tasks = await ebpfTasksBothTriggers<NetworkTask>(opts, {
     serviceId,
     targets: ['NETWORK'],
-    triggerType: 'FIXED_TIME',
   });
-  const tasks = tl.tasks ?? [];
   return (wantTaskId ? tasks.find((t) => t.taskId === wantTaskId) : tasks[0]) ?? null;
 }
 
 // A task's data only exists for the span it ran, on the instance it watched. A
 // still-running (keep-alive) task reports no duration — read it up to now, the
 // same rule the network-profiling view applies.
+function minuteWindow(
+  range: { startMs: number; endMs: number },
+  offsetMinutes: number,
+): { start: string; end: string; step: 'MINUTE' } {
+  return {
+    start: fmtMinute(range.startMs, offsetMinutes),
+    end: fmtMinute(range.endMs, offsetMinutes),
+    step: 'MINUTE',
+  };
+}
+
 function taskDuration(task: NetworkTask, offsetMinutes: number): { start: string; end: string; step: 'MINUTE' } {
   const durMs = (task.fixedTriggerDuration ?? 0) * 1000;
   const endMs = durMs > 0 ? task.taskStartTime + durMs : Date.now();
@@ -533,7 +612,15 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
     }
     const insts = await listServiceInstances(opts, serviceId, window);
     if (!insts.length) return result;
-    const probe = await probeProcessTopology(opts, insts, window);
+    // The process graph is built from ProcessRelation metrics, which OAP
+    // persists at MINUTE granularity ONLY (`supportDownSampling = false`), so
+    // an HOUR/DAY-stepped chat window reads a bucket that was never written and
+    // comes back empty — which we would then report as "no Rover agent". Re-cut
+    // the same instant range at MINUTE before probing. The task-scoped path
+    // above already builds its own MINUTE window.
+    const probeWindow = minuteWindow(input.rangeMs, offsetMinutes);
+    result.queried = { start: probeWindow.start, end: probeWindow.end };
+    const probe = await probeProcessTopology(opts, insts, probeWindow);
     if (probe.hit) {
       result.instanceName = probe.hit.instance.name;
       result.topology.nodes = probe.hit.nodes;
@@ -599,8 +686,14 @@ function mapEbpfTree(elements: EbpfStack[]): ProfileAnalyzationTree {
   };
 }
 
+// A pprof HEAP / GOROUTINE / ALLOCS / THREADCREATE task is a point-in-time
+// snapshot: OAP validates (and the agent honours) `duration` only for CPU /
+// BLOCK / MUTEX, so the field lands as 0 for the others. Rendering that as
+// "0 min" reads as a task that collected for no time — the opposite of what a
+// snapshot event means.
 function durationMinLabel(minutes: number | null | undefined): string | null {
-  return minutes == null ? null : `${minutes} min`;
+  if (minutes == null) return null;
+  return minutes > 0 ? `${minutes} min` : 'point-in-time snapshot';
 }
 function durationSecLabel(seconds: number | null | undefined): string | null {
   return seconds == null ? null : `${seconds} s`;
@@ -613,6 +706,10 @@ export interface AnalyzeProfilingInput {
   service: string;
   /** Target a specific task; when absent, the most recent task of this type. */
   taskId?: string;
+  /** async only — which captured event to analyze when the task recorded more
+   *  than one (its units are not shared, so only one renders per call). Absent
+   *  or unrecognised falls back to the task's first event. */
+  event?: string;
 }
 
 export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<ProfilingAnalysis> {
@@ -640,7 +737,7 @@ export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<Pr
       case 'pprof':
         return await analyzeStackList(opts, GET_PPROF_TASK_LIST, GET_PPROF_ANALYZE, GET_PPROF_PROGRESS, serviceId, input.taskId, base, false);
       case 'async':
-        return await analyzeStackList(opts, GET_ASYNC_TASK_LIST, GET_ASYNC_ANALYZE, GET_ASYNC_PROGRESS, serviceId, input.taskId, base, true);
+        return await analyzeStackList(opts, GET_ASYNC_TASK_LIST, GET_ASYNC_ANALYZE, GET_ASYNC_PROGRESS, serviceId, input.taskId, base, true, input.event);
       case 'ebpf':
         return await analyzeEbpf(opts, serviceId, input.taskId, base);
     }
@@ -672,6 +769,7 @@ async function analyzeTrace(
     service,
     endpoint: task.endpointName || null,
     durationLabel: durationMinLabel(task.duration),
+    durationSec: task.duration ? task.duration * 60 : null,
     startTime: task.startTime || null,
     segmentCount: 0,
     frameCount: 0,
@@ -683,16 +781,36 @@ async function analyzeTrace(
   const segments = segs.segmentList ?? [];
   base.summary.segmentCount = segments.length;
 
-  // Slowest segments first, then one analyze query per profiled span, capped.
+  // Slowest segments first, then ONE analyze query per profiled SEGMENT — which
+  // is the granularity OAP stamps `profiled` at (ProfileTaskQueryService marks
+  // every span of a profiled segment, it does not select individual spans). One
+  // query per span instead asked the same segment N times over sub-ranges of the
+  // same snapshot stream: it burned the cap N× faster, and inflated OAP's
+  // totalSequenceCount enough to trip its "analyzed only part of the snapshots"
+  // tip, which we then relayed as a truncated profile that was never truncated.
   const bySlowest = [...segments].sort((a, b) => (b.duration ?? 0) - (a.duration ?? 0));
   const queries: Array<{ segmentId: string; timeRange: { start: number; end: number } }> = [];
-  for (const seg of bySlowest) {
+  const seen = new Set<string>();
+  outer: for (const seg of bySlowest) {
+    const bySegmentId = new Map<string, ProfileSpan[]>();
     for (const span of seg.spans ?? []) {
       if (!span.profiled) continue;
-      queries.push({ segmentId: span.segmentId, timeRange: { start: span.startTime, end: span.endTime } });
-      if (queries.length >= MAX_TRACE_ANALYZE_QUERIES) break;
+      const list = bySegmentId.get(span.segmentId);
+      if (list) list.push(span);
+      else bySegmentId.set(span.segmentId, [span]);
     }
-    if (queries.length >= MAX_TRACE_ANALYZE_QUERIES) break;
+    for (const [segmentId, spans] of bySegmentId) {
+      if (seen.has(segmentId)) continue;
+      seen.add(segmentId);
+      queries.push({
+        segmentId,
+        timeRange: {
+          start: Math.min(...spans.map((s) => s.startTime)),
+          end: Math.max(...spans.map((s) => s.endTime)),
+        },
+      });
+      if (queries.length >= MAX_TRACE_ANALYZE_QUERIES) break outer;
+    }
   }
 
   // Carry the slowest profiled segment's trace for the waterfall beside the flame.
@@ -733,6 +851,7 @@ async function analyzeStackList(
   wantTaskId: string | undefined,
   base: ProfilingAnalysis,
   isAsync: boolean,
+  wantEvent?: string,
 ): Promise<ProfilingAnalysis> {
   const key = isAsync ? 'asyncTaskList' : 'pprofTaskList';
   const tl = await graphqlPost<Record<string, { tasks: Array<{ id: string; serviceInstanceIds: string[]; createTime: number; events: string | string[]; duration: number }> } | null>>(
@@ -747,14 +866,25 @@ async function analyzeStackList(
     return base;
   }
   const events = Array.isArray(task.events) ? task.events : task.events ? [task.events] : [];
+  // Computed here, before `summary` is built, so `summary.events[0]` — what
+  // `summarizeProfile` reads to label the unit — names the event actually
+  // rendered below rather than always the task's first captured one.
+  const { primaryEvent, otherEvents } = isAsync
+    ? pickAnalyzedEvent(events, wantEvent)
+    : { primaryEvent: '', otherEvents: [] as string[] };
   base.taskId = task.id;
   base.summary = {
     service: base.summary.service,
     instances: task.serviceInstanceIds ?? [],
-    events,
+    // ALL captured events, primaryEvent first — `otherEvents` is JFR-deduped
+    // (drops CPU-family siblings sharing EXECUTION_SAMPLE) for the RETRY tip
+    // below, but the task fact shown to the operator must not lose an event
+    // it genuinely captured just because reading it again would be redundant.
+    events: isAsync ? summaryEventOrder(events, primaryEvent) : events,
     // Different units on the wire: async-profiler's task duration is seconds,
     // pprof's is minutes (OAP task-creation schemas).
     durationLabel: isAsync ? durationSecLabel(task.duration) : durationMinLabel(task.duration),
+    durationSec: task.duration ? (isAsync ? task.duration : task.duration * 60) : null,
     startTime: task.createTime || null,
     frameCount: 0,
   };
@@ -765,20 +895,33 @@ async function analyzeStackList(
     base.error = 'The task targets no instances — nothing to analyze.';
     return base;
   }
-  const request = isAsync
-    ? { taskId: task.id, instanceIds, eventType: ASYNC_EVENT_TO_JFR[events[0]] ?? 'EXECUTION_SAMPLE' }
-    : { taskId: task.id, instanceIds };
-  const an = await graphqlPost<{ analysisResult: { tree: { elements: WireStack[] } | null } | null }>(
-    opts,
-    analyzeQuery,
-    { request },
+  // ONE capture event per analysis, because the flame merges every tree it is
+  // given into a single scale and async-profiler's events do not share a unit:
+  // OAP aggregates EXECUTION_SAMPLE by sample count, ALLOC by BYTES and LOCK by
+  // NANOSECONDS. Summing those produces percentages of a meaningless total.
+  // ALLOC's two TLAB trees ARE merged — both are bytes, and reading only the
+  // in-TLAB half silently drops every large-object path.
+  const jfrTypes = isAsync ? (ASYNC_EVENT_TO_JFR[primaryEvent] ?? ['EXECUTION_SAMPLE']) : [];
+  const requests = isAsync
+    ? (jfrTypes.length ? jfrTypes : ['EXECUTION_SAMPLE']).map((eventType) => ({ taskId: task.id, instanceIds, eventType }))
+    : [{ taskId: task.id, instanceIds }];
+  const results = await Promise.all(
+    requests.map((request) =>
+      graphqlPost<{ analysisResult: { tree: { elements: WireStack[] } | null } | null }>(opts, analyzeQuery, {
+        request,
+      }),
+    ),
   );
   // OAP merges the dumps under a synthesized zero-sample root, so an uncollected
   // task still analyzes to one all-zero element — that's empty, not a 1-frame profile.
-  const elements = an.analysisResult?.tree?.elements ?? [];
-  const collected = elements.length > 1 && elements.some((e) => e.dumpCount > 0);
-  base.trees = collected ? [mapWireTree(elements)] : [];
+  base.trees = results
+    .map((an) => an.analysisResult?.tree?.elements ?? [])
+    .filter((elements) => elements.length > 1 && elements.some((e) => e.dumpCount > 0))
+    .map((elements) => mapWireTree(elements));
   base.summary.frameCount = frameCount(base.trees);
+  if (otherEvents.length) {
+    base.tip = `showing the ${primaryEvent} profile only — this task also captured ${otherEvents.join(', ')}, and those use different units (samples / bytes / nanoseconds), so they cannot share one flame. Call analyze_profiling again with event set to one of: ${otherEvents.join(', ')}.`;
+  }
   return base;
 }
 
@@ -797,10 +940,12 @@ async function analyzeEbpf(
   wantTaskId: string | undefined,
   base: ProfilingAnalysis,
 ): Promise<ProfilingAnalysis> {
-  const tl = await graphqlPost<{
-    tasks: Array<{ taskId: string; targetType: string; taskStartTime: number; fixedTriggerDuration: number | null }>;
-  }>(opts, QUERY_EBPF_TASKS, { serviceId, targets: ['ON_CPU', 'OFF_CPU'], triggerType: 'FIXED_TIME' });
-  const tasks = tl.tasks ?? [];
+  const tasks = await ebpfTasksBothTriggers<{
+    taskId: string;
+    targetType: string;
+    taskStartTime: number;
+    fixedTriggerDuration: number | null;
+  }>(opts, { serviceId, targets: ['ON_CPU', 'OFF_CPU'] });
   const task = wantTaskId ? tasks.find((t) => t.taskId === wantTaskId) : tasks[0];
   if (!task) {
     base.error = 'No eBPF-profiling task found for this service.';
@@ -811,6 +956,7 @@ async function analyzeEbpf(
     service: base.summary.service,
     events: [task.targetType],
     durationLabel: durationSecLabel(task.fixedTriggerDuration),
+    durationSec: task.fixedTriggerDuration || null,
     startTime: task.taskStartTime || null,
     frameCount: 0,
   };
@@ -820,16 +966,46 @@ async function analyzeEbpf(
     QUERY_EBPF_SCHEDULES,
     { taskId: task.taskId },
   );
-  const schedules = sc.schedules ?? [];
-  if (!schedules.length) return base; // task exists but no schedules collected yet
+  const allSchedules = sc.schedules ?? [];
+  if (!allSchedules.length) return base; // task exists but no schedules collected yet
+  // OAP splits every submitted range into 10-second chunks (FETCH_DATA_DURATION)
+  // and fetches them in parallel under one deadline; a chunk that misses the
+  // deadline is caught, logged and returned EMPTY, and the eBPF analyzer never
+  // sets `tip`. So an over-wide request degrades into a silently partial flame
+  // presented as the whole profile. Bound what we ask for — most recent
+  // schedules first, since those are the ones an investigation is about — and
+  // say so when we drop any, rather than letting OAP drop them invisibly.
+  const byRecency = [...allSchedules].sort((a, b) => (b.startTime ?? 0) - (a.startTime ?? 0));
+  const schedules: typeof byRecency = [];
+  let chunks = 0;
+  for (const s of byRecency) {
+    const cost = Math.max(1, Math.ceil(((s.endTime ?? 0) - (s.startTime ?? 0)) / EBPF_CHUNK_MS));
+    if (chunks + cost > MAX_EBPF_ANALYZE_CHUNKS && schedules.length) break;
+    schedules.push(s);
+    chunks += cost;
+  }
+  const truncationTip =
+    schedules.length < allSchedules.length
+      ? `analyzed the ${schedules.length} most recent of ${allSchedules.length} profiling schedules — the full range exceeds what OAP can fetch in one analysis`
+      : null;
   const scheduleIdList = schedules.map((s) => s.scheduleId);
   const timeRanges = schedules.map((s) => ({ start: s.startTime, end: s.endTime }));
+  // The aggregate type has to follow the TARGET, because OAP gives the same
+  // enum two different meanings: for OFF_CPU, COUNT is "the number of times the
+  // process is switched to off cpu by the scheduler" while DURATION is "the
+  // total time spent in off cpu". OFF_CPU is chosen precisely to find what
+  // BLOCKS a service, so counting switches ranks a frame that yields constantly
+  // for microseconds above the one that blocks once for a second — the exact
+  // inversion of the question being asked. ON_CPU has no DURATION meaning
+  // (COUNT is its dump count), so it stays on COUNT.
+  const aggregateType = task.targetType === 'OFF_CPU' ? 'DURATION' : 'COUNT';
   const an = await graphqlPost<{ result: { tip: string | null; trees: Array<{ elements: EbpfStack[] }> } | null }>(
     opts,
     ANALYSIS_EBPF_RESULT,
-    { scheduleIdList, timeRanges, aggregateType: 'COUNT' },
+    { scheduleIdList, timeRanges, aggregateType },
   );
-  base.tip = an.result?.tip ?? null;
+  // OAP's tip is null on the common path and must not erase ours.
+  base.tip = [truncationTip, an.result?.tip ?? null].filter(Boolean).join(' · ') || null;
   base.trees = (an.result?.trees ?? []).map((t) => mapEbpfTree(t.elements));
   base.summary.frameCount = frameCount(base.trees);
   return base;

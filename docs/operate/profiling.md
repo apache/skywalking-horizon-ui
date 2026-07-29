@@ -116,7 +116,41 @@ Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx resp
 
 The result is a **honeycomb topology**: each cell is a process, and the edges between them are the observed inter-process calls. Selecting an edge opens a detail panel with that process-to-process relation's metrics (call rate, latency, and bytes transferred) charted over the task's run window. The topology that drives this layout is the same process-relation data that powers the [3D Infrastructure Map](infra-3d-map.md).
 
+## Continuous Profiling
+
+Everything above starts a profiling task **on demand** — you pick a target and start it. Continuous profiling is the opposite: you arm a policy once, and the profiling task starts **by itself** whenever a process crosses a threshold, with nobody present. It is how you catch a problem that only appears at 3 a.m.
+
+**Continuous profiling is eBPF profiling only, and it requires [Rover](https://github.com/apache/skywalking-rover).** A policy can trigger `ON_CPU`, `OFF_CPU` or `NETWORK` — the same three flavours as the eBPF and Network Profiling tabs above — and the Rover agent both evaluates the thresholds and runs the resulting task. There is no continuous *trace*, *async-profiler* or *pprof* profiling; those stay on demand. So a service with no Rover agent can hold a saved policy, but nothing will fire until one is deployed.
+
+Policies are edited on the layer's **Continuous Profiling** tab, beside the eBPF and Network Profiling tabs whose tasks they trigger. The tab has its own **Target service** picker: each service is labelled with the targets it already has armed, and the picker can be filtered by that — including **no policy**, which is the set you want when arming services that are not set up yet. Opening the tab selects the first service that already has a policy, or the first service in the layer if none does. Once a service is selected, the tab shows its policy plus the instances OAP is currently evaluating it against.
+
+Nothing here is gated on the agent already being present, because **arming a policy before deploying the agent is a valid order of work**: the policy is backend configuration, and it simply starts firing once an eBPF agent begins reporting. If no process of the selected service has reported eBPF-profiling support recently, the tab says so as a warning and still lets you save.
+
+The tab appears on a layer whose template enables the **Continuous Profiling** component (Layer Setup). It ships enabled on **MESH**, matching where the previous SkyWalking UI placed it. Rover registers its processes into `MESH`, `MESH_DP` and `K8S_SERVICE` by default (which layer is configurable per discovery analyzer), so those are the layers where enabling it is likely to be useful — turn it on there if your Rover deployment reports into them.
+
+A policy is a set of **targets** — `ON_CPU`, `OFF_CPU`, or `NETWORK` — and each target carries one or more **conditions**. A condition is:
+
+- a **measurement** (labelled that way on screen; OAP's own name for it is `ContinuousProfilingMonitorType`) — `PROCESS_CPU`, `PROCESS_THREAD_COUNT`, `SYSTEM_LOAD`, `HTTP_ERROR_RATE`, or `HTTP_AVG_RESPONSE_TIME`;
+- a **threshold**, whose unit follows the measurement — a percentage for CPU and error rate, a thread count, a load average, milliseconds for response time. Every threshold is a **whole number**: OAP parses all five as integers and rejects anything else, so `0.5%` or `4.5` will not save. CPU percent and HTTP error rate must be `1`–`100`; the rest must be greater than `0`. The count cannot exceed the period, and one target cannot carry two conditions of the same measurement.
+- a **period**, the number of seconds of metrics to evaluate;
+- a **count**, how many matching evaluations must occur before profiling is triggered.
+
+The two HTTP monitors can additionally be scoped to specific traffic. Choose **All traffic**, **URI list** or **URI regex** — one or the other, never both. Nothing on the backend rejects a rule carrying both, but the agent applies the list and silently ignores the regex, so the form makes the choice explicit; switching away from a filter you have filled asks before erasing it.
+
+Two things are worth knowing before you save:
+
+- **Saving replaces the service's whole policy.** OAP stores one policy per service, and the page sends everything you see. A target you delete is deleted; keep every rule you want to survive.
+- **A policy only evaluates processes an eBPF agent reports.** Inside each target sits a paged **Where it runs** panel: the instances and processes OAP evaluates for that target, with how often each has actually triggered profiling recently, searchable by instance *or* process name, each row expanding to that instance's processes. That trigger count is the thing to read: it is the difference between a policy that is stored and one that is working, and it is the only per-target signal here (the process list itself is the same for every target). An empty panel means nothing is reporting for the service at all.
+
+  The panel is not a Rover presence check — it lists a process whether or not that process can be eBPF-profiled. If the panel has rows *and* the warning above says no process reported eBPF-profiling support, the reading is "processes are there, but none are profilable", which points at Rover's configuration rather than its absence.
+
+Tasks a policy starts appear in the **eBPF Profiling** and **Network Profiling** tabs alongside the ones you start by hand, so a fired policy is read the same way as an on-demand task.
+
+Reading policies needs `profile:read`; saving one needs `profile:enable`, the same permission as starting a task by hand — because that is what a policy eventually does.
+
 ## Troubleshooting
+
+- **A continuous-profiling policy never fires** — first check that it is actually applied: each target shows **Applied** or **Not applied**, and rules that have only been typed are not running. Then check the **Where it runs** panel. If it is empty, nothing is reporting for that service and the thresholds are irrelevant; deploy [Rover](https://github.com/apache/skywalking-rover) for the service. If processes are listed but the trigger count stays at zero, the threshold is not being crossed — lower it, lengthen the period, or reduce the required count.
 
 - **No profiling tabs on a layer** — OAP did not report profiling support for that service. Each tab requires the corresponding capability (trace, eBPF, async-profiler, network, or pprof), which depends on the agent or [Rover](https://github.com/apache/skywalking-rover) deployment behind the service.
 

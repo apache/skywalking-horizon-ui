@@ -72,6 +72,9 @@ export interface LayerComponentFlags {
   networkProfiling?: boolean;
   /** Go pprof integration. */
   pprofProfiling?: boolean;
+  /** Auto-trigger (continuous) profiling policies — same eBPF agent and same
+   *  three targets as `ebpfProfiling`. */
+  continuousProfiling?: boolean;
   /** On-demand Kubernetes pod logs — live-tail a pod's container logs
    *  fetched on demand from the K8s API (never persisted). Only K8s-
    *  deployed layers (k8s_service, mesh) carry pods that resolve. */

@@ -301,7 +301,7 @@ export class LayerApi {
   services(layerKey: string): Promise<{
     reachable: boolean;
     layer: string;
-    services: Array<{ id: string; name: string; normal: boolean | null }>;
+    services: Array<{ id: string; name: string; normal: boolean | null; group: string }>;
     error?: string;
   }> {
     return this.bff.request(
@@ -309,4 +309,5 @@ export class LayerApi {
       `/api/layer/${encodeURIComponent(layerKey)}/services`,
     );
   }
+
 }

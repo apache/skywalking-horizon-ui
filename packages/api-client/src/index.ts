@@ -198,6 +198,19 @@ export type {
   NetworkProfilingKeepAliveResponse,
 } from './ebpf.js';
 export type {
+  ContinuousProfilingTargetType,
+  ContinuousProfilingMonitorType,
+  ContinuousProfilingPolicyItem,
+  ContinuousProfilingPolicyTarget,
+  ContinuousProfilingPoliciesResponse,
+  ContinuousProfilingPolicyRequest,
+  ContinuousProfilingSetResponse,
+  ContinuousProfilingMonitoringProcess,
+  TriggersByTarget,
+  ContinuousProfilingMonitoringInstance,
+  ContinuousProfilingInstancesResponse,
+} from './continuous-profiling.js';
+export type {
   AsyncProfilingEvent,
   AsyncJFREventType,
   AsyncProfilingTask,
