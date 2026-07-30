@@ -151,7 +151,12 @@ export interface ProfileAnalyzeQuery {
 export interface ProfileTaskCreationRequest {
   serviceId: string;
   endpointName: string;
-  startTime: number;
+  /** OMIT to start ASAP. OAP's schema: "if null means the task starts ASAP,
+   *  otherwise the task begin after the startTime(based on agent side time)" —
+   *  so a value here is compared against clocks we do not own (OAP dispatches
+   *  only tasks starting within ±5 minutes of ITS clock). Send one only when
+   *  the caller genuinely means "start later". */
+  startTime?: number;
   duration: number;
   minDurationThreshold: number;
   dumpPeriod: number;

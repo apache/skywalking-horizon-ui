@@ -42,9 +42,9 @@ import { layerCapabilities } from '../../../logic/layers/capabilities.js';
 import { resolveEffectiveLayer } from '../../../logic/layers/effective.js';
 import { getServerOffsetMinutes } from '../../../util/window.js';
 
-// Which template `components` flag gates each proposable profiling type — the
-// layer must declare it for the type to be offer-able. Read at runtime; never
-// hardcode which layers support what.
+// Horizon-side template config, NOT an OAP capability: none of OAP's five
+// profiling create paths takes a layer, so a missing type is a hint, not proof
+// the backend would refuse.
 const PROFILING_COMPONENT: Record<ProfilingProposalType, string> = {
   trace: 'traceProfiling',
   async: 'asyncProfiling',
@@ -65,30 +65,37 @@ const JVM_LANGUAGES = new Set(['java', 'jvm', 'kotlin', 'scala']);
 const GO_LANGUAGES = new Set(['go', 'golang']);
 
 const ASYNC_EVENTS = ['CPU', 'ALLOC', 'LOCK', 'WALL', 'CTIMER', 'ITIMER'];
-const PPROF_EVENTS = ['CPU', 'HEAP', 'BLOCK', 'MUTEX', 'GOROUTINE', 'ALLOCS', 'THREADCREATE'];
-// async caps at 600s server-side; keep the proposed minutes honest so the card
-// and the fired task agree (trace/pprof are minutes; eBPF's 30-min cap is looser).
-const MAX_ASYNC_MINUTES = 10;
 
-// Top frames as text so the agent can reason about the hot path (the flame
-// itself is rendered for the user, not readable by the model). The ranking
-// metric is flavor-specific and MUST be labelled as what it is: trace's
-// durationChildExcluded is self MILLISECONDS, pprof/async's is a self SAMPLE
-// count, and eBPF has no self time at all (durationChildExcluded is the
-// inclusive dumpCount). Numerator and denominator always share one unit.
+/** How far past its window a task may run before "still collecting" stops being
+ *  credible. Generous: upload and analysis land after sampling stops. */
+const STALE_TASK_GRACE_SEC = 5 * 60;
+
+/** Mirrors `MAX_TARGET_INSTANCES` in the async/pprof create routes, which reject
+ *  rather than slice — a card advertising more is a card that cannot fire. */
+const MAX_PROPOSED_INSTANCES = 32;
+const PPROF_EVENTS = ['CPU', 'HEAP', 'BLOCK', 'MUTEX', 'GOROUTINE', 'ALLOCS', 'THREADCREATE'];
+
+// Top frames as text — the flame is rendered for the user, not readable by the
+// model. The ranking metric is flavour-specific and MUST be labelled as what it
+// is: trace is self MILLISECONDS, pprof/async a self SAMPLE count, and eBPF has
+// no self time at all.
 function summarizeProfile(a: ProfilingAnalysis): string {
   const all = a.trees.flatMap((t) => t.elements);
   if (!all.length) return '';
   const pct = (v: number, total: number): string => `${Math.round((v / total) * 100)}%`;
   if (a.profilingType === 'ebpf') {
+    // Mirrors the aggregate the eBPF read asked OAP for: OFF_CPU by DURATION,
+    // ON_CPU by COUNT. Naming the wrong one has the model call a count "time".
+    const offCpu = a.summary.events?.[0] === 'OFF_CPU';
     const total = Math.max(...all.map((e) => e.count), 1);
     const top = [...all]
       .filter((e) => e.count > 0)
       .sort((x, y) => y.count - x.count)
       .slice(0, 8)
       .map((e) => `${e.codeSignature} (${pct(e.count, total)})`);
+    const basis = offCpu ? 'INCLUSIVE share of time spent OFF-CPU (blocked)' : 'INCLUSIVE share of on-CPU dump count';
     return top.length
-      ? ` Heaviest frames by INCLUSIVE sample share (eBPF carries no self time, so entry/root frames rank highest — read the tree, not the order, for the hot leaf): ${top.join('; ')}.`
+      ? ` Heaviest frames by ${basis} (eBPF carries no self time, so entry/root frames rank highest — read the tree, not the order, for the hot leaf): ${top.join('; ')}.`
       : '';
   }
   const totalSelf = all.reduce((n, e) => n + Math.max(e.durationChildExcluded, 0), 0);
@@ -98,36 +105,56 @@ function summarizeProfile(a: ProfilingAnalysis): string {
     .sort((x, y) => y.durationChildExcluded - x.durationChildExcluded)
     .slice(0, 8)
     .map((e) => `${e.codeSignature} (${pct(e.durationChildExcluded, totalSelf)})`);
+  // async-profiler does NOT rank every event by sample count. OAP's JFR
+  // converter builds EXECUTION_SAMPLE with `EventAggregator(true, false)` —
+  // sample counts — but ALLOC and LOCK with `EventAggregator(true, true)`,
+  // which SUMS each event's own value: bytes allocated for AllocationSample,
+  // and for ContendedLock a duration scaled to nanoseconds. Calling either
+  // "samples" hands the model a unit that is not what it is reading.
+  const asyncEvent = a.profilingType === 'async' ? (a.summary.events?.[0] ?? '').toUpperCase() : '';
   const basis =
     a.profilingType === 'trace'
       ? `self time (share of ${Math.round(totalSelf)}ms total self time)`
-      : `self samples (share of ${totalSelf} total self samples)`;
-  return top.length ? ` Hottest frames by ${basis}: ${top.join('; ')}.` : '';
+      : asyncEvent === 'ALLOC'
+        ? `self BYTES ALLOCATED (share of ${totalSelf} bytes total) — this is memory volume, not a sample count`
+        : asyncEvent === 'LOCK'
+          ? `self LOCK-CONTENTION TIME in nanoseconds (share of ${totalSelf}ns total) — this is time blocked, not a sample count`
+          : `self samples (share of ${totalSelf} total self samples)`;
+  // OAP counts pprof sample RECORDS and discards each sample's own value, so
+  // for HEAP / ALLOCS the top frame has the most distinct allocation stacks,
+  // not the most memory.
+  const memoryEvent =
+    a.profilingType === 'pprof' && ['HEAP', 'ALLOCS'].includes((a.summary.events?.[0] ?? '').toUpperCase());
+  const caveat = memoryEvent
+    ? ' NOTE: this is a count of sample records, NOT bytes — it ranks by how many distinct allocation stacks hit a frame, not by memory held or allocated. Do not report it as a memory figure.'
+    : '';
+  return top.length ? ` Hottest frames by ${basis}: ${top.join('; ')}.${caveat}` : '';
 }
 
 export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
   const t = toolPrompt('triggers', 'propose_profiling');
   const propose = tool(
-    async ({ layer, serviceId, service, profilingType, durationMinutes, endpoint, event, targetType, cause, rationale, expectation }): Promise<string> => {
+    async ({ layer, serviceId, service, profilingType, durationMinutes, endpoint, event, targetType, instances, cause, rationale, expectation }): Promise<string> => {
       if (!ctx.hasVerb('profile:enable')) {
         return 'You lack permission to start profiling (profile:enable). Do not propose it; explain what a profiling task would reveal instead.';
       }
       const layerKey = layer.toUpperCase();
-      // No descriptor means we could NOT read what the layer offers — never the
-      // same thing as "it offers this". Blocked (store down / layer disabled) is
-      // a refusal; a layer that simply ships no template still gets its card,
-      // flagged as unconfirmed, so a legitimate proposal isn't hard-failed.
-      let unconfirmed = '';
+      // Readiness signals are ADVICE, never a veto: OAP's checkCreateRequest /
+      // checkArgumentError consult none of what we can see here, so a
+      // Horizon-side "no" would block a task the backend would have taken.
+      const caveats: string[] = [];
       const cap = await layerCapabilities(ctx.uiTemplateClient, layerKey);
       if (cap) {
         const supported = supportedProfilingTypes(cap.components);
         if (!supported.includes(profilingType)) {
-          return `The ${layerKey} layer does not support ${profilingType} profiling (it supports: ${supported.join(', ') || 'none'}). Read kb_layer_capabilities and propose a supported type, or tell the user profiling is unavailable here.`;
+          caveats.push(
+            `${layerKey}'s layer template does not list ${profilingType} profiling (it lists: ${supported.join(', ') || 'none'}). That template is Horizon-side configuration — OAP applies no layer gate to profiling — so the task may well be accepted. Say the layer isn't set up for it, NOT that the deployment cannot do it.`,
+          );
         }
       } else if ((await resolveEffectiveLayer(ctx.uiTemplateClient, layerKey)).blocked) {
-        return `I could not read ${layerKey}'s capabilities — its layer template is unreachable or disabled — so I cannot confirm ${layerKey} supports ${profilingType} profiling, and no card was shown. Read kb_layer_capabilities for ${layerKey} first; if that comes back empty too, tell the user profiling support cannot be confirmed at this deployment.`;
+        caveats.push(`${layerKey}'s layer template is unreachable or disabled, so I could not read what it advertises. This says nothing about whether OAP accepts the task.`);
       } else {
-        unconfirmed = ` NOTE: ${layerKey} has no layer template here, so I could NOT confirm it supports ${profilingType} profiling — say that when you tell the user, and expect the task creation to fail if this deployment does not actually support it.`;
+        caveats.push(`${layerKey} ships no layer template here, so I could not read what it advertises. This says nothing about whether OAP accepts the task.`);
       }
       // Trace profiling monitors ONE endpoint: OAP's ProfileTaskCreationRequest
       // takes `endpointName: String!` and rejects an empty one, so a card without
@@ -155,75 +182,131 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
           // targets. The per-instance scan matches the real create check.
           const probeOffset = await getServerOffsetMinutes(ctx.config, ctx.fetch);
           const probe = await findInstanceWithProcesses(ctx.opts, insts, probeOffset);
-          if (!probe.instance) {
-            if (probe.error) {
-              return `Could not check whether ${service}'s instances report a process — every lookup failed (${probe.error}). No card was shown. Say the check could not be completed; do NOT tell the user network profiling is unavailable, that is not what this means.`;
-            }
-            // A bounded scan and any failed lookup both weaken the negative — say
-            // exactly what was and was not checked.
-            const caveats = [
-              probe.checked < probe.total ? `I only checked ${probe.checked} of its ${probe.total} instances` : null,
+          if (probe.instance) {
+            instanceIds = [probe.instance.id];
+            instanceLabel = probe.instance.name;
+          } else {
+            // Our probe is time-scoped; OAP's create check is NOT — it counts
+            // processes on the instance with no window at all. So a miss here
+            // (idle host, minute-bucket boundary, bounded scan, failed lookups)
+            // is weaker evidence than OAP's own gate. Target the first instance
+            // and let `getProcessCount` decide; its "The instance doesn't have
+            // processes." is the accurate answer, ours would be a guess.
+            instanceIds = [insts[0].id];
+            instanceLabel = insts[0].name;
+            const scope = [
+              probe.error ? `every process lookup failed (${probe.error})` : null,
+              probe.checked < probe.total ? `only ${probe.checked} of ${probe.total} instances were checked` : null,
               probe.failed > 0 ? `${probe.failed} lookup(s) failed` : null,
             ].filter(Boolean);
-            const conclusive = caveats.length === 0;
-            return `None of ${service}'s instances I checked reports a process in the last 30 minutes, and OAP rejects a network-profiling task on an instance with no processes — no card was shown.${caveats.length ? ` Note ${caveats.join('; ')}, so this is not conclusive — ask the user which instance to profile.` : ''}${conclusive ? ` Network profiling needs a Rover eBPF agent on the target host; tell the user it looks unavailable for ${service}.` : ''}`;
+            caveats.push(
+              `No process reported recently on the instances I could check${scope.length ? ` (${scope.join('; ')})` : ''}, so I targeted ${insts[0].name}. OAP checks this itself without a time window when the task is created — if it rejects with "The instance doesn't have processes", THAT is the real answer, and it points at a missing Rover eBPF agent. Do not claim that before approval.`,
+            );
           }
-          instanceIds = [probe.instance.id];
-          instanceLabel = probe.instance.name;
         } else {
-          // async-profiler is JVM-only, pprof is Go-only — target ONLY the
-          // instances that can run it, never the whole fleet. OAP reports
-          // "UNKNOWN" (never null) when it can't tell, so those stay in and a
-          // fleet with no language data still profiles. Uses the runtime
-          // language, not a per-layer assumption.
+          // async-profiler is JVM-only and pprof is Go-only as a matter of what
+          // the AGENT can collect — OAP itself applies no language check, so this
+          // steers TARGETING (profile the instances that can actually run it),
+          // it does not decide whether the task may exist. When the runtime rules
+          // every instance out, the reported language is the thing most likely to
+          // be wrong (a mislabelled or re-registered instance), so target the
+          // fleet and flag it rather than refusing a task OAP would accept.
           const wantGo = profilingType === 'pprof';
           const runnable = wantGo ? GO_LANGUAGES : JVM_LANGUAGES;
-          const targets = insts.filter((i) => {
+          const runsIt = (i: (typeof insts)[number]): boolean => {
             const l = (i.language ?? '').toLowerCase();
             return !l || l === 'unknown' || runnable.has(l);
-          });
-          if (!targets.length) {
-            const langs = [...new Set(insts.map((i) => (i.language ?? '').toLowerCase()).filter(Boolean))];
-            return `${service}'s instances report ${langs.join('/')}, but ${profilingType} profiling is ${wantGo ? 'Go' : 'JVM'}-only. Propose ${wantGo ? 'async (JVM) or trace' : 'pprof (Go) or trace'} instead — match the profiler to the runtime language.`;
+          };
+          // Explicit narrowing wins over the language heuristic and is checked
+          // against the FULL instance list, not the language-filtered one — an
+          // instance the caller named because they believe its reported
+          // language is wrong must not be reported as "does not exist" for
+          // having failed a filter the caller is explicitly overriding.
+          const wanted = (instances ?? []).map((n) => n.toLowerCase());
+          let narrowed: typeof insts;
+          if (wanted.length) {
+            narrowed = insts.filter((i) => wanted.includes(i.name.toLowerCase()));
+            const found = new Set(narrowed.map((i) => i.name.toLowerCase()));
+            const missing = (instances ?? []).filter((n) => !found.has(n.toLowerCase()));
+            if (missing.length) {
+              // Reject the whole selection rather than silently dropping the
+              // names that did not match — an operator reading "profiling i-1,
+              // i-2" must not discover later that i-3 was quietly left out.
+              return `${missing.join(', ')} — no instance with that name exists on ${service}. Its instances are: ${insts.map((i) => i.name).join(', ')}. Name only those, or omit the argument to target them all.`;
+            }
+          } else {
+            const targets = insts.filter(runsIt);
+            narrowed = targets.length ? targets : insts;
           }
-          instanceIds = targets.map((i) => i.id);
+          if (!wanted.length && !narrowed.every(runsIt)) {
+            const langs = [...new Set(insts.map((i) => (i.language ?? '').toLowerCase()).filter(Boolean))];
+            caveats.push(
+              `${service}'s instances report ${langs.join('/')}, and ${profilingType} profiling is ${wantGo ? 'Go' : 'JVM'}-only, so the agent will most likely collect nothing. OAP accepts the task regardless — it applies no language check. Say this plainly and offer ${wantGo ? 'async (JVM) or trace' : 'pprof (Go) or trace'} instead; only go ahead if the user believes the reported runtime is wrong.`,
+            );
+          }
+          // The create routes REJECT more than MAX_TARGET_INSTANCES rather than
+          // slicing, so a card above the cap is one the user cannot approve.
+          // Refuse to emit it and say how to make it proposable, instead of
+          // showing a decision card whose only outcome is a rejection.
+          if (narrowed.length > MAX_PROPOSED_INSTANCES) {
+            return `${service} has ${narrowed.length} matching instances and a single ${profilingType} task accepts at most ${MAX_PROPOSED_INSTANCES}, so I did not show a card that could not be approved. Call propose_profiling again with the "instances" argument naming at most ${MAX_PROPOSED_INSTANCES} of them, or split the fleet across several tasks. The instances are: ${narrowed.slice(0, 60).map((i) => i.name).join(', ')}${narrowed.length > 60 ? ', …' : ''}.`;
+          }
+          instanceIds = narrowed.map((i) => i.id);
+          const chosenSet = narrowed;
+          // The runtime suffix explains a subset the LANGUAGE heuristic produced;
+          // a subset the caller named explicitly needs no such explanation.
+          const why = wanted.length ? '' : ` (${wantGo ? 'Go' : 'JVM'} runtime)`;
           instanceLabel =
-            targets.length === 1
-              ? targets[0].name
-              : targets.length === insts.length
-                ? `${targets.length} instances`
-                : `${targets.length} of ${insts.length} instances (${wantGo ? 'Go' : 'JVM'} runtime)`;
+            chosenSet.length === 1
+              ? chosenSet[0].name
+              : chosenSet.length === insts.length
+                ? `${chosenSet.length} instances`
+                : `${chosenSet.length} of ${insts.length} instances${why}`;
         }
       }
-      // eBPF CPU profiling is the one type this query actually gates: OAP's own
-      // create form uses it, counting processes that advertise
-      // SUPPORT_EBPF_PROFILING. A false is conclusive here (unlike for network,
-      // whose create check is weaker), so refuse rather than emit a doomed card.
+      // What OAP's own create form shows before enabling its button — processes
+      // advertising SUPPORT_EBPF_PROFILING over a rolling 10 minutes. It is a
+      // READINESS hint, not the create gate: createEBPFProfilingFixedTimeTask
+      // validates only the service, that each submitted label exists, and the
+      // 60s minimum duration — it never runs this query. A rover restart or a
+      // metadata lag flips it to false on a deployment that profiles fine, so
+      // carry it as doubt instead of refusing.
       if (profilingType === 'ebpf') {
         const ready = await serviceCanEbpfProfile(ctx.opts, serviceId);
         if (ready.error) {
-          return `Could not check whether ${service} has an eBPF-profilable process — the lookup failed (${ready.error}). No card was shown. Say the check could not be completed rather than that eBPF profiling is unavailable.`;
-        }
-        if (!ready.could) {
-          return `${service} has no process advertising eBPF-profiling support in the last 10 minutes, so OAP would reject an eBPF task — no card was shown. eBPF profiling needs a Rover agent on the target host; tell the user it is unavailable for ${service}.`;
+          caveats.push(`I could not check whether ${service} has an eBPF-profilable process — the lookup failed (${ready.error}). Say the check could not be completed, not that eBPF profiling is unavailable.`);
+        } else if (!ready.could) {
+          caveats.push(
+            `No process on ${service} advertised eBPF-profiling support in the last 10 minutes, which is what OAP's own create form checks before enabling its button — but the create call itself does not consult it, so the task may still run. eBPF profiling needs a Rover agent on the target host; if it collects nothing, that is the likely reason.`,
+          );
         }
       }
-      // Normalise the event to one this profiler knows (default CPU) so the card
-      // never fires a garbage event the BFF would silently drop.
+      // Default to CPU when no event was named. An event we don't recognise is
+      // passed THROUGH: the vocabulary is an OAP GraphQL enum, which validates
+      // and rejects with a clear message naming the allowed values. Silently
+      // rewriting it to CPU meant the operator approved a card reading "HEAP"
+      // and got a CPU profile — a wrong answer beats an honest rejection.
       let events: string[] | undefined;
       if (profilingType === 'async' || profilingType === 'pprof') {
         const known = profilingType === 'async' ? ASYNC_EVENTS : PPROF_EVENTS;
         const ev = (event ?? 'CPU').toUpperCase();
-        events = [known.includes(ev) ? ev : 'CPU'];
+        events = [ev];
+        if (!known.includes(ev)) {
+          caveats.push(`"${ev}" is not an event I know for ${profilingType} profiling (I know ${known.join(', ')}). I passed it through rather than substituting CPU — if OAP does not accept it, the approve will fail with the list it does accept.`);
+        }
       }
-      const effMinutes = profilingType === 'async' ? Math.min(durationMinutes, MAX_ASYNC_MINUTES) : durationMinutes;
+      // OAP fixes a NETWORK task at 10 minutes and its create request carries no
+      // duration field, so any number the model proposed is fiction.
+      if (profilingType === 'network') {
+        caveats.push('OAP runs every network-profiling task for a fixed 10 minutes and takes no duration argument, so the collection window you proposed does not apply. Tell the user 10 minutes.');
+      }
       ctx.emitProposal({
         kind: 'profiling',
         profilingType,
         layer: layerKey,
         serviceId,
         service,
-        durationMinutes: effMinutes,
+        durationMinutes,
         ...(endpoint ? { endpoint } : {}),
         ...(instanceIds ? { instanceIds, instanceLabel } : {}),
         ...(events ? { events } : {}),
@@ -232,7 +315,8 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
         rationale,
         expectation,
       });
-      return `Proposed a ${profilingType}-profiling task to the user as a decision card${instanceLabel ? ` (targets: ${instanceLabel})` : ''}. It is NOT running — the user must approve it. Do not analyze now; stop here, tell the user to approve it, and that once it has collected data you will call analyze_profiling to read the result.${unconfirmed}`;
+      const notes = caveats.length ? ` Tell the user these caveats BEFORE they approve: ${caveats.join(' ')}` : '';
+      return `Proposed a ${profilingType}-profiling task to the user as a decision card${instanceLabel ? ` (targets: ${instanceLabel})` : ''}. It is NOT running — the user must approve it. Do not analyze now; stop here, tell the user to approve it, and that once it has collected data you will call analyze_profiling to read the result.${notes}`;
     },
     {
       name: 'propose_profiling',
@@ -246,6 +330,7 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
         endpoint: z.string().optional().describe(t.p('endpoint')),
         event: z.string().optional().describe(t.p('event')),
         targetType: z.enum(['ON_CPU', 'OFF_CPU']).optional().describe(t.p('targetType')),
+        instances: z.array(z.string()).optional().describe(t.p('instances')),
         cause: z.string().describe(t.p('cause')),
         rationale: z.string().describe(t.p('rationale')),
         expectation: z.string().describe(t.p('expectation')),
@@ -255,7 +340,7 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
 
   const at = toolPrompt('triggers', 'analyze_profiling');
   const analyze = tool(
-    async ({ layer, service, profilingType, taskId }): Promise<string> => {
+    async ({ layer, service, profilingType, taskId, event }): Promise<string> => {
       // Same read verb the profiling routes require — the assistant never widens
       // the caller's read scope (profile:enable does NOT imply profile:read).
       if (!ctx.hasVerb('profile:read')) {
@@ -275,6 +360,7 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
           layerKey: layer,
           service,
           window: ctx.window,
+          rangeMs: { startMs: ctx.range.startMs, endMs: ctx.range.endMs },
           offsetMinutes: await getServerOffsetMinutes(ctx.config, ctx.fetch),
           taskId,
         });
@@ -288,7 +374,16 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
           return `Could not read the network-profiling result for ${service}${where}: ${topo.error ?? 'unreachable'}.`;
         }
         if (!topo.nodes.length) {
-          return `No process-conversation data for ${service} (${scope}) — network/eBPF profiling needs a Rover eBPF agent, and none reported in that scope. Tell the user network profiling is unavailable here.`;
+          // An empty graph is NOT proof of a missing agent. A network task runs
+          // a server-fixed 10 minutes, so the common sequence — approve, then
+          // analyze a minute later — legitimately reads a graph that has not
+          // been populated yet. Say what was actually read and let the elapsed
+          // window decide; only a task well past its window says anything about
+          // the deployment.
+          const waiting = r.taskId
+            ? ` If this task was created within the last ~10 minutes it is still collecting — say that and analyze again after its window, do NOT conclude anything about the deployment yet.`
+            : '';
+          return `No process-conversation data for ${service} (${scope}).${waiting} If the window has fully elapsed and the graph is still empty, THEN the likely cause is that no Rover eBPF agent is reporting processes for this service — report that as the likely cause, not as a certainty.`;
         }
         ctx.emitProcessTopology({
           title: `Network profiling — ${service} · ${scope}`,
@@ -299,7 +394,7 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
         });
         return `Rendered the network process-conversation graph for ${service} (instance ${r.instanceName ?? 'unknown'}; ${scope}; times are OAP-server local): ${topo.nodes.length} process(es), ${topo.calls.length} conversation(s).`;
       }
-      const a = await analyzeProfiling({ opts: ctx.opts, profilingType, layerKey: layer, service, taskId });
+      const a = await analyzeProfiling({ opts: ctx.opts, profilingType, layerKey: layer, service, taskId, event });
       ctx.emitProfiling({
         title: `Profiling — ${service} (${profilingType})`,
         profilingType: a.profilingType,
@@ -322,10 +417,59 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
         // fills neither logs nor segments — the one signal every flavor carries
         // is that a task was RESOLVED (its id + facts land on the summary), so
         // branch on that before blaming the deployment.
-        const collected = a.logs.length > 0 || (a.summary.segmentCount ?? 0) > 0;
+        //
+        // The LOG's operationType is what says how far the task got, and every
+        // flavour shares the vocabulary: NOTIFIED means only "issued to the
+        // agent" (still running — NOT a finished-but-empty profile),
+        // EXECUTION_FINISHED means the agent is done, and the *_ERROR variants
+        // (EXECUTION_TASK_ERROR, JFR/PPROF_UPLOAD_FILE_TOO_LARGE_ERROR) are hard
+        // failures. Treating "any log exists" as collected reported all three as
+        // "ran but found nothing, do not retry" — which told the operator to
+        // give up on a task that was still collecting, or hid a real agent error.
+        const failed = a.logs.filter((l) => l.operationType.endsWith('_ERROR'));
+        // Counted against the TARGETED fleet, not just whoever showed up in the
+        // logs: an instance that never emits a single line is silently absent
+        // from `reporting`, so one finisher could otherwise declare a 20-target
+        // task complete. Counts rather than a set intersection because the logs
+        // key on instanceNAME while the task carries instance IDs.
+        const reporting = new Set(a.logs.map((l) => l.instanceName));
+        const doneInstances = new Set(
+          a.logs.filter((l) => l.operationType === 'EXECUTION_FINISHED').map((l) => l.instanceName),
+        );
+        const expectedInstances = Math.max(a.summary.instances?.length ?? 0, reporting.size);
+        const finished = doneInstances.size > 0 && doneInstances.size >= expectedInstances;
         const taskFound = !!a.taskId && (a.summary.startTime != null || a.summary.durationLabel != null);
-        if (collected) {
-          return `The ${profilingType} profiling task for ${service} ran but produced no analyzable stacks${why} — nothing met the sampling threshold. Tell the user; do not retry indefinitely.`;
+        if (failed.length) {
+          const kinds = [...new Set(failed.map((l) => l.operationType))].join(', ');
+          return `The ${profilingType} profiling task for ${service} (task ${a.taskId}) FAILED on the agent — OAP logged ${kinds} for ${[...new Set(failed.map((l) => l.instanceName))].join(', ')}${why}. This is an agent-side error, not an empty profile: report the failure and what it means (a too-large upload means the profile exceeded what OAP accepts — propose a shorter window), and do not retry unchanged.`;
+        }
+        // An agent that dies mid-task writes no EXECUTION_FINISHED and no
+        // *_ERROR, so without this bound "still running" is returned forever.
+        const startedAt = a.summary.startTime ?? null;
+        // A snapshot event (HEAP / GOROUTINE / ALLOCS / THREADCREATE) carries no
+        // duration, so requiring a window here left those tasks reported as
+        // "still collecting" for ever. No window means the work is instant: the
+        // grace period alone is the bound.
+        const windowSec = a.summary.durationSec ?? 0;
+        const elapsedSec = startedAt ? (Date.now() - startedAt) / 1000 : null;
+        const overdue = elapsedSec !== null && elapsedSec > windowSec + STALE_TASK_GRACE_SEC;
+        if (a.logs.length && !finished && !overdue) {
+          return `The ${profilingType} profiling task for ${service} (task ${a.taskId}) has been issued to the agent and is still COLLECTING — no stacks yet${why}. Tell the user it is running and analyze again after its window elapses. Do NOT report this as a profile that found nothing.`;
+        }
+        if (a.logs.length && !finished) {
+          return `The ${profilingType} profiling task for ${service} (task ${a.taskId}) was issued to the agent ${Math.round((elapsedSec ?? 0) / 60)} minutes ago — well past its ${a.summary.durationLabel ?? 'collection'} window — and OAP has logged neither a completion nor an error${why}. The agent most likely stopped reporting (restarted, evicted, or never supported this profiling flavour). Tell the user the task is stalled rather than running, and do not keep waiting on it.`;
+        }
+        if (finished || (a.summary.segmentCount ?? 0) > 0) {
+          // `a.tip` survives an empty `a.trees` — for async it is set whenever
+          // the task captured an event this call did not render, regardless of
+          // whether THIS event came back empty. A CPU+ALLOC task with nothing on
+          // the CPU side can still have a real ALLOC profile; "do not retry"
+          // would abandon it unread. Gated to async: trace/eBPF's `tip` is an
+          // unrelated OAP truncation notice, not "try a different event".
+          if (profilingType === 'async' && a.tip) {
+            return `The ${profilingType} profiling task for ${service} (task ${a.taskId}) produced no analyzable stacks for this event${why}, but ${a.tip} Call analyze_profiling again with that event before concluding the task found nothing.`;
+          }
+          return `The ${profilingType} profiling task for ${service} finished but produced no analyzable stacks${why} — nothing met the sampling threshold. Tell the user; do not retry indefinitely.`;
         }
         if (taskFound) {
           return `The ${profilingType} profiling task for ${service} (task ${a.taskId}) exists but has reported no stacks yet${why}. If it was JUST created, give it 2–4 minutes to collect, then analyze once more. If it has been running well past its window with nothing, say the agent likely cannot collect ${profilingType} profiles here (missing plugin / eBPF host access) — do not retry indefinitely.`;
@@ -342,6 +486,7 @@ export function triggerTools(ctx: AiRequestContext): StructuredToolInterface[] {
         service: z.string().describe(at.p('service')),
         profilingType: z.enum(['trace', 'pprof', 'async', 'ebpf', 'network']).describe(at.p('profilingType')),
         taskId: z.string().optional().describe(at.p('taskId')),
+        event: z.string().optional().describe(at.p('event')),
       }),
     },
   );

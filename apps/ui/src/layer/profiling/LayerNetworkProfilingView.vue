@@ -485,8 +485,13 @@ function fmtTime(ms: number): string {
         </div>
         <template v-else-if="selectedInstanceId">
           <div v-if="processesLoading" class="hint">{{ t('Checking processes on this instance…') }}</div>
-          <div v-else-if="!networkProcesses.length" class="banner err">
-            {{ t('This instance has no profilable processes — a network task cannot be created (network profiling needs a rover-monitored process).') }}
+          <!-- A warning, not a veto: this probe reads a rolling window, while
+               OAP's own gate (`getProcessCount(instanceId)`) counts every
+               process within TTL and applies no time bound at all. An instance
+               idle for longer than the window would be refused here on a task
+               OAP would have taken. -->
+          <div v-else-if="!networkProcesses.length" class="banner warn">
+            {{ t('No process has reported on this instance recently. Network profiling needs a rover-monitored process, so the task may collect nothing — OAP decides when you create it.') }}
           </div>
           <div v-else class="proc-list">
             <span class="proc-list-label">{{ t('Processes') }} ({{ networkProcesses.length }})</span>
@@ -531,8 +536,8 @@ function fmtTime(ms: number): string {
         <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
         <button
           class="btn-primary"
-          :disabled="!selectedInstanceId || processesLoading || !networkProcesses.length"
-          :title="!selectedInstanceId ? t('No instances available for this service') : processesLoading ? t('Checking processes…') : !networkProcesses.length ? t('This instance has no profilable processes') : t('Create the network profile task')"
+          :disabled="!selectedInstanceId || processesLoading"
+          :title="!selectedInstanceId ? t('No instances available for this service') : processesLoading ? t('Checking processes…') : t('Create the network profile task')"
           @click="submitNewTask"
         >Create task</button>
       </div>
@@ -749,12 +754,16 @@ function fmtTime(ms: number): string {
 .spacer {
   flex: 1 1 0;
 }
-.banner.err {
+.banner.err,
+.banner.warn {
   padding: 6px 12px;
   font-size: 11px;
   color: var(--sw-err);
   background: var(--sw-bg-2);
   border-bottom: 1px solid var(--sw-line);
+}
+.banner.warn {
+  color: var(--sw-warn);
 }
 .topology {
   flex: 1 1 0;

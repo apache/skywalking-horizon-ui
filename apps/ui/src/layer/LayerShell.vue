@@ -192,6 +192,7 @@ const SCOPE_CAP_PREDICATE: Record<string, (L: LayerDef) => boolean> = {
   'async-profiling': (L) => Boolean(L.caps?.asyncProfiling),
   'network-profiling': (L) => Boolean(L.caps?.networkProfiling),
   pprof: (L) => Boolean(L.caps?.pprofProfiling),
+  'continuous-profiling': (L) => Boolean(L.caps?.continuousProfiling),
 };
 watch(
   [() => route.path, layer],

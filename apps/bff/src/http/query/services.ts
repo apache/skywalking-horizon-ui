@@ -71,7 +71,9 @@ export function registerLayerServicesRoute(
         return reply.send({
           reachable: true,
           layer: layerUpper,
-          services: rows.map((r) => ({ id: r.id, name: r.name, normal: r.normal })),
+          // `group` is OAP's `Service.group` — the `<group>::` prefix, empty
+          // when the service has none. Callers use it to section a long roster.
+          services: rows.map((r) => ({ id: r.id, name: r.name, normal: r.normal, group: r.group })),
         });
       } catch (err) {
         return reply.send({

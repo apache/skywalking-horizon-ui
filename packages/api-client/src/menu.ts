@@ -73,6 +73,12 @@ export interface LayerCaps {
   networkProfiling?: boolean;
   /** Go pprof integration. */
   pprofProfiling?: boolean;
+  /** Auto-triggered (continuous) profiling POLICIES — the rules that make an
+   *  eBPF agent start an ON_CPU / OFF_CPU / NETWORK task by itself. Same agent
+   *  and same three targets as `ebpfProfiling` / `networkProfiling`, so it only
+   *  makes sense on a layer that has those; there is no continuous trace,
+   *  async-profiler or pprof profiling. */
+  continuousProfiling?: boolean;
   /** On-demand Kubernetes pod logs — live-tail a pod's container logs
    *  fetched on demand from the K8s API (never persisted). Gates the
    *  per-layer "Pod Logs" tab; only K8s-deployed layers set it. */

@@ -57,8 +57,12 @@ async function fireTask(s: ProposalSpec): Promise<{ ok: boolean; taskId?: string
     // OAP's endpointName is non-null and rejects an empty string — an endpoint-less
     // proposal can only fail on create, so fail the card instead of firing it.
     if (!s.endpoint) return { ok: false, error: t('Trace profiling requires an endpoint, and this proposal carries none.') };
+    // No startTime: OAP reads it as "begin AFTER this, on agent-side time" and
+    // only dispatches tasks starting within ±5 minutes of its OWN clock, so a
+    // browser wall-clock that drifts (VM resume, no NTP) creates a task that is
+    // accepted, returns an id, and never runs. Omitting it means ASAP.
     const r = await bff.profile.create(layer, {
-      serviceId: s.serviceId, endpointName: s.endpoint, startTime: Date.now(),
+      serviceId: s.serviceId, endpointName: s.endpoint,
       duration: mins, minDurationThreshold: 0, dumpPeriod: 10, maxSamplingCount: 5,
     });
     return { ok: r.reachable && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
@@ -79,8 +83,11 @@ async function fireTask(s: ProposalSpec): Promise<{ ok: boolean; taskId?: string
     return { ok: r.reachable && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };
   }
   if (s.profilingType === 'ebpf') {
+    // 0 is OAP's documented ASAP sentinel ("if less then or equal zero means
+    // the task starts ASAP") — same reason as trace above: never hand OAP a
+    // clock we don't own to compare against its own.
     const r = await bff.ebpf.create(layer, {
-      serviceId: s.serviceId, processLabels: s.processLabels ?? [], startTime: Date.now(),
+      serviceId: s.serviceId, processLabels: s.processLabels ?? [], startTime: 0,
       duration: mins * 60, targetType: s.targetType ?? 'ON_CPU',
     });
     return { ok: r.reachable && r.status && !r.errorReason, taskId: r.id, error: r.errorReason ?? r.error };

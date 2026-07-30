@@ -52,6 +52,8 @@ function mockCtx(hasVerb: boolean) {
   const ctx = {
     hasVerb: () => hasVerb,
     emitProposal,
+    emitProfiling: vi.fn(),
+    emitProcessTopology: vi.fn(),
     uiTemplateClient: {},
     opts: {},
     window: { start: 's', end: 'e', step: 'MINUTE' },
@@ -132,19 +134,24 @@ describe('propose_profiling', () => {
     expect(emitProposal.mock.calls[0][0]).toMatchObject({ profilingType: 'async' });
   });
 
-  it('clamps async duration to the 10-minute (600s) server cap', async () => {
+  // OAP's only async duration rule is `duration <= 0` — there is no 600s cap to
+  // honour, so a proposed window must reach the card unchanged.
+  it('passes the async duration through — OAP sets no upper bound', async () => {
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     await propose.invoke({ ...base, profilingType: 'async', durationMinutes: 15 });
-    expect(emitProposal.mock.calls[0][0].durationMinutes).toBe(10);
+    expect(emitProposal.mock.calls[0][0].durationMinutes).toBe(15);
   });
 
-  it('refuses pprof (Go) when the instances report a JVM language', async () => {
+  // The runtime mismatch is real, but it is OURS: OAP's pprof create validates
+  // serviceId/events/duration/dumpPeriod only. So warn and still show the card.
+  it('warns but still proposes pprof when the instances report a JVM language', async () => {
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'pprof' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/Go-only|match the profiler/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/Go-only/i);
+    expect(String(out)).toMatch(/collect nothing/i);
   });
 
   // A mixed-language fleet must not be sent a profiler its runtime can't run —
@@ -194,28 +201,33 @@ describe('propose_profiling', () => {
     expect(emitProposal.mock.calls[0][0]).toMatchObject({ profilingType: 'network', instanceIds: ['i-1'] });
   });
 
-  // ...but it IS the right gate for eBPF CPU profiling, which is what OAP's own
-  // create form checks.
-  it('refuses eBPF profiling when no process advertises eBPF support', async () => {
+  // queryPrepareCreateEBPFProfilingTaskData is what OAP's own create FORM checks
+  // before enabling its button — createEBPFProfilingFixedTimeTask never runs it.
+  // So a false is a readiness hint to relay, not grounds to withhold the card.
+  it('warns but still proposes eBPF when no process advertises eBPF support', async () => {
     (serviceCanEbpfProfile as unknown as Mock).mockResolvedValueOnce({ could: false });
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'ebpf' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/eBPF-profiling support|Rover/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/Rover/i);
+    expect(String(out)).toMatch(/does not consult it|may still run/i);
   });
 
-  // A complete scan that finds nothing IS conclusive for network profiling.
-  it('reports network profiling unavailable only when the scan was complete and clean', async () => {
+  // OAP's network create counts processes with NO time window, so a miss in our
+  // rolling probe is weaker evidence than OAP's own gate — target an instance
+  // and let `getProcessCount` give the real answer.
+  it('still proposes network profiling when the process probe finds nothing', async () => {
     (findInstanceWithProcesses as unknown as Mock).mockResolvedValueOnce({
       instance: null, checked: 2, total: 2, failed: 0,
     });
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'network' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/looks unavailable for/i);
-    expect(String(out)).not.toMatch(/not conclusive/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(emitProposal.mock.calls[0][0]).toMatchObject({ instanceIds: ['i-1'] });
+    expect(String(out)).toMatch(/without a time window/i);
+    expect(String(out)).toMatch(/Do not claim that before approval/i);
   });
 
   // A failed lookup is NOT evidence of a missing Rover agent — reporting it as
@@ -231,54 +243,58 @@ describe('propose_profiling', () => {
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'network' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/could not|failed/i);
-    expect(String(out)).not.toMatch(/needs a Rover eBPF agent/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/every process lookup failed/i);
+    expect(String(out)).toMatch(/ECONNREFUSED/);
   });
 
-  // A capped probe must say what it actually checked, and a failed lookup is not
-  // evidence of absence.
-  it('reports the truncation and any failed lookups rather than a bare negative', async () => {
+  // A capped probe must say what it actually checked — the caveat carries the
+  // scope so the model cannot present a partial scan as a whole-fleet negative.
+  it('reports the truncation and any failed lookups in the caveat', async () => {
     (findInstanceWithProcesses as unknown as Mock).mockResolvedValueOnce({
       instance: null, checked: 60, total: 90, failed: 3,
     });
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'network' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/only checked 60 of its 90 instances/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/only 60 of 90 instances were checked/i);
     expect(String(out)).toMatch(/3 lookup\(s\) failed/i);
-    expect(String(out)).toMatch(/not conclusive/i);
-    expect(String(out)).not.toMatch(/looks unavailable for/i);
   });
 
-  it('refuses when capabilities cannot be read (template store blocked)', async () => {
+  // An unreadable layer template says nothing about the BACKEND, so it cannot
+  // withhold the card either.
+  it('proposes with a caveat when capabilities cannot be read (template store blocked)', async () => {
     (layerCapabilities as unknown as Mock).mockResolvedValueOnce(null);
     (resolveEffectiveLayer as unknown as Mock).mockResolvedValueOnce({ template: null, blocked: true });
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'ebpf' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/could not read|cannot confirm/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/unreachable or disabled/i);
+    expect(String(out)).toMatch(/says nothing about whether OAP accepts/i);
   });
 
-  // No template ≠ unsupported: still propose, but say support is unconfirmed.
-  it('proposes with an unconfirmed note when the layer ships no template', async () => {
+  it('proposes with a caveat when the layer ships no template', async () => {
     (layerCapabilities as unknown as Mock).mockResolvedValueOnce(null);
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'ebpf' });
     expect(emitProposal).toHaveBeenCalledTimes(1);
-    expect(String(out)).toMatch(/could NOT confirm/);
+    expect(String(out)).toMatch(/ships no layer template/i);
   });
 
-  it('refuses a type the layer does not declare', async () => {
+  // The template's `components` list is Horizon config; OAP applies no layer
+  // gate to any profiling create. A missing flag must not veto the card.
+  it('proposes a type the layer does not declare, flagging it as Horizon-side config', async () => {
     (layerCapabilities as unknown as Mock).mockResolvedValueOnce({ components: ['traceProfiling'] });
     const { ctx, emitProposal } = mockCtx(true);
     const [propose] = triggerTools(ctx);
     const out = await propose.invoke({ ...base, profilingType: 'ebpf' });
-    expect(emitProposal).not.toHaveBeenCalled();
-    expect(String(out)).toMatch(/does not support/i);
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(String(out)).toMatch(/does not list ebpf profiling/i);
+    expect(String(out)).toMatch(/OAP applies no layer gate/i);
+    expect(String(out)).toMatch(/NOT that the deployment cannot do it/i);
   });
 
   it('does NOT propose (or emit) without profile:enable', async () => {
@@ -287,5 +303,126 @@ describe('propose_profiling', () => {
     const out = await propose.invoke({ ...base, profilingType: 'trace' });
     expect(emitProposal).not.toHaveBeenCalled();
     expect(String(out)).toMatch(/permission|profile:enable/i);
+  });
+
+  // The create routes REJECT more than MAX_TARGET_INSTANCES rather than
+  // slicing, so a card above the cap would advertise a fleet the fired task
+  // never covers. Refusing to emit it, and saying how to narrow, is the fix.
+  it('refuses to emit a card above the per-task instance cap', async () => {
+    (listServiceInstances as unknown as Mock).mockResolvedValueOnce(
+      Array.from({ length: 40 }, (_, i) => ({ id: `i-${i}`, name: `inst-${i}`, language: 'java' })),
+    );
+    const { ctx, emitProposal } = mockCtx(true);
+    const [propose] = triggerTools(ctx);
+    const out = await propose.invoke({ ...base, profilingType: 'async' });
+    expect(emitProposal).not.toHaveBeenCalled();
+    expect(String(out)).toMatch(/40 matching instances/);
+    expect(String(out)).toMatch(/at most 32/);
+    expect(String(out)).toMatch(/"instances" argument/);
+  });
+
+  // A fleet above the cap becomes proposable by naming a subset explicitly.
+  it('proposes a capped fleet once narrowed by the "instances" argument', async () => {
+    (listServiceInstances as unknown as Mock).mockResolvedValueOnce(
+      Array.from({ length: 40 }, (_, i) => ({ id: `i-${i}`, name: `inst-${i}`, language: 'java' })),
+    );
+    const { ctx, emitProposal } = mockCtx(true);
+    const [propose] = triggerTools(ctx);
+    await propose.invoke({ ...base, profilingType: 'async', instances: ['inst-3', 'inst-7'] });
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(emitProposal.mock.calls[0][0]).toMatchObject({ instanceIds: ['i-3', 'i-7'] });
+  });
+
+  // An explicit name must be checked against the FULL instance list, not the
+  // language-filtered subset — naming an instance because its reported
+  // language is believed wrong is the entire point of narrowing explicitly.
+  it('honours an explicitly named instance the language heuristic would have excluded', async () => {
+    (listServiceInstances as unknown as Mock).mockResolvedValueOnce([
+      { id: 'i-1', name: 'inst-1', language: 'java' },
+      { id: 'i-2', name: 'inst-2', language: 'go' },
+    ]);
+    const { ctx, emitProposal } = mockCtx(true);
+    const [propose] = triggerTools(ctx);
+    await propose.invoke({ ...base, profilingType: 'async', instances: ['inst-2'] });
+    expect(emitProposal).toHaveBeenCalledTimes(1);
+    expect(emitProposal.mock.calls[0][0]).toMatchObject({ instanceIds: ['i-2'] });
+  });
+
+  // A name that matches nothing rejects the WHOLE selection rather than
+  // silently proceeding with only the names that did match.
+  it('rejects the whole selection when one named instance does not exist, rather than dropping it silently', async () => {
+    const { ctx, emitProposal } = mockCtx(true);
+    const [propose] = triggerTools(ctx);
+    const out = await propose.invoke({ ...base, profilingType: 'async', instances: ['inst-1', 'no-such-instance'] });
+    expect(emitProposal).not.toHaveBeenCalled();
+    expect(String(out)).toMatch(/no-such-instance/);
+    expect(String(out)).toMatch(/no instance with that name exists/);
+  });
+});
+
+describe('analyze_profiling', () => {
+  it('threads the optional event argument through to analyzeProfiling', async () => {
+    const { analyzeProfiling } = await import('../../../logic/oap/profiling.js');
+    (analyzeProfiling as unknown as Mock).mockResolvedValueOnce({
+      profilingType: 'async',
+      taskId: 't-1',
+      trees: [],
+      metricKey: 'count',
+      tip: null,
+      logs: [],
+      summary: { service: 'agent::frontend', frameCount: 0 },
+      reachable: true,
+    });
+    const { ctx } = mockCtx(true);
+    const [, analyze] = triggerTools(ctx);
+    await analyze.invoke({ layer: 'general', service: 'agent::frontend', profilingType: 'async', event: 'ALLOC' });
+    expect(analyzeProfiling).toHaveBeenCalledWith(
+      expect.objectContaining({ profilingType: 'async', event: 'ALLOC' }),
+    );
+  });
+
+  // A CPU+ALLOC task whose CPU side collected nothing must not be reported
+  // as "no analyzable stacks, do not retry" while its ALLOC data goes unread —
+  // `tip` names the other event precisely so this branch does not have to guess.
+  it('points at the other captured event instead of declaring an async task empty', async () => {
+    const { analyzeProfiling } = await import('../../../logic/oap/profiling.js');
+    (analyzeProfiling as unknown as Mock).mockResolvedValueOnce({
+      profilingType: 'async',
+      taskId: 't-1',
+      trees: [],
+      metricKey: 'count',
+      tip: 'showing the CPU profile only — this task also captured ALLOC, and those use different units (samples / bytes / nanoseconds), so they cannot share one flame. Call analyze_profiling again with event set to one of: ALLOC.',
+      logs: [{ instanceName: 'i-1', operationType: 'EXECUTION_FINISHED', operationTime: 1 }],
+      summary: { service: 'agent::frontend', frameCount: 0, instances: ['i-1'] },
+      reachable: true,
+    });
+    const { ctx } = mockCtx(true);
+    const [, analyze] = triggerTools(ctx);
+    const out = await analyze.invoke({ layer: 'general', service: 'agent::frontend', profilingType: 'async' });
+    expect(String(out)).toMatch(/also captured ALLOC/);
+    expect(String(out)).toMatch(/Call analyze_profiling again with that event/);
+    expect(String(out)).not.toMatch(/do not retry indefinitely/i);
+  });
+
+  // The same "finished, empty" shape for trace/eBPF must NOT be reinterpreted
+  // as "try a different event" — their `tip` means something else entirely
+  // (an OAP truncation notice), and neither takes an `event` argument.
+  it('does not misapply the "try another event" framing to a trace tip', async () => {
+    const { analyzeProfiling } = await import('../../../logic/oap/profiling.js');
+    (analyzeProfiling as unknown as Mock).mockResolvedValueOnce({
+      profilingType: 'trace',
+      taskId: 't-2',
+      trees: [],
+      metricKey: 'duration',
+      tip: 'OAP only analyzed part of this trace',
+      logs: [],
+      summary: { service: 'agent::frontend', frameCount: 0, segmentCount: 3 },
+      reachable: true,
+    });
+    const { ctx } = mockCtx(true);
+    const [, analyze] = triggerTools(ctx);
+    const out = await analyze.invoke({ layer: 'general', service: 'agent::frontend', profilingType: 'trace' });
+    expect(String(out)).toMatch(/do not retry indefinitely/i);
+    expect(String(out)).not.toMatch(/Call analyze_profiling again with that event/);
   });
 });

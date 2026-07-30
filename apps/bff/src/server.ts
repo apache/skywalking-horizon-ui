@@ -56,6 +56,7 @@ import { registerPreflightRoutes } from './http/query/preflight.js';
 import { registerTtlRoute } from './http/query/ttl.js';
 import { registerProfileRoutes } from './http/query/profile.js';
 import { registerEBPFRoutes } from './http/query/ebpf.js';
+import { registerContinuousProfilingRoutes } from './http/query/continuous-profiling.js';
 import { registerAsyncProfileRoutes } from './http/query/async-profile.js';
 // Config (CRUD for templates / settings)
 import { registerDashboardConfigRoute } from './http/config/dashboard.js';
@@ -286,6 +287,7 @@ registerEBPFRoutes(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerAsyncProfileRoutes(app, { config: source, sessions });
+registerContinuousProfilingRoutes(app, { config: source, sessions });
 
 // ── Config ─────────────────────────────────────────────────────────
 registerDashboardConfigRoute(app, {
