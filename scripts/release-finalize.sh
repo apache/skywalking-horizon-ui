@@ -48,13 +48,14 @@
 #      the CHANGELOG section for <v> as the body. A release that already
 #      exists gets only its MISSING assets uploaded.
 #
-#   5. Verify the Docker Hub multi-arch image — CI's publish-image
-#      workflow mirrors the GHCR image to Docker Hub automatically on
-#      every `v*` tag push (apache/skywalking-ui:horizon-<v> and
-#      apache/skywalking-ui:latest). This step only CONFIRMS the two
-#      expected tags are present; publishing is CI's job. There is no
-#      local-push fallback — if the tags are missing, re-run the
-#      publish-image workflow and re-run this script.
+#   5. Verify the Docker Hub multi-arch image (apache/skywalking-ui:horizon-<v>
+#      and apache/skywalking-ui:latest). These are NOT published by the tag
+#      push: a tag is only a release candidate until the vote passes, so the
+#      tag build publishes the immutable digest tag alone. The stable tags and
+#      the Docker Hub mirror are attached by re-running the publish-image
+#      workflow via workflow_dispatch for that tag, which is the promotion
+#      step and belongs BEFORE this script. Publishing stays CI's job; this
+#      step only CONFIRMS the two tags arrived.
 #
 # Usage:  bash scripts/release-finalize.sh
 #
@@ -367,11 +368,12 @@ fi
 # ========================== Step 8: Verify Docker Hub image ==========================
 note "Step 8 — Verify Docker Hub image: ${DOCKERHUB_REPO}"
 
-# CI (.github/workflows/publish-image.yaml) mirrors the multi-arch image
-# to Docker Hub automatically on every `v*` tag push, so by the time
-# you're finalizing a passed vote it is already live. This step only
-# VERIFIES the expected tags are present — publishing is CI's job, there
-# is no local-push fallback.
+# The stable tags are vote-gated: the `v*` tag push publishes only the
+# immutable digest, and these two arrive when the publish-image workflow is
+# re-run via workflow_dispatch for the tag — the promotion step, which the
+# release manager does once the vote passes and before running this script.
+# This step only VERIFIES they arrived; publishing is CI's job, there is no
+# local-push fallback.
 DH_VERSION_TAG="${DOCKERHUB_REPO}:horizon-${RELEASE_VERSION}"
 DH_LATEST_TAG="${DOCKERHUB_REPO}:latest"
 
@@ -380,13 +382,14 @@ echo "  ${DH_VERSION_TAG}   (immutable, this release)"
 echo "  ${DH_LATEST_TAG}                      (moving — newest Horizon release)"
 
 if docker buildx imagetools inspect "${DH_VERSION_TAG}" >/dev/null 2>&1; then
-    echo "✓ ${DH_VERSION_TAG} is on Docker Hub — CI's publish-image mirror succeeded."
+    echo "✓ ${DH_VERSION_TAG} is on Docker Hub — the promotion run mirrored it."
     echo "  Inspect:  docker buildx imagetools inspect ${DH_VERSION_TAG}"
 else
     err "✗ ${DH_VERSION_TAG} is NOT on Docker Hub."
-    err "  CI's publish-image workflow did not mirror tag ${TAG}. The SVN promote +"
-    err "  GitHub release above already succeeded; only the image is missing. Re-run"
-    err "  the workflow (workflow_dispatch with tag ${TAG}), then re-run this script:"
+    err "  The stable image tags are attached by the promotion run, not by the tag"
+    err "  push — most likely it has not been run yet. The SVN promote + GitHub"
+    err "  release above already succeeded; only the image is missing. Run the"
+    err "  workflow (workflow_dispatch with tag ${TAG}), then re-run this script:"
     err "    https://github.com/${GH_REPO}/actions/workflows/publish-image.yaml"
     exit 1
 fi
