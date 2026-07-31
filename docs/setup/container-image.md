@@ -60,7 +60,7 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 
 | Variable | Default | Type | Sets |
 |---|---|---|---|
-| `HORIZON_TEMPLATES_MODE` | `live` | `live` \| `readonly` | Template source: OAP ui_template store (`live`) vs. the local bundle, read-only (`readonly`). |
+| `HORIZON_TEMPLATES_MODE` | `live` | `live` \| `readonly` | Template source: OAP 11 REST-backed storage (`live`) vs. the local bundle (`readonly`). OAP 10 requires `readonly` because Horizon does not consume its legacy GraphQL template API. |
 | `HORIZON_OAP_QUERY_URL` | `http://127.0.0.1:12800` | url | OAP GraphQL / query host. |
 | `HORIZON_OAP_ADMIN_URL` | `http://127.0.0.1:17128` | url | OAP admin host (runtime-rule / inspect / status). |
 | `HORIZON_OAP_ZIPKIN_URL` | `http://127.0.0.1:9412/zipkin` | url | OAP Zipkin v2 host. |
@@ -111,7 +111,7 @@ docker run --rm -p 8081:8081 \
   ghcr.io/apache/skywalking-horizon-ui:<version>
 ```
 
-To run standalone on the bundled templates (no ui_template admin API), add `-e HORIZON_TEMPLATES_MODE=readonly` — dashboards render from the local bundle and the config surface is read-only (the OAP query host is still required for metrics / traces / logs).
+To run standalone on the bundled templates (without Horizon's OAP 11 `/ui-management/templates*` REST dependency), add `-e HORIZON_TEMPLATES_MODE=readonly` — dashboards render from the local bundle and the config surface is read-only (the OAP query host is still required for metrics / traces / logs). OAP 10 has its own legacy GraphQL template API, but Horizon does not consume it.
 
 ## Memory & sizing
 

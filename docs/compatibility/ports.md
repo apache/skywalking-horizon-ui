@@ -1,6 +1,6 @@
 # Network Ports
 
-Horizon talks to OAP on three ports. Two are required; one is only used if you ship traces through Zipkin.
+Horizon can talk to OAP on three ports. The query port is always required; the admin port is required only for OAP 11 admin features or live template mode; the Zipkin port is used only if you query traces through Zipkin.
 
 | Port | Protocol | OAP module | Horizon usage | Required |
 |---|---|---|---|---|
@@ -39,6 +39,8 @@ The OAP defaults. Each module binds its own port:
 - `:9412` for Zipkin
 
 This is what `horizon.yaml` shows.
+
+OAP 10 also exposes its legacy `UIConfigurationManagement` template operations through GraphQL on `:12800`. Current Horizon releases do not consume that protocol: live template mode uses the OAP 11 `/ui-management/templates*` REST API on the configured admin URL. Pointing `adminUrl` at `:12800` does not by itself make OAP 10 live-template sync compatible; use `templates.mode: readonly`.
 
 ### Shared port (Docker / Kubernetes presets)
 

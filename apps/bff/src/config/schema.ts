@@ -524,12 +524,12 @@ const performanceSchema = z
   .strict()
   .default({});
 
-// Template source mode. `live` (default) seeds bundled templates into OAP's
-// ui_template store at boot and reads/writes them via the ui_template API.
-// `readonly` renders templates from the local disk bundle only — the
-// ui_template API is never called and the config surface is read-only; OAP's
-// query API (metrics/traces/logs) is still used + boot-checked. Env-overridable
-// (`HORIZON_TEMPLATES_MODE`) so a file-less container can pick the mode.
+// Template source mode. `live` (default) uses OAP 11's
+// `/ui-management/templates*` REST API. `readonly` renders from the local disk
+// bundle and never calls a template-management API. OAP 10 has a legacy
+// GraphQL template API, but Horizon does not consume it, so OAP 10 requires
+// `readonly`. The OAP query API is still used + boot-checked in either mode.
+// Env-overridable so a file-less container can pick the mode.
 const templatesModeDefault: 'live' | 'readonly' =
   process.env.HORIZON_TEMPLATES_MODE === 'readonly' ? 'readonly' : 'live';
 const templatesSchema = z

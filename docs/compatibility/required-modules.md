@@ -7,6 +7,8 @@ Horizon UI talks to OAP through **two ports**:
 
 The admin-port endpoints are gated by per-module selectors on the OAP side. Horizon verifies each feature by **probing the real REST path that feature calls** and reporting per-feature reachability; the config-dump selector scan survives only as an informational "selector detected" footnote on the Cluster Status page.
 
+OAP 10 has a separate, legacy template-management API on the query GraphQL port (`getTemplate`, `getAllTemplates`, `addTemplate`, `changeTemplate`, and `disableTemplate`). The table below describes the OAP 11 admin modules that Horizon actually consumes. Horizon does not adapt the OAP 10 GraphQL template API to its `/ui-management/templates*` client, so v10 deployments must use `templates.mode: readonly` despite having their own `ui_template` store.
+
 ## Module table
 
 | Module | OAP env-var | Min OAP | Endpoints Horizon hits | What breaks when unreachable |
@@ -19,7 +21,7 @@ The admin-port endpoints are gated by per-module selectors on the OAP side. Hori
 
 All five are recommended on v11. **admin-server** is non-optional for the v11 admin surface; the rest can be left off if you do not need the corresponding feature, but the Cluster Status page will surface warnings.
 
-The entire admin-port surface (all five modules) is **OAP 11.x only**. On OAP 10.x the data-plane stack — dashboards, traces, logs, topology, alarms, profiling — works fine; the admin-port features (DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, Inspect, OAP UI-template sync) are unavailable and the corresponding sidebar entries are hidden. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
+The entire admin-port surface (all five modules) is **OAP 11.x only**. On OAP 10.x the data-plane stack is available in readonly template mode, subject to the minor-version query-schema caveats in the compatibility matrix; the admin-port features (DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and Inspect) are unavailable. Horizon template sync is also unavailable because Horizon has no adapter for OAP 10's otherwise-existing GraphQL template API. See [OAP Version](oap-version.md) for the full feature-vs-version matrix.
 
 ## How Horizon checks feature state
 
