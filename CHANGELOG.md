@@ -6,6 +6,10 @@ The version line is shared by every package in the monorepo (apps + shared packa
 
 ## 1.0.0
 
+### Virtual GenAI
+
+- **Evaluation records and score trends are now explorable in the UI.** The Virtual GenAI layer gains an **Evaluation Record** page that lists each evaluated record with its result, level, reason, judge model, timestamp, and trace link, and the model dashboard adds a new **Evaluation Score** chart backed by `gen_ai_model_evaluation_score_ppm/1000000`, so operators can inspect both the raw LLM-as-judge output and its aggregate trend.
+
 ### AI assistant (new)
 
 - **Ask about your system in plain language and get answers built from the real dashboard widgets — not just text.** A new floating **AI Assistant** launcher (right edge, after login) opens a chat: describe what you want to know ("what's unhealthy right now?", "investigate latency for a service") and the assistant reads **live OAP data** through the same query path the dashboards use, then streams back an ordered narrative with **inline charts, top-N lists and tables** drawn by the same widget components you see across the UI. Figures are numbered so the prose can reference them. Open it as a side drawer, expand to a full page (`/ai`), or open in a new tab; past conversations are kept locally in your browser.

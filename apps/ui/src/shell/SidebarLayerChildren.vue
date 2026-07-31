@@ -119,6 +119,14 @@ const hasTopology = computed(() =>
       <Icon name="log" /><span>Logs</span>
     </RouterLink>
     <RouterLink
+      v-if="L.caps.evaluationRecord"
+      :to="`/layer/${L.key}/evaluation-record`"
+      class="sw-nav-item"
+      :class="{ 'is-active': isActive(`/layer/${L.key}/evaluation-record`) }"
+    >
+      <Icon name="log" /><span>Evaluation Record</span>
+    </RouterLink>
+    <RouterLink
       v-if="L.caps.browserErrors"
       :to="`/layer/${L.key}/browser-errors`"
       class="sw-nav-item"

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -45,6 +45,7 @@ import { registerTraceRoutes } from './http/query/trace.js';
 import { registerTraceTagRoutes } from './http/query/trace-tag.js';
 import { registerZipkinRoutes } from './http/query/zipkin.js';
 import { registerLogRoute } from './http/query/log.js';
+import { registerEvaluationRecordRoute } from './http/query/evaluation-record.js';
 import { registerBrowserErrorsRoute } from './http/query/browser-errors.js';
 import { registerEventsRoute } from './http/query/events.js';
 import { registerExploreRoutes } from './http/query/explore.js';
@@ -263,6 +264,7 @@ registerTraceRoutes(app, {
 registerTraceTagRoutes(app, { config: source, sessions });
 registerZipkinRoutes(app, { config: source, sessions });
 registerLogRoute(app, { config: source, sessions });
+registerEvaluationRecordRoute(app, { config: source, sessions });
 registerBrowserErrorsRoute(app, { config: source, sessions });
 registerEventsRoute(app, { config: source, sessions });
 registerExploreRoutes(app, { config: source, sessions });

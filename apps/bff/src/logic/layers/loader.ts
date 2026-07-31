@@ -60,6 +60,7 @@ export interface LayerComponentFlags {
   topology?: boolean;
   traces?: boolean;
   logs?: boolean;
+  evaluationRecord?: boolean;
   /** BROWSER-layer JS error logs + source-map de-obfuscation (#6784). */
   browserErrors?: boolean;
   /** Trace-driven thread profiling (original SkyWalking profile). */

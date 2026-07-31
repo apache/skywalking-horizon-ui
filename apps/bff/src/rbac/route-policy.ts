@@ -113,6 +113,8 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
 
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',
+  'POST /api/layer/:key/evaluation-records':       'logs:read',
+  'POST /api/layer/:key/evaluation-records/facets':'logs:read',
   'GET /api/log-tags/keys':                        'logs:read',
   'GET /api/log-tags/values':                      'logs:read',
   'GET /api/layer/:key/pod-logs/containers':       'logs:read',

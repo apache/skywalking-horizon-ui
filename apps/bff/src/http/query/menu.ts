@@ -62,6 +62,7 @@ function componentsToCaps(components: LayerComponentFlags): LayerCaps {
     processTopology: !!components.topology,
     traces: !!components.traces,
     logs: !!components.logs,
+    evaluationRecord: !!components.evaluationRecord,
     browserErrors: !!components.browserErrors,
     traceProfiling: !!components.traceProfiling,
     ebpfProfiling: !!components.ebpfProfiling,
@@ -215,7 +216,11 @@ const LAYER_DEFAULTS: Record<string, { color: string; slots: LayerSlots; caps: L
   VIRTUAL_DATABASE: { color: 'var(--sw-warn)', slots: { services: 'Databases' }, caps: { dashboards: true } },
   VIRTUAL_CACHE: { color: 'var(--sw-warn)', slots: { services: 'Caches' }, caps: { dashboards: true } },
   VIRTUAL_MQ: { color: 'var(--sw-ok)', slots: { services: 'Queues' }, caps: { dashboards: true } },
-  VIRTUAL_GENAI: { color: 'var(--sw-purple)', slots: { services: 'Providers', instances: 'Models' }, caps: { dashboards: true } },
+  VIRTUAL_GENAI: {
+    color: 'var(--sw-purple)',
+    slots: { services: 'Providers', instances: 'Models' },
+    caps: { dashboards: true, evaluationRecord: true },
+  },
 };
 
 const DEFAULT_FOR_UNKNOWN_LAYER = {
