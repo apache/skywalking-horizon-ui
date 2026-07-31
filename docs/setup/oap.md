@@ -31,10 +31,10 @@ oap:
 | URL | Hit by |
 |---|---|
 | `queryUrl` | GraphQL (`version`, `getTimeInfo`, `checkHealth`, `listLayers`, `listServices`, `getMenuItems`, `listLayerLevels`, `execExpression`, alarm queries, trace queries, log queries, topology queries, profiling queries). |
-| `adminUrl` | `/debugging/config/dump`, `/runtime/rule/*`, `/dsl-debugging/*`, `/inspect/metrics`, `/inspect/entities`, `/status/alarm/*`. |
+| `adminUrl` | `/debugging/config/dump`, `/runtime/rule/*`, `/dsl-debugging/*`, `/inspect/metrics`, `/inspect/entities`, `/status/alarm/*`, and — in live template mode — `/ui-management/templates*`. |
 | `zipkinUrl` | Zipkin v2 trace queries when a layer declares `traces.source: zipkin` or `both`. |
 
-The two required URLs (query + admin) are independently health-checked. See [Cluster Status Check Sequence](../compatibility/cluster-status.md) for the per-pane behavior.
+`queryUrl` is always required. `adminUrl` is required for OAP 11 admin features and for Horizon's live template mode; it is not required for an OAP 10 deployment running `templates.mode: readonly`. Configured query and admin URLs are health-checked independently. See [Cluster Status Check Sequence](../compatibility/cluster-status.md) for the per-pane behavior.
 
 ## MQE endpoint override (`oap.mqe`)
 
@@ -67,7 +67,7 @@ oap:
 
 ## OAP capability probing
 
-Horizon detects optional GraphQL fields via introspection on first use, then caches the result per BFF process lifetime. This is what lets Horizon run natively against OAP 11.x while still supporting v10 for triage — newer fields are picked up automatically when present, and missing fields are routed around silently.
+Horizon introspects selected optional GraphQL fields on first use and caches the result per BFF process lifetime. This currently provides an alarm-query fallback; it is not a general compatibility layer for every schema difference. See [OAP Version](../compatibility/oap-version.md) for the exact v10 limitations.
 
 | Capability | Probed |
 |---|---|
