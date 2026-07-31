@@ -83,14 +83,14 @@ export interface TemplateRow {
 
 export interface ConflictRow {
   /** Envelope name (e.g. `horizon.layer.ACTIVEMQ`) seen on >1 enabled
-   *  OAP record. The BFF picks the lowest-id row as the live one and
-   *  surfaces this list so the operator can disable the extras. */
+   *  OAP record. The BFF renders one of them and surfaces this list so
+   *  the operator can disable the extras. */
   name: string;
   kind: TemplateKind;
   key: string;
-  /** UUIDs of every enabled OAP row that shares this name, sorted
-   *  ASC so picks are deterministic across BFF instances. The first
-   *  element is the winner; the rest are losers. */
+  /** UUIDs of every enabled OAP row that shares this name, sorted ASC.
+   *  Horizon renders the lowest of these and touches none of them.
+   *  Sorted, not ranked: the survivor is NOT always the first element. */
   enabledIds: string[];
 }
 
@@ -111,9 +111,10 @@ export interface SyncStatus {
   /** When this status snapshot was generated. */
   generatedAt: number;
   rows: TemplateRow[];
-  /** Per-name multi-enabled conflicts — extras the dedup couldn't auto-
-   *  collapse (e.g. byte-different configurations). Empty list = no
-   *  conflicts. The admin UI renders a banner per entry. */
+  /** Per-name multi-enabled conflicts: duplicates the boot reconcile
+   *  hasn't collapsed — seen on a read between boots, or left behind by
+   *  a disable OAP refused. Empty list = no conflicts. The admin UI
+   *  renders a banner per entry. */
   conflicts: ConflictRow[];
 }
 
@@ -329,25 +330,22 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
   if (opts.write) {
     const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
     const overlaySeedCount = await seedMissingOverlays(deps, parsedRemote.byName);
-    // Post-seed reconciliation. Any race-created duplicate (peer
-    // Horizon instance seeding the same OAP simultaneously, or a
-    // BanyanDB read-after-write window that hid an existing row from
-    // our seedMissing check) gets collapsed here: enabled wins,
-    // identical-content losers are disabled. Self-healing on every
-    // boot.
-    let disabledDupes: string[] = [];
-    try {
-      disabledDupes = await reconcileDuplicates(deps, bundledRows);
-    } catch (err) {
-      deps.logger.warn({ err: errMsg(err) }, 'duplicate reconciliation failed');
-    }
-    if (seedCount > 0 || overlaySeedCount > 0 || disabledDupes.length > 0) {
+    // Duplicates are REPORTED at boot, never resolved here. Retiring a row is
+    // irreversible (OAP has no delete, only disable, and there is no re-enable
+    // entrance), and the winner rule reads the LOCAL bundle to tell an
+    // operator edit from a pristine seed — so two instances on different
+    // Horizon versions, mid rolling-upgrade, can each judge the other's
+    // survivor to be the loser and between them disable every row for a name.
+    // A restart must never be able to do that unattended. The conflict is
+    // surfaced on the sync status instead, and an admin resolves it
+    // deliberately from the Dashboard-templates banner.
+    if (seedCount > 0 || overlaySeedCount > 0) {
       try {
         const refreshed = await deps.client.list();
         parsedRemote = parseRemoteRows(refreshed, deps.logger);
         deps.logger.info(
-          { seedCount, overlaySeedCount, collapsedDuplicates: disabledDupes.length },
-          'OAP UI-template boot reconcile complete',
+          { seedCount, overlaySeedCount },
+          'OAP UI-template boot seed complete',
         );
       } catch (err) {
         deps.logger.warn(
@@ -410,10 +408,10 @@ function readonlyRows(bundled: Map<string, BundledRow>, overlays: BundledOverlay
  *  didn't become visible to `list()` within the polling window. Routes
  *  catch this and return 504. */
 export class WriteNotVisibleError extends Error {
-  readonly kind: 'create' | 'update';
+  readonly kind: 'create' | 'update' | 'disable';
   readonly id: string;
   readonly timeoutMs: number;
-  constructor(kind: 'create' | 'update', id: string, timeoutMs: number) {
+  constructor(kind: 'create' | 'update' | 'disable', id: string, timeoutMs: number) {
     super(`OAP ${kind} id=${id} not visible within ${timeoutMs}ms`);
     this.name = 'WriteNotVisibleError';
     this.kind = kind;
@@ -520,64 +518,23 @@ export async function disableAndConfirm(
     const found = rows.find((r) => r.id === id);
     return found && found.disabled ? id : null;
   }, WRITE_VISIBILITY_TIMEOUT_MS);
-  if (hit === null) throw new WriteNotVisibleError('update', id, WRITE_VISIBILITY_TIMEOUT_MS);
+  if (hit === null) throw new WriteNotVisibleError('disable', id, WRITE_VISIBILITY_TIMEOUT_MS);
 }
 
 /**
- * Group OAP rows by envelope name. For any name with more than one
- * row, keep one and disable the rest. Tie-breaking: enabled wins
- * over disabled; if multiple enabled, prefer the one whose
- * configuration byte-matches the bundled (operator-edited
- * divergences are kept over plain seeds); ties beyond that go to
- * first-seen. Already-disabled losers are left alone (no need to
- * re-disable an existing tombstone).
- *
- * Returns the list of UUIDs the BFF disabled in this pass.
+ * Which row RENDERS when a name sits on several enabled OAP rows: the
+ * lowest id, always. Display only — Horizon never resolves a duplicate.
+ * Deliberately content-blind: any rule that inspected the rows would have
+ * to rank one operator's dashboard above another's, and that is not a
+ * judgement a renderer (or a restart) gets to make. The conflict is
+ * reported instead, and cleaning it up is an OAP-side decision.
  */
-async function reconcileDuplicates(
-  deps: SyncDeps,
-  bundled: Map<string, BundledRow>,
-): Promise<string[]> {
-  const rows = await deps.client.list();
-  const byName = new Map<string, Array<{ id: string; disabled: boolean; configuration: string }>>();
-  for (const r of rows) {
-    const env = parseEnvelope(r.configuration);
-    if (!env) continue;
-    const list = byName.get(env.name) ?? [];
-    list.push({ id: r.id, disabled: r.disabled, configuration: r.configuration });
-    byName.set(env.name, list);
-  }
-  const disabled: string[] = [];
-  for (const [name, list] of byName) {
-    if (list.length <= 1) continue;
-    const bundledConfig = bundled.get(name)?.configuration ?? null;
-    const enabled = list.filter((r) => !r.disabled);
-    // Pick the winner the dedup logic in parseRemoteRows would also
-    // pick — bundled-match first, then any enabled, then any.
-    let winner = enabled[0] ?? list[0];
-    if (bundledConfig) {
-      const match = enabled.find((r) => r.configuration === bundledConfig);
-      if (match) winner = match;
-    }
-    for (const r of list) {
-      if (r.id === winner.id || r.disabled) continue;
-      try {
-        await disableAndConfirm(deps.client, r.id, deps.logger);
-        deps.logger.info(
-          { name, droppedId: r.id, keptId: winner.id },
-          'collapsed duplicate UI-template',
-        );
-        disabled.push(r.id);
-      } catch (err) {
-        deps.logger.warn(
-          { name, id: r.id, err: errMsg(err) },
-          'failed to disable duplicate UI-template',
-        );
-      }
-    }
-  }
-  return disabled;
+function pickDuplicateWinner<T extends { id: string; disabled: boolean }>(rows: readonly T[]): T {
+  const byId = rows.slice().sort((a, b) => a.id.localeCompare(b.id));
+  return byId.find((r) => !r.disabled) ?? byId[0]!;
 }
+
+
 
 interface BundledRow {
   name: string;
@@ -615,8 +572,8 @@ function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, Bundl
 
 interface ParsedRemote {
   byName: Map<string, RemoteRow>;
-  /** Names where >1 ENABLED row exists. The BFF picks the lowest-id
-   *  winner deterministically; the admin UI surfaces the rest. */
+  /** Names where >1 ENABLED row exists. The BFF renders the
+   *  `pickDuplicateWinner` row; the admin UI surfaces the rest. */
   conflicts: ConflictRow[];
 }
 
@@ -625,16 +582,13 @@ function parseRemoteRows(
   logger: Logger,
 ): ParsedRemote {
   /* OAP doesn't enforce uniqueness on envelope name (only on its own
-   * storage UUID), so duplicates happen — typically a disabled
-   * tombstone + a current enabled record, but occasionally two
-   * enabled rows from a concurrent-boot race.
+   * row id), so duplicates happen — typically a disabled tombstone +
+   * a current enabled record, but two enabled rows also occur on a
+   * store written by an OAP release that minted its own row ids.
    *
-   * Resolution rules:
-   *   - Enabled beats disabled.
-   *   - Multiple enabled → pick the lowest-id deterministically (so
-   *     every BFF instance and every fetch picks the same winner).
-   *     Surface the rest as `conflicts` so the admin UI can prompt
-   *     a manual reconcile. */
+   * `pickDuplicateWinner` resolves which row is live; every name with
+   * more than one ENABLED row is also surfaced as a `conflict` so the
+   * admin UI can prompt a reconcile. */
   const groups = new Map<string, Array<RemoteRow>>();
   let skipped = 0;
   for (const r of rows) {
@@ -666,9 +620,9 @@ function parseRemoteRows(
   const out = new Map<string, RemoteRow>();
   const conflicts: ConflictRow[] = [];
   for (const [name, list] of groups) {
-    const enabled = list.filter((r) => !r.disabled).sort((a, b) => a.id.localeCompare(b.id));
-    const winner = enabled[0] ?? list.slice().sort((a, b) => a.id.localeCompare(b.id))[0];
+    const winner = pickDuplicateWinner(list);
     out.set(name, winner);
+    const enabled = list.filter((r) => !r.disabled).sort((a, b) => a.id.localeCompare(b.id));
     if (enabled.length > 1) {
       conflicts.push({
         name,
@@ -687,7 +641,9 @@ function parseRemoteRows(
   if (conflicts.length > 0) {
     logger.warn(
       { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
-      'OAP UI-template name conflicts (>1 enabled row) — kept the lowest-id row per name; operator should disable the rest via admin',
+      'OAP UI-template name conflicts (>1 enabled row) — Horizon renders the lowest-id row and changes NOTHING on its own. ' +
+        'Retiring a row is irreversible (OAP soft-disables; there is no delete and no re-enable), so clean this up on OAP ' +
+        'once you have confirmed which copy you want to keep.',
     );
   }
   return { byName: out, conflicts };

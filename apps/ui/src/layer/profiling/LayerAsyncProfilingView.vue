@@ -166,7 +166,7 @@ async function openTaskDetail(t: AsyncProfilingTask, ev: Event): Promise<void> {
 async function runAnalyze(): Promise<void> {
   if (!currentTask.value) return;
   if (!selectedInstances.value.length) {
-    analyzeError.value = 'Select at least one instance.';
+    analyzeError.value = t('Select at least one instance.');
     return;
   }
   analyzeError.value = null;
@@ -216,15 +216,15 @@ function toggleInstance(id: string, dst: 'filter' | 'new'): void {
 
 async function submitNewTask(): Promise<void> {
   if (!serviceId.value) {
-    newTaskError.value = 'Pick a service first';
+    newTaskError.value = t('Pick a service first');
     return;
   }
   if (!newTask.instances.length) {
-    newTaskError.value = 'Pick at least one instance.';
+    newTaskError.value = t('Pick at least one instance.');
     return;
   }
   if (!newTask.events.length) {
-    newTaskError.value = 'Pick at least one event.';
+    newTaskError.value = t('Pick at least one event.');
     return;
   }
   newTaskError.value = null;
@@ -262,56 +262,59 @@ function fmtTime(ms: number): string {
 function instanceName(id: string): string {
   return instances.instances.value.find((i) => i.id === id)?.name ?? id;
 }
+function instanceCount(n: number): string {
+  return n === 1 ? t('{n} instance', { n }) : t('{n} instances', { n });
+}
 </script>
 
 <template>
   <div class="sw-card ap-shell">
     <div class="ap-side">
       <div class="side-head between">
-        <span>Async profile tasks</span>
+        <span>{{ t('Async profile tasks') }}</span>
         <div class="side-head-actions">
           <button
             class="btn-refresh"
             :class="{ spinning: tasksLoading }"
             :disabled="!serviceId || tasksLoading"
-            :title="!serviceId ? 'Pick a service first' : tasksLoading ? 'Refreshing…' : 'Refresh task list'"
-            aria-label="Refresh task list"
+            :title="!serviceId ? t('Pick a service first') : tasksLoading ? t('Refreshing…') : t('Refresh task list')"
+            :aria-label="t('Refresh task list')"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
             :disabled="!serviceId"
-            :title="serviceId ? 'Create a new async profiling task' : 'Pick a service first'"
+            :title="serviceId ? t('Create a new async profiling task') : t('Pick a service first')"
             @click="showNewTask = true"
-          >+ New Task</button>
+          >{{ t('+ New Task') }}</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
+      <div v-if="polling" class="poll-hint">{{ t('Registering new task… refreshing in {n}s', { n: countdown }) }}</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
-      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
+      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">{{ t('Loading…') }}</div>
       <div v-else-if="!tasks.length" class="side-empty">
-        {{ serviceId ? 'No async profile tasks yet.' : 'Pick a service to load tasks.' }}
+        {{ serviceId ? t('No async profile tasks yet.') : t('Pick a service to load tasks.') }}
       </div>
       <ul v-else class="side-list">
         <li
-          v-for="t in tasks"
-          :key="t.id"
-          :class="{ 'is-active': currentTask?.id === t.id }"
-          @click="currentTask = t; syncInstancesFromTask(t); tree = null"
+          v-for="task in tasks"
+          :key="task.id"
+          :class="{ 'is-active': currentTask?.id === task.id }"
+          @click="currentTask = task; syncInstancesFromTask(task); tree = null"
         >
           <div class="row1">
-            <span class="t-tag">{{ t.events?.join(',') }}</span>
-            <span class="ep">{{ t.serviceInstanceIds?.length ?? 0 }} instance{{ (t.serviceInstanceIds?.length ?? 0) === 1 ? '' : 's' }}</span>
+            <span class="t-tag">{{ task.events?.join(',') }}</span>
+            <span class="ep">{{ instanceCount(task.serviceInstanceIds?.length ?? 0) }}</span>
             <button
               type="button"
               class="row-eye"
-              title="View task detail"
-              @click.stop="openTaskDetail(t, $event)"
+              :title="t('View task detail')"
+              @click.stop="openTaskDetail(task, $event)"
             >i</button>
           </div>
           <div class="row2">
-            <span>{{ fmtTime(t.createTime) }}</span>
-            <span class="muted">· {{ t.duration }}s</span>
+            <span>{{ fmtTime(task.createTime) }}</span>
+            <span class="muted">· {{ t('{n}s', { n: task.duration }) }}</span>
           </div>
         </li>
       </ul>
@@ -320,7 +323,7 @@ function instanceName(id: string): string {
     <div class="ap-main">
       <div class="filter-bar">
         <div class="tb-block grow">
-          <label class="lbl">Instances ({{ selectedInstances.length }} / {{ currentTask?.serviceInstanceIds?.length ?? 0 }})</label>
+          <label class="lbl">{{ t('Instances ({n} / {total})', { n: selectedInstances.length, total: currentTask?.serviceInstanceIds?.length ?? 0 }) }}</label>
           <div class="chip-row">
             <button
               v-for="id in currentTask?.serviceInstanceIds ?? []"
@@ -330,11 +333,11 @@ function instanceName(id: string): string {
               :title="id"
               @click="toggleInstance(id, 'filter')"
             >{{ instanceName(id) }}</button>
-            <span v-if="!currentTask" class="muted">Pick a task on the left.</span>
+            <span v-if="!currentTask" class="muted">{{ t('Pick a task on the left.') }}</span>
           </div>
         </div>
         <div class="tb-block">
-          <label class="lbl">Event type</label>
+          <label class="lbl">{{ t('Event type') }}</label>
           <select v-model="eventType" class="sel">
             <option v-for="o in availableEventTypes" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
@@ -342,9 +345,9 @@ function instanceName(id: string): string {
         <button
           class="btn-primary"
           :disabled="analyzeLoading || !currentTask || !selectedInstances.length"
-          :title="!selectedInstances.length ? 'Select at least one instance' : 'Analyze the selected instances'"
+          :title="!selectedInstances.length ? t('Select at least one instance') : t('Analyze the selected instances')"
           @click="runAnalyze"
-        >{{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}</button>
+        >{{ analyzeLoading ? t('Analyzing…') : t('Analyze') }}</button>
       </div>
       <div v-if="analyzeError" class="banner err">{{ analyzeError }}</div>
 
@@ -355,7 +358,7 @@ function instanceName(id: string): string {
           metric-key="count"
         />
         <div v-else-if="!analyzeLoading" class="result-empty">
-          {{ currentTask ? 'Pick instances + event type, then click Analyze.' : 'Select a task to inspect its async profile.' }}
+          {{ currentTask ? t('Pick instances + event type, then click Analyze.') : t('Select a task to inspect its async profile.') }}
         </div>
       </div>
     </div>
@@ -364,12 +367,12 @@ function instanceName(id: string): string {
   <div v-if="showNewTask" class="dlg-mask" @click.self="showNewTask = false">
     <div class="dlg">
       <div class="dlg-head">
-        <div>New async profile task</div>
+        <div>{{ t('New async profile task') }}</div>
         <button class="x" @click="showNewTask = false">×</button>
       </div>
       <div class="dlg-body">
         <div class="field">
-          <label>Instances</label>
+          <label>{{ t('Instances') }}</label>
           <div class="chip-row">
             <button
               v-for="i in instances.instances.value"
@@ -384,18 +387,18 @@ function instanceName(id: string): string {
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Duration</label>
+            <label>{{ t('Duration') }}</label>
             <select v-model.number="newTask.duration" class="sel">
-              <option v-for="o in DURATION_OPTS" :key="o.v" :value="o.v">{{ o.label }}</option>
+              <option v-for="o in DURATION_OPTS" :key="o.v" :value="o.v">{{ t(o.label) }}</option>
             </select>
           </div>
           <div class="field grow">
-            <label>Exec args (async-profiler -e flags)</label>
-            <input class="ti-input wide" v-model="newTask.execArgs" placeholder="e.g. interval=10000000,jstackdepth=2048" />
+            <label>{{ t('Exec args (async-profiler -e flags)') }}</label>
+            <input class="ti-input wide" v-model="newTask.execArgs" :placeholder="t('e.g. interval=10000000,jstackdepth=2048')" />
           </div>
         </div>
         <div class="field">
-          <label>Events</label>
+          <label>{{ t('Events') }}</label>
           <div class="chip-row">
             <button
               v-for="e in EVENTS"
@@ -410,13 +413,13 @@ function instanceName(id: string): string {
         <div v-if="newTaskError" class="dlg-err">{{ newTaskError }}</div>
       </div>
       <div class="dlg-foot">
-        <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
+        <button class="btn-secondary" @click="showNewTask = false">{{ t('Cancel') }}</button>
         <button
           class="btn-primary"
           :disabled="!newTask.instances.length || !newTask.events.length"
-          :title="!newTask.instances.length ? 'Select at least one instance' : !newTask.events.length ? 'Pick at least one event' : 'Create the async profiling task'"
+          :title="!newTask.instances.length ? t('Select at least one instance') : !newTask.events.length ? t('Pick at least one event') : t('Create the async profiling task')"
           @click="submitNewTask"
-        >Create task</button>
+        >{{ t('Create task') }}</button>
       </div>
     </div>
   </div>

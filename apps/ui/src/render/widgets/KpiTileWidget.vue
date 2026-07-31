@@ -17,6 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type { OverviewKpi } from '@skywalking-horizon-ui/api-client';
 import { formatValue } from './ValueFormat';
 import WidgetTip from '@/components/primitives/WidgetTip.vue';
@@ -32,6 +33,8 @@ const props = defineProps<{
   /** Value per kpi.label. */
   kpiValues: Record<string, number | null>;
 }>();
+
+const { t } = useI18n();
 
 // BFF /api/menu lowercases layer keys, and that's the casing the sidebar
 // and per-layer routes all use. The overview JSON authors uppercase
@@ -60,7 +63,7 @@ function barPct(value: number | null | undefined, max: number): number {
         <WidgetTip :tip="tip" />
       </header>
       <div v-if="showCount" class="count">
-        <span class="count-label">Services</span>
+        <span class="count-label">{{ t('Services') }}</span>
         <span class="count-value">{{ formatValue(count) }}</span>
       </div>
       <div class="kpis">
@@ -88,7 +91,7 @@ function barPct(value: number | null | undefined, max: number): number {
         <WidgetTip :tip="tip" />
       </header>
       <div v-if="showCount" class="count">
-        <span class="count-label">Services</span>
+        <span class="count-label">{{ t('Services') }}</span>
         <span class="count-value">{{ formatValue(count) }}</span>
       </div>
       <div class="kpis">

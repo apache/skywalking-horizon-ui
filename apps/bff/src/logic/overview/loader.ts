@@ -34,6 +34,7 @@ import type {
   OverviewWidgetType,
 } from '@skywalking-horizon-ui/api-client';
 import { isOverlayFilename } from '../../i18n/store.js';
+import { logger } from '../../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Mirrors the dev-vs-prod path probing in `logic/layers/loader.ts`
@@ -121,12 +122,12 @@ function parseRankBy(raw: unknown): { kpi?: number; mqe?: string } | undefined {
 
 function validate(raw: unknown, file: string): OverviewDashboard | null {
   if (!raw || typeof raw !== 'object') {
-    console.warn(`overview/${file}: not an object, skipped`);
+    logger.warn(`overview/${file}: not an object, skipped`);
     return null;
   }
   const r = raw as Record<string, unknown>;
   if (!isString(r.id) || !isString(r.title) || !Array.isArray(r.widgets)) {
-    console.warn(`overview/${file}: missing id/title/widgets`);
+    logger.warn(`overview/${file}: missing id/title/widgets`);
     return null;
   }
   const widgets = (r.widgets as unknown[]).filter((w): w is Record<string, unknown> => {
@@ -194,7 +195,7 @@ export function loadOverviewDashboards(): OverviewDashboard[] {
       const dash = validate(raw, f);
       if (dash) out.push(dash);
     } catch (err) {
-      console.warn(`overview/${f}: parse error`, err instanceof Error ? err.message : err);
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, `overview/${f}: parse error`);
     }
   }
   // Stable sort: explicit `order` first, then visibility (public before

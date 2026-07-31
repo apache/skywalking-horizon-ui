@@ -19,6 +19,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import chokidar from 'chokidar';
 import YAML from 'yaml';
+import { ZodError } from 'zod';
 import { configSchema, type HorizonConfig } from './schema.js';
 import { logger } from '../logger.js';
 
@@ -104,8 +105,10 @@ export function isAuthConfigured(cfg: HorizonConfig): boolean {
 
 /**
  * Inspect the loaded config and emit a startup warning if auth isn't
- * wired yet. Separate from `loadConfig` so callers can skip it (tests)
- * or run it on config hot-reload too.
+ * wired yet, or if a risky-but-legal combination is set (break-glass
+ * under local backend, wire log without auth redaction, insecure
+ * session cookies outside dev). Separate from `loadConfig` so callers
+ * can skip it (tests) or run it on config hot-reload too.
  *
  * A misconfigured deployment boots and logs a warning rather than
  * crashing, surfacing the same information to the login page so the
@@ -115,6 +118,26 @@ export function isAuthConfigured(cfg: HorizonConfig): boolean {
  * Returns the input on success so callers can chain.
  */
 export function validateBootstrap(cfg: HorizonConfig): HorizonConfig {
+  if (cfg.auth.breakGlass && cfg.auth.backend === 'local') {
+    logger.warn(
+      'auth.breakGlass is configured but auth.backend is "local" — the break-glass ' +
+        'account only exists as an LDAP-outage fallback, so the block is unused in local mode.',
+    );
+  }
+  if (cfg.debugLog.enabled && !cfg.debugLog.redactAuthHeaders) {
+    logger.warn(
+      { file: cfg.debugLog.file },
+      'debugLog.enabled with redactAuthHeaders: false — outbound OAP basic-auth ' +
+        'credentials are being written to the wire log in clear text. Only run this ' +
+        'way for a short troubleshooting session, and clear the file afterward.',
+    );
+  }
+  if (!cfg.session.cookieSecure && process.env.NODE_ENV !== 'development') {
+    logger.warn(
+      'session.cookieSecure is false — session cookies are sent over plain HTTP. ' +
+        'Fine for localhost; set it to true (and serve over HTTPS) in production.',
+    );
+  }
   if (cfg.auth.backend === 'local' && cfg.auth.local.users.length === 0) {
     logger.warn(
       'auth.backend is "local" but auth.local.users is empty. ' +
@@ -166,15 +189,42 @@ export function loadConfig(configPath: string): ConfigSource {
 
   const watcher = chokidar.watch(absPath, { ignoreInitial: true, awaitWriteFinish: true });
   watcher.on('change', () => {
+    let next: HorizonConfig;
     try {
-      const next = parseFile(absPath);
+      next = parseFile(absPath);
       validateBootstrap(next);
-      current = next;
-      for (const fn of listeners) fn(next);
-    } catch {
-      // Swallow; the server logs the parse/validation error elsewhere when
-      // it tries to use the new config. We don't want a malformed reload
-      // to kill the watcher — the previous valid config keeps serving.
+    } catch (err) {
+      // A malformed reload must not kill the watcher — the previous valid
+      // config keeps serving — but the operator has to hear that their edit
+      // did NOT apply, in the same field-path shape the boot failure uses.
+      if (err instanceof ZodError) {
+        const issues = err.issues
+          .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+          .join('; ');
+        logger.error(
+          { issues, configPath: absPath },
+          'config reload rejected — fix the value at each path (previous valid config keeps serving)',
+        );
+      } else {
+        // First line only: YAML parse errors carry a code frame quoting the
+        // offending source, and by this point the text has real secrets
+        // interpolated into it (oap.auth.password, ai.apiKey, …).
+        const reason =
+          err instanceof Error ? `${err.name}: ${err.message.split('\n')[0]}` : String(err);
+        logger.error(
+          { reason, configPath: absPath },
+          'config reload failed to read/parse — fix the file (previous valid config keeps serving)',
+        );
+      }
+      return;
+    }
+    current = next;
+    for (const fn of listeners) {
+      try {
+        fn(next);
+      } catch (err) {
+        logger.error({ err }, 'config onChange listener failed — new config is active regardless');
+      }
     }
   });
 

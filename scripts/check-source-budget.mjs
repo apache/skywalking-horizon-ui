@@ -22,7 +22,7 @@
 // SKIP is an explicit exemption list for files still mid-decomposition;
 // empty now that every source file is within budget.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const CODE_MAX = 2000;
@@ -55,7 +55,10 @@ function sourceFiles() {
   return listing
     .filter((f) => /\.(ts|vue|js|mjs)$/.test(f) && !f.endsWith('.d.ts'))
     .filter((f) => ROOTS.some((r) => f.startsWith(`${r}/`)))
-    .filter((f) => !/\.(test|spec)\.ts$/.test(f) && !SKIP.has(f));
+    .filter((f) => !/\.(test|spec)\.ts$/.test(f) && !SKIP.has(f))
+    // `git ls-files` still lists a tracked file that has been deleted in the
+    // working tree but not yet staged — reading it would crash the gate.
+    .filter((f) => existsSync(f));
 }
 
 const files = sourceFiles();

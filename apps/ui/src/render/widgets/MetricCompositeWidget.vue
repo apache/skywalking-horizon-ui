@@ -34,6 +34,7 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
 import type { OverviewKpi } from '@skywalking-horizon-ui/api-client';
 import { formatValue } from './ValueFormat';
@@ -49,6 +50,8 @@ const props = defineProps<{
    *  empty (no fallback defaults). */
   kpis?: OverviewKpi[];
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 const rows = computed<readonly OverviewKpi[]>(() => props.kpis ?? []);
 
@@ -82,7 +85,7 @@ function pct(v: number | null | undefined, max?: number): string {
         <WidgetTip :tip="tip" />
       </header>
       <div v-if="rows.length === 0" class="empty">
-        No metrics configured yet — open <code>/admin/overview-templates</code> to add KPI rows.
+        {{ t('No metrics configured yet — open') }} <code>/admin/overview-templates</code> {{ t('to add KPI rows.') }}
       </div>
       <template v-else>
         <div v-if="counts.length > 0" class="counts">

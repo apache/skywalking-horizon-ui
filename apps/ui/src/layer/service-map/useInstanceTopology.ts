@@ -28,7 +28,6 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { InstanceTopologyResponse } from '@skywalking-horizon-ui/api-client';
-import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -85,14 +84,11 @@ export function useInstanceTopology(
     enabled: isEnabled,
     staleTime: 30_000,
   });
-  // Only ride the global ticker while the view is active — a forced
-  // refetch on a closed/disabled query would fetch needlessly. The embedded
-  // chat map owns a frozen window, and a replay map never fetches at all.
-  if (!ownsWindow && !replay.value) {
-    useAutoRefreshSubscribe(() => {
-      if (isEnabled.value) void q.refetch();
-    });
-  }
+  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
+  // preset's window advances with the ticker, so each tick already re-keys the
+  // query and vue-query fetches the new window. Subscribing as well would fire
+  // two requests per tick for the same data. A frozen window (embedded/replay,
+  // or a pinned custom range) does not re-key — and must not refetch anyway.
 
   // Replay renders straight from the captured payload — NOT through the shared
   // query cache. Seeding initialData under the live query key would let a chat

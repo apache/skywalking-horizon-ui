@@ -26,8 +26,11 @@
 -->
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import TemplateStatusBadge from './TemplateStatusBadge.vue';
 import type { TemplateStatus } from '@/api/scopes/configs';
+
+const { t } = useI18n({ useScope: 'global' });
 
 export interface TemplatePickerEntry {
   /** Wire value (typically the canonical template name `horizon.<kind>.<id>`). */
@@ -45,6 +48,10 @@ export interface TemplatePickerEntry {
   hasLocalDraft?: boolean;
   /** True when the entry's content differs from the live OAP version. */
   isDiverged?: boolean;
+  /** Every enabled OAP record id for this entry's template name, when
+   *  OAP holds more than one. Renders the DUPLICATE marker beside the
+   *  sync badge — which copy the row describes is then ambiguous. */
+  conflictIds?: string[] | null;
   /** Optional per-locale status chips rendered after the source badge.
    *  Only the Translations picker passes this — every other admin
    *  consumer omits it and the chip row stays hidden. Status vocabulary
@@ -137,10 +144,14 @@ watch(open, (v) => {
       @click="toggle"
     >
       <span v-if="selected" class="tp-bullet" :style="{ background: selected.color || 'var(--sw-fg-3)' }" />
-      <span class="tp-name">{{ selected?.label ?? `Select a ${kindLabel.replace(/s$/, '')}…` }}</span>
+      <span class="tp-name">{{ selected?.label ?? t('Select a {kind}…', { kind: kindLabel.replace(/s$/, '') }) }}</span>
       <code v-if="selected && selected.key && selected.key !== selected.label" class="tp-key">{{ selected.key }}</code>
-      <span v-if="selected?.hasLocalDraft" class="tp-local" title="Unpublished local draft">local</span>
-      <TemplateStatusBadge v-if="selected" :status="selected.syncBadge ?? null" />
+      <span v-if="selected?.hasLocalDraft" class="tp-local" :title="t('Unpublished local draft')">{{ t('local') }}</span>
+      <TemplateStatusBadge
+        v-if="selected"
+        :status="selected.syncBadge ?? null"
+        :conflict-ids="selected.conflictIds"
+      />
       <span v-if="selected?.localeBadges?.length" class="tp-locales">
         <span
           v-for="lb in selected.localeBadges"
@@ -161,7 +172,7 @@ watch(open, (v) => {
             v-model="search"
             type="text"
             class="tp-search"
-            :placeholder="`Search ${kindLabel}…`"
+            :placeholder="t('Search {kind}…', { kind: kindLabel })"
             autocomplete="off"
             spellcheck="false"
           />
@@ -171,21 +182,21 @@ watch(open, (v) => {
             class="tp-filter"
             :class="{ on: divergedOnly }"
             :title="divergedCount === 0
-              ? `No ${kindLabel} differ from OAP`
-              : `${divergedCount} ${kindLabel} differ from OAP`"
+              ? t('No {kind} differ from OAP', { kind: kindLabel })
+              : t('{n} {kind} differ from OAP', { n: divergedCount, kind: kindLabel })"
           >
             <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
-            Diverged<span v-if="divergedCount" class="tp-filter-count">{{ divergedCount }}</span>
+            {{ t('Diverged') }}<span v-if="divergedCount" class="tp-filter-count">{{ divergedCount }}</span>
           </label>
           <label
             class="tp-filter local"
             :class="{ on: localOnly }"
             :title="localCount === 0
-              ? 'No unpublished local drafts in this browser'
-              : `${localCount} unpublished local draft(s)`"
+              ? t('No unpublished local drafts in this browser')
+              : t('{n} unpublished local draft(s)', { n: localCount })"
           >
             <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
-            Local<span v-if="localCount" class="tp-filter-count local">{{ localCount }}</span>
+            {{ t('Local') }}<span v-if="localCount" class="tp-filter-count local">{{ localCount }}</span>
           </label>
         </div>
         <div class="tp-list">
@@ -199,8 +210,8 @@ watch(open, (v) => {
             <span class="tp-bullet" :style="{ background: e.color || 'var(--sw-fg-3)' }" />
             <span class="tp-name">{{ e.label }}</span>
             <code v-if="e.key && e.key !== e.label" class="tp-key">{{ e.key }}</code>
-            <span v-if="e.hasLocalDraft" class="tp-local" title="Unpublished local draft">local</span>
-            <TemplateStatusBadge :status="e.syncBadge ?? null" />
+            <span v-if="e.hasLocalDraft" class="tp-local" :title="t('Unpublished local draft')">{{ t('local') }}</span>
+            <TemplateStatusBadge :status="e.syncBadge ?? null" :conflict-ids="e.conflictIds" />
             <span v-if="e.localeBadges?.length" class="tp-locales">
               <span
                 v-for="lb in e.localeBadges"
@@ -213,8 +224,8 @@ watch(open, (v) => {
           </button>
           <p v-if="filtered.length === 0" class="tp-empty">
             {{ divergedOnly && !search.trim()
-              ? `No ${kindLabel} differ from OAP.`
-              : `No ${kindLabel} match “${search}”.` }}
+              ? t('No {kind} differ from OAP.', { kind: kindLabel })
+              : t('No {kind} match “{q}”.', { kind: kindLabel, q: search }) }}
           </p>
         </div>
         <div class="tp-foot">
@@ -223,9 +234,9 @@ watch(open, (v) => {
             type="button"
             class="sw-btn tp-refresh"
             :disabled="refreshing"
-            title="Force the BFF to re-read every UI-template from OAP (clears the 30s cache)"
+            :title="t('Force the BFF to re-read every UI-template from OAP (clears the 30s cache)')"
             @click="emit('refresh')"
-          >{{ refreshing ? 'refreshing…' : 'refresh from remote' }}</button>
+          >{{ refreshing ? t('refreshing…') : t('refresh from remote') }}</button>
         </div>
       </div>
     </template>

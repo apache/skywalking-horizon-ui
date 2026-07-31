@@ -17,13 +17,11 @@
 
 /**
  * DSL live-debugger client — `/dsl-debugging/*` endpoints, typed against
- * the **as-built** wire emitted by `DSLDebuggingRestHandler.java` on the
- * `swip-13-dsl-debugger` branch. The wire shape was rewritten upstream
- * (commits 4275f61df5 / 0e4058614c / 6f2db069a0): records now carry an
- * envelope (`startedAtMs`, `dsl`, `rule`) plus a per-execution
- * `samples[]` array, and the per-DSL stage vocabulary collapsed to five
- * unified sample types (`input | filter | function | aggregation |
- * output`).
+ * the **as-built** wire emitted by upstream
+ * `DSLDebuggingRestHandler.java`: each record carries an envelope
+ * (`startedAtMs`, `dsl`, `rule`) plus a per-execution `samples[]` array,
+ * and the per-DSL stage vocabulary is five unified sample types
+ * (`input | filter | function | aggregation | output`).
  *
  *   POST   /dsl-debugging/session?catalog=&name=&ruleName=&clientId=
  *                                 [&granularity=]
@@ -48,11 +46,16 @@
  *   flat array.
  * - Peer install ack values are UPPERCASE: `INSTALLED | NOT_LOCAL |
  *   FAILED`.
- * - Session-start can fail with `cluster_view_split` (HTTP 421) when
- *   the cluster's view of the rule disagrees across nodes.
+ * - Failures come back as `{status, code, message}`. Session-start owns
+ *   the whole set — `injection_disabled` (503), `invalid_catalog` /
+ *   `missing_param` / `invalid_limits` (400), `registry_misconfigured`
+ *   (500), `too_many_sessions` (429) and `rule_not_found` (404), the
+ *   last two also carrying `peers[]`. `GET /session/{id}` has exactly one
+ *   (404 `session_not_found`, which this client maps to `null`); stop /
+ *   sessions / status always answer 200.
  */
 
-import { RuntimeRuleApiError, type ApplyResult } from './types.js';
+import { RuntimeRuleApiError, parseApiErrorBody, type ApiErrorEnvelope } from './types.js';
 import type { FetchLike } from './runtime-rule.js';
 
 /** Debug-session catalog — every wire name accepted by the handler.
@@ -120,7 +123,10 @@ export interface StartSessionBody {
 }
 
 /** LAL-only knob — does the recorder emit per-statement records or
- *  just block-level ones. Server query param wins over body. */
+ *  just block-level ones. Server query param wins over body. An
+ *  unrecognised value is NOT rejected: OAP falls back to `block` and
+ *  reports the effective mode in the install response, so a typo has to
+ *  be caught before the round-trip to be visible at all. */
 export type Granularity = 'block' | 'statement';
 
 export const GRANULARITIES: readonly Granularity[] = ['block', 'statement'] as const;
@@ -540,27 +546,29 @@ export interface DslDebuggingStatus {
   activeSessions: number;
 }
 
-/** Known `code` values the handler emits. Open string for forward
- *  compatibility — the server may extend this enum. */
+/** Every `code` the two handlers on this surface emit — the debug
+ *  sessions (`DSLDebuggingRestHandler`) and the read-only OAL listing
+ *  (`RuntimeOalRestHandler`, see `oal.ts`). Open string for forward
+ *  compatibility — the server may extend the set. */
 export type DebugErrorCode =
   | 'injection_disabled'
   | 'invalid_catalog'
   | 'invalid_limits'
-  | 'invalid_granularity'
   | 'missing_param'
   | 'rule_not_found'
   | 'session_not_found'
   | 'registry_misconfigured'
+  | 'too_many_sessions'
+  // `/runtime/oal/rules/{source}` only.
   | 'source_not_found'
   | 'missing_source'
-  | 'too_many_sessions'
-  | 'cluster_view_split'
   | (string & {});
 
-export interface DebugErrorBody {
-  status: 'error';
+export interface DebugErrorBody extends ApiErrorEnvelope {
   code: DebugErrorCode;
-  message: string;
+  /** Only on the install-time rejections (`rule_not_found`,
+   *  `too_many_sessions`) — the per-node acks behind the refusal. */
+  peers?: PeerInstallAck[];
 }
 
 export interface DslDebuggingClientOptions {
@@ -669,26 +677,9 @@ export class DslDebuggingClient {
   }
 
   private async toError(res: Response, url: string): Promise<RuntimeRuleApiError> {
-    const text = await res.text();
-    let parsed: ApplyResult | string = text;
-    try {
-      const json = JSON.parse(text) as Record<string, unknown>;
-      // Accept either the legacy `{ applyStatus, message }` envelope
-      // (runtime-rule pipeline) or the `{ status, code, message }`
-      // envelope (dsl-debugging / runtime-oal). Downstream `outcomeOf`
-      // helpers switch on `code` or `applyStatus`.
-      if (typeof json.applyStatus === 'string' && typeof json.message === 'string') {
-        parsed = json as unknown as ApplyResult;
-      } else if (
-        json.status === 'error' &&
-        typeof json.code === 'string' &&
-        typeof json.message === 'string'
-      ) {
-        parsed = json as unknown as ApplyResult;
-      }
-    } catch {
-      // not JSON; keep the raw text.
-    }
-    return new RuntimeRuleApiError(res.status, parsed, url);
+    // These handlers answer with the `{status, code, message}` envelope,
+    // but the shared parser also accepts the runtime-rule `{applyStatus,
+    // message}` one — downstream `outcomeOf` helpers switch on either.
+    return new RuntimeRuleApiError(res.status, parseApiErrorBody(await res.text()), url);
   }
 }

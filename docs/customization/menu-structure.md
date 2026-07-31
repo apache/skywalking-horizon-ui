@@ -44,7 +44,7 @@ An overview dashboard appears under **Overviews** when at least one of the layer
 - the explicit `layers[]` field on the dashboard, and
 - every `widget.layer` referenced by its widgets.
 
-A dashboard with no layer reference on either side (e.g. a cross-layer "All" view) is always shown. See [Overview templates](/customization/overview-templates).
+A dashboard with no layer reference on either side (e.g. a cross-layer "All" view) is always shown. See [Overview templates](overview-templates.md).
 
 ## Landing Page
 

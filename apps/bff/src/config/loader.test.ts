@@ -19,9 +19,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import YAML from 'yaml';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { configSchema } from './schema.js';
 import { interpolateEnv, stripNullish, isAuthConfigured, validateBootstrap } from './loader.js';
+import { logger } from '../logger.js';
 
 describe('interpolateEnv', () => {
   it('substitutes a defined variable', () => {
@@ -211,5 +212,65 @@ describe('validateBootstrap', () => {
       },
     });
     expect(() => validateBootstrap(cfg)).not.toThrow();
+  });
+});
+
+describe('validateBootstrap risky-combination warnings (docs/setup/horizon-yaml.md "Warnings")', () => {
+  const warnings = (): string[] =>
+    vi
+      .mocked(logger.warn)
+      .mock.calls.map((c) => c.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '));
+
+  afterEach(() => vi.restoreAllMocks());
+
+  const localUser = { username: 'a', passwordHash: '$argon2id$x', roles: ['admin'] };
+
+  it('warns when auth.breakGlass is set under backend:local', () => {
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const cfg = configSchema.parse({
+      auth: {
+        backend: 'local',
+        local: { users: [localUser] },
+        breakGlass: { username: 'bg', passwordHash: '$argon2id$y' },
+      },
+    });
+    validateBootstrap(cfg);
+    expect(warnings().some((w) => w.includes('breakGlass'))).toBe(true);
+  });
+
+  it('warns when debugLog.enabled with redactAuthHeaders false', () => {
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const cfg = configSchema.parse({
+      auth: { backend: 'local', local: { users: [localUser] } },
+      debugLog: { enabled: true, redactAuthHeaders: false },
+    });
+    validateBootstrap(cfg);
+    expect(warnings().some((w) => w.includes('redactAuthHeaders'))).toBe(true);
+  });
+
+  it('stays quiet when debugLog redaction is on and no risky combo is set', () => {
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const cfg = configSchema.parse({
+      auth: { backend: 'local', local: { users: [localUser] } },
+      debugLog: { enabled: true },
+      session: { cookieSecure: true },
+    });
+    validateBootstrap(cfg);
+    expect(warnings()).toEqual([]);
+  });
+
+  it('warns on cookieSecure:false outside dev (NODE_ENV-dependent)', () => {
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const prevEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const cfg = configSchema.parse({
+        auth: { backend: 'local', local: { users: [localUser] } },
+      });
+      validateBootstrap(cfg);
+      expect(warnings().some((w) => w.includes('cookieSecure'))).toBe(true);
+    } finally {
+      process.env.NODE_ENV = prevEnv;
+    }
   });
 });

@@ -132,10 +132,13 @@ HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./dist/static node dist/server.
 - RBAC role redefinition: applies on next route call.
 - OAP URL change: applies on next outbound call.
 
-Two changes still require a BFF restart:
+Some changes still require a BFF restart:
 
 - `server.host` / `server.port` (the listener has already bound).
-- Anything that changes the capability cache — flipping a feature on the OAP side that Horizon probes only at BFF startup.
+- `templates.mode` (the template source is chosen at boot).
+- Anything that changes the capability cache — flipping a feature on the OAP side that Horizon probes once per process.
+
+An edit that fails validation does not apply — the BFF logs an error naming each failing field and keeps serving the previous valid config. See [`horizon.yaml` Reference → Hot reload behavior](horizon-yaml.md#hot-reload-behavior) for the full list of live vs. restart-required fields.
 
 ## Where things go
 
@@ -144,6 +147,6 @@ Two changes still require a BFF restart:
 | Config | `./horizon.yaml` | `HORIZON_CONFIG=` |
 | Audit log | `./horizon-audit.jsonl` | `audit.file` |
 | Wire debug log | `./horizon-wire.jsonl` | `debugLog.file` |
-| Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages |
+| Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages (edits are stored in OAP's `ui_template` store) |
 
 All paths are resolved relative to the BFF working directory.

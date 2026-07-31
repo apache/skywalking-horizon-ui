@@ -15,19 +15,21 @@
 # limitations under the License.
 #
 # Publish a multi-arch Horizon UI container image:
-#   - GHCR on every push to `main` and every `v*` tag.
-#   - Docker Hub (`apache/skywalking-ui`) on `v*` tags only — release
-#     mirror, not per-commit. The Docker Hub repo is shared with
+#   - GHCR on every push to `main` and every `v*` tag (a tag push publishes
+#     the immutable `:<sha>` only — see Tagging).
+#   - Docker Hub (`apache/skywalking-ui`) only when a tag is PROMOTED after
+#     the release vote — release mirror, not per-commit. The Docker Hub repo is shared with
 #     booster-ui, so Horizon's tag prefix is `horizon-<v>` and the
-#     `latest` tag on this repo points at the newest Horizon release.
+#     `latest` tag on this repo points at the newest Horizon release (and is
+#     only ever moved forward — see Tagging below).
 #
 # Manual trigger
 #   The `workflow_dispatch` accepts an optional `tag` input (e.g.
-#   `v0.5.0`; defaults to the most recent v* tag). Use it to back-fill
-#   a release whose original tag-push pre-dated this workflow's Docker
-#   Hub mirror, or to retry a release whose initial publish failed.
-#   A manual run with a tag is treated identically to a tag-push of
-#   that tag — it (re)publishes GHCR + mirrors to Docker Hub.
+#   `v0.5.0`; defaults to the most recent v* tag). This IS the promotion
+#   step: run it after the release vote passes to attach the stable tags
+#   and mirror to Docker Hub. It is also how you back-fill a release whose
+#   tag-push pre-dated this workflow, or retry one whose publish failed.
+#   `latest` is attached only if that tag is the highest v* in the repo.
 #
 # Architecture story
 #   The Dockerfile builds `dist/` from source inside the image. The
@@ -44,8 +46,15 @@
 # Tagging
 #   - `:<40-char-sha>`           always (canonical, immutable)
 #   - `:main`                    on push to main
-#   - `:<ver>` + `:latest`       on v* tags (ver = the tag with leading `v` stripped)
-#   - `:<major.minor>`           on v* tags (e.g. `1.2` from `v1.2.3`)
+#   - `:<ver>` / `:<major.minor>` / `:latest`  (ver = tag minus leading `v`)
+#                                NOT on the tag push — a tag is only a release
+#                                CANDIDATE until the Apache vote passes. They
+#                                are attached by re-running this workflow via
+#                                workflow_dispatch for that tag AFTER the vote
+#                                (the promotion step). `:latest` additionally
+#                                requires the promoted tag to be the highest
+#                                v* in the repo, so promoting a patch on a
+#                                superseded line never moves it backwards.
 #
 # Per-arch interim tags
 #   - `:<sha>-amd64` / `:<sha>-arm64` are also pushed so a debugger can
@@ -97,6 +106,8 @@ jobs:
       ref: ${{ steps.resolve.outputs.ref }}
       tag_name: ${{ steps.resolve.outputs.tag_name }}
       is_tag: ${{ steps.resolve.outputs.is_tag }}
+      is_highest: ${{ steps.tags.outputs.is_highest }}
+      is_promote: ${{ steps.tags.outputs.is_promote }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -156,14 +167,44 @@ jobs:
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
             moving="${moving} ${base}:main"
           fi
-          if [ "${IS_TAG}" = "true" ]; then
+          # STABLE TAGS ARE VOTE-GATED. Pushing `v1.2.3` only cuts the release
+          # CANDIDATE — the Apache vote happens afterwards and can fail, so a
+          # tag push publishes the immutable `:<sha>` and nothing else. The
+          # human-facing `:<ver>`, `:<major.minor>` and `:latest` tags are
+          # attached later by re-running this workflow via workflow_dispatch
+          # for that tag, once the vote has passed. That dispatch is the
+          # promotion step; it rebuilds from the same tag and moves the tags.
+          #
+          # `latest` additionally must always name the NEWEST release, so it
+          # is attached only when the promoted tag is the highest v* in the
+          # repo — otherwise promoting a patch on a superseded line (v0.7.1
+          # after v1.0.0) would drag `latest` backwards. `--sort=version:refname`
+          # is git's numeric version sort, so v1.0.10 ranks above v1.0.2.
+          is_highest=false
+          is_promote=false
+          if [ "${IS_TAG}" = "true" ] && [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            is_promote=true
+          fi
+          if [ "${IS_TAG}" = "true" ] && [ "${is_promote}" != "true" ]; then
+            echo "::notice::${TAG_NAME} tagged — publishing the immutable :<sha> only. Stable tags (:${TAG_NAME#v}, :latest) wait for the release vote; re-run this workflow via workflow_dispatch for ${TAG_NAME} to promote."
+          fi
+          if [ "${is_promote}" = "true" ]; then
             ver="${TAG_NAME#v}"
-            moving="${moving} ${base}:${ver} ${base}:latest"
+            moving="${moving} ${base}:${ver}"
+            highest="$(git tag --list 'v*' --sort=-version:refname | head -1)"
+            if [ "${TAG_NAME}" = "${highest}" ]; then
+              is_highest=true
+              moving="${moving} ${base}:latest"
+            else
+              echo "::notice::${TAG_NAME} is not the highest tag (${highest}) — leaving :latest where it is"
+            fi
             mm="${ver%.*}"
             if [ "${mm}" != "${ver}" ]; then
               moving="${moving} ${base}:${mm}"
             fi
           fi
+          echo "is_highest=${is_highest}" >> "$GITHUB_OUTPUT"
+          echo "is_promote=${is_promote}" >> "$GITHUB_OUTPUT"
           echo "base=${base}" >> "$GITHUB_OUTPUT"
           echo "moving=${moving}" >> "$GITHUB_OUTPUT"
           echo "::notice::Canonical SHA: ${SHA}"
@@ -285,26 +326,36 @@ jobs:
       # the GHCR canonical sha tag (already multi-arch from the loop
       # above) into the two Docker Hub tags. No rebuild, copies blobs
       # across registries via the registry-to-registry mount API.
-      - name: Log in to Docker Hub (release only)
-        if: needs.tags.outputs.is_tag == 'true'
+      - name: Log in to Docker Hub (promoted release only)
+        if: needs.tags.outputs.is_promote == 'true'
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Mirror multi-arch manifest to Docker Hub (release only)
-        if: needs.tags.outputs.is_tag == 'true'
+      - name: Mirror multi-arch manifest to Docker Hub (promoted release only)
+        if: needs.tags.outputs.is_promote == 'true'
         env:
           DOCKERHUB_IMAGE: apache/skywalking-ui
+          IS_HIGHEST: ${{ needs.tags.outputs.is_highest }}
         run: |
           set -eu
           ver="${TAG_NAME#v}"
           src="${BASE}:${SHA}"
-          echo "::group::Mirror ${src} → ${DOCKERHUB_IMAGE}:horizon-${ver} + :latest"
+          # Mirror `latest` only for the highest release — same rule as GHCR,
+          # so re-publishing an older line never demotes the Docker Hub tag.
+          latest_arg=""
+          if [ "${IS_HIGHEST}" = "true" ]; then
+            latest_arg="-t ${DOCKERHUB_IMAGE}:latest"
+          else
+            echo "::notice::not the highest release — mirroring horizon-${ver} only, :latest untouched"
+          fi
+          echo "::group::Mirror ${src} → ${DOCKERHUB_IMAGE}:horizon-${ver}${latest_arg:+ + :latest}"
+          # shellcheck disable=SC2086 # latest_arg is an intentional word-split flag pair
           docker buildx imagetools create \
             -t "${DOCKERHUB_IMAGE}:horizon-${ver}" \
-            -t "${DOCKERHUB_IMAGE}:latest" \
+            ${latest_arg} \
             "${src}"
           docker buildx imagetools inspect "${DOCKERHUB_IMAGE}:horizon-${ver}" | head -40
           echo "::endgroup::"
-          echo "::notice::Mirrored to ${DOCKERHUB_IMAGE}:{horizon-${ver},latest}"
+          echo "::notice::Mirrored to ${DOCKERHUB_IMAGE}:horizon-${ver}${latest_arg:+ + :latest}"

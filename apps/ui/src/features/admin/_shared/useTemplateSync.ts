@@ -31,11 +31,18 @@
  *   - `badgeFor(name)` — per-row lookup. Returns the status string a
  *     row-level badge renders, or `null` when no remote info exists.
  *
+ *   - `conflictFor(name)` / `conflictBannerFor(name)` — per-row and
+ *     per-selection duplicate lookup. A name OAP stores on more than
+ *     one enabled record is ambiguous; Horizon reports it and resolves
+ *     nothing, so every surface that can show one template at a time
+ *     has to say so explicitly.
+ *
  * Source of truth: the `syncStatus` envelope inside the configBundle
  * (refreshed when AppShell mounts). No additional network call.
  */
 
 import { computed, type ComputedRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useConfigBundle } from '@/controls/configBundle';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import type {
@@ -75,10 +82,58 @@ export interface UseTemplateSyncReturn {
   readOnly: ComputedRef<boolean>;
   banner: ComputedRef<SyncBanner>;
   badgeFor: (name: string) => TemplateStatus | null;
+  /** The duplicate row for `name`, or `null` when OAP has a single
+   *  enabled record for it. Drives the picker's duplicate chip. */
+  conflictFor: (name: string) => TemplateConflict | null;
+  /** Banner scoped to ONE template — `null` unless that template is
+   *  duplicated. */
+  conflictBannerFor: (name: string) => SyncBanner | null;
   status: ComputedRef<BundleSyncStatus | null>;
 }
 
+/** vue-i18n's `t` narrowed to the single call form the banner builder
+ *  needs, so the builder stays pure (and unit-testable without an app
+ *  instance) instead of reaching for a composable. */
+export type BannerTranslate = (key: string, named?: Record<string, unknown>) => string;
+
+/** The conflict row for `name` inside `kind`, or `null` when OAP has a
+ *  single enabled record for it. Kind is part of the lookup because the
+ *  bundle carries every kind's conflicts and a layer key can collide
+ *  with an overview id. Tolerates a bundle without the field (an older
+ *  BFF), which reports no conflicts rather than throwing. */
+export function conflictOf(
+  conflicts: TemplateConflict[] | null | undefined,
+  kind: TemplateKind,
+  name: string,
+): TemplateConflict | null {
+  if (!conflicts) return null;
+  return conflicts.find((c) => c.kind === kind && c.name === name) ?? null;
+}
+
+/** Conflict banner for ONE template. The page-level banner counts every
+ *  conflict of the kind at once, which never tells the operator whether
+ *  the row they just opened is an ambiguous one — this names that row
+ *  and lists the OAP record ids they need to clean it up. */
+export function buildConflictBanner(conflict: TemplateConflict, t: BannerTranslate): SyncBanner {
+  return {
+    severity: 'conflict',
+    message: t('“{name}” is duplicated on OAP — {n} enabled records carry this template name.', {
+      name: conflict.name,
+      n: conflict.enabledIds.length,
+    }),
+    detail: t(
+      'Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.',
+      { ids: conflict.enabledIds.join(', ') },
+    ),
+    counts: {},
+    localCount: 0,
+    conflicts: [conflict],
+  };
+}
+
 export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncReturn {
+  const { t } = useI18n({ useScope: 'global' });
+  const translate: BannerTranslate = (key, named) => (named ? t(key, named) : t(key));
   const { bundle } = useConfigBundle();
   const localEdits = useLocalTemplateEdits();
 
@@ -110,11 +165,12 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
   // Shown on diverged + clean banners so the operator always knows what
   // the two axes mean.
   const GLOSSARY =
-    'Diverged = the bundled (shipped) default differs from the version live on OAP — OAP wins at render time. ' +
-    'Local = unpublished edits saved only in this browser; publish with “Check diff & push”.';
+    t('Diverged = the bundled (shipped) default differs from the version live on OAP — OAP wins at render time.') +
+    ' ' +
+    t('Local = unpublished edits saved only in this browser; publish with “Check diff & push”.');
   const localSuffix = computed(() =>
     localCount.value > 0
-      ? ` · ${localCount.value} local draft${localCount.value === 1 ? '' : 's'} in this browser`
+      ? ` · ${t('{n} local drafts in this browser', localCount.value, { named: { n: localCount.value } })}`
       : '',
   );
 
@@ -123,7 +179,7 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     if (!s) {
       return {
         severity: 'unknown',
-        message: 'Loading template sync status…',
+        message: t('Loading template sync status…'),
         counts: {},
         localCount: localCount.value,
         conflicts: [],
@@ -135,10 +191,12 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     if (s.mode === 'readonly') {
       return {
         severity: 'readonly',
-        message:
+        message: t(
           'Read-only mode — templates are served from the local bundle. Editing and publishing are disabled.',
-        detail:
+        ),
+        detail: t(
           'Set templates.mode=live (HORIZON_TEMPLATES_MODE=live) with OAP’s ui_template store reachable to edit.',
+        ),
         counts,
         localCount: localCount.value,
         conflicts: [],
@@ -150,24 +208,34 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
         : null;
       return {
         severity: 'unreachable',
-        message:
+        message: t(
           'OAP admin port unreachable — this page is READ-ONLY. Bundled templates shown; edits are disabled until OAP is back.',
+        ),
         detail: last
-          ? `Last successful sync: ${last}`
-          : 'No successful sync yet since this BFF started.',
+          ? t('Last successful sync: {at}', { at: last })
+          : t('No successful sync yet since this BFF started.'),
         counts,
         localCount: localCount.value,
         conflicts: [],
       };
     }
     if (ownConflicts.value.length > 0) {
-      const names = ownConflicts.value.map((c) => c.name).join(', ');
+      // The row ids are the point: OAP's disable takes an id, not a name, so
+      // an operator cleaning this up on OAP has nothing to act on without them.
+      const names = ownConflicts.value
+        .map((c) => `${c.name} (${c.enabledIds.join(', ')})`)
+        .join('; ');
       return {
         severity: 'conflict',
-        message: `${ownConflicts.value.length} template${
-          ownConflicts.value.length === 1 ? '' : 's'
-        } on OAP have multiple enabled records — using the lowest-id row for each.`,
-        detail: `Affected: ${names}. Open the affected row's diff modal and disable the extras to clean up.`,
+        message: t(
+          '{n} templates on OAP have more than one enabled record — Horizon renders one copy of each and changes nothing on its own.',
+          ownConflicts.value.length,
+          { named: { n: ownConflicts.value.length } },
+        ),
+        detail: t(
+          'Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.',
+          { names },
+        ),
         counts,
         localCount: localCount.value,
         conflicts: ownConflicts.value,
@@ -178,13 +246,15 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     const disabled = counts.disabled ?? 0;
     if (diverged + remoteOnly + disabled > 0 || localCount.value > 0) {
       const parts: string[] = [];
-      if (diverged > 0) parts.push(`${diverged} diverged`);
-      if (remoteOnly > 0) parts.push(`${remoteOnly} remote-only`);
-      if (disabled > 0) parts.push(`${disabled} disabled`);
-      if (localCount.value > 0) parts.push(`${localCount.value} local`);
+      if (diverged > 0) parts.push(t('{n} diverged', { n: diverged }));
+      if (remoteOnly > 0) parts.push(t('{n} remote-only', { n: remoteOnly }));
+      if (disabled > 0) parts.push(t('{n} disabled', { n: disabled }));
+      if (localCount.value > 0) parts.push(t('{n} local', { n: localCount.value }));
       return {
         severity: localCount.value > 0 || diverged > 0 ? 'diverged' : 'clean',
-        message: `Synced from OAP — ${parts.length ? parts.join(', ') : 'all match bundled'}.`,
+        message: t('Synced from OAP — {summary}.', {
+          summary: parts.length ? parts.join(', ') : t('all match bundled'),
+        }),
         detail: GLOSSARY,
         counts,
         localCount: localCount.value,
@@ -193,7 +263,9 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     }
     return {
       severity: 'clean',
-      message: `Synced from OAP — ${ownBadges.value.length} templates match bundled defaults.${localSuffix.value}`,
+      message:
+        t('Synced from OAP — {n} templates match bundled defaults.', { n: ownBadges.value.length }) +
+        localSuffix.value,
       detail: GLOSSARY,
       counts,
       localCount: localCount.value,
@@ -211,5 +283,14 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return badgeIndex.value.get(name) ?? null;
   }
 
-  return { readOnly, banner, badgeFor, status };
+  function conflictFor(name: string): TemplateConflict | null {
+    return conflictOf(status.value?.conflicts, opts.kind, name);
+  }
+
+  function conflictBannerFor(name: string): SyncBanner | null {
+    const c = conflictFor(name);
+    return c ? buildConflictBanner(c, translate) : null;
+  }
+
+  return { readOnly, banner, badgeFor, conflictFor, conflictBannerFor, status };
 }

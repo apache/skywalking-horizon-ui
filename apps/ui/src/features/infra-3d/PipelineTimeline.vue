@@ -32,6 +32,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import type { DeepReadonly } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { PipelineStageId, StageState } from './composables/useInfra3dPipeline';
 
@@ -45,6 +46,8 @@ const props = defineProps<{
    *  the live countdown beside the refresh button. Null = no countdown. */
   nextRefreshAt?: number | null;
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 // Live 1 Hz clock so the countdown ticks down on its own — the parent
 // only updates `nextRefreshAt` once per (re)schedule, not every second.
@@ -93,14 +96,14 @@ function elapsedMs(stage: { startedAt: number | null; endedAt: number | null }):
   return end - stage.startedAt;
 }
 
-const stageLabels: Record<PipelineStageId, string> = {
-  services: 'Services',
-  templates: 'Templates',
-  topologies: 'Topologies',
-  hierarchy: 'Hierarchy',
-  layout: 'Layout',
-  metrics: 'Metrics',
-};
+const stageLabels = computed<Record<PipelineStageId, string>>(() => ({
+  services: t('Services'),
+  templates: t('Templates'),
+  topologies: t('Topologies'),
+  hierarchy: t('Hierarchy'),
+  layout: t('Layout'),
+  metrics: t('Metrics'),
+}));
 
 // Deep-readonly variant of `StageState` — what `props.stages` carries.
 // Used for the open-stage computed so we don't fight the readonly
@@ -116,7 +119,7 @@ const openStageState = computed<ROStageState | null>(() => {
   <div class="pl">
     <div v-if="openStageState" class="drawer">
       <header class="drawer-head">
-        <span class="drawer-title">{{ stageLabels[openStageState.id] }} · stage</span>
+        <span class="drawer-title">{{ t('{stage} · stage', { stage: stageLabels[openStageState.id] }) }}</span>
         <span class="drawer-meta" v-if="elapsedMs(openStageState) !== null">
           {{ elapsedMs(openStageState) }} ms
         </span>
@@ -128,28 +131,28 @@ const openStageState = computed<ROStageState | null>(() => {
 
         <template v-if="openStageState.detail.kind === 'services'">
           <ul class="kv">
-            <li><b>services</b><span>{{ openStageState.detail.servicesTotal }}</span></li>
-            <li><b>layers</b><span>{{ openStageState.detail.layersTotal }}</span></li>
+            <li><b>{{ t('services') }}</b><span>{{ openStageState.detail.servicesTotal }}</span></li>
+            <li><b>{{ t('layers') }}</b><span>{{ openStageState.detail.layersTotal }}</span></li>
             <li v-if="openStageState.detail.addedSince !== null">
-              <b>added since last run</b><span>{{ openStageState.detail.addedSince }}</span>
+              <b>{{ t('added since last run') }}</b><span>{{ openStageState.detail.addedSince }}</span>
             </li>
             <li v-if="openStageState.detail.removedSince !== null">
-              <b>removed since last run</b><span>{{ openStageState.detail.removedSince }}</span>
+              <b>{{ t('removed since last run') }}</b><span>{{ openStageState.detail.removedSince }}</span>
             </li>
           </ul>
           <details v-if="(openStageState.detail.hiddenNoTemplate?.length ?? 0) > 0">
-            <summary>hidden — no layer template (refresh to load)</summary>
+            <summary>{{ t('hidden — no layer template (refresh to load)') }}</summary>
             <code class="layer-list">{{ openStageState.detail.hiddenNoTemplate?.join(', ') }}</code>
           </details>
         </template>
 
         <template v-else-if="openStageState.detail.kind === 'templates'">
           <ul class="kv">
-            <li><b>with topology widget</b><span>{{ openStageState.detail.layersWithTopology.length }}</span></li>
-            <li><b>without</b><span>{{ openStageState.detail.layersWithoutTopology.length }}</span></li>
+            <li><b>{{ t('with topology widget') }}</b><span>{{ openStageState.detail.layersWithTopology.length }}</span></li>
+            <li><b>{{ t('without') }}</b><span>{{ openStageState.detail.layersWithoutTopology.length }}</span></li>
           </ul>
           <details>
-            <summary>topology layers</summary>
+            <summary>{{ t('topology layers') }}</summary>
             <code class="layer-list">{{ openStageState.detail.layersWithTopology.join(', ') || '—' }}</code>
           </details>
         </template>
@@ -157,7 +160,7 @@ const openStageState = computed<ROStageState | null>(() => {
         <template v-else-if="openStageState.detail.kind === 'topologies'">
           <table class="probes">
             <thead>
-              <tr><th>layer</th><th>status</th><th>nodes</th><th>edges</th><th>ms</th></tr>
+              <tr><th>{{ t('layer') }}</th><th>{{ t('status') }}</th><th>{{ t('nodes') }}</th><th>{{ t('edges') }}</th><th>ms</th></tr>
             </thead>
             <tbody>
               <tr v-for="p in openStageState.detail.probes" :key="p.layerKey" :data-status="p.status">
@@ -173,17 +176,17 @@ const openStageState = computed<ROStageState | null>(() => {
 
         <template v-else-if="openStageState.detail.kind === 'layout'">
           <ul class="kv">
-            <li><b>layers re-laid</b><span>{{ openStageState.detail.layersReLaid }}</span></li>
-            <li><b>compute</b><span>{{ openStageState.detail.ms }} ms</span></li>
+            <li><b>{{ t('layers re-laid') }}</b><span>{{ openStageState.detail.layersReLaid }}</span></li>
+            <li><b>{{ t('compute') }}</b><span>{{ openStageState.detail.ms }} ms</span></li>
           </ul>
         </template>
 
         <template v-else-if="openStageState.detail.kind === 'metrics'">
           <ul class="kv">
-            <li><b>services done</b><span>{{ openStageState.detail.servicesDone }} / {{ openStageState.detail.servicesTotal }}</span></li>
-            <li><b>chunk</b><span>{{ openStageState.detail.chunkIndex }} / {{ openStageState.detail.chunkTotal }}</span></li>
+            <li><b>{{ t('services done') }}</b><span>{{ openStageState.detail.servicesDone }} / {{ openStageState.detail.servicesTotal }}</span></li>
+            <li><b>{{ t('chunk') }}</b><span>{{ openStageState.detail.chunkIndex }} / {{ openStageState.detail.chunkTotal }}</span></li>
             <li v-if="openStageState.detail.currentLevel">
-              <b>current level</b><span>{{ openStageState.detail.currentLevel }}</span>
+              <b>{{ t('current level') }}</b><span>{{ openStageState.detail.currentLevel }}</span>
             </li>
           </ul>
           <div class="bar">
@@ -199,7 +202,7 @@ const openStageState = computed<ROStageState | null>(() => {
         </template>
 
         <template v-else>
-          <p class="dim">No detail yet.</p>
+          <p class="dim">{{ t('No detail yet.') }}</p>
         </template>
       </div>
     </div>
@@ -224,19 +227,19 @@ const openStageState = computed<ROStageState | null>(() => {
       <span
         v-if="props.running"
         class="next-refresh running"
-        title="pipeline is running…"
-      >refreshing…</span>
+        :title="t('pipeline is running…')"
+      >{{ t('refreshing…') }}</span>
       <span
         v-else-if="countdown"
         class="next-refresh"
-        title="time until the next auto-refresh"
-      >next ↻ {{ countdown }}</span>
+        :title="t('time until the next auto-refresh')"
+      >{{ t('next ↻ {countdown}', { countdown }) }}</span>
       <span class="spacer" />
       <button
         type="button"
         class="refresh"
         :disabled="props.running"
-        :title="props.running ? 'pipeline is running…' : 're-run pipeline now'"
+        :title="props.running ? t('pipeline is running…') : t('re-run pipeline now')"
         @click="emit('refresh')"
       >↻</button>
     </div>

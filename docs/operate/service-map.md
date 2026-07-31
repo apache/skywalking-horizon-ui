@@ -58,6 +58,16 @@ Click a line to open its detail panel. Each line metric is shown twice — **Cli
 
 Selecting a node opens a panel with its template metrics, its **Upstream** list (services it calls) and **Downstream** list (services calling it), and two jumps: **Open service** (its layer dashboard) and **API map →** (its endpoint dependency graph). The node and edge panels are independent — you can keep both open at once.
 
+### Cross-layer hierarchy (Smartscape)
+
+One logical service is often observed by several layers at once — the same workload seen by its in-process agent (`GENERAL`), by its sidecar (`MESH` / `MESH_DP`), and as a Kubernetes service (`K8S_SERVICE`). When the service you have selected has such cross-layer counterparts, a small chip appears on the selected node's edge; clicking it opens the hierarchy overlay.
+
+The map dims but stays visible for spatial context, the selected service lights up in place with a **FOCUS** tag, and its counterparts in other layers fan out around it — one labeled, layer-colored lane per layer, request-near layers above the focus and infrastructure-near layers below, with counterparts in the same lane spread side by side. Each counterpart is named the way its own layer's map would name it, and one that SkyWalking knows only from observed traffic carries a `virtual` tag. Auto-refresh is paused while the overlay is open, so nothing shifts under you.
+
+Navigation is deliberately two-step so scanning never jumps you away: click a counterpart once to select it, then click the **Open in &lt;layer&gt;** chip beside it to open that layer's drill-down in a new browser tab with the service pre-selected. A counterpart whose layer has no active layer template in Horizon is dimmed and cannot be opened — the service exists on OAP, but there is no page to land on. Close the overlay with the **×**, the **Esc** key, or a click on the dimmed background.
+
+The chip only appears when OAP reports cross-layer counterparts for the selected service, and it is not offered in the embedded overview-widget map — open the full Topology tab.
+
 ## Focusing and narrowing the map
 
 By default the map seeds from **every service in the layer** — the full layer overview. That is the right starting point for a small layer and the wrong one for a large estate. Two controls narrow it:

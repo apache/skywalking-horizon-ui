@@ -36,6 +36,7 @@
 -->
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { OverviewDashboard, OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import KpiTileWidget from '@/render/widgets/KpiTileWidget.vue';
 import MetricWidget from '@/render/widgets/MetricWidget.vue';
@@ -52,6 +53,8 @@ const emit = defineEmits<{
   'update:modelValue': [dash: OverviewDashboard];
   'select-widget': [id: string];
 }>();
+
+const { t } = useI18n();
 
 function selectWidget(id: string): void {
   emit('select-widget', id);
@@ -85,12 +88,12 @@ const previewSections = computed<PreviewSection[]>(() => {
 
 function widgetKindLabel(type: OverviewWidget['type']): string {
   switch (type) {
-    case 'metric-composite': return 'Composite metrics';
-    case 'section-break': return 'Section break';
-    case 'metric': return 'Metric';
-    case 'topology': return 'Topology';
-    case 'alarms': return 'Alarms';
-    case 'kpi-tile': return 'KPI tile';
+    case 'metric-composite': return t('Composite metrics');
+    case 'section-break': return t('Section break');
+    case 'metric': return t('Metric');
+    case 'topology': return t('Topology');
+    case 'alarms': return t('Alarms');
+    case 'kpi-tile': return t('KPI tile');
     default: return type;
   }
 }
@@ -167,14 +170,14 @@ function onResizeEnd(): void {
  * — the operator picks those first per the spec, then the widget
  * is appended with sensible defaults and the existing per-widget
  * editor handles everything else. */
-const WIDGET_TYPE_OPTIONS: ReadonlyArray<{ type: OverviewWidget['type']; label: string }> = [
-  { type: 'section-break', label: 'Section break' },
-  { type: 'metric', label: 'Metric' },
-  { type: 'topology', label: 'Topology' },
-  { type: 'alarms', label: 'Alarms' },
-  { type: 'kpi-tile', label: 'KPI tile (number + metrics)' },
-  { type: 'metric-composite', label: 'Composite metrics (mixed)' },
-];
+const WIDGET_TYPE_OPTIONS = computed((): ReadonlyArray<{ type: OverviewWidget['type']; label: string }> => [
+  { type: 'section-break', label: t('Section break') },
+  { type: 'metric', label: t('Metric') },
+  { type: 'topology', label: t('Topology') },
+  { type: 'alarms', label: t('Alarms') },
+  { type: 'kpi-tile', label: t('KPI tile (number + metrics)') },
+  { type: 'metric-composite', label: t('Composite metrics (mixed)') },
+]);
 
 const composerOpen = ref(false);
 const composerType = ref<OverviewWidget['type']>('metric');
@@ -245,7 +248,7 @@ function createWidget(): void {
   <!-- Canvas: mock-data widget grid. Click a widget to edit it in the
        drawer; only the live "Preview ▾" page uses real OAP data. -->
   <div class="ot__canvas-pane ot__preview">
-    <div class="ot__canvas-hint">layout + mock data · click a widget to edit · the live page uses real data</div>
+    <div class="ot__canvas-hint">{{ t('layout + mock data · click a widget to edit · the live page uses real data') }}</div>
     <!-- Page heading preview — the dashboard title + description as
          they render on the live overview page. Click to edit the
          dashboard meta in the drawer, like any widget. -->
@@ -275,9 +278,9 @@ function createWidget(): void {
         @dragover.prevent
         @drop.prevent="onWidgetDrop(sec.sb.id)"
       >
-        <span class="ot__pv-sb-tag">section</span>
-        <span class="ot__pv-sb-title">{{ sec.sb.title || '(untitled section)' }}</span>
-        <span class="ot__pv-sb-cols">{{ sec.cols }} cols</span>
+        <span class="ot__pv-sb-tag">{{ t('section') }}</span>
+        <span class="ot__pv-sb-title">{{ sec.sb.title || t('(untitled section)') }}</span>
+        <span class="ot__pv-sb-cols">{{ t('{n} cols', { n: sec.cols }) }}</span>
       </div>
       <div
         class="ot__pv-grid"
@@ -350,7 +353,7 @@ function createWidget(): void {
               </li>
             </ul>
             <div class="ot__pv-sub">
-              mock · max {{ w.limit ?? 10 }} rows
+              {{ t('mock · max {n} rows', { n: w.limit ?? 10 }) }}
             </div>
           </template>
           <template v-else-if="w.type === 'topology'">
@@ -369,20 +372,20 @@ function createWidget(): void {
               <circle cx="180" cy="25" r="8" />
               <circle cx="180" cy="75" r="8" />
             </svg>
-            <div class="ot__pv-sub">topology · {{ w.layer ?? '—' }}</div>
+            <div class="ot__pv-sub">{{ t('topology · {layer}', { layer: w.layer ?? '—' }) }}</div>
           </template>
           </article>
           <!-- Corner resize handle (drag to change span / rowSpan). -->
           <span
             class="ot__cw-resize"
-            title="Drag to resize"
+            :title="t('Drag to resize')"
             @mousedown="onResizeStart($event, w, sec.cols)"
           />
         </div>
       </div>
     </div>
     <div v-if="previewSections.length === 0" class="ot__pv-empty">
-      No widgets yet — add one below.
+      {{ t('No widgets yet — add one below.') }}
     </div>
     <!-- Add-widget composer, on the canvas (the drawer only shows
          when a widget is selected). -->
@@ -393,15 +396,15 @@ function createWidget(): void {
         class="ot__add-trigger"
         @click="openComposer"
       >
-        + Add widget
+        {{ t('+ Add widget') }}
       </button>
       <article v-else class="ot__widget ot__composer">
         <header class="ot__widget-head">
-          <span class="ot__widget-kind">New widget</span>
+          <span class="ot__widget-kind">{{ t('New widget') }}</span>
         </header>
         <div class="ot__row">
           <label class="ot__field">
-            <span>Type</span>
+            <span>{{ t('Type') }}</span>
             <select v-model="composerType" class="ot__in ot__in--narrow">
               <option v-for="opt in WIDGET_TYPE_OPTIONS" :key="opt.type" :value="opt.type">
                 {{ opt.label }}
@@ -409,20 +412,20 @@ function createWidget(): void {
             </select>
           </label>
           <label v-if="composerType !== 'section-break'" class="ot__field">
-            <span>Width (span)</span>
+            <span>{{ t('Width (span)') }}</span>
             <input v-model.number="composerSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
           </label>
           <label v-if="composerType !== 'section-break'" class="ot__field">
-            <span>Height (rows)</span>
+            <span>{{ t('Height (rows)') }}</span>
             <input v-model.number="composerRowSpan" type="number" min="1" max="12" class="ot__in ot__in--num" />
           </label>
         </div>
         <div class="ot__composer-foot">
           <span class="ot__composer-hint">
-            A default title + content scaffold is generated; you can edit everything after creating.
+            {{ t('A default title + content scaffold is generated; you can edit everything after creating.') }}
           </span>
-          <button type="button" class="ot__btn" @click="cancelComposer">cancel</button>
-          <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">create</button>
+          <button type="button" class="ot__btn" @click="cancelComposer">{{ t('cancel') }}</button>
+          <button type="button" class="ot__btn ot__btn--primary" @click="createWidget">{{ t('create') }}</button>
         </div>
       </article>
     </div>

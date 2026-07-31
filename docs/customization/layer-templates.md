@@ -191,30 +191,20 @@ A layer without an explicit `instance` widget set will reuse `service` widgets o
 | `id` | Unique widget id within the dashboard. |
 | `title` | Widget title shown in the card header. |
 | `tip` | Optional hover hint. |
-| `type` | Widget kind, usually `card`, `line`, `top`, `record`, `table`, or `tab` (a container of named tab panels, each holding its own widgets — see [Tab widgets](#tab-widgets)). |
+| `type` | Widget kind: `card` for a single scalar (MQE collapses to one number), `line` for time-series, `top` for a sorted list, `record` for tabular records (slow SQL, slow statements), `table` for a labeled key→value table, or `tab` (a container of named tab panels, each holding its own widgets — see [Tab widgets](#tab-widgets)). |
 | `tabs[]` | `tab` widgets only: the tab panels. Each is `{ "name": "…", "widgets": [ … ] }` — a label plus its own set of widgets. |
-| `expressions[]` | MQE expressions to run. A `tab` container has none of its own. |
+| `expressions[]` | MQE expressions to run. `card` typically uses one; `line` uses one per series; `top` may use multiple (each becomes a tab). A `tab` container has none of its own. |
 | `expressionLabels[]` | Tab labels for `top`, legend labels for `line`. |
-| `expressionUnits[]` | Per-expression unit override. |
-| `expressionAxes[]` | `0` for left axis, `1` for right axis on dual-axis line charts. |
-| `unit` | Widget-level unit suffix. |
-| `format` | `int`, `decimal`, or `compact`. |
-| `span` | 12-column width. Default 4. |
-| `rowSpan` | Row count. Default 1. |
-| `visibleWhen` | Visibility predicate. |
-| `layerScope` | Evaluate against the whole layer rather than the selected service. |
-| `x`, `y`, `w`, `h` | Legacy coordinates kept for old templates. Prefer `span` and `rowSpan`. |
-| `type` | `card` for single scalar (MQE collapses to one number); `line` for time-series; `top` for sorted list; `record` for tabular records (slow SQL, slow statements). |
-| `expressions[]` | Array of MQE expressions. `card` typically uses one; `line` uses one per series; `top` may use multiple (each becomes a tab). |
-| `expressionLabels[]` | Used by `top` to label each tab. |
-| `expressionUnits[]` | Per-expression unit when expressions have heterogeneous units (e.g. ms + count). |
+| `expressionUnits[]` | Per-expression unit override when expressions have heterogeneous units (e.g. ms + count). |
 | `expressionAxes[]` | Two-axis charting. `0` = left y-axis (default), `1` = right. |
-| `unit` | Widget-level unit (used when all expressions share the same unit). |
-| `format` | Numeric formatting: `int`, `decimal`, `compact` (K / M suffixes). |
+| `unit` | Widget-level unit suffix (used when all expressions share the same unit). |
+| `format` | Value formatting: `int`, `decimal`, `compact` (K / M suffixes), `duration` (a seconds value rendered as a human time-ago), `enum` (a coded value mapped to a label via `valueMap`). |
+| `valueMap` / `valueColors` | Enum-card display maps — value → label, and value → status-chip color (`ok` / `warn` / `err` / `info` / `neutral`). See [Dashboard Widgets → Status chips](../components/dashboard-widgets.md#status-chips-valuecolors). |
+| `traceDrill` | `line` only — `{ "mode": "latency" \| "error" }` makes data points clickable, opening the layer's Traces tab pre-filtered to the slow or error traces around the clicked moment. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill). |
 | `span` | Column span in the 12-col grid. Default 4 = three widgets per row. |
 | `rowSpan` | Vertical span. Default 1 (one 120 px row). |
 | `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` shows the widget only when the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` shows it only when the selected entity has that attribute — entity gates are Instance-scope only. |
-| `layerScope` | If true, MQE evaluates against the whole layer rather than the selected service. Used for layer-level summaries on the service page. |
+| `x`, `y`, `w`, `h` | Legacy coordinates kept for old templates. Prefer `span` and `rowSpan`. |
 
 ### Choosing `type`
 
@@ -455,7 +445,7 @@ This is why a freshly shipped capability can read **diverged / off** until you p
 
 **Import** reads a layer-template JSON file and loads it as a **local draft** in this browser — it never writes OAP directly. Preview it, then **Check diff & push** to publish. Because layer keys are a fixed set, import targets the layer the file names (e.g. `MESH`), and that layer must already be present on this deployment; a file for a layer not loaded here, or one that isn't a valid layer template, is rejected with a message.
 
-Import/export covers the **source layer template** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](/customization/i18n) page — they're not part of this file. A layer exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
+Import/export covers the **source layer template** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](i18n.md) page — they're not part of this file. A layer exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
 
 ### Disabling / reactivating a layer
 
@@ -500,17 +490,17 @@ Templates are not inheritance-aware. To "inherit" from `general.json`, copy it a
 
 The Logs tab disappears from the layer page nav. Existing direct-URL navigation to `/layer/<key>/logs` redirects to the first enabled tab.
 
-### Add a layer-wide summary widget on the service page
+### Link a latency or error widget to its traces
 
 ```json
 {
-  "id": "layer_total_rpm",
-  "type": "card",
-  "title": "Layer-wide RPM",
-  "expressions": ["sum(service_cpm)"],
-  "layerScope": true,
-  "span": 3
+  "id": "resp_time_line",
+  "type": "line",
+  "title": "Avg Response Time",
+  "expressions": ["service_resp_time"],
+  "unit": "ms",
+  "traceDrill": { "mode": "latency" }
 }
 ```
 
-`layerScope: true` evaluates the MQE against the entire layer rather than the selected service.
+`traceDrill` makes the line's data points clickable — a click opens the layer's Traces tab pre-filtered to the slow (`latency` mode) or error (`error` mode) traces around the clicked moment. It needs the layer's `traces` component enabled with the native trace source. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill).

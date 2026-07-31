@@ -49,7 +49,7 @@ Every OAP metric lives under exactly one entity scope (Service / ServiceInstance
 
 ## Design source of truth
 
-Design tokens live in the runtime token CSS (`apps/ui/src/assets/styles/tokens.css`) — that copy is canonical. The early-build HTML/JSX prototype bundle has been retired now that every screen has a Vue implementation with visual sign-off. When a new screen is needed, the existing dark-dense vocabulary in the rendered UI is the spec; match it.
+Design tokens live in the runtime token CSS of the design-tokens workspace package (`packages/design-tokens/src/tokens.css`, imported app-wide as `@skywalking-horizon-ui/design-tokens/tokens.css`) — that copy is canonical. The early-build HTML/JSX prototype bundle has been retired now that every screen has a Vue implementation with visual sign-off. When a new screen is needed, the existing dark-dense vocabulary in the rendered UI is the spec; match it.
 
 `docs/` is now the **public website docs** tree (committed, flat layout, see `docs/menu.yml`). Do not put planning notes, research dumps, or design prototypes there — those stay out of git.
 
@@ -57,7 +57,7 @@ Design tokens live in the runtime token CSS (`apps/ui/src/assets/styles/tokens.c
 
 ## Internationalization
 
-English is the source of truth. Every UI string and every translatable template field is authored in English first; the English bundle ships in the main JS chunk so the app renders without any network locale fetch. Other locales (zh-CN, es, pt, ja, ko at the time of writing) are catalog overlays. A missing key in any non-English catalog falls back to English at the leaf, never at the file — half-translated catalogs are valid and expected. Edit English first; re-translate downstream.
+English is the source of truth. Every UI string and every translatable template field is authored in English first; the English bundle ships in the main JS chunk so the app renders without any network locale fetch. Other locales (de, es, fr, ja, ko, pt, zh-CN at the time of writing) are catalog overlays. A missing key in any non-English catalog falls back to English at the leaf, never at the file — half-translated catalogs are valid and expected. Edit English first; re-translate downstream.
 
 **Translation principles:**
 
@@ -91,12 +91,12 @@ English is the source of truth. Every UI string and every translatable template 
   `client/` stays the ONLY layer that talks to OAP — that's the load-bearing rule. The `http → logic → client` chain is about *orchestration*, not a blanket ban on `http → client`: a thin single-query route reaches `client/` directly; `logic/` owns the orchestration worth a seam (stateful caches/timers, multi-step fan-outs, anything more than one route reuses).
 - **Layering — UI.** `apps/ui/src/` follows the same role-based grouping. The guiding rule is **feature code stays cohesive with its feature; shared code is feature-AGNOSTIC only** (fonts, styles, formatters, generic primitives, charts wrappers). A component or composable that knows about a feature's data lives WITH the feature, not in a shared pile. Features don't import from each other.
   - **`api/`** — façade `bff.<scope>.<method>()` over the BFF. Only path to HTTP; no `fetch()` calls anywhere else.
-  - **`shell/`** — chrome every page lives in (AppShell / AppSidebar / AppTopbar / GlobalConnectivityBanner / AdminFeatureWarning / PlaceholderView / LandingView), plus `router/index.ts` and the framework-level composables the sidebar/topbar need (`useLayers`, `useLandingOrder`, `useOapInfo`, `useAdminFeatures`). Knows about layers + routes, never about specific feature data.
+  - **`shell/`** — chrome every page lives in (AppShell / AppSidebar / AppTopbar / GlobalConnectivityBanner / AdminFeatureWarning / PlaceholderView), plus `router/index.ts` and the framework-level composables the sidebar/topbar need (`useLayers`, `useLandingOrder`, `useOapInfo`, `useAdminFeatures`). Knows about layers + routes, never about specific feature data.
   - **`controls/`** — cross-cutting controls owned by the topbar / shell. The time-range store, the auto-refresh ticker + its subscriber, the per-session client id. Pages subscribe, never own.
   - **`state/`** — global app state (`auth`, `setup`). Pinia stores that survive route changes.
   - **`features/<feature>/`** — static feature pages. Each folder is fully self-contained: its views, its composables, its feature-specific components. Operate sub-features (`cluster/`, `inspect/`, `dsl/`, `live-debug/`) share their cross-cutting bits via `features/operate/_shared/` (Modal / MonacoYaml / MonacoDiff / RuleCard / DestructiveConfirm / grouping).
-  - **`layer/<tab>/`** — the per-layer drill-down stack. Top-level files are the shell (`LayerShell`, `LayerServiceSelector`, `LayerTabPlaceholder`) plus shared layer composables (`useLayerLanding`, `useLayerEndpoints`, `useLayerInstances`, `useSelectedService/Instance/Endpoint`). Each tab subfolder owns its view + composables + tab-specific components (e.g. `layer/traces/` contains `LayerTracesView.vue` + `NativeTraceWaterfall.vue` + `TracePopout.vue` + `useLayerTraces.ts`).
-  - **`render/`** — template-driven render. `render/overview/` and `render/layer-dashboard/` are generic renderers driven by JSON templates from the BFF; `render/widgets/` holds the reusable widget primitives (AlarmsWidget, MetricWidget, ServiceCountWidget, …). New dashboards mean new templates, not new Vue files.
+  - **`layer/<tab>/`** — the per-layer drill-down stack. Top-level files are the shell (`LayerShell`, `LayerServiceSelector`) plus shared layer composables (`useLayerLanding`, `useLayerEndpoints`, `useLayerInstances`, `useSelectedService/Instance/Endpoint`). Each tab subfolder owns its view + composables + tab-specific components (e.g. `layer/traces/` contains `LayerTracesView.vue` + `NativeTraceWaterfall.vue` + `TracePopout.vue` + `useLayerTraces.ts`).
+  - **`render/`** — template-driven render. `render/overview/` and `render/layer-dashboard/` are generic renderers driven by JSON templates from the BFF; `render/widgets/` holds the reusable widget primitives (AlarmsWidget, MetricWidget, KpiTileWidget, …). New dashboards mean new templates, not new Vue files.
   - **`components/{primitives,charts,icons}/`** — feature-agnostic shared building blocks. Stateless, no business logic. If a component starts needing feature data, move it INTO the feature; don't enrich the shared pile.
   - **`monaco/`, `utils/`, `assets/`** — same shared-is-feature-agnostic rule: editor setup, formatters, stylesheets, icon SVGs. New helpers land here only if more than one feature needs them and they don't carry feature semantics.
 
@@ -122,3 +122,51 @@ Keep `CHANGELOG.md` current as part of the change, not as an afterthought. Writt
 6. **Dead-route / parameter jumps.** Every `router.push({ path: '…' })`, `<router-link to="…">`, and `entry.widget`-style URL-built path must resolve to a route that's actually defined in `apps/ui/src/shell/router/index.ts` — grep it before you commit. Stale paths (`/debug/mal`, `/debug/history`) compile and ship, then dead-end at runtime with a blank page and no error. **Audit twice:**
     - *The path.* If you refactor route paths anywhere in the app, grep the entire source tree for every push / `to=` / `router.push({ path })` that targets the old prefix — including dynamic builds like `` `/operate/live-debug/${widget}` ``.
     - *The parameter-on-mount flow.* When a route takes a query/path param the view loads on first mount (e.g. `?historyId=`, `?catalog=&name=`), the watch that consumes it almost always uses `{ immediate: true }` — which fires *during* setup. Any ref the handler writes to must be declared *above* that watch in the file, or you get a TDZ ReferenceError that silently aborts setup and leaves the page blank with no console trace. Hoist resettable refs above their consumer; never assume Vue's compiler will hoist `const`.
+
+## Writing docs/
+
+`docs/` is the **public website documentation** for Horizon UI — a flat tree, ordered by `docs/menu.yml`, synced to the Apache SkyWalking website. It is written for the people who **run and configure** Horizon (operators, dashboard authors), not for contributors hacking on the code. These are the principles for every page there. (These rules live here rather than in a `docs/CLAUDE.md` because the website sync publishes every file under `docs/` wholesale — a contributor-instructions file placed there would become a public page.)
+
+### 1. Operator perspective first
+
+Document what a feature **does**, how to **configure** it, and how to **operate / troubleshoot** it — observable behavior and configuration.
+
+Do **not** document the internals:
+
+- no source-file paths (`apps/bff/src/…`, `apps/ui/src/…`),
+
+- no internal function / composable / store / route-handler names,
+
+- no implementation narration ("the BFF then chunks / fans out / probes …"),
+
+- no step-by-step retelling of the code's algorithm.
+
+If a sentence only makes sense to someone reading the source, it does not belong in a doc.
+
+**One carve-out: contributor pages.** A few pages document repo / file-based authoring that has no UI path — adding a new layer template, contributing a translation catalog or a new locale. These are explicitly contributor-facing and may reference repo files, `pnpm` commands, and the dev workflow; keep them scoped to that task. Today: `docs/customization/adding-a-new-layer.md` and the contributor sections of `docs/customization/i18n.md`. Everything else stays operator-facing.
+
+### 2. Config is edited in the UI — lead with that; JSON is an appendix
+
+Almost everything configurable in Horizon (layer dashboards, overview templates, the 3D-map config, alarm-page setup, global defaults, translations) is edited through a **structured / visual admin page**, on a bundled default → local draft → **Check diff & push** to OAP flow. A configuration page should:
+
+- **Start from the concept** — what this configuration is and what it controls.
+
+- **Then the UI** — which admin page edits it and what the controls do.
+
+- **Keep the JSON / schema as a reference appendix** at the end, framed as the *stored* format the editor reads and writes (useful for understanding the fields, or authoring as files), **not** as the primary "how to author" path.
+
+There is **no raw-JSON editor on these pages.** Never tell the reader to "edit the JSON" on a page — they use the structured controls. The Monaco view that appears is a read-only **diff** for review before pushing.
+
+### 3. Don't hardcode the Horizon version
+
+The website serves these docs **pinned per release**, so a version string in the body is redundant and silently goes stale on the next release. By default, write version-neutral: use a `<version>` placeholder in install commands, or phrase around it. State a concrete version only when the content is genuinely version-specific (a compatibility note, or a "new in X" call-out you deliberately want pinned).
+
+The **one maintained exception** is `docs/setup/container-image.md`: its image tags track the current release and are advanced automatically by the release tooling — leave them as concrete versions.
+
+### 4. Other house rules
+
+- **Tech terms and proper nouns stay verbatim** — SkyWalking, OAP, MQE, eBPF, Kubernetes, Istio, GraphQL, layer keys (`GENERAL`, `MESH`), scope enums (Service, Endpoint), metric ids. Don't translate or rename them.
+
+- **Cross-link, don't duplicate.** One canonical page per concept; link to it rather than restating it.
+
+- **Add new pages to `docs/menu.yml`.** A page that isn't in the menu isn't navigable on the site.

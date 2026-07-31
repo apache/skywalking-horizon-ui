@@ -640,7 +640,7 @@ watch(logSource, (next, prev) => {
 
         <div class="iq-conditions">
           <div class="iq-conditions-h">
-            <span class="kicker iq-cond-kicker">{{ logSource === 'browser' ? t('Browser errors') : (logSource === 'pods' ? t('Kubernetes Pod logs') : 'Logs') }}</span>
+            <span class="kicker iq-cond-kicker">{{ logSource === 'browser' ? t('Browser errors') : (logSource === 'pods' ? t('Kubernetes Pod logs') : t('Logs')) }}</span>
             <button v-if="resolved" class="iq-resolved-tog" @click="showResolved = !showResolved">
               {{ showResolved ? '▾' : '▸' }} {{ t('Resolved query') }}
               <span class="dim">{{ resolved.source }}</span>
@@ -804,7 +804,7 @@ watch(logSource, (next, prev) => {
 
       <article v-else class="iq-list-card sw-card">
         <header class="iq-list-head">
-          <h4>Logs</h4>
+          <h4>{{ t('Logs') }}</h4>
           <span class="hint">{{ rows.length }} {{ t('logs') }}</span>
         </header>
         <div class="iq-stream-scroll">

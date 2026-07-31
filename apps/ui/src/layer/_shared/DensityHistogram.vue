@@ -28,7 +28,10 @@
 -->
 <script setup lang="ts" generic="K extends string">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { DensityBins } from '@/layer/_shared/useDensityBins';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   data: DensityBins<K>;
@@ -92,7 +95,7 @@ function fmtAxisTime(ts: number): string {
         </div>
         <div class="lg-density-tip-total">
           <slot name="tipTotal" :total="binTotal(data.bins[hoveredBin])">
-            {{ binTotal(data.bins[hoveredBin]) }} log<template v-if="binTotal(data.bins[hoveredBin]) !== 1">s</template>
+            {{ binTotal(data.bins[hoveredBin]) === 1 ? t('{n} log', { n: binTotal(data.bins[hoveredBin]) }) : t('{n} logs', { n: binTotal(data.bins[hoveredBin]) }) }}
           </slot>
         </div>
         <div class="lg-density-tip-rows">

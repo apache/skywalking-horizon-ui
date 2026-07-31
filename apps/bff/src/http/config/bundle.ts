@@ -100,7 +100,8 @@ export interface BundleSyncStatus {
     status: TemplateRow['status'];
   }>;
   /** Names where >1 enabled OAP record exists. Empty when clean.
-   *  Admin pages render a banner so the operator can disable extras. */
+   *  Admin pages render a banner so the operator can disable extras
+   *  (`winnerId` is the one kept — see `ConflictRow`). */
   conflicts: Array<{
     name: string;
     kind: TemplateKind;

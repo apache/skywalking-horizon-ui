@@ -18,6 +18,7 @@
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../config/schema.js';
 import { mapPool } from '../util/mapPool.js';
+import { wireFetch } from './wire-log.js';
 
 export interface GraphqlOptions {
   queryUrl: string;
@@ -80,7 +81,7 @@ export async function graphqlPost<T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> {
-  const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(opts.fetch ?? globalThis.fetch.bind(globalThis));
   const url = opts.queryUrl.replace(/\/$/, '') + '/graphql';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);

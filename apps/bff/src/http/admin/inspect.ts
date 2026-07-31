@@ -63,6 +63,7 @@ import { AttributionCache, attributeOrUnknown } from '../../logic/inspect/attrib
 import { MqeTargetCache } from '../../util/mqe-target.js';
 import { parseExecBody, fireMqe, MqeFireError } from '../../logic/inspect/exec.js';
 import { ServerTimeCache } from '../../util/time.js';
+import { wireFetch } from '../../client/wire-log.js';
 
 export interface InspectRouteDeps {
   config: ConfigSource;
@@ -183,7 +184,7 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       if (!ensureVerb(req, reply, deps, 'inspect:read')) return;
       const q = req.query as Record<string, string | undefined>;
       if (q.refresh === 'true' || q.refresh === '1') serverTime.invalidate();
-      const fetchImpl = deps.fetch ?? globalThis.fetch.bind(globalThis);
+      const fetchImpl = wireFetch(deps.fetch ?? globalThis.fetch.bind(globalThis));
       const value = await serverTime.get({
         config: () => deps.config.current,
         fetch: fetchImpl,
@@ -205,7 +206,7 @@ export function registerInspectRoutes(app: FastifyInstance, deps: InspectRouteDe
       if (!body) return; // 400 already sent.
 
       const cfg = deps.config.current;
-      const fetchImpl = deps.fetch ?? globalThis.fetch.bind(globalThis);
+      const fetchImpl = wireFetch(deps.fetch ?? globalThis.fetch.bind(globalThis));
       try {
         const target = await mqeTarget.resolve({
           config: () => cfg,

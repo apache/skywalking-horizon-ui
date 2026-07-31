@@ -35,7 +35,8 @@
  */
 
 import { defineStore } from 'pinia';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useAutoRefreshStore } from '@/controls/autoRefresh';
 
 export type TimeStep = 'MINUTE' | 'HOUR' | 'DAY';
 
@@ -119,15 +120,38 @@ export const useTimeRangeStore = defineStore('time-range', () => {
     if (preset.value) return preset.value.durationMs;
     return Math.max(0, customEndMs.value - customStartMs.value);
   });
-  /** Rolling preset endpoints recomputed every read so they stay
-   *  current; custom ranges use the operator-typed values. */
+  /** Wall clock a rolling preset window is anchored to. `Date.now()` is
+   *  NOT reactive, so a computed that called it directly would cache the
+   *  first value and the "rolling" window would never move — every later
+   *  read, including every auto-refresh tick, would replay the original
+   *  window. The anchor is an explicit dep, re-stamped by `reanchor()`
+   *  whenever the operator asks for current data. */
+  const anchorMs = ref<number>(Date.now());
+  /** Re-stamp a rolling window to now. Wired to the auto-refresh ticker
+   *  below (which the topbar's manual refresh also fires) and to preset
+   *  selection. No-op semantics for custom ranges — those are pinned to
+   *  the operator's absolute values. */
+  function reanchor(): void {
+    anchorMs.value = Date.now();
+  }
+  /** Rolling preset endpoints follow `anchorMs`; custom ranges use the
+   *  operator-typed values. */
   const range = computed<{ startMs: number; endMs: number }>(() => {
     if (preset.value) {
-      const endMs = Date.now();
+      const endMs = anchorMs.value;
       return { startMs: endMs - preset.value.durationMs, endMs };
     }
     return { startMs: customStartMs.value, endMs: customEndMs.value };
   });
+  // The global ticker is the app's one refresh clock (interval fires and
+  // the topbar's Refresh both bump it), so a rolling window advances in
+  // lockstep with the refetches it feeds — subscribers rebuild their
+  // request AFTER this watcher has moved the anchor.
+  watch(
+    () => useAutoRefreshStore().tickCount,
+    () => reanchor(),
+    { flush: 'sync' },
+  );
 
   const label = computed<string>(() => {
     if (preset.value) return preset.value.label;
@@ -136,6 +160,10 @@ export const useTimeRangeStore = defineStore('time-range', () => {
 
   function selectPreset(id: string): void {
     if (!TIME_PRESETS.some((p) => p.id === id)) return;
+    // Re-stamp unconditionally: re-picking the ALREADY-selected preset is
+    // the natural "give me the latest hour" gesture, and it writes an
+    // unchanged ref, so without this the window would not move.
+    reanchor();
     presetId.value = id;
   }
   function selectCustom(startMs: number, endMs: number, requestedStep: TimeStep): void {
@@ -177,6 +205,7 @@ export const useTimeRangeStore = defineStore('time-range', () => {
     selectPreset,
     selectCustom,
     selectByMinutes,
+    reanchor,
     customStartMs,
     customEndMs,
     customStep,

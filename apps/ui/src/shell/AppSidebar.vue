@@ -181,16 +181,17 @@ function isLayerDiverged(key: string): boolean {
       <div class="sw-nav-section sw-nav-section--icon" style="justify-content: space-between">
         <Icon :name="sectionIcon('Layers')" />
         <span style="flex: 1">{{ t('Layers') }}</span>
-        <span class="sw-nav-section-count">{{ publicLayers.length }} with services</span>
+        <span class="sw-nav-section-count">{{ t('{n} with services', { n: publicLayers.length }) }}</span>
       </div>
       <div v-if="!oapReachable && oapError" class="oap-banner" :title="oapError">
-        OAP unreachable
+        {{ t('OAP unreachable') }}
       </div>
       <div v-else-if="availableLayers.length === 0" class="empty-layers">
-        no service reporting yet —
-        <RouterLink to="/" style="color: var(--sw-accent-2); text-decoration: none">
-          set up a layer
-        </RouterLink>
+        <i18n-t keypath="no service reporting yet — {link}" scope="global">
+          <template #link>
+            <RouterLink to="/" style="color: var(--sw-accent-2); text-decoration: none">{{ t('set up a layer') }}</RouterLink>
+          </template>
+        </i18n-t>
       </div>
       <template v-for="(E, ei) in sidebarEntries" :key="E.kind === 'group' ? `g:${E.label}` : `s:${E.layer.key}:${ei}`">
         <template v-if="E.kind === 'group'">
@@ -327,7 +328,7 @@ function isLayerDiverged(key: string): boolean {
           <Icon name="event" />
           <span>{{ t('Debug events') }}</span>
           <span class="sw-badge" :class="debugPanelEnabled ? 'ok' : ''" style="margin-left: auto">
-            {{ debugPanelEnabled ? 'on' : 'off' }}
+            {{ debugPanelEnabled ? t('debug: on') : t('debug: off') }}
           </span>
         </button>
       </template>
@@ -347,9 +348,9 @@ function isLayerDiverged(key: string): boolean {
             white-space: nowrap;
           "
         >
-          {{ auth.user?.username ?? 'guest' }}
+          {{ auth.user?.username ?? t('guest') }}
         </div>
-        <div>{{ auth.user?.roles?.join(' · ') ?? 'not signed in' }}</div>
+        <div>{{ auth.user?.roles?.join(' · ') ?? t('not signed in') }}</div>
       </div>
       <button v-if="auth.isAuthenticated" class="sw-btn is-icon" :title="t('Sign out')" @click="signOut">
         <Icon name="share" :size="12" />

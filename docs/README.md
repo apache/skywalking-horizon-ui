@@ -8,9 +8,10 @@ The sidebar on the left of this site is the canonical entry point — every sect
 
 - **Setup** — quick start, container deployment, and the `horizon.yaml` settings operators usually need.
 - **Compatibility** — OAP version, network ports, required modules, and cluster-status checks.
-- **Operate** — Cluster Status, Data Retention, OAP Configuration, and Metrics Inspect.
+- **Features & Capabilities** — one page per feature: AI Assistant, Service Map, 3D Infrastructure Map, Traces, Logs, Browser Logs, Alarms, Events, Profiling, the Metrics / Trace / Log Inspect tools, Runtime Rules, Live Debugger, Cluster Status, Data Retention, and OAP Configuration.
+- **Bundled Dashboards** — the ready-made dashboards Horizon ships, one page each: the Services and Mesh overview dashboards, then every supported technology layer from ActiveMQ to Windows.
 - **Access Control** — local users, LDAP login, break-glass access, roles, audit log, and admin pages.
-- **Customization** — layer menus, dashboard templates, overview templates, and adding a layer.
+- **Customization** — layer menus, layer and overview dashboard templates, adding a layer, languages and translations, and themes and global defaults.
 - **Reference** — design target and widget reference for template authors.
 
 ## Quick orientation
@@ -22,10 +23,10 @@ Horizon runs as a browser UI plus a Horizon server process. The browser talks on
 | If you are… | Read first |
 |---|---|
 | Deploying Horizon for the first time | Setup → Quick Start, then Compatibility → OAP Version. |
-| Wiring up LDAP / configuring roles | Access Control → LDAP Backend, then RBAC. |
+| Wiring up LDAP / configuring roles | Access Control → LDAP Login, then Roles and Permissions. |
 | Customizing per-layer dashboards | Customization → Layer Dashboard Templates. |
 | Building a "war room" overview | Customization → Overview Templates. |
-| Diagnosing a "module disabled" warning | Compatibility → Required OAP Modules, then Operate → Cluster Status. |
+| Diagnosing a "module disabled" warning | Compatibility → Required OAP Modules, then Features & Capabilities → Cluster Status. |
 
 ## References
 

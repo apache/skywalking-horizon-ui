@@ -17,6 +17,7 @@
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { basicAuthHeader } from './graphql.js';
+import { wireFetch } from './wire-log.js';
 
 /**
  * Read OAP's resolved runtime config from the admin port's
@@ -34,7 +35,7 @@ export async function fetchConfigDump(
     auth?: { username: string; password: string };
   },
 ): Promise<Record<string, string>> {
-  const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(opts.fetch ?? globalThis.fetch.bind(globalThis));
   const url = `${adminUrl.replace(/\/$/, '')}/debugging/config/dump`;
   const headers: Record<string, string> = { accept: 'application/json' };
   if (opts.auth) {

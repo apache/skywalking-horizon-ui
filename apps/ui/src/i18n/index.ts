@@ -132,6 +132,14 @@ export const i18n = createI18n({
   } as Record<string, Record<string, string>>,
 });
 
+/** Keep `<html lang>` in sync with the active locale — index.html ships
+ *  `lang="en"` statically, which is wrong for assistive tech / spell
+ *  checkers the moment a stored non-English pick loads. */
+function applyDocumentLang(locale: Locale): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = locale;
+}
+applyDocumentLang(i18n.global.locale.value as Locale);
+
 /** Switch the active locale. Synchronous because every catalog is
  *  pre-bundled — no fetch, no failure mode. The async signature is
  *  kept so callers awaiting it (post-switch refetch chains) don't
@@ -140,6 +148,7 @@ export async function setLocale(next: Locale): Promise<Locale> {
   if (i18n.global.locale.value === next) return next;
   i18n.global.locale.value = next;
   persistLocale(next);
+  applyDocumentLang(next);
   return next;
 }
 

@@ -29,18 +29,19 @@ The full commit SHA is the canonical, immutable identifier. Moving tags are conv
 | `/app/node_modules/` | root | no | Production npm dependencies. |
 | `/app/static/` | root | no | Built UI assets (Vite `dist/`). |
 | `/app/horizon.yaml` | root | no | The **active** config — a **baked, fully tokenized default** (every field is a `${HORIZON_…:default}` env token). The image runs with no mounted file; override any field via env (see [Run with env vars only](#run-with-env-vars-only-no-mounted-file)), or bind-mount your own to replace it. |
-| `/app/bundled_templates/` | **horizon** | **yes** | Layer + overview JSON templates. Owned by `horizon` because the admin **Layer-Templates** and **Overview-Templates** editors write into per-key files here. |
+| `/app/bundled_templates/` | horizon | (read) | Bundled layer + overview JSON templates — the read-only **seed source**. In the default `templates.mode: live` they are seeded into OAP's `ui_template` store at boot; in `readonly` mode dashboards render straight from this bundle. Nothing writes here at runtime — admin template edits are stored in OAP, not in the container. |
 | `/data/` | **horizon** | **yes** | Declared `VOLUME`. Default destination for the audit log and wire debug log. Mount a PVC / named volume / host bind here for durable storage. |
 | `/app/sourcemaps/` | **horizon** | (read) | Static source maps for the **Browser Logs** tab. Bind-mount or copy `.map` files here and they're loaded at boot — durable across restarts. Optional; runtime uploads work without it. See [Browser Logs & Source Maps](../operate/browser-source-maps.md). |
 
-The runtime stage runs as the non-root user `horizon`. Two locations are owned by `horizon` so writes work without operator intervention: `bundled_templates/` (so the admin editors save) and `/data/` (so state files land somewhere durable).
+The runtime stage runs as the non-root user `horizon`. `/data/` is owned by `horizon` so the state files (audit log, wire debug log) can be written without operator intervention.
 
 ## Environment variables
 
 | Variable | Default in image | Purpose |
 |---|---|---|
 | `NODE_ENV` | `production` | Drives the logger format (JSON vs pretty) and Node optimizations. |
-| `LOG_LEVEL` | (unset → `error` in production, `debug` in dev) | Pino log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal`. |
+| `LOG_LEVEL` | (unset → `warn` in production, `debug` in dev) | Pino log level: `trace`, `debug`, `info`, `warn`, `error`, `fatal`. |
+| `HORIZON_VERSION` | (unset → the build's baked version string) | Overrides the version string reported by the public `GET /api/health` probe endpoint. |
 | `HORIZON_CONFIG` | `/app/horizon.yaml` | Where the BFF looks for `horizon.yaml`. Override to mount elsewhere. |
 | `HORIZON_STATIC_DIR` | `/app/static` | Where the BFF serves UI assets from. |
 | `HORIZON_AUDIT_FILE` | `/data/horizon-audit.jsonl` | Default for `audit.file` when `horizon.yaml` doesn't override it. |
@@ -64,6 +65,7 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_OAP_ADMIN_URL` | `http://127.0.0.1:17128` | url | OAP admin host (runtime-rule / inspect / status). |
 | `HORIZON_OAP_ZIPKIN_URL` | `http://127.0.0.1:9412/zipkin` | url | OAP Zipkin v2 host. |
 | `HORIZON_OAP_TIMEOUT_MS` | `15000` | int | Outbound OAP request timeout. |
+| `HORIZON_OAP_MQE` | (none) | JSON | MQE endpoint override for the Metrics Inspect page, e.g. `{"host":"mqe.internal","port":12800}` (both fields optional). Defaults to the query host — see [OAP Connection](oap.md#mqe-endpoint-override-oapmqe). |
 | `HORIZON_OAP_AUTH` | (none) | JSON | OAP basic-auth, e.g. `{"username":"sw","password":"sw"}`. |
 | `HORIZON_AUTH_BACKEND` | `local` | `local` \| `ldap` | Auth backend. |
 | `HORIZON_AUTH_LOCAL_USERS` | `[]` | JSON | Local users: `[{"username":"admin","passwordHash":"$argon2id$…","roles":["admin"]}]` (hash via `pnpm --filter bff cli:hash`). |
@@ -85,6 +87,16 @@ Scalar vars take a plain value; **list / object vars take a JSON string** (injec
 | `HORIZON_DEBUG_LOG_ENABLED` | `false` | bool | OAP wire debug log. |
 | `HORIZON_DEBUG_LOG_MAX_BODY_CHARS` | `8192` | int | Wire-log body truncation. |
 | `HORIZON_DEBUG_LOG_REDACT_AUTH` | `true` | bool | Redact auth headers in the wire log. |
+| `HORIZON_AUDIT_ENABLED` | `true` | bool | Audit trail. On by default; `false` disables audit logging entirely. |
+| `HORIZON_AI_ENABLED` | `false` | bool | AI assistant master switch. See [AI Assistant](../operate/ai-assistant.md). |
+| `HORIZON_AI_PROVIDER` | `openai-compatible` | `openai-compatible` \| `bedrock` | AI transport. Set `bedrock` only for Amazon Bedrock. |
+| `HORIZON_AI_MODEL` | (none) | string | Model id (for `bedrock`, the Bedrock model / inference-profile id). |
+| `HORIZON_AI_BASE_URL` | (none) | url | OpenAI-compatible endpoint URL. |
+| `HORIZON_AI_REGION` | (none) | string | AWS region for `bedrock`; blank → `AWS_REGION` / `AWS_DEFAULT_REGION`. |
+| `HORIZON_AI_API_KEY` | (none) | string | **Secret.** Provider API key (for `bedrock`, the bearer key). Redacted from logs. |
+| `HORIZON_AI_SYSTEM_PROMPT` | (none) | string | Override the bundled system prompt; blank keeps the default. |
+| `HORIZON_AI_STARTERS` | (built-in) | JSON | Override the starter example chips, e.g. `["What is failing right now?"]`. |
+| `HORIZON_AI_HISTORY_MAX_MB` | `500` | int | Per-user browser-side (IndexedDB) chat-history cap. |
 | `HORIZON_PERFORMANCE` | (built-in) | JSON | BFF→OAP fan-out + caps, e.g. `{"bulk":{"dashboard":{"bulkSize":8}}}`. |
 
 Server bind, static dir, the `HORIZON_*_FILE` state paths, and `HORIZON_SOURCEMAPS_DIR` are in the table above this section (the image already sets them to container-appropriate values).
@@ -269,16 +281,11 @@ If you want to override the locations, you can either:
 
 In either case the target directory must be writable by the `horizon` user. Storage classes that enforce ownership need `fsGroup` set in Kubernetes (or `chown` on bind mounts) to match the `horizon` UID/GID inside the container.
 
-### Persisting admin-edited templates
+### Where admin-edited templates live
 
-The Layer-Templates and Overview-Templates admin editors write into `/app/bundled_templates/`. The image's `bundled_templates/` directory is owned by the `horizon` user so saves work out of the box — but it is **inside the image layer**, meaning admin edits are lost on container replacement.
+Admin template edits (Layer-Templates, Overview-Templates, translations) are **stored in OAP's `ui_template` store**, not inside the Horizon container — persistence follows your OAP storage backend, and nothing needs to be mounted or copied to keep them. Replacing or upgrading the Horizon container never loses admin edits.
 
-To persist admin-edited templates across container restarts / image updates:
-
-1. Copy the bundled templates out of the image once: `docker cp <container>:/app/bundled_templates ./bundled_templates`.
-2. Mount that directory back in: `-v "$PWD/bundled_templates:/app/bundled_templates"`.
-
-The mounted directory must be writable by the `horizon` user (UID/GID inside the container — check with `docker run --rm <image> id horizon`). Without persistence, admin edits behave as ephemeral overrides — useful for try-it-out, destructive for production.
+`/app/bundled_templates/` is the **read-only seed source**: in the default `templates.mode: live`, Horizon seeds any bundled template that is missing from OAP into the `ui_template` store at boot; in `templates.mode: readonly`, dashboards render directly from this bundle and the template admin surface is read-only. Nothing writes into the directory at runtime, so bind-mounting it persists nothing — mount it only if you want to **replace the bundle itself** (custom seed templates, or a custom read-only set for `readonly` mode). See [`horizon.yaml` Reference → Template source mode](horizon-yaml.md#template-source-mode).
 
 ## Logging
 
@@ -286,22 +293,24 @@ The BFF uses [pino](https://github.com/pinojs/pino) and writes **structured JSON
 
 | Mode | How to enter | Output |
 |---|---|---|
-| Production | The image sets `NODE_ENV=production`. Anything that isn't explicitly `NODE_ENV=development` is treated as production — including the local binary `node dist/server.js`. | One JSON object per line on stdout. **Default level `error`** — quiet by default; only warnings, errors, and fatals reach stdout. Fields: `level`, `time`, `pid`, `hostname`, plus per-event keys (`reqId`, `req`, `res`, `responseTime`, `msg`, …). |
+| Production | The image sets `NODE_ENV=production`. Anything that isn't explicitly `NODE_ENV=development` is treated as production — including the local binary `node dist/server.js`. | One JSON object per line on stdout. **Default level `warn`** — quiet by default; only warnings, errors, and fatals reach stdout. Fields: `level`, `time`, `pid`, `hostname`, plus per-event keys (`reqId`, `req`, `res`, `responseTime`, `msg`, …). |
 | Development | `pnpm --filter bff dev` (the `dev` script sets `NODE_ENV=development` explicitly). | Pretty-printed, colorized, with timestamps via `pino-pretty`. **Default level `debug`** — full lifecycle chatter + per-request access logs. Human-readable. |
 
 Adjust the floor with `LOG_LEVEL` when triaging:
 
 ```sh
-docker run -e LOG_LEVEL=info ...    # add per-request access logs + lifecycle
-docker run -e LOG_LEVEL=debug ...   # add the loader / capability-probe chatter
+docker run -e LOG_LEVEL=info ...    # louder: add per-request access logs + lifecycle
+docker run -e LOG_LEVEL=debug ...   # louder still: add the loader / capability-probe chatter
 docker run -e LOG_LEVEL=trace ...   # every pino-instrumented site
-docker run -e LOG_LEVEL=warn ...    # even quieter than the default
+docker run -e LOG_LEVEL=error ...   # quieter than the default: silences warnings
 NODE_ENV=production LOG_LEVEL=info node dist/server.js
 ```
 
+The default floor is `warn` (not `error`) because misconfiguration and security signals — break-glass logins, LDAP failures, rejected config hot-reloads — are emitted at `warn`, and operators are told to alert on them. Dropping to `LOG_LEVEL=error` silences all of those.
+
 ### Per-request logging
 
-The server request logger is on by default and emits one `incoming request` line + one `request completed` line per HTTP request, both tagged with a stable `reqId`. These are level-`info` (30) events — **suppressed under the production default `error`**. Bump to `LOG_LEVEL=info` to surface them; example pair under that level:
+The server request logger is on by default and emits one `incoming request` line + one `request completed` line per HTTP request, both tagged with a stable `reqId`. These are level-`info` (30) events — **suppressed under the production default `warn`**. Bump to `LOG_LEVEL=info` to surface them; example pair under that level:
 
 ```json
 {"level":30,"time":1779109372598,"pid":1,"hostname":"...","reqId":"req-1","req":{"method":"GET","url":"/api/auth/health","host":"127.0.0.1:8081","remoteAddress":"192.168.65.1","remotePort":60655},"msg":"incoming request"}
@@ -315,7 +324,7 @@ This is separate from the **audit log** (which records sensitive operations — 
 | Channel | Where | What | Toggle |
 |---|---|---|---|
 | App logs | stdout (JSON in prod, pretty in dev) | Lifecycle + per-request | Always on. `LOG_LEVEL` adjusts. |
-| Audit log | `audit.file` (JSONL) | Logins, RBAC-gated mutations | Always on. Path = `audit.file`. |
+| Audit log | `audit.file` (JSONL) | Logins, RBAC-gated mutations | On by default; `audit.enabled: false` disables. Path = `audit.file`. |
 | Wire-debug | `debugLog.file` (JSONL) | Outbound OAP requests/responses | Off by default. `debugLog.enabled: true` opt-in. |
 
 ### Aggregating from Docker
@@ -400,7 +409,7 @@ Liveness probes should use the public `GET /api/health` (or TCP-only on 8081). W
 - **`server.host: 127.0.0.1` inside the container.** Listener binds loopback only; `-p` cannot route traffic in. Set `0.0.0.0`.
 - **Mounting `horizon.yaml` as a directory.** `docker run -v "$PWD:/app/horizon.yaml"` mounts the whole working directory and shadows `/app`. Always mount the **file** path, not the directory.
 - **State files lost on container replacement.** The image's defaults route state files to `/data/`, which is declared as a `VOLUME` but is ephemeral unless you bind / mount-PVC it. Mount a durable volume at `/data` (or override the paths via `HORIZON_*_FILE` env vars).
-- **Forking the image without preserving `/app/bundled_templates` ownership.** The image `chown`s this dir to `horizon` so admin saves work. A naive `COPY --from=base /app /app` in a child image resets ownership to root → admin Layer-Templates / Overview-Templates saves EACCES. Either re-`chown` in your child image, or mount your own writable directory at `/app/bundled_templates`.
+- **Mounting `/app/bundled_templates` to "persist" admin edits.** Admin template edits live in OAP's `ui_template` store, not in the container — the mount persists nothing. The directory is only the read-only seed / `readonly`-mode source; mount it only to replace the bundle itself.
 - **Secrets in baked config.** Use `${ENV_VAR}` interpolation and pass actual secrets via env. Anything in a built image layer is recoverable by anyone who pulls the image.
 - **Pinning `latest` in production.** `latest` moves silently; an automatic `pull` rolls you onto a new version without notice. Pin a SHA.
 - **Multi-replica without sticky sessions.** Sessions are in-memory per BFF process. Multi-replica without sticky routing breaks logins on every other request.

@@ -17,11 +17,8 @@
 
 /**
  * Wire types for the runtime-rule REST surface and the cluster-status
- * query. Mirrors `reference_runtime_rule_api.md` in Claude memory; the
- * authoritative source is the upstream
- * `RuntimeRuleRestHandler.java` + `RuntimeRuleService.java` on
- * `feature/runtime-rule-hot-update` (squashed tip in
- * `~/github/skywalking`).
+ * query. The authoritative source is upstream
+ * `RuntimeRuleRestHandler.java` + `RuntimeRuleService.java`.
  *
  * v1 binds to MAL + LAL only. OAL is permanently excluded from
  * hot-update.
@@ -286,17 +283,76 @@ export interface ClusterNodesResponse {
   nodes: ClusterNode[];
 }
 
+// ── admin-surface error envelopes ──────────────────────────────────
+
+/**
+ * The second failure envelope OAP's admin surface emits. The
+ * runtime-rule pipeline answers with an {@link ApplyResult} keyed by
+ * `applyStatus` (`RuntimeRuleService#jsonBody`); the dsl-debugging and
+ * runtime-oal handlers answer with this one, keyed by `code`
+ * (`DSLDebuggingRestHandler#error`, `RuntimeOalRestHandler#errorBody`).
+ * `code` stays open-ended for the same forward-compatibility reason
+ * `applyStatus` is, and a sender may add fields on top of the three
+ * below (debug session-install refusals attach `peers[]`) — the parser
+ * keeps whatever came over the wire.
+ */
+export interface ApiErrorEnvelope {
+  status: 'error';
+  code: string;
+  message: string;
+}
+
+/** Body carried by {@link RuntimeRuleApiError}: either JSON envelope,
+ *  or the verbatim response text when it parsed as neither. */
+export type ApiErrorBody = ApplyResult | ApiErrorEnvelope | string;
+
+/**
+ * Parse a failed admin response into the richest shape its body
+ * supports. Never fabricates an envelope — a body that matches neither
+ * comes back as the verbatim text, so callers can tell "OAP rejected
+ * this" (object) from "something else answered" (string: a proxy's HTML,
+ * a bare status line).
+ */
+export function parseApiErrorBody(text: string): ApiErrorBody {
+  try {
+    const json = JSON.parse(text) as Record<string, unknown>;
+    if (typeof json.applyStatus === 'string' && typeof json.message === 'string') {
+      return json as unknown as ApplyResult;
+    }
+    if (
+      json.status === 'error' &&
+      typeof json.code === 'string' &&
+      typeof json.message === 'string'
+    ) {
+      return json as unknown as ApiErrorEnvelope;
+    }
+  } catch {
+    // not JSON; keep the raw text.
+  }
+  return text;
+}
+
+/** Both envelopes carry a discriminator plus a message; render whichever
+ *  one this body actually has. Reading `applyStatus` off a `code`-keyed
+ *  envelope is what put a literal `undefined:` in front of every
+ *  dsl-debugging / runtime-oal failure (`rule_not_found`,
+ *  `too_many_sessions`, `missing_source`, …). */
+function describeApiErrorBody(body: ApiErrorBody): string {
+  if (typeof body === 'string') return body;
+  const discriminator = 'applyStatus' in body ? body.applyStatus : body.code;
+  return `${discriminator}: ${body.message}`;
+}
+
 /** Thrown by the client for any HTTP response outside the expected
- *  set. Exposes the parsed body so callers can switch on
- *  `applyStatus`. */
+ *  set. Exposes the parsed body so callers can switch on `applyStatus`
+ *  or `code`. */
 export class RuntimeRuleApiError extends Error {
   constructor(
     public readonly status: number,
-    public readonly body: ApplyResult | string,
+    public readonly body: ApiErrorBody,
     public readonly url: string,
   ) {
-    const detail = typeof body === 'string' ? body : `${body.applyStatus}: ${body.message}`;
-    super(`${status} on ${url} — ${detail}`);
+    super(`${status} on ${url} — ${describeApiErrorBody(body)}`);
     this.name = 'RuntimeRuleApiError';
   }
 }

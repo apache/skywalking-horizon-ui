@@ -26,10 +26,12 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
 import { rowKey } from './row-key';
 
+const { t } = useI18n();
 const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
 defineProps<{ serviceLabel: string }>();
 
@@ -98,32 +100,32 @@ const effectiveOrderBy = computed(
        the per-layer page. -->
   <section class="sw-card metrics-card">
     <div class="card-head">
-      <h4>Service list metrics</h4>
-      <span class="sub">columns + default sort for the service list (picker zone)</span>
-      <button class="sw-btn add" type="button" @click="addMetricColumn">＋ Add column</button>
+      <h4>{{ t('Service list metrics') }}</h4>
+      <span class="sub">{{ t('columns + default sort for the service list (picker zone)') }}</span>
+      <button class="sw-btn add" type="button" @click="addMetricColumn">{{ t('＋ Add column') }}</button>
     </div>
     <div v-if="metricsModel" class="metrics-keys">
       <label>
-        <span>Default sort (orderBy)</span>
+        <span>{{ t('Default sort (orderBy)') }}</span>
         <select v-model="metricsModel.orderBy">
-          <option :value="undefined">(first column)</option>
+          <option :value="undefined">{{ t('(first column)') }}</option>
           <option v-for="c in metricsColumns" :key="c.metric" :value="c.metric">{{ c.metric }}</option>
         </select>
       </label>
     </div>
     <div v-if="metricsColumns.length === 0" class="empty inset">
-      No metric columns defined. Click "Add column" to start.
+      {{ t('No metric columns defined. Click "Add column" to start.') }}
     </div>
     <table v-else class="sw-table metrics-table">
       <thead>
         <tr>
-          <th>metric</th>
-          <th>label</th>
-          <th>unit</th>
-          <th>aggregation</th>
-          <th class="grow">mqe</th>
-          <th>scale</th>
-          <th>precision</th>
+          <th>{{ t('metric') }}</th>
+          <th>{{ t('label') }}</th>
+          <th>{{ t('unit') }}</th>
+          <th>{{ t('aggregation') }}</th>
+          <th class="grow">{{ t('mqe') }}</th>
+          <th>{{ t('scale') }}</th>
+          <th>{{ t('precision') }}</th>
           <th></th>
         </tr>
       </thead>
@@ -138,11 +140,11 @@ const effectiveOrderBy = computed(
               <option value="avg">avg</option>
             </select>
           </td>
-          <td><input class="mono" v-model="c.mqe" placeholder="catalog default" /></td>
+          <td><input class="mono" v-model="c.mqe" :placeholder="t('catalog default')" /></td>
           <td><input type="number" step="any" :value="c.scale" placeholder="1" @input="setNum(c, 'scale', $event)" /></td>
-          <td><input type="number" min="0" max="6" :value="c.precision" placeholder="auto" @input="setNum(c, 'precision', $event)" /></td>
+          <td><input type="number" min="0" max="6" :value="c.precision" :placeholder="t('auto')" @input="setNum(c, 'precision', $event)" /></td>
           <td>
-            <button class="sw-btn is-icon danger" type="button" title="Remove column" @click="deleteMetricColumn(i)">✕</button>
+            <button class="sw-btn is-icon danger" type="button" :title="t('Remove column')" @click="deleteMetricColumn(i)">✕</button>
           </td>
         </tr>
       </tbody>
@@ -152,7 +154,7 @@ const effectiveOrderBy = computed(
          default-sort marker). Mock values, no MQE fired. -->
     <div v-if="metricsColumns.length > 0" class="metrics-preview">
       <div class="metrics-preview-head">
-        Preview <span class="sub">how this layer’s service list renders (sample data)</span>
+        {{ t('Preview') }} <span class="sub">{{ t('how this layer’s service list renders (sample data)') }}</span>
       </div>
       <div class="metrics-preview-scroll">
         <table class="sw-table preview-table">
@@ -161,7 +163,7 @@ const effectiveOrderBy = computed(
               <th>{{ serviceLabel }}</th>
               <th v-for="c in metricsColumns" :key="c.metric" class="num">
                 {{ c.label || c.metric }}
-                <span v-if="effectiveOrderBy === c.metric" class="sort-ind" title="default sort">↓</span>
+                <span v-if="effectiveOrderBy === c.metric" class="sort-ind" :title="t('default sort')">↓</span>
               </th>
             </tr>
           </thead>

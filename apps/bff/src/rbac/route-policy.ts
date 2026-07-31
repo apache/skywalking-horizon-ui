@@ -109,7 +109,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/zipkin/trace/:traceId':                'traces:read',
   'GET /api/zipkin/autocomplete/keys':             'traces:read',
   'GET /api/zipkin/autocomplete/values':           'traces:read',
-  'GET /api/zipkin/traceMany':                     'traces:read',
 
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',
@@ -202,7 +201,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/admin/overview-templates':             'overview:write',
   'GET /api/admin/overview-templates/:id':         'overview:write',
   'POST /api/admin/templates/resync':              'overview:write',
-  'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save-translation':    'overview:write',
   'POST /api/admin/templates/delete-translation':  'overview:write',
   'POST /api/admin/templates/disable':             'overview:write',

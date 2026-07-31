@@ -86,12 +86,12 @@ function preview(src: EditorSource): void {
       <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
       <!-- Single-line identity: Layer: <name> <key> <local> <status>. -->
       <div class="identity-title">
-        <span class="identity-label">Layer:</span>
+        <span class="identity-label">{{ t('Layer:') }}</span>
         <h2>{{ selectedTpl.alias || selectedTpl.key }}</h2>
         <code>{{ selectedTpl.key }}</code>
         <!-- Same sync status the picker shows, so the editor and the
              dropdown agree (e.g. both read DISABLED, not one BUNDLED). -->
-        <span v-if="hasLocalDraft" class="local-badge" title="Unpublished local draft in this browser">local</span>
+        <span v-if="hasLocalDraft" class="local-badge" :title="t('Unpublished local draft in this browser')">{{ t('local') }}</span>
         <TemplateStatusBadge :status="badge" />
       </div>
       <!-- Disable / Reactivate. Sits by the title, away from the
@@ -104,11 +104,11 @@ function preview(src: EditorSource): void {
           type="button"
           :disabled="isSaving || readOnly"
           :title="readOnly
-            ? 'OAP unreachable — cannot reactivate'
-            : `Reactivate the ${selectedTpl.key} layer (re-enable on OAP)`"
+            ? t('OAP unreachable — cannot reactivate')
+            : t('Reactivate the {key} layer (re-enable on OAP)', { key: selectedTpl.key })"
           @click="emit('reactivate')"
         >
-          Reactivate
+          {{ t('Reactivate') }}
         </button>
         <button
           v-else
@@ -116,15 +116,15 @@ function preview(src: EditorSource): void {
           type="button"
           :disabled="isSaving || (readOnly && (remoteAvailable || bundledExists))"
           :title="(readOnly && (remoteAvailable || bundledExists))
-            ? 'OAP unreachable — cannot delete'
+            ? t('OAP unreachable — cannot delete')
             : bundledExists
-              ? `Disable the built-in ${selectedTpl.key} layer (hidden from the sidebar; Reactivate to bring it back)`
+              ? t('Disable the built-in {key} layer (hidden from the sidebar; Reactivate to bring it back)', { key: selectedTpl.key })
               : remoteAvailable
-                ? `Delete the ${selectedTpl.key} layer template (soft-disabled on OAP)`
-                : `Remove the local draft for ${selectedTpl.key}`"
+                ? t('Delete the {key} layer template (soft-disabled on OAP)', { key: selectedTpl.key })
+                : t('Remove the local draft for {key}', { key: selectedTpl.key })"
           @click="emit('delete')"
         >
-          {{ bundledExists ? 'Disable' : 'Delete' }}
+          {{ bundledExists ? t('Disable') : t('Delete') }}
         </button>
       </div>
       <div class="actions">
@@ -158,19 +158,19 @@ function preview(src: EditorSource): void {
           type="button"
           :disabled="!canExport"
           :title="canExport
-            ? 'Download the in-use version (live on OAP, or the bundled default) as a JSON file.'
-            : 'Nothing to export yet.'"
+            ? t('Download the in-use version (live on OAP, or the bundled default) as a JSON file.')
+            : t('Nothing to export yet.')"
           @click="emit('export')"
-        >Export</button>
+        >{{ t('Export') }}</button>
         <button
           class="sw-btn"
           type="button"
-          title="Import a layer dashboard JSON file as a local draft — preview, then publish."
+          :title="t('Import a layer dashboard JSON file as a local draft — preview, then publish.')"
           @click="emit('import')"
-        >Import</button>
+        >{{ t('Import') }}</button>
         <div class="reset-dd">
           <button class="sw-btn" type="button" @click="resetDropdownOpen = !resetDropdownOpen">
-            Reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
+            {{ t('Reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
           </button>
           <template v-if="resetDropdownOpen">
             <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
@@ -207,14 +207,14 @@ function preview(src: EditorSource): void {
         </div>
         <div class="reset-dd">
           <button class="sw-btn" type="button" @click="previewDropdownOpen = !previewDropdownOpen">
-            Preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
+            {{ t('Preview') }} <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
           </button>
           <template v-if="previewDropdownOpen">
             <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
             <div class="reset-dd-pop">
-              <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="preview('local')">Local</button>
-              <button v-if="!isSynced" class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="preview('bundled')">Bundled</button>
-              <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="preview('remote')">Remote</button>
+              <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" :title="t('Preview your unpublished local draft.')" @click="preview('local')">{{ t('Local') }}</button>
+              <button v-if="!isSynced" class="reset-dd-item" type="button" :title="t('Preview the bundled (shipped) default.')" @click="preview('bundled')">{{ t('Bundled') }}</button>
+              <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="t('Preview OAP\'s live version.')" @click="preview('remote')">{{ t('Remote') }}</button>
             </div>
           </template>
         </div>
@@ -225,19 +225,19 @@ function preview(src: EditorSource): void {
           class="sw-btn"
           type="button"
           :disabled="!localDiffersFromRemote || isSaving"
-          :title="localDiffersFromRemote ? 'Review the local → remote diff, then publish to OAP.' : 'No local changes to publish — local matches remote.'"
+          :title="localDiffersFromRemote ? t('Review the local → remote diff, then publish to OAP.') : t('No local changes to publish — local matches remote.')"
           @click="emit('push')"
         >
-          Check diff &amp; push
+          {{ t('Check diff & push') }}
         </button>
         <button
           class="sw-btn is-primary"
           type="button"
           :disabled="(!dirty && !editorDiffersFromRemote) || isSaving"
-          title="Save the editor to your browser (local). Publish later with “Push local → OAP”."
+          :title="t('Save the editor to your browser (local). Publish later with “Push local → OAP”.')"
           @click="emit('save')"
         >
-          {{ isSaving ? 'Saving…' : 'Save (local)' }}
+          {{ isSaving ? t('Saving…') : t('Save (local)') }}
         </button>
       </div>
     </div>
@@ -253,7 +253,7 @@ function preview(src: EditorSource): void {
          (OAP / Satellite / agent self-obs) is the canonical
          example. -->
     <div class="visibility-row">
-      <label class="vis-label">Sidebar placement</label>
+      <label class="vis-label">{{ t('Sidebar placement') }}</label>
       <div class="vis-options">
         <label
           class="vis-opt"
@@ -267,8 +267,8 @@ function preview(src: EditorSource): void {
             @change="emit('set-visibility', 'public')"
           />
           <span class="vis-opt-body">
-            <span class="vis-opt-title">Public</span>
-            <span class="vis-opt-hint">Shows in the user-facing Layers section</span>
+            <span class="vis-opt-title">{{ t('Public') }}</span>
+            <span class="vis-opt-hint">{{ t('Shows in the user-facing Layers section') }}</span>
           </span>
         </label>
         <label
@@ -283,8 +283,8 @@ function preview(src: EditorSource): void {
             @change="emit('set-visibility', 'operate')"
           />
           <span class="vis-opt-body">
-            <span class="vis-opt-title">Operate</span>
-            <span class="vis-opt-hint">Shows in the operations / self-observability section</span>
+            <span class="vis-opt-title">{{ t('Operate') }}</span>
+            <span class="vis-opt-hint">{{ t('Shows in the operations / self-observability section') }}</span>
           </span>
         </label>
       </div>

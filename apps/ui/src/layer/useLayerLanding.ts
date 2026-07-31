@@ -17,7 +17,6 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useAutoRefreshSubscribe } from '../controls/useAutoRefreshSubscribe';
 import type { LandingConfig, LandingResponse, LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 
@@ -87,9 +86,11 @@ export function useLayerLanding(
     retry: 1,
   });
 
-  useAutoRefreshSubscribe(() => {
-    if (isEnabled.value) void q.refetch();
-  });
+  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
+  // preset's window advances with the ticker, so each tick already re-keys the
+  // query and vue-query fetches the new window. Subscribing as well would fire
+  // two requests per tick for the same data. A frozen window (embedded/replay,
+  // or a pinned custom range) does not re-key — and must not refetch anyway.
 
   const data = computed<LandingResponse | null>(() => q.data.value ?? null);
   const rows = computed(() => data.value?.rows ?? []);

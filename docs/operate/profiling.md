@@ -21,7 +21,7 @@ Profiling drills past metrics and traces into the call stacks, kernel events, an
 
 Every profiling tab follows the same shape: a task list on the left, a New Task control to start a profiling run, and a result panel on the right that renders the captured data once OAP has fanned the task out to the relevant instances or processes. Results are shown as an indented stack tree or a flame graph, with a toggle between the two where both apply.
 
-Task creation is consistent across every tab. The New Task control opens once you have selected its target — a service, or a service instance for Network Profiling. Inside the dialog, if the target cannot be profiled — no profilable processes, or no instances on the service — Create is disabled with the reason shown next to it, rather than a silently greyed-out control. You always see why a task cannot be started.
+Task creation is consistent across every tab. The New Task control opens once you have selected a service; for Network Profiling, the target instance is picked inside the dialog. Inside the dialog, a target that cannot be profiled at all — no profilable processes for eBPF, or no instances on the service — disables Create with the reason shown next to it, rather than a silently greyed-out control; advisory checks (such as Network Profiling's process list) warn without blocking. You always see why a task cannot be started.
 
 ## Access control
 
@@ -84,7 +84,7 @@ Async Profiling runs the async-profiler against a live Java service, capturing J
 - `CTIMER`
 - `ITIMER`
 
-You can select multiple instances and multiple events in a single task. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`).
+You can select multiple instances and multiple events in a single task, with a duration from 30 seconds up to 15 minutes. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`).
 
 ## pprof
 
@@ -102,7 +102,7 @@ The dialog adapts to the event you pick:
 
 - `CPU`, `BLOCK`, and `MUTEX` are time-bounded captures and require a **Duration** (up to 15 minutes).
 
-- `BLOCK` and `MUTEX` additionally take a **Dump period** sampling rate — for `BLOCK` it is a blocked-nanoseconds rate, for `MUTEX` a contention-occurrences rate; a value of `1` samples every event.
+- `BLOCK` and `MUTEX` additionally take a **Dump period** sampling rate — for `BLOCK` it is a blocked-nanoseconds rate, for `MUTEX` a contention-occurrences rate; a value of `1` samples every event. Because lower means *more* samples, an invalid value is rejected with the reason rather than silently replaced with a default.
 
 - `HEAP`, `GOROUTINE`, `ALLOCS`, and `THREADCREATE` are one-shot snapshots — they take no duration and no sampling rate, capturing the current state at the moment the task fires.
 
@@ -110,9 +110,9 @@ A task can target multiple Go service instances. After it runs, select the insta
 
 ## Network Profiling
 
-Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance, which you pick inside the New Task dialog. The dialog lists the rover-monitored processes reporting on that instance; an instance with no such processes cannot be profiled — OAP rejects the task — so Create is disabled with that reason. Once a valid instance is chosen, the task defines which traffic to sample.
+Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance, which you pick inside the New Task dialog. The dialog lists the rover-monitored processes that recently reported on that instance — as advice, not a gate: an instance with no recently-reported process shows a warning that the task may collect nothing, but you can still create it and let OAP decide. Once an instance is chosen, the task defines which traffic to sample.
 
-Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx responses, or by a minimum duration — and controls how much of each request and response body is collected. A network task keeps running until it is stopped, so the New Task dialog defines the sampling rules rather than a fixed duration.
+Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx responses, or by a minimum duration — and controls how much of each request and response body is collected. OAP runs every network task for a fixed ten minutes and the create request carries no duration, so the New Task dialog defines the sampling rules rather than a run length.
 
 The result is a **honeycomb topology**: each cell is a process, and the edges between them are the observed inter-process calls. Selecting an edge opens a detail panel with that process-to-process relation's metrics (call rate, latency, and bytes transferred) charted over the task's run window. The topology that drives this layout is the same process-relation data that powers the [3D Infrastructure Map](infra-3d-map.md).
 
@@ -154,9 +154,9 @@ Reading policies needs `profile:read`; saving one needs `profile:enable`, the sa
 
 - **No profiling tabs on a layer** — OAP did not report profiling support for that service. Each tab requires the corresponding capability (trace, eBPF, async-profiler, network, or pprof), which depends on the agent or [Rover](https://github.com/apache/skywalking-rover) deployment behind the service.
 
-- **New Task is unavailable** — you have not selected a service (or, for Network Profiling, an instance), or you lack `profile:enable`.
+- **New Task is unavailable** — you have not selected a service, or you lack `profile:enable`.
 
-- **Create is disabled inside the New Task dialog** — the chosen target cannot be profiled, and the reason is shown next to the button: for eBPF, OAP reports no profilable processes for the service; for Network Profiling, the selected instance has no rover-monitored processes; for Async Profiling and pprof, the service has no instances.
+- **Create is disabled inside the New Task dialog** — the chosen target cannot be profiled, and the reason is shown next to the button: for eBPF, OAP reports no profilable processes for the service; for Async Profiling, pprof, and Network Profiling, the service has no instances. On Network Profiling, an instance whose processes have not reported recently is a warning, not a block — the task can still be created.
 
 - **Task list is empty after creating a task** — the task is created, but results only appear once OAP has dispatched it to the instances or processes and they report back. The view polls for the new task briefly; use the refresh control if it does not appear.
 

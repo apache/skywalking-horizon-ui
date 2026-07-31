@@ -26,6 +26,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import type { LayerDef, TopologyNode } from '@/api/client';
 import { isUserNode } from '@/layer/service-map/useTopologyIcons';
@@ -44,6 +45,8 @@ const emit = defineEmits<{
   'update:hideUser': [boolean];
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
+
 const OTHERS_TOKEN = 'UNDEFINED'; // OAP's no-layer fallback, shown as "Others"
 const filterOpen = ref(false);
 useEscapeToClose(() => filterOpen.value, () => { filterOpen.value = false; });
@@ -59,7 +62,7 @@ function titleCaseEnum(raw: string): string {
   return raw.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 function layerLabel(token: string): string {
-  if (token === OTHERS_TOKEN) return 'Others';
+  if (token === OTHERS_TOKEN) return t('Others');
   const def = props.layers.find((l) => l.key === token.toLowerCase());
   return def?.name ?? titleCaseEnum(token);
 }
@@ -122,29 +125,29 @@ defineExpose({ filterActive });
       class="sw-btn small filter-btn"
       type="button"
       :class="{ active: filterActive }"
-      :title="filterActive ? `${hiddenCount} filter(s) active — click to edit` : 'Filter nodes'"
+      :title="filterActive ? t('{n} filter(s) active — click to edit', { n: hiddenCount }) : t('Filter nodes')"
       @click="toggleFilter"
     >
       <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
         <path d="M2 3h12l-4.6 5.8v4.3l-2.8 1.4V8.8z" />
       </svg>
-      <span v-if="!embedded" class="filter-btn-label">Filter</span>
+      <span v-if="!embedded" class="filter-btn-label">{{ t('Filter') }}</span>
       <span v-if="filterActive" class="filter-badge">{{ hiddenCount }}</span>
     </button>
     <div v-if="filterOpen" class="sm-filter-pop sw-card">
       <div class="sf-head">
-        <span class="sf-title">Show nodes</span>
-        <button v-if="filterActive" class="sf-reset" type="button" @click="resetFilter">Reset</button>
+        <span class="sf-title">{{ t('Show nodes') }}</span>
+        <button v-if="filterActive" class="sf-reset" type="button" @click="resetFilter">{{ t('Reset') }}</button>
       </div>
       <div v-if="hasUserNode" class="sf-group">
         <button class="sf-row" type="button" @click="toggleUser">
           <span class="sf-check" :class="{ on: !hideUser }" />
-          <span class="sf-name">User</span>
+          <span class="sf-name">{{ t('User') }}</span>
           <span class="sf-count">{{ userNodeCount }}</span>
         </button>
       </div>
       <div v-if="layerFacets.length > 0" class="sf-group">
-        <div class="sf-group-head">Layers</div>
+        <div class="sf-group-head">{{ t('Layers') }}</div>
         <button
           v-for="f in layerFacets"
           :key="'l-' + f.token"

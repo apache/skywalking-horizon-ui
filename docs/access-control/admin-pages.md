@@ -110,7 +110,9 @@ Read-only. To change roles, edit `rbac.roles` in `horizon.yaml`; hot-reload appl
 | `/admin/auth-status` | `auth:read` | (none built-in; assign explicitly) |
 | `/admin/users` | `user:read` | (none built-in; assign explicitly) |
 | `/admin/roles` | `role:read` | (none built-in; assign explicitly) |
-| `/operate/inspect` | `inspect:read` | maintainer, operator, admin |
+| `/operate/inspect` | `inspect:read` | viewer, maintainer, operator, admin |
+| `/operate/trace-inspect` | `inspect:read` | viewer, maintainer, operator, admin |
+| `/operate/log-inspect` | `inspect:read` | viewer, maintainer, operator, admin |
 | `/operate/ttl` | `ttl:read` | maintainer, operator, admin |
 | `/operate/config` | `config:read` | maintainer, operator, admin |
 | `/admin/3d-map` | `overview:write` | operator, admin |

@@ -112,6 +112,16 @@ const {
 
 const activeScopeRuntimeOnly = computed(() => RUNTIME_ONLY_SCOPES.has(activeScope.value));
 
+/** Enabled OAP record ids for a duplicated layer name — the browse rail
+ *  marks those rows so the operator sees the ambiguity before selecting. */
+function conflictIdsFor(name: string): string[] | null {
+  return sync.conflictFor(name)?.enabledIds ?? null;
+}
+/** Conflict banner for the layer currently open in the editor. The
+ *  page-level banner only counts the kind's conflicts; this one says
+ *  THIS layer is the ambiguous one and which OAP records hold it. */
+const selectedConflictBanner = computed(() => sync.conflictBannerFor(editName.value));
+
 /** When false the browse rail is hidden entirely and layer switching
  *  moves to the top dropdown inside the editor — the editor claims the
  *  full width. Defaults collapsed; the rail is an opt-in browse mode.
@@ -161,11 +171,11 @@ const traceSource = computed<TraceSource>({
     else draft.template.traces = { source: v };
   },
 });
-const TRACE_SOURCE_OPTIONS: Array<{ value: TraceSource; label: string; hint: string }> = [
-  { value: 'native', label: 'Native', hint: 'SkyWalking query-protocol traces (agent-instrumented).' },
-  { value: 'zipkin', label: 'OpenTelemetry & Zipkin', hint: 'Traces emitted from the OpenTelemetry & Zipkin ecosystem.' },
-  { value: 'both', label: 'Both', hint: 'Layer carries both native and OpenTelemetry/Zipkin traces — their span formats and query conditions differ, so each gets its own trace tab.' },
-];
+const TRACE_SOURCE_OPTIONS = computed<Array<{ value: TraceSource; label: string; hint: string }>>(() => [
+  { value: 'native', label: t('Native'), hint: t('SkyWalking query-protocol traces (agent-instrumented).') },
+  { value: 'zipkin', label: t('OpenTelemetry & Zipkin'), hint: t('Traces emitted from the OpenTelemetry & Zipkin ecosystem.') },
+  { value: 'both', label: t('Both'), hint: t('Layer carries both native and OpenTelemetry/Zipkin traces — their span formats and query conditions differ, so each gets its own trace tab.') },
+]);
 
 /* Logs has no per-layer config beyond the enable/disable Components
  * toggle. Trace carries one setting — `traces.source` (native / zipkin /
@@ -240,24 +250,24 @@ interface NamingTestResult {
 }
 const namingTest = computed<NamingTestResult>(() => {
   const rule = draft.template?.naming;
-  if (!rule) return { ok: false, display: null, group: null, alias: null, error: 'no rule configured' };
-  if (!rule.pattern) return { ok: false, display: null, group: null, alias: null, error: 'pattern required' };
+  if (!rule) return { ok: false, display: null, group: null, alias: null, error: t('no rule configured') };
+  if (!rule.pattern) return { ok: false, display: null, group: null, alias: null, error: t('pattern required') };
   let re: RegExp;
   try {
     re = new RegExp(rule.pattern, rule.flags ?? '');
   } catch (err) {
-    return { ok: false, display: null, group: null, alias: null, error: err instanceof Error ? err.message : 'invalid regex' };
+    return { ok: false, display: null, group: null, alias: null, error: err instanceof Error ? err.message : t('invalid regex') };
   }
   const m = namingSample.value.match(re);
   if (!m || !m.groups) {
-    return { ok: false, display: null, group: null, alias: rule.alias, error: 'no match' };
+    return { ok: false, display: null, group: null, alias: rule.alias, error: t('no match') };
   }
   const displayKey = rule.displayGroup || 'service';
   const valueKey = rule.valueGroup || 'group';
   const display = m.groups[displayKey] ?? null;
   const group = m.groups[valueKey] ?? null;
   if (!display && !group) {
-    return { ok: false, display: null, group: null, alias: rule.alias, error: `neither capture "${displayKey}" nor "${valueKey}" resolved` };
+    return { ok: false, display: null, group: null, alias: rule.alias, error: t('neither capture "{display}" nor "{value}" resolved', { display: displayKey, value: valueKey }) };
   }
   return { ok: true, display, group, alias: rule.alias, error: null };
 });
@@ -278,8 +288,8 @@ const namingTest = computed<NamingTestResult>(() => {
     <SyncStatusBanner :banner="layerSyncBanner" />
 
     <div v-if="error" class="banner err">{{ error }}</div>
-    <div v-if="isLoading" class="empty">Loading templates…</div>
-    <div v-else-if="templates.length === 0" class="empty">No layer templates loaded.</div>
+    <div v-if="isLoading" class="empty">{{ t('Loading templates…') }}</div>
+    <div v-else-if="templates.length === 0" class="empty">{{ t('No layer templates loaded.') }}</div>
 
     <div v-else class="grid" :class="{ 'list-collapsed': !layerListOpen }">
       <!-- Layer browse surface: the pinned left rail when expanded, the
@@ -298,6 +308,7 @@ const namingTest = computed<NamingTestResult>(() => {
         :refreshing="refreshingFromRemote"
         :read-only="sync.readOnly.value"
         :badge-for="sync.badgeFor"
+        :conflict-ids-for="conflictIdsFor"
         :is-diverged="isDivergedRow"
         :is-unconfigured="isUnconfiguredRow"
         :has-local-draft-for="hasLocalDraftFor"
@@ -305,6 +316,13 @@ const namingTest = computed<NamingTestResult>(() => {
       />
 
       <main v-if="selectedTpl" class="detail">
+        <!-- Selection-scoped duplicate warning. The page-level banner
+             above only counts the kind's conflicts; this one fires only
+             for the layer in the editor, so "this one is ambiguous" is
+             unmistakable. Warning only — resolving it is an OAP-side
+             decision Horizon never takes. -->
+        <SyncStatusBanner v-if="selectedConflictBanner" :banner="selectedConflictBanner" />
+
         <!-- Identity / action header: name + key + sync status, Disable /
              Reactivate, source pill, Export / Import, Reset-to + Preview
              dropdowns, Publish + Save, flash message, sidebar placement. -->
@@ -386,30 +404,28 @@ const namingTest = computed<NamingTestResult>(() => {
           class="sw-card components-card"
         >
           <div class="card-head">
-            <h4>Topology cluster setup</h4>
-            <span class="sub">parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)</span>
+            <h4>{{ t('Topology cluster setup') }}</h4>
+            <span class="sub">{{ t('parse service name → display label + cluster dimension (k8s/mesh namespace, tenant, fleet, …)') }}</span>
             <button
               v-if="!selectedTpl.naming"
               class="sw-btn add"
               type="button"
               @click="enableNaming"
-            >＋ Enable rule</button>
+            >{{ t('＋ Enable rule') }}</button>
             <button
               v-else
               class="sw-btn small ghost danger"
               type="button"
               @click="disableNaming"
-            >Remove rule</button>
+            >{{ t('Remove rule') }}</button>
           </div>
           <div v-if="!selectedTpl.naming" class="topo-cfg-help" style="padding: 12px 16px;">
-            No cluster rule configured — the topology view renders without cluster bounding
-            boxes. Enable a rule for layers whose service names encode a cluster dimension
-            (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.
+            {{ t('No cluster rule configured — the topology view renders without cluster bounding boxes. Enable a rule for layers whose service names encode a cluster dimension (k8s namespace, fleet, tenant) so topology can cluster nodes accordingly.') }}
           </div>
           <div v-else class="naming-body">
             <div class="naming-row">
               <label class="mf mf-wide">
-                <span>regex pattern</span>
+                <span>{{ t('regex pattern') }}</span>
                 <input
                   v-model="selectedTpl.naming.pattern"
                   class="mf-input mono"
@@ -418,26 +434,23 @@ const namingTest = computed<NamingTestResult>(() => {
                   placeholder="^(?<service>[^.]+)\.(?<namespace>[^.]+)$"
                 />
               </label>
-              <label class="mf mf-narrow" title="JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.">
-                <span>regex flags</span>
+              <label class="mf mf-narrow" :title="t('JavaScript regex flags: i = case-insensitive, m = multiline, s = dotall, u = unicode. Service names are case-sensitive single-line strings, so this is almost always empty.')">
+                <span>{{ t('regex flags') }}</span>
                 <input
                   v-model="selectedTpl.naming.flags"
                   class="mf-input mono"
                   type="text"
                   spellcheck="false"
-                  placeholder="(empty)"
+                  :placeholder="t('(empty)')"
                 />
               </label>
             </div>
             <div class="naming-flags-hint">
-              <code>flags</code> are passed as the second argument to
-              <code>new RegExp(pattern, flags)</code>. Common values: <code>i</code>
-              (case-insensitive), <code>m</code> (multiline). Leave empty for typical
-              k8s/mesh service names.
+              <code>flags</code> {{ t('are passed as the second argument to') }} <code>new RegExp(pattern, flags)</code>{{ t('. Common values:') }} <code>i</code> {{ t('(case-insensitive),') }} <code>m</code> {{ t('(multiline). Leave empty for typical k8s/mesh service names.') }}
             </div>
             <div class="naming-row">
               <label class="mf">
-                <span>display capture</span>
+                <span>{{ t('display capture') }}</span>
                 <input
                   v-model="selectedTpl.naming.displayGroup"
                   class="mf-input mono"
@@ -446,7 +459,7 @@ const namingTest = computed<NamingTestResult>(() => {
                 />
               </label>
               <label class="mf">
-                <span>cluster capture</span>
+                <span>{{ t('cluster capture') }}</span>
                 <input
                   v-model="selectedTpl.naming.valueGroup"
                   class="mf-input mono"
@@ -455,7 +468,7 @@ const namingTest = computed<NamingTestResult>(() => {
                 />
               </label>
               <label class="mf">
-                <span>alias (cluster label)</span>
+                <span>{{ t('alias (cluster label)') }}</span>
                 <input
                   v-model="selectedTpl.naming.alias"
                   class="mf-input"
@@ -466,7 +479,7 @@ const namingTest = computed<NamingTestResult>(() => {
             </div>
             <div class="naming-test">
               <label class="mf mf-wide">
-                <span>test service name</span>
+                <span>{{ t('test service name') }}</span>
                 <input
                   v-model="namingSample"
                   class="mf-input mono"
@@ -477,16 +490,16 @@ const namingTest = computed<NamingTestResult>(() => {
               </label>
               <div class="naming-result" :class="{ ok: namingTest.ok, err: !namingTest.ok }">
                 <div v-if="namingTest.error" class="naming-error">
-                  <span class="naming-tag">error</span>
+                  <span class="naming-tag">{{ t('error') }}</span>
                   <span>{{ namingTest.error }}</span>
                 </div>
                 <template v-else>
                   <div class="naming-result-row">
-                    <span class="naming-tag">display</span>
+                    <span class="naming-tag">{{ t('display') }}</span>
                     <span class="mono">{{ namingTest.display ?? '—' }}</span>
                   </div>
                   <div class="naming-result-row">
-                    <span class="naming-tag">{{ namingTest.alias ?? 'group' }}</span>
+                    <span class="naming-tag">{{ namingTest.alias ?? t('group') }}</span>
                     <span class="mono accent">{{ namingTest.group ?? '—' }}</span>
                   </div>
                 </template>
@@ -530,16 +543,16 @@ const namingTest = computed<NamingTestResult>(() => {
           class="sw-card editor-card topo-cfg-card"
         >
           <div class="card-head">
-            <h4>{{ scopeLabel(activeScope) }} tab</h4>
+            <h4>{{ t('{scope} tab', { scope: scopeLabel(activeScope) }) }}</h4>
             <span class="sub">
               {{ activeScope === 'trace'
-                ? 'Pick the trace backend this layer reads from.'
-                : 'No per-layer config required — toggle visibility via Components in the right sidebar.' }}
+                ? t('Pick the trace backend this layer reads from.')
+                : t('No per-layer config required — toggle visibility via Components in the right sidebar.') }}
             </span>
           </div>
           <div class="topo-cfg-body">
             <div v-if="activeScope === 'trace'" class="trace-source-cfg">
-              <div class="trace-source-head">Trace source</div>
+              <div class="trace-source-head">{{ t('Trace source') }}</div>
               <div class="trace-source-opts">
                 <label
                   v-for="o in TRACE_SOURCE_OPTIONS"
@@ -559,11 +572,9 @@ const namingTest = computed<NamingTestResult>(() => {
                 </label>
               </div>
             </div>
-            <p v-else class="topo-cfg-help">
-              The <b>{{ scopeLabel(activeScope) }}</b> tab is a built-in view that uses
-              SkyWalking-native query-protocol APIs directly. Operators configure filters
-              and time range at runtime from the page itself; nothing to wire up here.
-            </p>
+            <i18n-t v-else keypath="The {tab} tab is a built-in view that uses SkyWalking-native query-protocol APIs directly. Operators configure filters and time range at runtime from the page itself; nothing to wire up here." tag="p" class="topo-cfg-help" scope="global">
+              <template #tab><b>{{ scopeLabel(activeScope) }}</b></template>
+            </i18n-t>
           </div>
         </section>
 
@@ -577,18 +588,17 @@ const namingTest = computed<NamingTestResult>(() => {
     </div>
 
     <!-- Push confirm: shows the remote → local diff before publishing. -->
-    <Modal :open="pushDiffOpen" title="Publish local → OAP?" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+    <Modal :open="pushDiffOpen" :title="t('Publish local → OAP?')" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
       <p class="push-lede">
-        This replaces the live (remote) version with your local draft — live for everyone. Review the
-        diff (left = remote, right = your local):
+        {{ t('This replaces the live (remote) version with your local draft — live for everyone. Review the diff (left = remote, right = your local):') }}
       </p>
       <div class="push-diff">
         <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
       </div>
       <template #footer>
-        <button class="sw-btn" type="button" @click="pushDiffOpen = false">Cancel</button>
+        <button class="sw-btn" type="button" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
         <button class="sw-btn is-primary" type="button" :disabled="isSaving" @click="pushToOap">
-          {{ isSaving ? 'Pushing…' : 'Confirm push' }}
+          {{ isSaving ? t('Pushing…') : t('Confirm push') }}
         </button>
       </template>
     </Modal>
@@ -597,7 +607,7 @@ const namingTest = computed<NamingTestResult>(() => {
     <Modal :open="deleteOpen" :title="confirmTitle" width="min(520px, 92vw)" @close="deleteOpen = false">
       <p class="confirm-msg">{{ confirmMessage }}</p>
       <template #footer>
-        <button class="sw-btn" type="button" @click="deleteOpen = false">Cancel</button>
+        <button class="sw-btn" type="button" @click="deleteOpen = false">{{ t('Cancel') }}</button>
         <button class="sw-btn" :class="{ danger: confirmIsDanger, 'is-primary': !confirmIsDanger }" type="button" :disabled="isSaving" @click="runConfirm">
           {{ confirmLabel }}
         </button>

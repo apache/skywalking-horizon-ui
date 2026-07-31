@@ -100,12 +100,6 @@ export class TemplateSyncApi {
     );
   }
 
-  /** For every envelope name with >1 enabled OAP row, disable all but
-   *  the lowest-UUID winner. Returns the fresh status + the list of
-   *  disabled UUIDs + any failures. */
-  resolveConflicts(): Promise<TemplateSyncStatus & { disabled: string[]; failed: Array<{ name: string; id: string; error: string }> }> {
-    return this.bff.request('POST', '/api/admin/templates/resolve-conflicts');
-  }
 
   /** Save a template's content to OAP. The BFF wraps it in the canonical
    *  envelope. 409 when OAP is unreachable — the page banner should have

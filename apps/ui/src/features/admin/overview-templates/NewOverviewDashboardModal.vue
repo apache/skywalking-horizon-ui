@@ -23,8 +23,11 @@
 -->
 <script setup lang="ts">
 import { ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Modal from '@/features/operate/_shared/Modal.vue';
 import { vAutosize } from '@/utils/autosize';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   open: boolean;
@@ -60,25 +63,25 @@ function submit(): void {
 </script>
 
 <template>
-  <Modal :open="open" title="New dashboard" width="min(520px, 92vw)" @close="emit('close')">
+  <Modal :open="open" :title="t('New dashboard')" width="min(520px, 92vw)" @close="emit('close')">
     <div class="nod">
       <label class="nod__field">
-        <span>Id (used as the name — must be unique)</span>
+        <span>{{ t('Id (used as the name — must be unique)') }}</span>
         <input v-model="id" type="text" class="nod__in nod__in--mono" placeholder="my-overview" @keyup.enter="submit" />
       </label>
       <label class="nod__field">
-        <span>Title</span>
-        <input v-model="title" type="text" class="nod__in" placeholder="My overview" @keyup.enter="submit" />
+        <span>{{ t('Title') }}</span>
+        <input v-model="title" type="text" class="nod__in" :placeholder="t('My overview')" @keyup.enter="submit" />
       </label>
       <label class="nod__field">
-        <span>Description (optional)</span>
-        <textarea v-autosize="description" v-model="description" class="nod__in nod__in--ta" rows="2" placeholder="Short, one-paragraph description shown under the dashboard title." />
+        <span>{{ t('Description (optional)') }}</span>
+        <textarea v-autosize="description" v-model="description" class="nod__in nod__in--ta" rows="2" :placeholder="t('Short, one-paragraph description shown under the dashboard title.')" />
       </label>
       <div v-if="error" class="nod__err">{{ error }}</div>
     </div>
     <template #footer>
-      <button class="sw-btn" type="button" @click="emit('close')">Cancel</button>
-      <button class="sw-btn is-primary" type="button" @click="submit">Create</button>
+      <button class="sw-btn" type="button" @click="emit('close')">{{ t('Cancel') }}</button>
+      <button class="sw-btn is-primary" type="button" @click="submit">{{ t('Create') }}</button>
     </template>
   </Modal>
 </template>

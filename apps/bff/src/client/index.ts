@@ -33,6 +33,7 @@ import {
   type FetchLike,
 } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../config/schema.js';
+import { wireFetch } from './wire-log.js';
 
 export interface OapClients {
   /** Build a runtime-rule client for one specific admin URL — used
@@ -79,7 +80,7 @@ export function buildOapClients(
   config: HorizonConfig,
   opts: BuildOapClientsOptions = {},
 ): OapClients {
-  const fetch = opts.fetch;
+  const fetch = wireFetch(opts.fetch ?? globalThis.fetch.bind(globalThis));
   const primaryUrl = config.oap.adminUrl;
   const timeoutMs = config.oap.timeoutMs;
   // One basic-auth header shared by every constructed client, so all

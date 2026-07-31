@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
 import Infra3DScene from './Infra3DScene.vue';
@@ -39,6 +40,8 @@ import {
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
 import { useInfra3dConfig } from './composables/useInfra3dConfig';
 import { useInfra3dLoader } from './composables/useInfra3dLoader';
+
+const { t } = useI18n({ useScope: 'global' });
 
 /** Imperative handle on the scene's camera-control methods. The
  *  top-left toolbar buttons go through this ref so the toolbar is
@@ -386,36 +389,39 @@ function onPanelZoneFocus(zoneKey: string): void {
     <header class="bar floating">
       <div class="title">
         <template v-if="focusLayer">
-          <span class="kicker">3D Layer Topology</span>
+          <span class="kicker">{{ t('3D Layer Topology') }}</span>
           <span class="hint">
-            focused on <strong>{{ focusLayer.toUpperCase() }}</strong> ·
-            <router-link class="title-link" :to="{ path: '/3d/map' }">view full map</router-link>
-            · drag to rotate · scroll to zoom
+            <i18n-t keypath="focused on {layer}" tag="span" scope="global">
+              <template #layer><strong>{{ focusLayer.toUpperCase() }}</strong></template>
+            </i18n-t> ·
+            <router-link class="title-link" :to="{ path: '/3d/map' }">{{ t('view full map') }}</router-link> · {{ t('drag to rotate · scroll to zoom') }}
           </span>
         </template>
         <template v-else>
-          <span class="kicker">3D Infrastructure Map</span>
-          <span class="hint">apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan</span>
+          <span class="kicker">{{ t('3D Infrastructure Map') }}</span>
+          <span class="hint">{{ t('apps · service mesh · middleware · infra · drag to rotate · scroll to zoom · arrow keys / WASD to pan') }}</span>
         </template>
       </div>
       <div class="stats">
-        <router-link class="back" to="/" title="Exit 3D map">×</router-link>
+        <router-link class="back" to="/" :title="t('Exit 3D map')">×</router-link>
       </div>
     </header>
 
     <div class="canvas-shell">
       <div v-if="configError" class="cfg-error">
-        <strong>Couldn’t load the 3D map.</strong>
+        <strong>{{ t('Couldn’t load the 3D map.') }}</strong>
         <span class="cfg-error__detail">{{ configError }}</span>
-        <span class="cfg-error__hint">Check that OAP is reachable and your role has 3D Infra Map access (<code>infra-3d:read</code>).</span>
-        <router-link class="cfg-error__back" to="/">← Back</router-link>
+        <i18n-t keypath="Check that OAP is reachable and your role has 3D Infra Map access ({verb})." tag="span" class="cfg-error__hint" scope="global">
+          <template #verb><code>infra-3d:read</code></template>
+        </i18n-t>
+        <router-link class="cfg-error__back" to="/">{{ t('← Back') }}</router-link>
       </div>
-      <div v-else-if="!ready" class="cfg-loading">Loading 3D map configuration…</div>
+      <div v-else-if="!ready" class="cfg-loading">{{ t('Loading 3D map configuration…') }}</div>
       <!-- Hold the render until the FULL context is in hand (layers,
            templates, services, topology, clustering) so the scene appears
            once, complete — never a partial layout that rebuilds as data
            lands. The bottom strip shows which stage is in flight. -->
-      <div v-else-if="!sceneReady" class="cfg-loading">Reading topology from OAP…</div>
+      <div v-else-if="!sceneReady" class="cfg-loading">{{ t('Reading topology from OAP…') }}</div>
       <Infra3DScene
         v-else
         :key="sceneKey"
@@ -441,19 +447,19 @@ function onPanelZoneFocus(zoneKey: string): void {
            gestures — useful on trackpads + as a discoverability cue. -->
       <aside v-if="sceneReady" class="cam-tools">
         <div class="cam-row">
-          <button class="cam-btn" title="zoom in" @click="btnZoomIn">＋</button>
-          <button class="cam-btn" title="zoom out" @click="btnZoomOut">−</button>
+          <button class="cam-btn" :title="t('zoom in')" @click="btnZoomIn">＋</button>
+          <button class="cam-btn" :title="t('zoom out')" @click="btnZoomOut">−</button>
         </div>
         <div class="cam-row">
-          <button class="cam-btn" title="rotate left" @click="btnRotateLeft">↺</button>
-          <button class="cam-btn" title="rotate right" @click="btnRotateRight">↻</button>
+          <button class="cam-btn" :title="t('rotate left')" @click="btnRotateLeft">↺</button>
+          <button class="cam-btn" :title="t('rotate right')" @click="btnRotateRight">↻</button>
         </div>
         <div class="cam-pad">
-          <button class="cam-btn pad up" title="pan up" @click="btnPan(0, 1)">▲</button>
-          <button class="cam-btn pad left" title="pan left" @click="btnPan(-1, 0)">◀</button>
-          <button class="cam-btn pad reset" title="reset view" @click="btnReset">⌂</button>
-          <button class="cam-btn pad right" title="pan right" @click="btnPan(1, 0)">▶</button>
-          <button class="cam-btn pad down" title="pan down" @click="btnPan(0, -1)">▼</button>
+          <button class="cam-btn pad up" :title="t('pan up')" @click="btnPan(0, 1)">▲</button>
+          <button class="cam-btn pad left" :title="t('pan left')" @click="btnPan(-1, 0)">◀</button>
+          <button class="cam-btn pad reset" :title="t('reset view')" @click="btnReset">⌂</button>
+          <button class="cam-btn pad right" :title="t('pan right')" @click="btnPan(1, 0)">▶</button>
+          <button class="cam-btn pad down" :title="t('pan down')" @click="btnPan(0, -1)">▼</button>
         </div>
       </aside>
 
@@ -461,11 +467,11 @@ function onPanelZoneFocus(zoneKey: string): void {
         v-if="sceneReady"
         class="beacon-toggle"
         :class="{ 'is-on': beaconMode }"
-        :title="beaconMode ? 'Beacon mode on — click to show all' : 'Beacon mode — focus on alarms'"
+        :title="beaconMode ? t('Beacon mode on — click to show all') : t('Beacon mode — focus on alarms')"
         @click="beaconMode = !beaconMode"
       >
         <span class="beacon-dot" />
-        <span class="beacon-label">Beacon</span>
+        <span class="beacon-label">{{ t('Beacon') }}</span>
       </button>
 
       <Infra3DLayerPanel
@@ -494,11 +500,11 @@ function onPanelZoneFocus(zoneKey: string): void {
            the router base (import.meta.env.BASE_URL) and full-reloads to
            the server root, which lands on an empty page under a gateway
            sub-path. router-link prepends the base and stays in-SPA. -->
-      <router-link class="sw-brand" to="/" title="Back to Horizon">
+      <router-link class="sw-brand" to="/" :title="t('Back to Horizon')">
         <span class="sw-brand-logo" v-html="logoSw" />
         <span class="sw-brand-text">
           <span class="sw-brand-line1">Apache SkyWalking</span>
-          <span class="sw-brand-line2">Horizon · 3D Infra Map</span>
+          <span class="sw-brand-line2">{{ t('Horizon · 3D Infra Map') }}</span>
         </span>
       </router-link>
 

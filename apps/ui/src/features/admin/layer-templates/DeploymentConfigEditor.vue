@@ -31,6 +31,7 @@
 -->
 <script setup lang="ts">
 import { computed, reactive } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type {
   ClusterByRule,
   DeploymentConfig,
@@ -45,6 +46,8 @@ import { rowKey } from './row-key';
 
 const config = defineModel<DeploymentConfig | undefined>('config');
 defineProps<{ instanceNoun: string }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 // Write-path accessor for the `deployment` block. The block's PRESENCE is what
 // flips caps.deployment on save (the menu gate is presence-only), so it must
@@ -348,8 +351,8 @@ function setPrimary(p: RolePairMetrics, v: string): void {
        node-clustering rule. Independent of the service-map topology block. -->
   <section class="sw-card editor-card topo-cfg-card">
     <div class="card-head">
-      <h4>Deployment config</h4>
-      <span class="sub">deployment topology of all the service’s instances. node = {{ instanceNoun }} · edges = intra-service instance relations.</span>
+      <h4>{{ t('Deployment config') }}</h4>
+      <span class="sub">{{ t('deployment topology of all the service’s instances. node = {instanceNoun} · edges = intra-service instance relations.', { instanceNoun }) }}</span>
     </div>
     <div class="topo-cfg-body">
       <!-- Node clustering: group instance nodes into boxes either by an
@@ -357,34 +360,34 @@ function setPrimary(p: RolePairMetrics, v: string): void {
            run on the instance name. -->
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Node clustering</h5>
-          <span class="sub">group instances into dashed boxes — off, by a single attribute, by several attributes (composite key + separator), or by a name regex (e.g. <code>node_role</code> + <code>node_type</code>)</span>
+          <h5>{{ t('Node clustering') }}</h5>
+          <span class="sub">{{ t('group instances into dashed boxes — off, by a single attribute, by several attributes (composite key + separator), or by a name regex (e.g.') }} <code>node_role</code> + <code>node_type</code>)</span>
         </header>
         <div class="sit-cluster-cfg">
           <label class="mf mf-narrow">
-            <span>mode</span>
+            <span>{{ t('mode') }}</span>
             <select v-model="sitClusterMode" class="mf-input">
-              <option value="none">none</option>
-              <option value="attribute">by attribute</option>
-              <option value="attributes">by attributes (composite)</option>
-              <option value="nameRegex">by name regex</option>
+              <option value="none">{{ t('none') }}</option>
+              <option value="attribute">{{ t('by attribute') }}</option>
+              <option value="attributes">{{ t('by attributes (composite)') }}</option>
+              <option value="nameRegex">{{ t('by name regex') }}</option>
             </select>
           </label>
           <template v-if="sitClusterMode === 'attribute'">
-            <label class="mf"><span>attribute</span><input v-model="sitClusterAttribute" type="text" class="mf-input mono" placeholder="node_role" /></label>
-            <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="sitClusterAttribute" type="text" class="mf-input mono" placeholder="node_role" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
           </template>
           <template v-else-if="sitClusterMode === 'attributes'">
-            <label class="mf mf-wide"><span>attributes</span><input v-model="sitClusterAttributes" type="text" class="mf-input mono" placeholder="node_role, node_type" /></label>
-            <label class="mf mf-narrow"><span>separator</span><input v-model="sitClusterSeparator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="sitClusterAttributes" type="text" class="mf-input mono" placeholder="node_role, node_type" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="sitClusterSeparator" type="text" class="mf-input mono" placeholder=" / " /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="role" /></label>
           </template>
           <template v-else-if="sitClusterMode === 'nameRegex'">
-            <label class="mf mf-wide"><span>pattern</span><input v-model="sitClusterPattern" type="text" class="mf-input mono" placeholder="^(?<service>.+?)-(?<group>data|liaison)" /></label>
-            <label class="mf mf-narrow"><span>flags</span><input v-model="sitClusterFlags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>display grp</span><input v-model="sitClusterDisplayGroup" type="text" class="mf-input mono" placeholder="service" /></label>
-            <label class="mf mf-narrow"><span>value grp</span><input v-model="sitClusterValueGroup" type="text" class="mf-input mono" placeholder="group" /></label>
-            <label class="mf"><span>alias</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="group" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="sitClusterPattern" type="text" class="mf-input mono" placeholder="^(?<service>.+?)-(?<group>data|liaison)" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="sitClusterFlags" type="text" class="mf-input mono" placeholder="i" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="sitClusterDisplayGroup" type="text" class="mf-input mono" placeholder="service" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="sitClusterValueGroup" type="text" class="mf-input mono" placeholder="group" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="sitClusterAlias" type="text" class="mf-input" placeholder="group" /></label>
           </template>
         </div>
       </div>
@@ -392,33 +395,33 @@ function setPrimary(p: RolePairMetrics, v: string): void {
       <!-- siblingBy: which containers bundle into ONE pod hex. -->
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Sibling grouping</h5>
-          <span class="sub">bundle related instances into ONE hex group — instances sharing this key render together as one main + attached siblings (e.g. the containers of one Kubernetes pod, keyed by <code>pod_name</code>). Single attribute, several attributes (composite key + separator), or a name regex. Off ⇒ every instance is its own hex.</span>
+          <h5>{{ t('Sibling grouping') }}</h5>
+          <span class="sub">{{ t('bundle related instances into ONE hex group — instances sharing this key render together as one main + attached siblings (e.g. the containers of one Kubernetes pod, keyed by') }} <code>pod_name</code>). {{ t('Single attribute, several attributes (composite key + separator), or a name regex. Off ⇒ every instance is its own hex.') }}</span>
         </header>
         <div class="sit-cluster-cfg">
-          <label class="mf mf-narrow"><span>mode</span>
+          <label class="mf mf-narrow"><span>{{ t('mode') }}</span>
             <select v-model="siblingEd.mode" class="mf-input">
-              <option value="none">none</option>
-              <option value="attribute">by attribute</option>
-              <option value="attributes">by attributes (composite)</option>
-              <option value="nameRegex">by name regex</option>
+              <option value="none">{{ t('none') }}</option>
+              <option value="attribute">{{ t('by attribute') }}</option>
+              <option value="attributes">{{ t('by attributes (composite)') }}</option>
+              <option value="nameRegex">{{ t('by name regex') }}</option>
             </select>
           </label>
           <template v-if="siblingEd.mode === 'attribute'">
-            <label class="mf"><span>attribute</span><input v-model="siblingEd.attribute" type="text" class="mf-input mono" placeholder="pod_name" /></label>
-            <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="siblingEd.attribute" type="text" class="mf-input mono" placeholder="pod_name" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
           </template>
           <template v-else-if="siblingEd.mode === 'attributes'">
-            <label class="mf mf-wide"><span>attributes</span><input v-model="siblingEd.attributes" type="text" class="mf-input mono" placeholder="pod_name" /></label>
-            <label class="mf mf-narrow"><span>separator</span><input v-model="siblingEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="siblingEd.attributes" type="text" class="mf-input mono" placeholder="pod_name" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="siblingEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
           </template>
           <template v-else-if="siblingEd.mode === 'nameRegex'">
-            <label class="mf mf-wide"><span>pattern</span><input v-model="siblingEd.pattern" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>flags</span><input v-model="siblingEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>display grp</span><input v-model="siblingEd.displayGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>value grp</span><input v-model="siblingEd.valueGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf"><span>alias</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="siblingEd.pattern" type="text" class="mf-input mono" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="siblingEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="siblingEd.displayGroup" type="text" class="mf-input mono" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="siblingEd.valueGroup" type="text" class="mf-input mono" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="siblingEd.alias" type="text" class="mf-input" placeholder="pod" /></label>
           </template>
         </div>
       </div>
@@ -426,33 +429,33 @@ function setPrimary(p: RolePairMetrics, v: string): void {
       <!-- roleBy: classify each container; picks the main hex + per-role metrics. -->
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Node role</h5>
-          <span class="sub">classify each instance by a role — picks the MAIN hex of a sibling group and which role's metric set (below) applies (e.g. <code>container_name</code> → liaison / data / lifecycle). Single attribute, several attributes (composite key + separator), or a name regex.</span>
+          <h5>{{ t('Node role') }}</h5>
+          <span class="sub">{{ t("classify each instance by a role — picks the MAIN hex of a sibling group and which role's metric set (below) applies (e.g.") }} <code>container_name</code> {{ t('→ liaison / data / lifecycle). Single attribute, several attributes (composite key + separator), or a name regex.') }}</span>
         </header>
         <div class="sit-cluster-cfg">
-          <label class="mf mf-narrow"><span>mode</span>
+          <label class="mf mf-narrow"><span>{{ t('mode') }}</span>
             <select v-model="roleEd.mode" class="mf-input">
-              <option value="none">none</option>
-              <option value="attribute">by attribute</option>
-              <option value="attributes">by attributes (composite)</option>
-              <option value="nameRegex">by name regex</option>
+              <option value="none">{{ t('none') }}</option>
+              <option value="attribute">{{ t('by attribute') }}</option>
+              <option value="attributes">{{ t('by attributes (composite)') }}</option>
+              <option value="nameRegex">{{ t('by name regex') }}</option>
             </select>
           </label>
           <template v-if="roleEd.mode === 'attribute'">
-            <label class="mf"><span>attribute</span><input v-model="roleEd.attribute" type="text" class="mf-input mono" placeholder="container_name" /></label>
-            <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf"><span>{{ t('attribute') }}</span><input v-model="roleEd.attribute" type="text" class="mf-input mono" placeholder="container_name" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
           </template>
           <template v-else-if="roleEd.mode === 'attributes'">
-            <label class="mf mf-wide"><span>attributes</span><input v-model="roleEd.attributes" type="text" class="mf-input mono" placeholder="container_name" /></label>
-            <label class="mf mf-narrow"><span>separator</span><input v-model="roleEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
-            <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf mf-wide"><span>{{ t('attributes') }}</span><input v-model="roleEd.attributes" type="text" class="mf-input mono" placeholder="container_name" /></label>
+            <label class="mf mf-narrow"><span>{{ t('separator') }}</span><input v-model="roleEd.separator" type="text" class="mf-input mono" placeholder=" / " /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
           </template>
           <template v-else-if="roleEd.mode === 'nameRegex'">
-            <label class="mf mf-wide"><span>pattern</span><input v-model="roleEd.pattern" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>flags</span><input v-model="roleEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
-            <label class="mf mf-narrow"><span>display grp</span><input v-model="roleEd.displayGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf mf-narrow"><span>value grp</span><input v-model="roleEd.valueGroup" type="text" class="mf-input mono" /></label>
-            <label class="mf"><span>alias</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
+            <label class="mf mf-wide"><span>{{ t('pattern') }}</span><input v-model="roleEd.pattern" type="text" class="mf-input mono" /></label>
+            <label class="mf mf-narrow"><span>{{ t('flags') }}</span><input v-model="roleEd.flags" type="text" class="mf-input mono" placeholder="i" /></label>
+            <label class="mf mf-narrow"><span>{{ t('display grp') }}</span><input v-model="roleEd.displayGroup" type="text" class="mf-input mono" /></label>
+            <label class="mf mf-narrow"><span>{{ t('value grp') }}</span><input v-model="roleEd.valueGroup" type="text" class="mf-input mono" /></label>
+            <label class="mf"><span>{{ t('alias') }}</span><input v-model="roleEd.alias" type="text" class="mf-input" placeholder="container" /></label>
           </template>
         </div>
       </div>
@@ -460,29 +463,29 @@ function setPrimary(p: RolePairMetrics, v: string): void {
       <!-- roles[]: per-role metric sets keyed by the Container-role value. -->
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Roles</h5>
-          <span class="sub">per-role metric sets — an instance renders the metrics of its role (matched on the “Node role” value above); a role with no metrics falls back to the node metrics below</span>
-          <button class="sw-btn add" type="button" @click="addRole">＋ Add role</button>
+          <h5>{{ t('Roles') }}</h5>
+          <span class="sub">{{ t('per-role metric sets — an instance renders the metrics of its role (matched on the “Node role” value above); a role with no metrics falls back to the node metrics below') }}</span>
+          <button class="sw-btn add" type="button" @click="addRole">{{ t('＋ Add role') }}</button>
         </header>
-        <div v-if="deploymentRoles.length === 0" class="topo-cfg-empty">No roles defined. Add one per role (e.g. liaison / data / lifecycle) to give each its own metrics.</div>
+        <div v-if="deploymentRoles.length === 0" class="topo-cfg-empty">{{ t('No roles defined. Add one per role (e.g. liaison / data / lifecycle) to give each its own metrics.') }}</div>
         <div v-else class="role-list">
           <article v-for="(r, ri) in deploymentRoles" :key="rowKey(r)" class="role-card">
             <div class="role-head">
-              <label class="mf mf-narrow"><span>key</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" /></label>
-              <label class="mf"><span>label</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" /></label>
-              <label class="mf mf-checkbox"><input v-model="r.main" type="checkbox" /><span>main hex</span></label>
+              <label class="mf mf-narrow"><span>{{ t('key') }}</span><input v-model="r.key" type="text" class="mf-input mono" placeholder="liaison" /></label>
+              <label class="mf"><span>{{ t('label') }}</span><input v-model="r.label" type="text" class="mf-input" placeholder="Liaison" /></label>
+              <label class="mf mf-checkbox"><input v-model="r.main" type="checkbox" /><span>{{ t('main hex') }}</span></label>
               <div class="metric-row-actions">
-                <button class="sw-btn small ghost" type="button" :disabled="ri === 0" title="Move up" @click="moveRole(ri, -1)">↑</button>
-                <button class="sw-btn small ghost" type="button" :disabled="ri === deploymentRoles.length - 1" title="Move down" @click="moveRole(ri, 1)">↓</button>
-                <button class="sw-btn small ghost danger" type="button" title="Remove role" @click="removeRole(ri)">×</button>
+                <button class="sw-btn small ghost" type="button" :disabled="ri === 0" :title="t('Move up')" @click="moveRole(ri, -1)">↑</button>
+                <button class="sw-btn small ghost" type="button" :disabled="ri === deploymentRoles.length - 1" :title="t('Move down')" @click="moveRole(ri, 1)">↓</button>
+                <button class="sw-btn small ghost danger" type="button" :title="t('Remove role')" @click="removeRole(ri)">×</button>
               </div>
             </div>
             <div class="role-metrics">
               <header class="topo-cfg-head role-metrics-head">
-                <h6>metrics for “{{ r.label || r.key || 'role' }}” — queried as <code>service_instance_*</code></h6>
-                <button class="sw-btn add" type="button" @click="addRoleMetric(ensureRoleMetrics(r))">＋ Add</button>
+                <h6>{{ t('metrics for “{name}” — queried as', { name: r.label || r.key || t('role') }) }} <code>service_instance_*</code></h6>
+                <button class="sw-btn add" type="button" @click="addRoleMetric(ensureRoleMetrics(r))">{{ t('＋ Add') }}</button>
               </header>
-              <div v-if="!r.nodeMetrics || r.nodeMetrics.length === 0" class="topo-cfg-empty">No metrics — this role falls back to the node metrics below.</div>
+              <div v-if="!r.nodeMetrics || r.nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No metrics — this role falls back to the node metrics below.') }}</div>
               <div v-else class="metric-list">
                 <RoleMetricRow
                   v-for="(m, mi) in r.nodeMetrics"
@@ -492,7 +495,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   show-role
                   show-thresholds
                   mqe-placeholder="service_instance_cpm"
-                  mqe-title="Node MQE"
+                  :mqe-title="t('Node MQE')"
                   unit-placeholder="rpm"
                   :can-move-up="mi > 0"
                   :can-move-down="mi < r.nodeMetrics.length - 1"
@@ -509,29 +512,29 @@ function setPrimary(p: RolePairMetrics, v: string): void {
       <!-- roleToRole[]: per source→target role-pair edge metrics (takes precedence over the link fallback below). -->
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Role-to-role edge metrics</h5>
-          <span class="sub">per source→target role-pair edge metrics (e.g. liaison → data) — takes precedence over the link fallback below; <code>from</code>/<code>to</code> use role keys or <code>*</code> for any</span>
-          <button class="sw-btn add" type="button" @click="addRolePair">＋ Add pair</button>
+          <h5>{{ t('Role-to-role edge metrics') }}</h5>
+          <span class="sub">{{ t('per source→target role-pair edge metrics (e.g. liaison → data) — takes precedence over the link fallback below;') }} <code>from</code>/<code>to</code> {{ t('use role keys or') }} <code>*</code> {{ t('for any') }}</span>
+          <button class="sw-btn add" type="button" @click="addRolePair">{{ t('＋ Add pair') }}</button>
         </header>
-        <div v-if="deploymentRoleToRole.length === 0" class="topo-cfg-empty">No role pairs. Add one per edge type (e.g. liaison → data); otherwise edges use the link fallback below.</div>
+        <div v-if="deploymentRoleToRole.length === 0" class="topo-cfg-empty">{{ t('No role pairs. Add one per edge type (e.g. liaison → data); otherwise edges use the link fallback below.') }}</div>
         <div v-else class="role-list">
           <article v-for="(p, pi) in deploymentRoleToRole" :key="rowKey(p)" class="role-card">
             <div class="role-head">
-              <label class="mf mf-narrow"><span>from</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" /></label>
-              <label class="mf mf-narrow"><span>to</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" /></label>
-              <label class="mf"><span>primary (≤3)</span><input :value="primaryStr(p)" type="text" class="mf-input mono" placeholder="write, query" title="Up to 3 metric ids, comma-separated — printed on the edge" @input="setPrimary(p, ($event.target as HTMLInputElement).value)" /></label>
+              <label class="mf mf-narrow"><span>{{ t('from') }}</span><input v-model="p.from" type="text" class="mf-input mono" placeholder="liaison" /></label>
+              <label class="mf mf-narrow"><span>{{ t('to') }}</span><input v-model="p.to" type="text" class="mf-input mono" placeholder="data" /></label>
+              <label class="mf"><span>{{ t('primary (≤3)') }}</span><input :value="primaryStr(p)" type="text" class="mf-input mono" placeholder="write, query" :title="t('Up to 3 metric ids, comma-separated — printed on the edge')" @input="setPrimary(p, ($event.target as HTMLInputElement).value)" /></label>
               <div class="metric-row-actions">
-                <button class="sw-btn small ghost" type="button" :disabled="pi === 0" title="Move up" @click="moveRolePair(pi, -1)">↑</button>
-                <button class="sw-btn small ghost" type="button" :disabled="pi === deploymentRoleToRole.length - 1" title="Move down" @click="moveRolePair(pi, 1)">↓</button>
-                <button class="sw-btn small ghost danger" type="button" title="Remove pair" @click="removeRolePair(pi)">×</button>
+                <button class="sw-btn small ghost" type="button" :disabled="pi === 0" :title="t('Move up')" @click="moveRolePair(pi, -1)">↑</button>
+                <button class="sw-btn small ghost" type="button" :disabled="pi === deploymentRoleToRole.length - 1" :title="t('Move down')" @click="moveRolePair(pi, 1)">↓</button>
+                <button class="sw-btn small ghost danger" type="button" :title="t('Remove pair')" @click="removeRolePair(pi)">×</button>
               </div>
             </div>
             <div class="role-metrics">
               <header class="topo-cfg-head role-metrics-head">
-                <h6>edge metrics for “{{ p.from || '*' }} → {{ p.to || '*' }}” — queried as <code>service_instance_relation_*</code></h6>
-                <button class="sw-btn add" type="button" @click="addRoleMetric(ensurePairMetrics(p))">＋ Add</button>
+                <h6>{{ t('edge metrics for “{from} → {to}” — queried as', { from: p.from || '*', to: p.to || '*' }) }} <code>service_instance_relation_*</code></h6>
+                <button class="sw-btn add" type="button" @click="addRoleMetric(ensurePairMetrics(p))">{{ t('＋ Add') }}</button>
               </header>
-              <div v-if="!p.metrics || p.metrics.length === 0" class="topo-cfg-empty">No metrics — this edge falls back to the link metrics below.</div>
+              <div v-if="!p.metrics || p.metrics.length === 0" class="topo-cfg-empty">{{ t('No metrics — this edge falls back to the link metrics below.') }}</div>
               <div v-else class="metric-list">
                 <RoleMetricRow
                   v-for="(m, mi) in p.metrics"
@@ -541,7 +544,7 @@ function setPrimary(p: RolePairMetrics, v: string): void {
                   show-role
                   show-alias
                   mqe-placeholder="service_instance_relation_client_cpm"
-                  mqe-title="Edge MQE"
+                  :mqe-title="t('Edge MQE')"
                   unit-placeholder="ms"
                   :can-move-up="mi > 0"
                   :can-move-down="mi < p.metrics.length - 1"
@@ -557,11 +560,11 @@ function setPrimary(p: RolePairMetrics, v: string): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Fallback node metrics</h5>
-          <span class="sub">used for unroled instances + roles with no metrics of their own — queried as <code>service_instance_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitNode')">＋ Add</button>
+          <h5>{{ t('Fallback node metrics') }}</h5>
+          <span class="sub">{{ t('used for unroled instances + roles with no metrics of their own — queried as') }} <code>service_instance_*</code></span>
+          <button class="sw-btn add" type="button" @click="addMetric('sitNode')">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+        <div v-if="deploymentNodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in deploymentNodeMetrics"
@@ -583,11 +586,11 @@ function setPrimary(p: RolePairMetrics, v: string): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Link · server-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitLinkServer')">＋ Add</button>
+          <h5>{{ t('Link · server-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_server_*</code></span>
+          <button class="sw-btn add" type="button" @click="addMetric('sitLinkServer')">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+        <div v-if="deploymentServerMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in deploymentServerMetrics"
@@ -604,11 +607,11 @@ function setPrimary(p: RolePairMetrics, v: string): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Link · client-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addMetric('sitLinkClient')">＋ Add</button>
+          <h5>{{ t('Link · client-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_client_*</code></span>
+          <button class="sw-btn add" type="button" @click="addMetric('sitLinkClient')">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+        <div v-if="deploymentClientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in deploymentClientMetrics"

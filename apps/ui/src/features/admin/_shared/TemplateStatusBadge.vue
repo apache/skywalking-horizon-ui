@@ -23,17 +23,36 @@
     remote-only       blue chip — operator added remote with no bundled
     bundled-fallback  gray chip — remote absent (OAP unreachable or row
                                    never synced)
+
+  `conflictIds` is orthogonal to all five: it renders an extra solid red
+  DUPLICATE chip when OAP stores the same template name on more than one
+  enabled record. The sync status of such a row describes only the copy
+  Horizon happens to render, so the duplicate marker sits beside it
+  rather than replacing it.
 -->
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { TemplateStatus } from '@/api/scopes/configs';
 
-defineProps<{ status: TemplateStatus | null }>();
+defineProps<{
+  status: TemplateStatus | null;
+  /** Every enabled OAP record id for this name, when there is more than
+   *  one. Omitted / empty for the normal single-record case. */
+  conflictIds?: string[] | null;
+}>();
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <span v-if="status" class="tsb" :class="`tsb--${status}`" :title="title(status)">
     {{ label(status) }}
   </span>
+  <span
+    v-if="conflictIds && conflictIds.length > 0"
+    class="tsb tsb--conflict"
+    :title="t('Duplicated on OAP — {n} enabled records carry this name ({ids}). Horizon renders the lowest-id copy and changes nothing on its own.', { n: conflictIds.length, ids: conflictIds.join(', ') })"
+  >{{ t('duplicate') }}</span>
 </template>
 
 <script lang="ts">
@@ -96,5 +115,14 @@ export default { label, title };
 }
 .tsb--bundled-fallback {
   color: var(--sw-text-muted, #8a93a0);
+}
+/* Solid, not outlined — the other five chips report a state the operator
+ * chose; this one reports an ambiguity they have to go fix on OAP, and
+ * has to win the row at a glance. Same fill as the CONFLICT banner chip. */
+.tsb--conflict {
+  color: #fff;
+  background: var(--sw-danger, #c0392b);
+  border-color: var(--sw-danger, #c0392b);
+  font-weight: 700;
 }
 </style>

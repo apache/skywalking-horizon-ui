@@ -96,23 +96,23 @@ function submit(): void {
     <div class="dlg">
       <div class="dlg-head">
         <div>
-          New eBPF profile task
-          <span v-if="serviceName" class="muted">on {{ serviceName }}</span>
+          {{ t('New eBPF profile task') }}
+          <span v-if="serviceName" class="muted">{{ t('on {name}', { name: serviceName }) }}</span>
         </div>
         <button class="x" @click="close">×</button>
       </div>
       <div class="dlg-body">
         <div v-if="!couldProfiling" class="dlg-warn">
           <strong>{{ t('OAP reports no profilable processes for this service.') }}</strong>
-          <span>A new task can't run until OAP sees an eBPF-profilable process. Check that:</span>
+          <span>{{ t("A new task can't run until OAP sees an eBPF-profilable process. Check that:") }}</span>
           <ul>
-            <li>instances are running and instrumented;</li>
-            <li>eBPF collection is enabled in OAP;</li>
-            <li>the processes support eBPF profiling.</li>
+            <li>{{ t('instances are running and instrumented;') }}</li>
+            <li>{{ t('eBPF collection is enabled in OAP;') }}</li>
+            <li>{{ t('the processes support eBPF profiling.') }}</li>
           </ul>
         </div>
         <div class="field">
-          <label>Process labels (filter; leave empty = all)</label>
+          <label>{{ t('Process labels (filter; leave empty = all)') }}</label>
           <div class="chip-row">
             <button
               v-for="l in processLabels"
@@ -122,22 +122,22 @@ function submit(): void {
               :class="{ on: newTask.labels.includes(l) }"
               @click="toggleNewTaskLabel(l)"
             >{{ l }}</button>
-            <span v-if="!processLabels.length" class="muted">No labels surfaced by OAP.</span>
+            <span v-if="!processLabels.length" class="muted">{{ t('No labels surfaced by OAP.') }}</span>
           </div>
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Target</label>
+            <label>{{ t('Target') }}</label>
             <div class="seg">
               <button :class="{ on: newTask.targetType === 'ON_CPU' }" @click="newTask.targetType = 'ON_CPU'">ON_CPU</button>
               <button :class="{ on: newTask.targetType === 'OFF_CPU' }" @click="newTask.targetType = 'OFF_CPU'">OFF_CPU</button>
             </div>
           </div>
           <div class="field">
-            <label>Start when</label>
+            <label>{{ t('Start when') }}</label>
             <div class="seg">
-              <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">now</button>
-              <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">set time</button>
+              <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">{{ t('now') }}</button>
+              <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">{{ t('set time') }}</button>
             </div>
             <input
               v-if="newTask.monitorTime === 'set'"
@@ -148,7 +148,7 @@ function submit(): void {
             />
           </div>
           <div class="field">
-            <label>Duration (min, 1–60)</label>
+            <label>{{ t('Duration (min, 1–60)') }}</label>
             <input
               type="number"
               class="ti-input"
@@ -161,13 +161,13 @@ function submit(): void {
         <div v-if="error" class="dlg-err">{{ error }}</div>
       </div>
       <div class="dlg-foot">
-        <button class="btn-secondary" @click="close">Cancel</button>
+        <button class="btn-secondary" @click="close">{{ t('Cancel') }}</button>
         <button
           class="btn-primary"
           :disabled="!couldProfiling"
           :title="couldProfiling ? '' : t('OAP reports no profilable processes for this service')"
           @click="submit"
-        >Create task</button>
+        >{{ t('Create task') }}</button>
       </div>
     </div>
   </div>

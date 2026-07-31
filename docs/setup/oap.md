@@ -23,8 +23,8 @@ oap:
 | `timeoutMs` | number | `15000` | no | Per-request HTTP timeout (milliseconds) for all OAP calls. Applies to query, admin, Zipkin. Must be positive integer. |
 | `auth.username` | string | — | required if `auth` block present | Basic-auth username. Sent on every outbound OAP call. |
 | `auth.password` | string | — | required if `auth` block present | Basic-auth password. Sent on every outbound OAP call. Use `${VAR}` interpolation, not a literal. |
-| `mqe.host` | string | — | no | (Reserved) Override host for MQE GraphQL. When unset, Horizon discovers it via the sharing-server config dump on OAP 11.x, falling back to `queryUrl`'s host. |
-| `mqe.port` | number | — | no | (Reserved) Override port for MQE GraphQL. Must be positive integer. |
+| `mqe.host` | string | — | no | Override host for the MQE (`execExpression`) calls the Metrics Inspect page fires. When the whole `mqe` block is unset, those calls go to `queryUrl` like every other GraphQL query. See [MQE endpoint override](#mqe-endpoint-override-oapmqe). |
+| `mqe.port` | number | — | no | Override port for the same calls. Must be positive integer. |
 
 ## How the BFF uses each URL
 
@@ -35,6 +35,18 @@ oap:
 | `zipkinUrl` | Zipkin v2 trace queries when a layer declares `traces.source: zipkin` or `both`. |
 
 The two required URLs (query + admin) are independently health-checked. See [Cluster Status Check Sequence](../compatibility/cluster-status.md) for the per-pane behavior.
+
+## MQE endpoint override (`oap.mqe`)
+
+The Metrics Inspect page executes MQE expressions (`execExpression`) against a resolved MQE endpoint. By default that endpoint **is `queryUrl`** — the same GraphQL surface as every other query, with the same scheme and basic-auth — so most deployments never set `oap.mqe`. Set the override only when the MQE surface must be reached at a different address than `queryUrl`:
+
+- **Both `host` and `port` set** — MQE calls go to `http://<host>:<port>` (plain HTTP), with no discovery.
+- **Only one of the two set** — the missing half is discovered from the OAP admin host's configuration dump: the sharing-server REST bind when present (the OAP 11.x default layout), otherwise core's REST bind. A wildcard bind host (`0.0.0.0`, `::`) is replaced with `adminUrl`'s hostname. The combined result is plain HTTP as well.
+- **Neither set (default)** — MQE calls use `queryUrl` verbatim.
+
+The resolved target is cached for about a minute, so a hot-reloaded `oap.mqe` edit takes effect within a minute.
+
+Env form (JSON, both fields optional): `HORIZON_OAP_MQE='{"host":"mqe.internal","port":12800}'`.
 
 ## Basic auth handling
 
@@ -61,7 +73,6 @@ Horizon detects optional GraphQL fields via introspection on first use, then cac
 |---|---|
 | `queryAlarms` (modern alarm query with server-side layer filter) | First alarms request. If missing → falls back to legacy `getAlarm` and filters client-side. |
 | `getMenuItems` field set (per OAP version) | First menu request. |
-| MQE target (sharing-server vs core.restPort) | First MQE call. OAP 11.x default → sharing-server; v10 → `core.restPort`. |
 
 The cache is per-process. After a BFF restart, the next request re-probes.
 

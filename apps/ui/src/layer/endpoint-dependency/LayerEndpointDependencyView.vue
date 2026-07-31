@@ -644,13 +644,13 @@ function edgeRowCrosshair(rowId: string): number | null {
       <header class="picker-head">
         <span class="kicker">{{ t('API dependency') }}</span>
         <span v-if="serviceName" class="for-svc">
-          on
+          {{ t('on') }}
           <span v-if="identity(serviceName).cluster" class="sw-tag accent tiny inline-tag">
             <span class="tag-alias">{{ identity(serviceName).clusterAlias }}</span>
             <span class="tag-val">{{ identity(serviceName).cluster }}</span>
           </span>
           <span v-if="showLegacyGroup && identity(serviceName).legacyGroup" class="sw-tag tiny inline-tag">
-            <span class="tag-alias">group</span>
+            <span class="tag-alias">{{ t('group') }}</span>
             <span class="tag-val">{{ identity(serviceName).legacyGroup }}</span>
           </span>
           <b>{{ identity(serviceName).display }}</b>
@@ -1080,7 +1080,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                 <span class="tag-val">{{ identity(selectedNode.serviceName).cluster }}</span>
               </span>
               <span v-if="showLegacyGroup && identity(selectedNode.serviceName).legacyGroup" class="sw-tag tiny">
-                <span class="tag-alias">group</span>
+                <span class="tag-alias">{{ t('group') }}</span>
                 <span class="tag-val">{{ identity(selectedNode.serviceName).legacyGroup }}</span>
               </span>
               <span class="ed-svc">{{ identity(selectedNode.serviceName).display }}</span>
@@ -1194,7 +1194,7 @@ function edgeRowCrosshair(rowId: string): number | null {
 
     <section v-else-if="serviceName" class="empty">
       <template v-if="embedded">{{ t('No API-dependency data was captured for {serviceName} in this window.', { serviceName }) }}</template>
-      <template v-else>Select an endpoint above to see its dependency chain.</template>
+      <template v-else>{{ t('Select an endpoint above to see its dependency chain.') }}</template>
     </section>
   </div>
 </template>

@@ -17,9 +17,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useOapInfo } from '@/shell/useOapInfo';
 import { useAuthStore } from '@/state/auth';
 
+const { t } = useI18n();
 const { info, reachable, tzOffsetLabel, healthState } = useOapInfo();
 const auth = useAuthStore();
 
@@ -28,18 +30,18 @@ const auth = useAuthStore();
 const canViewCluster = computed(() => auth.hasVerb('cluster:read'));
 
 const oapChipTooltip = computed<string>(() => {
-  if (!info.value) return 'OAP status — loading…';
+  if (!info.value) return t('OAP status — loading…');
   if (!reachable.value) {
-    return `OAP unreachable: ${info.value.error ?? 'no response'}\nFix the upstream and the pill turns green.`;
+    return `${t('OAP unreachable: {error}', { error: info.value.error ?? t('no response') })}\n${t('Fix the upstream and the pill turns green.')}`;
   }
   const parts: string[] = [];
-  if (info.value.version) parts.push(`Version ${info.value.version}`);
-  if (tzOffsetLabel.value) parts.push(`Server TZ ${tzOffsetLabel.value}`);
+  if (info.value.version) parts.push(t('Version {version}', { version: info.value.version }));
+  if (tzOffsetLabel.value) parts.push(t('Server TZ {tz}', { tz: tzOffsetLabel.value }));
   if (info.value.currentTimestamp) {
-    parts.push(`Server clock ${new Date(info.value.currentTimestamp).toLocaleString()} (your local time)`);
+    parts.push(t('Server clock {time} (your local time)', { time: new Date(info.value.currentTimestamp).toLocaleString() }));
   }
   if (info.value.healthScore !== undefined) {
-    parts.push(`Health score ${info.value.healthScore} — ${info.value.healthDetails ?? '(no details)'}`);
+    parts.push(t('Health score {score} — {details}', { score: info.value.healthScore, details: info.value.healthDetails ?? t('(no details)') }));
   }
   return parts.join('\n');
 });
@@ -55,7 +57,7 @@ const oapChipTooltip = computed<string>(() => {
   >
     <span class="dot" />
     <span v-if="reachable" class="ver">OAP</span>
-    <span v-else class="ver">offline</span>
+    <span v-else class="ver">{{ t('offline') }}</span>
     <!-- Server TZ offset is kept out of the visible chip (noise next to
          the health dot); it stays in the tooltip and on the Cluster
          Status page. -->

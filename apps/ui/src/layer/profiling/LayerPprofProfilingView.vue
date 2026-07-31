@@ -184,7 +184,7 @@ function toggleInstance(id: string, dst: 'filter' | 'new'): void {
 
 async function submitNewTask(): Promise<void> {
   if (!serviceId.value || !newTask.instances.length || !newTask.event) {
-    newTaskError.value = 'Pick a service, instances, and an event.';
+    newTaskError.value = t('Pick a service, instances, and an event.');
     return;
   }
   newTaskError.value = null;
@@ -222,53 +222,56 @@ function fmtTime(ms: number): string {
 function instanceName(id: string): string {
   return instances.instances.value.find((i) => i.id === id)?.name ?? id;
 }
+function instanceCount(n: number): string {
+  return n === 1 ? t('{n} instance', { n }) : t('{n} instances', { n });
+}
 </script>
 
 <template>
   <div class="sw-card pp-shell">
     <div class="pp-side">
       <div class="side-head between">
-        <span>pprof tasks</span>
+        <span>{{ t('pprof tasks') }}</span>
         <div class="side-head-actions">
           <button
             class="btn-refresh"
             :class="{ spinning: tasksLoading }"
             :disabled="!serviceId || tasksLoading"
-            :title="!serviceId ? 'Pick a service first' : tasksLoading ? 'Refreshing…' : 'Refresh task list'"
-            aria-label="Refresh task list"
+            :title="!serviceId ? t('Pick a service first') : tasksLoading ? t('Refreshing…') : t('Refresh task list')"
+            :aria-label="t('Refresh task list')"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
-          <button class="btn-new" :disabled="!serviceId" :title="serviceId ? 'Create a new pprof task' : 'Pick a service first'" @click="showNewTask = true">+ New Task</button>
+          <button class="btn-new" :disabled="!serviceId" :title="serviceId ? t('Create a new pprof task') : t('Pick a service first')" @click="showNewTask = true">{{ t('+ New Task') }}</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
+      <div v-if="polling" class="poll-hint">{{ t('Registering new task… refreshing in {n}s', { n: countdown }) }}</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
-      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
+      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">{{ t('Loading…') }}</div>
       <div v-else-if="!tasks.length" class="side-empty">
-        {{ serviceId ? 'No pprof tasks. pprof works with Go services only.' : 'Pick a service to load tasks.' }}
+        {{ serviceId ? t('No pprof tasks. pprof works with Go services only.') : t('Pick a service to load tasks.') }}
       </div>
       <ul v-else class="side-list">
         <li
-          v-for="t in tasks"
-          :key="t.id"
-          :class="{ 'is-active': currentTask?.id === t.id }"
-          @click="currentTask = t; selectedInstances = [...(t.serviceInstanceIds ?? [])]; tree = null"
+          v-for="task in tasks"
+          :key="task.id"
+          :class="{ 'is-active': currentTask?.id === task.id }"
+          @click="currentTask = task; selectedInstances = [...(task.serviceInstanceIds ?? [])]; tree = null"
         >
           <div class="row1">
-            <span class="t-tag">{{ t.events }}</span>
-            <span class="ep">{{ t.serviceInstanceIds?.length ?? 0 }} instance{{ (t.serviceInstanceIds?.length ?? 0) === 1 ? '' : 's' }}</span>
+            <span class="t-tag">{{ task.events }}</span>
+            <span class="ep">{{ instanceCount(task.serviceInstanceIds?.length ?? 0) }}</span>
             <button
               type="button"
               class="row-eye"
-              title="View task detail"
-              @click.stop="openTaskDetail(t, $event)"
+              :title="t('View task detail')"
+              @click.stop="openTaskDetail(task, $event)"
             >i</button>
           </div>
           <div class="row2">
-            <span>{{ fmtTime(t.createTime) }}</span>
+            <span>{{ fmtTime(task.createTime) }}</span>
             <span class="muted">
-              <template v-if="t.duration != null">· {{ t.duration }}min</template>
-              <template v-if="t.dumpPeriod != null"> · rate {{ t.dumpPeriod }}</template>
+              <template v-if="task.duration != null">· {{ t('{n}min', { n: task.duration }) }}</template>
+              <template v-if="task.dumpPeriod != null"> · {{ t('rate {n}', { n: task.dumpPeriod }) }}</template>
             </span>
           </div>
         </li>
@@ -278,7 +281,7 @@ function instanceName(id: string): string {
     <div class="pp-main">
       <div class="filter-bar">
         <div class="tb-block grow">
-          <label class="lbl">Instances ({{ selectedInstances.length }} / {{ currentTask?.serviceInstanceIds?.length ?? 0 }})</label>
+          <label class="lbl">{{ t('Instances ({n} / {total})', { n: selectedInstances.length, total: currentTask?.serviceInstanceIds?.length ?? 0 }) }}</label>
           <div class="chip-row">
             <button
               v-for="id in currentTask?.serviceInstanceIds ?? []"
@@ -287,22 +290,22 @@ function instanceName(id: string): string {
               :class="{ on: selectedInstances.includes(id) }"
               @click="toggleInstance(id, 'filter')"
             >{{ instanceName(id) }}</button>
-            <span v-if="!currentTask" class="muted">Pick a task on the left.</span>
+            <span v-if="!currentTask" class="muted">{{ t('Pick a task on the left.') }}</span>
           </div>
         </div>
         <div class="tb-block">
-          <label class="lbl">Event</label>
+          <label class="lbl">{{ t('Event') }}</label>
           <span class="event-fixed">{{ currentTask?.events ?? '—' }}</span>
         </div>
-        <button class="btn-primary" :disabled="analyzeLoading || !currentTask || !selectedInstances.length" :title="!selectedInstances.length ? 'Select at least one instance' : 'Analyze the selected instances'" @click="runAnalyze">
-          {{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}
+        <button class="btn-primary" :disabled="analyzeLoading || !currentTask || !selectedInstances.length" :title="!selectedInstances.length ? t('Select at least one instance') : t('Analyze the selected instances')" @click="runAnalyze">
+          {{ analyzeLoading ? t('Analyzing…') : t('Analyze') }}
         </button>
       </div>
       <div v-if="analyzeError" class="banner err">{{ analyzeError }}</div>
       <div class="result">
         <ProfileFlameGraph v-if="profileTrees.length" :trees="profileTrees" metric-key="count" />
         <div v-else-if="!analyzeLoading" class="result-empty">
-          {{ currentTask ? 'Pick instances, then click Analyze.' : 'Select a task.' }}
+          {{ currentTask ? t('Pick instances, then click Analyze.') : t('Select a task.') }}
         </div>
       </div>
     </div>
@@ -311,12 +314,12 @@ function instanceName(id: string): string {
   <div v-if="showNewTask" class="dlg-mask" @click.self="showNewTask = false">
     <div class="dlg">
       <div class="dlg-head">
-        <div>New pprof task</div>
+        <div>{{ t('New pprof task') }}</div>
         <button class="x" @click="showNewTask = false">×</button>
       </div>
       <div class="dlg-body">
         <div class="field">
-          <label>Instances (Go services only)</label>
+          <label>{{ t('Instances (Go services only)') }}</label>
           <div class="chip-row">
             <button
               v-for="i in instances.instances.value"
@@ -330,7 +333,7 @@ function instanceName(id: string): string {
           </div>
         </div>
         <div class="field">
-          <label>Event (one per task)</label>
+          <label>{{ t('Event (one per task)') }}</label>
           <div class="chip-row">
             <button
               v-for="e in PPROF_EVENTS"
@@ -344,31 +347,31 @@ function instanceName(id: string): string {
         </div>
         <div class="field-row">
           <div v-if="newNeedsDuration" class="field">
-            <label>Duration</label>
+            <label>{{ t('Duration') }}</label>
             <select v-model.number="newTask.duration" class="sel">
-              <option v-for="o in DURATION_OPTS" :key="o.v" :value="o.v">{{ o.label }}</option>
+              <option v-for="o in DURATION_OPTS" :key="o.v" :value="o.v">{{ t(o.label) }}</option>
             </select>
           </div>
           <div v-if="newNeedsDumpPeriod" class="field">
-            <label>Dump period (rate)</label>
+            <label>{{ t('Dump period (rate)') }}</label>
             <input type="number" min="1" v-model.number="newTask.dumpPeriod" class="ti-input" />
             <span class="hint">
               {{ newTask.event === 'BLOCK'
-                ? 'Blocked-ns sampling rate; 1 samples every event.'
-                : 'Contention-occurrences sampling rate; 1 samples every event.' }}
+                ? t('Blocked-ns sampling rate; 1 samples every event.')
+                : t('Contention-occurrences sampling rate; 1 samples every event.') }}
             </span>
           </div>
         </div>
         <div v-if="newTaskError" class="dlg-err">{{ newTaskError }}</div>
       </div>
       <div class="dlg-foot">
-        <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
+        <button class="btn-secondary" @click="showNewTask = false">{{ t('Cancel') }}</button>
         <button
           class="btn-primary"
           :disabled="!newTask.instances.length || !newTask.event"
-          :title="!newTask.instances.length ? 'Select at least one instance' : !newTask.event ? 'Pick an event type' : 'Create the pprof task'"
+          :title="!newTask.instances.length ? t('Select at least one instance') : !newTask.event ? t('Pick an event type') : t('Create the pprof task')"
           @click="submitNewTask"
-        >Create task</button>
+        >{{ t('Create task') }}</button>
       </div>
     </div>
   </div>

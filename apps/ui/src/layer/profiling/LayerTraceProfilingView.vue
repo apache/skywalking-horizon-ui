@@ -36,6 +36,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useSelectedService } from '@/layer/useSelectedService';
@@ -62,6 +63,7 @@ import { profileTimeRanges } from '@/layer/profiling/profileTimeRanges';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
 import Icon from '@/components/icons/Icon.vue';
 
+const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { layers } = useLayers();
@@ -209,7 +211,7 @@ async function openTaskDetail(t: ProfileTask, ev: Event): Promise<void> {
 async function runAnalyze(): Promise<void> {
   const span = currentSpan.value;
   if (!span?.profiled) {
-    analyzeMessage.value = "It's a un-profiled span";
+    analyzeMessage.value = t("It's a un-profiled span");
     return;
   }
   analyzeMessage.value = '';
@@ -241,7 +243,7 @@ const endpointLimit = ref(20);
 const endpointPicks = useLayerEndpoints(layerKey, selectedId, endpointKeyword, endpointLimit);
 async function submitNewTask(payload: NewTraceTaskPayload): Promise<void> {
   if (!selectedId.value) {
-    taskCreateError.value = 'Pick a service first';
+    taskCreateError.value = t('Pick a service first');
     return;
   }
   taskCreateError.value = null;
@@ -289,64 +291,64 @@ function fmtTime(ms: number): string {
     <div class="prof-side">
       <div class="side-pane">
         <div class="side-head">
-          <span>Profile tasks</span>
+          <span>{{ t('Profile tasks') }}</span>
           <div class="side-head-actions">
             <button
               type="button"
               class="btn-refresh"
               :class="{ spinning: tasksLoading }"
               :disabled="!selectedId || tasksLoading"
-              :title="!selectedId ? 'Pick a service first' : tasksLoading ? 'Refreshing…' : 'Refresh task list'"
-              aria-label="Refresh task list"
+              :title="!selectedId ? t('Pick a service first') : tasksLoading ? t('Refreshing…') : t('Refresh task list')"
+              :aria-label="t('Refresh task list')"
               @click="refreshTasks"
             ><Icon name="refresh" :size="11" /></button>
             <button
               type="button"
               class="btn-new"
               :disabled="!selectedId"
-              :title="selectedId ? 'Create a new profile task' : 'Pick a service first'"
+              :title="selectedId ? t('Create a new profile task') : t('Pick a service first')"
               @click="showNewTask = true"
-            >+ New Task</button>
+            >{{ t('+ New Task') }}</button>
           </div>
         </div>
-        <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
+        <div v-if="polling" class="poll-hint">{{ t('Registering new task… refreshing in {n}s', { n: countdown }) }}</div>
         <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
-        <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
+        <div v-else-if="tasksLoading && !tasks.length" class="side-empty">{{ t('Loading…') }}</div>
         <div v-else-if="!tasks.length" class="side-empty">
-          {{ selectedId ? 'No tasks yet for this service.' : 'Pick a service to load profile tasks.' }}
+          {{ selectedId ? t('No tasks yet for this service.') : t('Pick a service to load profile tasks.') }}
         </div>
         <ul v-else class="side-list">
           <li
-            v-for="t in tasks"
-            :key="t.id"
-            :class="{ 'is-active': currentTask?.id === t.id }"
-            @click="pickTask(t)"
+            v-for="task in tasks"
+            :key="task.id"
+            :class="{ 'is-active': currentTask?.id === task.id }"
+            @click="pickTask(task)"
           >
             <div class="row1">
-              <span class="ep" :title="t.endpointName">{{ t.endpointName || '(no endpoint)' }}</span>
+              <span class="ep" :title="task.endpointName">{{ task.endpointName || t('(no endpoint)') }}</span>
               <button
                 type="button"
                 class="row-eye"
-                title="View task detail"
-                @click.stop="openTaskDetail(t, $event)"
+                :title="t('View task detail')"
+                @click.stop="openTaskDetail(task, $event)"
               >i</button>
             </div>
             <div class="row2">
-              <span>{{ fmtTime(t.startTime) }}</span>
+              <span>{{ fmtTime(task.startTime) }}</span>
               <span class="muted">→</span>
-              <span>{{ fmtTime(t.startTime + t.duration * 60_000) }}</span>
+              <span>{{ fmtTime(task.startTime + task.duration * 60_000) }}</span>
             </div>
           </li>
         </ul>
       </div>
       <div class="side-pane">
         <div class="side-head">
-          <span>Sampled traces</span>
+          <span>{{ t('Sampled traces') }}</span>
           <span v-if="currentTask" class="side-counter">{{ segments.length }}</span>
         </div>
         <div v-if="segmentsError" class="side-err">{{ segmentsError }}</div>
-        <div v-else-if="segmentsLoading && !segments.length" class="side-empty">Loading…</div>
-        <div v-else-if="!segments.length" class="side-empty">No sampled segments collected.</div>
+        <div v-else-if="segmentsLoading && !segments.length" class="side-empty">{{ t('Loading…') }}</div>
+        <div v-else-if="!segments.length" class="side-empty">{{ t('No sampled segments collected.') }}</div>
         <ul v-else class="side-list">
           <li
             v-for="s in segments"
@@ -358,7 +360,7 @@ function fmtTime(ms: number): string {
               <span class="ep" :title="s.endpointNames?.[0]">{{ s.endpointNames?.[0] ?? '—' }}</span>
             </div>
             <div class="row2">
-              <span class="dur-chip">{{ s.duration }} ms</span>
+              <span class="dur-chip">{{ t('{n} ms', { n: s.duration }) }}</span>
               <span class="muted">{{ fmtTime(Number(s.start)) }}</span>
             </div>
           </li>
@@ -369,29 +371,29 @@ function fmtTime(ms: number): string {
     <div class="prof-main">
       <div class="main-toolbar">
         <div class="tb-block">
-          <label class="lbl">Trace ID</label>
+          <label class="lbl">{{ t('Trace ID') }}</label>
           <input class="ti-input" readonly :value="currentSegment?.traceId ?? ''" />
         </div>
         <div class="tb-block">
-          <label class="lbl">Data mode</label>
+          <label class="lbl">{{ t('Data mode') }}</label>
           <select v-model="dataMode" class="sel">
-            <option value="include">Include children</option>
-            <option value="exclude">Exclude children</option>
+            <option value="include">{{ t('Include children') }}</option>
+            <option value="exclude">{{ t('Exclude children') }}</option>
           </select>
         </div>
         <div class="tb-block">
-          <label class="lbl">Display</label>
+          <label class="lbl">{{ t('Display') }}</label>
           <div class="seg">
-            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">Tree</button>
-            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">Flame</button>
+            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
+            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
           </div>
         </div>
         <button
           class="btn-primary"
           :disabled="!currentSpan?.profiled || analyzeLoading"
-          :title="currentSpan?.profiled ? 'Analyze selected span' : 'Select a profiled span to analyze'"
+          :title="currentSpan?.profiled ? t('Analyze selected span') : t('Select a profiled span to analyze')"
           @click="runAnalyze"
-        >{{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}</button>
+        >{{ analyzeLoading ? t('Analyzing…') : t('Analyze') }}</button>
       </div>
 
       <!-- Spans rendered through the shared NativeTraceWaterfall used
@@ -401,12 +403,12 @@ function fmtTime(ms: number): string {
            the `profiled` chip per row, enabled via `mark-profiled`. -->
       <section class="sw-card span-card">
         <header class="span-card-head">
-          <h4>Spans</h4>
-          <span class="sub">{{ segmentSpans.length }} in segment · click to select</span>
+          <h4>{{ t('Spans') }}</h4>
+          <span class="sub">{{ t('{n} in segment · click to select', { n: segmentSpans.length }) }}</span>
         </header>
         <div class="span-scroll">
           <div v-if="!segmentSpans.length" class="span-empty">
-            {{ currentTask ? 'No spans in selected segment.' : 'Select a task to load spans.' }}
+            {{ currentTask ? t('No spans in selected segment.') : t('Select a task to load spans.') }}
           </div>
           <NativeTraceWaterfall
             v-else

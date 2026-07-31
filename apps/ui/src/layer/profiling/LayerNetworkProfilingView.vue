@@ -185,7 +185,7 @@ watch(selectedCall, async (call) => {
   const src = nodeById(call.source);
   const dst = nodeById(call.target);
   if (!src || !dst) {
-    relationError.value = 'Edge endpoints not in the current topology.';
+    relationError.value = t('Edge endpoints not in the current topology.');
     return;
   }
   relationLoading.value = true;
@@ -300,7 +300,7 @@ function removeSampling(i: number): void {
 }
 async function submitNewTask(): Promise<void> {
   if (!selectedInstanceId.value) {
-    newTaskError.value = 'Pick an instance first';
+    newTaskError.value = t('Pick an instance first');
     return;
   }
   newTaskError.value = null;
@@ -344,29 +344,29 @@ function fmtTime(ms: number): string {
     <!-- Side: tasks (the create target instance is chosen inside New Task) -->
     <div class="net-side">
       <div class="side-head between">
-        <span>Network tasks</span>
+        <span>{{ t('Network tasks') }}</span>
         <div class="side-head-actions">
           <button
             class="btn-refresh"
             :class="{ spinning: tasksLoading }"
             :disabled="!serviceId || tasksLoading"
-            :title="!serviceId ? 'Pick a service' : tasksLoading ? 'Refreshing…' : 'Refresh task list'"
-            aria-label="Refresh task list"
+            :title="!serviceId ? t('Pick a service') : tasksLoading ? t('Refreshing…') : t('Refresh task list')"
+            :aria-label="t('Refresh task list')"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
             :disabled="!serviceId"
-            :title="!serviceId ? 'Pick a service first' : 'Create a new network profile task'"
+            :title="!serviceId ? t('Pick a service first') : t('Create a new network profile task')"
             @click="showNewTask = true"
-          >+ New Task</button>
+          >{{ t('+ New Task') }}</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
+      <div v-if="polling" class="poll-hint">{{ t('Registering new task… refreshing in {countdown}s', { countdown }) }}</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
-      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
+      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">{{ t('Loading…') }}</div>
       <div v-else-if="!tasks.length" class="side-empty">
-        {{ serviceId ? 'No network tasks for this service.' : 'Pick a service to load tasks.' }}
+        {{ serviceId ? t('No network tasks for this service.') : t('Pick a service to load tasks.') }}
       </div>
       <ul v-else class="side-list">
         <li
@@ -389,18 +389,18 @@ function fmtTime(ms: number): string {
     <div class="net-main">
       <div class="filter-bar">
         <div class="tb-block">
-          <label class="lbl">Window</label>
+          <label class="lbl">{{ t('Window') }}</label>
           <select v-model.number="windowMinutes" class="sel" @change="loadTopology">
-            <option :value="5">5 min</option>
-            <option :value="15">15 min</option>
-            <option :value="30">30 min</option>
-            <option :value="60">1 hr</option>
-            <option :value="180">3 hr</option>
+            <option :value="5">{{ t('5 min') }}</option>
+            <option :value="15">{{ t('15 min') }}</option>
+            <option :value="30">{{ t('30 min') }}</option>
+            <option :value="60">{{ t('1 hr') }}</option>
+            <option :value="180">{{ t('3 hr') }}</option>
           </select>
         </div>
         <span class="spacer"></span>
-        <span class="muted" v-if="!topologyLoading">{{ nodes.length }} processes · {{ calls.length }} edges</span>
-        <span v-if="topologyLoading" class="muted">loading topology…</span>
+        <span class="muted" v-if="!topologyLoading">{{ t('{nodes} processes · {edges} edges', { nodes: nodes.length, edges: calls.length }) }}</span>
+        <span v-if="topologyLoading" class="muted">{{ t('loading topology…') }}</span>
       </div>
 
       <div v-if="topologyError" class="banner err">{{ topologyError }}</div>
@@ -414,8 +414,8 @@ function fmtTime(ms: number): string {
         />
         <div v-else-if="!topologyLoading" class="topology-empty">
           {{ selectedInstanceId
-            ? 'No process topology data in the selected window. Create a network profile task and let it run, then refresh.'
-            : 'Pick an instance to view its process topology.' }}
+            ? t('No process topology data in the selected window. Create a network profile task and let it run, then refresh.')
+            : t('Pick an instance to view its process topology.') }}
         </div>
       </div>
     </div>
@@ -435,7 +435,7 @@ function fmtTime(ms: number): string {
         <button class="x" @click="closeEdge">×</button>
       </div>
       <div class="dlg-body edge-dlg-body">
-        <div v-if="relationLoading" class="muted">Reading process-relation metrics…</div>
+        <div v-if="relationLoading" class="muted">{{ t('Reading process-relation metrics…') }}</div>
         <div v-else-if="relationError" class="banner err">{{ relationError }}</div>
         <!-- The metric set is operator-configurable in the admin. -->
         <div v-else-if="relationMetrics" class="edge-cols">
@@ -444,8 +444,8 @@ function fmtTime(ms: number): string {
             :key="side"
             class="edge-col"
           >
-            <h5 class="edge-col-head" :class="side">{{ side === 'client' ? 'Client side' : 'Server side' }}</h5>
-            <div v-if="!relationMetrics[side].length" class="muted sm">No {{ side }} metrics configured.</div>
+            <h5 class="edge-col-head" :class="side">{{ side === 'client' ? t('Client side') : t('Server side') }}</h5>
+            <div v-if="!relationMetrics[side].length" class="muted sm">{{ side === 'client' ? t('No client metrics configured.') : t('No server metrics configured.') }}</div>
             <div v-else class="edge-col-grid">
               <div v-for="m in relationMetrics[side]" :key="m.id" class="edge-widget sw-card">
                 <div class="ew-head">
@@ -469,14 +469,14 @@ function fmtTime(ms: number): string {
   <div v-if="showNewTask" class="dlg-mask" @click.self="showNewTask = false">
     <div class="dlg wide">
       <div class="dlg-head">
-        <div>New network profile task</div>
+        <div>{{ t('New network profile task') }}</div>
         <button class="x" @click="showNewTask = false">×</button>
       </div>
       <div class="dlg-body">
         <div class="field">
-          <label>Instance</label>
+          <label>{{ t('Instance') }}</label>
           <select v-model="selectedInstanceId" class="sel wide" :disabled="!instances.instances.value.length">
-            <option v-if="!instances.instances.value.length" :value="null">— no instances —</option>
+            <option v-if="!instances.instances.value.length" :value="null">{{ t('— no instances —') }}</option>
             <option v-for="inst in instances.instances.value" :key="inst.id" :value="inst.id">{{ inst.name }}</option>
           </select>
         </div>
@@ -499,8 +499,7 @@ function fmtTime(ms: number): string {
           </div>
         </template>
         <p class="hint">
-          OAP captures one connection sample per matching rule. Leave URI
-          empty to match any request; toggle 4xx/5xx to scope by status.
+          {{ t('OAP captures one connection sample per matching rule. Leave URI empty to match any request; toggle 4xx/5xx to scope by status.') }}
         </p>
         <div v-for="(s, i) in samplings" :key="i" class="sampling">
           <div class="sampling-head">
@@ -510,15 +509,15 @@ function fmtTime(ms: number): string {
               class="del"
               type="button"
               @click="removeSampling(i)"
-            >× remove</button>
+            >{{ t('× remove') }}</button>
           </div>
           <div class="field-row">
             <div class="field grow">
-              <label>URI regex (optional)</label>
-              <input class="ti-input wide" v-model="s.uriRegex" placeholder="e.g. ^/api/.*" />
+              <label>{{ t('URI regex (optional)') }}</label>
+              <input class="ti-input wide" v-model="s.uriRegex" :placeholder="t('e.g. ^/api/.*')" />
             </div>
             <div class="field">
-              <label>Min duration (ms)</label>
+              <label>{{ t('Min duration (ms)') }}</label>
               <input class="ti-input" type="number" min="0" v-model.number="s.minDuration" />
             </div>
           </div>
@@ -529,17 +528,17 @@ function fmtTime(ms: number): string {
             <label class="cb"><input type="checkbox" v-model="s.settings.requireCompleteResponse" /> {{ t('capture response') }}</label>
           </div>
         </div>
-        <button class="btn-secondary" type="button" @click="addSampling">+ add another sampling rule</button>
+        <button class="btn-secondary" type="button" @click="addSampling">{{ t('+ add another sampling rule') }}</button>
         <div v-if="newTaskError" class="dlg-err">{{ newTaskError }}</div>
       </div>
       <div class="dlg-foot">
-        <button class="btn-secondary" @click="showNewTask = false">Cancel</button>
+        <button class="btn-secondary" @click="showNewTask = false">{{ t('Cancel') }}</button>
         <button
           class="btn-primary"
           :disabled="!selectedInstanceId || processesLoading"
           :title="!selectedInstanceId ? t('No instances available for this service') : processesLoading ? t('Checking processes…') : t('Create the network profile task')"
           @click="submitNewTask"
-        >Create task</button>
+        >{{ t('Create task') }}</button>
       </div>
     </div>
   </div>
