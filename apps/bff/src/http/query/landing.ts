@@ -126,7 +126,7 @@ const columnSchema = z.object({
   // server-side, so the BFF fires it once (no per-service fan-out).
   selfAggregate: z.boolean().optional(),
 });
-const bodySchema = z.object({
+export const bodySchema = z.object({
   topN: z.number().int().min(1).max(8),
   orderBy: z.string().min(1),
   // Bumped from 5 to 10: Overview tile metrics are now self-contained

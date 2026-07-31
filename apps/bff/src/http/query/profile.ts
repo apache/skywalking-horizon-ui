@@ -48,22 +48,13 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { resolveRequiredService } from '../../logic/oap/service-scope.js';
 
 export interface ProfileRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForProfileResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const GET_PROFILE_TASK_LIST = /* GraphQL */ `
   query getProfileTaskList($endpointName: String, $serviceId: ID) {
@@ -164,22 +155,6 @@ function softError<T extends { reachable: boolean; error?: string }>(payload: T,
   return payload;
 }
 
-async function resolveServiceId(
-  opts: ReturnType<typeof buildOapOpts>,
-  layerKey: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string; normal?: boolean }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layerKey.toUpperCase() });
-  const match =
-    data.services.find((s) => s.name === serviceArg) ??
-    data.services.find((s) => s.id === serviceArg) ??
-    null;
-  return match?.id ?? null;
-}
-
 export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDeps): void {
   const auth = requireAuth(deps);
 
@@ -197,12 +172,18 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
 
       if (!serviceArg) return reply.send(payload);
       try {
-        const serviceId = await resolveServiceId(opts, layerKey, serviceArg);
-        if (!serviceId) return reply.send(payload);
+        const scope = await resolveRequiredService(opts, layerKey, serviceArg);
+        // `getProfileTaskList(serviceId)` is nullable — a name that resolved to
+        // nothing must say so, not list every service's profiling tasks.
+        if (scope.kind === 'unknown') {
+          payload.reachable = false;
+          payload.error = scope.message;
+          return reply.send(payload);
+        }
         const data = await graphqlPost<{ taskList: ProfileTaskListResponse['tasks'] }>(
           opts,
           GET_PROFILE_TASK_LIST,
-          { serviceId, endpointName: endpointName || '' },
+          { serviceId: scope.serviceId, endpointName: endpointName || '' },
         );
         payload.tasks = data.taskList ?? [];
         return reply.send(payload);

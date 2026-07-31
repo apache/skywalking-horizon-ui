@@ -161,6 +161,30 @@ jobs:
       # The scripts already include `vitest run`, so no `--run` forwarding
       # needed — keeps the CI line robust against pnpm-flag parsing quirks.
       - run: pnpm -r run test:unit
+      # The release scripts are bash and live outside the workspaces, so
+
+  templates:
+    # The bundled layer / overview templates are configuration that ships
+    # inside the release, so a broken one is a shipping defect, not operator
+    # error — and the loader only JSON.parses them, which is how an orderBy
+    # naming a nonexistent column and an unsupported aggregation both shipped.
+    # Its own status check rather than a line inside `lint`, so a template
+    # failure is legible from the check name. `pnpm lint` runs it too, so one
+    # local command still covers every gate.
+    name: Bundled templates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint:templates
 
   lint:
     name: Lint + source budget
@@ -178,8 +202,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # ESLint (rules + 2000-line cap, comments excluded) across ui + bff,
       # the source-budget gate (≤2000 code / ≤500 comment lines per file),
-      # then both i18n gates: UI catalog coverage/parity (check-ui-i18n.mjs)
-      # and the BFF template-overlay validator (i18n:validate).
+      # both i18n gates: UI catalog coverage/parity (check-ui-i18n.mjs) and
+      # the BFF template-overlay validator (i18n:validate), then the bundled
+      # layer / overview templates themselves (templates:validate).
       - run: pnpm lint
 
   package:
@@ -238,7 +263,7 @@ jobs:
     # [Required]`) can gate on a single rolled-up signal.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint, package]
+    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint, templates, package]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -251,4 +276,5 @@ jobs:
           [[ ${{ needs.build-bff.result }} == 'success' ]] || exit 1
           [[ ${{ needs.test.result }} == 'success' ]] || exit 1
           [[ ${{ needs.lint.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.templates.result }} == 'success' ]] || exit 1
           [[ ${{ needs.package.result }} == 'success' ]] || exit 1

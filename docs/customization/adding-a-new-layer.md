@@ -88,7 +88,13 @@ Bundled template changes need a BFF restart (templates are loaded once at startu
 - Want a widget on the instance page that's not on the service page? Add to `dashboards.instance`.
 - Want a custom topology metric? Set `topology.metric`.
 
-Each iteration is template + BFF restart. The schema is validated at startup; a bad template logs the error and falls back to defaults — check the BFF logs.
+Each iteration is template + BFF restart. Loading a template only parses it — a wrong roll-up value, an unknown widget kind, or a default sort naming a column that isn't there surfaces much later, as an empty page rather than an error. Check the template itself before you restart:
+
+```sh
+pnpm lint:templates
+```
+
+That validates every bundled layer and overview template against what the pages accept (roll-up values, widget kinds, required fields, and internal references such as the default sort and an overview widget's layer), printing one line per problem. It also runs as part of `pnpm lint`, so a broken bundled template fails CI.
 
 ### 9. Add translations (i18n)
 

@@ -30,6 +30,11 @@
 # then prepares a next-version PR.
 #
 # Usage:  bash scripts/release.sh
+#
+# The signing key is taken from HORIZON_RELEASE_GPG_KEY, else git's
+# user.signingkey, else the sole secret key in the keyring — and it is
+# pinned on every signing call, so a machine holding several secret keys
+# cannot sign with one key while the script reported another.
 
 set -e -o pipefail
 
@@ -44,14 +49,8 @@ CLONE_DIR="${WORK_DIR}/skywalking-horizon-ui"
 
 # ========================== Helpers ==========================
 
-err() { echo "ERROR: $*" >&2; }
-note() { echo ""; echo "=== $* ==="; }
-
-confirm() {
-    local prompt="$1"
-    read -r -p "${prompt} [y/N] " ans
-    [[ "$ans" == "y" || "$ans" == "Y" ]]
-}
+# shellcheck source=scripts/release-common.sh
+. "${SCRIPT_DIR}/release-common.sh"
 
 # Extract the root package.json "version" without depending on jq —
 # we want this script to be runnable on stock macOS / Alpine.
@@ -67,36 +66,38 @@ file_has() {
 # ========================== Step 1: GPG signer ==========================
 note "Step 1 — GPG signer check"
 
-GPG_KEY_ID=$(git config user.signingkey 2>/dev/null || true)
-if [ -z "$GPG_KEY_ID" ]; then
-    GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -A1 '^sec' | tail -1 | awk '{print $1}' || true)
-fi
-if [ -z "$GPG_KEY_ID" ]; then
-    err "No GPG secret key found. Configure your Apache GPG key first."
+command -v gpg >/dev/null || { err "gpg is not installed."; exit 1; }
+
+# One key, named by its full fingerprint — every later signing call pins it.
+GPG_KEY_ID=$(gpg_resolve_signing_key) || exit 1
+
+# Identity is checked on THAT key only. Scanning every uid in the keyring
+# would happily accept some other key's @apache.org address as proof that
+# the selected key is an Apache one.
+if ! GPG_APACHE_UID=$(gpg_apache_uid "${GPG_KEY_ID}"); then
+    err "GPG key ${GPG_KEY_ID} has no @apache.org user ID — Apache releases must be signed with an @apache.org key."
+    err "User IDs on this key:"
+    gpg_key_uids "${GPG_KEY_ID}" | sed 's/^/  /' >&2 || true
     exit 1
 fi
-
-GPG_UIDS=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep 'uid' | sed 's/.*] //')
-GPG_EMAIL=$(echo "$GPG_UIDS" | grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' | head -1)
-
-if [[ "$GPG_EMAIL" != *"@apache.org" ]]; then
-    err "GPG key email '${GPG_EMAIL}' is not @apache.org — Apache releases must be signed with an @apache.org key."
-    exit 1
-fi
-echo "GPG Signer: ${GPG_UIDS}"
+echo "GPG Signer: ${GPG_APACHE_UID}"
 echo "GPG Key:    ${GPG_KEY_ID}"
 confirm "Is this the correct signer?" || { echo "Aborted."; exit 1; }
 
-export GPG_TTY=$(tty)
+# `set -e` + a bare assignment means a failed `tty` would abort the release;
+# it fails whenever stdin is not a terminal. gpg only needs GPG_TTY to draw a
+# passphrase prompt, so a missing tty is not fatal here — leave it unset.
+GPG_TTY=$(tty 2>/dev/null || true)
+export GPG_TTY
 echo "Verifying GPG signing works (you may be prompted for the passphrase)…"
 TEST_FILE=$(mktemp); echo "test" > "${TEST_FILE}"
-if ! gpg --armor --detach-sig "${TEST_FILE}" 2>/dev/null; then
+if ! gpg_sign_and_verify "${TEST_FILE}" "${GPG_KEY_ID}"; then
     rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-    err "GPG signing failed. Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
+    err "Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
     exit 1
 fi
 rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-echo "GPG signing OK."
+echo "GPG signing OK — signatures verify back to ${GPG_KEY_ID}."
 
 # ========================== Step 2: Required tools ==========================
 note "Step 2 — Tool check"
@@ -409,7 +410,9 @@ note "Step 12 — GPG sign + sha512"
 
 cd "${WORK_DIR}"
 for t in "${SRC_TAR}" "${BIN_TAR}"; do
-    gpg --armor --detach-sig "${t}"
+    # Signs with --local-user ${GPG_KEY_ID} and re-reads the .asc to confirm
+    # the signature really came from that key.
+    gpg_sign_and_verify "${t}" "${GPG_KEY_ID}"
     shasum -a 512 "$(basename "${t}")" > "${t}.sha512"
 done
 
@@ -417,12 +420,9 @@ echo "Artifacts:"
 ls -lh "${SRC_TAR}" "${SRC_TAR}.asc" "${SRC_TAR}.sha512" \
        "${BIN_TAR}" "${BIN_TAR}.asc" "${BIN_TAR}.sha512"
 
-# Verify signatures locally before publishing.
-gpg --verify "${SRC_TAR}.asc" "${SRC_TAR}"
-gpg --verify "${BIN_TAR}.asc" "${BIN_TAR}"
 shasum -a 512 -c "${SRC_TAR}.sha512"
 shasum -a 512 -c "${BIN_TAR}.sha512"
-echo "Self-verify OK."
+echo "Self-verify OK — both artifacts signed by ${GPG_KEY_ID} (${GPG_APACHE_UID}), checksums match."
 
 # ========================== Step 13: SVN upload ==========================
 note "Step 13 — Upload to ${SVN_DEV_URL}/${RELEASE_VERSION}"
@@ -518,6 +518,8 @@ Release CommitID:
 Keys to verify the Release Candidate:
 
  * https://dist.apache.org/repos/dist/release/skywalking/KEYS
+ * Signed by ${GPG_APACHE_UID}
+   fingerprint ${GPG_KEY_ID}
 
 Guide to build the release from source:
 

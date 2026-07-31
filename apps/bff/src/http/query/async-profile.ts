@@ -52,6 +52,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { resolveRequiredService } from '../../logic/oap/service-scope.js';
 
 export interface AsyncProfileRouteDeps {
   config: ConfigSource;
@@ -129,16 +130,6 @@ function clampExecArgs(v: unknown): string | undefined {
   if (typeof v !== 'string') return undefined;
   return v.slice(0, MAX_EXEC_ARGS_LEN);
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForAsyncResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const GET_ASYNC_TASK_LIST = /* GraphQL */ `
   query GetAsyncTaskList($request: AsyncProfilerTaskListRequest!) {
@@ -242,22 +233,6 @@ function softErr<T extends { reachable: boolean; error?: string }>(p: T, e: unkn
   return p;
 }
 
-async function resolveServiceId(
-  opts: ReturnType<typeof buildOapOpts>,
-  layerKey: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string; normal?: boolean }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layerKey.toUpperCase() });
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 export function registerAsyncProfileRoutes(
   app: FastifyInstance,
   deps: AsyncProfileRouteDeps,
@@ -276,11 +251,14 @@ export function registerAsyncProfileRoutes(
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const limit = clampTaskListLimit(q.limit);
       try {
-        const serviceId = await resolveServiceId(opts, params.key, serviceArg);
-        if (!serviceId) return reply.send(payload);
+        const scope = await resolveRequiredService(opts, params.key, serviceArg);
+        // `AsyncProfilerTaskListRequest.serviceId` is `ID!` — required, so a
+        // name we could not resolve has nothing valid to send. Refuse with the
+        // reason rather than guess at an id or fire a malformed query.
+        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         const data = await graphqlPost<{
           asyncTaskList: { errorReason?: string; tasks: AsyncProfilingTaskListResponse['tasks'] };
-        }>(opts, GET_ASYNC_TASK_LIST, { request: { serviceId, limit } });
+        }>(opts, GET_ASYNC_TASK_LIST, { request: { serviceId: scope.serviceId, limit } });
         payload.tasks = data.asyncTaskList?.tasks ?? [];
         payload.errorReason = data.asyncTaskList?.errorReason;
         return reply.send(payload);
@@ -384,11 +362,12 @@ export function registerAsyncProfileRoutes(
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const limit = clampTaskListLimit(q.limit);
       try {
-        const serviceId = await resolveServiceId(opts, params.key, serviceArg);
-        if (!serviceId) return reply.send(payload);
+        const scope = await resolveRequiredService(opts, params.key, serviceArg);
+        // `PprofTaskListRequest.serviceId` is nullable — same refusal as async.
+        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         const data = await graphqlPost<{
           pprofTaskList: { errorReason?: string; tasks: PprofTaskListResponse['tasks'] };
-        }>(opts, GET_PPROF_TASK_LIST, { request: { serviceId, limit } });
+        }>(opts, GET_PPROF_TASK_LIST, { request: { serviceId: scope.serviceId, limit } });
         payload.tasks = data.pprofTaskList?.tasks ?? [];
         payload.errorReason = data.pprofTaskList?.errorReason;
         return reply.send(payload);

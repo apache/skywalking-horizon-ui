@@ -57,6 +57,7 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
+import { resolveRequiredService, resolveServiceScope } from '../../logic/oap/service-scope.js';
 import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
 import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
@@ -68,16 +69,6 @@ export interface EBPFRouteDeps {
   /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
   uiTemplateClient?: () => UITemplateClient;
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForEBPFResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const QUERY_CREATE_TASK_DATA = /* GraphQL */ `
   query queryCreateTaskData($serviceId: ID!) {
@@ -311,22 +302,6 @@ function sanitiseNetworkSamplings(
   });
 }
 
-async function resolveServiceId(
-  opts: ReturnType<typeof buildOapOpts>,
-  layerKey: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string; normal?: boolean }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layerKey.toUpperCase() });
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 interface MqeEnv {
   error?: string | null;
   results?: Array<{ values?: Array<{ value: string | number | null }> }>;
@@ -431,8 +406,11 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       if (!serviceArg) return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const serviceId = await resolveServiceId(opts, params.key, serviceArg);
-        if (!serviceId) return reply.send(payload);
+        const scope = await resolveRequiredService(opts, params.key, serviceArg);
+        // `queryEBPFProfilingTasks(serviceId)` is nullable — refuse rather than
+        // list every service's tasks under this service's name.
+        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
+        const serviceId = scope.serviceId;
 
         const [meta, list] = await Promise.all([
           graphqlPost<{ createTaskData: { couldProfiling: boolean; processLabels: string[] } }>(
@@ -548,11 +526,14 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
       if (!serviceArg && !instanceArg) return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const serviceId = serviceArg
-          ? await resolveServiceId(opts, params.key, serviceArg)
-          : null;
+        const scope = await resolveServiceScope(opts, params.key, serviceArg);
+        // A service the caller named but we could not resolve must not be
+        // dropped: `serviceId` is nullable here, so omitting it widens the
+        // query to every service's NETWORK tasks. An instance-only call (no
+        // service named at all) is a legitimate narrower scope and still runs.
+        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         payload.tasks = await queryEbpfTasksBothTriggers(opts, {
-          serviceId: serviceId ?? undefined,
+          serviceId: scope.kind === 'service' ? scope.serviceId : undefined,
           serviceInstanceId: instanceArg || undefined,
           targets: ['NETWORK'],
         });
