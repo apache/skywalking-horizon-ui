@@ -2643,10 +2643,10 @@
   "Synced from OAP — {summary}.": "OAP에서 동기화됨 — {summary}.",
   "all match bundled": "모두 번들 기본값과 일치",
   "Synced from OAP — {n} templates match bundled defaults.": "OAP에서 동기화됨 — 템플릿 {n}개가 번들 기본값과 일치합니다.",
-  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "대상: {names}. Horizon은 가장 낮은 id의 사본만 렌더링하며 스스로 아무것도 변경하지 않습니다. 레코드 비활성화는 되돌릴 수 없으므로(OAP에는 삭제가 없습니다) 어떤 사본을 남길지 확인한 뒤 OAP 쪽에서 정리하세요.",
   "Resolving…": "변환 중…",
   "duplicate": "중복",
   "Duplicated on OAP — {n} enabled records carry this name ({ids}). Horizon renders the lowest-id copy and changes nothing on its own.": "OAP에서 중복됨 — 같은 이름을 가진 활성 레코드가 {n}개 있습니다({ids}). Horizon은 가장 낮은 id의 사본만 렌더링하며 스스로 아무것도 변경하지 않습니다.",
   "“{name}” is duplicated on OAP — {n} enabled records carry this template name.": "“{name}”이(가) OAP에서 중복됩니다 — 이 템플릿 이름을 가진 활성 레코드가 {n}개 있습니다.",
-  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "활성 레코드 id: {ids}. Horizon은 가장 낮은 id의 사본만 렌더링하며 스스로 아무것도 변경하지 않습니다. 레코드 비활성화는 되돌릴 수 없으므로(OAP에는 삭제가 없습니다) 어떤 사본을 남길지 확인한 뒤 OAP 쪽에서 정리하세요."
+  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "대상: {names}. Horizon은 가장 낮은 id의 사본만 렌더링하며 스스로 아무것도 변경하지 않습니다. 원하지 않는 사본은 OAP에서 비활성화하세요 — 그 내용은 돌아오지 않습니다(“다시 활성화”는 번들 기본값을 복원할 뿐, 비활성화한 사본을 되살리지 않습니다). 어느 것이 어느 것인지 먼저 확인하세요.",
+  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "활성 레코드 id: {ids}. Horizon은 가장 낮은 id의 사본만 렌더링하며 스스로 아무것도 변경하지 않습니다. 원하지 않는 사본은 OAP에서 비활성화하세요 — 그 내용은 돌아오지 않습니다(“다시 활성화”는 번들 기본값을 복원할 뿐, 비활성화한 사본을 되살리지 않습니다). 어느 것이 어느 것인지 먼저 확인하세요."
 }

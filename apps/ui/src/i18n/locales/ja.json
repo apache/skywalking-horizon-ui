@@ -2643,10 +2643,10 @@
   "Synced from OAP — {summary}.": "OAP から同期済み — {summary}。",
   "all match bundled": "すべて同梱既定値と一致",
   "Synced from OAP — {n} templates match bundled defaults.": "OAP から同期済み — {n} 件のテンプレートが同梱既定値と一致しています。",
-  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "対象: {names}。Horizon は最小 id のコピーのみを描画し、自動では何も変更しません。レコードの無効化は取り消せない（OAP に削除はありません）ため、どのコピーを残すか確認したうえで OAP 側で整理してください。",
   "Resolving…": "解決しています…",
   "duplicate": "重複",
   "Duplicated on OAP — {n} enabled records carry this name ({ids}). Horizon renders the lowest-id copy and changes nothing on its own.": "OAP 上で重複 — この名前を持つ有効なレコードが {n} 件あります（{ids}）。Horizon は最小 id のコピーのみを描画し、自動では何も変更しません。",
   "“{name}” is duplicated on OAP — {n} enabled records carry this template name.": "「{name}」が OAP 上で重複しています — このテンプレート名を持つ有効なレコードが {n} 件あります。",
-  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "有効なレコード id: {ids}。Horizon は最小 id のコピーのみを描画し、自動では何も変更しません。レコードの無効化は取り消せない（OAP に削除はありません）ため、どのコピーを残すか確認したうえで OAP 側で整理してください。"
+  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "対象: {names}。Horizon は最小 id のコピーのみを描画し、自動では何も変更しません。不要なコピーは OAP 側で無効化してください — その内容は戻りません（「再有効化」で復元されるのは同梱の既定値であって、無効化したコピーではありません）。どれがどれかを先に確認してください。",
+  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "有効なレコード id: {ids}。Horizon は最小 id のコピーのみを描画し、自動では何も変更しません。不要なコピーは OAP 側で無効化してください — その内容は戻りません（「再有効化」で復元されるのは同梱の既定値であって、無効化したコピーではありません）。どれがどれかを先に確認してください。"
 }

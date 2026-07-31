@@ -331,8 +331,9 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
     const overlaySeedCount = await seedMissingOverlays(deps, parsedRemote.byName);
     // Duplicates are REPORTED at boot, never resolved here. Retiring a row is
-    // irreversible (OAP has no delete, only disable, and there is no re-enable
-    // entrance), and the winner rule reads the LOCAL bundle to tell an
+    // irreversible for that copy's CONTENT (OAP has no delete, only disable;
+    // the admin Reactivate control re-enables a name from the bundled default,
+    // it does not bring a disabled copy's content back), and the rule reads an
     // operator edit from a pristine seed — so two instances on different
     // Horizon versions, mid rolling-upgrade, can each judge the other's
     // survivor to be the loser and between them disable every row for a name.
@@ -642,7 +643,7 @@ function parseRemoteRows(
     logger.warn(
       { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
       'OAP UI-template name conflicts (>1 enabled row) — Horizon renders the lowest-id row and changes NOTHING on its own. ' +
-        'Retiring a row is irreversible (OAP soft-disables; there is no delete and no re-enable), so clean this up on OAP ' +
+        'Retiring a row does not bring its content back (OAP soft-disables; the admin Reactivate control restores the bundled default, not the disabled copy), so clean this up on OAP ' +
         'once you have confirmed which copy you want to keep.',
     );
   }

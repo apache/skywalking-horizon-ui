@@ -2643,10 +2643,10 @@
   "Synced from OAP — {summary}.": "已从 OAP 同步 —— {summary}。",
   "all match bundled": "全部与内置默认一致",
   "Synced from OAP — {n} templates match bundled defaults.": "已从 OAP 同步 —— {n} 个模板与内置默认一致。",
-  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "涉及：{names}。Horizon 只渲染 id 最小的那一份，且不会自行做任何更改 —— 停用某一份不可撤销（OAP 没有删除操作），请在确认要保留哪一份后，前往 OAP 侧清理。",
   "Resolving…": "解析中…",
   "duplicate": "重复",
   "Duplicated on OAP — {n} enabled records carry this name ({ids}). Horizon renders the lowest-id copy and changes nothing on its own.": "OAP 上存在重名 —— 有 {n} 条启用中的记录使用同一个名称（{ids}）。Horizon 只渲染 id 最小的那一份，且不会自行做任何更改。",
   "“{name}” is duplicated on OAP — {n} enabled records carry this template name.": "「{name}」在 OAP 上重复 —— 有 {n} 条启用中的记录使用同一个模板名称。",
-  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.": "启用中的记录 id：{ids}。Horizon 只渲染 id 最小的那一份，且不会自行做任何更改 —— 停用某一份不可撤销（OAP 没有删除操作），请在确认要保留哪一份后，前往 OAP 侧清理。"
+  "Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "涉及：{names}。Horizon 只渲染 id 最小的那一份，且不会自行做任何更改。请在 OAP 上停用你不想保留的那一份 —— 它的内容不会再回来（“重新启用”恢复的是内置默认值，而不是你停用的那一份），所以请先确认哪一份是哪一份。",
+  "Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.": "启用中的记录 id：{ids}。Horizon 只渲染 id 最小的那一份，且不会自行做任何更改。请在 OAP 上停用你不想保留的那一份 —— 它的内容不会再回来（“重新启用”恢复的是内置默认值，而不是你停用的那一份），所以请先确认哪一份是哪一份。"
 }

@@ -101,7 +101,7 @@ export interface BundleSyncStatus {
   }>;
   /** Names where >1 enabled OAP record exists. Empty when clean.
    *  Admin pages render a banner so the operator can disable extras
-   *  (`winnerId` is the one kept — see `ConflictRow`). */
+   *  (the lowest id is the one Horizon renders — see `ConflictRow`). */
   conflicts: Array<{
     name: string;
     kind: TemplateKind;

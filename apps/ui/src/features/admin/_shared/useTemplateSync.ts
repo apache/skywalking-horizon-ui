@@ -122,7 +122,7 @@ export function buildConflictBanner(conflict: TemplateConflict, t: BannerTransla
       n: conflict.enabledIds.length,
     }),
     detail: t(
-      'Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.',
+      'Enabled record ids: {ids}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.',
       { ids: conflict.enabledIds.join(', ') },
     ),
     counts: {},
@@ -233,7 +233,7 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
           { named: { n: ownConflicts.value.length } },
         ),
         detail: t(
-          'Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own — retiring a row is irreversible (OAP has no delete), so clean this up on OAP once you have confirmed which copy you want to keep.',
+          'Affected: {names}. Horizon renders the lowest-id copy and changes nothing on its own. Retire the copy you do not want on OAP — its content does not come back (Reactivate restores the bundled default, not the copy you disabled), so confirm which is which first.',
           { names },
         ),
         counts,

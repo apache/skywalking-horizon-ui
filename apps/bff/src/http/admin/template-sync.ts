@@ -327,20 +327,19 @@ export function registerTemplateSyncAdminRoutes(
           message: 'OAP admin port unreachable — templates are read-only',
         });
       }
-      // A duplicated name resolves to the ONE row Horizon renders, so a delete
-      // here would disable that row, report success, and leave the sibling
-      // rendering — the template would look deleted and then reappear. Horizon
-      // does not resolve duplicates (see the conflict banner), so refuse and
-      // say which rows are in the way rather than half-applying the delete.
-      const conflict = status.conflicts.find((c) => c.name === name);
-      if (conflict) {
+      // Which row would this update? A duplicated name resolves to the one row
+      // Horizon renders, so the push would land on that copy and leave the twin
+      // holding whatever it held. Horizon never resolves a duplicate, so refuse
+      // and name the rows rather than write into an ambiguous name.
+      const pushConflict = status.conflicts.find((c) => c.name === name);
+      if (pushConflict) {
         return reply.code(409).send({
           code: 'template_name_conflicted',
           message:
-            `"${name}" is stored on ${conflict.enabledIds.length} enabled OAP rows ` +
-            `(${conflict.enabledIds.join(', ')}). Deleting would disable only the one Horizon renders. ` +
-            'Retire the copies you do not want on OAP first, then delete here.',
-          enabledIds: conflict.enabledIds,
+            `"${name}" is stored on ${pushConflict.enabledIds.length} enabled OAP rows ` +
+            `(${pushConflict.enabledIds.join(', ')}). A push would update only the copy Horizon renders ` +
+            'and leave the other in place. Retire the copies you do not want on OAP first.',
+          enabledIds: pushConflict.enabledIds,
         });
       }
       const row = status.rows.find((r) => r.name === name);
@@ -555,6 +554,22 @@ export function registerTemplateSyncAdminRoutes(
         return reply.code(409).send({
           code: 'oap_unreachable',
           message: 'OAP admin port unreachable — templates are read-only',
+        });
+      }
+      // A duplicated name resolves to the ONE row Horizon renders, so deleting
+      // here would disable that row, report success, and leave the sibling
+      // rendering — the template would look deleted and then come back. Horizon
+      // never resolves a duplicate, so refuse and say which rows are in the way
+      // rather than half-applying the delete.
+      const conflict = status.conflicts.find((c) => c.name === name);
+      if (conflict) {
+        return reply.code(409).send({
+          code: 'template_name_conflicted',
+          message:
+            `"${name}" is stored on ${conflict.enabledIds.length} enabled OAP rows ` +
+            `(${conflict.enabledIds.join(', ')}). Deleting would disable only the copy Horizon renders ` +
+            'and leave the other rendering. Retire the copies you do not want on OAP first, then delete here.',
+          enabledIds: conflict.enabledIds,
         });
       }
       const row = status.rows.find((r) => r.name === name);
