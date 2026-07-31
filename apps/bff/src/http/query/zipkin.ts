@@ -46,11 +46,12 @@ import type {
   ZipkinTraceListRow,
   ZipkinTraceDetailResponse,
 } from '@skywalking-horizon-ui/api-client';
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader } from '../../client/graphql.js';
+import { wireFetch } from '../../client/wire-log.js';
 
 export interface ZipkinRouteDeps {
   config: ConfigSource;
@@ -91,7 +92,7 @@ async function zipkinFetch(
   path: string,
   query?: Record<string, string | number | undefined>,
 ): Promise<{ status: number; body: unknown }> {
-  const f = fetchFn ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(fetchFn ?? globalThis.fetch.bind(globalThis));
   const base = cfg.oap.zipkinUrl.replace(/\/$/, '');
   const url = new URL(base + path);
   if (query) {
@@ -277,30 +278,6 @@ export function registerZipkinRoutes(app: FastifyInstance, deps: ZipkinRouteDeps
       return reply.code(status).send(body);
     } catch (err) {
       return reply.code(200).send({ values: [], reachable: false, error: String(err) });
-    }
-  });
-
-  app.get('/api/zipkin/traceMany', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
-    const q = req.query as { traceIds?: string };
-    const ids = (q.traceIds ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ids.length === 0) return reply.code(400).send({ error: 'missing_traceIds' });
-    try {
-      const { status, body } = await zipkinFetch(
-        deps.config.current,
-        deps.fetch,
-        '/api/v2/traceMany',
-        { traceIds: ids.join(',') },
-      );
-      return reply.code(status).send({
-        traces: Array.isArray(body) ? body : [],
-        reachable: true,
-      });
-    } catch (err) {
-      return reply.code(200).send({
-        traces: [],
-        reachable: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
     }
   });
 }

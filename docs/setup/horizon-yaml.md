@@ -7,15 +7,16 @@ This page is the top-level map. Each subsection has its own detail page:
 | Section | Purpose | Details |
 |---|---|---|
 | `server` | HTTP listener and static asset path. | [server](server.md) |
-| `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth. | [oap](oap.md) |
+| `templates` | Template source mode: OAP-backed (`live`) or local read-only bundle (`readonly`). | [below](#template-source-mode) |
+| `oap` | OAP query / admin / Zipkin URLs, timeouts, basic-auth, MQE override. | [oap](oap.md) |
 | `auth` | Active backend (local or LDAP), local users, LDAP binding, break-glass. | [auth](auth.md) |
 | `rbac` | Role definitions, permission grants, landing route per role. | [rbac](rbac.md) |
 | `session` | Cookie name, TTL, secure flag. | [session](session.md) |
-| `audit` | Audit log file path. | [audit](audit.md) |
-| `setup` / `alarms` | State file paths. | [files](files.md) |
+| `audit` | Audit trail switch + log file path. | [audit](audit.md) |
 | `debugLog` | Wire-level request/response log for troubleshooting. | [debugLog](debug-log.md) |
-| `query` | Per-request query limits (the layer-landing service cap). | [below](#query-limits) |
+| `query` | Per-request query limits (layer-landing service cap, Overview top-N). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
+| `ai` | AI assistant: provider, model, credentials, prompt overrides, history cap. | [AI Assistant](../operate/ai-assistant.md) |
 | `performance` | How hard the BFF fans queries out to OAP, plus render / per-request record caps. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
@@ -23,6 +24,8 @@ This page is the top-level map. Each subsection has its own detail page:
 
 ```yaml
 server: { host, port, staticDir? }
+
+templates: { mode? }          # live (default) | readonly
 
 oap:
   queryUrl: string
@@ -44,11 +47,21 @@ rbac:
   landingByRole?: { <name>: "/route" }
 
 session: { ttlMinutes?, cookieName?, cookieSecure? }
-audit:   { file? }
-setup:   { file? }
-alarms:  { file? }
+audit:   { enabled?, file? }
 debugLog: { enabled?, file?, maxBodyChars?, redactAuthHeaders? }
+query:   { landingServiceCap?, overviewTopN? }
 sourceMaps: { enabled?, maxFileBytes?, maxTotalBytes?, maxFileCount?, bootMountDir? }
+
+ai:
+  enabled?: boolean            # off by default
+  provider?: openai-compatible | bedrock
+  model?: string
+  baseUrl?: string             # openai-compatible only
+  region?: string              # bedrock only; blank → AWS_REGION / AWS_DEFAULT_REGION
+  apiKey?: string              # secret — set via env interpolation only
+  systemPrompt?: string        # blank → bundled default
+  starters?: [string, ...]     # blank → bundled defaults
+  history?: { maxMb? }
 
 performance:
   bulk:
@@ -59,10 +72,12 @@ performance:
   limits:
     topologyMaxNodes?: number
     topologyMaxEdges?: number
-    maxPageSize: { traces?, logs?, browserLogs? }
+    maxPageSize: { traces?, logs?, browserLogs?, events? }
 
 layers:  { excluded?: [{ key, reason? }] }
 ```
+
+The `ai` block's fields, env-var forms, and provider recipes are documented on [AI Assistant](../operate/ai-assistant.md).
 
 ## Environment variable interpolation
 
@@ -93,13 +108,19 @@ There is no "default admin/admin" fallback.
 
 ## Warnings (do not block startup)
 
+These combinations are legal but risky or ineffective; the BFF boots and logs a warning:
+
 - `auth.backend: ldap` but `auth.local.users` populated → local users will be ignored.
-- `debugLog.enabled: true` in a config without `debugLog.redactAuthHeaders: true`.
-- `session.cookieSecure: false` (acceptable for localhost dev; log noise reminds you in production).
+- `auth.breakGlass` configured while `auth.backend: local` → break-glass only exists as an LDAP-outage fallback, so the block is unused.
+- `debugLog.enabled: true` with `redactAuthHeaders: false` → outbound OAP basic-auth credentials are written to the wire log in clear text.
+- `debugLog.enabled: true` at startup → a reminder that every outbound OAP request/response is being appended to the wire log (very verbose).
+- `session.cookieSecure: false` outside development → session cookies are sent over plain HTTP. Fine for localhost; set it to `true` (behind HTTPS) in production.
 
 ## Hot reload behavior
 
-The config is re-read on file change and the new values take effect without a restart:
+The config is re-read on file change and the new values take effect without a restart. An edit that fails validation does **not** apply: the BFF logs an error listing each failing field path, and the previous valid config keeps serving until the file is fixed.
+
+Applied live:
 
 - Auth backend selection (re-evaluated on next login).
 - RBAC roles and policy (re-evaluated on next route call).
@@ -110,15 +131,31 @@ The config is re-read on file change and the new values take effect without a re
 These changes require a process restart:
 
 - `server.host`, `server.port` — the listener already bound.
+- `templates.mode` — the template source is chosen at boot (the OAP seed either ran or was skipped). Editing it in a live file logs a warning and keeps the boot-time mode until restart.
 - Capability probes — the OAP schema introspection cache is per-process.
 - `sourceMaps.bootMountDir` — the static source-map directory is scanned once at startup, so a new directory (and newly-dropped `.map` files) needs a restart. The count of maps loaded from that mount is fixed by the startup scan as well: lowering `sourceMaps.maxFileCount` afterwards trims only the in-memory uploaded set, never the already-mounted maps — restart to re-scan a mount against a lower count.
 - **Raising** `sourceMaps.maxFileBytes` — the multipart upload size limit is fixed at startup; lowering it applies live.
+
+## Template source mode
+
+```yaml
+templates:
+  mode: live   # default; or: readonly
+```
+
+`templates.mode` selects where dashboard / overview templates live:
+
+- **`live` (default)** — at boot, Horizon seeds any missing bundled templates into OAP's `ui_template` store, then reads and writes templates through that store. Admin edits (layer dashboards, overview templates, translations) persist in OAP storage, independent of the Horizon instance.
+- **`readonly`** — templates render from the local bundle only. The `ui_template` store is never contacted and the template admin surface is read-only. OAP's query API (metrics / traces / logs) is still used and health-checked either way. Use `readonly` to run against an OAP whose `ui_template` admin API is absent or disabled — this is **required on OAP 10.x**, where the `/ui-management/templates*` endpoint does not exist yet: in `live` mode Horizon blocks layer-driven pages (most visibly Traces) rather than render a layer whose template it cannot read. See [Compatibility → OAP Version](../compatibility/oap-version.md).
+
+Env form: `HORIZON_TEMPLATES_MODE`. Changing the mode requires a BFF restart — see [Hot reload behavior](#hot-reload-behavior).
 
 ## Query limits
 
 ```yaml
 query:
   landingServiceCap: 100   # default
+  overviewTopN: 100        # default
 ```
 
 `query.landingServiceCap` bounds how many services a **layer landing** runs
@@ -148,6 +185,8 @@ cap and pair it with a tighter OAP rate limit.
 
 Hot-reloadable — a change takes effect on the next landing request.
 
+`query.overviewTopN` is the **N** for the Overview dashboards' KPI tiles: each tile aggregates a whole layer with a server-side `top_n(<metric>, N, …)` rollup, so OAP does the ranking and one query per tile comes back regardless of how many services the layer holds. The default `100` covers every layer on a normal deployment — raise it only if a single layer holds more than 100 services **and** the tail matters to the aggregate; lower it to cheapen the rollup on a constrained backend. Hot-reloadable — applies on the next Overview request.
+
 ## Performance tuning
 
 ```yaml
@@ -160,7 +199,7 @@ performance:
   limits:
     topologyMaxNodes: 5000
     topologyMaxEdges: 15000
-    maxPageSize: { traces: 100, logs: 100, browserLogs: 100 }
+    maxPageSize: { traces: 100, logs: 100, browserLogs: 100, events: 200 }
 ```
 
 The `performance` block tunes how hard Horizon drives your OAP and storage backend. **Every default equals the built-in value, so the whole block is optional** — omit it and Horizon behaves exactly as it does without it. Every value is also **clamped to a hard ceiling**: a number above the ceiling is pulled back down to it (config can only lower the load below a built-in limit, never raise it past one). Hot-reloadable — a change takes effect on the next request of that kind.
@@ -191,9 +230,10 @@ These govern how Horizon batches and parallelizes its metric queries to OAP. Eac
 | `maxPageSize.traces` | The maximum **records** fetched per Traces request (the storage `LIMIT`, not a page count). The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. | `100` |
 | `maxPageSize.logs` | The same per-request record cap for Logs. | `100` |
 | `maxPageSize.browserLogs` | The same per-request record cap for Browser Logs. | `100` |
+| `maxPageSize.events` | The same per-request record cap for Events. Defaults deeper than the other feeds because events are grouped for display (one deployment produces many per-instance rows), so a raw page has to carry more records to fill a screen. | `200` |
 
 - **`topologyMaxNodes` / `topologyMaxEdges`** are a readability and safety valve, not a data limit — if your deployment legitimately has a graph this large, raising them lets it render (at the cost of a denser scene and a heavier draw). Lower them if you'd rather force operators to scope down sooner.
-- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs request pulls from storage. Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per fetch.
+- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events request pulls from storage. Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per fetch.
 
 ## Excluded layers
 

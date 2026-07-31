@@ -1,6 +1,6 @@
 # Dashboard Widgets
 
-Five widget types render on per-layer dashboards. Each `widget.type` you set in a template selects one of them.
+Six widget types render on per-layer dashboards. Each `widget.type` you set in a template selects one of them: five queryable kinds (`card`, `line`, `top`, `record`, `table`) plus the `tab` container that groups widgets into switchable panels.
 
 ## Grid context
 
@@ -19,17 +19,20 @@ Five widget types render on per-layer dashboards. Each `widget.type` you set in 
 | `id` | Unique widget id within the dashboard. |
 | `title` | Widget title shown in the card header. |
 | `tip` | Optional hover hint. |
-| `type` | One of `card`, `line`, `top`, `record`, or `table`. |
+| `type` | One of `card`, `line`, `top`, `record`, `table`, or `tab`. |
 | `expressions[]` | MQE expressions. `card` typically uses one; `line` one-per-series; `top` one-per-tab; `table` one labeled `latest(…)` metric. |
 | `expressionLabels[]` | Used by `top` for tab labels and by `line` for legend names. |
 | `expressionUnits[]` | Per-expression unit override (mixed-unit charts). |
 | `expressionAxes[]` | `0` = left axis (default), `1` = right axis. |
 | `unit` | Widget-level default. |
 | `format` | `int`, `decimal`, `compact`, `duration` (a seconds value rendered as a human time-ago, e.g. "5m 20s ago"), `enum` (a coded value mapped to a label via `valueMap`). |
+| `valueMap` | `card` with `format: "enum"` — maps a coded metric value (or label value) to the display label. |
+| `valueColors` | `card` with `format: "enum"` — maps a value to a status-chip color: `ok`, `warn`, `err`, `info`, or `neutral`. See [Status chips](#status-chips-valuecolors). |
+| `traceDrill` | `line` only — `{ "mode": "latency" \| "error" }` links data points to the matching traces. See [Metric-to-trace drill](#metric-to-trace-drill-tracedrill). |
+| `tabs[]` | `tab` only — the named panels, each `{ "name": "…", "widgets": [ … ] }`. See [`tab`](#tab). |
 | `tableHeaders` | `table` only — `[, valueHeader]`; the value column's header. Label columns are headed by their dimension name. |
 | `showTableValues` | `table` only — show the value column. `false` for presence-only lists (e.g. node conditions). Default `true`. |
 | `visibleWhen` | Structured visibility predicate (object form). An MQE gate `{ "kind": "mqe", "expression": "<mqe>", "op": "exists" \| "gt" \| "lt", "value"?: <n> }` hides the widget unless the expression returns data (`exists`) or crosses a threshold; an entity gate `{ "kind": "entity", "attribute": "<attr>", "op": "exists" \| "eq", "value"?: "<v>" }` hides it unless the selected entity has that attribute (Instance-scope only). |
-| `layerScope` | Evaluate against the whole layer rather than the selected service. |
 
 ## `card`
 
@@ -54,6 +57,33 @@ A `line` widget with a scalar-shaped MQE renders a one-point chart, which is mis
   "span": 3
 }
 ```
+
+### Status chips (`valueColors`)
+
+An enum card can render **colored status chips** instead of a single number. When the widget sets `format: "enum"` together with a `valueColors` map and its MQE is a labeled `latest(…)` metric, each returned row whose label value is mapped (in `valueColors` or `valueMap`) renders as one chip: the chip text comes from `valueMap` (falling back to the raw value), and the chip color from `valueColors` — `ok`, `warn`, `err`, `info` (the theme's healthy / warning / error / informational status colors), or `neutral` (gray, also the fallback for a mapped value with no color).
+
+Only mapped values render — unmapped rows are dropped, so the card stays on the states you care about. When the metric returns no labeled rows, the card falls back to its normal single value. While comparing entities, the card shows the per-entity value rows instead of chips.
+
+The bundled `K8S` layer uses this for its node-status card — a healthy node shows a green **Ready** chip, and any pressure condition surfaces in amber:
+
+```json
+{
+  "id": "node_status",
+  "title": "Node Status",
+  "type": "card",
+  "format": "enum",
+  "expressions": ["latest(k8s_node_node_status)"],
+  "valueColors": {
+    "Ready": "ok",
+    "MemoryPressure": "warn",
+    "DiskPressure": "warn",
+    "PIDPressure": "warn",
+    "NetworkUnavailable": "err"
+  }
+}
+```
+
+In the widget editor, the enum value → label table offers a per-row color picker; a mapped row with no color picked renders as a neutral (gray) chip.
 
 ## `line`
 
@@ -206,6 +236,12 @@ Renders columns `Condition | Node` (one per label key). A widget like Deployment
 - `showTableValues: false` drops the value column for presence-only lists (where the value is always 1).
 - Scrolls within the widget when rows overflow.
 
+## `tab`
+
+**Renders:** A container slot holding several named tab panels, each with its own set of leaf widgets (`card` / `line` / `top` / `record` / `table`) laid out in their own 12-column grid. A `tab` carries no MQE of its own, and tabs nest only one level deep. Only the active tab is queried; switching loads a tab's widgets on demand.
+
+See [Layer Dashboard Templates → Tab widgets](../customization/layer-templates.md#tab-widgets) for the stored shape and how to author one in the editor.
+
 ## Visibility predicates
 
 `visibleWhen` lets a widget hide itself based on context. It takes a structured object in one of two forms:
@@ -233,21 +269,30 @@ The bundled `BANYANDB` layer uses an entity gate to keep lifecycle-only widgets 
 
 The predicate is evaluated on every data refresh; the widget disappears (rather than rendering empty) when it does not hold. In compare mode (below), the gate is the union across the locked cohort — the widget shows if any compared entity satisfies it.
 
-## Layer scope
+## Metric-to-trace drill (`traceDrill`)
 
-`layerScope: true` runs the MQE against the layer rather than the currently selected service. Useful for layer-wide summaries on the service page (e.g., "this service" + "all services in this layer" side by side).
+A `line` widget can link its data points straight to the traces behind them. With `traceDrill` set, the widget carries a small **traces** flag in its header, and clicking a data point opens a confirmation popover — **View slow traces** or **View error traces** — that opens the layer's Traces tab in a new browser tab, pre-filtered to the clicked moment:
+
+- `"mode": "latency"` — for latency-shaped metrics (avg response time, percentiles). The trace list is filtered to traces at least as slow as the clicked value (minimum duration in ms), sorted slowest-first.
+- `"mode": "error"` — for error-shaped metrics (error rate, success rate, Apdex). The trace list is filtered to error-status traces, sorted by start time.
+- `"mode": "off"` — explicitly disables the drill (same as omitting the field).
+
+The trace time window centers on the clicked bucket: ±5 minutes around the point at minute granularity, or the clicked hour / day at coarser steps. The filter also carries the page's selection — the service, plus the selected instance or endpoint when drilling from an Instance or Endpoint dashboard.
 
 ```json
 {
-  "id": "layer_total_rpm",
-  "title": "Layer total RPM",
-  "type": "card",
-  "expressions": ["sum(service_cpm)"],
-  "layerScope": true,
-  "unit": "rpm",
-  "span": 3
+  "id": "resp_time_line",
+  "title": "Avg Response Time",
+  "type": "line",
+  "expressions": ["service_resp_time"],
+  "unit": "ms",
+  "traceDrill": { "mode": "latency" }
 }
 ```
+
+The drill applies only to `line` widgets, and only on layers whose Traces tab uses the native trace source (`native` or `both`) — the Zipkin trace view cannot consume the drill filter. It is inactive while comparing entities. In the widget editor it is the **Trace drill** control, shown on `line` widgets.
+
+The bundled `GENERAL` template ships the drill enabled across its service / instance / endpoint dashboards: `latency` mode on the latency widgets (Avg Response Time, Response Time Percentile, and the instance / endpoint latency lines) and `error` mode on the error-shaped ones (Error Rate, Apdex, and the success-rate lines).
 
 ## Compare entities
 

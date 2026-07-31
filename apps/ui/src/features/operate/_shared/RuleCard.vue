@@ -92,7 +92,7 @@ function onKey(ev: KeyboardEvent): void {
   }
 }
 
-/** Live debugger jump target. MAL goes to `/debug/mal?catalog=&name=`
+/** Live debugger jump target. MAL goes to `/operate/live-debug/mal?catalog=&name=`
  *  — the MAL view then loads the file content, parses
  *  `metricsRules[].name`, and surfaces a metric picker inside (the
  *  OAP install needs `(name=<file>, ruleName=<metric>)` granularity).

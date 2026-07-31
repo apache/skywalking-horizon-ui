@@ -53,11 +53,11 @@ const localTzLabel = computed<string>(() => {
 });
 
 const globalTimeTooltip = computed<string>(() => {
-  if (noTimeContext.value) return 'No time range on config / operate pages.';
+  if (noTimeContext.value) return t('No time range on config / operate pages.');
   if (ownsTimeRange.value) {
-    return 'This page uses its own time range — disable the page picker to use the global one.';
+    return t('This page uses its own time range — disable the page picker to use the global one.');
   }
-  return `Browser local time · ${localTzLabel.value}`;
+  return t('Browser local time · {tz}', { tz: localTzLabel.value });
 });
 
 const timeRange = useTimeRangeStore();
@@ -68,11 +68,13 @@ const timeClusterEl = ref<HTMLElement | null>(null);
  *  same precision the operator last used. */
 const activeStepTab = ref<TimeStep>(timeRange.step);
 watch(() => timeRange.step, (s) => (activeStepTab.value = s));
-const TAB_DEFS: Array<{ step: TimeStep; tab: string; cap: string }> = [
-  { step: 'MINUTE', tab: 'Minute', cap: '≤ 4 h' },
-  { step: 'HOUR',   tab: 'Hour',   cap: '≤ 14 d' },
-  { step: 'DAY',    tab: 'Day',    cap: '≤ 3 mo' },
-];
+// Computed (not a module const) so the tab / cap labels re-resolve
+// against the current locale on switch.
+const TAB_DEFS = computed<Array<{ step: TimeStep; tab: string; cap: string }>>(() => [
+  { step: 'MINUTE', tab: t('Minute'), cap: t('≤ 4 h') },
+  { step: 'HOUR',   tab: t('Hour'),   cap: t('≤ 14 d') },
+  { step: 'DAY',    tab: t('Day'),    cap: t('≤ 3 mo') },
+]);
 const presetsForActiveTab = computed(() =>
   TIME_PRESETS.filter((p) => p.step === activeStepTab.value),
 );
@@ -106,7 +108,7 @@ const timeChipLabel = computed<string>(() => {
     const r = timeRange.range;
     return `${formatRangeStamp(r.startMs, timeRange.step)} → ${formatRangeStamp(r.endMs, timeRange.step)}`;
   }
-  return timeRange.label;
+  return t(timeRange.label);
 });
 
 // Inputs are scoped to the step so the operator can't pick at finer
@@ -217,16 +219,16 @@ function submitCustom(step: TimeStep): void {
   const startMs = draftToMs(step, 'start');
   const endMs = draftToMs(step, 'end');
   if (startMs === null || endMs === null) {
-    customError.value = 'Pick both a start and an end.';
+    customError.value = t('Pick both a start and an end.');
     return;
   }
   if (endMs <= startMs) {
-    customError.value = 'End must be after start.';
+    customError.value = t('End must be after start.');
     return;
   }
   if (!isValidRange(step, endMs - startMs)) {
     const lim = STEP_LIMITS[step];
-    customError.value = `Range exceeds ${step.toLowerCase()}-precision cap of ${humanDuration(lim.maxMs)}.`;
+    customError.value = t('Range exceeds {step}-precision cap of {cap}.', { step: step.toLowerCase(), cap: humanDuration(lim.maxMs) });
     return;
   }
   customError.value = null;
@@ -237,9 +239,9 @@ function submitCustom(step: TimeStep): void {
 }
 function humanDuration(ms: number): string {
   const h = Math.floor(ms / 3_600_000);
-  if (h < 24) return `${h} h`;
+  if (h < 24) return t('{n} h', { n: h });
   const d = Math.floor(h / 24);
-  return `${d} d`;
+  return t('{n} d', { n: d });
 }
 function formatRangeStamp(ms: number, step: TimeStep): string {
   const d = new Date(ms);
@@ -294,7 +296,7 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
             :class="{ 'is-on': timeRange.presetId === p.id }"
             @click="pickTimePreset(p.id)"
           >
-            <span>{{ p.label }}</span>
+            <span>{{ t(p.label) }}</span>
             <span v-if="timeRange.presetId === p.id" class="tr-tick">✓</span>
           </button>
           <!-- Custom expander, scoped to the active precision. -->
@@ -304,13 +306,13 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
             :class="{ 'is-on': customOpenStep === activeStepTab }"
             @click="openCustom(activeStepTab)"
           >
-            <span>Custom range…</span>
+            <span>{{ t('Custom range…') }}</span>
             <span class="tr-tick">{{ customOpenStep === activeStepTab ? '▾' : '▸' }}</span>
           </button>
           <div v-if="customOpenStep === activeStepTab" class="tr-custom">
             <template v-for="side in (['start', 'end'] as const)" :key="side">
               <label class="tr-custom-field">
-                <span>{{ side === 'start' ? 'Start' : 'End' }}</span>
+                <span>{{ side === 'start' ? t('Start') : t('End') }}</span>
                 <input
                   v-if="activeStepTab === 'MINUTE'"
                   type="datetime-local"
@@ -343,8 +345,8 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
             </template>
             <div v-if="customError" class="tr-custom-err">{{ customError }}</div>
             <div class="tr-custom-foot">
-              <button type="button" class="tr-cust-btn ghost" @click="customOpenStep = null">Cancel</button>
-              <button type="button" class="tr-cust-btn primary" @click="submitCustom(activeStepTab)">Apply</button>
+              <button type="button" class="tr-cust-btn ghost" @click="customOpenStep = null">{{ t('Cancel') }}</button>
+              <button type="button" class="tr-cust-btn primary" @click="submitCustom(activeStepTab)">{{ t('Apply') }}</button>
             </div>
           </div>
         </div>
@@ -355,22 +357,22 @@ function formatRangeStamp(ms: number, step: TimeStep): string {
              represent that as a single minute count). -->
         <div class="tr-defaults">
           <div class="tr-defaults-line">
-            <span>My default: <strong>{{ timeDefaultsStore.defaultWindowMinutes }}m</strong>{{ timeDefaultsStore.hasUserOverride ? ' (your override)' : ' (org default)' }}</span>
+            <span>{{ t('My default:') }} <strong>{{ timeDefaultsStore.defaultWindowMinutes }}m</strong>{{ timeDefaultsStore.hasUserOverride ? ' ' + t('(your override)') : ' ' + t('(org default)') }}</span>
           </div>
           <div class="tr-defaults-foot">
             <button
               type="button"
               class="tr-cust-btn ghost"
               :disabled="timeRange.presetId === 'custom'"
-              :title="timeRange.presetId === 'custom' ? 'Pick a rolling preset first' : ''"
+              :title="timeRange.presetId === 'custom' ? t('Pick a rolling preset first') : ''"
               @click="saveCurrentAsMyTimeDefault"
-            >Save as my default</button>
+            >{{ t('Save as my default') }}</button>
             <button
               type="button"
               class="tr-cust-btn ghost"
               :disabled="!timeDefaultsStore.hasUserOverride"
               @click="resetTimeDefaultToOrg"
-            >Reset to org default</button>
+            >{{ t('Reset to org default') }}</button>
           </div>
         </div>
       </div>

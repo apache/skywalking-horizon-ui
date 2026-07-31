@@ -31,8 +31,8 @@ import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import type { LayerComponentFlags, LayerTemplate } from '../../logic/layers/loader.js';
 import { getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
-import { formatName, parseEnvelope } from '../../logic/templates/names.js';
-import type { TemplateRow } from '../../logic/templates/sync.js';
+import { formatName, isOverlayName, parseEnvelope } from '../../logic/templates/names.js';
+import type { SyncStatus, TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
@@ -91,6 +91,11 @@ export interface MenuRouteDeps {
 interface LayerSyncSnapshot {
   /** Canonical layer keys disabled on OAP (sidebar hides them). */
   disabled: Set<string>;
+  /** Canonical layer keys whose template name sits on more than one
+   *  ENABLED OAP record. Which definition the layer has is ambiguous, so
+   *  the sidebar hides it rather than navigate to a dashboard nobody can
+   *  identify. Detection only — Horizon never retires a record. */
+  conflicted: Set<string>;
   /** Per-name layer rows for the live OAP UI-template state. Lets the
    *  menu prefer the operator's published edits (alias / components /
    *  slots / caps / colour / metrics / overview / log / traces /
@@ -106,13 +111,19 @@ interface LayerSyncSnapshot {
 }
 
 /** Read the shared 30s sync cache once and project the things the menu
- *  needs out of it: which layer rows are admin-disabled, the full
- *  per-name remote envelope content so the menu can prefer operator edits
- *  over disk-bundled defaults, and all rows for OAP translation overlays.
+ *  needs out of it: which layer rows are admin-disabled, which are
+ *  duplicated on OAP, the full per-name remote envelope content so the
+ *  menu can prefer operator edits over disk-bundled defaults, and all rows
+ *  for OAP translation overlays.
  *  Soft-fails to an empty snapshot so the sidebar never breaks because the
- *  template status couldn't be read. */
+ *  template status couldn't be read — every hide needs a POSITIVE signal. */
 async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot> {
-  const empty: LayerSyncSnapshot = { disabled: new Set(), layerRowsByName: new Map(), rows: [] };
+  const empty: LayerSyncSnapshot = {
+    disabled: new Set(),
+    conflicted: new Set(),
+    layerRowsByName: new Map(),
+    rows: [],
+  };
   if (!deps.uiTemplateClient) return empty;
   try {
     const sync = await getSyncStatus({
@@ -131,11 +142,39 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
         disabled.add(canonical(row.key.toUpperCase()));
       }
     }
-    return { disabled, layerRowsByName, rows: sync.rows };
+    const conflicted = new Set<string>();
+    for (const c of sync.conflicts) {
+      if (c.kind !== 'layer') continue;
+      // Same source-only filter the row loop applies: a duplicated
+      // translation overlay is reported with `kind: 'layer'` and the
+      // parent's key, but the layer's own definition stays unambiguous.
+      if (isOverlayName(c.name)) continue;
+      conflicted.add(canonical(c.key.toUpperCase()));
+    }
+    warnConflictedLayersHidden(sync, conflicted);
+    return { disabled, conflicted, layerRowsByName, rows: sync.rows };
   } catch {
     // Status unavailable — show every layer rather than hide wrongly.
   }
   return empty;
+}
+
+/** Statuses already logged about. `getSyncStatus` hands every caller the
+ *  same cached object for ~30s, so keying on it collapses the sidebar poll
+ *  (60s per open tab, plus every window focus) down to one line per status
+ *  refresh — a menu entry that silently vanished is worse than the
+ *  duplicate itself, so the reason has to stay greppable without flooding. */
+const conflictWarnedFor = new WeakSet<SyncStatus>();
+
+function warnConflictedLayersHidden(sync: SyncStatus, conflicted: Set<string>): void {
+  if (conflicted.size === 0 || conflictWarnedFor.has(sync)) return;
+  conflictWarnedFor.add(sync);
+  logger.warn(
+    { layers: [...conflicted] },
+    'Sidebar menu hides these layers: their template name is on more than one enabled OAP record, so which ' +
+      'definition to render is ambiguous. Review them under Dashboard setup → Layer dashboards (the conflict ' +
+      'banner names the record ids) and retire the extra record on OAP — Horizon never disables one on its own.',
+  );
 }
 
 // `listLayers` — active layers in this deployment.
@@ -383,7 +422,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // bundle. The same snapshot also gives the disabled set + per-layer
       // remote content for deriveLayer. (Disk files reach OAP only via
       // boot-seed / admin reset; they're never read at render time.)
-      const { disabled, layerRowsByName, rows } = await layerSyncSnapshot(deps);
+      const { disabled, conflicted, layerRowsByName, rows } = await layerSyncSnapshot(deps);
 
       // Order = the synced layer rows (sorted by key), then any OAP-active
       // layer with no synced template, appended so nothing disappears.
@@ -406,9 +445,10 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
       // Every layer OAP surfaces in `listLayers` is shown — including
       // ones with no Horizon template (they render with default caps, a
       // bare Service page). Dropped only when admin-disabled (soft-deleted,
-      // like disabled overviews) or config-excluded (`layers.excluded`).
+      // like disabled overviews), duplicated on OAP (ambiguous definition —
+      // see `conflicted`), or config-excluded (`layers.excluded`).
       const layers = ordered
-        .filter((key) => !disabled.has(key) && !excludedLayers.has(key.toUpperCase()))
+        .filter((key) => !disabled.has(key) && !conflicted.has(key) && !excludedLayers.has(key.toUpperCase()))
         .flatMap((key): LayerDef[] => {
           const base = deriveLayer(
             key,

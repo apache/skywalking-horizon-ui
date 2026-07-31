@@ -18,20 +18,23 @@
 /**
  * Read-only OAL listing — `GET /runtime/oal/*` introduced by SWIP-13.
  *
- * The actual implementation on the `swip-13-dsl-debugger` branch ships a
- * **per-source-dispatcher** listing, not a per-rule one — the OAL debugger
- * targets one source (e.g. `Endpoint`) and every metric routed off that
- * source captures together. So the listing is shaped to match: one row per
- * dispatcher, with the dispatcher's full metric set inline.
+ * Upstream `RuntimeOalRestHandler.java` ships a **per-source-dispatcher**
+ * listing, not a per-rule one — the OAL debugger targets one source (e.g.
+ * `Endpoint`) and every metric routed off that source captures together.
+ * So the listing is shaped to match: one row per dispatcher, with the
+ * dispatcher's full metric set inline.
  *
  * File metadata is also intentionally minimal — `/files` returns just file
- * names; `/files/{name}` returns the raw `.oal` text as `text/plain`.
+ * names; `/files/{name}` returns the raw `.oal` text as `text/plain`, and
+ * `404`s in plain text (not the JSON error envelope) when it isn't loaded.
+ * Only `/rules/{source}` fails with an envelope: `missing_source` (400) and
+ * `source_not_found` (404).
  *
  * Read-only by design. OAL hot-update is upstream-deferred; the path
  * prefix `/runtime/oal/*` is reserved for future write endpoints.
  */
 
-import { RuntimeRuleApiError, type ApplyResult } from './types.js';
+import { RuntimeRuleApiError, parseApiErrorBody } from './types.js';
 import type { FetchLike } from './runtime-rule.js';
 
 export interface OalFilesResponse {
@@ -159,22 +162,6 @@ export class OalClient {
   }
 
   private async toError(res: Response, url: string): Promise<RuntimeRuleApiError> {
-    const text = await res.text();
-    let parsed: ApplyResult | string = text;
-    try {
-      const json = JSON.parse(text) as Record<string, unknown>;
-      if (typeof json.applyStatus === 'string' && typeof json.message === 'string') {
-        parsed = json as unknown as ApplyResult;
-      } else if (
-        json.status === 'error' &&
-        typeof json.code === 'string' &&
-        typeof json.message === 'string'
-      ) {
-        parsed = json as unknown as ApplyResult;
-      }
-    } catch {
-      // not JSON; keep the raw text.
-    }
-    return new RuntimeRuleApiError(res.status, parsed, url);
+    return new RuntimeRuleApiError(res.status, parseApiErrorBody(await res.text()), url);
   }
 }

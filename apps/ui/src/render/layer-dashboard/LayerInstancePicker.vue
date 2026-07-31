@@ -53,27 +53,29 @@ const expanded = ref<string | null>(null);
 <template>
   <section class="instance-bar sw-card">
     <header class="ib-head">
-      <span class="kicker">{{ slotLabel || 'Instance' }}</span>
+      <span class="kicker">{{ slotLabel || t('Instance') }}</span>
       <!-- Header strictly tracks the resolved `serviceName` —
            never the raw `?service=` base64 id from the URL.
            While landing is still loading we show a loading hint
            instead, matching the cascade-clear-then-load
            principle (downstream waits for upstream). -->
       <span v-if="serviceName" class="for-svc">
-        for <b>{{ serviceName }}</b>
+        <i18n-t keypath="for {name}" scope="global">
+          <template #name><b>{{ serviceName }}</b></template>
+        </i18n-t>
         <span v-if="instances.length > 0" class="count">{{ instances.length }}</span>
       </span>
-      <span v-else-if="selectedId" class="hint">resolving service…</span>
-      <span v-if="loading" class="hint">loading instances…</span>
+      <span v-else-if="selectedId" class="hint">{{ t('resolving service…') }}</span>
+      <span v-if="loading" class="hint">{{ t('loading instances…') }}</span>
     </header>
     <div v-if="!selectedId" class="empty inline">
-      Pick a service in the picker above to list its instances.
+      {{ t('Pick a service in the picker above to list its instances.') }}
     </div>
     <div v-else-if="!serviceName" class="empty inline">
-      Resolving service…
+      {{ t('Resolving service…') }}
     </div>
     <div v-else-if="!loading && instances.length === 0" class="empty inline">
-      No active instances reported for {{ serviceName }} in the last 15 minutes.
+      {{ t('No active instances reported for {name} in the last 15 minutes.', { name: serviceName }) }}
     </div>
     <ul v-else class="ib-list">
       <li
@@ -105,11 +107,11 @@ const expanded = ref<string | null>(null);
           v-if="i.attributes.length > 0"
           type="button"
           class="ib-expand"
-          :title="expanded === i.id ? 'Collapse attributes' : 'Show attributes'"
+          :title="expanded === i.id ? t('Collapse attributes') : t('Show attributes')"
           @click="expanded = expanded === i.id ? null : i.id"
         >
           <span class="caret" :class="{ open: expanded === i.id }">▸</span>
-          {{ i.attributes.length }} attr
+          {{ t('{n} attr', { n: i.attributes.length }) }}
         </button>
         <dl v-if="expanded === i.id" class="ib-attrs">
           <template v-for="a in i.attributes" :key="a.name">

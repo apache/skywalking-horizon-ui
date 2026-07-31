@@ -24,6 +24,8 @@
   format stays identical to the surrounding task list.
 -->
 <script setup lang="ts">
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AsyncProfilingTask, AsyncProfilingProgressLog } from '@/api/client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
@@ -37,6 +39,9 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
+const instanceCount = computed<number>(() => props.task?.serviceInstanceIds?.length ?? 0);
+
 useEscapeToClose(
   () => props.task != null,
   () => emit('close'),
@@ -47,25 +52,25 @@ useEscapeToClose(
   <div v-if="task" class="dlg-mask" @click.self="emit('close')">
     <div class="dlg wide">
       <div class="dlg-head">
-        <div>Async profile task detail</div>
+        <div>{{ t('Async profile task detail') }}</div>
         <button class="x" @click="emit('close')">×</button>
       </div>
       <div class="dlg-body">
         <dl class="kv">
-          <dt>Service</dt><dd>{{ serviceName ?? task.serviceId }}</dd>
-          <dt>Events</dt><dd>{{ task.events?.join(', ') || '—' }}</dd>
-          <dt>Instances</dt>
+          <dt>{{ t('Service') }}</dt><dd>{{ serviceName ?? task.serviceId }}</dd>
+          <dt>{{ t('Events') }}</dt><dd>{{ task.events?.join(', ') || '—' }}</dd>
+          <dt>{{ t('Instances') }}</dt>
           <dd>
-            {{ task.serviceInstanceIds?.length ?? 0 }} instance{{ (task.serviceInstanceIds?.length ?? 0) === 1 ? '' : 's' }}
+            {{ instanceCount === 1 ? t('{n} instance', { n: instanceCount }) : t('{n} instances', { n: instanceCount }) }}
           </dd>
-          <dt>Create time</dt><dd>{{ fmtTime(task.createTime) }}</dd>
-          <dt>Duration</dt><dd>{{ task.duration }} sec</dd>
+          <dt>{{ t('Create time') }}</dt><dd>{{ fmtTime(task.createTime) }}</dd>
+          <dt>{{ t('Duration') }}</dt><dd>{{ t('{n} sec', { n: task.duration }) }}</dd>
           <template v-if="task.execArgs">
-            <dt>Exec args</dt><dd class="mono">{{ task.execArgs }}</dd>
+            <dt>{{ t('Exec args') }}</dt><dd class="mono">{{ task.execArgs }}</dd>
           </template>
         </dl>
         <div v-if="logs.length" class="logs">
-          <h5>Instance logs</h5>
+          <h5>{{ t('Instance logs') }}</h5>
           <div v-for="(log, i) in logs" :key="i" class="log-line">
             <span class="t-tag">{{ log.operationType }}</span>
             <span class="muted">{{ log.instanceName }}</span>

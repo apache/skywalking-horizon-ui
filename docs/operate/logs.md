@@ -25,6 +25,8 @@ Which tabs a layer shows depends on the layer template. The **Logs** tab appears
 
 For browser JavaScript errors reported by the browser agent — a separate stream with its own source-map de-obfuscation — see [Browser Logs & Source Maps](browser-source-maps.md). That is not the same as the collected service logs described here.
 
+For cross-layer digs — querying any service's stored logs by name (or all services at once), browser errors, or a pod tail without entering a layer — see [Log Inspect](log-inspect.md).
+
 ## Stored logs
 
 Open a layer that has a **Logs** tab and pick a service in the header. The stored log stream loads for that service over the page's own time range, newest first.

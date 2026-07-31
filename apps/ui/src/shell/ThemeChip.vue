@@ -15,7 +15,8 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
 import { useThemeStore, AVAILABLE_THEMES, type ThemeId } from '@/state/theme';
 
@@ -24,8 +25,14 @@ import { useThemeStore, AVAILABLE_THEMES, type ThemeId } from '@/state/theme';
 // default. Lives in the topbar's right cluster, next to alarm badge.
 // Per CLAUDE.md the theme is a runtime concern, not a feature flag;
 // this is the only surface where end users touch it.
+const { t } = useI18n({ useScope: 'global' });
 const themeStore = useThemeStore();
 const themeMenuOpen = ref(false);
+const chipTitle = computed<string>(() =>
+  themeStore.hasUserOverride
+    ? t('Theme: {name} (your override) — click to change', { name: themeStore.active })
+    : t('Theme: {name} — click to change', { name: themeStore.active }),
+);
 const themeChipEl = ref<HTMLElement | null>(null);
 function toggleThemeMenu(): void { themeMenuOpen.value = !themeMenuOpen.value; }
 function pickTheme(id: ThemeId): void {
@@ -51,7 +58,7 @@ function onThemeChipBlur(e: FocusEvent): void {
     <button
       type="button"
       class="sw-btn theme-chip"
-      :title="`Theme: ${themeStore.active}${themeStore.hasUserOverride ? ' (your override)' : ''} — click to change`"
+      :title="chipTitle"
       @click="toggleThemeMenu"
     >
       <span class="theme-chip-swatch" />
@@ -61,21 +68,21 @@ function onThemeChipBlur(e: FocusEvent): void {
     </button>
     <transition name="rf-menu">
       <ul v-if="themeMenuOpen" class="theme-menu">
-        <li class="theme-menu-head">Theme</li>
+        <li class="theme-menu-head">{{ t('Theme') }}</li>
         <li
-          v-for="t in AVAILABLE_THEMES"
-          :key="t.id"
-          :class="{ on: themeStore.active === t.id }"
-          @click="pickTheme(t.id)"
+          v-for="theme in AVAILABLE_THEMES"
+          :key="theme.id"
+          :class="{ on: themeStore.active === theme.id }"
+          @click="pickTheme(theme.id)"
         >
-          {{ t.label }}
-          <span v-if="!themeStore.hasUserOverride && t.id === themeStore.active" class="theme-menu-org">(org default)</span>
+          {{ theme.label }}
+          <span v-if="!themeStore.hasUserOverride && theme.id === themeStore.active" class="theme-menu-org">{{ t('(org default)') }}</span>
         </li>
         <li
           v-if="themeStore.hasUserOverride"
           class="theme-menu-reset"
           @click="resetThemeOverride"
-        >Reset to org default</li>
+        >{{ t('Reset to org default') }}</li>
       </ul>
     </transition>
   </div>

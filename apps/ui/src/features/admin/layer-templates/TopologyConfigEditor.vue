@@ -25,11 +25,13 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { TopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
 
+const { t } = useI18n();
 const config = defineModel<TopologyConfig | undefined>('config');
 defineProps<{ serviceNoun: string; instanceNoun: string }>();
 
@@ -84,32 +86,32 @@ function remove(list: TopologyMetricDef[], i: number): void {
 <template>
   <section class="sw-card editor-card topo-cfg-card">
     <div class="card-head">
-      <h4>Topology config</h4>
-      <span class="sub">node + server-side + client-side line metrics. Add rows; bind a metric to a visual role.</span>
+      <h4>{{ t('Topology config') }}</h4>
+      <span class="sub">{{ t('node + server-side + client-side line metrics. Add rows; bind a metric to a visual role.') }}</span>
     </div>
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
         <input type="checkbox" :checked="showGroup" @change="toggleShowGroup" />
-        <span class="comp-label">Show <code>&lt;group&gt;::</code> as a chip in the node panel</span>
+        <span class="comp-label">{{ t('Show') }} <code>&lt;group&gt;::</code> {{ t('as a chip in the node panel') }}</span>
       </label>
       <span class="naming-prefix-hint">
-        Off: <code>mesh-svr::reviews</code> reads as <code>reviews</code> everywhere.
-        On: <code>mesh-svr</code> appears as a separate chip in the clicked-node panel.
-        Topology graph labels are always pure service names.
+        {{ t('Off:') }} <code>mesh-svr::reviews</code> {{ t('reads as') }} <code>reviews</code> {{ t('everywhere.') }}
+        {{ t('On:') }} <code>mesh-svr</code> {{ t('appears as a separate chip in the clicked-node panel.') }}
+        {{ t('Topology graph labels are always pure service names.') }}
       </span>
     </div>
     <div class="topo-cfg-body">
       <div class="topo-cfg-group">
-        <span class="tg-title">Service topology</span>
-        <span class="tg-sub">node = {{ serviceNoun }} · edges = service-to-service relations</span>
+        <span class="tg-title">{{ t('Service topology') }}</span>
+        <span class="tg-sub">{{ t('node = {noun} · edges = service-to-service relations', { noun: serviceNoun }) }}</span>
       </div>
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>{{ serviceNoun }} node metrics</h5>
-          <span class="sub">drives each node's center number + ring colour band</span>
-          <button class="sw-btn add" type="button" @click="addNode">＋ Add</button>
+          <h5>{{ t('{noun} node metrics', { noun: serviceNoun }) }}</h5>
+          <span class="sub">{{ t("drives each node's center number + ring colour band") }}</span>
+          <button class="sw-btn add" type="button" @click="addNode">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+        <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in nodeMetrics"
@@ -131,11 +133,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Link · server-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>service_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addServer">＋ Add</button>
+          <h5>{{ t('Link · server-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>service_relation_server_*</code></span>
+          <button class="sw-btn add" type="button" @click="addServer">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+        <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in serverMetrics"
@@ -152,11 +154,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Link · client-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>service_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addClient">＋ Add</button>
+          <h5>{{ t('Link · client-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>service_relation_client_*</code></span>
+          <button class="sw-btn add" type="button" @click="addClient">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+        <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in clientMetrics"
@@ -174,23 +176,23 @@ function remove(list: TopologyMetricDef[], i: number): void {
       <div class="topo-cfg-instance-block" :class="{ enabled: instanceEnabled }">
         <div class="topo-cfg-group with-toggle">
           <div class="tg-text">
-            <span class="tg-title">Instance topology</span>
-            <span class="tg-sub">node = {{ instanceNoun }} · drill-down between two services' instances</span>
+            <span class="tg-title">{{ t('Instance topology') }}</span>
+            <span class="tg-sub">{{ t("node = {noun} · drill-down between two services' instances", { noun: instanceNoun }) }}</span>
           </div>
           <label class="comp-toggle" :class="{ on: instanceEnabled }">
             <input type="checkbox" :checked="instanceEnabled" @change="toggleInstance" />
-            <span class="comp-label">Enable instance topology</span>
+            <span class="comp-label">{{ t('Enable instance topology') }}</span>
           </label>
         </div>
 
         <template v-if="instanceEnabled">
           <div class="topo-cfg-section">
             <header class="topo-cfg-head">
-              <h5>{{ instanceNoun }} node metrics</h5>
-              <span class="sub">per-instance — queried as <code>service_instance_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstNode">＋ Add</button>
+              <h5>{{ t('{noun} node metrics', { noun: instanceNoun }) }}</h5>
+              <span class="sub">{{ t('per-instance — queried as') }} <code>service_instance_*</code></span>
+              <button class="sw-btn add" type="button" @click="addInstNode">{{ t('＋ Add') }}</button>
             </header>
-            <div v-if="instNodeMetrics.length === 0" class="topo-cfg-empty">No node metrics. Click "+ Add" to start.</div>
+            <div v-if="instNodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics. Click "+ Add" to start.') }}</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
                 v-for="(m, i) in instNodeMetrics"
@@ -212,11 +214,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
           <div class="topo-cfg-section">
             <header class="topo-cfg-head">
-              <h5>Link · server-side metrics</h5>
-              <span class="sub">edge metrics queried as <code>service_instance_relation_server_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstServer">＋ Add</button>
+              <h5>{{ t('Link · server-side metrics') }}</h5>
+              <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_server_*</code></span>
+              <button class="sw-btn add" type="button" @click="addInstServer">{{ t('＋ Add') }}</button>
             </header>
-            <div v-if="instServerMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+            <div v-if="instServerMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
                 v-for="(m, i) in instServerMetrics"
@@ -233,11 +235,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
           <div class="topo-cfg-section">
             <header class="topo-cfg-head">
-              <h5>Link · client-side metrics</h5>
-              <span class="sub">edge metrics queried as <code>service_instance_relation_client_*</code></span>
-              <button class="sw-btn add" type="button" @click="addInstClient">＋ Add</button>
+              <h5>{{ t('Link · client-side metrics') }}</h5>
+              <span class="sub">{{ t('edge metrics queried as') }} <code>service_instance_relation_client_*</code></span>
+              <button class="sw-btn add" type="button" @click="addInstClient">{{ t('＋ Add') }}</button>
             </header>
-            <div v-if="instClientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+            <div v-if="instClientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
             <div v-else class="metric-list">
               <MetricDefinitionRow
                 v-for="(m, i) in instClientMetrics"

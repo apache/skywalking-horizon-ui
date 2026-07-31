@@ -24,7 +24,6 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import type { EndpointDependencyResponse } from '@skywalking-horizon-ui/api-client';
-import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -73,7 +72,11 @@ export function useLayerEndpointDependency(
     ),
     staleTime: 30_000,
   });
-  if (!ownsWindow && !replay.value) useAutoRefreshSubscribe(() => q.refetch());
+  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
+  // preset's window advances with the ticker, so each tick already re-keys the
+  // query and vue-query fetches the new window. Subscribing as well would fire
+  // two requests per tick for the same data. A frozen window (embedded/replay,
+  // or a pinned custom range) does not re-key — and must not refetch anyway.
 
   // Replay renders straight from the captured payload — NOT through the shared
   // query cache. Seeding initialData under the live query key would let a chat

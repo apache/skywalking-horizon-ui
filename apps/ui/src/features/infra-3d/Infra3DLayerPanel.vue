@@ -27,6 +27,7 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { SceneServiceNode } from './composables/useMapTopology';
 import { zoneLayerKeys, type ZonePlacement } from './composables/useScenePlacement';
 import type { useInfra3dConfig } from './composables/useInfra3dConfig';
@@ -46,6 +47,8 @@ const emit = defineEmits<{
   (e: 'toggle-plane', planeId: string): void;
   (e: 'reset'): void;
 }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 function servicesIn(key: string): number {
   return props.nodesByLayer[key]?.length ?? 0;
@@ -109,8 +112,8 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
 <template>
   <aside class="layer-panel">
     <div class="panel-head">
-      <span>Tiers</span>
-      <button type="button" class="panel-reset" title="Reset the view to the default framing" @click="emit('reset')">⌂ Reset</button>
+      <span>{{ t('Tiers') }}</span>
+      <button type="button" class="panel-reset" :title="t('Reset the view to the default framing')" @click="emit('reset')">⌂ {{ t('Reset') }}</button>
     </div>
     <div class="panel-body">
       <ul class="tier-list">
@@ -129,7 +132,7 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
             <button
               type="button"
               class="eye-btn"
-              :title="tierVisibility(g.zones) === 'all' ? 'hide this tier' : 'show this tier'"
+              :title="tierVisibility(g.zones) === 'all' ? t('hide this tier') : t('show this tier')"
               :aria-pressed="tierVisibility(g.zones) !== 'none'"
               @click.stop="emit('toggle-plane', g.id)"
             >
@@ -150,12 +153,12 @@ function totalServicesInTier(tierZones: ZonePlacement[]): number {
               :key="e.key"
               class="layer-row"
               :class="{ 'is-group': e.kind === 'group' }"
-              :title="`Focus ${e.name}`"
+              :title="t('Focus {name}', { name: e.name })"
               @click="emit('zone-focus', e.key)"
             >
               <span class="lr-dot" :style="e.color ? { background: e.color } : undefined" />
               <span class="lr-name">{{ e.name }}</span>
-              <span v-if="e.kind === 'group'" class="lr-tag">group</span>
+              <span v-if="e.kind === 'group'" class="lr-tag">{{ t('group') }}</span>
               <span class="lr-stat">{{ e.services }}</span>
             </li>
           </ul>

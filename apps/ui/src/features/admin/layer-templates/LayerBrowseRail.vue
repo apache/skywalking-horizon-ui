@@ -32,9 +32,12 @@
 -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { TemplateStatus } from '@/api/scopes/configs';
 import TemplateStatusBadge from '@/features/admin/_shared/TemplateStatusBadge.vue';
+
+const { t } = useI18n();
 
 const selectedKey = defineModel<string>('selectedKey', { required: true });
 const layerListOpen = defineModel<boolean>('layerListOpen', { required: true });
@@ -51,6 +54,9 @@ const props = defineProps<{
   refreshing: boolean;
   readOnly: boolean;
   badgeFor: (name: string) => TemplateStatus | null;
+  /** Enabled OAP record ids for a duplicated template name, else null —
+   *  same `horizon.layer.<KEY>` argument as `badgeFor`. */
+  conflictIdsFor: (name: string) => string[] | null;
   isDiverged: (key: string) => boolean;
   isUnconfigured: (key: string) => boolean;
   hasLocalDraftFor: (key: string) => boolean;
@@ -113,16 +119,16 @@ function pickFromDropdown(key: string): void {
       <button
         class="list-toggle"
         type="button"
-        title="Collapse the layers list"
+        :title="t('Collapse the layers list')"
         @click="layerListOpen = false"
       >
         <span class="caret open">›</span>
       </button>
-      <h4>Layers</h4>
+      <h4>{{ t('Layers') }}</h4>
       <span class="sub">
         {{ layerSearch.trim()
           ? `${filteredTemplates.length} / ${templates.length}`
-          : `${templates.length} template${templates.length === 1 ? '' : 's'}` }}
+          : templates.length === 1 ? t('{n} template', { n: templates.length }) : t('{n} templates', { n: templates.length }) }}
       </span>
     </div>
     <div class="list-search">
@@ -130,40 +136,40 @@ function pickFromDropdown(key: string): void {
         v-model="layerSearch"
         type="text"
         class="list-search-input"
-        placeholder="Search layers…"
+        :placeholder="t('Search layers…')"
         autocomplete="off"
         spellcheck="false"
       />
     </div>
     <div class="dd-filters">
-      <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? 'No layers differ from OAP' : `${divergedCount} layer(s) differ from the OAP-stored copy`">
+      <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? t('No layers differ from OAP') : t('{n} layer(s) differ from the OAP-stored copy', { n: divergedCount })">
         <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
-        Diverged<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
+        {{ t('Diverged') }}<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
       </label>
-      <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
+      <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? t('No unpublished local drafts in this browser') : t('{n} layer(s) with an unpublished local draft', { n: localCount })">
         <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
-        Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+        {{ t('Local') }}<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
       </label>
-      <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? 'Every reported layer has a dashboard template' : `${unconfiguredCount} layer(s) reported by OAP with no dashboard template yet`">
+      <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? t('Every reported layer has a dashboard template') : t('{n} layer(s) reported by OAP with no dashboard template yet', { n: unconfiguredCount })">
         <input v-model="unconfiguredOnly" type="checkbox" :disabled="unconfiguredCount === 0" />
-        Not configured<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
+        {{ t('Not configured') }}<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
       </label>
     </div>
     <button
-      v-for="t in filteredTemplates"
-      :key="t.key"
+      v-for="tpl in filteredTemplates"
+      :key="tpl.key"
       class="layer-row"
-      :class="{ active: selectedKey === t.key }"
-      @click="selectLayer(t.key)"
+      :class="{ active: selectedKey === tpl.key }"
+      @click="selectLayer(tpl.key)"
     >
-      <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
-      <span class="name">{{ t.alias || t.key }}</span>
-      <code v-if="t.alias && t.alias !== t.key" class="key-tag">{{ t.key }}</code>
-      <span v-if="hasLocalDraftFor(t.key)" class="local-badge" title="Unpublished local draft">local</span>
-      <TemplateStatusBadge :status="badgeFor(`horizon.layer.${t.key}`)" />
+      <span class="dot" :style="{ background: tpl.color || 'var(--sw-fg-3)' }" />
+      <span class="name">{{ tpl.alias || tpl.key }}</span>
+      <code v-if="tpl.alias && tpl.alias !== tpl.key" class="key-tag">{{ tpl.key }}</code>
+      <span v-if="hasLocalDraftFor(tpl.key)" class="local-badge" :title="t('Unpublished local draft')">{{ t('local') }}</span>
+      <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
     </button>
     <p v-if="filteredTemplates.length === 0" class="list-empty">
-      {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
+      {{ divergedOnly && !layerSearch.trim() ? t('No layers differ from OAP.') : t('No layers match “{q}”.', { q: layerSearch }) }}
     </p>
   </aside>
 
@@ -180,8 +186,8 @@ function pickFromDropdown(key: string): void {
         <span class="dot inline" :style="{ background: selectedTpl.color || 'var(--sw-fg-3)' }" />
         <span class="layer-dd-name">{{ selectedTpl.alias || selectedTpl.key }}</span>
         <code v-if="selectedTpl.alias && selectedTpl.alias !== selectedTpl.key" class="key-tag">{{ selectedTpl.key }}</code>
-        <span v-if="hasLocalDraftFor(selectedTpl.key)" class="local-badge" title="Unpublished local draft in this browser">local</span>
-        <TemplateStatusBadge :status="badgeFor(`horizon.layer.${selectedTpl.key}`)" />
+        <span v-if="hasLocalDraftFor(selectedTpl.key)" class="local-badge" :title="t('Unpublished local draft in this browser')">{{ t('local') }}</span>
+        <TemplateStatusBadge :status="badgeFor(`horizon.layer.${selectedTpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${selectedTpl.key}`)" />
         <span class="caret dd-caret" :class="{ open: layerDropdownOpen }">›</span>
       </button>
       <template v-if="layerDropdownOpen">
@@ -192,54 +198,54 @@ function pickFromDropdown(key: string): void {
               v-model="layerSearch"
               type="text"
               class="list-search-input"
-              placeholder="Search layers…"
+              :placeholder="t('Search layers…')"
               autocomplete="off"
               spellcheck="false"
             />
           </div>
           <div class="dd-filters">
-            <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? 'No layers differ from OAP' : `${divergedCount} layer(s) differ from the OAP-stored copy`">
+            <label class="diverged-filter" :class="{ on: divergedOnly }" :title="divergedCount === 0 ? t('No layers differ from OAP') : t('{n} layer(s) differ from the OAP-stored copy', { n: divergedCount })">
               <input v-model="divergedOnly" type="checkbox" :disabled="divergedCount === 0" />
-              Diverged<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
+              {{ t('Diverged') }}<span v-if="divergedCount" class="diverged-count">{{ divergedCount }}</span>
             </label>
-            <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? 'No unpublished local drafts in this browser' : `${localCount} layer(s) with an unpublished local draft`">
+            <label class="diverged-filter local" :class="{ on: localOnly }" :title="localCount === 0 ? t('No unpublished local drafts in this browser') : t('{n} layer(s) with an unpublished local draft', { n: localCount })">
               <input v-model="localOnly" type="checkbox" :disabled="localCount === 0" />
-              Local<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
+              {{ t('Local') }}<span v-if="localCount" class="diverged-count local">{{ localCount }}</span>
             </label>
-            <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? 'Every reported layer has a dashboard template' : `${unconfiguredCount} layer(s) reported by OAP with no dashboard template yet`">
+            <label class="diverged-filter unconfigured" :class="{ on: unconfiguredOnly }" :title="unconfiguredCount === 0 ? t('Every reported layer has a dashboard template') : t('{n} layer(s) reported by OAP with no dashboard template yet', { n: unconfiguredCount })">
               <input v-model="unconfiguredOnly" type="checkbox" :disabled="unconfiguredCount === 0" />
-              Not configured<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
+              {{ t('Not configured') }}<span v-if="unconfiguredCount" class="diverged-count">{{ unconfiguredCount }}</span>
             </label>
           </div>
           <div class="layer-dd-list">
             <button
-              v-for="t in filteredTemplates"
-              :key="t.key"
+              v-for="tpl in filteredTemplates"
+              :key="tpl.key"
               class="layer-row"
-              :class="{ active: selectedKey === t.key }"
-              @click="pickFromDropdown(t.key)"
+              :class="{ active: selectedKey === tpl.key }"
+              @click="pickFromDropdown(tpl.key)"
             >
-              <span class="dot" :style="{ background: t.color || 'var(--sw-fg-3)' }" />
-              <span class="name">{{ t.alias || t.key }}</span>
-              <code v-if="t.alias && t.alias !== t.key" class="key-tag">{{ t.key }}</code>
-              <span v-if="hasLocalDraftFor(t.key)" class="local-badge" title="Unpublished local draft">local</span>
-              <TemplateStatusBadge :status="badgeFor(`horizon.layer.${t.key}`)" />
+              <span class="dot" :style="{ background: tpl.color || 'var(--sw-fg-3)' }" />
+              <span class="name">{{ tpl.alias || tpl.key }}</span>
+              <code v-if="tpl.alias && tpl.alias !== tpl.key" class="key-tag">{{ tpl.key }}</code>
+              <span v-if="hasLocalDraftFor(tpl.key)" class="local-badge" :title="t('Unpublished local draft')">{{ t('local') }}</span>
+              <TemplateStatusBadge :status="badgeFor(`horizon.layer.${tpl.key}`)" :conflict-ids="conflictIdsFor(`horizon.layer.${tpl.key}`)" />
             </button>
             <p v-if="filteredTemplates.length === 0" class="list-empty">
-              {{ divergedOnly && !layerSearch.trim() ? 'No layers differ from OAP.' : `No layers match “${layerSearch}”.` }}
+              {{ divergedOnly && !layerSearch.trim() ? t('No layers differ from OAP.') : t('No layers match “{q}”.', { q: layerSearch }) }}
             </p>
           </div>
           <div class="layer-dd-foot">
-            <span class="sub">{{ templates.length }} layer{{ templates.length === 1 ? '' : 's' }}</span>
+            <span class="sub">{{ templates.length === 1 ? t('{n} layer', { n: templates.length }) : t('{n} layers', { n: templates.length }) }}</span>
             <button
               type="button"
               class="sw-btn refresh-btn"
               :disabled="refreshing || readOnly"
               :title="readOnly
-                ? 'OAP unreachable — cannot refresh'
-                : 'Force the BFF to re-read every UI-template from OAP (clears the 30s cache)'"
+                ? t('OAP unreachable — cannot refresh')
+                : t('Force the BFF to re-read every UI-template from OAP (clears the 30s cache)')"
               @click="emit('refresh')"
-            >{{ refreshing ? 'refreshing…' : 'refresh from remote' }}</button>
+            >{{ refreshing ? t('refreshing…') : t('refresh from remote') }}</button>
           </div>
         </div>
       </template>

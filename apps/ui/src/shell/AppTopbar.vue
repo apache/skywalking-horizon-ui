@@ -22,6 +22,7 @@
 // shown when the sidebar is folded.
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useThemeStore, AVAILABLE_THEMES } from '@/state/theme';
 import { useSidebar } from '@/controls/sidebar';
 import InfraMapPill from '@/shell/InfraMapPill.vue';
@@ -33,6 +34,8 @@ import AlarmBadgeChip from '@/shell/AlarmBadgeChip.vue';
 import ThemeChip from '@/shell/ThemeChip.vue';
 import LocaleChip from '@/shell/LocaleChip.vue';
 import logoSw from '@/assets/icons/logo-sw.svg?raw';
+
+const { t } = useI18n();
 
 // When the sidebar is folded its wordmark is hidden; surface the brand
 // (logo + name) here in the topbar's left zone instead.
@@ -50,9 +53,9 @@ const isLightAppearance = computed<boolean>(
 
 <template>
   <header class="sw-top">
-    <RouterLink v-if="sidebarCollapsed" to="/" class="top-brand" aria-label="SkyWalking Horizon">
+    <RouterLink v-if="sidebarCollapsed" to="/" class="top-brand" :aria-label="t('SkyWalking Horizon')">
       <span class="top-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
-      <small>Horizon</small>
+      <small>{{ t('Horizon') }}</small>
     </RouterLink>
     <InfraMapPill />
     <div class="sw-top-spacer" />

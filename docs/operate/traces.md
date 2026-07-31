@@ -121,6 +121,7 @@ Each Zipkin result shows its duration and error state, with a duration bar color
 
 ## Related
 
+- [Trace Inspect](trace-inspect.md) — the cross-layer trace query tool: look up a trace by id or query any service (picked, typed by name, or all of them) without entering a layer.
 - [3D Infrastructure Map](infra-3d-map.md) — topology-level view of the same services these traces flow through.
 - [Metrics Inspect](inspect.md) — confirm which metrics a service is reporting when traces look incomplete.
 - [Layer Dashboard Templates](../customization/layer-templates.md) — where a layer's `traces.source` is configured.

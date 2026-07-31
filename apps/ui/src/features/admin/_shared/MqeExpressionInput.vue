@@ -22,7 +22,8 @@
   so it carries no cross-feature dependency.
 -->
 <script setup lang="ts">
-import { nextTick, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 
 const props = withDefaults(
   defineProps<{
@@ -33,9 +34,12 @@ const props = withDefaults(
     /** Header label for the pop-out. */
     title?: string;
   }>(),
-  { modelValue: '', placeholder: '', readonly: false, title: 'MQE expression' },
+  { modelValue: '', placeholder: '', readonly: false, title: undefined },
 );
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
+
+const { t } = useI18n({ useScope: 'global' });
+const popTitle = computed(() => props.title ?? t('MQE expression'));
 
 const open = ref(false);
 const draft = ref('');
@@ -79,15 +83,15 @@ function onKeydown(e: KeyboardEvent): void {
       :readonly="readonly"
       @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
-    <button type="button" class="mqe-expand" :title="`Expand — ${title}`" @click="openPopout">⤢</button>
+    <button type="button" class="mqe-expand" :title="t('Expand — {title}', { title: popTitle })" @click="openPopout">⤢</button>
   </div>
 
   <Teleport to="body">
     <div v-if="open" class="mqe-pop-backdrop" @mousedown.self="cancel">
       <div class="mqe-pop" role="dialog" aria-modal="true" @keydown="onKeydown">
         <header class="mqe-pop-head">
-          <span>{{ title }}</span>
-          <button type="button" class="mqe-pop-close" title="Close (Esc)" @click="cancel">×</button>
+          <span>{{ popTitle }}</span>
+          <button type="button" class="mqe-pop-close" :title="t('Close (Esc)')" @click="cancel">×</button>
         </header>
         <textarea
           ref="taRef"
@@ -98,10 +102,10 @@ function onKeydown(e: KeyboardEvent): void {
           spellcheck="false"
         ></textarea>
         <footer class="mqe-pop-foot">
-          <span class="mqe-pop-hint">⌘/Ctrl + Enter to apply · Esc to cancel</span>
+          <span class="mqe-pop-hint">{{ t('⌘/Ctrl + Enter to apply · Esc to cancel') }}</span>
           <span class="spacer"></span>
-          <button type="button" class="sw-btn ghost small" @click="cancel">Cancel</button>
-          <button type="button" class="sw-btn small" :disabled="readonly" @click="apply">Apply</button>
+          <button type="button" class="sw-btn ghost small" @click="cancel">{{ t('Cancel') }}</button>
+          <button type="button" class="sw-btn small" :disabled="readonly" @click="apply">{{ t('Apply') }}</button>
         </footer>
       </div>
     </div>

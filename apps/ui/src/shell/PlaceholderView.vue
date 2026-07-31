@@ -15,16 +15,20 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-defineProps<{ title: string; phase: string; note?: string; inset?: boolean }>();
+import { useI18n } from 'vue-i18n';
+
+defineProps<{ title: string; note?: string; inset?: boolean }>();
+
+const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="ph" :class="{ inset }">
     <div class="ph-card">
-      <div class="ph-kicker">Coming in {{ phase }}</div>
-      <h1 v-if="!inset">{{ title }}</h1>
-      <h2 v-else>{{ title }}</h2>
-      <p v-if="note">{{ note }}</p>
+      <div class="ph-kicker">404</div>
+      <h1 v-if="!inset">{{ t(title) }}</h1>
+      <h2 v-else>{{ t(title) }}</h2>
+      <p v-if="note">{{ t(note) }}</p>
     </div>
   </div>
 </template>

@@ -4,6 +4,8 @@ The Cluster Status page (`/operate/cluster`, sidebar **Operate → Cluster**) is
 
 The panes are independent: a healthy `:12800` with broken `:17128` is a real and recoverable state (forgot to expose the admin port behind a Kubernetes Service), and Horizon makes that diagnosis obvious. The Zipkin/OTLP pane is informational for the trace menu — a red dot there is not a cluster-wide outage.
 
+The page header carries a single **refresh both** button that re-runs every check immediately — use it after fixing a network rule or an OAP selector instead of waiting for the next poll.
+
 ## Pane A — Query / GraphQL port (`:12800`)
 
 **Single GraphQL call** fired every 30 seconds:
@@ -39,36 +41,46 @@ query {
 
 ## Pane B — Admin host (`:17128`)
 
-**Single admin REST call** fired every 60 seconds:
+**Per-feature reachability probes.** Horizon checks each admin feature by firing a safe GET at the **real REST path that feature calls**, and colors the row by whether the path responds. Health is the live probe, not config-presence: a build that serves the path reads as reachable even if its config dump looks unfamiliar, and a path that 404s reads as unreachable even when the module's selector appears in the OAP config.
+
+Every round starts with the admin host itself:
 
 ```
 GET <adminUrl>/debugging/config/dump
 ```
 
-OAP returns a flat key/value map. Each required module is reported as enabled when **any** key with that module's prefix appears in the dump.
+If that call fails, the pane shows a red **Admin host unreachable** block with the error and the exact URL tried, and every feature row reads unreachable — one root cause, not five stacked failures. Fix the network / port exposure / `SW_ADMIN_SERVER=default` first; individual selectors are irrelevant until the host answers.
 
-### What you see (per refresh)
+When the host answers, each feature is probed on its own path and gets its own row:
 
-If the admin host is unreachable, every module shows off and the whole pane goes red. If it is reachable, each module shows enabled or disabled independently based on whether its keys appear in the config dump:
+| Feature | Probe path | Gates |
+|---|---|---|
+| `admin-server` | `/debugging/config/dump` | Everything on the admin port — its probe is the config-dump call itself. |
+| `receiver-runtime-rule` | `/runtime/rule/list` | DSL Management (catalog, editor save/load, OAL catalog), the cluster rule matrix, the Live Debugger rule picker, Inspect source attribution. |
+| `dsl-debugging` | `/dsl-debugging/status` | The Live Debugger (MAL / LAL / OAL session start / poll / stop). |
+| `inspect` | `/inspect/metrics` | The Inspect pages. |
+| `ui-management` | `/ui-management/templates` | Dashboard templates — the layer / overview / alert / 3D template store the config surface reads and writes. |
 
-- **`admin-server`** — when off, the admin host responded but does not expose the admin selector. The dump endpoint is itself served by admin-server, so in practice this means a custom OAP build. When admin-server is off the dump is empty, so the other three modules all show off as well — one root cause, not three stacked warnings.
-- **`receiver-runtime-rule`** — when off, DSL Management, alarm rules, and the cluster rule matrix are disabled. Yellow badge.
-- **`dsl-debugging`** — when off, the Live Debugger is disabled. Yellow badge.
-- **`inspect`** — when off, the Inspect page is disabled. Yellow badge.
+### Row states
 
-### What the pane shows
+- **reachable** (green) — the GET got an HTTP answer other than 404 or a 5xx. An auth challenge (401) or a bad-request answer (400) still proves the route is served, so it counts as reachable.
+- **unreachable** (red) — the path returned 404 (the route isn't registered: selector off, renamed, or absent in this OAP build), returned a 5xx, or failed at the network level. The pages the feature gates show a warning banner naming the env-var to set.
+- **readonly · bundled** (yellow) — the `ui-management` row only, when Horizon runs with templates in readonly mode. Horizon serves its bundled dashboard templates and never calls the template store, so the path is not probed. This is informational, not a failure — but it does keep the pane badge at "4/5 reachable" instead of "all reachable".
 
-| Module | Hint shown when off |
-|---|---|
-| `admin-server` | "Confirm `SW_ADMIN_SERVER=default` is set on OAP and port 17128 is exposed." |
-| `receiver-runtime-rule` | "Set `SW_RECEIVER_RUNTIME_RULE=default` on OAP to enable DSL Management." |
-| `dsl-debugging` | "Set `SW_DSL_DEBUGGING=default` on OAP to enable the Live Debugger." |
-| `inspect` | "Set `SW_INSPECT=default` on OAP to enable the Inspect page." |
+The pane badge summarizes the rows: **all reachable**, **N/M reachable** when some rows are not live-reachable, or **unreachable** when the admin host itself is down.
+
+### The "selector detected" footnote
+
+Under each row's state chip there is a footnote — **selector detected** or **selector not detected** — reporting whether any key with that module's prefix appears in OAP's config dump, i.e. whether the running release advertises that selector. This is the old config-presence check, kept as an informational hint only: a custom build can be perfectly reachable with no selector detected, or advertise a selector whose endpoint still 404s. The reachable/unreachable chip is the verdict.
+
+### Timestamps and re-checking
+
+The pane header and each row carry a **checked … ago** stamp — when the displayed probe round actually ran. It can lag the page's own refresh slightly, because concurrent viewers share one probe round for up to 30 seconds. **refresh both** forces a fresh probe round immediately.
 
 ### Poll cadence
 
-- Stale-time: 30 s
 - Refetch interval: 60 s
+- Probe rounds are shared across viewers for up to 30 s; **refresh both** bypasses the sharing
 
 ## Pane C — Zipkin / OTLP traces
 
@@ -79,6 +91,6 @@ A third pane probes OAP's Zipkin v2 REST endpoint and reports reachability. It f
 The triage flow during "Horizon shows banners I don't understand":
 
 1. **Is the Query pane green?** If not, OAP itself is down / unreachable — fix OAP first, the rest is downstream.
-2. **Is the Admin pane green?** If not, expose port 17128 and / or turn on the four selectors — see the per-module hints.
-3. **Is the health score `> 0`?** OAP is up but degraded — pull `details` from `checkHealth` (visible in the Query pane) and triage on the OAP side.
-
+2. **Does the Admin pane say "Admin host unreachable"?** The admin port isn't answering at all — expose port 17128 and confirm `SW_ADMIN_SERVER=default`. Don't chase individual selectors yet.
+3. **Admin host up but a row reads unreachable?** That one feature's endpoint isn't served — usually its selector is off. The row's Gates column says what breaks and which env-var enables it (e.g. `SW_INSPECT=default`); set it on OAP, restart, then hit **refresh both**.
+4. **Is the health score `> 0`?** OAP is up but degraded — pull `details` from `checkHealth` (visible in the Query pane) and triage on the OAP side.

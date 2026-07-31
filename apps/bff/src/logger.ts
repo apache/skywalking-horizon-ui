@@ -31,25 +31,36 @@ const isDev = process.env.NODE_ENV === 'development';
  *     `debug` — verbose lifecycle + per-request access logs, pretty-
  *     printed via `pino-pretty` for human reading.
  *   - prod (anything else, incl. local `node dist/server.js` and the
- *     Docker image): `error` — quiet by default. Fastify's per-request
+ *     Docker image): `warn` — quiet by default. Fastify's per-request
  *     `info` access logs are suppressed; only warnings, errors, and
- *     fatals reach stdout as JSON.
+ *     fatals reach stdout as JSON. `warn` (not `error`) is the floor
+ *     because misconfiguration + security signals are emitted at warn
+ *     (break-glass logins, LDAP failures, rejected config reloads) and
+ *     operators are told to alert on them.
  *
- * Operators turn it up explicitly when triaging: `LOG_LEVEL=info` for
- * access logs, `LOG_LEVEL=debug` for the lifecycle chatter, `trace`
- * for everything pino-instrumented code emits.
+ * Operators tune it explicitly: `LOG_LEVEL=info` for access logs,
+ * `LOG_LEVEL=debug` for the lifecycle chatter, `trace` for everything
+ * pino-instrumented code emits, `LOG_LEVEL=error` to silence warnings.
  */
 export const loggerOptions: LoggerOptions = {
-  level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'error'),
-  // Backstop redaction for LLM-provider secrets. The AI api key is env-only and
-  // never intentionally logged, but a stray `logger.info({ config })` must not
-  // leak it. Paths cover the config shape, any `*.apiKey`, and the raw SDK field.
+  level: process.env.LOG_LEVEL ?? (isDev ? 'debug' : 'warn'),
+  // Backstop redaction for every credential horizon.yaml can carry. None is
+  // intentionally logged, but a stray `logger.info({ config })` — or an error
+  // object that happens to embed connection options — must not leak one. Covers
+  // the LLM key, the OAP basic-auth password, and the LDAP service-account bind
+  // password, each at its config path and under a `config.` wrapper.
   redact: {
     paths: [
       'ai.apiKey',
       'config.ai.apiKey',
       '*.apiKey',
       '*.bedrockBearerToken',
+      'oap.auth.password',
+      'config.oap.auth.password',
+      '*.auth.password',
+      'auth.ldap.bindPassword',
+      'config.auth.ldap.bindPassword',
+      '*.bindPassword',
     ],
     censor: '[redacted]',
   },

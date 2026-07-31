@@ -28,6 +28,7 @@
 -->
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import { fmtMetric } from '@/utils/formatters';
@@ -39,6 +40,7 @@ interface RecordRow {
 }
 defineProps<{ items: ReadonlyArray<RecordRow>; unit?: string; color?: string }>();
 
+const { t } = useI18n({ useScope: 'global' });
 const { openTrace } = useTracePopout();
 
 const copiedIdx = ref<number | null>(null);
@@ -64,7 +66,7 @@ async function copyStatement(text: string, idx: number): Promise<void> {
         v-if="r.traceId"
         type="button"
         class="rec-trace"
-        title="Open the originating trace"
+        :title="t('Open the originating trace')"
         @click="openTrace(r.traceId!)"
       >
         <Icon name="trace" :size="12" />
@@ -73,17 +75,17 @@ async function copyStatement(text: string, idx: number): Promise<void> {
       <button
         type="button"
         class="rec-stmt"
-        :title="copiedIdx === i ? 'Copied to clipboard' : 'Click to copy statement'"
+        :title="copiedIdx === i ? t('Copied to clipboard') : t('Click to copy statement')"
         @click="copyStatement(r.name, i)"
       >
         <span class="rec-stmt-text">{{ r.name }}</span>
-        <span v-if="copiedIdx === i" class="rec-copied">copied</span>
+        <span v-if="copiedIdx === i" class="rec-copied">{{ t('copied') }}</span>
       </button>
       <span class="rec-val" :style="{ color }">
         {{ fmtMetric(r.value ?? null) }}<span v-if="unit" class="rec-unit">{{ unit }}</span>
       </span>
     </li>
-    <li v-if="items.length === 0" class="rec-empty">no records</li>
+    <li v-if="items.length === 0" class="rec-empty">{{ t('no records') }}</li>
   </ul>
 </template>
 

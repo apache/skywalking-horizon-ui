@@ -39,6 +39,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Locale } from './types.js';
 import { OVERLAY_LOCALES } from './types.js';
+import { logger } from '../logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -105,7 +106,7 @@ function loadOverlayDir(dir: string, keyMode: 'as-is' | 'upper'): OverlayMap {
     } catch (err) {
       // A malformed overlay should not stop the BFF from booting. Log
       // and keep serving English for that locale + template.
-      console.warn(
+      logger.warn(
         `i18n: failed to parse overlay ${file}: ${err instanceof Error ? err.message : err}`,
       );
     }
@@ -155,7 +156,7 @@ function ensureLexicon(): Map<Locale, Record<string, string>> {
       }
       lexicon.set(loc, flat);
     } catch (err) {
-      console.warn(
+      logger.warn(
         `i18n: failed to parse lexicon ${loc}.json: ${err instanceof Error ? err.message : err}`,
       );
     }

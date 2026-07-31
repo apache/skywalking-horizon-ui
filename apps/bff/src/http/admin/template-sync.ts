@@ -305,51 +305,6 @@ export function registerTemplateSyncAdminRoutes(
     }
   });
 
-  /* POST /api/admin/templates/resolve-conflicts — for every envelope
-   * name that currently has >1 ENABLED OAP row, disable all but the
-   * lowest-UUID winner. Same deterministic tie-break the render-side
-   * parseRemoteRows uses, so the operator-visible "live" row doesn't
-   * change after the resolve. Already-disabled losers (tombstones)
-   * are left alone — OAP can't free them and re-disabling them is a
-   * no-op. */
-  app.post(
-    '/api/admin/templates/resolve-conflicts',
-    { preHandler: auth },
-    async (_req: FastifyRequest, reply: FastifyReply) => {
-      resync();
-      const status = await loadStatus(deps);
-      if (status.unreachable) {
-        return reply.code(409).send({
-          code: 'oap_unreachable',
-          message: 'OAP admin port unreachable — cannot resolve conflicts',
-        });
-      }
-      if (status.conflicts.length === 0) {
-        return reply.send({ ...status, disabled: [] as string[] });
-      }
-      const client = deps.uiTemplateClient();
-      const disabled: string[] = [];
-      const failed: Array<{ name: string; id: string; error: string }> = [];
-      for (const c of status.conflicts) {
-        const ids = [...c.enabledIds].sort((a, b) => a.localeCompare(b));
-        const [, ...losers] = ids;
-        for (const id of losers) {
-          try {
-            await disableAndConfirm(client, id, logger);
-            disabled.push(id);
-            logger.info({ name: c.name, droppedId: id, keptId: ids[0] }, 'resolved duplicate UI-template via /resolve-conflicts');
-          } catch (err) {
-            failed.push({ name: c.name, id, error: errMsg(err) });
-            logger.warn({ name: c.name, id, err: errMsg(err) }, 'resolve-conflicts: failed to disable loser');
-          }
-        }
-      }
-      resync();
-      const fresh = await loadStatus(deps);
-      return reply.send({ ...fresh, disabled, failed });
-    },
-  );
-
   app.post<{
     Params: { name: string };
   }>(
@@ -370,6 +325,21 @@ export function registerTemplateSyncAdminRoutes(
         return reply.code(409).send({
           code: 'oap_unreachable',
           message: 'OAP admin port unreachable — templates are read-only',
+        });
+      }
+      // Which row would this update? A duplicated name resolves to the one row
+      // Horizon renders, so the push would land on that copy and leave the twin
+      // holding whatever it held. Horizon never resolves a duplicate, so refuse
+      // and name the rows rather than write into an ambiguous name.
+      const pushConflict = status.conflicts.find((c) => c.name === name);
+      if (pushConflict) {
+        return reply.code(409).send({
+          code: 'template_name_conflicted',
+          message:
+            `"${name}" is stored on ${pushConflict.enabledIds.length} enabled OAP rows ` +
+            `(${pushConflict.enabledIds.join(', ')}). A push would update only the copy Horizon renders ` +
+            'and leave the other in place. Retire the copies you do not want on OAP first.',
+          enabledIds: pushConflict.enabledIds,
         });
       }
       const row = status.rows.find((r) => r.name === name);
@@ -584,6 +554,22 @@ export function registerTemplateSyncAdminRoutes(
         return reply.code(409).send({
           code: 'oap_unreachable',
           message: 'OAP admin port unreachable — templates are read-only',
+        });
+      }
+      // A duplicated name resolves to the ONE row Horizon renders, so deleting
+      // here would disable that row, report success, and leave the sibling
+      // rendering — the template would look deleted and then come back. Horizon
+      // never resolves a duplicate, so refuse and say which rows are in the way
+      // rather than half-applying the delete.
+      const conflict = status.conflicts.find((c) => c.name === name);
+      if (conflict) {
+        return reply.code(409).send({
+          code: 'template_name_conflicted',
+          message:
+            `"${name}" is stored on ${conflict.enabledIds.length} enabled OAP rows ` +
+            `(${conflict.enabledIds.join(', ')}). Deleting would disable only the copy Horizon renders ` +
+            'and leave the other rendering. Retire the copies you do not want on OAP first, then delete here.',
+          enabledIds: conflict.enabledIds,
         });
       }
       const row = status.rows.find((r) => r.name === name);

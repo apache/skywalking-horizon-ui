@@ -40,6 +40,7 @@ import type {
   ZipkinSpan,
   ZipkinTraceListRow,
 } from '@skywalking-horizon-ui/api-client';
+import { wireFetch } from './wire-log.js';
 
 export interface ZipkinClientOpts {
   queryUrl: string;
@@ -69,7 +70,7 @@ export interface ZipkinTracesQuery {
 const DEFAULT_LOOKBACK_MS = 30 * 60_000;
 
 async function zipkinFetch<T>(opts: ZipkinClientOpts, path: string): Promise<T> {
-  const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(opts.fetch ?? globalThis.fetch.bind(globalThis));
   const url = opts.queryUrl.replace(/\/$/, '') + path;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);

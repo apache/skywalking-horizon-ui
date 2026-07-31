@@ -24,7 +24,7 @@
  * caps rolling windows at the same 7d; data beyond the record TTL simply
  * comes back empty. Owns the preset/custom mode + the custom-range draft
  * inputs + their validation; exposes `startTime` / `endTime` (epoch ms) the
- * events query reads, and `resetEndToNow()` for manual refresh.
+ * events query reads.
  */
 
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
@@ -53,9 +53,6 @@ export interface EventsWindow {
   openCustom: () => void;
   applyCustom: () => void;
   closeCustom: () => void;
-  /** On manual refresh, slide a preset window forward to now. No-op in
-   *  custom mode (the operator pinned an absolute range). */
-  resetEndToNow: () => void;
   formatWindowLabel: () => string;
 }
 
@@ -131,10 +128,6 @@ export function useEventsWindow(): EventsWindow {
     customOpen.value = false;
   }
 
-  function resetEndToNow(): void {
-    if (windowMode.value !== 'custom') windowEndAt.value = Date.now();
-  }
-
   function fmtStamp(ms: number): string {
     const d = new Date(ms);
     const p = (n: number) => String(n).padStart(2, '0');
@@ -159,7 +152,6 @@ export function useEventsWindow(): EventsWindow {
     openCustom,
     applyCustom,
     closeCustom,
-    resetEndToNow,
     formatWindowLabel,
   };
 }

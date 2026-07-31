@@ -240,7 +240,7 @@ Overview templates are editable at runtime via **Dashboard setup → Overview te
 
 ### How edits flow: draft → preview → publish
 
-Same model as [layer templates](/customization/layer-templates): your edit lives **in your browser**, and the live page everyone sees stays on the published OAP version until you publish.
+Same model as [layer templates](layer-templates.md): your edit lives **in your browser**, and the live page everyone sees stays on the published OAP version until you publish.
 
 1. **Save (local).** Stores your draft in this browser only; the dashboard is tagged **local** in the picker.
 2. **Reset to ▾** loads the **Bundled** or **Remote** version into the canvas.
@@ -257,7 +257,7 @@ A top banner summarizes state — *Synced from OAP — N diverged, Y local* — 
 
 **Import** reads a dashboard JSON file and loads it as a **local draft** — it never writes OAP directly. After a valid import the dashboard is selected and tagged **local**; preview it, then **Check diff & push** to publish, exactly like any other edit. The file targets the dashboard it names: an existing id is replaced as a local draft, and a new id creates a new dashboard (like **+ New dashboard**, pre-filled from the file) — handy for restoring one you deleted. A file that isn't a valid overview dashboard is rejected with a message.
 
-Import/export covers the **source dashboard** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](/customization/i18n) page — they're not part of this file. A dashboard exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
+Import/export covers the **source dashboard** (the English authoring layer) only. Per-locale translations are stored separately in OAP and managed on the [Translations](i18n.md) page — they're not part of this file. A dashboard exported to a *different* OAP arrives with its English source only; move its translations across on the Translations page if you need them there.
 
 ### Deleting a dashboard
 

@@ -24,6 +24,7 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import {
   resolveServiceIdentity,
@@ -38,6 +39,8 @@ const props = defineProps<{
   namingRule: ServiceNamingRule | null;
 }>();
 const emit = defineEmits<{ 'update:selected': [string[]] }>();
+
+const { t } = useI18n({ useScope: 'global' });
 
 const open = ref(false);
 const search = ref('');
@@ -76,7 +79,6 @@ const groupedRows = computed<Map<string, GroupedRow[]>>(() => {
   }
   return map;
 });
-const groupAliasLabel = 'group';
 
 // Batch select / unselect every service in a group from its header.
 // Tri-state drives the header glyph: 'all' = every row of the group is
@@ -109,7 +111,7 @@ defineExpose({ open });
   <div class="focus-wrap" @click.stop>
     <button class="focus-btn sw-btn small" type="button" @click="toggleOpen">
       <span class="focus-btn-label">
-        {{ selected.length === 0 ? 'All services' : selected.length + ' selected' }}
+        {{ selected.length === 0 ? t('All services') : t('{n} selected', { n: selected.length }) }}
       </span>
       <span class="caret" :class="{ open }">▾</span>
     </button>
@@ -118,7 +120,7 @@ defineExpose({ open });
         v-model="search"
         class="focus-search"
         type="text"
-        placeholder="Search services…"
+        :placeholder="t('Search services…')"
         autofocus
       />
       <div class="focus-list">
@@ -129,20 +131,20 @@ defineExpose({ open });
           @click="clearFocus"
         >
           <span class="focus-check" :class="{ on: selected.length === 0 }" />
-          <span class="focus-name">All services</span>
-          <span class="focus-aside">{{ landingRows.length }} total</span>
+          <span class="focus-name">{{ t('All services') }}</span>
+          <span class="focus-aside">{{ t('{n} total', { n: landingRows.length }) }}</span>
         </button>
         <template v-for="[gkey, rows] in groupedRows" :key="gkey">
           <button
             v-if="gkey"
             class="focus-group-head"
             type="button"
-            :title="groupSelState(rows) === 'all' ? `Unselect all in ${gkey}` : `Select all in ${gkey}`"
+            :title="groupSelState(rows) === 'all' ? t('Unselect all in {group}', { group: gkey }) : t('Select all in {group}', { group: gkey })"
             @click="toggleGroup(rows)"
           >
             <span class="focus-check" :class="groupSelState(rows)" />
             <span class="focus-group-val">{{ gkey }}</span>
-            <span class="focus-group-alias">[{{ groupAliasLabel }}]</span>
+            <span class="focus-group-alias">[{{ t('group') }}]</span>
           </button>
           <div :class="['focus-group-body', { grouped: gkey }]">
             <button
@@ -158,7 +160,7 @@ defineExpose({ open });
             </button>
           </div>
         </template>
-        <div v-if="groupedRows.size === 0" class="focus-empty">no matches</div>
+        <div v-if="groupedRows.size === 0" class="focus-empty">{{ t('no matches') }}</div>
       </div>
     </div>
   </div>

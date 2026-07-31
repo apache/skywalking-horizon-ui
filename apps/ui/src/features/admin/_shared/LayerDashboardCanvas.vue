@@ -96,7 +96,7 @@ function onHeaderClick(e: MouseEvent): void {
   </header>
   <div class="ldc-canvas">
     <div v-if="widgets.length === 0" class="ldc-empty">
-      No widgets in this scope.
+      {{ t('No widgets in this scope.') }}
     </div>
     <div
       v-for="(w, i) in widgets"
@@ -107,7 +107,7 @@ function onHeaderClick(e: MouseEvent): void {
       @click="onCellClick($event, w, i)"
     >
       <header class="ldc-head">
-        <h5>{{ w.title || w.id || 'untitled' }}</h5>
+        <h5>{{ w.title || w.id || t('untitled') }}</h5>
         <WidgetTip :tip="w.tip" />
       </header>
       <div class="ldc-body">
@@ -144,7 +144,7 @@ function onHeaderClick(e: MouseEvent): void {
             </li>
           </ul>
         </template>
-        <p v-else class="ldc-empty-cell">No preview for this widget kind.</p>
+        <p v-else class="ldc-empty-cell">{{ t('No preview for this widget kind.') }}</p>
       </div>
     </div>
   </div>

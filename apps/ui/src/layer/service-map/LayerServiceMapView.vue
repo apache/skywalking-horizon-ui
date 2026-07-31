@@ -52,6 +52,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router';
 import type {
@@ -122,6 +123,7 @@ const props = defineProps<{
 }>();
 const route = useRoute();
 const router = useRouter();
+const { t } = useI18n({ useScope: 'global' });
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -330,14 +332,14 @@ const ringDirectionHint = computed<string>(() => {
   const def = ringDef.value;
   if (!def) return '';
   const th = def.thresholds;
-  if (th?.invertHealth) return 'higher = better';
+  if (th?.invertHealth) return t('higher = better');
   // Without an explicit `invertHealth`, fall back to the legacy heuristic
   // on the metric id/label so SLA-style metrics that haven't migrated to
   // thresholds still read correctly.
   if (/sla|success|apdex/i.test(def.id) || /sla|apdex|success/i.test(def.label)) {
-    return 'higher = better';
+    return t('higher = better');
   }
-  return 'lower = better';
+  return t('lower = better');
 });
 const centerDef = computed(() => pickByRole(cfg.value.nodeMetrics, 'center'));
 const secondaryDef = computed(() => pickByRole(cfg.value.nodeMetrics, 'secondary'));
@@ -800,13 +802,13 @@ onBeforeUnmount(() => {
   <div class="sm-tab" :class="{ 'is-embedded': embedded }">
     <header v-if="!embedded" class="sm-toolbar sw-card">
       <div class="left">
-        <span class="kicker">Topology</span>
-        <span v-if="focusServiceNames.length === 0" class="for-svc">layer overview · all services</span>
+        <span class="kicker">{{ t('Topology') }}</span>
+        <span v-if="focusServiceNames.length === 0" class="for-svc">{{ t('layer overview · all services') }}</span>
         <span v-else class="for-svc">
-          focused on
-          <b>{{ focusServiceNames.length === 1 ? identity(focusServiceNames[0]).display : `${focusServiceNames.length} services` }}</b>
+          {{ t('focused on') }}
+          <b>{{ focusServiceNames.length === 1 ? identity(focusServiceNames[0]).display : t('{n} services', { n: focusServiceNames.length }) }}</b>
         </span>
-        <span v-if="isFetching" class="hint">refreshing…</span>
+        <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
       </div>
       <div class="right">
         <TopologyFocusPicker
@@ -818,27 +820,27 @@ onBeforeUnmount(() => {
              "All services" already seeds from the whole layer, so a
              BFS-depth control would explode the graph. -->
         <label v-if="focusServiceNames.length > 0" class="depth-pick">
-          <span>Depth</span>
+          <span>{{ t('Depth') }}</span>
           <select v-model.number="depth">
-            <option :value="1">1 hop</option>
-            <option :value="2">2 hops</option>
-            <option :value="3">3 hops</option>
+            <option :value="1">{{ t('1 hop') }}</option>
+            <option :value="2">{{ t('2 hops') }}</option>
+            <option :value="3">{{ t('3 hops') }}</option>
           </select>
         </label>
-        <button class="sw-btn small" type="button" @click="() => refetch()">Refresh</button>
+        <button class="sw-btn small" type="button" @click="() => refetch()">{{ t('Refresh') }}</button>
       </div>
     </header>
 
     <div v-if="!reachable" class="banner err">
-      <strong>OAP unreachable.</strong>
-      {{ errorText ?? 'Topology feed failed — check the BFF and OAP.' }}
+      <strong>{{ t('OAP unreachable.') }}</strong>
+      {{ errorText ?? t('Topology feed failed — check the BFF and OAP.') }}
     </div>
     <div v-if="tooLarge" class="banner warn">
-      <strong>Topology too large to render</strong> — {{ tooLarge.nodes.toLocaleString() }} services · {{ tooLarge.edges.toLocaleString() }} calls.
-      {{ embedded ? 'Open the Topology tab and narrow the scope to see a complete map.' : 'Pick a specific service above, or lower the depth, to see a complete map.' }}
+      <strong>{{ t('Topology too large to render') }}</strong> — {{ t('{nodes} services · {edges} calls.', { nodes: tooLarge.nodes.toLocaleString(), edges: tooLarge.edges.toLocaleString() }) }}
+      {{ embedded ? t('Open the Topology tab and narrow the scope to see a complete map.') : t('Pick a specific service above, or lower the depth, to see a complete map.') }}
     </div>
     <div v-if="metricsPartial" class="banner warn">
-      Some metrics could not be loaded ({{ metricsPartial.failedChunks }} of {{ metricsPartial.totalChunks }} batches failed) — blank values may be unavailable, not zero.
+      {{ t('Some metrics could not be loaded ({failed} of {total} batches failed) — blank values may be unavailable, not zero.', { failed: metricsPartial.failedChunks, total: metricsPartial.totalChunks }) }}
     </div>
 
     <section class="sm-card sw-card" :class="{ 'has-selection': selectedNode || selectedCall }" :style="{ height: cardHeightPx + 'px' }">
@@ -1158,7 +1160,7 @@ onBeforeUnmount(() => {
                 class="sm-h-chip"
                 @click.stop="openHierarchy()"
               >
-                <title>Show service hierarchy (cross-layer peers)</title>
+                <title>{{ t('Show service hierarchy (cross-layer peers)') }}</title>
                 <circle r="11" fill="var(--sw-accent)" />
                 <circle r="11" fill="none" stroke="var(--sw-bg-0)" stroke-width="2" />
                 <g stroke="var(--sw-bg-0)" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -1215,13 +1217,13 @@ onBeforeUnmount(() => {
             </g>
           </g>
         </svg>
-        <div v-else-if="isLoading" class="loader">loading…</div>
+        <div v-else-if="isLoading" class="loader">{{ t('loading…') }}</div>
         <div v-else-if="filterActive && nodes.length > 0" class="loader">
-          All nodes are hidden by the current filter.
-          <button class="sw-btn small" type="button" @click="resetFilter">Reset filter</button>
+          {{ t('All nodes are hidden by the current filter.') }}
+          <button class="sw-btn small" type="button" @click="resetFilter">{{ t('Reset filter') }}</button>
         </div>
         <div v-else-if="!tooLarge && reachable" class="loader">
-          No services with metric data in this layer for the last 15 minutes.
+          {{ t('No services with metric data in this layer for the last 15 minutes.') }}
         </div>
 
         <!-- Smartscape hierarchy overlay — focus + context + suggestions.
@@ -1241,10 +1243,10 @@ onBeforeUnmount(() => {
              Hidden in embedded dashboard-widget mode (non-interactive
              snapshot); the chat opts back in via `zoomControls`. -->
         <div v-if="(!embedded || zoomControls) && layoutNodes.length > 0" class="sm-zoom-ctrls">
-          <button class="sw-btn small" type="button" title="Zoom in (wheel up)" @click="zoomBy(1.25)">+</button>
-          <button class="sw-btn small" type="button" title="Zoom out (wheel down)" @click="zoomBy(1 / 1.25)">−</button>
-          <button class="sw-btn small" type="button" title="Fit to screen (double-click canvas)" @click="fitToScreen(true)">Fit</button>
-          <span class="sm-zoom-pct" :title="`Scale ${(zoomT.k * 100).toFixed(0)}%`">{{ Math.round(zoomT.k * 100) }}%</span>
+          <button class="sw-btn small" type="button" :title="t('Zoom in (wheel up)')" @click="zoomBy(1.25)">+</button>
+          <button class="sw-btn small" type="button" :title="t('Zoom out (wheel down)')" @click="zoomBy(1 / 1.25)">−</button>
+          <button class="sw-btn small" type="button" :title="t('Fit to screen (double-click canvas)')" @click="fitToScreen(true)">{{ t('Fit') }}</button>
+          <span class="sm-zoom-pct" :title="t('Scale {pct}%', { pct: (zoomT.k * 100).toFixed(0) })">{{ Math.round(zoomT.k * 100) }}%</span>
         </div>
 
         <!-- Node filter — floating overlay (top-left) in BOTH the full
@@ -1277,8 +1279,8 @@ onBeforeUnmount(() => {
           <div class="lg-rule" />
           <div class="lg-row">
             <span class="lg-swatch" style="background: var(--sw-accent)" />
-            <span>Calls</span>
-            <span class="lg-aside">direction shown by flow animation</span>
+            <span>{{ t('Calls') }}</span>
+            <span class="lg-aside">{{ t('direction shown by flow animation') }}</span>
           </div>
         </div>
       </div>

@@ -15,7 +15,7 @@ session:
 |---|---|---|---|---|
 | `ttlMinutes` | number | `60` | no | Session lifetime in minutes. Sessions are sliding: each authenticated request extends the session's last-seen time. A session that goes idle for longer than `ttlMinutes` is reaped and the next request returns 401. Positive integer. |
 | `cookieName` | string | `horizon_sid` | no | Name of the session cookie. Change only if you are running multiple Horizon instances on the same hostname / different paths and need distinct cookies. |
-| `cookieSecure` | boolean | `false` | no | When `true`, cookies carry the `Secure` flag (browser only sends over HTTPS). **Set to `true` in production behind a TLS terminator.** |
+| `cookieSecure` | boolean | `false` | no | When `true`, cookies carry the `Secure` flag (browser only sends over HTTPS). **Set to `true` in production behind a TLS terminator.** Leaving it `false` outside development logs a startup warning. |
 
 ## Cookie shape (set on login)
 

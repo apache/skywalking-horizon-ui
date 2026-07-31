@@ -32,6 +32,7 @@
 -->
 <script setup lang="ts">
 import { computed, reactive, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import type {
   DashboardWidget,
@@ -63,6 +64,8 @@ const props = defineProps<{
   draft: { template: AdminLayerTemplate | null };
   activeScope: AdminScope;
 }>();
+
+const { t } = useI18n();
 
 function scopeLabel(s: AdminScope): string {
   return scopeLabelOf(props.draft.template, s);
@@ -695,13 +698,13 @@ async function addAndSelectWidget(type: DashboardWidget['type'] = 'card'): Promi
 
 /** The five leaf widget kinds offered by the "+ Add widget" picker. The `tab`
  *  group is a container offered separately (first, above a divider). */
-const WIDGET_KINDS: ReadonlyArray<{ type: DashboardWidget['type']; label: string; hint: string }> = [
-  { type: 'card', label: 'Card', hint: 'A single scalar number' },
-  { type: 'line', label: 'Line', hint: 'A time-series chart' },
-  { type: 'top', label: 'Top list', hint: 'A sorted top-N list' },
-  { type: 'record', label: 'Record', hint: 'Tabular records (slow SQL, statements)' },
-  { type: 'table', label: 'Table', hint: 'A labeled key → value table' },
-];
+const WIDGET_KINDS = computed<ReadonlyArray<{ type: DashboardWidget['type']; label: string; hint: string }>>(() => [
+  { type: 'card', label: t('Card'), hint: t('A single scalar number') },
+  { type: 'line', label: t('Line'), hint: t('A time-series chart') },
+  { type: 'top', label: t('Top list'), hint: t('A sorted top-N list') },
+  { type: 'record', label: t('Record'), hint: t('Tabular records (slow SQL, statements)') },
+  { type: 'table', label: t('Table'), hint: t('A labeled key → value table') },
+]);
 const addMenuOpen = ref(false);
 function pickAddKind(type: DashboardWidget['type']): void {
   addMenuOpen.value = false;
@@ -786,13 +789,13 @@ type VwKind = 'none' | 'mqe' | 'entity';
 
 function visibleWhenHint(scope: AdminScope): string {
   const base =
-    'Hide this widget unless the gate passes.\n' +
-    'MQE — has value: the expression returns any value; > / <: any value above / below the threshold.\n' +
-    "A gate naming one of the widget's own expressions self-gates (free); a different metric gates the whole group (probed once, skips the group when empty).";
+    t('Hide this widget unless the gate passes.') + '\n' +
+    t('MQE — has value: the expression returns any value; > / <: any value above / below the threshold.') + '\n' +
+    t("A gate naming one of the widget's own expressions self-gates (free); a different metric gates the whole group (probed once, skips the group when empty).");
   const entity =
     scope === 'instance'
-      ? '\nEntity — matches the selected instance’s attributes (e.g. language equals JAVA). exists = present & non-empty; equals is case-insensitive.'
-      : '\nEntity gates apply only on the Instance scope (Service / Endpoint entities carry no attributes) and are ignored elsewhere.';
+      ? '\n' + t('Entity — matches the selected instance’s attributes (e.g. language equals JAVA). exists = present & non-empty; equals is case-insensitive.')
+      : '\n' + t('Entity gates apply only on the Instance scope (Service / Endpoint entities carry no attributes) and are ignored elsewhere.');
   return base + entity;
 }
 
@@ -928,9 +931,9 @@ onBeforeUnmount(() => {
     <!-- Sticky header: pins to the top while the canvas scrolls, so
          + Add widget stays reachable. -->
     <div class="card-head sticky-head">
-      <h4>{{ scopeLabel(activeScope) }} widgets</h4>
+      <h4>{{ t('{scope} widgets', { scope: scopeLabel(activeScope) }) }}</h4>
       <span class="sub">
-        click a widget to edit · drag corner to resize · drag header to reorder
+        {{ t('click a widget to edit · drag corner to resize · drag header to reorder') }}
       </span>
       <div class="add-widget-wrap">
         <button
@@ -938,14 +941,14 @@ onBeforeUnmount(() => {
           type="button"
           :aria-expanded="addMenuOpen"
           @click="addMenuOpen = !addMenuOpen"
-        >＋ Add widget ▾</button>
+        >{{ t('＋ Add widget ▾') }}</button>
         <div v-if="addMenuOpen" class="add-menu-backdrop" @click="addMenuOpen = false" />
         <div v-if="addMenuOpen" class="add-menu" role="menu">
           <button type="button" class="add-menu-item" role="menuitem" @click="pickAddKind('tab')">
             <span class="ami-type t-tab">tab</span>
             <span class="ami-text">
-              <span class="ami-label">Tab group</span>
-              <span class="ami-hint">Several widgets in one slot, as tabs</span>
+              <span class="ami-label">{{ t('Tab group') }}</span>
+              <span class="ami-hint">{{ t('Several widgets in one slot, as tabs') }}</span>
             </span>
           </button>
           <div class="add-menu-div" />
@@ -976,13 +979,13 @@ onBeforeUnmount(() => {
         @drop="onCanvasDrop"
       >
         <div v-if="currentWidgets.length === 0" class="canvas-empty">
-          No widgets yet. Click "+ Add widget" or drag here later — the canvas
-          renders widgets as a 12-col grid with mock previews.
+          {{ t('No widgets yet. Click "+ Add widget" or drag here later — the canvas renders widgets as a 12-col grid with mock previews.') }}
         </div>
         <div
           v-for="(w, i) in currentWidgets"
           :key="`${w.id}-${i}`"
           class="canvas-widget"
+          :data-drop-hint="t('drop to add as a tab')"
           :class="{
             selected: selectedIdx === i,
             'is-tab': w.type === 'tab',
@@ -1028,11 +1031,11 @@ onBeforeUnmount(() => {
                   class="seg-pill"
                   :class="{ on: ti === activeTabOf(w.id) }"
                   @click.stop="setActiveTabOf(w.id, ti)"
-                >{{ tab.name || `Tab ${ti + 1}` }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
+                >{{ tab.name || t('Tab {n}', { n: ti + 1 }) }} <span class="seg-n">{{ tab.widgets.length }}</span></button>
               </div>
-              <button type="button" class="seg-add" title="Add a tab" @click.stop="addTabToWidget(w.id)">+ tab</button>
+              <button type="button" class="seg-add" :title="t('Add a tab')" @click.stop="addTabToWidget(w.id)">{{ t('+ tab') }}</button>
             </div>
-            <h5 v-else>{{ w.title || w.id || 'untitled' }}</h5>
+            <h5 v-else>{{ w.title || w.id || t('untitled') }}</h5>
             <span class="cw-type" :class="`t-${w.type}`">{{ w.type }}</span>
           </header>
           <div class="cw-body">
@@ -1088,11 +1091,11 @@ onBeforeUnmount(() => {
                   <header
                     class="cw-head sub-head"
                     :draggable="true"
-                    title="Drag out of the tab to move to the top level"
+                    :title="t('Drag out of the tab to move to the top level')"
                     @dragstart.stop="onSubReorderStart($event, w.id, activeTabOf(w.id), j)"
                     @dragend="onReorderEnd"
                   >
-                    <h5>{{ sw.title || sw.id || 'untitled' }}</h5>
+                    <h5>{{ sw.title || sw.id || t('untitled') }}</h5>
                     <span class="cw-type" :class="`t-${sw.type}`">{{ sw.type }}</span>
                   </header>
                   <div class="cw-body sub-body">
@@ -1105,20 +1108,20 @@ onBeforeUnmount(() => {
                     <template v-else-if="sw.type === 'top' && sw.expressions.length > 0">
                       <TopList :groups="mockTopGroups(sw, Math.max(3, widgetRowSpan(sw) * 3))" :unit="sw.unit" />
                     </template>
-                    <p v-else class="cw-empty">{{ sw.expressions.length ? sw.type : 'add an MQE in the drawer' }}</p>
+                    <p v-else class="cw-empty">{{ sw.expressions.length ? sw.type : t('add an MQE in the drawer') }}</p>
                   </div>
-                  <span class="cw-resize" title="Drag to resize" @mousedown.stop="onSubResizeStart($event, w.id, activeTabOf(w.id), j)">
+                  <span class="cw-resize" :title="t('Drag to resize')" @mousedown.stop="onSubResizeStart($event, w.id, activeTabOf(w.id), j)">
                     <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor">
                       <circle cx="3" cy="9" r="0.8"/><circle cx="6" cy="9" r="0.8"/><circle cx="9" cy="9" r="0.8"/>
                       <circle cx="6" cy="6" r="0.8"/><circle cx="9" cy="6" r="0.8"/><circle cx="9" cy="3" r="0.8"/>
                     </svg>
                   </span>
                 </div>
-                <button type="button" class="cw-subadd" title="Add a widget to this tab" @click.stop="addToTab(w.id, 'card')">＋ widget</button>
+                <button type="button" class="cw-subadd" :title="t('Add a widget to this tab')" @click.stop="addToTab(w.id, 'card')">{{ t('＋ widget') }}</button>
               </div>
             </template>
             <p v-else class="cw-empty">
-              Add an MQE expression in the drawer to preview.
+              {{ t('Add an MQE expression in the drawer to preview.') }}
             </p>
           </div>
           <!-- Resize handle: 12×12 dotted glyph in the bottom-
@@ -1126,7 +1129,7 @@ onBeforeUnmount(() => {
                updates span/rowSpan as the cursor moves. -->
           <span
             class="cw-resize"
-            title="Drag to resize"
+            :title="t('Drag to resize')"
             @mousedown="onResizeStart($event, i)"
           >
             <svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor">
@@ -1146,31 +1149,31 @@ onBeforeUnmount(() => {
 
       <aside v-if="selectedWidget" ref="drawerEl" class="drawer">
         <div class="drawer-head">
-          <h4>Edit widget</h4>
-          <span class="sub">{{ scopeLabel(activeScope) }}<template v-if="subSel"> · in tab</template><template v-if="selectedWidget.type === 'tab'"> · tab group</template></span>
-          <button class="sw-btn ghost close" type="button" title="Close" @click="selectedIdx = null; subSel = null">✕</button>
+          <h4>{{ t('Edit widget') }}</h4>
+          <span class="sub">{{ scopeLabel(activeScope) }}<template v-if="subSel">{{ ' ' + t('· in tab') }}</template><template v-if="selectedWidget.type === 'tab'">{{ ' ' + t('· tab group') }}</template></span>
+          <button class="sw-btn ghost close" type="button" :title="t('Close')" @click="selectedIdx = null; subSel = null">✕</button>
         </div>
         <div class="drawer-body">
           <div class="d-row">
             <label :class="{ grow: selectedWidget.type === 'tab' }">
-              <span>id</span>
+              <span>{{ t('id') }}</span>
               <input class="mono" v-model="selectedWidget.id" />
             </label>
             <!-- A tab group has no title of its own — the tabs are the labels. -->
             <label v-if="selectedWidget.type !== 'tab'" class="grow">
-              <span>Title</span>
+              <span>{{ t('Title') }}</span>
               <input v-model="selectedWidget.title" />
             </label>
           </div>
           <div v-if="selectedWidget.type !== 'tab'" class="d-row">
             <label class="grow">
-              <span>Tip (hover hint)</span>
+              <span>{{ t('Tip (hover hint)') }}</span>
               <input v-model="selectedWidget.tip" placeholder="—" />
             </label>
           </div>
           <div class="d-row">
             <label>
-              <span>Type</span>
+              <span>{{ t('Type') }}</span>
               <select :value="selectedWidget.type" @change="onWidgetTypeChange(($event.target as HTMLSelectElement).value)">
                 <option value="card">card</option>
                 <option value="line">line</option>
@@ -1183,13 +1186,13 @@ onBeforeUnmount(() => {
             </label>
             <template v-if="selectedWidget.type !== 'tab'">
               <label>
-                <span>Unit</span>
+                <span>{{ t('Unit') }}</span>
                 <input v-model="selectedWidget.unit" placeholder="—" />
               </label>
               <label>
-                <span>Format</span>
+                <span>{{ t('Format') }}</span>
                 <select :value="selectedWidget.format ?? ''" @change="setWidgetFormat(($event.target as HTMLSelectElement).value)">
-                  <option value="">auto</option>
+                  <option value="">{{ t('auto') }}</option>
                   <option value="int">int</option>
                   <option value="decimal">decimal</option>
                   <option value="compact">compact</option>
@@ -1199,11 +1202,11 @@ onBeforeUnmount(() => {
               </label>
             </template>
             <label>
-              <span>Span</span>
+              <span>{{ t('Span') }}</span>
               <input type="number" min="1" max="12" v-model.number="selectedWidget.span" />
             </label>
             <label>
-              <span>Row span</span>
+              <span>{{ t('Row span') }}</span>
               <input type="number" min="1" max="8" v-model.number="selectedWidget.rowSpan" />
             </label>
           </div>
@@ -1212,31 +1215,31 @@ onBeforeUnmount(() => {
                panel's widgets happens inline on the canvas tile. -->
           <template v-if="selectedWidget.type === 'tab'">
             <div class="d-section">
-              <span class="d-label">Tabs</span>
+              <span class="d-label">{{ t('Tabs') }}</span>
               <div class="tab-mgr">
                 <div v-for="(tab, ti) in selectedWidget.tabs ?? []" :key="ti" class="tab-mgr-row">
                   <input
                     class="tm-name"
                     :value="tab.name"
-                    placeholder="Tab name"
+                    :placeholder="t('Tab name')"
                     @input="renameTabOf(selectedWidget.id, ti, ($event.target as HTMLInputElement).value)"
                   />
-                  <span class="tm-count">{{ tab.widgets.length }}w</span>
-                  <button type="button" class="tm-ctl" title="Show on canvas" @click="setActiveTabOf(selectedWidget.id, ti)">show</button>
-                  <button type="button" class="tm-ctl" title="Move up" @click="moveTabOf(selectedWidget.id, ti, -1)">↑</button>
-                  <button type="button" class="tm-ctl" title="Move down" @click="moveTabOf(selectedWidget.id, ti, 1)">↓</button>
-                  <button type="button" class="tm-ctl del" title="Delete tab" @click="deleteTabOf(selectedWidget.id, ti)">×</button>
+                  <span class="tm-count">{{ t('{n}w', { n: tab.widgets.length }) }}</span>
+                  <button type="button" class="tm-ctl" :title="t('Show on canvas')" @click="setActiveTabOf(selectedWidget.id, ti)">{{ t('show') }}</button>
+                  <button type="button" class="tm-ctl" :title="t('Move up')" @click="moveTabOf(selectedWidget.id, ti, -1)">↑</button>
+                  <button type="button" class="tm-ctl" :title="t('Move down')" @click="moveTabOf(selectedWidget.id, ti, 1)">↓</button>
+                  <button type="button" class="tm-ctl del" :title="t('Delete tab')" @click="deleteTabOf(selectedWidget.id, ti)">×</button>
                 </div>
               </div>
-              <button type="button" class="sw-btn ghost small" @click="addTabToWidget(selectedWidget.id)">+ tab</button>
-              <p class="d-hint">Each tab holds its own widgets — switch tabs and add / edit their widgets right on the canvas tile. Only the active tab is queried at runtime.</p>
+              <button type="button" class="sw-btn ghost small" @click="addTabToWidget(selectedWidget.id)">{{ t('+ tab') }}</button>
+              <p class="d-hint">{{ t('Each tab holds its own widgets — switch tabs and add / edit their widgets right on the canvas tile. Only the active tab is queried at runtime.') }}</p>
             </div>
           </template>
 
           <template v-else>
             <template v-if="editingWidget">
               <div v-if="editingWidget.format === 'enum'" class="d-section">
-                <span class="d-label">Value map (enum → label, color)</span>
+                <span class="d-label">{{ t('Value map (enum → label, color)') }}</span>
                 <div class="vm-rows">
                   <div v-for="(row, i) in valueMapEntries" :key="i" class="vm-row">
                     <input
@@ -1250,29 +1253,29 @@ onBeforeUnmount(() => {
                       class="vm-label"
                       :value="row[1]"
                       @input="setValueMapLabel(row[0], ($event.target as HTMLInputElement).value)"
-                      placeholder="Failed"
+                      :placeholder="t('Failed')"
                     />
                     <select
                       class="vm-color"
                       :value="valueColorFor(row[0])"
-                      title="Chip color"
+                      :title="t('Chip color')"
                       @change="setValueColor(row[0], ($event.target as HTMLSelectElement).value)"
                     >
                       <option v-for="c in CHIP_COLORS" :key="c" :value="c">{{ c || '—' }}</option>
                     </select>
-                    <button type="button" class="expr-del" title="Remove" @click="removeValueMapRow(row[0])">×</button>
+                    <button type="button" class="expr-del" :title="t('Remove')" @click="removeValueMapRow(row[0])">×</button>
                   </div>
                 </div>
-                <button type="button" class="sw-btn ghost small" @click="addValueMapRow">+ value</button>
-                <p class="d-hint">Map a coded value — or a metric label such as a K8s node condition — to a label and an optional chip color (<code>ok</code> green / <code>warn</code> amber / <code>err</code> red / <code>info</code> blue / <code>neutral</code> grey). With a color set, the card renders colored status chips, one per matched value. Card widgets only; labels are translatable per locale.</p>
+                <button type="button" class="sw-btn ghost small" @click="addValueMapRow">{{ t('+ value') }}</button>
+                <p class="d-hint">{{ t('Map a coded value — or a metric label such as a K8s node condition — to a label and an optional chip color') }} (<code>ok</code> {{ t('green') }} / <code>warn</code> {{ t('amber') }} / <code>err</code> {{ t('red') }} / <code>info</code> {{ t('blue') }} / <code>neutral</code> {{ t('grey') }}). {{ t('With a color set, the card renders colored status chips, one per matched value. Card widgets only; labels are translatable per locale.') }}</p>
               </div>
               <div class="d-section">
-                <span class="d-label">MQE expressions</span>
+                <span class="d-label">{{ t('MQE expressions') }}</span>
                 <div v-if="showExprMeta" class="expr-cols">
-                  <span class="expr-col-mqe">expression</span>
-                  <span class="expr-col-label">{{ editingWidget.type === 'top' ? 'tab label' : 'series label' }}</span>
-                  <span class="expr-col-unit">unit</span>
-                  <span v-if="editingWidget.type === 'line'" class="expr-col-axis">axis</span>
+                  <span class="expr-col-mqe">{{ t('expression') }}</span>
+                  <span class="expr-col-label">{{ editingWidget.type === 'top' ? t('tab label') : t('series label') }}</span>
+                  <span class="expr-col-unit">{{ t('unit') }}</span>
+                  <span v-if="editingWidget.type === 'line'" class="expr-col-axis">{{ t('axis') }}</span>
                   <span class="expr-col-del"></span>
                 </div>
                 <div class="expr-rows">
@@ -1281,7 +1284,7 @@ onBeforeUnmount(() => {
                       class="expr-mqe"
                       :model-value="expr"
                       placeholder="instance_jvm_cpu"
-                      :title="`Expression ${i + 1}`"
+                      :title="t('Expression {n}', { n: i + 1 })"
                       @update:model-value="updateExpr(i, $event)"
                     />
                     <input
@@ -1289,7 +1292,7 @@ onBeforeUnmount(() => {
                       class="expr-label"
                       :value="editingWidget.expressionLabels?.[i] ?? ''"
                       @input="updateExprLabel(i, ($event.target as HTMLInputElement).value)"
-                      :placeholder="editingWidget.type === 'top' ? 'Traffic' : 'p99'"
+                      :placeholder="editingWidget.type === 'top' ? t('Traffic') : 'p99'"
                     />
                     <input
                       v-if="showExprMeta"
@@ -1303,7 +1306,7 @@ onBeforeUnmount(() => {
                       class="mono expr-axis"
                       :value="String(editingWidget.expressionAxes?.[i] ?? 0)"
                       @change="updateExprAxis(i, Number(($event.target as HTMLSelectElement).value))"
-                      title="Y-axis (Left / Right) — for dual-axis line widgets"
+                      :title="t('Y-axis (Left / Right) — for dual-axis line widgets')"
                     >
                       <option value="0">L</option>
                       <option value="1">R</option>
@@ -1311,60 +1314,60 @@ onBeforeUnmount(() => {
                     <button
                       type="button"
                       class="expr-del"
-                      title="Remove expression"
+                      :title="t('Remove expression')"
                       :disabled="editingWidget.expressions.length <= 1"
                       @click="removeExpr(i)"
                     >×</button>
                   </div>
                 </div>
-                <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">+ expression</button>
+                <button type="button" class="sw-btn ghost small expr-add" @click="addExpr">{{ t('+ expression') }}</button>
                 <p class="d-hint">
-                  For <code>top</code> widgets each expression is a switchable tab; for
-                  <code>line</code> each is a series. Label / unit / axis apply per expression.
+                  {{ t('For') }} <code>top</code> {{ t('widgets each expression is a switchable tab; for') }}
+                  <code>line</code> {{ t('each is a series. Label / unit / axis apply per expression.') }}
                 </p>
               </div>
               <div v-if="editingWidget.type === 'line'" class="d-section">
-                <span class="d-label">Trace drill</span>
+                <span class="d-label">{{ t('Trace drill') }}</span>
                 <div class="d-row">
                   <label>
-                    <span>Mode</span>
+                    <span>{{ t('Mode') }}</span>
                     <select
                       :value="editingWidget.traceDrill?.mode ?? ''"
                       :disabled="!layerTracesEnabled"
                       @change="setWidgetTraceDrill(($event.target as HTMLSelectElement).value)"
                     >
-                      <option value="">none</option>
-                      <option value="latency">latency → slow traces</option>
-                      <option value="error">error → error traces</option>
+                      <option value="">{{ t('none') }}</option>
+                      <option value="latency">{{ t('latency → slow traces') }}</option>
+                      <option value="error">{{ t('error → error traces') }}</option>
                     </select>
                   </label>
                 </div>
                 <p v-if="!layerTracesEnabled" class="d-hint drill-off">
-                  Disabled — metric→trace drill needs this layer's <b>Traces</b> component on in native mode; the Zipkin trace view can't consume the drill filter.
+                  {{ t("Disabled — metric→trace drill needs this layer's") }} <b>{{ t('Traces') }}</b> {{ t("component on in native mode; the Zipkin trace view can't consume the drill filter.") }}
                 </p>
                 <p v-else class="d-hint">
-                  Click a datapoint on this widget to open the pre-filtered Traces tab. <code>latency</code> ⇒ slowest traces ≥ the clicked value; <code>error</code> ⇒ error-status traces. Centered on the clicked time bucket.
+                  {{ t('Click a datapoint on this widget to open the pre-filtered Traces tab.') }} <code>latency</code> {{ t('⇒ slowest traces ≥ the clicked value;') }} <code>error</code> {{ t('⇒ error-status traces. Centered on the clicked time bucket.') }}
                 </p>
               </div>
               <div class="d-section">
                 <span class="d-label" :title="visibleWhenHint(activeScope)">
-                  Visible when (optional)
+                  {{ t('Visible when (optional)') }}
                 </span>
                 <div class="vw-row">
                   <select class="mono" v-model="vwKindModel">
-                    <option value="none">Always visible</option>
-                    <option value="mqe">MQE metric…</option>
-                    <option value="entity">Entity attribute…</option>
+                    <option value="none">{{ t('Always visible') }}</option>
+                    <option value="mqe">{{ t('MQE metric…') }}</option>
+                    <option value="entity">{{ t('Entity attribute…') }}</option>
                   </select>
                   <template v-if="vwKindModel === 'mqe'">
                     <MqeExpressionInput
                       class="vw-target"
                       v-model="vwTarget"
                       placeholder="instance_jvm_cpu"
-                      title="Gate expression"
+                      :title="t('Gate expression')"
                     />
                     <select class="mono" v-model="vwOp">
-                      <option value="exists">has value</option>
+                      <option value="exists">{{ t('has value') }}</option>
                       <option value="gt">&gt;</option>
                       <option value="lt">&lt;</option>
                     </select>
@@ -1372,8 +1375,8 @@ onBeforeUnmount(() => {
                   <template v-else-if="vwKindModel === 'entity'">
                     <input class="mono vw-target" v-model="vwTarget" placeholder="language" />
                     <select class="mono" v-model="vwOp">
-                      <option value="exists">exists</option>
-                      <option value="eq">equals</option>
+                      <option value="exists">{{ t('exists') }}</option>
+                      <option value="eq">{{ t('equals') }}</option>
                     </select>
                   </template>
                   <input
@@ -1385,7 +1388,7 @@ onBeforeUnmount(() => {
                   />
                 </div>
                 <p v-if="vwKindModel === 'mqe' && !vwTarget.trim()" class="d-hint" style="color: var(--sw-warn)">
-                  Set a metric expression — an empty gate is ignored and the widget always shows.
+                  {{ t('Set a metric expression — an empty gate is ignored and the widget always shows.') }}
                 </p>
                 <p class="d-hint" style="white-space: pre-line">{{ visibleWhenHint(activeScope) }}</p>
               </div>
@@ -1400,22 +1403,22 @@ onBeforeUnmount(() => {
               class="sw-btn"
               type="button"
               :disabled="!selCanMoveUp"
-              title="Move up"
+              :title="t('Move up')"
               @click="moveSelected(-1)"
-            >↑ Up</button>
+            >{{ t('↑ Up') }}</button>
             <button
               class="sw-btn"
               type="button"
               :disabled="!selCanMoveDown"
-              title="Move down"
+              :title="t('Move down')"
               @click="moveSelected(1)"
-            >↓ Down</button>
+            >{{ t('↓ Down') }}</button>
             <button
               class="sw-btn danger"
               type="button"
-              title="Delete widget"
+              :title="t('Delete widget')"
               @click="deleteSelected"
-            >✕ Delete</button>
+            >{{ t('✕ Delete') }}</button>
           </div>
         </div>
       </aside>
@@ -1547,7 +1550,7 @@ onBeforeUnmount(() => {
   box-shadow: inset 0 0 0 2px #34d399, 0 0 0 4px rgba(52, 211, 153, 0.18);
 }
 .canvas-widget.drop-into-tab::after {
-  content: 'drop to add as a tab';
+  content: attr(data-drop-hint);
   position: absolute;
   inset: auto 0 0 0;
   text-align: center;

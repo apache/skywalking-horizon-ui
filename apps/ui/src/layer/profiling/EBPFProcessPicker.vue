@@ -25,8 +25,11 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { EBPFProcess } from '@/api/client';
 import Icon from '@/components/icons/Icon.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   processes: EBPFProcess[];
@@ -141,7 +144,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="tb-block grow">
-    <label class="lbl">Processes ({{ modelValue.length }} pinned)</label>
+    <label class="lbl">{{ t('Processes ({n} pinned)', { n: modelValue.length }) }}</label>
     <button
       ref="pickerBtnEl"
       class="btn-secondary"
@@ -150,7 +153,7 @@ onBeforeUnmount(() => {
       aria-haspopup="dialog"
       @click="showProcessPicker ? closeProcessPicker() : openProcessPicker()"
     >
-      {{ showProcessPicker ? 'Close picker' : 'Pick processes' }}
+      {{ showProcessPicker ? t('Close picker') : t('Pick processes') }}
     </button>
   </div>
 
@@ -159,7 +162,7 @@ onBeforeUnmount(() => {
       v-if="showProcessPicker"
       class="process-picker-pop sw-card"
       role="dialog"
-      aria-label="Process picker"
+      :aria-label="t('Process picker')"
       :style="{
         top: pickerPos.top + 'px',
         left: pickerPos.left + 'px',
@@ -169,26 +172,26 @@ onBeforeUnmount(() => {
       <div class="pp-head">
         <input
           v-model="processSearch"
-          placeholder="Search by name / instance / command line…"
+          :placeholder="t('Search by name / instance / command line…')"
           class="ti-input wide"
           autofocus
         />
-        <span class="pp-count">{{ modelValue.length }} pinned</span>
+        <span class="pp-count">{{ t('{n} pinned', { n: modelValue.length }) }}</span>
         <!-- Textual ×, not an icon glyph (no SVG asset exists for
              close and a one-off SVG would violate CLAUDE.md's
              single-icon-component rule). Same shape as the prior
              dialog close buttons across the codebase. -->
-        <button class="pp-close" aria-label="Close picker" title="Close (Esc)" @click="closeProcessPicker">×</button>
+        <button class="pp-close" :aria-label="t('Close picker')" :title="t('Close (Esc)')" @click="closeProcessPicker">×</button>
       </div>
       <div class="proc-table">
         <div class="ph">
           <div class="cc cc-sel"></div>
-          <div class="cc cc-name">Process</div>
-          <div class="cc cc-inst">Instance</div>
-          <div class="cc cc-attrs">Attributes</div>
+          <div class="cc cc-name">{{ t('Process') }}</div>
+          <div class="cc cc-inst">{{ t('Instance') }}</div>
+          <div class="cc cc-attrs">{{ t('Attributes') }}</div>
           <div class="cc cc-exp"></div>
         </div>
-        <div v-if="!filteredProcesses.length" class="empty">No matches.</div>
+        <div v-if="!filteredProcesses.length" class="empty">{{ t('No matches.') }}</div>
         <template v-for="p in filteredProcesses" :key="p.id">
           <!-- Row click toggles the detail panel; pin/unpin lives only on
                the checkbox. The checkbox cell uses `@click.stop` so its
@@ -204,7 +207,7 @@ onBeforeUnmount(() => {
               <input
                 type="checkbox"
                 :checked="modelValue.includes(p.id)"
-                :aria-label="`Pin process ${p.name}`"
+                :aria-label="t('Pin process {name}', { name: p.name })"
                 @change="toggleProcessId(p.id)"
               />
             </div>
@@ -216,28 +219,28 @@ onBeforeUnmount(() => {
               class="cc cc-exp pr-caret"
               :class="{ open: expandedProcessIds.has(p.id) }"
               :aria-expanded="expandedProcessIds.has(p.id)"
-              :aria-label="expandedProcessIds.has(p.id) ? 'Collapse details' : 'Expand details'"
+              :aria-label="expandedProcessIds.has(p.id) ? t('Collapse details') : t('Expand details')"
             >
               <Icon name="caret" :size="10" />
             </button>
           </div>
           <div v-if="expandedProcessIds.has(p.id)" class="pr-expand">
             <dl class="pe-rows">
-              <div class="pe-row"><dt>Process</dt><dd class="mono">{{ p.name }}</dd></div>
+              <div class="pe-row"><dt>{{ t('Process') }}</dt><dd class="mono">{{ p.name }}</dd></div>
               <div v-if="p.serviceName" class="pe-row">
-                <dt>Service</dt><dd class="mono">{{ p.serviceName }}</dd>
+                <dt>{{ t('Service') }}</dt><dd class="mono">{{ p.serviceName }}</dd>
               </div>
               <div v-if="p.instanceName" class="pe-row">
-                <dt>Instance</dt><dd class="mono">{{ p.instanceName }}</dd>
+                <dt>{{ t('Instance') }}</dt><dd class="mono">{{ p.instanceName }}</dd>
               </div>
               <div v-if="p.agentId" class="pe-row">
-                <dt>Agent</dt><dd class="mono">{{ p.agentId }}</dd>
+                <dt>{{ t('Agent') }}</dt><dd class="mono">{{ p.agentId }}</dd>
               </div>
               <div v-if="p.detectType" class="pe-row">
-                <dt>Detect type</dt><dd class="mono">{{ p.detectType }}</dd>
+                <dt>{{ t('Detect type') }}</dt><dd class="mono">{{ p.detectType }}</dd>
               </div>
               <div v-if="(p.labels ?? []).length" class="pe-row">
-                <dt>Labels</dt>
+                <dt>{{ t('Labels') }}</dt>
                 <dd>
                   <span v-for="l in p.labels" :key="l" class="pe-chip">{{ l }}</span>
                 </dd>
@@ -245,7 +248,7 @@ onBeforeUnmount(() => {
               <!-- The "ATTRIBUTES" label is a divider hint, NOT a header —
                    the attribute rows still live at the same dl level. -->
               <div v-if="(p.attributes ?? []).length" class="pe-sep">
-                <span class="pe-sep-label">Attributes</span>
+                <span class="pe-sep-label">{{ t('Attributes') }}</span>
               </div>
               <div v-for="a in p.attributes ?? []" :key="`attr-${a.name}`" class="pe-row">
                 <dt>{{ a.name }}</dt>

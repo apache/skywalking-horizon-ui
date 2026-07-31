@@ -28,8 +28,11 @@
 -->
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { DashboardWidget } from '@skywalking-horizon-ui/api-client';
 import { type AdminScope, WIDGET_SCOPES } from './layer-dashboards.scopes';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const activeScope = defineModel<AdminScope>('activeScope', { required: true });
 const props = defineProps<{
@@ -98,7 +101,7 @@ onBeforeUnmount(() => {
       v-show="canScrollScopeLeft"
       class="scope-scroll left"
       type="button"
-      aria-label="Scroll tabs left"
+      :aria-label="t('Scroll tabs left')"
       @click="scrollScopeTabs(-1)"
     >‹</button>
     <nav ref="scopeNav" class="scope-tabs" @scroll="updateScopeScroll">
@@ -118,7 +121,7 @@ onBeforeUnmount(() => {
       v-show="canScrollScopeRight"
       class="scope-scroll right"
       type="button"
-      aria-label="Scroll tabs right"
+      :aria-label="t('Scroll tabs right')"
       @click="scrollScopeTabs(1)"
     >›</button>
   </div>

@@ -22,8 +22,8 @@ application, service-mesh, and infrastructure tiers at once.
 All resources (geometries, materials) are **shared** across nodes of
 the same kind and disposed on unmount. Animation is per-frame on the
 `<TresCanvas @loop>` event — no `useLoop` composable, no inner scene
-component, no need to render-on-demand for the PoC (continuous render
-is fine for the dedicated route).
+component, and no render-on-demand (continuous render is fine for
+the dedicated route).
 
 ## Layout — the load-bearing rules
 
@@ -490,7 +490,7 @@ services are probed each refresh, the rest reused from a persistent cache, so a
 steady roster costs zero hierarchy calls. The selected cube reveals its peers
 from this data.
 
-## What this PoC is NOT
+## What this view is NOT
 
 - **Not** showing cross-plane edges as static geometry — that's a
   future interaction.
@@ -507,9 +507,12 @@ from this data.
    wrong.
 3. Add a branch to `tintForLayer()` if the default `misc` swatch is
    wrong.
-4. If the layer template carries a `topology` component, the
-   snapshot script (the one-off Python in this conversation) will
-   pick it up automatically.
+4. If the layer template carries a `topology` component, the layer
+   advertises the `serviceMap` capability and the live pipeline
+   fetches its service map automatically — nothing extra to wire.
+   The committed `data/fallback-topology.json` snapshot is
+   hand-maintained; update it only if the new layer should also
+   appear in the offline fallback.
 
 ## Adding a future interaction
 

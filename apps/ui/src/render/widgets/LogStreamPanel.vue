@@ -34,9 +34,12 @@
                    the host can open the trace without selecting the row.
 -->
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { LogRow } from '@/api/client';
 import { parseServiceName } from '@/utils/serviceName';
 import { logRowKey } from '@/utils/logRow';
+
+const { t } = useI18n({ useScope: 'global' });
 
 defineProps<{
   rows: LogRow[];
@@ -136,7 +139,7 @@ function keyOf(r: LogRow, idx: number): string {
         v-if="r.traceId"
         class="lg-trace mono"
         @click.stop="emit('jump-trace', { traceId: r.traceId, ts: r.timestamp })"
-      >↗ trace</span>
+      >{{ t('↗ trace') }}</span>
       <span v-else class="lg-trace-spacer" aria-hidden="true"></span>
       <span class="lg-content mono">
         <span class="lg-fmt-chip" :class="`fmt-${detectFormat(r)}`">{{ detectFormat(r).toUpperCase() }}</span>

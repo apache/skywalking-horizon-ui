@@ -133,7 +133,7 @@ watch(pickServiceId, () => {
 
 const layerOptions = computed(() => availableLayers.value.map((l) => ({ value: l.key, label: l.name || l.key })));
 const serviceOptions = computed(() =>
-  services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? 'virtual' : undefined })),
+  services.value.map((s) => ({ value: s.id, label: s.name, hint: s.normal === false ? t('virtual') : undefined })),
 );
 const instanceOptions = computed(() => [
   { value: '', label: t('All instances') },

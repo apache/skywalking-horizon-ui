@@ -21,6 +21,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import { requireAuth } from '../../user/middleware.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { getPreflight } from '../../logic/preflight/preflight.js';
+import { wireFetch } from '../../client/wire-log.js';
 
 export interface PreflightRouteDeps {
   config: ConfigSource;
@@ -38,7 +39,7 @@ export function registerPreflightRoutes(app: FastifyInstance, deps: PreflightRou
     '/api/preflight',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const fetchImpl = deps.fetch ?? globalThis.fetch.bind(globalThis);
+      const fetchImpl = wireFetch(deps.fetch ?? globalThis.fetch.bind(globalThis));
       const force = (req.query as { refresh?: string }).refresh === '1';
       const result = await getPreflight(deps.config.current, fetchImpl, { force });
       return reply.send(result);

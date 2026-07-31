@@ -23,6 +23,7 @@ import { requireAuth } from '../../user/middleware.js';
 import { basicAuthHeader, buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { getOapBackend } from '../../logic/oap/backend.js';
+import { wireFetch } from '../../client/wire-log.js';
 
 /**
  * One round-trip combining `version`, `getTimeInfo`, and `checkHealth`.
@@ -71,7 +72,7 @@ async function probeZipkin(
   cfg: ConfigSource['current'],
   fetchFn: FetchLike | undefined,
 ): Promise<{ reachable: boolean; error?: string }> {
-  const f = fetchFn ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(fetchFn ?? globalThis.fetch.bind(globalThis));
   const url = cfg.oap.zipkinUrl.replace(/\/$/, '') + '/api/v2/services';
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), cfg.oap.timeoutMs);

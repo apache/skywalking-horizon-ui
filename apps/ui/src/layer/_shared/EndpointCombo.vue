@@ -30,6 +30,7 @@
 -->
 <script setup lang="ts">
 import { watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEndpointCombo } from '@/layer/_shared/useEndpointCombo';
 
 const props = withDefaults(
@@ -40,8 +41,10 @@ const props = withDefaults(
     loading?: boolean;
     placeholder?: string;
   }>(),
-  { showAll: true, loading: false, placeholder: 'All' },
+  { showAll: true, loading: false },
 );
+
+const { t } = useI18n();
 
 const emit = defineEmits<{
   pick: [name: string];
@@ -74,7 +77,7 @@ function clear(): void {
       name="endpoint-search"
       autocomplete="off"
       class="cf-input"
-      :placeholder="selected ?? placeholder"
+      :placeholder="selected ?? placeholder ?? t('All')"
       @focus="combo.open.value = true"
       @input="combo.open.value = true"
     />
@@ -82,7 +85,7 @@ function clear(): void {
       v-if="selected || combo.searchInput.value"
       type="button"
       class="cf-combo-clear"
-      title="Clear endpoint"
+      :title="t('Clear endpoint')"
       @click="clear"
     >×</button>
     <ul v-if="combo.open.value" class="cf-combo-list">
@@ -92,7 +95,7 @@ function clear(): void {
         :class="{ on: !selected }"
         @click="clear"
       >
-        <em>All</em>
+        <em>{{ t('All') }}</em>
       </li>
       <li
         v-for="e in endpoints"
@@ -104,7 +107,7 @@ function clear(): void {
         {{ e.name }}
       </li>
       <li v-if="endpoints.length === 0" class="cf-combo-empty">
-        {{ loading ? 'searching…' : 'no matches' }}
+        {{ loading ? t('searching…') : t('no matches') }}
       </li>
     </ul>
   </div>
