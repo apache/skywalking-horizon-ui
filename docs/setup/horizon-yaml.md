@@ -146,7 +146,7 @@ templates:
 `templates.mode` selects where dashboard / overview templates live:
 
 - **`live` (default)** — at boot, Horizon seeds any missing bundled templates into OAP's `ui_template` store, then reads and writes templates through that store. Admin edits (layer dashboards, overview templates, translations) persist in OAP storage, independent of the Horizon instance.
-- **`readonly`** — templates render from the local bundle only. The `ui_template` store is never contacted and the template admin surface is read-only. OAP's query API (metrics / traces / logs) is still used and health-checked either way. Use `readonly` to run against an OAP whose `ui_template` admin API is absent or disabled.
+- **`readonly`** — templates render from the local bundle only. The `ui_template` store is never contacted and the template admin surface is read-only. OAP's query API (metrics / traces / logs) is still used and health-checked either way. Use `readonly` to run against an OAP whose `ui_template` admin API is absent or disabled — this is **required on OAP 10.x**, where the `/ui-management/templates*` endpoint does not exist yet: in `live` mode Horizon blocks layer-driven pages (most visibly Traces) rather than render a layer whose template it cannot read. See [Compatibility → OAP Version](../compatibility/oap-version.md).
 
 Env form: `HORIZON_TEMPLATES_MODE`. Changing the mode requires a BFF restart — see [Hot reload behavior](#hot-reload-behavior).
 
