@@ -29,8 +29,10 @@ import type { BffClient } from '../client';
 export class EbpfApi {
   constructor(private readonly bff: BffClient) {}
 
-  tasks(layerKey: string, service: string): Promise<EBPFTaskListResponse> {
-    const qs = new URLSearchParams({ service });
+  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
+   *  skips the roster lookup a name would need. */
+  tasks(layerKey: string, serviceId: string): Promise<EBPFTaskListResponse> {
+    const qs = new URLSearchParams({ serviceId });
     return this.bff.request<EBPFTaskListResponse>(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/ebpf/tasks?${qs.toString()}`,

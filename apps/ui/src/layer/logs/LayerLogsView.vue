@@ -37,7 +37,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
+import { useLayerTabService } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
@@ -93,11 +93,18 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here means the chat block never
-// touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
-);
+// touches that global selection. `serviceReady` is the gate: until the picked
+// service has a name, a log read would reach the BFF with no service and stream
+// the whole layer under this service's title.
+const {
+  name: serviceName,
+  status: serviceStatus,
+  ready: serviceReady,
+} = useLayerTabService(layerKey, landing, {
+  embedded,
+  focusService: computed(() => props.focusService ?? null),
+  replay,
+});
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -268,6 +275,9 @@ const applied = ref<AppliedLogConditions>(snapshotConditions());
 // operator presses Run query (or pages), so a freshly-opened tab shows a
 // "Run query" prompt rather than a misleading "no logs" empty state.
 const hasQueried = ref(false);
+// The service is the upstream control: both reads stay parked until it
+// resolves, however many times the operator has pressed Run query.
+const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 function applyConditions(): void {
   applied.value = snapshotConditions();
 }
@@ -304,7 +314,7 @@ const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(laye
   windowMinutes: aWindowMinutes,
   startMs: aStartMs,
   endMs: aEndMs,
-  enabled: hasQueried,
+  enabled: queryEnabled,
   replayData: replayDataRef,
 });
 
@@ -321,7 +331,7 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   windowMinutes: aWindowMinutes,
   startMs: aStartMs,
   endMs: aEndMs,
-  enabled: hasQueried,
+  enabled: queryEnabled,
   replay,
 });
 
@@ -329,6 +339,10 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
 // counts) so they never diverge — facets carry a 30s staleTime, so an
 // unchanged-condition Run query needs an explicit refetch.
 function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — the whole layer's log stream under this service's title.
+  if (!serviceReady.value) return;
   page.value = 1;
   hasQueried.value = true;
   applyConditions();
@@ -437,7 +451,12 @@ watch(
         <span class="kicker">{{ t('Logs') }}</span>
         <span v-if="traceIdRef" class="trace-pin">{{ t('trace') }} <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
         <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
-        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
+        <button
+          class="sw-btn primary lg-run-btn"
+          type="button"
+          :disabled="!serviceReady"
+          @click="runQuery"
+        >{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <label class="cf">
@@ -527,7 +546,16 @@ watch(
 
     <section class="lg-body sw-card">
       <div class="lg-main">
-        <div v-if="!hasQueried" class="lg-empty">
+        <!-- Trailing control: the stream waits for the service, and says which
+             kind of waiting this is — still resolving, or resolved to nothing. -->
+        <div v-if="!serviceReady" class="lg-empty">
+          <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
+          <template v-else-if="serviceStatus === 'unknown'">
+            {{ t('The selected service is not in this layer — pick another one to query.') }}
+          </template>
+          <template v-else>{{ t('Pick a service to run this query.') }}</template>
+        </div>
+        <div v-else-if="!hasQueried" class="lg-empty">
           {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <template v-else>

@@ -55,6 +55,7 @@ import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { tracesConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import { resolveServiceScope, type ServiceScope } from '../../logic/oap/service-scope.js';
 import { parsePreviewTraces } from '../../logic/layers/preview.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
@@ -128,16 +129,6 @@ export interface TraceListBody {
    *  template — same preview path as topology / endpoint-dependency. */
   previewConfig?: string;
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForTrace($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const QUERY_BASIC_TRACES = /* GraphQL */ `
   query QueryBasicTraces($condition: TraceQueryCondition) {
@@ -229,28 +220,6 @@ const QUERY_TRACE_DETAIL = /* GraphQL */ `
   }
 `;
 
-// OAP service-id shape: `<base64>.<digits>`. Match strictly, not
-// "contains `.` and no whitespace": the loose form mis-classifies
-// mesh-layer names containing `.` (e.g. `*.sample-services`) as ids
-// and breaks their trace queries.
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-  opts: GraphqlOptions,
-  layer: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{
-    services: Array<{ id: string; name: string }>;
-  }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layer.toUpperCase() });
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 function buildTraceCondition(
   body: TraceListBody,
   resolvedServiceId: string | null,
@@ -301,20 +270,28 @@ export async function fetchNativeList(
       : null;
   const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
   let serviceId: string | null = null;
-  try {
-    serviceId = body.serviceId
-      ? body.serviceId
-      : body.service
-        ? await resolveServiceId(opts, layerKey, body.service)
-        : null;
-  } catch (err) {
-    return {
-      source: 'native',
-      api,
-      traces: [],
-      reachable: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+  if (body.serviceId) {
+    serviceId = body.serviceId;
+  } else {
+    let scope: ServiceScope;
+    try {
+      scope = await resolveServiceScope(opts, layerKey, body.service);
+    } catch (err) {
+      return {
+        source: 'native',
+        api,
+        traces: [],
+        reachable: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+    // A name that resolves to nothing must NOT fall through as "no service":
+    // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
+    // every service in the window and the rows would read as this service's.
+    if (scope.kind === 'unknown') {
+      return { source: 'native', api, traces: [], reachable: false, error: scope.message };
+    }
+    serviceId = scope.kind === 'service' ? scope.serviceId : null;
   }
   const condition = buildTraceCondition(body, serviceId, window, coldStage, maxPageSize);
   try {

@@ -28,9 +28,12 @@
  *   q       trimmed search keyword (empty → all-recent endpoints).
  *   limit   clamped to 20…50. Default 20.
  *
- * The `service` query param accepts a service id (OAP `Y...` blob)
- * or a plain name; we resolve names via `listServices(layer)` to an
- * id before forwarding to `findEndpoint`.
+ * The `service` query param takes a service NAME or an OAP service id;
+ * both are resolved against `listServices(layer)` — name column first —
+ * to an id before forwarding to `findEndpoint`. Neither is guessed at by
+ * shape: an OAP id is `base64(<name>).<0|1>`, which an ordinary name can
+ * wear too (`api.1`, `orders.2026`), and a shape test turned such a name
+ * into an id whose endpoint search came back empty.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -39,6 +42,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
+import { resolveServiceScope } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -47,16 +51,6 @@ export interface EndpointRouteDeps {
   sessions: SessionStore;
   fetch?: FetchLike;
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForEndpointResolve($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 
 const FIND_ENDPOINTS = /* GraphQL */ `
   query LayerEndpoints($serviceId: ID!, $keyword: String!, $limit: Int!, $duration: Duration!) {
@@ -107,33 +101,10 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
 
-      // OAP service-id shape: `<base64>.<digits>`. Anything else
-      // (including names like `mesh-svr::r3-load.sample-services` that
-      // embed `.`) needs a `listServices` lookup.
-      let serviceId = serviceArg;
-      if (!/^[A-Za-z0-9+/=]+\.\d+$/.test(serviceArg)) {
-        try {
-          const data = await graphqlPost<{
-            services: Array<{ id: string; name: string; normal?: boolean }>;
-          }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: layerKey.toUpperCase() });
-          const match =
-            data.services.find((s) => s.name === serviceArg) ??
-            data.services.find((s) => s.id === serviceArg) ??
-            null;
-          if (!match) {
-            return reply.send({
-              layer: layerKey,
-              service: serviceArg,
-              query: keyword,
-              limit,
-              generatedAt: Date.now(),
-              endpoints: [],
-              reachable: true,
-              error: 'service not found',
-            } satisfies EndpointsResponse);
-          }
-          serviceId = match.id;
-        } catch (err) {
+      let serviceId: string;
+      try {
+        const scope = await resolveServiceScope(opts, layerKey, serviceArg);
+        if (scope.kind !== 'service') {
           return reply.send({
             layer: layerKey,
             service: serviceArg,
@@ -141,10 +112,22 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
             limit,
             generatedAt: Date.now(),
             endpoints: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
+            reachable: true,
+            error: 'service not found',
           } satisfies EndpointsResponse);
         }
+        serviceId = scope.serviceId;
+      } catch (err) {
+        return reply.send({
+          layer: layerKey,
+          service: serviceArg,
+          query: keyword,
+          limit,
+          generatedAt: Date.now(),
+          endpoints: [],
+          reachable: false,
+          error: err instanceof Error ? err.message : String(err),
+        } satisfies EndpointsResponse);
       }
 
       try {

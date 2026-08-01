@@ -524,11 +524,18 @@ const performanceSchema = z
   .strict()
   .default({});
 
-// Template source mode. `live` (default) uses OAP 11's
-// `/ui-management/templates*` REST API. `readonly` renders from the local disk
-// bundle and never calls a template-management API. OAP 10 has a legacy
-// GraphQL template API, but Horizon does not consume it, so OAP 10 requires
-// `readonly`. The OAP query API is still used + boot-checked in either mode.
+// Template source mode — LOAD-BEARING, see CLAUDE.md "Template source".
+//
+// `live` (default) uses OAP 11's `/ui-management/templates*` REST API and the
+// OAP-stored row is the ONLY source: an unreachable store BLOCKS the route
+// rather than substituting the disk bundle, so an operator never sees shipped
+// defaults presented as their own configuration.
+// `readonly` renders from the local disk bundle and never calls a
+// template-management API. That plus bundled PREVIEW in the admin editor are
+// the only two doors the bundle reaches the runtime through.
+// OAP 10 has a legacy GraphQL template API which Horizon does not consume, so
+// an OAP 10.x REQUIRES `readonly` — Horizon will not fall back on its behalf.
+// The OAP query API is still used + boot-checked in either mode.
 // Env-overridable so a file-less container can pick the mode.
 const templatesModeDefault: 'live' | 'readonly' =
   process.env.HORIZON_TEMPLATES_MODE === 'readonly' ? 'readonly' : 'live';

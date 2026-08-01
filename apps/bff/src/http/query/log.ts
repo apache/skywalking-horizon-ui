@@ -43,6 +43,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { resolveServiceScope } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -91,15 +92,6 @@ function defaultWindow(
   const startMs = endMs - m * 60_000;
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForLogs($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-    }
-  }
-`;
 
 const QUERY_LOGS = /* GraphQL */ `
   query QueryLogs($condition: LogQueryCondition) {
@@ -213,33 +205,6 @@ export async function fetchLogs(
   }
 }
 
-/**
- * Resolve a service argument to an OAP service id. The arg can be
- * either a name (`mesh-svr::songs.sample-services`) or an id
- * (`bWVzaC1zdnI6OnNvbmdzLnNhbXBsZS1zZXJ2aWNlcw==.1`). OAP ids are
- * `<base64>.<digits>` — match strictly, since a name containing `.`
- * (e.g. `*.sample-services`) must not be mistaken for an id.
- */
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-  opts: GraphqlOptions,
-  layer: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layer.toUpperCase() },
-  );
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 interface LogBody extends LogQueryRequest {
   service?: string;
 }
@@ -263,20 +228,26 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         endMs: body.endMs,
       });
 
-      // Resolve a service NAME to an id if the caller used one.
+      // Resolve a service NAME to an id if the caller used one. An unknown name
+      // refuses the read: `LogQueryCondition.serviceId` is nullable, so falling
+      // through with `null` would stream EVERY service's logs under the picked
+      // service's title.
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {
+        const failed = (error: string): LogsResponse => ({
+          generatedAt: Date.now(),
+          query: body,
+          total: 0,
+          logs: [],
+          reachable: false,
+          error,
+        });
         try {
-          serviceId = await resolveServiceId(opts, layerKey, body.service);
+          const scope = await resolveServiceScope(opts, layerKey, body.service);
+          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
+          serviceId = scope.kind === 'service' ? scope.serviceId : null;
         } catch (err) {
-          return reply.send({
-            generatedAt: Date.now(),
-            query: body,
-            total: 0,
-            logs: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies LogsResponse);
+          return reply.send(failed(err instanceof Error ? err.message : String(err)));
         }
       }
       const res = await fetchLogs(
@@ -329,18 +300,23 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
       });
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {
+        const failed = (error: string): LogFacetsResponse => ({
+          generatedAt: Date.now(),
+          total: 0,
+          sampled: 0,
+          level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
+          services: [],
+          reachable: false,
+          error,
+        });
         try {
-          serviceId = await resolveServiceId(opts, layerKey, body.service);
+          const scope = await resolveServiceScope(opts, layerKey, body.service);
+          // Same refusal as the row query — a facet sample taken across every
+          // service would count log lines this service never wrote.
+          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
+          serviceId = scope.kind === 'service' ? scope.serviceId : null;
         } catch (err) {
-          return reply.send({
-            generatedAt: Date.now(),
-            total: 0,
-            sampled: 0,
-            level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
-            services: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies LogFacetsResponse);
+          return reply.send(failed(err instanceof Error ? err.message : String(err)));
         }
       }
       const condition = {

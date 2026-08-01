@@ -30,6 +30,11 @@
 # then prepares a next-version PR.
 #
 # Usage:  bash scripts/release.sh
+#
+# The signing key is taken from HORIZON_RELEASE_GPG_KEY, else git's
+# user.signingkey, else the sole secret key in the keyring — and it is
+# pinned on every signing call, so a machine holding several secret keys
+# cannot sign with one key while the script reported another.
 
 set -e -o pipefail
 
@@ -44,14 +49,8 @@ CLONE_DIR="${WORK_DIR}/skywalking-horizon-ui"
 
 # ========================== Helpers ==========================
 
-err() { echo "ERROR: $*" >&2; }
-note() { echo ""; echo "=== $* ==="; }
-
-confirm() {
-    local prompt="$1"
-    read -r -p "${prompt} [y/N] " ans
-    [[ "$ans" == "y" || "$ans" == "Y" ]]
-}
+# shellcheck source=scripts/release-common.sh
+. "${SCRIPT_DIR}/release-common.sh"
 
 # Extract the root package.json "version" without depending on jq —
 # we want this script to be runnable on stock macOS / Alpine.
@@ -67,36 +66,38 @@ file_has() {
 # ========================== Step 1: GPG signer ==========================
 note "Step 1 — GPG signer check"
 
-GPG_KEY_ID=$(git config user.signingkey 2>/dev/null || true)
-if [ -z "$GPG_KEY_ID" ]; then
-    GPG_KEY_ID=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep -A1 '^sec' | tail -1 | awk '{print $1}' || true)
-fi
-if [ -z "$GPG_KEY_ID" ]; then
-    err "No GPG secret key found. Configure your Apache GPG key first."
+command -v gpg >/dev/null || { err "gpg is not installed."; exit 1; }
+
+# One key, named by its full fingerprint — every later signing call pins it.
+GPG_KEY_ID=$(gpg_resolve_signing_key) || exit 1
+
+# Identity is checked on THAT key only. Scanning every uid in the keyring
+# would happily accept some other key's @apache.org address as proof that
+# the selected key is an Apache one.
+if ! GPG_APACHE_UID=$(gpg_apache_uid "${GPG_KEY_ID}"); then
+    err "GPG key ${GPG_KEY_ID} has no @apache.org user ID — Apache releases must be signed with an @apache.org key."
+    err "User IDs on this key:"
+    gpg_key_uids "${GPG_KEY_ID}" | sed 's/^/  /' >&2 || true
     exit 1
 fi
-
-GPG_UIDS=$(gpg --list-secret-keys --keyid-format LONG 2>/dev/null | grep 'uid' | sed 's/.*] //')
-GPG_EMAIL=$(echo "$GPG_UIDS" | grep -oE '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' | head -1)
-
-if [[ "$GPG_EMAIL" != *"@apache.org" ]]; then
-    err "GPG key email '${GPG_EMAIL}' is not @apache.org — Apache releases must be signed with an @apache.org key."
-    exit 1
-fi
-echo "GPG Signer: ${GPG_UIDS}"
+echo "GPG Signer: ${GPG_APACHE_UID}"
 echo "GPG Key:    ${GPG_KEY_ID}"
 confirm "Is this the correct signer?" || { echo "Aborted."; exit 1; }
 
-export GPG_TTY=$(tty)
+# `set -e` + a bare assignment means a failed `tty` would abort the release;
+# it fails whenever stdin is not a terminal. gpg only needs GPG_TTY to draw a
+# passphrase prompt, so a missing tty is not fatal here — leave it unset.
+GPG_TTY=$(tty 2>/dev/null || true)
+export GPG_TTY
 echo "Verifying GPG signing works (you may be prompted for the passphrase)…"
 TEST_FILE=$(mktemp); echo "test" > "${TEST_FILE}"
-if ! gpg --armor --detach-sig "${TEST_FILE}" 2>/dev/null; then
+if ! gpg_sign_and_verify "${TEST_FILE}" "${GPG_KEY_ID}"; then
     rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-    err "GPG signing failed. Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
+    err "Try:  export GPG_TTY=\$(tty)  /  gpgconf --launch gpg-agent"
     exit 1
 fi
 rm -f "${TEST_FILE}" "${TEST_FILE}.asc"
-echo "GPG signing OK."
+echo "GPG signing OK — signatures verify back to ${GPG_KEY_ID}."
 
 # ========================== Step 2: Required tools ==========================
 note "Step 2 — Tool check"
@@ -201,25 +202,12 @@ if ! $CONSISTENT; then
 fi
 echo "Code markers all at ${CURRENT_VERSION}; container docs are release-check compatible."
 
-# ========================== Step 5: Doc + Changelog check ==========================
-note "Step 5 — Docs + CHANGELOG check"
+# ========================== Step 5: Release-file check ==========================
+note "Step 5 — Release-file check"
 
-if ! grep -q "^## ${RELEASE_VERSION}$" "${PROJECT_DIR}/CHANGELOG.md"; then
-    err "CHANGELOG.md has no '## ${RELEASE_VERSION}' section heading."
-    exit 1
-fi
-# Reject the placeholder body. Operators MUST fill the section in before
-# casting a vote — a stub CHANGELOG line in a release tarball is a
-# review smell.
-if awk -v v="${RELEASE_VERSION}" '
-    $0 == "## " v        { in_sec=1; next }
-    in_sec && /^## /     { in_sec=0 }
-    in_sec               { print }
-' "${PROJECT_DIR}/CHANGELOG.md" | grep -q "In development"; then
-    err "CHANGELOG.md ${RELEASE_VERSION} section still contains the '(In development …)' placeholder. Fill it in."
-    exit 1
-fi
-echo "CHANGELOG.md has a non-placeholder section for ${RELEASE_VERSION}."
+# The CHANGELOG is NOT checked here: what ships is the freshly cloned tree of
+# Step 7, not this one, so its section is gated in Step 8b against the exact
+# commit being tagged.
 
 # Make sure LICENSE / NOTICE exist at the repo root (they ship in src+bin tarballs).
 for f in LICENSE NOTICE HEADER; do
@@ -302,6 +290,39 @@ fi
 # to), and repo CI does not run on tags — only on pull_request and pushes to
 # main. So this is the only gate the release artifact ever gets.
 note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
+
+# The CHANGELOG section is part of the release artifact — it ships in both
+# tarballs, the vote email links it at ${TAG}, and release-finalize.sh reads
+# the GitHub release body out of the tag — so it is gated on the clone, on the
+# commit about to be tagged. Checking the caller's tree instead can pass here
+# while the tagged tree carries no section at all, or still carries the stub.
+# Cheapest gate in the battery, so it runs first.
+if ! grep -q "^## ${RELEASE_VERSION}$" "${CLONE_DIR}/CHANGELOG.md"; then
+    err "CHANGELOG.md on the release commit has no '## ${RELEASE_VERSION}' section heading."
+    err "Land that section on ${REPO_BRANCH} first — this clone is what gets tagged and shipped."
+    exit 1
+fi
+# Reject the placeholder body. Operators MUST fill the section in before
+# casting a vote — a stub CHANGELOG line in a release tarball is a
+# review smell.
+if awk -v v="${RELEASE_VERSION}" '
+    $0 == "## " v        { in_sec=1; next }
+    in_sec && /^## /     { in_sec=0 }
+    in_sec               { print }
+' "${CLONE_DIR}/CHANGELOG.md" | grep -q "In development"; then
+    err "CHANGELOG.md ${RELEASE_VERSION} section on the release commit still contains the '(In development …)' placeholder. Fill it in on ${REPO_BRANCH}."
+    exit 1
+fi
+echo "CHANGELOG.md on the release commit has a non-placeholder section for ${RELEASE_VERSION}."
+
+# Same reason, and `pnpm license:check` cannot stand in for it: HEADER is in
+# the license-eye paths-ignore list, so nothing else looks at the copy that
+# actually ships.
+for f in LICENSE NOTICE HEADER; do
+    [ -f "${CLONE_DIR}/${f}" ] || { err "${f} missing at the root of the release commit."; exit 1; }
+done
+echo "LICENSE / NOTICE / HEADER present on the release commit."
+
 pnpm install --frozen-lockfile
 pnpm -r run type-check
 pnpm --filter @skywalking-horizon-ui/ui build
@@ -409,7 +430,9 @@ note "Step 12 — GPG sign + sha512"
 
 cd "${WORK_DIR}"
 for t in "${SRC_TAR}" "${BIN_TAR}"; do
-    gpg --armor --detach-sig "${t}"
+    # Signs with --local-user ${GPG_KEY_ID} and re-reads the .asc to confirm
+    # the signature really came from that key.
+    gpg_sign_and_verify "${t}" "${GPG_KEY_ID}"
     shasum -a 512 "$(basename "${t}")" > "${t}.sha512"
 done
 
@@ -417,12 +440,9 @@ echo "Artifacts:"
 ls -lh "${SRC_TAR}" "${SRC_TAR}.asc" "${SRC_TAR}.sha512" \
        "${BIN_TAR}" "${BIN_TAR}.asc" "${BIN_TAR}.sha512"
 
-# Verify signatures locally before publishing.
-gpg --verify "${SRC_TAR}.asc" "${SRC_TAR}"
-gpg --verify "${BIN_TAR}.asc" "${BIN_TAR}"
 shasum -a 512 -c "${SRC_TAR}.sha512"
 shasum -a 512 -c "${BIN_TAR}.sha512"
-echo "Self-verify OK."
+echo "Self-verify OK — both artifacts signed by ${GPG_KEY_ID} (${GPG_APACHE_UID}), checksums match."
 
 # ========================== Step 13: SVN upload ==========================
 note "Step 13 — Upload to ${SVN_DEV_URL}/${RELEASE_VERSION}"
@@ -518,6 +538,8 @@ Release CommitID:
 Keys to verify the Release Candidate:
 
  * https://dist.apache.org/repos/dist/release/skywalking/KEYS
+ * Signed by ${GPG_APACHE_UID}
+   fingerprint ${GPG_KEY_ID}
 
 Guide to build the release from source:
 
@@ -541,7 +563,9 @@ EOF
 # ========================== Step 15: Next-dev bump + release PR ==========================
 note "Step 15 — Add next-dev bump (${NEXT_RELEASE_VERSION}-dev) + open release PR"
 
-if ! confirm "Add the next-dev bump on ${RELEASE_BRANCH_NAME} and open the release PR now?"; then
+echo "  Commit ${NEXT_RELEASE_VERSION}-dev on ${RELEASE_BRANCH_NAME}, push it to ${REPO_URL},"
+echo "  and open a PR ${RELEASE_BRANCH_NAME} -> ${REPO_BRANCH}. Tag ${TAG} is already pushed and stays put."
+if ! confirm "Do that now?"; then
     echo "Skipping the next-dev commit + PR. Release artifacts are in ${WORK_DIR}/."
     echo "Release branch ${RELEASE_BRANCH_NAME} + tag ${TAG} are already pushed; open the PR manually when ready."
     exit 0
@@ -623,7 +647,15 @@ echo "  Release tag:        ${TAG}"
 echo ""
 echo "Next steps:"
 echo "  1. Send the vote email above to dev@skywalking.apache.org."
-echo "  2. After the vote passes, run:  svn mv ${SVN_DEV_URL}/${RELEASE_VERSION} \\"
-echo "         https://dist.apache.org/repos/dist/release/skywalking/horizon-ui/${RELEASE_VERSION}"
+echo "  2. After the vote passes, promote the image tags, then finalize:"
+echo "       a) Run the publish-image workflow (workflow_dispatch, tag ${TAG}) to attach"
+echo "          the stable image tags — a tag push publishes only the immutable digest,"
+echo "          because a tag is a candidate until the vote passes."
+echo "       b) bash scripts/release-finalize.sh"
+echo "          It verifies that the candidate directory holds exactly the six voted"
+echo "          artifacts, their sha512, both .asc signatures and the signer identity"
+echo "          BEFORE promoting dev -> release on SVN, then publishes the GitHub"
+echo "          release and confirms the Docker Hub tags. Do NOT 'svn mv' by hand:"
+echo "          that skips every one of those checks."
 echo "  3. Merge the release PR (${RELEASE_BRANCH_NAME} → ${REPO_BRANCH}): brings the"
 echo "     version strip + next-dev bump into ${REPO_BRANCH}; tag ${TAG} stays put."

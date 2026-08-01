@@ -40,6 +40,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { resolveServiceScope } from '../../logic/oap/service-scope.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface BrowserErrorsRouteDeps {
@@ -81,15 +82,6 @@ function defaultWindow(
   const startMs = endMs - m * 60_000;
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForBrowserErrors($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-    }
-  }
-`;
 
 const QUERY_BROWSER_ERRORS = /* GraphQL */ `
   query QueryBrowserErrorLogs($condition: BrowserErrorLogQueryCondition) {
@@ -204,26 +196,6 @@ export async function fetchBrowserErrors(
   }
 }
 
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-  opts: GraphqlOptions,
-  layer: string,
-  serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layer.toUpperCase() },
-  );
-  return (
-    data.services.find((s) => s.name === serviceArg)?.id ??
-    data.services.find((s) => s.id === serviceArg)?.id ??
-    null
-  );
-}
-
 interface Body extends BrowserErrorsQueryRequest {
   service?: string;
 }
@@ -249,17 +221,22 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
 
       let serviceId = body.serviceId ?? null;
       if (!serviceId && body.service) {
+        const failed = (error: string): BrowserErrorsResponse => ({
+          generatedAt: Date.now(),
+          query: body,
+          total: 0,
+          logs: [],
+          reachable: false,
+          error,
+        });
         try {
-          serviceId = await resolveServiceId(opts, layerKey, body.service);
+          const scope = await resolveServiceScope(opts, layerKey, body.service);
+          // `BrowserErrorLogQueryCondition.serviceId` is nullable — an unknown
+          // name left as `null` would list every browser app's JS errors.
+          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
+          serviceId = scope.kind === 'service' ? scope.serviceId : null;
         } catch (err) {
-          return reply.send({
-            generatedAt: Date.now(),
-            query: body,
-            total: 0,
-            logs: [],
-            reachable: false,
-            error: err instanceof Error ? err.message : String(err),
-          } satisfies BrowserErrorsResponse);
+          return reply.send(failed(err instanceof Error ? err.message : String(err)));
         }
       }
 

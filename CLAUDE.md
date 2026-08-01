@@ -47,6 +47,17 @@ Every OAP metric lives under exactly one entity scope (Service / ServiceInstance
 - **OAP IDs are not always per-record unique.** Some wire `id` fields key on the alarmed/related entity, not the firing instance. Disambiguate composite keys with timestamp before using `id` as a row key.
 - **Widget type follows MQE shape.** A widget whose MQE collapses to a single scalar must be `type: "card"`, not `type: "line"`. The tell-tale is the outermost call: `latest(...)`, `max(...)`, `min(...)`, `avg(<plain-metric>)`, `sum(<plain-metric>)` all reduce the window to one number — line-charting a single point is wasteful and misleads operators into thinking the metric is time-varying. Series-shaped wrappers (`relabels(...)`, `top_n(...)`, `histogram*(...)`, `aggregate_labels(...)` without an outer scalar collapse, `rate(...)`, `increase(...)`) stay `line`. When adding or porting a widget, look at the outermost function first.
 
+### Template source: `live` means REMOTE, never bundled
+
+`templates.mode` decides where a dashboard/overview/alert template comes from, and the rule is absolute:
+
+- **`live` (default) — the OAP-stored row is the ONLY source.** Horizon seeds the bundle into OAP's `ui_template` store at boot and from then on renders what OAP holds. If the template store is unreachable, or the layer's row is admin-disabled, the route is **blocked**: it serves nothing and the UI surfaces the connectivity banner. It must NOT quietly substitute the disk bundle — an operator whose OAP-stored dashboards can't be read is better served by an honest empty state than by shipped defaults presented as their configuration.
+- **The disk bundle reaches the runtime through exactly two doors:** `templates.mode: readonly`, and bundled **preview** mode in the admin editor. Nothing else.
+
+The practical consequence: an OAP that has no `/ui-management/templates*` surface (any 10.x — template management lived on the query port's GraphQL there, which Horizon does not speak) **requires `templates.mode: readonly`**. That is the supported configuration, not a fallback Horizon applies for you.
+
+This has been broken once by "helpfully" adding a bundled fallback to the unreachable path. Blocking is the design, not an oversight — if you are about to make an unreachable store render *something*, you are changing the product's contract, not fixing a bug.
+
 ## Design source of truth
 
 Design tokens live in the runtime token CSS of the design-tokens workspace package (`packages/design-tokens/src/tokens.css`, imported app-wide as `@skywalking-horizon-ui/design-tokens/tokens.css`) — that copy is canonical. The early-build HTML/JSX prototype bundle has been retired now that every screen has a Vue implementation with visual sign-off. When a new screen is needed, the existing dark-dense vocabulary in the rendered UI is the spec; match it.

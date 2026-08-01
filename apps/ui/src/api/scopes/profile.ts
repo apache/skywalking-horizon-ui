@@ -31,12 +31,14 @@ import type { BffClient } from '../client';
 export class ProfileApi {
   constructor(private readonly bff: BffClient) {}
 
+  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
+   *  skips the roster lookup a name would need. */
   tasks(
     layerKey: string,
-    service: string,
+    serviceId: string,
     endpoint = '',
   ): Promise<ProfileTaskListResponse> {
-    const qs = new URLSearchParams({ service });
+    const qs = new URLSearchParams({ serviceId });
     if (endpoint) qs.set('endpoint', endpoint);
     return this.bff.request<ProfileTaskListResponse>(
       'GET',

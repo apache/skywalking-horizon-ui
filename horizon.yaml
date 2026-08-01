@@ -41,6 +41,8 @@ server:
 templates:
   # `live` (default): seed/read/write templates through OAP 11's
   # /ui-management/templates* REST API and persist them in OAP storage.
+  # In this mode OAP is the ONLY source — if its template store cannot be
+  # read, layer pages are blocked rather than falling back to the bundle.
   # `readonly`: render templates from the local bundle only — the
   # template-management API is never called and the whole config surface
   # is read-only. OAP 10 has legacy GraphQL template management, but Horizon

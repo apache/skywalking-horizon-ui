@@ -35,6 +35,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost } from '../../client/graphql.js';
+import { resolveRequiredService } from './service-scope.js';
 import { fmtMinute } from '../../util/window.js';
 
 export type ProfilingType = 'trace' | 'pprof' | 'async' | 'ebpf';
@@ -150,12 +151,6 @@ const MAX_TRACE_ANALYZE_QUERIES = 100;
 // fan-out; OAP still does the splitting.
 const EBPF_CHUNK_MS = 10_000;
 const MAX_EBPF_ANALYZE_CHUNKS = 600;
-
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForProfilingResolve($layer: String!) {
-    services: listServices(layer: $layer) { id name normal }
-  }
-`;
 
 const GET_PROFILE_TASK_LIST = /* GraphQL */ `
   query AiGetProfileTaskList($serviceId: ID) {
@@ -592,8 +587,9 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
     return result;
   };
   try {
-    const serviceId = await resolveServiceId(opts, layerKey, service);
-    if (!serviceId) return fail(`Unknown service "${service}" in layer ${layerKey}.`);
+    const scope = await resolveRequiredService(opts, layerKey, service);
+    if (scope.kind === 'unknown') return fail(scope.message);
+    const serviceId = scope.serviceId;
     const task = await findNetworkTask(opts, serviceId, input.taskId);
     if (input.taskId && !task) {
       return fail(`No NETWORK profiling task "${input.taskId}" on ${service}.`);
@@ -631,18 +627,6 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
   } catch (err) {
     return fail(err instanceof Error ? err.message : String(err));
   }
-}
-
-const ENCODED_ID = /^[A-Za-z0-9+/=]+\.\d+$/;
-
-async function resolveServiceId(opts: GraphqlOptions, layerKey: string, serviceArg: string): Promise<string | null> {
-  if (ENCODED_ID.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layerKey.toUpperCase() },
-  );
-  return data.services.find((s) => s.name === serviceArg)?.id ?? data.services.find((s) => s.id === serviceArg)?.id ?? null;
 }
 
 function frameCount(trees: ProfileAnalyzationTree[]): number {
@@ -725,12 +709,13 @@ export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<Pr
     reachable: true,
   };
   try {
-    const serviceId = await resolveServiceId(opts, layerKey, service);
-    if (!serviceId) {
+    const scope = await resolveRequiredService(opts, layerKey, service);
+    if (scope.kind === 'unknown') {
       base.reachable = false;
-      base.error = `Unknown service "${service}" in layer ${layerKey}.`;
+      base.error = scope.message;
       return base;
     }
+    const serviceId = scope.serviceId;
     switch (profilingType) {
       case 'trace':
         return await analyzeTrace(opts, serviceId, service, input.taskId, base);

@@ -91,7 +91,7 @@ The BFF speaks three OAP contracts, all owned upstream and treated as fixed:
 - Admin REST (OAP admin host, default port `17128`) — runtime rules/DSL, cluster status, metrics inspect, live debugging.
 - Zipkin v2 REST — Zipkin-format trace/span fetch.
 
-The flow inside the BFF is one-directional — `http → logic → client → OAP` — and bundled templates are synced to OAP on first boot (bundled → local draft → push), after which the running UI renders only what OAP serves.
+The flow inside the BFF is one-directional — `http → logic → client → OAP`. In the default `live` mode the bundled templates are seeded to OAP on first boot, after which the running UI renders only what OAP serves — the disk bundle is a seed/reset source, never a render-time fallback. In `templates.mode: readonly` the bundle is the declared source and OAP's template store is never called.
 
 ## Getting started / Development
 

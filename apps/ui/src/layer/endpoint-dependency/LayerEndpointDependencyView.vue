@@ -126,7 +126,7 @@ const isReplay = computed(() => props.replay === true && !!props.replayData);
 // A replay map takes its service from props.focusService (not the landing rollup)
 // and hides the picker, so it fires ZERO landing queries — gated by replay mode.
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, isReplay);
-const resolvedServiceName = useLayerServiceName(layerKey, landing, isReplay);
+const { name: resolvedServiceName } = useLayerServiceName(layerKey, landing, isReplay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : resolvedServiceName.value,
 );

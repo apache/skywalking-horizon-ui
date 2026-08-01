@@ -73,6 +73,8 @@ The pager at the foot shows the current page and the row count on it; **Prev** /
 
 - **A filter empties the stream.** Tag and level filters are exact-match on indexed dimensions. A `level` value or tag value that doesn't exist in the stored data returns nothing; check the value against what the **Levels** counts and the tag autocomplete actually offer.
 
+- **Run query is greyed out.** The tab does not yet know which service to read, and says which case it is: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. The stream is always read for one service, so the tab waits instead of querying the whole layer.
+
 ## Pod logs
 
 The **Pod Logs** tab tails a Kubernetes pod's container logs live. There is no stored history to page through — each refresh pulls the trailing window straight from the Kubernetes API through OAP, shows it, and discards it. Nothing is persisted.
