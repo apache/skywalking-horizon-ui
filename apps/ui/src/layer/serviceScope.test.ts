@@ -46,11 +46,14 @@ const SERVICE_NAME = 'songs';
 describe('resolveLayerServiceName — "still resolving" is not "resolved to nothing"', () => {
   const base = { selectedId: SERVICE_ID, landingRows: [], landingSettled: true, roster: [], rosterSettled: true };
 
-  it('resolves from the landing sample first', () => {
+  it('resolves from the landing sample first — the roster is only the fallback', () => {
     expect(
       resolveLayerServiceName({
         ...base,
         landingRows: [{ serviceId: SERVICE_ID, serviceName: SERVICE_NAME }],
+        // Same id under a different name. Both feeds can answer for one id, so
+        // the fixture has to disagree with itself for "first" to mean anything.
+        roster: [{ id: SERVICE_ID, name: 'songs-stale', normal: true, group: '' }],
       }),
     ).toEqual({ name: SERVICE_NAME, id: SERVICE_ID, status: 'resolved' });
   });
@@ -71,11 +74,6 @@ describe('resolveLayerServiceName — "still resolving" is not "resolved to noth
 
   it('reports `unknown` once both feeds settled without the id', () => {
     expect(resolveLayerServiceName(base)).toEqual({ name: null, id: null, status: 'unknown' });
-  });
-
-  it('treats a failed read as settled — the refusal is honest, the wait is not', () => {
-    // Both feeds answered (one with an error); there is nothing more to await.
-    expect(resolveLayerServiceName({ ...base, roster: [] }).status).toBe('unknown');
   });
 
   it('is `idle`, not `resolving`, when nothing is selected and landing has answered', () => {
@@ -166,6 +164,7 @@ function fakeBff(entityRead: { path: string; payload: unknown }) {
     releaseRoster = resolve;
   });
   let rosterHasService = false;
+  let rosterFails = false;
 
   const fetchSpy = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -175,6 +174,12 @@ function fakeBff(entityRead: { path: string; payload: unknown }) {
     const path = new URL(url, 'http://ui').pathname;
     if (path.endsWith('/services')) {
       await rosterAnswered;
+      if (rosterFails) {
+        return new Response(JSON.stringify({ error: 'oap_unreachable' }), {
+          status: 502,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
       return jsonResponse({
         services: rosterHasService ? [{ id: SERVICE_ID, name: SERVICE_NAME, layers: ['MESH'] }] : [],
         reachable: true,
@@ -207,6 +212,12 @@ function fakeBff(entityRead: { path: string; payload: unknown }) {
     /** Let the roster answer — with or without the selected service in it. */
     answerRoster(withService: boolean) {
       rosterHasService = withService;
+      releaseRoster?.();
+    },
+    /** Let the roster read FAIL. It is settled either way: nothing more is
+     *  coming, so the tab owes the operator a refusal, not an endless wait. */
+    failRoster() {
+      rosterFails = true;
       releaseRoster?.();
     },
     to(suffix: string): Asked[] {
@@ -323,6 +334,28 @@ describe('Logs tab', () => {
     expect(bff.to('/logs')[0]?.body.serviceId).toBeUndefined();
   });
 
+  // The resolver's two feeds are "settled", not "succeeded": a read that FAILED
+  // has nothing more to deliver, so waiting on it is waiting forever. This is
+  // the case a pure-function test cannot reach — the failure lives in the
+  // reactive wiring (the query's error state), not in the resolver's inputs.
+  it('treats a FAILED roster read as settled — it refuses instead of spinning', async () => {
+    const bff = fakeBff({ path: '/logs', payload: logsPayload });
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    const w = await mountTab(LayerLogsView, 'mesh');
+    expect(w.text()).toContain('Resolving service…');
+
+    bff.failRoster();
+    await flushPromises();
+
+    expect(w.text()).not.toContain('Resolving service…');
+    expect(w.text()).toContain('The selected service is not in this layer');
+    expect(w.get(RUN).attributes('disabled')).toBeDefined();
+
+    await fireRunQuery(w, RUN);
+
+    expect(bff.to('/logs')).toHaveLength(0);
+  });
+
   it('refuses — with the reason — when the roster settles without the service', async () => {
     const bff = fakeBff({ path: '/logs', payload: logsPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
@@ -360,7 +393,9 @@ describe('Traces tab', () => {
     expect(bff.to('/traces')).toHaveLength(0);
   });
 
-  it('runs the read scoped to the service once the roster answers', async () => {
+  // Same rule as Logs: the picker selected an id, so that is what the read
+  // carries; the resolved name is only what the toolbar displays.
+  it('runs the read scoped to the picked service ID once the roster answers', async () => {
     const bff = fakeBff({ path: '/traces', payload: tracesPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountTab(LayerTracesView, 'mesh');
@@ -370,7 +405,44 @@ describe('Traces tab', () => {
     await fireRunQuery(w, RUN);
 
     expect(bff.to('/traces')).toHaveLength(1);
+    expect(bff.to('/traces')[0]?.body.serviceId).toBe(SERVICE_ID);
+    expect(bff.to('/traces')[0]?.body.service).toBeUndefined();
+  });
+
+  // Its instance / endpoint pickers hang off the same handle: a picker asked by
+  // display name costs the BFF a roster lookup to undo, and lands on whichever
+  // entity that name resolves to rather than the one the operator selected.
+  it('asks for the pickers by that same id, not by the display name', async () => {
+    const bff = fakeBff({ path: '/traces', payload: tracesPayload });
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    await mountTab(LayerTracesView, 'mesh');
+    bff.answerRoster(true);
+    await flushPromises();
+
+    for (const suffix of ['/instances', '/endpoints']) {
+      const asked = bff.to(suffix)[0];
+      expect(asked, suffix).toBeDefined();
+      const params = new URL(asked!.url, 'http://ui').searchParams;
+      expect(params.get('serviceId'), suffix).toBe(SERVICE_ID);
+      expect(params.get('service'), suffix).toBeNull();
+    }
+  });
+
+  // The embedded contract is name-scoped: an embed hands the tab a service NAME
+  // (`focusService`) and no picker id, so the name slot stays the honest one to
+  // fill — asserted here because the route path above no longer fills it.
+  it('sends a NAME when that is genuinely all the caller has', async () => {
+    const bff = fakeBff({ path: '/traces', payload: tracesPayload });
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    mount(LayerTracesView, {
+      props: { layerKey: 'mesh', embedded: true, focusService: SERVICE_NAME },
+      global: { plugins: [pinia, router, i18n, [VueQueryPlugin, { queryClient }]] },
+    });
+    await flushPromises();
+
     expect(bff.to('/traces')[0]?.body.service).toBe(SERVICE_NAME);
+    expect(bff.to('/traces')[0]?.body.serviceId).toBeUndefined();
   });
 
   // The reason used to live in the list header's `title` — invisible unless you

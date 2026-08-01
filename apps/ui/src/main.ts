@@ -64,8 +64,7 @@ app.use(i18n);
 // login page falls through to the `:root` Horizon palette regardless
 // of what the operator picked. The org-default tier (OAP-stored
 // `horizon.theme.active`) is still loaded later from AppShell once
-// auth is through; pre-auth, only the user-override + bundled tiers
-// resolve.
+// auth is through; pre-auth only the user override resolves.
 useThemeStore();
 
 // Mid-session 401 → end the session (auth state + every cached response) and

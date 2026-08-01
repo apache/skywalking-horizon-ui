@@ -92,6 +92,11 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/menu':                                 'auth',
   'GET /api/preflight':                            'auth',
   'GET /api/configs/bundle':                       'auth',
+  // Org-wide singletons (theme / global time window / alert page setup) every
+  // signed-in user needs to render the shell. The full template rows stay on
+  // the admin sync-status route below; this one serves only these three
+  // effective values, so no custom role needs `overview:read` to boot.
+  'GET /api/configs/settings':                     'auth',
 
   // ── Viewer — read-only data catalog ──
   'GET /api/alarms':                               'alarms:read',

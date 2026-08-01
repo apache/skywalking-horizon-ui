@@ -68,18 +68,14 @@ export class AlarmsApi {
   }
 
   /** The alarms page-setup — the `horizon.alert.page-setup` singleton template.
-   *  Read its effective (OAP-remote ↔ bundled) copy from the config bundle's
-   *  sync status, like the theme / time-defaults singletons; there is no local
-   *  BFF store. Edits are saved to OAP via `bff.templateSync.save`. */
+   *  Read as one of the effective org settings, like the theme / time-defaults
+   *  singletons: the BFF resolves it for its template mode and returns nothing
+   *  when live mode has no readable OAP row, in which case the shipped default
+   *  applies. Edits are saved to OAP via `bff.templateSync.save`. */
   config(): Promise<AlarmsConfig> {
-    return this.bff.templateSync.syncStatus().then((status) => {
-      const row = status.rows.find((r) => r.name === 'horizon.alert.page-setup');
-      const source =
-        row?.effective === 'remote' && row.remote
-          ? row.remote.configuration
-          : row?.bundled?.configuration;
-      return normalizeAlarmsConfig(source);
-    });
+    return this.bff.configs
+      .settings()
+      .then((settings) => normalizeAlarmsConfig(settings.alert));
   }
 
   /** OAP `/status/alarm/rules` fan-out + per-rule detail merge.

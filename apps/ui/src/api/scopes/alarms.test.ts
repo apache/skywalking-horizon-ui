@@ -106,36 +106,53 @@ describe('AlarmsApi.services + config + count', () => {
     expect(calls[0][1]).toBe('/api/alarms/services?layer=MESH');
   });
 
-  function stubSyncStatus(rows: unknown[]) {
+  /** A client whose org-settings read returns `alert`, and whose admin
+   *  sync-status still holds a bundled-only row — the shape live mode must
+   *  refuse to render. */
+  function stubSettings(alert: unknown) {
     const { bff } = makeStub();
-    (bff as unknown as { templateSync: { syncStatus: () => Promise<unknown> } }).templateSync = {
-      syncStatus: vi.fn(async () => ({ rows })),
+    const settings = vi.fn(async () => ({ theme: null, timeDefaults: null, alert }));
+    (bff as unknown as { configs: { settings: typeof settings } }).configs = { settings };
+    const syncStatus = vi.fn(async () => ({
+      rows: [
+        {
+          name: 'horizon.alert.page-setup',
+          effective: 'bundled',
+          remote: null,
+          bundled: {
+            configuration: JSON.stringify({
+              name: 'horizon.alert.page-setup',
+              kind: 'alert',
+              version: 1,
+              content: { pinnedLayers: ['ON_DISK_ONLY'], defaultWindowMs: 14400000 },
+            }),
+          },
+        },
+      ],
+    }));
+    (bff as unknown as { templateSync: { syncStatus: typeof syncStatus } }).templateSync = {
+      syncStatus,
     };
-    return bff;
+    return { bff, settings, syncStatus };
   }
 
-  it('config reads + normalizes the alert page-setup from the template sync status', async () => {
-    const bff = stubSyncStatus([
-      {
-        name: 'horizon.alert.page-setup',
-        effective: 'remote',
-        remote: {
-          configuration: JSON.stringify({
-            name: 'horizon.alert.page-setup',
-            kind: 'alert',
-            version: 1,
-            content: { pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 },
-          }),
-        },
-        bundled: null,
-      },
-    ]);
+  it('config normalizes the alert page-setup the BFF resolved', async () => {
+    const { bff, settings, syncStatus } = stubSettings({
+      pinnedLayers: ['MESH'],
+      defaultWindowMs: 7200000,
+      overviewAlarmsLimit: 300,
+    });
     const cfg = await new AlarmsApi(bff).config();
     expect(cfg).toEqual({ pinnedLayers: ['MESH'], defaultWindowMs: 7200000, overviewAlarmsLimit: 300 });
+    expect(settings).toHaveBeenCalledTimes(1);
+    // The admin payload carries every template's bundled copy and needs a verb
+    // the alarm badge's readers don't have; the badge must not touch it.
+    expect(syncStatus).not.toHaveBeenCalled();
   });
 
-  it('config falls back to shipped defaults when the alert row is absent', async () => {
-    const cfg = await new AlarmsApi(stubSyncStatus([])).config();
+  it('config falls back to shipped defaults — not the on-disk template — when the BFF resolved no value', async () => {
+    const { bff } = stubSettings(null);
+    const cfg = await new AlarmsApi(bff).config();
     expect(cfg).toEqual({ pinnedLayers: ['GENERAL', 'MESH'], defaultWindowMs: 1200000, overviewAlarmsLimit: 200 });
   });
 

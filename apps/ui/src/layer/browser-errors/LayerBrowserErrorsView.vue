@@ -107,6 +107,17 @@ const {
   focusService: computed(() => props.focusService ?? null),
   replay,
 });
+// Scalar identity of the tab's service, so the cascade-clear watchers below key
+// on exactly what the query is scoped by. `serviceRef` is a fresh object on
+// every recompute, so watching it directly would fire on re-resolution, not on
+// a switch.
+const serviceKey = computed<string | null>(() =>
+  serviceRef.value === null
+    ? null
+    : serviceRef.value.kind === 'id'
+      ? serviceRef.value.id
+      : serviceRef.value.name,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -266,7 +277,7 @@ onMounted(() => {
 
 // Service switch is a context change → cascade-clear back to the Run-query
 // prompt; never show the prior service's errors under the new one.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   selectedVersionId.value = '';
   clearPage();
@@ -302,7 +313,7 @@ function catOf(r: BrowserErrorRow): Cat {
 }
 
 const selectedCat = ref<Cat | null>(null);
-watch(serviceName, () => { selectedCat.value = null; });
+watch(serviceKey, () => { selectedCat.value = null; });
 function toggleCat(c: Cat): void {
   selectedCat.value = selectedCat.value === c ? null : c;
   // `expanded` indexes into filteredLogs, which just changed — drop it.
@@ -354,7 +365,7 @@ const {
   toggleRow,
   resolveRow,
 } = useSourceMapResolution(t);
-watch(serviceName, () => { selectedMapId.value = ''; });
+watch(serviceKey, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
 // reports several errors at the identical timestamp+page+version (a

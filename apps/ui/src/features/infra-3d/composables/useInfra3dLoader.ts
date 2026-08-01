@@ -33,6 +33,7 @@
 import { shallowRef, type ComputedRef, type Ref } from 'vue';
 import type { LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bff, type Infra3dConfig } from '@/api/client';
+import { sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import type { useInfra3dConfig } from './useInfra3dConfig';
 import {
   buildSceneGraph,
@@ -61,6 +62,10 @@ interface PipelineCtx {
   /** Live path only: the MapTopology assembled as stages land. The
    *  snapshot impls leave it null and read loadFallbackTopology() directly. */
   topo: MapTopology | null;
+  /** Identity generation this run started under. Nothing can abort a run in
+   *  progress, so the metrics stage checks it before publishing into the
+   *  module-level metric store the next session would read. */
+  epoch: number;
 }
 
 const REFRESH_MS = 60_000;
@@ -240,6 +245,7 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
     },
     metrics: async (rep, ctx) => {
       rep.start();
+      if (!isCurrentEpoch(ctx.epoch)) return;
       resetMetrics();
       const cfg = infraConfig.value as Infra3dConfig | null;
       if (!cfg) {
@@ -335,9 +341,11 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
             })),
             window: metricWindow,
           });
+          if (!isCurrentEpoch(ctx.epoch)) return;
           setMetricValues(r.values);
           if (r.errors && Object.keys(r.errors).length > 0) errCount += Object.keys(r.errors).length;
         } catch (err) {
+          if (!isCurrentEpoch(ctx.epoch)) return;
           errCount += chunk.units.length;
           // Whole-chunk failure → mark every node in the chunk null.
           const fallback: Record<string, number | null> = {};
@@ -464,7 +472,7 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
   // and captures the known-layer set.
   async function runFull(): Promise<void> {
     pipelineMode.value = 'full';
-    const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
+    const ctx: PipelineCtx = { servicesByLayer: {}, topo: null, epoch: sessionEpoch() };
     await runPipelineState(ctx, liveTopologyEnabled.value ? livePipelineImpls : pipelineImpls);
   }
 
@@ -475,7 +483,7 @@ export function useInfra3dLoader(deps: Infra3dLoaderDeps): Infra3dLoader {
   async function runLight(): Promise<void> {
     if (!liveTopologyEnabled.value) return runFull();
     pipelineMode.value = 'light';
-    const ctx: PipelineCtx = { servicesByLayer: {}, topo: null };
+    const ctx: PipelineCtx = { servicesByLayer: {}, topo: null, epoch: sessionEpoch() };
     await runPipelineState(ctx, livePipelineImpls, ['services', 'topologies', 'hierarchy', 'metrics']);
   }
 

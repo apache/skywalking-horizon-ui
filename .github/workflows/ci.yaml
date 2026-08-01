@@ -160,6 +160,9 @@ jobs:
       # templates) are skipped automatically.
       # The scripts already include `vitest run`, so no `--run` forwarding
       # needed — keeps the CI line robust against pnpm-flag parsing quirks.
+      # The runner pool is pinned in those same scripts, not on this line, so a
+      # contributor's `pnpm test:unit` and this job share one isolation model.
+      # Why `threads`, and what enforces it: `src/runner-pool.test.ts`.
       - run: pnpm -r run test:unit
 
   templates:

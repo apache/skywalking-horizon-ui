@@ -54,6 +54,7 @@ import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -99,13 +100,15 @@ const safeCfg = computed(() => {
 });
 // Replay hides the whole toolbar this rollup feeds, so it fires zero queries.
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
-// Embedded mode takes the focus service straight from the prop; the route uses
-// the shared layerSelection store (resolved to a name). Overriding here means
-// the chat block never touches that global selection. `serviceReady` is the
-// gate: a trace query fired before the name lands carries no service, and OAP
-// answers it with every service's traces.
+// Embedded mode takes the focus service straight from the prop (a NAME — a
+// prompt named it); the route takes the picked OAP id from the shared
+// layerSelection store and queries by that, resolving a name only to show it.
+// Overriding here means the chat block never touches that global selection.
+// `serviceReady` is the gate: a trace query fired before the service resolves
+// carries none, and OAP answers it with every service's traces.
 const {
   name: serviceName,
+  ref: serviceRef,
   status: serviceStatus,
   ready: serviceReady,
 } = useLayerTabService(layerKey, landing, {
@@ -113,6 +116,17 @@ const {
   focusService: computed(() => props.focusService ?? null),
   replay,
 });
+// Scalar identity of the tab's service, so the cascade-clear keys on exactly
+// what the query is scoped by. `serviceRef` is a fresh object on every
+// recompute, so watching it directly would fire on re-resolution, not on a
+// switch.
+const serviceKey = computed<string | null>(() =>
+  serviceRef.value === null
+    ? null
+    : serviceRef.value.kind === 'id'
+      ? serviceRef.value.id
+      : serviceRef.value.name,
+);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -148,7 +162,7 @@ const tagsList = ref<Array<{ key: string; value: string }>>([]);
 // committed service can never trail the picked one. Initially mirrors
 // the live defaults so the FIRST `Run query` click fetches with
 // sensible inputs.
-const cService = ref<string | null>(null);
+const cService = ref<ServiceRef | null>(null);
 const cTraceState = ref<TraceQueryState>('ALL');
 const cQueryOrder = ref<TraceQueryOrder>('BY_START_TIME');
 const cMinDuration = ref<number | null>(null);
@@ -205,7 +219,7 @@ const sourceRef = computed<'native'>(() => 'native');
 // The instance/endpoint lists feed the hidden filter chrome; in replay they must
 // fire NO query. Endpoints takes a replay gate; instances has none, so we starve
 // it of a service (its `enabled` needs one).
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances } = useLayerInstances(layerKey, toolbarService);
 const { endpoints } = useLayerEndpoints(layerKey, toolbarService, endpointQuery, ref(50), replay);
 // '' ↔ null bridges the All sentinel (TypeaheadSelect value is a string).
@@ -231,7 +245,7 @@ const endpointIdSel = computed<string>({
 // so the committed service can never trail the picked one, which drops the
 // previous service's result set with it. Filter edits only stage; they wait
 // for Run query.
-watch([serviceName], () => {
+watch([serviceKey], () => {
   if (embedded.value) return; // focus (incl. seeded endpoint/instance) is fixed by props
   instanceId.value = null;
   endpointId.value = null;
@@ -277,7 +291,7 @@ const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachab
 /** Copy the live filter values into the committed refs the query reads. */
 function commitConditions(): void {
   traceIdFilter.value = traceIdInput.value.trim() || null;
-  cService.value = serviceName.value;
+  cService.value = serviceRef.value;
   cInstanceId.value = instanceId.value;
   cEndpointId.value = endpointId.value;
   cTraceIdFilter.value = traceIdFilter.value;
@@ -370,7 +384,7 @@ function applyDrillFromRoute(): void {
   drillArmed.value = true;
   maybeRunDrill();
 }
-watch(serviceName, maybeRunDrill);
+watch(serviceKey, maybeRunDrill);
 watch([instances, endpoints], () => {
   if (!drillArmed.value) return;
   resolveDrillEntities();
@@ -449,7 +463,7 @@ function resetPick(): void {
 // Both the inline detail and the in-page pick key on rows of the result set the
 // service switch just cleared — a pick left behind would also filter the NEXT
 // service's list down to nothing.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   closeDetail();
   resetPick();
 });

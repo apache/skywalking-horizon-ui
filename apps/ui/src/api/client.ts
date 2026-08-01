@@ -811,9 +811,11 @@ export class BffClient {
     if (res.status === 401) {
       // 401 is normal-ish (session expired) — log at 'info' rather
       // than 'err' so it doesn't read as a failure when it's just the
-      // re-auth dance.
-      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
+      // re-auth dance. Logged AFTER the hook, not before: the hook ends the
+      // session, which empties the event log — and this is the one line that
+      // explains why everything else in the ticker just vanished.
       this.on401?.();
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
       throw new BffApiError(401, 'unauthenticated', null);
     }
     if (!res.ok) {
@@ -875,8 +877,9 @@ export class BffClient {
       throw new BffApiError(0, `Cannot reach the server — the BFF is unreachable (${detail}).`, null);
     }
     if (res.status === 401) {
-      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
+      // Hook first, then log — see request(): the hook clears the event log.
       this.on401?.();
+      pushEvent('api', 'info', `${method} ${path} · 401 (re-auth)`);
       throw new BffApiError(401, 'unauthenticated', null);
     }
     if (!res.ok) {

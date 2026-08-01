@@ -71,11 +71,16 @@ export interface RosterService {
  * OAP mints a service id as `base64(<name>).<1 = normal | 0 = virtual>`
  * (`IDManager.ServiceID.buildId`), so an agent-detected service and a
  * conjectured peer that share a name are two DIFFERENT entities whose ids
- * differ in that last digit — and OAP's own name-based query input
- * (`ServiceCondition`) carries the same flag for exactly that reason. A caller
- * that holds the flag (the alarm filters read it off the roster they populated
- * the picker from) passes it here; a caller that does not gets a refusal
- * instead of a coin flip.
+ * differ in that last digit. A roster holding both answers such a name with two
+ * ids; the hint says which one was meant, and a caller that has none gets a
+ * refusal instead of a coin flip.
+ *
+ * No route passes one today, and none has to: every roster resolved here is ONE
+ * layer's (`listServices(layer)`), and a layer's services are all normal or all
+ * virtual — `ServiceTraffic` builds the id with `layer.isNormal()`, and OAP's
+ * own name-based input (`ServiceCondition`) derives the flag from the layer the
+ * same way. A name is therefore never two ids within one layer. The hint is for
+ * a roster that spans layers.
  */
 export interface ServiceNameHint {
   normal?: boolean | null;
@@ -183,8 +188,9 @@ export async function resolveRequiredService(
 /** How a route received its service: as an OAP id, as a name, or not at all.
  *  Keeping the two apart is what removes the guesswork — a UI screen that
  *  already holds the id sends `serviceId`, and only a caller that genuinely has
- *  a name (the alarm filters, the AI tools, a hand-written request) sends
- *  `service`, with `normal` alongside it when it knows. */
+ *  a name (the alarms filter's instance / endpoint pickers, a hand-written
+ *  request) sends `service`. `normal` qualifies that name; see
+ *  {@link ServiceNameHint} for why no caller sends one. */
 export interface ServiceArgs {
   /** OAP service id, trusted as an id — no lookup, no shape test. */
   serviceId?: string | null;

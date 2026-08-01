@@ -40,9 +40,8 @@ import { useTimeDefaultsStore } from '@/state/timeDefaults';
 import { useTimeRangeStore } from '@/controls/timeRange';
 import { watch } from 'vue';
 
-// Both stores expose 3-tier resolution (user pref in localStorage → OAP
-// → bundled); at construction they reflect user pref + bundled fallback,
-// and loadOrgDefault (onMounted) fills the OAP tier once auth is through.
+// Both stores resolve user pref (localStorage) → org default → in-code
+// fallback. loadOrgDefault fills the middle tier once auth is through.
 const themeStore = useThemeStore();
 const timeDefaultsStore = useTimeDefaultsStore();
 const timeRangeStore = useTimeRangeStore();

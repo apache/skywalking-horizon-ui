@@ -37,22 +37,28 @@ import { useLayerSelectionStore } from '@/state/layerSelection';
 import TraceDistribution from '@/render/widgets/TraceDistribution.vue';
 import LayerTracesView from './LayerTracesView.vue';
 
-const SONGS = { id: 'bWVzaC1zdnI6OnNvbmdz.1', name: 'songs' };
-const GATEWAY = { id: 'bWVzaC1zdnI6OmdhdGV3YXk.1', name: 'gateway' };
+/** One layer's roster. All entries are `normal` because a layer's services
+ *  either all are or none are — OAP mints the id as `buildId(name,
+ *  layer.isNormal())` — so a name resolves to exactly one id here. `tag` is the
+ *  test's own per-service label, and it names the rendered rows, so a result
+ *  set on screen can be attributed to the service that asked for it. */
+const SONGS = { id: 'bWVzaC1zdnI6OnNvbmdz.1', name: 'songs', normal: true, tag: 'songs' };
+const GATEWAY = { id: 'bWVzaC1zdnI6OmdhdGV3YXk.1', name: 'gateway', normal: true, tag: 'gateway' };
+const ROSTER = [SONGS, GATEWAY];
 const RUN = '.tr-run-btn';
 const PROMPT = 'Pick your conditions, then click Run query.';
 
-/** One row per service, named after the service that asked for it — so the
+/** One row per service, named after the entity that asked for it — so the
  *  rendered endpoint name says whose result set is on screen. */
-function traceRow(service: string): NativeTraceListRow {
+function traceRow(tag: string): NativeTraceListRow {
   return {
-    key: `${service}-row`,
-    segmentId: `${service}-segment`,
-    endpointNames: [`/${service}/checkout`],
+    key: `${tag}-row`,
+    segmentId: `${tag}-segment`,
+    endpointNames: [`/${tag}/checkout`],
     duration: 42,
     start: String(Date.now()),
     isError: false,
-    traceIds: [`${service}-trace`],
+    traceIds: [`${tag}-trace`],
   };
 }
 
@@ -82,7 +88,7 @@ function fakeBff() {
     if (path.endsWith('/landing')) {
       return jsonResponse({
         rows: [],
-        sampledRows: [SONGS, GATEWAY].map((s) => ({
+        sampledRows: ROSTER.map((s) => ({
           serviceId: s.id,
           serviceName: s.name,
           metrics: {},
@@ -93,19 +99,22 @@ function fakeBff() {
     }
     if (path.endsWith('/services')) {
       return jsonResponse({
-        services: [SONGS, GATEWAY].map((s) => ({ id: s.id, name: s.name, normal: true, group: '' })),
+        services: ROSTER.map((s) => ({ id: s.id, name: s.name, normal: s.normal, group: '' })),
         reachable: true,
       });
     }
     if (path.endsWith('/traces')) {
-      const service = typeof body.service === 'string' ? body.service : '';
+      // Answering by ID is what lets the two same-named services be told apart
+      // — a name-keyed double could not express the case at all.
+      const id = typeof body.serviceId === 'string' ? body.serviceId : '';
+      const tag = ROSTER.find((s) => s.id === id)?.tag ?? '';
       return jsonResponse({
         generatedAt: 0,
         source: 'native',
         native: {
           source: 'native',
           api: 'queryBasicTraces',
-          traces: [traceRow(service)],
+          traces: [traceRow(tag)],
           reachable: true,
         },
       });
@@ -177,7 +186,7 @@ describe('Traces tab — a service switch clears what the previous service produ
 
     await runQuery(w);
     expect(bff.to('/traces')).toHaveLength(1);
-    expect(bff.to('/traces')[0]?.body.service).toBe(SONGS.name);
+    expect(bff.to('/traces')[0]?.body.serviceId).toBe(SONGS.id);
     expect(w.text()).toContain('/songs/checkout');
 
     const readsForSongs = bff.to('/traces').length;
@@ -191,7 +200,7 @@ describe('Traces tab — a service switch clears what the previous service produ
     await runQuery(w);
     const reads = bff.to('/traces');
     expect(reads.length).toBeGreaterThan(readsForSongs);
-    for (const r of reads.slice(readsForSongs)) expect(r.body.service).toBe(GATEWAY.name);
+    for (const r of reads.slice(readsForSongs)) expect(r.body.serviceId).toBe(GATEWAY.id);
     expect(w.text()).toContain('/gateway/checkout');
   });
 
@@ -218,7 +227,7 @@ describe('Traces tab — a service switch clears what the previous service produ
 
     await runQuery(w);
     // Picking a dot filters the list in-page; the pick keys on the row it came from.
-    w.findComponent(TraceDistribution).vm.$emit('select', traceRow(SONGS.name));
+    w.findComponent(TraceDistribution).vm.$emit('select', traceRow(SONGS.tag));
     await flushPromises();
     expect(w.text()).toContain('1 picked');
 

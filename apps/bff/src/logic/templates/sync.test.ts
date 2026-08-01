@@ -18,6 +18,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { UITemplateClient, UITemplateRow } from '@skywalking-horizon-ui/api-client';
 import {
+  ambiguousConflicts,
   getSyncStatus,
   bootSeed,
   setTemplateReadOnly,
@@ -708,6 +709,69 @@ describe('duplicate / conflict reconciliation', () => {
     // The rendered row alone would be the delete target — proving why one
     // disable is not enough to remove the template.
     expect(rowOf(status, nameOf(LAYER)).remote?.id).toBe('dupe-a');
+  });
+
+  it('byte-identical copies are flagged identical — reported, but not an ambiguity', async () => {
+    // Both rows say the same thing, so there is nothing for a renderer to
+    // choose between: the layer keeps rendering. It stays on the conflict
+    // list because two rows for one name is still an operator cleanup — the
+    // next push lands on only one of them.
+    const oap = fakeOap({
+      rows: [remoteRow('dupe-a', cfgOf(LAYER)), remoteRow('dupe-b', cfgOf(LAYER)), ...seededExceptLayer()],
+    });
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.conflicts).toHaveLength(1);
+    expect(status.conflicts[0]).toMatchObject({
+      name: nameOf(LAYER),
+      enabledIds: ['dupe-a', 'dupe-b'],
+      identical: true,
+    });
+    expect(ambiguousConflicts(status, 'layer')).toEqual([]);
+  });
+
+  it('copies that differ are ambiguous — the set the navigation surfaces hide on', async () => {
+    const oap = fakeOap({
+      rows: [remoteRow('dupe-a', cfgOf(LAYER)), remoteRow('dupe-b', EDITED_GENERAL), ...seededExceptLayer()],
+    });
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.conflicts[0]?.identical).toBe(false);
+    expect(ambiguousConflicts(status, 'layer').map((c) => c.key)).toEqual(['GENERAL']);
+    // Scoped to the kind asked for — an overview page must not read a layer's
+    // duplicate as one of its own.
+    expect(ambiguousConflicts(status, 'overview')).toEqual([]);
+  });
+
+  it('a duplicated translation overlay is never an ambiguity for its parent template', async () => {
+    // Overlay rows are reported with the parent's kind AND key, so without the
+    // source-row filter a duplicated zh-CN catalog would hide the layer itself.
+    const editedZh = serializeEnvelope(
+      buildOverlayEnvelope('layer', 'GENERAL', 'zh-CN', { title: '操作员改过的标题' }),
+    );
+    const oap = fakeOap({
+      rows: [
+        ...alreadySeeded(),
+        remoteRow('a-zh-pristine', overlayCfgOf(ZH_OVERLAY)),
+        remoteRow('z-zh-edited', editedZh),
+      ],
+    });
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.conflicts.map((c) => c.name)).toEqual([overlayNameOf(ZH_OVERLAY)]);
+    expect(status.conflicts[0]?.identical).toBe(false);
+    expect(ambiguousConflicts(status, 'layer')).toEqual([]);
+  });
+
+  it('an unreadable store reports no ambiguity — hiding needs a positive signal', async () => {
+    const oap = fakeOap({
+      rows: [remoteRow('dupe-a', cfgOf(LAYER)), remoteRow('dupe-b', EDITED_GENERAL)],
+      listThrows: true,
+    });
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.unreachable).toBe(true);
+    expect(ambiguousConflicts(status, 'layer')).toEqual([]);
   });
 
   it('every duplicated name is reported with all of its enabled ids', async () => {

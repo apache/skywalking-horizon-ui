@@ -42,6 +42,7 @@ import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import {
   buildEnvelope,
   buildOverlayEnvelope,
+  isOverlayName,
   parseEnvelope,
   serializeEnvelope,
   type TemplateKind,
@@ -92,6 +93,9 @@ export interface ConflictRow {
    *  Horizon renders the lowest of these and touches none of them.
    *  Sorted, not ranked: the survivor is NOT always the first element. */
   enabledIds: string[];
+  /** Every enabled row carries byte-identical configuration — a duplicated
+   *  name, but an unambiguous definition. See {@link ambiguousConflicts}. */
+  identical: boolean;
 }
 
 export interface SyncStatus {
@@ -630,6 +634,7 @@ function parseRemoteRows(
         kind: winner.kind,
         key: winner.key,
         enabledIds: enabled.map((r) => r.id),
+        identical: enabled.every((r) => r.configuration === enabled[0]!.configuration),
       });
     }
   }
@@ -641,7 +646,7 @@ function parseRemoteRows(
   }
   if (conflicts.length > 0) {
     logger.warn(
-      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds })) },
+      { conflicts: conflicts.map((c) => ({ name: c.name, ids: c.enabledIds, identical: c.identical })) },
       'OAP UI-template name conflicts (>1 enabled row) — Horizon renders the lowest-id row and changes NOTHING on its own. ' +
         'Retiring a row does not bring its content back (OAP soft-disables; the admin Reactivate control restores the bundled default, not the disabled copy), so clean this up on OAP ' +
         'once you have confirmed which copy you want to keep.',
@@ -762,6 +767,28 @@ function mergeRows(
 
   out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
+}
+
+/**
+ * Conflicts of `kind` whose enabled copies actually DIFFER — the subset the
+ * navigation surfaces (sidebar menu, config bundle) hide on, because there
+ * the template's definition is genuinely ambiguous and no renderer gets to
+ * pick a winner for the operator.
+ *
+ * Two exclusions, both deliberate:
+ *   - byte-identical copies: the name is duplicated, the definition is not.
+ *     Hiding those would cost the operator a working dashboard to punish a
+ *     bookkeeping problem on OAP. They stay reported (`status.conflicts`).
+ *   - per-locale overlay rows: they carry their parent's `kind` + `key`, but
+ *     a duplicated translation never makes the parent's definition ambiguous.
+ *
+ * Reads `status.conflicts`, which is empty whenever the store was unreachable
+ * or unread — so hiding always follows a POSITIVE signal, never an absent one.
+ */
+export function ambiguousConflicts(status: SyncStatus, kind: TemplateKind): ConflictRow[] {
+  return status.conflicts.filter(
+    (c) => c.kind === kind && !c.identical && !isOverlayName(c.name),
+  );
 }
 
 /** Pick the OAP overlay row for the given template family + locale,

@@ -26,15 +26,17 @@
  * here is `.strict()` so a misspelled key is an error rather than a field
  * that quietly does nothing.
  *
- * {@link layerTemplateSaveSchema} is the one runtime user: the admin save
- * route runs it over layer content before it reaches OAP. It is the same body
- * as the bundled layer schema, built at a lower completeness bar — see
- * {@link buildLayerSchemas}.
+ * {@link layerTemplatePushSchema} is the one runtime user: the admin routes
+ * that PUBLISH a layer to OAP run it over the content before the write. It is
+ * the same body as the bundled layer schema, built at a lower completeness bar
+ * — see {@link buildLayerSchemas}.
  *
  * Two invariants make this worth its weight:
  *   - Widget shape is NOT re-declared: it reuses `widgetSchema`, the exact
  *     schema `POST /api/layer/:key/dashboard` enforces on the widgets the SPA
  *     posts back. A widget that fails here would 400 the whole request batch.
+ *     The push bar opens exactly one hole in it — see
+ *     {@link BLANK_EXPRESSION_STAND_IN}.
  *   - Header-column shape mirrors `POST /api/layer/:key/landing`'s body schema
  *     (aggregation enum, precision range, ≤10 columns) for the same reason:
  *     the SPA forwards these columns verbatim, so a value the route rejects
@@ -102,12 +104,54 @@ const componentsSchema = z
   })
   .strict();
 
+/**
+ * The one thing the push bar accepts that the shared `widgetSchema` cannot:
+ * a widget whose MQE is still blank. "Add widget" seeds `expressions: ['']`,
+ * and the layer renderer filters blank expressions out of the batch before it
+ * posts (a half-authored leaf renders as "no data" instead of being queried),
+ * so a blank is work in progress the runtime already tolerates — refusing the
+ * publish over it is what leaves an operator unable to push after adding a
+ * widget. The dashboard ROUTE must keep rejecting blanks (one would 400 the
+ * whole batch), so the relaxation lives here: blanks are swapped for this
+ * stand-in index-for-index — every other issue path stays exact — and the
+ * substitution never leaves this module. The routes store the operator's own
+ * JSON; this parse only decides accept / reject.
+ */
+const BLANK_EXPRESSION_STAND_IN = '<blank>';
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function fillBlankExpressions(widget: unknown): unknown {
+  if (!isRecord(widget)) return widget;
+  const out: Record<string, unknown> = { ...widget };
+  if (Array.isArray(out.expressions)) {
+    out.expressions = out.expressions.map((e) =>
+      typeof e === 'string' && e.trim() === '' ? BLANK_EXPRESSION_STAND_IN : e,
+    );
+  }
+  // A `tab` widget's panels hold leaf widgets, seeded blank the same way.
+  if (Array.isArray(out.tabs)) {
+    out.tabs = out.tabs.map((tab) =>
+      isRecord(tab) && Array.isArray(tab.widgets)
+        ? { ...tab, widgets: tab.widgets.map(fillBlankExpressions) }
+        : tab,
+    );
+  }
+  return out;
+}
+
+const pushWidgetSchema = z.preprocess(fillBlankExpressions, widgetSchema);
+
 /** `dashboards.<scope>` — the key set is `DashboardScope`, reused from the
  *  dashboard route so a scope typo (which would render an empty grid) fails
  *  here instead. */
-const dashboardsShape: Record<string, z.ZodOptional<z.ZodArray<typeof widgetSchema>>> = {};
-for (const scope of scopeSchema.options) dashboardsShape[scope] = z.array(widgetSchema).optional();
-const dashboardsSchema = z.object(dashboardsShape).strict();
+function dashboardsSchemaFor<T extends z.ZodTypeAny>(widget: T) {
+  const shape: Record<string, z.ZodOptional<z.ZodArray<T>>> = {};
+  for (const scope of scopeSchema.options) shape[scope] = z.array(widget).optional();
+  return z.object(shape).strict();
+}
 
 /**
  * The layer schema, built twice from one body at two completeness bars.
@@ -116,16 +160,17 @@ const dashboardsSchema = z.object(dashboardsShape).strict();
  * list, a blank alias: shipped config that can never render anything is a
  * defect, so CI fails on it.
  *
- * `complete: false` — content on its way to OAP through the admin save route.
+ * `complete: false` — content on its way to OAP through an admin PUSH route.
  * The layer editor produces exactly those holes as ordinary work in progress:
  * opening the Topology / API-dependency / network-profiling tab seeds its block
- * with EMPTY metric lists, every "Add metric" seeds `mqe: ""`, "Add role pair"
- * seeds `metrics: []` and `primary: ""`, switching a grouping rule to
- * name-regex seeds `pattern: ""` (and clearing it drops the key entirely), and
- * every free-text field clears to `""`. None of that breaks the layer — an
- * unparseable expression comes back as a per-alias error from OAP, so only that
- * one metric reads "—". The save boundary therefore rejects MALFORMED content,
- * not INCOMPLETE content.
+ * with EMPTY metric lists, every "Add metric" seeds `mqe: ""`, "Add widget"
+ * seeds `expressions: [""]`, "Add role pair" seeds `metrics: []` and
+ * `primary: ""`, switching a grouping rule to name-regex seeds `pattern: ""`
+ * (and clearing it drops the key entirely), and every free-text field clears to
+ * `""`. None of that breaks the layer — an unparseable expression comes back as
+ * a per-alias error from OAP, so only that one metric reads "—", and a blank one
+ * is dropped from the batch before it is queried. The push boundary therefore
+ * rejects MALFORMED content, not INCOMPLETE content.
  *
  * Both bars keep every shape whose failure takes a whole page down: widgets
  * (the dashboard route 400s the entire batch), header columns (same for the
@@ -133,6 +178,7 @@ const dashboardsSchema = z.object(dashboardsShape).strict();
  * keys / wrong types / bad enums anywhere.
  */
 function buildLayerSchemas(complete: boolean) {
+  const dashboardsSchema = dashboardsSchemaFor(complete ? widgetSchema : pushWidgetSchema);
   /** Free text that means nothing when empty. */
   const text = complete ? z.string().min(1) : z.string();
   /** A list that means nothing when empty. */
@@ -298,7 +344,7 @@ function buildLayerSchemas(complete: boolean) {
       // Legacy alias the loader still reads (older / operator-exported files).
       metrics: headerSchema.optional(),
       dashboards: dashboardsSchema.optional(),
-      widgets: z.array(widgetSchema).optional(),
+      widgets: z.array(complete ? widgetSchema : pushWidgetSchema).optional(),
       topology: topologySchema.optional(),
       endpointDependency: endpointDependencySchema.optional(),
       processTopology: processTopologySchema.optional(),
@@ -324,20 +370,24 @@ function buildLayerSchemas(complete: boolean) {
 
 export const layerTemplateSchema = buildLayerSchemas(true).layer;
 
-const saveSchemas = buildLayerSchemas(false);
+const pushSchemas = buildLayerSchemas(false);
 
 /**
- * Layer content as the admin SAVE boundary accepts it
- * (`POST /api/admin/templates/save`), so a hand-edited or imported template is
+ * Layer content as the admin PUSH boundary accepts it — the routes that make a
+ * template live for everyone (`POST /api/admin/templates/save`, `…/:name/
+ * push-bundled`, `…/sync-all`), so a hand-edited or imported template is
  * rejected per-field instead of being stored and breaking that layer for every
- * user. Same body as {@link layerTemplateSchema} at the save completeness bar
- * (see {@link buildLayerSchemas}), plus the one key a stored row carries that a
+ * user. Nothing earlier is checked: a browser-local draft is expected to be
+ * half-authored, and only this step publishes.
+ *
+ * Same body as {@link layerTemplateSchema} at the push completeness bar (see
+ * {@link buildLayerSchemas}), plus the one key a stored row carries that a
  * bundled file never should: `header`, which the layer loader adds to every
  * template it serves (normalising `layer-header` / the legacy `metrics`), so it
  * rides along in every row the editor loads and pushes back.
  */
-export const layerTemplateSaveSchema = saveSchemas.layer.extend({
-  header: saveSchemas.headerSchema.optional(),
+export const layerTemplatePushSchema = pushSchemas.layer.extend({
+  header: pushSchemas.headerSchema.optional(),
 });
 
 /** Overview KPI. `source: 'service-count'` reads the layer's service count

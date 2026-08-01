@@ -40,10 +40,17 @@
  *   - Polled every 1 min (POLL_INTERVAL_MS). Fast enough that a new
  *     firing alarm shows up within a refresh; slow enough that the cost
  *     is negligible.
+ *   - The sets are module-level, so they outlive the page. An identity
+ *     change empties them through the session-reset seam: `/3d/map`
+ *     carries no route verb, so a new operator can land here straight
+ *     after signing in, and until the first poll returns the cubes are
+ *     painted from whatever the sets hold (a poll that FAILS leaves them
+ *     standing indefinitely).
  */
 
 import { onMounted, onUnmounted, readonly, ref, shallowRef } from 'vue';
 import { bff } from '../../../api/client';
+import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 
 const TWENTY_MIN_MS = 20 * 60_000;
 const POLL_INTERVAL_MS = 60_000;
@@ -73,9 +80,21 @@ let timer: ReturnType<typeof setInterval> | null = null;
 let inflight: Promise<void> | null = null;
 let refcount = 0;
 
+onSessionReset(() => {
+  inflight = null;
+  alarmedKeys.value = new Set();
+  alarmedNamesNoLayer.value = new Set();
+  lastUpdatedAt.value = null;
+  error.value = null;
+});
+
 async function refresh(): Promise<void> {
   if (inflight) return inflight;
   const now = Date.now();
+  // A poll that started under the previous identity must not publish into the
+  // sets the reset just emptied, nor clear the `inflight` slot a poll started
+  // after it now owns.
+  const epoch = sessionEpoch();
   inflight = (async () => {
     try {
       const r = await bff.alarms.list({
@@ -97,14 +116,16 @@ async function refresh(): Promise<void> {
         if (m.layerKey) keys.add(alarmKey(m.layerKey, m.name));
         else namesNoLayer.add(m.name);
       }
+      if (!isCurrentEpoch(epoch)) return;
       alarmedKeys.value = keys;
       alarmedNamesNoLayer.value = namesNoLayer;
       lastUpdatedAt.value = Date.now();
       error.value = null;
     } catch (err) {
+      if (!isCurrentEpoch(epoch)) return;
       error.value = err instanceof Error ? err.message : String(err);
     } finally {
-      inflight = null;
+      if (isCurrentEpoch(epoch)) inflight = null;
     }
   })();
   return inflight;

@@ -17,14 +17,16 @@
 
 /**
  * The sidebar's duplicate-template contract. A layer whose template name
- * sits on more than one ENABLED OAP record has no single definition, so the
- * menu drops it instead of routing an operator into a dashboard nobody can
- * identify — and says so in the log, because a menu entry that vanished
- * without explanation is worse than the duplicate itself.
+ * sits on more than one ENABLED OAP record, with the copies carrying
+ * different content, has no single definition, so the menu drops it instead
+ * of routing an operator into a dashboard nobody can identify — and says so
+ * in the log, because a menu entry that vanished without explanation is
+ * worse than the duplicate itself.
  *
  * The other half of the contract is that hiding only ever follows a
- * POSITIVE conflict signal: a template status we could not read, and a
- * duplicate that isn't this layer's own definition, both show everything.
+ * POSITIVE ambiguity signal: a template status we could not read, a
+ * duplicate that isn't this layer's own definition, and byte-identical
+ * copies (same dashboard either way) all show everything.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -165,6 +167,20 @@ describe('menu — a duplicated layer template is not navigable', () => {
     expect(keys).not.toContain('general');
     // Only the ambiguous one goes — its neighbours are untouched.
     expect(keys).toContain('mesh');
+  });
+
+  it('keeps a layer whose two enabled records are byte-identical', async () => {
+    // Same bytes on both records: whichever one renders, the operator sees the
+    // same dashboard. Hiding it would cost them a working layer to punish a
+    // bookkeeping problem on OAP — the admin banner still reports the duplicate.
+    const keys = await menuKeys([
+      row('dupe-a', layerCfg('GENERAL', 'General Service')),
+      row('dupe-b', layerCfg('GENERAL', 'General Service')),
+      row('mesh-1', layerCfg('MESH', 'Service Mesh')),
+    ]);
+    expect(keys).toContain('general');
+    expect(keys).toContain('mesh');
+    expect(hiddenWarns()).toHaveLength(0);
   });
 
   it('keeps a layer whose only twin is a disabled tombstone', async () => {

@@ -31,7 +31,10 @@
  * template is disabled / missing its remote row, that entry is simply
  * absent from the bundle (the SPA blocks via the connectivity banner /
  * falls to per-page in-code defaults), rather than masked by stale
- * bundled config.
+ * bundled config. An overview whose name sits on several enabled OAP
+ * records with differing content is dropped for the same reason the
+ * sidebar drops a duplicated layer: there is no single definition to
+ * serve, and picking one for the operator is not the renderer's call.
  *
  * `syncStatus` carries per-template badges for the admin pages so the
  * SPA can render `synced / diverged / disabled / remote-only /
@@ -61,6 +64,7 @@ import {
 } from '../../logic/layers/loader.js';
 import { loadOverviewDashboards } from '../../logic/overview/loader.js';
 import {
+  ambiguousConflicts,
   getSyncStatus,
   findOverlayRow,
   type TemplateRow,
@@ -101,12 +105,15 @@ export interface BundleSyncStatus {
   }>;
   /** Names where >1 enabled OAP record exists. Empty when clean.
    *  Admin pages render a banner so the operator can disable extras
-   *  (the lowest id is the one Horizon renders — see `ConflictRow`). */
+   *  (the lowest id is the one Horizon renders — see `ConflictRow`).
+   *  Every duplicate is reported here, including the `identical` ones
+   *  `overviews` keeps serving. */
   conflicts: Array<{
     name: string;
     kind: TemplateKind;
     key: string;
     enabledIds: string[];
+    identical: boolean;
   }>;
 }
 
@@ -205,10 +212,13 @@ async function buildBundle(
     }
   }
 
+  const ambiguousOverviews = new Set(ambiguousConflicts(sync, 'overview').map((c) => c.name));
+
   const overviews: OverviewDashboard[] = [];
   const diskOverviewIds = new Set<string>();
   for (const dash of loadOverviewDashboards()) {
     diskOverviewIds.add(dash.id);
+    if (ambiguousOverviews.has(formatName('overview', dash.id))) continue;
     const picked = pickOverviewContent(dash, remoteByName, preferLocal);
     if (picked === null) continue; // disabled
     overviews.push(localizeContent(picked, oapOverlayFor('overview', picked.id), locale));
@@ -220,6 +230,7 @@ async function buildBundle(
   for (const row of sync.rows) {
     if (row.kind !== 'overview' || row.status === 'disabled' || !row.remote) continue;
     if (row.locale !== undefined) continue; // skip per-locale overlay rows
+    if (ambiguousOverviews.has(row.name)) continue;
     const env = parseEnvelope(row.remote.configuration);
     if (!env || !isOverviewLike(env.content)) continue;
     const dash = env.content as OverviewDashboard;
