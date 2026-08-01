@@ -539,6 +539,10 @@ export interface AlarmsQuery {
   /** New-API mode only — narrows to alarms in this OAP layer. */
   layer?: string;
   service?: string;
+  /** `normal` flag of `service` — false for a conjectural (virtual)
+   *  service. Part of the OAP entity id, so the wrong flag filters to
+   *  no rows. Omitted means normal, as OAP itself assumes. */
+  normal?: boolean;
   instance?: string;
   endpoint?: string;
 }

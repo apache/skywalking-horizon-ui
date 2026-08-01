@@ -187,7 +187,7 @@ const {
   effectiveInstance,
   instanceResolvable,
   instAtCap,
-} = useInstanceCascade(layerKey, scope, serviceName, layer);
+} = useInstanceCascade(layerKey, scope, serviceName, selectedId, layer);
 const {
   selectedEndpoint,
   setSelectedEndpoint,

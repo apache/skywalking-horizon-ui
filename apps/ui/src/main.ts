@@ -16,11 +16,12 @@
  */
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
-import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query';
+import { VueQueryPlugin } from '@tanstack/vue-query';
 
 import App from './App.vue';
 import router from './shell/router/index';
 import { bffClient } from './api/client';
+import { queryClient } from './api/queryClient';
 import { useAuthStore } from './state/auth';
 import { useThemeStore } from './state/theme';
 import { i18n } from './i18n';
@@ -42,16 +43,6 @@ import '@skywalking-horizon-ui/design-tokens/tokens.css';
 // the default).
 import '@skywalking-horizon-ui/design-tokens/themes.css';
 import './assets/styles/global.css';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5_000,
-      refetchOnWindowFocus: true,
-      retry: 1,
-    },
-  },
-});
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -77,11 +68,12 @@ app.use(i18n);
 // resolve.
 useThemeStore();
 
-// Mid-session 401 → clear auth state and bounce to login while preserving the
-// current path so the user can be returned after re-auth.
+// Mid-session 401 → end the session (auth state + every cached response) and
+// bounce to login while preserving the current path so the user can be
+// returned after re-auth.
 bffClient.setOn401(() => {
   const auth = useAuthStore();
-  auth.$patch({ user: null });
+  auth.endSession();
   const redirect = router.currentRoute.value.fullPath;
   if (router.currentRoute.value.name !== 'login') {
     void router.push({ name: 'login', query: { redirect } });

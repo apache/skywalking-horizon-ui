@@ -58,6 +58,7 @@ import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
+import { serviceById, serviceByName, type ServiceArg } from '@/utils/serviceRef';
 import { watch } from 'vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 
@@ -154,9 +155,15 @@ function clearEndpointSearch(): void {
   endpointSearchInput.value = '';
   endpointQuery.value = '';
 }
+// Gated on the NAME (the cascade-strict rule below), but sent as the picked
+// OAP id — an endpoint search must land on the service the operator selected,
+// not on whatever the layer roster resolves that display name to.
+const endpointService = computed<ServiceArg | null>(() =>
+  serviceName.value ? (serviceById(selectedId.value) ?? serviceByName(serviceName.value)) : null,
+);
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
-  serviceName,
+  endpointService,
   endpointQuery,
   endpointLimit,
   // A replay map pins its endpoint from replayData + hides the picker — no fetch.

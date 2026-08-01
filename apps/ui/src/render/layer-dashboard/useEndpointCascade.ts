@@ -25,6 +25,7 @@
 
 import { computed, ref, watch, watchEffect, type ComputedRef, type Ref } from 'vue';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
+import { serviceById, serviceByName, type ServiceArg } from '@/utils/serviceRef';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { pushEvent } from '@/controls/eventLog';
 import { MAX_LOCKED } from '@/state/layerSelection';
@@ -58,10 +59,14 @@ export function useEndpointCascade(
     endpointQuery.value = '';
   }
   // Same cascade-strict rule as instance list — endpoint list
-  // waits for `serviceName` (post-landing), not the URL handle.
+  // waits for `serviceName` (post-landing), not the URL handle. The
+  // search itself is scoped by the picked id, not by that name.
+  const endpointService = computed<ServiceArg | null>(() =>
+    serviceName.value ? (serviceById(selectedId.value) ?? serviceByName(serviceName.value)) : null,
+  );
   const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
     layerKey,
-    serviceName,
+    endpointService,
     endpointQuery,
     endpointLimit,
   );
@@ -76,7 +81,7 @@ export function useEndpointCascade(
     return endpointList.value.some((e) => e.name === pinned) ? '' : pinned;
   });
   const { endpoints: pinnedEndpointMatches, isFetching: pinnedEndpointLoading } =
-    useLayerEndpoints(layerKey, serviceName, pinnedEndpointQuery, endpointLimit);
+    useLayerEndpoints(layerKey, endpointService, pinnedEndpointQuery, endpointLimit);
   // Endpoint-scope orchestration — explicit sequence so the loading
   // flow is deterministic:
   //   1. wait for landing rows

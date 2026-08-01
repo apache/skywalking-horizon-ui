@@ -40,6 +40,7 @@ import { useTemplatePreference } from '@/controls/templatePreference';
 import { useLocalTemplateEdits, layerEditName, overviewEditName } from '@/controls/localTemplateEdits';
 import { usePreviewMode, getPreviewSource } from '@/controls/previewMode';
 import { usePreviewOverride } from '@/controls/previewOverride';
+import { onSessionReset } from '@/state/sessionReset';
 import type { ConfigBundle, BundleScopeMap } from '@/api/scopes/configs';
 import type { DashboardWidget, OverviewDashboard } from '@skywalking-horizon-ui/api-client';
 
@@ -93,6 +94,15 @@ function preferParam(): 'local' | 'remote' {
 const STORAGE_KEY = 'horizon:configBundle:v3';
 const state = ref<ConfigBundle | null>(null);
 let loadPromise: Promise<void> | null = null;
+
+// The load is one-shot per page load, so without dropping the promise the next
+// AppShell mount (a second operator signing in to the same tab) would keep
+// rendering the bundle fetched for the previous session and never re-validate
+// it — including whichever local-vs-remote template preference produced it.
+onSessionReset(() => {
+  state.value = null;
+  loadPromise = null;
+});
 
 function readStorage(): ConfigBundle | null {
   if (typeof localStorage === 'undefined') return null;

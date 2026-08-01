@@ -30,6 +30,7 @@ import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerServices } from '@/layer/useLayerServices';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { serviceById } from '@/utils/serviceRef';
 import { bffClient } from '@/api/client';
 import type {
   AsyncProfilingEvent,
@@ -48,7 +49,7 @@ const { t } = useI18n();
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { selectedId: serviceId } = useSelectedService();
-const instances = useLayerInstances(layerKey, serviceId);
+const instances = useLayerInstances(layerKey, computed(() => serviceById(serviceId.value)));
 const { services: roster } = useLayerServices(layerKey);
 const serviceName = computed<string | null>(
   () => roster.value.find((s) => s.id === serviceId.value)?.name ?? null,

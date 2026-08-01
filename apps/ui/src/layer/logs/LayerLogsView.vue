@@ -38,6 +38,7 @@ import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
@@ -98,6 +99,7 @@ const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // the whole layer under this service's title.
 const {
   name: serviceName,
+  ref: serviceRef,
   status: serviceStatus,
   ready: serviceReady,
 } = useLayerTabService(layerKey, landing, {
@@ -139,7 +141,7 @@ const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 // How the picked instance is used depends on `logScope`: pinned primary
 // selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: instanceList } = useLayerInstances(layerKey, toolbarService);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
@@ -173,7 +175,7 @@ function clearEndpoint(): void {
 }
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
-  serviceName,
+  serviceRef,
   endpointQuery,
   endpointLimit,
   replay,
@@ -247,7 +249,7 @@ const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFil
 // it runs on initial service load, on each "Run query", and on a service
 // switch. `page`/`pageSize` stay live; there is no periodic refresh.
 interface AppliedLogConditions {
-  service: string | null;
+  service: ServiceRef | null;
   instanceId: string | null;
   endpointId: string | null;
   traceId: string | null;
@@ -259,7 +261,7 @@ interface AppliedLogConditions {
 }
 function snapshotConditions(): AppliedLogConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     instanceId: instanceIdRef.value,
     endpointId: endpointIdRef.value,
     traceId: traceIdRef.value,

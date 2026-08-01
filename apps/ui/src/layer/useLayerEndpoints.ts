@@ -21,15 +21,20 @@
  * a service is selected. The query is debounced upstream by the
  * picker UI; here we just thread `query` into the queryKey so a new
  * keyword refetches.
+ *
+ * `service` says which handle the caller holds — pass `serviceById(...)`
+ * from a screen with a picker selection (the common case: the pickers
+ * select by OAP id), a bare name only when that is all there is.
  */
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import type { ServiceArg } from '@/utils/serviceRef';
 
 export function useLayerEndpoints(
   layerKey: Ref<string>,
-  service: Ref<string | null>,
+  service: Ref<ServiceArg | null>,
   query: Ref<string>,
   limit: Ref<number>,
   /** REPLAY mode gate: a replay endpoint-dependency map pins its endpoint from the

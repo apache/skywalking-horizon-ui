@@ -39,6 +39,13 @@
  *   - `pageSize` is capped at 500 so the header KPIs + frontend pager
  *     can work from a single fetch. The COUNT route uses a 200 cap
  *     since it skips the snapshot payload.
+ *   - The entity filter carries the picked service's `normal` flag
+ *     because it is part of the OAP service id
+ *     (`base64(name).1` normal / `.0` virtual, `IDManager.ServiceID`).
+ *     Filtering a VIRTUAL (conjectural) service with the wrong flag
+ *     builds the id of a service that doesn't exist, so OAP answers
+ *     with nothing. `/api/alarms/services` returns each roster entry's
+ *     flag for the caller to send back.
  *   - Layer tagging on each row uses the cached service-name → layer
  *     index. Entries the index can't resolve (e.g. instance-scope
  *     alarms whose name doesn't carry a service prefix) get
@@ -263,6 +270,15 @@ const alarmsQuerySchema = z.object({
   /** New-mode only. Combined with `instance` / `endpoint` to build a
    *  single `Entity` filter. When absent, no entity narrowing. */
   service: z.string().optional(),
+  /** `normal` flag of `service` — true for an agent-reporting service,
+   *  false for a conjectural (virtual) one. Only `true` / `false` are
+   *  accepted: anything looser would coerce a typo into "normal" and
+   *  quietly filter a virtual service down to no rows. Absent means
+   *  true, which is also what OAP assumes for an omitted flag. */
+  normal: z
+    .union([z.literal('true'), z.literal('false')])
+    .transform((v) => v === 'true')
+    .optional(),
   instance: z.string().optional(),
   endpoint: z.string().optional(),
 });
@@ -272,11 +288,13 @@ const countQuerySchema = z.object({
   endTime: z.coerce.number().int().positive(),
 });
 
-/* Translate the cascade fields (`layer`, `service`, `instance`,
- * `endpoint`) into the smallest precise `Entity` that the
+/* Translate the cascade fields (`layer`, `service`, `normal`,
+ * `instance`, `endpoint`) into the smallest precise `Entity` that the
  * queryAlarms `condition.entities` filter accepts. Scope is inferred
  * from which name fields are populated — same convention OAP itself
- * uses (see alarm.graphqls comment on `entities`).
+ * uses (see alarm.graphqls comment on `entities`). `normal` rides on
+ * every scope: instance and endpoint ids are built on top of the
+ * service id, which encodes the flag.
  *
  * Returns null when no entity narrowing is requested. The caller then
  * omits `entities` from the condition entirely, leaving `layers`
@@ -292,11 +310,16 @@ interface EntityFilter {
 }
 function buildEntity(q: {
   service?: string;
+  normal?: boolean;
   instance?: string;
   endpoint?: string;
 }): EntityFilter | null {
   if (!q.service) return null;
-  const base: EntityFilter = { scope: 'Service', serviceName: q.service, normal: true };
+  const base: EntityFilter = {
+    scope: 'Service',
+    serviceName: q.service,
+    normal: q.normal ?? true,
+  };
   if (q.endpoint && !q.instance) {
     return { ...base, scope: 'Endpoint', endpointName: q.endpoint };
   }

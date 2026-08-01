@@ -19,10 +19,13 @@ import { describe, it, expect } from 'vitest';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { GraphqlOptions } from '../../client/graphql.js';
 import {
+  matchServiceInRoster,
   resolveRequiredService,
   resolveRequiredServiceArgs,
   resolveServiceArgs,
   resolveServiceScope,
+  serviceArgsFromQuery,
+  type RosterService,
 } from './service-scope.js';
 
 const SERVICE_ID = 'bWVzaC1zdnI6OnNvbmdz.1';
@@ -32,7 +35,7 @@ interface Captured {
   variables: Record<string, unknown>;
 }
 
-function oap(services: Array<{ id: string; name: string }> | null): {
+function oap(services: RosterService[] | null): {
   opts: GraphqlOptions;
   calls: Captured[];
 } {
@@ -152,6 +155,104 @@ describe('resolveServiceArgs — the caller says which slot it filled', () => {
       serviceId: SERVICE_ID,
     });
     expect(calls).toHaveLength(0);
+  });
+});
+
+// OAP mints a service id as `base64(<name>).<1 normal | 0 virtual>`, so an
+// agent-detected service and a conjectured peer of the same name are two
+// entities one string cannot tell apart.
+describe('a NAME shared by a normal and a virtual service', () => {
+  const NORMAL = { id: 'cGF5bWVudHM=.1', name: 'payments', normal: true };
+  const VIRTUAL = { id: 'cGF5bWVudHM=.0', name: 'payments', normal: false };
+  const roster = [NORMAL, VIRTUAL];
+
+  it('resolves to the one the caller asked for', () => {
+    expect(matchServiceInRoster(roster, 'payments', 'mesh', { normal: true })).toEqual({
+      kind: 'service',
+      serviceId: NORMAL.id,
+    });
+    expect(matchServiceInRoster(roster, 'payments', 'mesh', { normal: false })).toEqual({
+      kind: 'service',
+      serviceId: VIRTUAL.id,
+    });
+  });
+
+  it('refuses — rather than picking one — when the caller carried no flag', () => {
+    const scope = matchServiceInRoster(roster, 'payments', 'mesh');
+    expect(scope).toMatchObject({ kind: 'unknown', serviceArg: 'payments' });
+    expect(scope.kind === 'unknown' && scope.message).toContain('normal and a virtual');
+  });
+
+  it('reports the missing side by name when only the other one exists', () => {
+    const scope = matchServiceInRoster([NORMAL], 'payments', 'mesh', { normal: false });
+    expect(scope).toMatchObject({ kind: 'unknown' });
+    expect(scope.kind === 'unknown' && scope.message).toContain('No virtual service "payments"');
+  });
+
+  it('keeps a flagless roster row usable — an absent flag cannot contradict the hint', () => {
+    expect(
+      matchServiceInRoster([{ id: SERVICE_ID, name: 'songs' }], 'songs', 'mesh', { normal: false }),
+    ).toEqual({ kind: 'service', serviceId: SERVICE_ID });
+  });
+
+  it('carries the flag through the route-arg path', async () => {
+    const { opts } = oap(roster);
+    expect(await resolveServiceArgs(opts, 'mesh', { service: 'payments', normal: false })).toEqual({
+      kind: 'service',
+      serviceId: VIRTUAL.id,
+    });
+    expect(await resolveRequiredServiceArgs(opts, 'mesh', { service: 'payments', normal: true })).toEqual({
+      kind: 'service',
+      serviceId: NORMAL.id,
+    });
+  });
+});
+
+// The name slot matches names first. When the same string is one service's
+// NAME and another's id, the slot cannot say which was meant.
+describe('a string that is one service\'s name and another\'s id', () => {
+  const roster = [
+    { id: 'YXBpLjE=.1', name: 'api.1', normal: true },
+    { id: 'api.1', name: 'gateway', normal: true },
+  ];
+
+  it('refuses instead of silently taking the name', () => {
+    const scope = matchServiceInRoster(roster, 'api.1', 'mesh');
+    expect(scope).toMatchObject({ kind: 'unknown', serviceArg: 'api.1' });
+    expect(scope.kind === 'unknown' && scope.message).toContain('serviceId');
+  });
+
+  // The caller that says "this is an id" is never in doubt — no lookup runs at all.
+  it('answers the same string, said to be an id, with that id', async () => {
+    const { opts, calls } = oap(roster);
+    expect(await resolveServiceArgs(opts, 'mesh', { serviceId: 'api.1' })).toEqual({
+      kind: 'service',
+      serviceId: 'api.1',
+    });
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('serviceArgsFromQuery', () => {
+  it('keeps the two slots apart and trims them', () => {
+    expect(serviceArgsFromQuery({ serviceId: ` ${SERVICE_ID} ` })).toEqual({
+      serviceId: SERVICE_ID,
+      service: '',
+      normal: null,
+    });
+    expect(serviceArgsFromQuery({ service: ' songs ' })).toEqual({
+      serviceId: '',
+      service: 'songs',
+      normal: null,
+    });
+  });
+
+  it('reads `normal` only when it is literally true/false', () => {
+    expect(serviceArgsFromQuery({ service: 's', normal: 'true' }).normal).toBe(true);
+    expect(serviceArgsFromQuery({ service: 's', normal: 'FALSE' }).normal).toBe(false);
+    for (const junk of ['', '1', 'yes', undefined]) {
+      expect(serviceArgsFromQuery({ service: 's', normal: junk }).normal).toBeNull();
+    }
   });
 });
 

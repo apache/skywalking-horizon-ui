@@ -27,6 +27,7 @@ import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import * as monaco from 'monaco-editor';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { serviceById } from '@/utils/serviceRef';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerPodLogs, WINDOW_OPTS, INTERVAL_OPTS } from './useLayerPodLogs';
@@ -36,10 +37,10 @@ const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 
-// Service comes from the shell header picker; feed its id straight to
-// the instances list (the BFF route accepts id OR name).
+// Service comes from the shell header picker, which selects by OAP id —
+// the pod list is fetched by that id, not by the name it displays.
 const { selectedId } = useSelectedService();
-const { instances: instanceList } = useLayerInstances(layerKey, selectedId);
+const { instances: instanceList } = useLayerInstances(layerKey, computed(() => serviceById(selectedId.value)));
 
 // Pod (instance) is the pinned entity; resolve the picked name to its OAP id.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();

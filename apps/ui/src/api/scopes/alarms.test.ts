@@ -59,6 +59,27 @@ describe('AlarmsApi.list — query param assembly', () => {
     );
   });
 
+  it('forwards the service normal flag in both states', async () => {
+    const virtual = makeStub();
+    await new AlarmsApi(virtual.bff).list({
+      startTime: 1,
+      endTime: 2,
+      service: 'mysql-a',
+      normal: false,
+    });
+    expect(virtual.calls[0][1]).toContain('service=mysql-a&normal=false');
+
+    const real = makeStub();
+    await new AlarmsApi(real.bff).list({ startTime: 1, endTime: 2, service: 'songs', normal: true });
+    expect(real.calls[0][1]).toContain('service=songs&normal=true');
+  });
+
+  it('omits the normal flag when the caller did not resolve one', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, service: 'songs' });
+    expect(calls[0][1]).not.toContain('normal');
+  });
+
   it('forwards scope + keyword when present', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({

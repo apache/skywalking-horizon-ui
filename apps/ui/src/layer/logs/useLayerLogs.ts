@@ -18,10 +18,14 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 import type { LogFacetsResponse, LogsResponse, LogTagFilter } from '@/api/client';
 
 export interface LogListParams {
-  service: Ref<string | null>;
+  /** The service to scope by, as the tab holds it: the picked OAP id on a
+   *  route, a name inside a chat block. Null runs the read unscoped, which
+   *  only a caller with no service at all may do. */
+  service: Ref<ServiceRef | null>;
   instanceId: Ref<string | null>;
   endpointId: Ref<string | null>;
   traceId: Ref<string | null>;
@@ -62,7 +66,7 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
     ],
     queryFn: () =>
       bffClient.log.list(layerKey.value, {
-        ...(params.service.value ? { service: params.service.value } : {}),
+        ...serviceRefFields(params.service.value),
         ...(params.instanceId.value ? { serviceInstanceId: params.instanceId.value } : {}),
         ...(params.endpointId.value ? { endpointId: params.endpointId.value } : {}),
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),
@@ -114,7 +118,9 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
  * since facets are unfiltered + always sampled from page 1.
  */
 export interface LogFacetParams {
-  service: Ref<string | null>;
+  /** Same handle the row query carries — the facet sample must count the SAME
+   *  service, not one re-resolved from a name. */
+  service: Ref<ServiceRef | null>;
   instanceId: Ref<string | null>;
   endpointId: Ref<string | null>;
   traceId: Ref<string | null>;
@@ -144,7 +150,7 @@ export function useLayerLogFacets(layerKey: Ref<string>, params: LogFacetParams)
     ],
     queryFn: () =>
       bffClient.log.facets(layerKey.value, {
-        ...(params.service.value ? { service: params.service.value } : {}),
+        ...serviceRefFields(params.service.value),
         ...(params.instanceId.value ? { serviceInstanceId: params.instanceId.value } : {}),
         ...(params.endpointId.value ? { endpointId: params.endpointId.value } : {}),
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),

@@ -37,6 +37,7 @@ import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { serviceById } from '@/utils/serviceRef';
 import { bffClient } from '@/api/client';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import type {
@@ -62,7 +63,7 @@ const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology')
 const { selectedId: serviceId } = useSelectedService();
 
 // Instance picker — plain ref state (not the URL-bound useSelectedInstance).
-const instances = useLayerInstances(layerKey, serviceId);
+const instances = useLayerInstances(layerKey, computed(() => serviceById(serviceId.value)));
 const selectedInstanceId = ref<string | null>(null);
 watch(
   () => instances.instances.value,

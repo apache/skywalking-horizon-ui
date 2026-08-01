@@ -25,6 +25,7 @@
 
 import { computed, ref, watch, type ComputedRef, type Ref } from 'vue';
 import { useLayerInstances } from '@/layer/useLayerInstances';
+import { serviceById, serviceByName, type ServiceArg } from '@/utils/serviceRef';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { pushEvent } from '@/controls/eventLog';
 import { MAX_LOCKED } from '@/state/layerSelection';
@@ -41,6 +42,8 @@ export function useInstanceCascade(
   layerKey: Ref<string>,
   scope: ComputedRef<string>,
   serviceName: ComputedRef<string | null>,
+  /** The picked OAP id — what the list is actually fetched by. */
+  selectedId: ComputedRef<string | null>,
   layer: ComputedRef<LayerDef | null>,
 ) {
   const {
@@ -54,9 +57,13 @@ export function useInstanceCascade(
   // Instance list waits for `serviceName` (post-landing), not the URL
   // id fallback. Enforces the cascade: landing → service → instance →
   // metrics, each step firing exactly once after the prior resolves.
+  // It is FETCHED by the picked id, though — the name only gates it.
+  const instanceService = computed<ServiceArg | null>(() =>
+    serviceName.value ? (serviceById(selectedId.value) ?? serviceByName(serviceName.value)) : null,
+  );
   const { instances: instanceList, isFetching: instancesLoading } = useLayerInstances(
     layerKey,
-    serviceName,
+    instanceService,
   );
 
   /** Track which row's attributes panel is open. Mutually exclusive —

@@ -28,6 +28,7 @@ import type {
   TopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
+import { serviceRefFields, toServiceRef, type ServiceArg } from '@/utils/serviceRef';
 import type { BffClient } from '../client';
 
 /** BFF cap on widgets per `/api/layer/:key/dashboard` body. Mirrors
@@ -137,9 +138,12 @@ export class LayerApi {
     };
   }
 
+  /** Endpoint search for one service. `service` is a {@link ServiceArg}: a ref
+   *  saying whether the caller holds the OAP id or a name, or a bare string,
+   *  which is a NAME. */
   endpoints(
     layerKey: string,
-    service: string,
+    service: ServiceArg,
     query: string,
     limit = 20,
   ): Promise<{
@@ -152,16 +156,22 @@ export class LayerApi {
     reachable: boolean;
     error?: string;
   }> {
-    const qs = new URLSearchParams({ service, q: query, limit: String(limit) });
+    const qs = new URLSearchParams({
+      ...serviceRefFields(toServiceRef(service)),
+      q: query,
+      limit: String(limit),
+    });
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/endpoints?${qs.toString()}`,
     );
   }
 
+  /** Instance list for one service. Same {@link ServiceArg} contract as
+   *  {@link LayerApi.endpoints}. */
   instances(
     layerKey: string,
-    service: string,
+    service: ServiceArg,
   ): Promise<{
     layer: string;
     service: string;
@@ -175,10 +185,10 @@ export class LayerApi {
     reachable: boolean;
     error?: string;
   }> {
-    const qs = `?service=${encodeURIComponent(service)}`;
+    const qs = new URLSearchParams(serviceRefFields(toServiceRef(service)));
     return this.bff.request(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/instances${qs}`,
+      `/api/layer/${encodeURIComponent(layerKey)}/instances?${qs.toString()}`,
     );
   }
 

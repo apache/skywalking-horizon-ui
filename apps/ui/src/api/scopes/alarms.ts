@@ -42,6 +42,7 @@ export class AlarmsApi {
     if (q.keyword) p.set('keyword', q.keyword);
     if (q.layer) p.set('layer', q.layer);
     if (q.service) p.set('service', q.service);
+    if (q.normal !== undefined) p.set('normal', String(q.normal));
     if (q.instance) p.set('instance', q.instance);
     if (q.endpoint) p.set('endpoint', q.endpoint);
     return this.bff.request<AlarmsResponse>('GET', `/api/alarms?${p.toString()}`);

@@ -37,6 +37,7 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
+import { serviceById, type ServiceRef } from '@/utils/serviceRef';
 import type { useLayers } from '@/shell/useLayers';
 
 type AvailableLayers = ReturnType<typeof useLayers>['availableLayers'];
@@ -123,9 +124,9 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
   );
 
   /** Encode a typed service name to an OAP service id (base64 of the UTF-8
-   *  name + the real flag). Type mode sends this so the instances route's
-   *  id-passthrough resolves the pods without a per-layer name lookup,
-   *  which is why Type needs no layer. */
+   *  name + the real flag — `IDManager.ServiceID.buildId`). Type mode sends it
+   *  in the route's `serviceId` slot, which is taken as an id with no per-layer
+   *  roster lookup — which is why Type needs no layer. */
   function encodePodServiceId(name: string, real: boolean): string {
     const bytes = new TextEncoder().encode(name);
     let bin = '';
@@ -142,23 +143,24 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     podContainer.value = '';
     podContainers.value = [];
     containersError.value = null;
-    // Pick resolves the service within the chosen layer. Type needs no layer:
-    // the typed name is encoded to a service id, and the instances route
-    // ignores the layer key for an id, so any caps.podLogs layer works.
+    // Both modes hold an OAP service id — Pick from the roster, Type by
+    // encoding the typed name — so both send it as an id. The layer key then
+    // only has to exist: an id needs no roster to resolve against, which is why
+    // Type mode works under any caps.podLogs layer.
     let layer: string | undefined;
-    let arg: string;
+    let service: ServiceRef | null;
     if (podEntityMode.value === 'pick') {
       layer = pickLayer.value;
-      arg = pickServiceId.value;
+      service = serviceById(pickServiceId.value);
     } else {
       const name = podTypeService.value.trim();
       layer = podLayers.value[0]?.key;
-      arg = name ? encodePodServiceId(name, podTypeReal.value) : '';
+      service = name ? serviceById(encodePodServiceId(name, podTypeReal.value)) : null;
     }
-    if (!layer || !arg) return;
+    if (!layer || !service) return;
     podInstancesLoading.value = true;
     try {
-      const res = await bff.layer.instances(layer, arg);
+      const res = await bff.layer.instances(layer, service);
       instances.value = res.reachable ? res.instances : [];
       // Single pod → auto-pin it (the common single-replica case); the
       // `pickInstanceId` watch then lists its containers.

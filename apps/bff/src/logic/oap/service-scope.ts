@@ -47,6 +47,7 @@ const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
     services: listServices(layer: $layer) {
       id
       name
+      normal
     }
   }
 `;
@@ -55,22 +56,90 @@ const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
  *  one of the outcomes. */
 export type ResolvedService = Exclude<ServiceScope, { kind: 'all' }>;
 
+/** A layer's roster row, as {@link resolveServiceScope} reads it. `normal` is
+ *  OAP's agent-detected (`true`) vs conjectured/virtual (`false`) flag; it is
+ *  optional because an older/partial roster may not carry it. */
+export interface RosterService {
+  id: string;
+  name: string;
+  normal?: boolean | null;
+}
+
+/**
+ * What a caller knows about the normal/virtual identity behind a NAME.
+ *
+ * OAP mints a service id as `base64(<name>).<1 = normal | 0 = virtual>`
+ * (`IDManager.ServiceID.buildId`), so an agent-detected service and a
+ * conjectured peer that share a name are two DIFFERENT entities whose ids
+ * differ in that last digit — and OAP's own name-based query input
+ * (`ServiceCondition`) carries the same flag for exactly that reason. A caller
+ * that holds the flag (the alarm filters read it off the roster they populated
+ * the picker from) passes it here; a caller that does not gets a refusal
+ * instead of a coin flip.
+ */
+export interface ServiceNameHint {
+  normal?: boolean | null;
+}
+
 /** The refusal text a caller reports when resolution came back `unknown`. */
 export function unknownServiceMessage(serviceArg: string, layer: string): string {
   return `Unknown service "${serviceArg}" in layer ${layer.toUpperCase()}.`;
 }
 
 /**
+ * Which service a NAME refers to inside one layer's roster — the whole
+ * decision, pulled out of the OAP round-trip so every branch is directly
+ * testable.
+ *
+ * Names are matched before ids on purpose: the argument is a NAME, and an OAP
+ * id is `base64(<name>).<0|1>`, a shape an ordinary name can wear too (`api.1`,
+ * `orders.2026`). The `id` column is matched only as a fallback, for a caller
+ * that has no id slot to use — and when the same string is one service's name
+ * AND another's id, the slot cannot say which was meant, so this refuses rather
+ * than picking the name silently.
+ */
+export function matchServiceInRoster(
+  services: readonly RosterService[],
+  serviceArg: string,
+  layer: string,
+  hint: ServiceNameHint = {},
+): ServiceScope {
+  const refuse = (message: string): ServiceScope => ({ kind: 'unknown', serviceArg, message });
+  const named = services.filter((s) => s.name === serviceArg);
+  // A roster row with no flag can't contradict the hint — keep it in play.
+  const wanted =
+    hint.normal === null || hint.normal === undefined
+      ? named
+      : named.filter((s) => s.normal === null || s.normal === undefined || s.normal === hint.normal);
+  const namedIds = [...new Set(wanted.map((s) => s.id))];
+  if (namedIds.length > 1) {
+    return refuse(
+      `Service name "${serviceArg}" in layer ${layer.toUpperCase()} matches both a normal and a virtual service. Query it by service id.`,
+    );
+  }
+  if (named.length > 0 && wanted.length === 0) {
+    return refuse(
+      `No ${hint.normal ? 'normal' : 'virtual'} service "${serviceArg}" in layer ${layer.toUpperCase()}.`,
+    );
+  }
+  const namedId = namedIds[0];
+  const idMatch = services.find((s) => s.id === serviceArg)?.id;
+  if (namedId && idMatch && idMatch !== namedId) {
+    return refuse(
+      `"${serviceArg}" is both a service name and another service's id in layer ${layer.toUpperCase()}. Send it as serviceId (id) or service (name).`,
+    );
+  }
+  const serviceId = namedId ?? idMatch;
+  return serviceId ? { kind: 'service', serviceId } : refuse(unknownServiceMessage(serviceArg, layer));
+}
+
+/**
  * Resolve a service NAME within a layer, through `listServices(layer)`.
  *
- * The argument is a NAME. Nothing here guesses at its shape: an OAP service id
- * is `base64(<name>).<0|1>` (`IDManager.ServiceID.buildId`), which an ordinary
- * name can wear too — `api.1`, `orders.2026` — so a shape test silently turned
- * such a name into an id that resolves to nothing. Callers that hold a real id
- * pass it in its own parameter and never come through here ({@link
- * resolveServiceArgs}). The roster's `id` column is still matched, after the
- * name, so an id handed to the name slot resolves rather than 404s — it just
- * costs the round-trip a caller with an explicit id avoids.
+ * The argument is a NAME; {@link matchServiceInRoster} owns what that means.
+ * Callers that hold a real id pass it in its own parameter and never come
+ * through here ({@link resolveServiceArgs}) — that is both cheaper (no
+ * round-trip) and exact (no name to collide with).
  *
  * Throws whatever the OAP round-trip throws — an unreachable OAP is not the
  * same as an unknown service, and callers report it as the transport failure it
@@ -80,19 +149,13 @@ export async function resolveServiceScope(
   opts: GraphqlOptions,
   layer: string,
   serviceArg: string | null | undefined,
+  hint: ServiceNameHint = {},
 ): Promise<ServiceScope> {
   if (!serviceArg) return { kind: 'all' };
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-    opts,
-    LIST_SERVICES_FOR_RESOLVE,
-    { layer: layer.toUpperCase() },
-  );
-  const services = data.services ?? [];
-  const serviceId =
-    services.find((s) => s.name === serviceArg)?.id ?? services.find((s) => s.id === serviceArg)?.id;
-  return serviceId
-    ? { kind: 'service', serviceId }
-    : { kind: 'unknown', serviceArg, message: unknownServiceMessage(serviceArg, layer) };
+  const data = await graphqlPost<{ services: RosterService[] }>(opts, LIST_SERVICES_FOR_RESOLVE, {
+    layer: layer.toUpperCase(),
+  });
+  return matchServiceInRoster(data.services ?? [], serviceArg, layer, hint);
 }
 
 /**
@@ -108,8 +171,9 @@ export async function resolveRequiredService(
   opts: GraphqlOptions,
   layer: string,
   serviceArg: string | null | undefined,
+  hint: ServiceNameHint = {},
 ): Promise<ResolvedService> {
-  const scope = await resolveServiceScope(opts, layer, serviceArg);
+  const scope = await resolveServiceScope(opts, layer, serviceArg, hint);
   if (scope.kind === 'all') {
     return { kind: 'unknown', serviceArg: '', message: `No service supplied for layer ${layer.toUpperCase()}.` };
   }
@@ -119,12 +183,32 @@ export async function resolveRequiredService(
 /** How a route received its service: as an OAP id, as a name, or not at all.
  *  Keeping the two apart is what removes the guesswork — a UI screen that
  *  already holds the id sends `serviceId`, and only a caller that genuinely has
- *  a name (the AI tools, a hand-written request) sends `service`. */
+ *  a name (the alarm filters, the AI tools, a hand-written request) sends
+ *  `service`, with `normal` alongside it when it knows. */
 export interface ServiceArgs {
   /** OAP service id, trusted as an id — no lookup, no shape test. */
   serviceId?: string | null;
   /** Service NAME, resolved against the layer's roster. */
   service?: string | null;
+  /** {@link ServiceNameHint} for `service`. Ignored when `serviceId` is set. */
+  normal?: boolean | null;
+}
+
+/** A route's `?serviceId=&service=&normal=` query pairs as {@link ServiceArgs}.
+ *  `normal` is only a hint when it is literally `true` / `false`; anything else
+ *  (absent, empty, junk) leaves the name unqualified rather than asserting a
+ *  flag the caller never sent. */
+export function serviceArgsFromQuery(q: {
+  serviceId?: string;
+  service?: string;
+  normal?: string;
+}): ServiceArgs {
+  const normal = (q.normal ?? '').trim().toLowerCase();
+  return {
+    serviceId: (q.serviceId ?? '').trim(),
+    service: (q.service ?? '').trim(),
+    normal: normal === 'true' ? true : normal === 'false' ? false : null,
+  };
 }
 
 /** {@link resolveServiceScope} over a route's `serviceId` / `service` pair. An
@@ -135,7 +219,7 @@ export async function resolveServiceArgs(
   args: ServiceArgs,
 ): Promise<ServiceScope> {
   if (args.serviceId) return { kind: 'service', serviceId: args.serviceId };
-  return resolveServiceScope(opts, layer, args.service);
+  return resolveServiceScope(opts, layer, args.service, { normal: args.normal });
 }
 
 /** {@link resolveRequiredService} over a route's `serviceId` / `service` pair. */
@@ -145,5 +229,5 @@ export async function resolveRequiredServiceArgs(
   args: ServiceArgs,
 ): Promise<ResolvedService> {
   if (args.serviceId) return { kind: 'service', serviceId: args.serviceId };
-  return resolveRequiredService(opts, layer, args.service);
+  return resolveRequiredService(opts, layer, args.service, { normal: args.normal });
 }

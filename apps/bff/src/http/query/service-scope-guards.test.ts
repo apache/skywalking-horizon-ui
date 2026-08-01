@@ -63,7 +63,7 @@ function json(body: unknown): Response {
 /** A fake OAP that answers every query these routes issue and records them, so
  *  a test can assert BOTH what was asked and — the point of this file — that
  *  the data query was never asked at all. */
-function fakeOap(known: Array<{ id: string; name: string }>): {
+function fakeOap(known: Array<{ id: string; name: string; normal?: boolean }>): {
   fetch: FetchLike;
   calls: Captured[];
   asked: (fragment: string) => Captured[];
@@ -510,5 +510,108 @@ describe('a service NAME shaped like an OAP id is still resolved as a name', () 
     );
     expect(out.error).toBe('service not found');
     expect(oap.asked('findEndpoint')).toHaveLength(0);
+  });
+});
+
+// The picker feeds take the same two slots as every other entity-scoped route:
+// `serviceId` for a screen that already holds the OAP id (every layer tab does
+// — it is what the service picker selects by), `service` for one that genuinely
+// only has a name.
+describe('the picker feeds keep the id and the name in separate slots', () => {
+  it('instances: an id sent as an id reaches OAP unchanged, with no roster lookup', async () => {
+    const oap = fakeOap([]);
+    const out = await get(
+      registerInstanceRoute,
+      oap.fetch,
+      `/api/layer/mesh/instances?serviceId=${encodeURIComponent(SERVICE_ID)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(out.error).toBeUndefined();
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
+  });
+
+  it('endpoints: an id sent as an id reaches OAP unchanged, with no roster lookup', async () => {
+    const oap = fakeOap([]);
+    const out = await get(
+      registerEndpointRoute,
+      oap.fetch,
+      `/api/layer/mesh/endpoints?serviceId=${encodeURIComponent(SERVICE_ID)}&q=`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(out.error).toBeUndefined();
+    expect(scopedTo(oap.asked('findEndpoint')[0], 'root')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
+  });
+
+  // An id is NOT a name: sending one in the name slot cannot resolve it to
+  // some other service that happens to be called that.
+  it('instances: an id in the id slot wins over a same-named service', async () => {
+    const oap = fakeOap([{ id: 'b3RoZXI=.1', name: SERVICE_ID }]);
+    await get(
+      registerInstanceRoute,
+      oap.fetch,
+      `/api/layer/mesh/instances?serviceId=${encodeURIComponent(SERVICE_ID)}`,
+    );
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
+  });
+
+  // A normal service and a conjectured (virtual) one can wear the same name —
+  // their ids differ only in the trailing `.1` / `.0`. The caller that knows
+  // which it means says so; the roster alone cannot.
+  const SHARED = [
+    { id: 'cGF5bWVudHM=.1', name: 'payments', normal: true },
+    { id: 'cGF5bWVudHM=.0', name: 'payments', normal: false },
+  ];
+
+  it('instances: `normal` picks the intended one of two same-named services', async () => {
+    const oap = fakeOap(SHARED);
+    const virtual = await get(
+      registerInstanceRoute,
+      oap.fetch,
+      '/api/layer/mesh/instances?service=payments&normal=false',
+    );
+    expect(virtual.reachable).toBe(true);
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe('cGF5bWVudHM=.0');
+
+    const oap2 = fakeOap(SHARED);
+    const normal = await get(
+      registerInstanceRoute,
+      oap2.fetch,
+      '/api/layer/mesh/instances?service=payments&normal=true',
+    );
+    expect(normal.reachable).toBe(true);
+    expect(scopedTo(oap2.asked('listInstances')[0], 'root')).toBe('cGF5bWVudHM=.1');
+  });
+
+  it('endpoints: an unqualified shared name is refused, not searched under one of them', async () => {
+    const oap = fakeOap(SHARED);
+    const out = await get(registerEndpointRoute, oap.fetch, '/api/layer/mesh/endpoints?service=payments&q=');
+    expect(out.error).toBe('service not found');
+    expect(oap.asked('findEndpoint')).toHaveLength(0);
+  });
+
+  it('instances: a name-only caller still works when the name is unshared', async () => {
+    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME, normal: true }]);
+    const out = await get(
+      registerInstanceRoute,
+      oap.fetch,
+      `/api/layer/mesh/instances?service=${encodeURIComponent(SERVICE_NAME)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
+  });
+
+  it('neither slot filled is still a 400, not an unscoped list', async () => {
+    const oap = fakeOap([]);
+    const { app, sid } = await build(registerInstanceRoute, oap.fetch);
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/layer/mesh/instances',
+      headers: { cookie: `horizon_sid=${sid}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toEqual({ error: 'missing_service' });
+    expect(oap.asked('listInstances')).toHaveLength(0);
   });
 });

@@ -53,7 +53,7 @@ const { availableLayers } = useLayers();
         <option value="">
           {{ !draft.layer ? t('pick a layer first') : f.servicesFetching.value ? t('loading…') : t('any service') }}
         </option>
-        <option v-for="name in f.serviceOptions.value" :key="name" :value="name">{{ name }}</option>
+        <option v-for="s in f.serviceOptions.value" :key="`${s.name}/${s.normal}`" :value="s.name">{{ s.name }}</option>
       </select>
     </label>
     <label class="ax__filter" :class="{ 'is-disabled': !draft.service }">

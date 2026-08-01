@@ -32,6 +32,7 @@ import { useSetupStore } from '@/state/setup';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerBrowserErrors } from '@/layer/browser-errors/useLayerBrowserErrors';
@@ -98,6 +99,7 @@ const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // browser app's JS errors.
 const {
   name: serviceName,
+  ref: serviceRef,
   status: serviceStatus,
   ready: serviceReady,
 } = useLayerTabService(layerKey, landing, {
@@ -170,7 +172,7 @@ const allCategories = ref<BrowserErrorCategory>('ALL');
 // the BROWSER "Versions" are instances → serviceVersionId; "Pages" are
 // endpoints → pagePathId. Reuse the shared layer instance/endpoint feeds.
 const selectedVersionId = ref('');
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: versionList } = useLayerInstances(layerKey, toolbarService);
 
 // Page (endpoint) is a searchable combobox (shared EndpointCombo), not a
@@ -184,7 +186,7 @@ const selectedPageId = ref('');
 const selectedPageLabel = ref('');
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit, replay);
+const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceRef, pageQuery, pageLimit, replay);
 function pickPage(name: string): void {
   selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
   selectedPageLabel.value = name;
@@ -207,7 +209,7 @@ const hasQueried = ref(replay.value);
 // however many times the operator has pressed Run query.
 const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 interface AppliedBrowserConditions {
-  service: string | null;
+  service: ServiceRef | null;
   serviceVersionId: string;
   pagePathId: string;
   windowMinutes: number;
@@ -216,7 +218,7 @@ interface AppliedBrowserConditions {
 }
 function snapshotConditions(): AppliedBrowserConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     serviceVersionId: selectedVersionId.value,
     pagePathId: selectedPageId.value,
     windowMinutes: windowMinutesEffective.value,

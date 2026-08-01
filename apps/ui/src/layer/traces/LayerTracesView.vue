@@ -143,9 +143,12 @@ const traceIdFilter = ref<string | null>(null);
 const tagsInput = ref<string>('');
 const tagsList = ref<Array<{ key: string; value: string }>>([]);
 
-// Committed snapshot — what useLayerTraces actually reads. Updated
-// only by runQuery(). Initially mirrors the live defaults so the
-// FIRST `Run query` click fetches with sensible inputs.
+// Committed snapshot — what useLayerTraces actually reads. Written by
+// commitConditions(): on Run query, and on a service switch so the
+// committed service can never trail the picked one. Initially mirrors
+// the live defaults so the FIRST `Run query` click fetches with
+// sensible inputs.
+const cService = ref<string | null>(null);
 const cTraceState = ref<TraceQueryState>('ALL');
 const cQueryOrder = ref<TraceQueryOrder>('BY_START_TIME');
 const cMinDuration = ref<number | null>(null);
@@ -223,16 +226,19 @@ const endpointIdSel = computed<string>({
   set: (v) => { endpointId.value = v || null; },
 });
 
+// The service is auto-resolved from the URL/landing, and a switch is a context
+// change → cascade-clear back to the Run-query prompt: re-commit the snapshot
+// so the committed service can never trail the picked one, which drops the
+// previous service's result set with it. Filter edits only stage; they wait
+// for Run query.
 watch([serviceName], () => {
   if (embedded.value) return; // focus (incl. seeded endpoint/instance) is fixed by props
   instanceId.value = null;
   endpointId.value = null;
+  hasQueried.value = false;
+  commitConditions();
 });
 
-// Service is auto-resolved from the URL/landing; when it changes we
-// reset the committed snapshot so a stale committed `service` doesn't
-// drive the next query for the wrong layer-service pair.
-const cService = ref<string | null>(null);
 // The service is the upstream control: the list read stays parked until it
 // resolves, however many times the operator has pressed Run query.
 const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
@@ -268,16 +274,8 @@ const isSegmentList = computed(() => native.value?.api === 'queryBasicTraces');
 const traceApiLabel = computed(() => (native.value?.api === 'queryTraces' ? 'v2' : 'v1'));
 const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachable);
 
-/**
- * Commit live filter values to the committed refs, then fire the
- * query. This is the only path that fetches — filter inputs don't
- * auto-refresh the result list.
- */
-function runQuery(): void {
-  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
-  // a click landing inside the resolution window would otherwise fire a read
-  // with no service — every service's traces under this service's title.
-  if (!serviceReady.value) return;
+/** Copy the live filter values into the committed refs the query reads. */
+function commitConditions(): void {
   traceIdFilter.value = traceIdInput.value.trim() || null;
   cService.value = serviceName.value;
   cInstanceId.value = instanceId.value;
@@ -292,6 +290,17 @@ function runQuery(): void {
   cWindowMinutes.value = windowMinutes.value;
   cCustomStart.value = customStart.value;
   cCustomEnd.value = customEnd.value;
+}
+/**
+ * Commit the live filter values, then fire the query. This is the only
+ * path that fetches — filter inputs don't auto-refresh the result list.
+ */
+function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — every service's traces under this service's title.
+  if (!serviceReady.value) return;
+  commitConditions();
   hasQueried.value = true;
   void refetch();
 }
@@ -437,6 +446,13 @@ function togglePick(rowKey: string): void {
 function resetPick(): void {
   pickedTraceIds.value = new Set();
 }
+// Both the inline detail and the in-page pick key on rows of the result set the
+// service switch just cleared — a pick left behind would also filter the NEXT
+// service's list down to nothing.
+watch(serviceName, () => {
+  closeDetail();
+  resetPick();
+});
 // Picking dots filters the list; the inline detail still opens via a list row.
 function onScatterSelect(row: NativeTraceListRow): void {
   togglePick(row.key);

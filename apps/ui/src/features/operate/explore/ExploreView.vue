@@ -31,6 +31,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
+import { serviceById } from '@/utils/serviceRef';
 import type {
   ExploreEntity,
   ExploreRequest,
@@ -98,10 +99,11 @@ async function loadServices(): Promise<void> {
 async function loadInstances(): Promise<void> {
   instances.value = [];
   pickInstanceId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) return;
+  // The picker selects BY ID — send that, never the display name it resolved to.
+  const picked = serviceById(pickServiceId.value);
+  if (!pickLayer.value || !picked) return;
   try {
-    const res = await bffClient.layer.instances(pickLayer.value, name);
+    const res = await bffClient.layer.instances(pickLayer.value, picked);
     instances.value = res.reachable ? res.instances : [];
   } catch {
     instances.value = [];
@@ -110,15 +112,15 @@ async function loadInstances(): Promise<void> {
 
 async function loadEndpoints(): Promise<void> {
   pickEndpointId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) {
+  const picked = serviceById(pickServiceId.value);
+  if (!pickLayer.value || !picked) {
     endpoints.value = [];
     return;
   }
   try {
     // Preload the top endpoints (like the per-layer Traces picker); the
     // dropdown filters them client-side.
-    const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
+    const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
     endpoints.value = res.reachable ? res.endpoints : [];
   } catch {
     endpoints.value = [];
