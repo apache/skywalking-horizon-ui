@@ -49,6 +49,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus app's OAP id. Travels with `focusService` — the block's producer
+   *  matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusWindowMinutes?: number;
   /** REPLAY (chat reload): render the frozen captured error list, never query.
    *  The mount auto-run is skipped and the Prev/Next pager is hidden. */
@@ -105,19 +108,14 @@ const {
 } = useLayerTabService(layerKey, landing, {
   embedded,
   focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
   replay,
 });
 // Scalar identity of the tab's service, so the cascade-clear watchers below key
 // on exactly what the query is scoped by. `serviceRef` is a fresh object on
 // every recompute, so watching it directly would fire on re-resolution, not on
 // a switch.
-const serviceKey = computed<string | null>(() =>
-  serviceRef.value === null
-    ? null
-    : serviceRef.value.kind === 'id'
-      ? serviceRef.value.id
-      : serviceRef.value.name,
-);
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,

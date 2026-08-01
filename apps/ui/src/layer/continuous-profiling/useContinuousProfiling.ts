@@ -24,6 +24,7 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 import { rosterReachable, shouldReseedAfterSave } from './data';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 /** vue-query's key for one service's policy read — shared by the reactive
  *  `useQuery` below and the direct, id-pinned confirmation read in `save()`,
@@ -44,7 +45,8 @@ function policyQueryKey(id: string): [string, string] {
 export const UNREACHABLE = '\u0000unreachable';
 export const REJECTED = '\u0000rejected';
 
-export function useContinuousProfiling(serviceId: Ref<string | null>) {
+export function useContinuousProfiling(service: Ref<ServiceRef | null>) {
+  const serviceId = computed<string | null>(() => service.value?.id ?? null);
   const queryClient = useQueryClient();
   const draft = ref<ContinuousProfilingPolicyTarget[]>([]);
   /** Set once the draft has been seeded for the CURRENT service, so switching
@@ -55,7 +57,7 @@ export function useContinuousProfiling(serviceId: Ref<string | null>) {
 
   const q = useQuery({
     queryKey: ['continuous-profiling-policies', serviceId],
-    queryFn: () => bffClient.continuousProfiling.policies(serviceId.value as string),
+    queryFn: () => bffClient.continuousProfiling.policies(service.value!),
     enabled: computed(() => !!serviceId.value),
     staleTime: 30_000,
     refetchOnWindowFocus: false,
@@ -115,8 +117,9 @@ export function useContinuousProfiling(serviceId: Ref<string | null>) {
   }
 
   async function save(): Promise<boolean> {
-    const id = serviceId.value;
-    if (!id) return false;
+    const submittedFor = service.value;
+    const id = submittedFor?.id;
+    if (!submittedFor || !id) return false;
     saving.value = true;
     saveError.value = null;
     // Nothing disables the form while a save is in flight — the operator can
@@ -141,7 +144,9 @@ export function useContinuousProfiling(serviceId: Ref<string | null>) {
       // time this line runs and `q.refetch()` would confirm the wrong one.
       let confirmed: Awaited<ReturnType<typeof bffClient.continuousProfiling.policies>> | null = null;
       try {
-        confirmed = await bffClient.continuousProfiling.policies(id);
+        // Confirm the identity this save was issued for, not whatever the
+        // picker points at now.
+        confirmed = await bffClient.continuousProfiling.policies(submittedFor);
       } catch {
         confirmed = null;
       }
@@ -202,13 +207,14 @@ export function useContinuousProfiling(serviceId: Ref<string | null>) {
  *  - the render CAPPED with an explicit count, never silently truncated.
  */
 export function useContinuousProfilingInstances(
-  serviceId: Ref<string | null>,
+  service: Ref<ServiceRef | null>,
   targets: Ref<ContinuousProfilingTargetType[]>,
 ) {
+  const serviceId = computed<string | null>(() => service.value?.id ?? null);
   const key = computed(() => [...targets.value].sort().join(','));
   const q = useQuery({
     queryKey: ['continuous-profiling-instances', serviceId, key],
-    queryFn: () => bffClient.continuousProfiling.instances(serviceId.value as string, targets.value),
+    queryFn: () => bffClient.continuousProfiling.instances(service.value!, targets.value),
     enabled: computed(() => !!serviceId.value && targets.value.length > 0),
     staleTime: 30_000,
     refetchOnWindowFocus: false,

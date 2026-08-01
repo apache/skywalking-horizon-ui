@@ -37,7 +37,7 @@ import { SessionStore } from '../../user/sessions.js';
 import { makeRouteAuthHook } from '../../rbac/route-policy.js';
 import { resync } from '../../logic/templates/sync.js';
 import { allLayerTemplates } from '../../logic/layers/loader.js';
-import { layerTemplatePushSchema } from '../../logic/templates/bundled-schema.js';
+import { layerCrossRefIssues, layerTemplatePushSchema } from '../../logic/templates/bundled-schema.js';
 import { registerTemplateSyncAdminRoutes } from './template-sync.js';
 
 /** The bundled set the routes see. Mutable so each test can plant exactly the
@@ -212,6 +212,217 @@ describe('POST /api/admin/templates/save — layer content reaching OAP', () => 
     await app.close();
   });
 
+  it('refuses content whose own key names a different layer, and writes nothing', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: validLayer('MESH'),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_content');
+    expect(body.issues.join(' ')).toMatch(/key: "MESH" is not the layer this is published as/);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('accepts a name that differs from the key only in case', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.general',
+      content: validLayer('GENERAL'),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.layer.general' }]);
+    await app.close();
+  });
+
+  it('refuses a duplicate widget id — the second widget would be unaddressable', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    ((broken.dashboards as Json).service as Json[]).push({
+      id: 'w1',
+      title: 'Load again',
+      type: 'line',
+      expressions: ['service_sla'],
+      span: 6,
+      rowSpan: 2,
+    });
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { issues: string[] };
+    expect(body.issues).toContain('dashboards.service.1.id: duplicate widget id "w1"');
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a duplicate service-list column metric', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    (broken.header as Json).columns = [
+      { metric: 'cpm', label: 'Load', mqe: 'service_cpm' },
+      { metric: 'cpm', label: 'Load (copy)', mqe: 'service_sla' },
+    ];
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues).toContain(
+      'header.columns.1.metric: duplicate column metric "cpm"',
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses an orderBy that names no column — the service list would sort alphabetically', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    (broken.header as Json).orderBy = 'throttled';
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(
+      /header\.orderBy: "throttled" is not one of the header columns/,
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('checks the header copy the editor writes, not just the one it loaded', async () => {
+    // The editor edits `metrics` in place and leaves the loader's `header`
+    // mirror as it found it, so a defect lands on `metrics` alone.
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    broken.metrics = { orderBy: 'throttled', columns: [{ metric: 'cpm', label: 'Load', mqe: 'service_cpm' }] };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(/metrics\.orderBy:/);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a naming pattern that does not compile', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    broken.naming = { pattern: '^(?<service>.+', alias: 'group' };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(/naming\.pattern: invalid regex/);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a deployment grouping rule whose regex does not compile', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    broken.deployment = { clusterBy: { kind: 'nameRegex', pattern: '^(?<group>[a-z', alias: 'group' } };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(
+      /deployment\.clusterBy\.pattern: invalid regex/,
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a role pair whose primary names none of that pair’s metrics', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validLayer('GENERAL');
+    broken.deployment = {
+      roleToRole: [
+        {
+          from: '*',
+          to: '*',
+          primary: 'writes',
+          metrics: [{ id: 'write', label: 'Write', mqe: 'service_instance_relation_client_cpm' }],
+        },
+      ],
+    };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues).toContain(
+      'deployment.roleToRole.0.primary: "writes" is not one of this pair\'s metric ids (write)',
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('publishes a half-authored deployment block — the editor seeds every hole in it', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const content = validLayer('GENERAL');
+    content.alias = ''; // free text cleared
+    content.deployment = {
+      roleToRole: [
+        // What "Add role pair" seeds.
+        { from: '*', to: '*', primary: '', metrics: [] },
+        // Sides and `primary` are free text, fillable before the roles (a
+        // different card of the same editor) and the metric rows they name.
+        { from: '', to: 'data', primary: 'write', metrics: [] },
+        // A metric row added, `primary` not chosen yet.
+        { from: '*', to: '*', primary: '', metrics: [{ id: 'metric_1', label: 'Metric 1', mqe: '' }] },
+      ],
+      // "Add role" + "Add metric".
+      roles: [{ key: 'role_1', label: '', main: false, nodeMetrics: [{ id: 'metric_1', label: 'Metric 1', mqe: '', unit: '' }] }],
+      // Switching a grouping rule to name-regex seeds an empty pattern.
+      clusterBy: { kind: 'nameRegex', pattern: '', alias: 'group' },
+    };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.GENERAL',
+      content,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.layer.GENERAL' }]);
+    await app.close();
+  });
+
   it('leaves other template kinds alone', async () => {
     const store = makeStore();
     const { app, cookie: c } = await buildApp(store.fetchImpl);
@@ -239,6 +450,28 @@ describe('POST /api/admin/templates/:name/push-bundled', () => {
     const body = res.json() as { code: string; issues: string[] };
     expect(body.code).toBe('invalid_content');
     expect(body.issues.some((i) => i.startsWith('components:'))).toBe(true);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a bundled layer whose orderBy names no column, and reports it once', async () => {
+    const broken = validLayer('GENERAL');
+    (broken.header as Json).orderBy = 'throttled';
+    // A bundled row carries the authored `layer-header` and the loader's two
+    // mirrors of it; the defect is one defect, not three.
+    broken['layer-header'] = broken.header;
+    broken.metrics = broken.header;
+    bundle.rows = [{ kind: 'layer', key: 'GENERAL', content: broken }];
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/horizon.layer.GENERAL/push-bundled', c);
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_content');
+    expect(body.issues).toHaveLength(1);
+    expect(body.issues[0]).toMatch(/\.orderBy: "throttled" is not one of the header columns/);
     expect(store.writes).toEqual([]);
     await app.close();
   });
@@ -298,5 +531,20 @@ describe('push-bar calibration', () => {
     const cleared = validLayer('GENERAL');
     ((cleared.dashboards as Json).service as Json[])[0].rowSpan = '';
     expect(layerTemplatePushSchema.safeParse(cleared).success).toBe(false);
+  });
+
+  it('finds no cross-reference defect in any layer template this build bundles', () => {
+    // Reset-to-bundled and sync-all publish exactly these, and every one of them
+    // carries all three header copies (`layer-header` + the loader's `header` /
+    // `metrics` mirrors), so this also pins that a mirrored copy is not
+    // reported once per copy.
+    const found = allLayerTemplates().flatMap((tpl) => {
+      const parsed = layerTemplatePushSchema.safeParse(JSON.parse(JSON.stringify(tpl)));
+      if (!parsed.success) return [`${tpl.key}: does not parse`];
+      return layerCrossRefIssues(parsed.data, { complete: false }).map(
+        (i) => `${tpl.key}: ${i.path} — ${i.message}`,
+      );
+    });
+    expect(found).toEqual([]);
   });
 });

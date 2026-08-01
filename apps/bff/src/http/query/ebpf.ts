@@ -18,7 +18,7 @@
 /**
  * eBPF profiling (kernel-level ON_CPU / OFF_CPU) routes.
  *
- *   GET  /api/layer/:key/ebpf/tasks?serviceId=|service=
+ *   GET  /api/layer/:key/ebpf/tasks?serviceId=&service=
  *        — list tasks + queryPrepareCreateEBPFProfilingTaskData metadata.
  *   POST /api/layer/:key/ebpf/tasks
  *        — create a fixed-time eBPF task.
@@ -57,7 +57,7 @@ import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtMinute, getServerOffsetMinutes } from '../../util/window.js';
-import { resolveRequiredServiceArgs, resolveServiceArgs } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { processTopologyConfigFor, type ProcessTopologyConfig } from '../../logic/layers/loader.js';
 import { parsePreviewProcessTopology } from '../../logic/layers/preview.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
@@ -394,24 +394,20 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     '/api/layer/:key/ebpf/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
-      const q = req.query as { serviceId?: string; service?: string };
-      const args = { serviceId: (q.serviceId ?? '').trim(), service: (q.service ?? '').trim() };
       const payload: EBPFTaskListResponse = {
         tasks: [],
         couldProfiling: false,
         processLabels: [],
         reachable: true,
       };
-      if (!args.serviceId && !args.service) return reply.send(payload);
+      const scope = serviceScopeOf(req.query as { serviceId?: string; service?: string });
+      // `queryEBPFProfilingTasks(serviceId)` is nullable — refuse rather than
+      // list every service's tasks under this service's name.
+      if (scope.kind === 'incomplete') return reply.send(softErr(payload, scope.message));
+      if (scope.kind === 'all') return reply.send(payload);
+      const serviceId = scope.service.id;
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const scope = await resolveRequiredServiceArgs(opts, params.key, args);
-        // `queryEBPFProfilingTasks(serviceId)` is nullable — refuse rather than
-        // list every service's tasks under this service's name.
-        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
-        const serviceId = scope.serviceId;
-
         const [meta, list] = await Promise.all([
           graphqlPost<{ createTaskData: { couldProfiling: boolean; processLabels: string[] } }>(
             opts,
@@ -513,9 +509,7 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
     '/api/layer/:key/ebpf/network/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
       const q = req.query as { serviceId?: string; service?: string; serviceInstance?: string };
-      const args = { serviceId: (q.serviceId ?? '').trim(), service: (q.service ?? '').trim() };
       const instanceArg = (q.serviceInstance ?? '').trim();
       const payload: EBPFTaskListResponse = {
         tasks: [],
@@ -523,17 +517,17 @@ export function registerEBPFRoutes(app: FastifyInstance, deps: EBPFRouteDeps): v
         processLabels: [],
         reachable: true,
       };
-      if (!args.serviceId && !args.service && !instanceArg) return reply.send(payload);
+      // A service the caller named but sent no id for must not be dropped:
+      // `serviceId` is nullable here, so omitting it widens the query to every
+      // service's NETWORK tasks. An instance-only call (no service named at
+      // all) is a legitimate narrower scope and still runs.
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'incomplete') return reply.send(softErr(payload, scope.message));
+      if (scope.kind === 'all' && !instanceArg) return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {
-        const scope = await resolveServiceArgs(opts, params.key, args);
-        // A service the caller named but we could not resolve must not be
-        // dropped: `serviceId` is nullable here, so omitting it widens the
-        // query to every service's NETWORK tasks. An instance-only call (no
-        // service named at all) is a legitimate narrower scope and still runs.
-        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         payload.tasks = await queryEbpfTasksBothTriggers(opts, {
-          serviceId: scope.kind === 'service' ? scope.serviceId : undefined,
+          serviceId: scope.kind === 'service' ? scope.service.id : undefined,
           serviceInstanceId: instanceArg || undefined,
           targets: ['NETWORK'],
         });

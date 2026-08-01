@@ -27,10 +27,11 @@ import type { EndpointDependencyResponse } from '@skywalking-horizon-ui/api-clie
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export function useLayerEndpointDependency(
   layerKey: Ref<string>,
-  service: Ref<string | null>,
+  service: Ref<ServiceRef | null>,
   endpoint: Ref<string | null>,
   /** Embedded (chat) override: when a positive minute count, the query owns its
    *  OWN frozen look-back window and does NOT follow the global topbar picker or
@@ -62,13 +63,22 @@ export function useLayerEndpointDependency(
     queryFn: () =>
       bffClient.layer.endpointDependency(
         layerKey.value,
-        service.value ?? '',
+        service.value!,
         endpoint.value ?? '',
         rangeKey.value,
         previewCfg.value,
       ),
+    // The focus endpoint's own metrics are name-scoped MQE, so this read needs
+    // the roster row's normal flag as well as the pair — it waits for the row
+    // rather than sending a request the BFF must refuse.
     enabled: computed(
-      () => layerKey.value.length > 0 && !!service.value && !!endpoint.value && !replay.value,
+      () =>
+        layerKey.value.length > 0 &&
+        !!service.value &&
+        service.value.normal !== null &&
+        service.value.normal !== undefined &&
+        !!endpoint.value &&
+        !replay.value,
     ),
     staleTime: 30_000,
   });

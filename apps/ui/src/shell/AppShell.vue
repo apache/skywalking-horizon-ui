@@ -48,12 +48,20 @@ const timeRangeStore = useTimeRangeStore();
 
 // The time-range store is constructed with a static `'1h'` default; this
 // watch promotes the resolved time-default over it ONCE — subsequent
-// operator picks on the time picker stay sticky.
+// operator picks on the time picker stay sticky. A user override outranks the
+// org default, so it applies without waiting; otherwise the value is not final
+// until the org read settles, and promoting the in-code fallback first would
+// latch it and the org default could never take effect.
 let timeDefaultsApplied = false;
 watch(
-  () => timeDefaultsStore.defaultWindowMinutes,
-  (m) => {
+  (): [number, boolean, boolean] => [
+    timeDefaultsStore.defaultWindowMinutes,
+    timeDefaultsStore.userOverride !== null,
+    timeDefaultsStore.orgSettled,
+  ],
+  ([m, hasOverride, orgSettled]) => {
     if (timeDefaultsApplied) return;
+    if (!hasOverride && !orgSettled) return;
     timeRangeStore.selectByMinutes(m);
     timeDefaultsApplied = true;
   },

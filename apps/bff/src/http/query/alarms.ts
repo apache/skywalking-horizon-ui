@@ -39,14 +39,15 @@
  *   - `pageSize` is capped at 500 so the header KPIs + frontend pager
  *     can work from a single fetch. The COUNT route uses a 200 cap
  *     since it skips the snapshot payload.
- *   - The entity filter carries the picked service's `normal` flag
- *     because it is part of the OAP service id
- *     (`base64(name).1` normal / `.0` virtual, `IDManager.ServiceID`).
- *     Filtering a VIRTUAL (conjectural) service with the wrong flag
- *     builds the id of a service that doesn't exist, so OAP answers
- *     with nothing. The flag is resolved HERE, off the layer roster the
- *     route already holds (`serviceNormalFor`) — `?normal=` is only the
- *     fallback for a request the roster can't answer.
+ *   - The entity filter is name-scoped: `alarm.graphqls` has no id
+ *     form. It carries the picked service's `normal` flag because that
+ *     is part of the OAP service id (`base64(name).1` normal / `.0`
+ *     virtual, `IDManager.ServiceID`) that instance and endpoint ids
+ *     are built on. Filtering a VIRTUAL (conjectural) service with the
+ *     wrong flag asks for an id nothing was stored under, so OAP
+ *     answers with an empty page. Name and flag both arrive with the
+ *     request — the roster row the operator picked — so nothing is
+ *     looked up or guessed here.
  *   - Layer tagging on each row uses the cached service-name → layer
  *     index. Entries the index can't resolve (e.g. instance-scope
  *     alarms whose name doesn't carry a service prefix) get
@@ -64,10 +65,10 @@ import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import type {
   ServiceCatalog,
   ServiceLayerCatalog,
-  ServiceRow,
 } from '../../logic/services/service-layer-catalog.js';
 
 export interface AlarmsQueryRouteDeps {
@@ -239,7 +240,7 @@ const COUNT_QUERY_ALARMS_QUERY = /* GraphQL */ `
 `;
 const LIST_SERVICES_QUERY = /* GraphQL */ `
   query HorizonAlarmServices($layer: String!) {
-    listServices(layer: $layer) { name normal }
+    listServices(layer: $layer) { id name normal }
   }
 `;
 
@@ -250,7 +251,7 @@ interface QueryAlarmsRaw {
   queryAlarms?: { msgs?: AlarmMessage[] } | null;
 }
 interface ListServicesRaw {
-  listServices: Array<{ name: string; normal: boolean | null }>;
+  listServices: Array<{ id: string; name: string; normal: boolean | null }>;
 }
 
 /** Window cap for `/api/alarms` and `/api/alarms/count`. Defence-in-
@@ -272,13 +273,16 @@ const alarmsQuerySchema = z.object({
   /** New-mode only. Maps to `condition.layer` (a single String on the
    *  OAP side — an alarm record is persisted with one layer). */
   layer: z.string().optional(),
-  /** New-mode only. Combined with `instance` / `endpoint` to build a
-   *  single `Entity` filter. When absent, no entity narrowing. */
+  /** New-mode only. The picked service's identity, as the roster returned it:
+   *  the NAME the alarm entity filter is built from, its `normal` flag, and the
+   *  `serviceId` half that rides along (the alarm query has no id form).
+   *  Combined with `instance` / `endpoint`; absent ⇒ no entity narrowing. */
   service: z.string().optional(),
-  /** `normal` flag of `service` — true for an agent-reporting service,
-   *  false for a conjectural (virtual) one. A HINT only — `serviceNormalFor`
-   *  decides. Strictly `true` / `false`: anything looser would coerce a typo
-   *  into "normal" and quietly filter a virtual service down to no rows. */
+  serviceId: z.string().optional(),
+  /** True for an agent-reporting service, false for a conjectural (virtual)
+   *  one. Part of the OAP entity id, so it is required WITH the service and
+   *  strictly `true` / `false`: anything looser would coerce a typo into
+   *  "normal" and quietly filter a virtual service down to no rows. */
   normal: z
     .union([z.literal('true'), z.literal('false')])
     .transform((v) => v === 'true')
@@ -307,17 +311,16 @@ const countQuerySchema = z.object({
  */
 interface EntityFilter {
   scope: string;
-  serviceName?: string;
-  normal?: boolean;
+  serviceName: string;
+  normal: boolean;
   serviceInstanceName?: string;
   endpointName?: string;
 }
 function buildEntity(
-  q: { service?: string; instance?: string; endpoint?: string },
-  normal: boolean,
-): EntityFilter | null {
-  if (!q.service) return null;
-  const base: EntityFilter = { scope: 'Service', serviceName: q.service, normal };
+  q: { instance?: string; endpoint?: string },
+  service: { name: string; normal: boolean },
+): EntityFilter {
+  const base: EntityFilter = { scope: 'Service', serviceName: service.name, normal: service.normal };
   if (q.endpoint && !q.instance) {
     return { ...base, scope: 'Endpoint', endpointName: q.endpoint };
   }
@@ -325,57 +328,6 @@ function buildEntity(
     return { ...base, scope: 'ServiceInstance', serviceInstanceName: q.instance };
   }
   return base;
-}
-
-/** The cached roster for one layer key, tolerating case differences
- *  between what the caller sent and what `listLayers` returned. */
-function rosterFor(catalog: ServiceCatalog, layer: string): ServiceRow[] {
-  const direct = catalog.byLayer.get(layer) ?? catalog.byLayer.get(layer.toUpperCase());
-  if (direct) return direct;
-  const want = layer.toLowerCase();
-  for (const [key, rows] of catalog.byLayer) {
-    if (key.toLowerCase() === want) return rows;
-  }
-  return [];
-}
-
-/**
- * The `normal` flag of `service` within `layer`, or null when the cached
- * roster can't answer (cold snapshot, OAP unreachable, or a layer key
- * `listLayers` doesn't spell the same way).
- *
- * The flag is a property of the LAYER, not of the individual service:
- * `ServiceTraffic` mints the id as `IDManager.ServiceID.buildId(name,
- * layer.isNormal())`, so an agent-reporting service can never appear in
- * a VIRTUAL_* layer and every row of one layer carries the same flag.
- * That is why a name the snapshot hasn't caught up with yet is still
- * answered — by any flagged row of the same layer.
- */
-function serviceNormalFor(
-  catalog: ServiceCatalog,
-  layer: string,
-  service: string,
-): boolean | null {
-  const rows = rosterFor(catalog, layer);
-  const named = rows.find((r) => r.name === service);
-  if (named && named.normal !== null) return named.normal;
-  for (const r of rows) if (r.normal !== null) return r.normal;
-  return null;
-}
-
-/** The flag the entity filter rides with: the layer's roster when it can
- *  answer, else the caller's `?normal=`, else OAP's own default. A
- *  request that names no layer has no roster to consult, so the caller's
- *  value is all there is. */
-function resolveServiceNormal(
-  q: { layer?: string; service?: string; normal?: boolean },
-  catalog: ServiceCatalog,
-): boolean {
-  if (q.layer && q.service) {
-    const fromRoster = serviceNormalFor(catalog, q.layer, q.service);
-    if (fromRoster !== null) return fromRoster;
-  }
-  return q.normal ?? true;
 }
 
 function tagWithLayer(msgsRaw: AlarmMessage[], layerIdx: ServiceCatalog): AlarmMessage[] {
@@ -411,6 +363,19 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     if (q.endTime - q.startTime > WINDOW_CAP_MS) {
       return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
     }
+    const scope = serviceScopeOf(q);
+    if (scope.kind === 'incomplete') return badRequest(scope.message);
+    // The alarm entity filter is name-scoped and every instance / endpoint id
+    // is built on top of the service id, which encodes the flag — so a service
+    // picked without both cannot be filtered on at all, and dropping the filter
+    // would answer with the whole layer's alarms.
+    let entity: EntityFilter | null = null;
+    if (scope.kind === 'service') {
+      if (!scope.service.name || q.normal === undefined) {
+        return badRequest('service (name) and normal must accompany serviceId, as the service roster returned them');
+      }
+      entity = buildEntity(q, { name: scope.service.name, normal: q.normal });
+    }
 
     const opts = buildOapOpts(deps.config.current, deps.fetch);
     const [offset, caps, catalog] = await Promise.all([
@@ -440,7 +405,6 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         };
         if (q.keyword) condition.keyword = q.keyword;
         if (q.layer) condition.layer = q.layer;
-        const entity = buildEntity(q, resolveServiceNormal(q, catalog));
         if (entity) condition.entities = [entity];
         const raw = await graphqlPost<QueryAlarmsRaw>(opts, QUERY_ALARMS_QUERY, { condition });
         msgsRaw = raw.queryAlarms?.msgs ?? [];

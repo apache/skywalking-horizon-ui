@@ -198,28 +198,35 @@ describe('LayerApi.dashboardConfig', () => {
   });
 });
 
+/** A roster row, as the pickers hand it over: the OAP id AND the name. */
+const REVIEWS = { id: 'bWVzaC1zdnI6OnJldmlld3M=.1', name: 'mesh-svr::reviews' };
+
 describe('LayerApi.endpoints / instances — entity query params', () => {
-  it('endpoints encodes service / q / limit', async () => {
+  // Both halves ride along: the BFF spends no lookup for either the id-scoped
+  // OAP query or a name-scoped one, and neither half is re-derived.
+  it('endpoints sends the id AND the name, plus q / limit', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).endpoints('mesh', 'mesh-svr::reviews', '/api/', 50);
-    // URLSearchParams encodes `::` as %3A%3A
-    expect(calls[0][1]).toBe(
-      '/api/layer/mesh/endpoints?service=mesh-svr%3A%3Areviews&q=%2Fapi%2F&limit=50',
-    );
+    await new LayerApi(bff).endpoints('mesh', REVIEWS, '/api/', 50);
+    const qs = new URL(String(calls[0][1]), 'http://ui').searchParams;
+    expect(qs.get('serviceId')).toBe(REVIEWS.id);
+    // URLSearchParams encodes `::` as %3A%3A on the wire; decoded it is the name.
+    expect(qs.get('service')).toBe(REVIEWS.name);
+    expect(qs.get('q')).toBe('/api/');
+    expect(qs.get('limit')).toBe('50');
   });
 
   it('endpoints defaults limit to 20', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).endpoints('mesh', 'svc', '');
-    expect(calls[0][1]).toBe('/api/layer/mesh/endpoints?service=svc&q=&limit=20');
+    await new LayerApi(bff).endpoints('mesh', { id: 'c3Zj.1', name: 'svc' }, '');
+    expect(calls[0][1]).toBe('/api/layer/mesh/endpoints?serviceId=c3Zj.1&service=svc&q=&limit=20');
   });
 
-  it('instances encodes the service param', async () => {
+  it('instances sends the id AND the name', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).instances('mesh_dp', 'mesh-svr::app.sample-services');
-    expect(calls[0][1]).toBe(
-      '/api/layer/mesh_dp/instances?service=mesh-svr%3A%3Aapp.sample-services',
-    );
+    await new LayerApi(bff).instances('mesh_dp', REVIEWS);
+    const qs = new URL(String(calls[0][1]), 'http://ui').searchParams;
+    expect(qs.get('serviceId')).toBe(REVIEWS.id);
+    expect(qs.get('service')).toBe(REVIEWS.name);
   });
 });
 
@@ -230,19 +237,26 @@ describe('LayerApi.topology / endpointDependency', () => {
     expect(calls[0][1]).toBe('/api/layer/mesh/topology?depth=1');
   });
 
-  it('topology forwards service + depth when provided', async () => {
+  // Multi-seed: the map sends every picked row's id AND name, so the BFS seeds
+  // on ids the operator actually selected.
+  it('topology forwards the picked rows + depth when provided', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).topology('mesh', 'mesh-svr::reviews', 3);
-    expect(calls[0][1]).toBe(
-      '/api/layer/mesh/topology?service=mesh-svr%3A%3Areviews&depth=3',
-    );
+    await new LayerApi(bff).topology('mesh', [REVIEWS, { id: 'Y2FydHM=.1', name: 'carts' }], 3);
+    const qs = new URL(String(calls[0][1]), 'http://ui').searchParams;
+    expect(qs.get('serviceId')).toBe(`${REVIEWS.id},Y2FydHM=.1`);
+    expect(qs.get('service')).toBe(`${REVIEWS.name},carts`);
+    expect(qs.get('depth')).toBe('3');
   });
 
-  it('endpointDependency requires + encodes service + endpoint', async () => {
+  it('endpointDependency carries the service pair + the endpoint', async () => {
     const { bff, calls } = makeStub();
-    await new LayerApi(bff).endpointDependency('general', 'frontend', '/api/order');
+    await new LayerApi(bff).endpointDependency(
+      'general',
+      { id: 'ZnJvbnRlbmQ=.1', name: 'frontend' },
+      '/api/order',
+    );
     expect(calls[0][1]).toBe(
-      '/api/layer/general/endpoint-dependency?service=frontend&endpoint=%2Fapi%2Forder',
+      '/api/layer/general/endpoint-dependency?serviceId=ZnJvbnRlbmQ%3D.1&service=frontend&endpoint=%2Fapi%2Forder',
     );
   });
 });

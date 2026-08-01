@@ -20,7 +20,7 @@ import { useSelectedService } from './useSelectedService';
 import { useLayerServices, type LayerServiceRow } from './useLayerServices';
 import type { useLayerLanding } from './useLayerLanding';
 import { isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
-import { serviceById, serviceByName, type ServiceRef } from '@/utils/serviceRef';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 
 /**
  * Where resolution stands for the selected service.
@@ -39,10 +39,9 @@ export type ServiceNameStatus = 'idle' | 'resolving' | 'resolved' | 'unknown';
 export interface LayerServiceName {
   /** The resolved name — non-null only while `status` is `resolved`. */
   name: ComputedRef<string | null>;
-  /** The service handle a query should carry: the picked OAP id, which is what
-   *  the picker selected by. Non-null only while `status` is `resolved`, so it
-   *  gates like `name` does — but it reaches OAP as an id, never re-resolved
-   *  from the name it was displayed under. */
+  /** The identity every service-scoped query on the page carries: the picked
+   *  OAP id AND the name it resolved to, as one pair. Non-null only while
+   *  `status` is `resolved`, so it gates like `name` does. */
   ref: ComputedRef<ServiceRef | null>;
   status: ComputedRef<ServiceNameStatus>;
 }
@@ -70,35 +69,43 @@ interface ResolveInput {
 export function resolveLayerServiceName(input: ResolveInput): {
   name: string | null;
   /** The selected OAP id, echoed once the feeds confirm the layer really has
-   *  it. Queries scope by THIS, not by the name below — the name is for the
-   *  operator to read. */
+   *  it. Queries scope by THIS *and* by the name — the pair travels together. */
   id: string | null;
+  /** The roster row's normal/virtual flag. Null until the roster answers: the
+   *  landing rollup does not carry it, so a name resolved from the sample alone
+   *  has no flag yet, and the reads that need one wait. */
+  normal: boolean | null;
   status: ServiceNameStatus;
 } {
   const { selectedId } = input;
+  const rosterRow = selectedId ? input.roster.find((s) => s.id === selectedId) : undefined;
+  const normal = rosterRow?.normal ?? null;
   if (!selectedId) {
     // The tabs auto-pick the first landing row, so "no selection" is only
     // final once landing has answered.
-    return { name: null, id: null, status: input.landingSettled ? 'idle' : 'resolving' };
+    return { name: null, id: null, normal, status: input.landingSettled ? 'idle' : 'resolving' };
   }
   const match = input.landingRows.find((r) => r.serviceId === selectedId);
   if (match) {
     return {
       name: isBlankServiceName(match.serviceName) ? BLANK_SERVICE_NAME : match.serviceName,
       id: selectedId,
+      normal,
       status: 'resolved',
     };
   }
-  const fromRoster = input.roster.find((s) => s.id === selectedId);
-  if (fromRoster) {
+  if (rosterRow) {
     return {
-      name: isBlankServiceName(fromRoster.name) ? BLANK_SERVICE_NAME : fromRoster.name,
+      name: isBlankServiceName(rosterRow.name) ? BLANK_SERVICE_NAME : rosterRow.name,
       id: selectedId,
+      normal,
       status: 'resolved',
     };
   }
-  if (!input.landingSettled || !input.rosterSettled) return { name: null, id: null, status: 'resolving' };
-  return { name: null, id: null, status: 'unknown' };
+  if (!input.landingSettled || !input.rosterSettled) {
+    return { name: null, id: null, normal, status: 'resolving' };
+  }
+  return { name: null, id: null, normal, status: 'unknown' };
 }
 
 /**
@@ -148,9 +155,27 @@ export function useLayerServiceName(
   );
   return {
     name: computed(() => resolution.value.name),
-    ref: computed(() => serviceById(resolution.value.id)),
+    ref: computed(() =>
+      serviceRef(resolution.value.id, resolution.value.name, resolution.value.normal),
+    ),
     status: computed(() => resolution.value.status),
   };
+}
+
+/**
+ * The selected service as its roster row — for a per-layer page that has no
+ * landing rollup to resolve against (profiling, pod logs). The URL pins an id;
+ * the roster row is where its name comes from, read from the same cached
+ * `listServices` snapshot the layer shell already validates that id against.
+ */
+export function useSelectedServiceRef(layerKey: Ref<string>): ComputedRef<ServiceRef | null> {
+  const { selectedId } = useSelectedService();
+  const { services: roster } = useLayerServices(layerKey);
+  return computed(() => {
+    const row = roster.value.find((s) => s.id === selectedId.value);
+    if (!row) return null;
+    return serviceRef(row.id, isBlankServiceName(row.name) ? BLANK_SERVICE_NAME : row.name, row.normal);
+  });
 }
 
 export interface LayerTabService extends LayerServiceName {
@@ -165,25 +190,25 @@ export interface LayerTabService extends LayerServiceName {
  * The service a per-layer TAB queries by. Kept a pure function because THIS
  * decision — not the name lookup — is what every query on the tab hangs off.
  *
- * An embedded (AI-chat) block is scoped by the caller's prop, not by the
- * picker, so the prop alone decides: the resolver's answer is irrelevant there
+ * An embedded (AI-chat) block is scoped by the caller's props, not by the
+ * picker, so the props alone decide: the resolver's answer is irrelevant there
  * and its `resolving` window must not park a block that already knows its
- * service.
+ * service. The block carries the same pair — the tool that produced it matched
+ * the prompt's service against the layer roster, so it held both halves.
  */
 export function tabServiceScope(
   resolution: { name: string | null; ref: ServiceRef | null; status: ServiceNameStatus },
   embedded: boolean,
   focusService: string | null | undefined,
+  focusServiceId: string | null | undefined,
 ): { name: string | null; ref: ServiceRef | null; status: ServiceNameStatus; ready: boolean } {
   if (embedded) {
-    // A chat block is scoped by NAME — the prompt named a service, no picker
-    // ever handed the block an id — so that is what its queries carry.
-    const name = focusService && focusService.length > 0 ? focusService : null;
+    const ref = serviceRef(focusServiceId, focusService);
     return {
-      name,
-      ref: serviceByName(name),
-      status: name === null ? 'idle' : 'resolved',
-      ready: name !== null,
+      name: ref?.name ?? null,
+      ref,
+      status: ref === null ? 'idle' : 'resolved',
+      ready: ref !== null,
     };
   }
   return { ...resolution, ready: resolution.status === 'resolved' };
@@ -205,6 +230,7 @@ export function useLayerTabService(
   opts: {
     embedded: Ref<boolean>;
     focusService: Ref<string | null | undefined>;
+    focusServiceId: Ref<string | null | undefined>;
     replay?: Ref<boolean>;
   },
 ): LayerTabService {
@@ -214,6 +240,7 @@ export function useLayerTabService(
       { name: resolved.name.value, ref: resolved.ref.value, status: resolved.status.value },
       opts.embedded.value,
       opts.focusService.value,
+      opts.focusServiceId.value,
     ),
   );
   return {

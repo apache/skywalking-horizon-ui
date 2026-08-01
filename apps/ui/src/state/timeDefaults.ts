@@ -71,6 +71,11 @@ function windowMinutesFrom(content: unknown): number | null {
 export const useTimeDefaultsStore = defineStore('time-defaults', () => {
   const userOverride = ref<number | null>(readUserOverride());
   const orgDefault = ref<number | null>(null);
+  /** The org read has finished (with a value or without one). Until it has,
+   *  `defaultWindowMinutes` is only the in-code fallback — a consumer that
+   *  applies the window ONCE must wait for this, or it latches 60 minutes and
+   *  the org default can never take effect. */
+  const orgSettled = ref(false);
 
   const { bundle } = useConfigBundle();
 
@@ -95,6 +100,8 @@ export const useTimeDefaultsStore = defineStore('time-defaults', () => {
     } catch (err) {
       debug('time-defaults', 'failed to load org default', err);
       orgDefault.value = null;
+    } finally {
+      orgSettled.value = true;
     }
   }
 
@@ -123,6 +130,7 @@ export const useTimeDefaultsStore = defineStore('time-defaults', () => {
     defaultWindowMinutes,
     userOverride,
     orgDefault,
+    orgSettled,
     hasUserOverride,
     loadOrgDefault,
     setUserOverride,

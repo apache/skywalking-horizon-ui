@@ -16,61 +16,48 @@
  */
 
 /**
- * Which handle a screen holds for a service — and therefore which slot the BFF
- * request fills.
+ * The identity a screen holds for a service: the OAP id AND the name, as one
+ * roster row handed them over. Every service-scoped BFF request carries both.
  *
- * Every entity-scoped BFF route takes `serviceId` (an OAP id, trusted as one)
- * OR `service` (a NAME, resolved against the layer roster). One ambiguous
- * argument cannot tell them apart: an OAP id is `base64(<name>).<0|1>`, a shape
- * an ordinary name can wear too (`api.1`), and a service NAME can equally be
- * some other service's id string. So the caller says which it has.
- *
- * The layer pickers select BY ID, so a screen that has a selection sends the id
- * and the query lands on exactly that entity — no name round-trip, no roster
- * lookup. Only a screen whose service really is just a name (an operator typed
- * it, a chat block was scoped by name) sends `name`, and it carries `normal`
- * when it knows it: OAP's normal (agent-detected) and virtual (conjectured)
- * services can share a name and are different entities.
+ * OAP mints the id as `base64(<name>).<1 = normal | 0 = virtual>`
+ * (`IDManager.ServiceID.buildId`), so an id cannot be rebuilt from a bare name
+ * without the layer's normal flag — and a wrong flag addresses a service that
+ * was never stored. Carrying the pair removes that guess: the BFF spends
+ * neither a lookup nor a round-trip, it just uses the half the upstream OAP API
+ * takes (an id for traces / logs / instances / endpoints / topology /
+ * profiling; the name — plus the flag that rode along with it — for the alarm
+ * entity filter and endpoint-scoped MQE, which have no id form).
  */
-export type ServiceRef =
-  | { kind: 'id'; id: string }
-  | { kind: 'name'; name: string; normal?: boolean | null };
-
-/** What the api façade and the picker composables accept. A bare string is a
- *  NAME — an id is never implicit, it says `kind: 'id'`. */
-export type ServiceArg = ServiceRef | string;
-
-/** A ref to a service the screen selected (or has no selection for). */
-export function serviceById(id: string | null | undefined): ServiceRef | null {
-  return id ? { kind: 'id', id } : null;
+export interface ServiceRef {
+  id: string;
+  name: string;
+  /** The same row's agent-detected (`true`) / conjectured-virtual (`false`)
+   *  flag. Null when the feed that supplied the name does not carry it; the
+   *  routes whose OAP call is name-scoped (endpoint MQE) require it and refuse
+   *  without it, and the id-scoped ones ignore it. */
+  normal?: boolean | null;
 }
 
-/** A ref to a service the screen only knows by name. Pass `normal` whenever it
- *  is known — without it a name shared by a normal and a virtual service is
- *  refused rather than guessed. */
-export function serviceByName(
+/** The pair, or null when the screen has no service yet. Both halves are
+ *  required — a half-known service is no service, never a lookup. */
+export function serviceRef(
+  id: string | null | undefined,
   name: string | null | undefined,
   normal?: boolean | null,
 ): ServiceRef | null {
-  return name ? { kind: 'name', name, ...(normal === null || normal === undefined ? {} : { normal }) } : null;
-}
-
-export function toServiceRef(arg: ServiceArg | null | undefined): ServiceRef | null {
-  if (!arg) return null;
-  return typeof arg === 'string' ? serviceByName(arg) : arg;
+  return id && name ? { id, name, normal: normal ?? null } : null;
 }
 
 /** The request fields that scope a query to this service. Spread into a POST
- *  body or `URLSearchParams`. `normal` rides along with a name for the routes
- *  that accept it; a route that doesn't simply ignores it. */
+ *  body or `URLSearchParams`. */
 export function serviceRefFields(ref: ServiceRef | null): {
   serviceId?: string;
   service?: string;
   normal?: string;
 } {
   if (!ref) return {};
-  if (ref.kind === 'id') return { serviceId: ref.id };
   return {
+    serviceId: ref.id,
     service: ref.name,
     ...(ref.normal === null || ref.normal === undefined ? {} : { normal: String(ref.normal) }),
   };

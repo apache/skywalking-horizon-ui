@@ -16,8 +16,8 @@
  */
 
 /**
- * `GET /api/layer/:key/endpoints?serviceId=<id>&q=<keyword>&limit=<n>`
- * (or `?service=<name>`) — keyword-searchable, top-N endpoint list.
+ * `GET /api/layer/:key/endpoints?serviceId=<id>&service=<name>&q=<keyword>&limit=<n>`
+ * — keyword-searchable, top-N endpoint list.
  * Drives the endpoint picker on the per-layer Endpoint page.
  *
  * Endpoints are unbounded by nature (a service can expose thousands)
@@ -28,11 +28,8 @@
  *   q       trimmed search keyword (empty → all-recent endpoints).
  *   limit   clamped to 20…50. Default 20.
  *
- * The caller says which service handle it holds, exactly as on the
- * instances route: `serviceId` is taken as an id with no roster lookup,
- * `service` is a NAME resolved against `listServices(layer)` — with an
- * optional `normal=true|false` telling a conjectured (virtual) service
- * apart from an agent-detected one of the same name.
+ * `findEndpoint(serviceId)` keys on the id the request already carries,
+ * exactly as on the instances route — no roster lookup.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -41,7 +38,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { resolveServiceArgs, serviceArgsFromQuery } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -92,14 +89,17 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       const q = req.query as {
         serviceId?: string;
         service?: string;
-        normal?: string;
         q?: string;
         limit?: string;
       };
-      const args = serviceArgsFromQuery(q);
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'all') return reply.code(400).send({ error: 'missing_service' });
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceId = scope.service.id;
       // The handle the caller sent, echoed back on every reply below.
-      const serviceArg = args.serviceId || args.service || '';
-      if (!serviceArg) return reply.code(400).send({ error: 'missing_service' });
+      const serviceArg = scope.service.name || serviceId;
       const keyword = (q.q ?? '').trim();
       const limit = Math.max(20, Math.min(50, Number(q.limit) || 20));
 
@@ -107,35 +107,6 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
-
-      let serviceId: string;
-      try {
-        const scope = await resolveServiceArgs(opts, layerKey, args);
-        if (scope.kind !== 'service') {
-          return reply.send({
-            layer: layerKey,
-            service: serviceArg,
-            query: keyword,
-            limit,
-            generatedAt: Date.now(),
-            endpoints: [],
-            reachable: true,
-            error: 'service not found',
-          } satisfies EndpointsResponse);
-        }
-        serviceId = scope.serviceId;
-      } catch (err) {
-        return reply.send({
-          layer: layerKey,
-          service: serviceArg,
-          query: keyword,
-          limit,
-          generatedAt: Date.now(),
-          endpoints: [],
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies EndpointsResponse);
-      }
 
       try {
         const data = await graphqlPost<{ endpoints: EndpointRow[] }>(opts, FIND_ENDPOINTS, {

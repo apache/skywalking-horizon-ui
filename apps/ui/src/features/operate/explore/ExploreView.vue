@@ -31,7 +31,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
-import { serviceById } from '@/utils/serviceRef';
+import { serviceRef } from '@/utils/serviceRef';
 import type {
   ExploreEntity,
   ExploreRequest,
@@ -76,6 +76,9 @@ const servicesLoading = ref(false);
 const pickServiceName = computed(
   () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
 );
+const pickServiceNormal = computed<boolean | null>(
+  () => services.value.find((s) => s.id === pickServiceId.value)?.normal ?? null,
+);
 
 async function loadServices(): Promise<void> {
   services.value = [];
@@ -99,8 +102,8 @@ async function loadServices(): Promise<void> {
 async function loadInstances(): Promise<void> {
   instances.value = [];
   pickInstanceId.value = '';
-  // The picker selects BY ID — send that, never the display name it resolved to.
-  const picked = serviceById(pickServiceId.value);
+  // The picker selected a roster row — carry it whole.
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
   if (!pickLayer.value || !picked) return;
   try {
     const res = await bffClient.layer.instances(pickLayer.value, picked);
@@ -112,7 +115,7 @@ async function loadInstances(): Promise<void> {
 
 async function loadEndpoints(): Promise<void> {
   pickEndpointId.value = '';
-  const picked = serviceById(pickServiceId.value);
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
   if (!pickLayer.value || !picked) {
     endpoints.value = [];
     return;

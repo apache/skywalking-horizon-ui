@@ -28,7 +28,7 @@ import type {
   TopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
 import { pushEvent } from '@/controls/eventLog';
-import { serviceRefFields, toServiceRef, type ServiceArg } from '@/utils/serviceRef';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 import type { BffClient } from '../client';
 
 /** BFF cap on widgets per `/api/layer/:key/dashboard` body. Mirrors
@@ -138,12 +138,11 @@ export class LayerApi {
     };
   }
 
-  /** Endpoint search for one service. `service` is a {@link ServiceArg}: a ref
-   *  saying whether the caller holds the OAP id or a name, or a bare string,
-   *  which is a NAME. */
+  /** Endpoint search for one service, scoped by the {@link ServiceRef} pair the
+   *  caller picked. */
   endpoints(
     layerKey: string,
-    service: ServiceArg,
+    service: ServiceRef,
     query: string,
     limit = 20,
   ): Promise<{
@@ -157,7 +156,7 @@ export class LayerApi {
     error?: string;
   }> {
     const qs = new URLSearchParams({
-      ...serviceRefFields(toServiceRef(service)),
+      ...serviceRefFields(service),
       q: query,
       limit: String(limit),
     });
@@ -167,11 +166,11 @@ export class LayerApi {
     );
   }
 
-  /** Instance list for one service. Same {@link ServiceArg} contract as
+  /** Instance list for one service. Same {@link ServiceRef} contract as
    *  {@link LayerApi.endpoints}. */
   instances(
     layerKey: string,
-    service: ServiceArg,
+    service: ServiceRef,
   ): Promise<{
     layer: string;
     service: string;
@@ -185,16 +184,18 @@ export class LayerApi {
     reachable: boolean;
     error?: string;
   }> {
-    const qs = new URLSearchParams(serviceRefFields(toServiceRef(service)));
+    const qs = new URLSearchParams(serviceRefFields(service));
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/instances?${qs.toString()}`,
     );
   }
 
+  /** Service map. `services` are the roster rows to seed the BFS from — ids
+   *  and names travel together; empty / omitted seeds the whole layer. */
   topology(
     layerKey: string,
-    service?: string,
+    services?: ServiceRef[],
     depth = 1,
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `topology` block (JSON string).
@@ -202,7 +203,10 @@ export class LayerApi {
     previewConfig?: string,
   ): Promise<TopologyResponse> {
     const qs = new URLSearchParams();
-    if (service) qs.set('service', service);
+    if (services && services.length > 0) {
+      qs.set('serviceId', services.map((s) => s.id).join(','));
+      qs.set('service', services.map((s) => s.name).join(','));
+    }
     qs.set('depth', String(depth));
     if (range) {
       qs.set('step', range.step);
@@ -249,12 +253,12 @@ export class LayerApi {
    *  answer this (404 otherwise). */
   deployment(
     layerKey: string,
-    serviceId: string,
+    service: ServiceRef,
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `deployment` block. */
     previewConfig?: string,
   ): Promise<DeploymentResponse> {
-    const qs = new URLSearchParams({ service: serviceId });
+    const qs = new URLSearchParams(serviceRefFields(service));
     if (range) {
       qs.set('step', range.step);
       qs.set('startMs', String(range.startMs));
@@ -269,13 +273,13 @@ export class LayerApi {
 
   endpointDependency(
     layerKey: string,
-    service: string,
+    service: ServiceRef,
     endpoint: string,
     range?: { step: 'MINUTE' | 'HOUR' | 'DAY'; startMs: number; endMs: number },
     /** Admin preview: the operator's draft `endpointDependency` block. */
     previewConfig?: string,
   ): Promise<EndpointDependencyResponse> {
-    const qs = new URLSearchParams({ service, endpoint });
+    const qs = new URLSearchParams({ ...serviceRefFields(service), endpoint });
     if (range) {
       qs.set('step', range.step);
       qs.set('startMs', String(range.startMs));
@@ -294,9 +298,9 @@ export class LayerApi {
    *  context + suggestions overlay when the operator opens it. */
   serviceHierarchy(
     layerKey: string,
-    service: string,
+    service: ServiceRef,
   ): Promise<ServiceHierarchyResponse> {
-    const qs = new URLSearchParams({ service });
+    const qs = new URLSearchParams(serviceRefFields(service));
     return this.bff.request(
       'GET',
       `/api/layer/${encodeURIComponent(layerKey)}/service-hierarchy?${qs.toString()}`,

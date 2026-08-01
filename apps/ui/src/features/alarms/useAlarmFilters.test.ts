@@ -29,9 +29,9 @@ import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query';
 const services = vi.fn(async () => ({
   layer: 'VIRTUAL_DATABASE',
   services: [
-    { name: 'songs', normal: true },
-    { name: 'mysql-a', normal: false },
-    { name: 'legacy-flagless', normal: null },
+    { id: 'c29uZ3M=.1', name: 'songs', normal: true },
+    { id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false },
+    { id: 'bGVnYWN5LWZsYWdsZXNz.1', name: 'legacy-flagless', normal: null },
   ],
 }));
 
@@ -81,15 +81,15 @@ async function pickLayer(f: Filters, layer: string): Promise<void> {
 describe('normalFor — roster lookup', () => {
   it('reads the flag off the matching entry', () => {
     const roster = [
-      { name: 'songs', normal: true },
-      { name: 'mysql-a', normal: false },
+      { id: 'c29uZ3M=.1', name: 'songs', normal: true },
+      { id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false },
     ];
     expect(normalFor(roster, 'songs')).toBe(true);
     expect(normalFor(roster, 'mysql-a')).toBe(false);
   });
 
   it('defaults to normal for a name the roster does not hold', () => {
-    expect(normalFor([{ name: 'songs', normal: true }], 'gone')).toBe(true);
+    expect(normalFor([{ id: 'c29uZ3M=.1', name: 'songs', normal: true }], 'gone')).toBe(true);
     expect(normalFor([], '')).toBe(true);
   });
 });
@@ -106,13 +106,13 @@ describe('useAlarmFilters — the picked service carries its normal flag', () =>
     });
   });
 
-  it('keeps {name, normal} per roster entry instead of names alone', async () => {
+  it('keeps {id, name, normal} per roster entry instead of names alone', async () => {
     const f = mountFilters();
     await pickLayer(f, 'VIRTUAL_DATABASE');
     expect(f.serviceOptions.value).toEqual([
-      { name: 'songs', normal: true },
-      { name: 'mysql-a', normal: false },
-      { name: 'legacy-flagless', normal: true },
+      { id: 'c29uZ3M=.1', name: 'songs', normal: true },
+      { id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false },
+      { id: 'bGVnYWN5LWZsYWdsZXNz.1', name: 'legacy-flagless', normal: true },
     ]);
   });
 

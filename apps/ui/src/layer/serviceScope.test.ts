@@ -55,7 +55,7 @@ describe('resolveLayerServiceName — "still resolving" is not "resolved to noth
         // the fixture has to disagree with itself for "first" to mean anything.
         roster: [{ id: SERVICE_ID, name: 'songs-stale', normal: true, group: '' }],
       }),
-    ).toEqual({ name: SERVICE_NAME, id: SERVICE_ID, status: 'resolved' });
+    ).toEqual({ name: SERVICE_NAME, id: SERVICE_ID, normal: true, status: 'resolved' });
   });
 
   it('falls back to the full roster for a service outside the sample', () => {
@@ -64,7 +64,26 @@ describe('resolveLayerServiceName — "still resolving" is not "resolved to noth
         ...base,
         roster: [{ id: SERVICE_ID, name: SERVICE_NAME, normal: true, group: '' }],
       }),
-    ).toEqual({ name: SERVICE_NAME, id: SERVICE_ID, status: 'resolved' });
+    ).toEqual({ name: SERVICE_NAME, id: SERVICE_ID, normal: true, status: 'resolved' });
+  });
+
+  // The landing rollup carries no normal flag, so a name resolved from the
+  // sample takes the flag from the roster row for the SAME id — the reads that
+  // need it (endpoint-scoped MQE) wait for that row rather than assuming one.
+  it('takes the normal flag from the roster even when landing named the service', () => {
+    expect(
+      resolveLayerServiceName({
+        ...base,
+        landingRows: [{ serviceId: SERVICE_ID, serviceName: SERVICE_NAME }],
+      }).normal,
+    ).toBeNull();
+    expect(
+      resolveLayerServiceName({
+        ...base,
+        landingRows: [{ serviceId: SERVICE_ID, serviceName: SERVICE_NAME }],
+        roster: [{ id: SERVICE_ID, name: SERVICE_NAME, normal: false, group: '' }],
+      }).normal,
+    ).toBe(false);
   });
 
   it('reports `resolving` — never `unknown` — while either feed is outstanding', () => {
@@ -73,13 +92,19 @@ describe('resolveLayerServiceName — "still resolving" is not "resolved to noth
   });
 
   it('reports `unknown` once both feeds settled without the id', () => {
-    expect(resolveLayerServiceName(base)).toEqual({ name: null, id: null, status: 'unknown' });
+    expect(resolveLayerServiceName(base)).toEqual({
+      name: null,
+      id: null,
+      normal: null,
+      status: 'unknown',
+    });
   });
 
   it('is `idle`, not `resolving`, when nothing is selected and landing has answered', () => {
     expect(resolveLayerServiceName({ ...base, selectedId: null })).toEqual({
       name: null,
       id: null,
+      normal: null,
       status: 'idle',
     });
     expect(resolveLayerServiceName({ ...base, selectedId: null, landingSettled: false }).status).toBe(
@@ -93,50 +118,68 @@ describe('resolveLayerServiceName — "still resolving" is not "resolved to noth
         ...base,
         landingRows: [{ serviceId: SERVICE_ID, serviceName: '' }],
       }),
-    ).toEqual({ name: '_blank', id: SERVICE_ID, status: 'resolved' });
+    ).toEqual({ name: '_blank', id: SERVICE_ID, normal: null, status: 'resolved' });
   });
 });
 
 describe('tabServiceScope — the query gate', () => {
-  /** What the picker hands the tab: the service it selected, BY ID. */
-  const PICKED = { kind: 'id', id: SERVICE_ID } as const;
+  /** What the picker hands the tab: the roster row it selected, whole. */
+  const PICKED = { id: SERVICE_ID, name: SERVICE_NAME } as const;
 
   it('opens only on `resolved`', () => {
     for (const status of ['idle', 'resolving', 'unknown'] as const) {
-      expect(tabServiceScope({ name: null, ref: null, status }, false, undefined).ready).toBe(false);
+      expect(
+        tabServiceScope({ name: null, ref: null, status }, false, undefined, undefined).ready,
+      ).toBe(false);
     }
     expect(
-      tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, false, undefined).ready,
+      tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, false, undefined, undefined)
+        .ready,
     ).toBe(true);
   });
 
-  // The picker selects by id, so that is the handle the tab's queries carry —
-  // the name is only what the operator reads.
-  it('hands the route tab the picked ID, not the name it resolved to', () => {
+  it('hands the route tab both halves of the picked service', () => {
     expect(
-      tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, false, undefined).ref,
-    ).toEqual({ kind: 'id', id: SERVICE_ID });
+      tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, false, undefined, undefined)
+        .ref,
+    ).toEqual({ id: SERVICE_ID, name: SERVICE_NAME });
   });
 
-  it('takes an embedded block\'s service from its prop, not from the picker', () => {
-    // The chat block already knows its service; the resolver's in-flight state
-    // must not park it. It was scoped by NAME (a prompt named it), so a name is
-    // what it carries.
-    expect(tabServiceScope({ name: null, ref: null, status: 'resolving' }, true, SERVICE_NAME)).toEqual({
+  it('takes an embedded block\'s service from its props, not from the picker', () => {
+    // The chat block already knows its service — id and name, from the roster
+    // row its producer matched — so the resolver's in-flight state must not
+    // park it, and nothing about it is re-resolved.
+    expect(
+      tabServiceScope({ name: null, ref: null, status: 'resolving' }, true, SERVICE_NAME, SERVICE_ID),
+    ).toEqual({
       name: SERVICE_NAME,
-      ref: { kind: 'name', name: SERVICE_NAME },
+      ref: { id: SERVICE_ID, name: SERVICE_NAME, normal: null },
       status: 'resolved',
       ready: true,
     });
   });
 
   it('refuses an embedded block with no service rather than widening it', () => {
-    expect(tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, true, '')).toEqual({
+    expect(
+      tabServiceScope({ name: SERVICE_NAME, ref: PICKED, status: 'resolved' }, true, '', ''),
+    ).toEqual({
       name: null,
       ref: null,
       status: 'idle',
       ready: false,
     });
+  });
+
+  // Half an identity is not an identity: an id cannot be rebuilt from a name
+  // (OAP folds the normal flag into it), so a block carrying only one half
+  // refuses instead of querying a service it cannot address.
+  it('refuses an embedded block that carries only one half', () => {
+    expect(
+      tabServiceScope({ name: null, ref: null, status: 'idle' }, true, SERVICE_NAME, undefined).ready,
+    ).toBe(false);
+    expect(
+      tabServiceScope({ name: null, ref: null, status: 'idle' }, true, undefined, SERVICE_ID).ready,
+    ).toBe(false);
   });
 });
 
@@ -284,10 +327,9 @@ describe('Logs tab', () => {
     expect(bff.to('/logs/facets')).toHaveLength(0);
   });
 
-  // The picked service is an ID all the way down: the tab resolves a name only
-  // to SHOW it, and a read scoped by that name would be re-resolved against the
-  // roster — where a virtual service can wear the same name.
-  it('runs the read scoped to the picked service ID once the roster answers', async () => {
+  // The read carries the roster row WHOLE: the id the picker selected and the
+  // name it resolved to, so the BFF re-derives neither half.
+  it('runs the read scoped to the picked service PAIR once the roster answers', async () => {
     const bff = fakeBff({ path: '/logs', payload: logsPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountTab(LayerLogsView, 'mesh');
@@ -299,13 +341,13 @@ describe('Logs tab', () => {
 
     expect(bff.to('/logs')).toHaveLength(1);
     expect(bff.to('/logs')[0]?.body.serviceId).toBe(SERVICE_ID);
-    expect(bff.to('/logs')[0]?.body.service).toBeUndefined();
+    expect(bff.to('/logs')[0]?.body.service).toBe(SERVICE_NAME);
     expect(bff.to('/logs/facets')[0]?.body.serviceId).toBe(SERVICE_ID);
-    expect(bff.to('/logs/facets')[0]?.body.service).toBeUndefined();
+    expect(bff.to('/logs/facets')[0]?.body.service).toBe(SERVICE_NAME);
   });
 
-  // The instance / endpoint pickers hang off the same handle.
-  it('asks for the pickers by that same id, not by the display name', async () => {
+  // The instance / endpoint pickers hang off the same identity.
+  it('asks for the pickers by that same pair', async () => {
     const bff = fakeBff({ path: '/logs', payload: logsPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     await mountTab(LayerLogsView, 'mesh');
@@ -314,13 +356,30 @@ describe('Logs tab', () => {
 
     const asked = bff.to('/instances')[0];
     expect(asked).toBeDefined();
-    expect(new URL(asked!.url, 'http://ui').searchParams.get('serviceId')).toBe(SERVICE_ID);
-    expect(new URL(asked!.url, 'http://ui').searchParams.get('service')).toBeNull();
+    const params = new URL(asked!.url, 'http://ui').searchParams;
+    expect(params.get('serviceId')).toBe(SERVICE_ID);
+    expect(params.get('service')).toBe(SERVICE_NAME);
   });
 
-  // A chat block is scoped by a NAME the prompt supplied — there is no picker
-  // and no id, so the name slot is the honest one to fill.
-  it('sends a NAME when that is genuinely all the caller has', async () => {
+  // A chat block's producer matched the prompt's service against the roster, so
+  // the block was handed both halves and passes both on.
+  it('carries the pair a chat block was seeded with', async () => {
+    const bff = fakeBff({ path: '/logs', payload: logsPayload });
+    vi.stubGlobal('fetch', bff.fetchSpy);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+    mount(LayerLogsView, {
+      props: { layerKey: 'mesh', embedded: true, focusService: SERVICE_NAME, focusServiceId: SERVICE_ID },
+      global: { plugins: [pinia, router, i18n, [VueQueryPlugin, { queryClient }]] },
+    });
+    await flushPromises();
+
+    expect(bff.to('/logs')[0]?.body.service).toBe(SERVICE_NAME);
+    expect(bff.to('/logs')[0]?.body.serviceId).toBe(SERVICE_ID);
+  });
+
+  // Without the id there is nothing to address: refuse rather than fall back to
+  // a name the BFF would have to resolve.
+  it('runs NO read for a chat block that carries only the name', async () => {
     const bff = fakeBff({ path: '/logs', payload: logsPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
@@ -330,8 +389,7 @@ describe('Logs tab', () => {
     });
     await flushPromises();
 
-    expect(bff.to('/logs')[0]?.body.service).toBe(SERVICE_NAME);
-    expect(bff.to('/logs')[0]?.body.serviceId).toBeUndefined();
+    expect(bff.to('/logs')).toHaveLength(0);
   });
 
   // The resolver's two feeds are "settled", not "succeeded": a read that FAILED
@@ -393,9 +451,8 @@ describe('Traces tab', () => {
     expect(bff.to('/traces')).toHaveLength(0);
   });
 
-  // Same rule as Logs: the picker selected an id, so that is what the read
-  // carries; the resolved name is only what the toolbar displays.
-  it('runs the read scoped to the picked service ID once the roster answers', async () => {
+  // Same rule as Logs: the read carries the pair the picker selected.
+  it('runs the read scoped to the picked service PAIR once the roster answers', async () => {
     const bff = fakeBff({ path: '/traces', payload: tracesPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountTab(LayerTracesView, 'mesh');
@@ -406,13 +463,13 @@ describe('Traces tab', () => {
 
     expect(bff.to('/traces')).toHaveLength(1);
     expect(bff.to('/traces')[0]?.body.serviceId).toBe(SERVICE_ID);
-    expect(bff.to('/traces')[0]?.body.service).toBeUndefined();
+    expect(bff.to('/traces')[0]?.body.service).toBe(SERVICE_NAME);
   });
 
-  // Its instance / endpoint pickers hang off the same handle: a picker asked by
-  // display name costs the BFF a roster lookup to undo, and lands on whichever
-  // entity that name resolves to rather than the one the operator selected.
-  it('asks for the pickers by that same id, not by the display name', async () => {
+  // Its instance / endpoint pickers hang off the same identity: a picker asked
+  // by display name alone costs the BFF a roster lookup to undo, and lands on
+  // whichever entity that name resolves to rather than the selected one.
+  it('asks for the pickers by that same pair', async () => {
     const bff = fakeBff({ path: '/traces', payload: tracesPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     await mountTab(LayerTracesView, 'mesh');
@@ -424,25 +481,25 @@ describe('Traces tab', () => {
       expect(asked, suffix).toBeDefined();
       const params = new URL(asked!.url, 'http://ui').searchParams;
       expect(params.get('serviceId'), suffix).toBe(SERVICE_ID);
-      expect(params.get('service'), suffix).toBeNull();
+      expect(params.get('service'), suffix).toBe(SERVICE_NAME);
     }
   });
 
-  // The embedded contract is name-scoped: an embed hands the tab a service NAME
-  // (`focusService`) and no picker id, so the name slot stays the honest one to
-  // fill — asserted here because the route path above no longer fills it.
-  it('sends a NAME when that is genuinely all the caller has', async () => {
+  // An embed is seeded from the same roster row its producer matched, so it
+  // carries both halves — asserted here because the route path above fills them
+  // from the picker instead.
+  it('carries the pair a chat block was seeded with', async () => {
     const bff = fakeBff({ path: '/traces', payload: tracesPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
     mount(LayerTracesView, {
-      props: { layerKey: 'mesh', embedded: true, focusService: SERVICE_NAME },
+      props: { layerKey: 'mesh', embedded: true, focusService: SERVICE_NAME, focusServiceId: SERVICE_ID },
       global: { plugins: [pinia, router, i18n, [VueQueryPlugin, { queryClient }]] },
     });
     await flushPromises();
 
     expect(bff.to('/traces')[0]?.body.service).toBe(SERVICE_NAME);
-    expect(bff.to('/traces')[0]?.body.serviceId).toBeUndefined();
+    expect(bff.to('/traces')[0]?.body.serviceId).toBe(SERVICE_ID);
   });
 
   // The reason used to live in the list header's `title` — invisible unless you
@@ -484,7 +541,7 @@ describe('Browser errors tab', () => {
     expect(bff.to('/browser-errors')).toHaveLength(0);
   });
 
-  it('runs the read scoped to the picked app ID once the roster answers', async () => {
+  it('runs the read scoped to the picked app PAIR once the roster answers', async () => {
     const bff = fakeBff({ path: '/browser-errors', payload: errorsPayload });
     vi.stubGlobal('fetch', bff.fetchSpy);
     const w = await mountTab(LayerBrowserErrorsView, 'browser');
@@ -495,6 +552,6 @@ describe('Browser errors tab', () => {
 
     expect(bff.to('/browser-errors')).toHaveLength(1);
     expect(bff.to('/browser-errors')[0]?.body.serviceId).toBe(SERVICE_ID);
-    expect(bff.to('/browser-errors')[0]?.body.service).toBeUndefined();
+    expect(bff.to('/browser-errors')[0]?.body.service).toBe(SERVICE_NAME);
   });
 });

@@ -37,7 +37,7 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bff } from '@/api/client';
-import { serviceById, type ServiceRef } from '@/utils/serviceRef';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import type { useLayers } from '@/shell/useLayers';
 
 type AvailableLayers = ReturnType<typeof useLayers>['availableLayers'];
@@ -49,6 +49,9 @@ export interface PodLogSourceDeps {
   // Shared entity refs (from useExploreEntity) the pod cascade drives.
   pickLayer: Ref<string>;
   pickServiceId: Ref<string>;
+  /** Name of the picked service — the other half of `pickServiceId`, from the
+   *  same roster row. */
+  pickServiceName: Ref<string>;
   pickInstanceId: Ref<string>;
   instances: Ref<Array<{ id: string; name: string }>>;
   // Shared raw/browser loaders the pickLayer / pickServiceId cascade fans to.
@@ -59,7 +62,7 @@ export interface PodLogSourceDeps {
 
 export function usePodLogSource(deps: PodLogSourceDeps) {
   const { t } = useI18n();
-  const { logSource, availableLayers, pickLayer, pickServiceId, pickInstanceId, instances } = deps;
+  const { logSource, availableLayers, pickLayer, pickServiceId, pickServiceName, pickInstanceId, instances } = deps;
 
   type PodEntityMode = 'pick' | 'type';
   const podEntityMode = ref<PodEntityMode>('pick');
@@ -143,19 +146,19 @@ export function usePodLogSource(deps: PodLogSourceDeps) {
     podContainer.value = '';
     podContainers.value = [];
     containersError.value = null;
-    // Both modes hold an OAP service id — Pick from the roster, Type by
-    // encoding the typed name — so both send it as an id. The layer key then
-    // only has to exist: an id needs no roster to resolve against, which is why
-    // Type mode works under any caps.podLogs layer.
+    // Both modes hold the whole identity — Pick from the roster row, Type from
+    // the typed name plus the real flag the operator set, which is exactly what
+    // the id encodes. The layer key then only has to exist, which is why Type
+    // mode works under any caps.podLogs layer.
     let layer: string | undefined;
     let service: ServiceRef | null;
     if (podEntityMode.value === 'pick') {
       layer = pickLayer.value;
-      service = serviceById(pickServiceId.value);
+      service = serviceRef(pickServiceId.value, pickServiceName.value);
     } else {
       const name = podTypeService.value.trim();
       layer = podLayers.value[0]?.key;
-      service = name ? serviceById(encodePodServiceId(name, podTypeReal.value)) : null;
+      service = serviceRef(name ? encodePodServiceId(name, podTypeReal.value) : '', name, podTypeReal.value);
     }
     if (!layer || !service) return;
     podInstancesLoading.value = true;

@@ -16,9 +16,11 @@
  */
 
 /**
- * `/api/alarms` entity filter: the `normal` flag the filter rides with is the
- * one the named LAYER dictates, and the caller's `?normal=` is only the
- * fallback for a request no roster covers.
+ * `/api/alarms` entity filter: the whole identity the operator picked travels
+ * with the request — id, name, and `normal` — and the route uses the halves
+ * OAP's alarm query actually takes. `alarm.graphqls` has no id form, so the
+ * filter is built from the NAME plus the flag; neither is looked up, guessed,
+ * or overridden by a roster.
  *
  * The flag is not decoration — OAP builds the service id as
  * `base64(name).1` (normal) / `base64(name).0` (conjectural), and every
@@ -41,6 +43,8 @@ import { registerAlarmsQueryRoutes } from './alarms.js';
 
 const NOW = 1_700_000_000_000;
 const WINDOW = `startTime=${NOW - 600_000}&endTime=${NOW}`;
+/** A virtual-layer pick: id, name, flag — one roster row, three fields. */
+const MYSQL = `serviceId=${encodeURIComponent('bXlzcWwtYQ==.0')}&service=mysql-a&normal=false`;
 
 interface Captured {
   query: string;
@@ -156,34 +160,19 @@ function entitiesOf(oap: { asked: (f: string) => Captured[] }): unknown {
 
 beforeEach(() => _resetCapabilitiesCache());
 
-describe('/api/alarms carries the picked service\'s normal flag to OAP', () => {
-  it('sends normal:false for a virtual service so the entity id resolves', async () => {
+describe('/api/alarms filters on the identity the request carried', () => {
+  it('sends the name and flag of a virtual service so the entity id resolves', async () => {
     const oap = fakeOap();
-    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=false');
+    const { status } = await listAlarms(oap.fetch, `&layer=VIRTUAL_DATABASE&${MYSQL}`);
     expect(status).toBe(200);
     expect(entitiesOf(oap)).toEqual([
       { scope: 'Service', serviceName: 'mysql-a', normal: false },
     ]);
   });
 
-  it('keeps normal:true for a normal service, flag sent or omitted', async () => {
-    const explicit = fakeOap();
-    await listAlarms(explicit.fetch, '&layer=GENERAL&service=songs&normal=true');
-    expect(entitiesOf(explicit)).toEqual([
-      { scope: 'Service', serviceName: 'songs', normal: true },
-    ]);
-
-    _resetCapabilitiesCache();
-    const implicit = fakeOap();
-    await listAlarms(implicit.fetch, '&layer=GENERAL&service=songs');
-    expect(entitiesOf(implicit)).toEqual([
-      { scope: 'Service', serviceName: 'songs', normal: true },
-    ]);
-  });
-
   it('carries the flag into the instance-scoped entity', async () => {
     const oap = fakeOap();
-    await listAlarms(oap.fetch, '&service=mysql-a&normal=false&instance=mysql-a-0');
+    await listAlarms(oap.fetch, `&${MYSQL}&instance=mysql-a-0`);
     expect(entitiesOf(oap)).toEqual([
       {
         scope: 'ServiceInstance',
@@ -196,7 +185,7 @@ describe('/api/alarms carries the picked service\'s normal flag to OAP', () => {
 
   it('carries the flag into the endpoint-scoped entity', async () => {
     const oap = fakeOap();
-    await listAlarms(oap.fetch, '&service=mysql-a&normal=false&endpoint=SELECT+db.tbl');
+    await listAlarms(oap.fetch, `&${MYSQL}&endpoint=SELECT+db.tbl`);
     expect(entitiesOf(oap)).toEqual([
       {
         scope: 'Endpoint',
@@ -209,48 +198,68 @@ describe('/api/alarms carries the picked service\'s normal flag to OAP', () => {
 
   it('adds no entity filter when no service was picked', async () => {
     const oap = fakeOap();
-    await listAlarms(oap.fetch, '&layer=GENERAL&normal=false');
+    await listAlarms(oap.fetch, '&layer=GENERAL');
     expect(entitiesOf(oap)).toBeUndefined();
   });
 
   it('rejects a flag that is neither true nor false instead of assuming normal', async () => {
     const oap = fakeOap();
-    const { status, body } = await listAlarms(oap.fetch, '&service=mysql-a&normal=0');
+    const { status, body } = await listAlarms(oap.fetch, '&serviceId=c29uZ3M%3D.1&service=songs&normal=0');
     expect(status).toBe(400);
     expect(body.error).toBe('invalid_query');
     expect(oap.asked('queryAlarms')).toHaveLength(0);
   });
 });
 
-/* A layer's services are all agent-reporting or all conjectural — OAP mints the
- * id with `layer.isNormal()` — so the layer named in the request settles the
- * flag without asking the caller to get it right. */
+/* Half an identity is not a service. Filtering on the half that survived would
+ * either address a different entity or drop the filter — and a dropped filter
+ * answers with the whole layer's alarms under one service's name. */
+describe('/api/alarms refuses half an identity rather than filtering on it', () => {
+  it('refuses a name with no id', async () => {
+    const oap = fakeOap();
+    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=false');
+    expect(status).toBe(400);
+    expect(oap.asked('queryAlarms')).toHaveLength(0);
+  });
+
+  it('refuses an id with no name — the alarm filter has no id form to fall back on', async () => {
+    const oap = fakeOap();
+    const { status } = await listAlarms(oap.fetch, '&serviceId=bXlzcWwtYQ%3D%3D.0&normal=false');
+    expect(status).toBe(400);
+    expect(oap.asked('queryAlarms')).toHaveLength(0);
+  });
+
+  it('refuses a picked service with no flag instead of defaulting it to normal', async () => {
+    const oap = fakeOap();
+    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&serviceId=bXlzcWwtYQ%3D%3D.0&service=mysql-a');
+    expect(status).toBe(400);
+    expect(oap.asked('queryAlarms')).toHaveLength(0);
+  });
+});
+
+/* The roster used to decide the flag, overruling whatever the caller sent. It
+ * is gone: the flag comes from the picked row, and the route never reads a
+ * per-layer roster to second-guess it. */
 const ROSTER: Record<string, RosterRow[]> = {
   VIRTUAL_DATABASE: [{ id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false }],
   GENERAL: [{ id: 'c29uZ3M=.1', name: 'songs', normal: true }],
 };
 
-describe('/api/alarms resolves the flag from the layer it was given', () => {
-  it('filters a virtual-layer service as virtual even when the caller sent no flag', async () => {
+describe('/api/alarms takes the flag from the request, not from a layer roster', () => {
+  it('sends the caller\'s flag even when the layer\'s roster says otherwise', async () => {
     const oap = fakeOap(ROSTER);
-    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a');
-    expect(status).toBe(200);
+    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&serviceId=bXlzcWwtYQ%3D%3D.0&service=mysql-a&normal=true');
     expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
+      { scope: 'Service', serviceName: 'mysql-a', normal: true },
     ]);
   });
 
-  it('outranks a caller flag that contradicts the layer', async () => {
+  it('filters a service the roster snapshot has never seen', async () => {
     const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=true');
-    expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
-  });
-
-  it('answers for a service the roster snapshot has not caught up with', async () => {
-    const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=redis-b&instance=redis-b-0');
+    await listAlarms(
+      oap.fetch,
+      '&layer=VIRTUAL_DATABASE&serviceId=cmVkaXMtYg%3D%3D.0&service=redis-b&normal=false&instance=redis-b-0',
+    );
     expect(entitiesOf(oap)).toEqual([
       {
         scope: 'ServiceInstance',
@@ -261,33 +270,10 @@ describe('/api/alarms resolves the flag from the layer it was given', () => {
     ]);
   });
 
-  it('matches the layer key however the caller cased it', async () => {
+  it('needs no layer at all to filter — the identity is self-contained', async () => {
     const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=virtual_database&service=mysql-a');
+    await listAlarms(oap.fetch, `&${MYSQL}`);
     expect(entitiesOf(oap)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
-  });
-
-  it('leaves an agent-reporting layer normal', async () => {
-    const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=GENERAL&service=songs');
-    expect(entitiesOf(oap)).toEqual([{ scope: 'Service', serviceName: 'songs', normal: true }]);
-  });
-
-  it('falls back to the caller flag when no roster covers the request', async () => {
-    // Layer named, but the catalog is empty (OAP unreachable / cold snapshot).
-    const cold = fakeOap();
-    await listAlarms(cold.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=false');
-    expect(entitiesOf(cold)).toEqual([
-      { scope: 'Service', serviceName: 'mysql-a', normal: false },
-    ]);
-
-    // No layer at all — there is no roster to consult.
-    _resetCapabilitiesCache();
-    const layerless = fakeOap(ROSTER);
-    await listAlarms(layerless.fetch, '&service=mysql-a&normal=false');
-    expect(entitiesOf(layerless)).toEqual([
       { scope: 'Service', serviceName: 'mysql-a', normal: false },
     ]);
   });

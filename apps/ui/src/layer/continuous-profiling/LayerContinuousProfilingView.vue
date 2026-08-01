@@ -40,6 +40,7 @@ import Icon from '@/components/icons/Icon.vue';
 import { useRoute } from 'vue-router';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerServices } from '@/layer/useLayerServices';
+import { serviceRef } from '@/utils/serviceRef';
 import PolicyTargetCard from './components/PolicyTargetCard.vue';
 import { TARGET_TYPES, autoPickDecision, isForeignSeed, newCheckItem, pickDefaultService, policyErrors } from './data';
 import {
@@ -60,6 +61,8 @@ const { services, isLoading: servicesLoading } = useLayerServices(layerKey);
 const serviceName = computed<string>(
   () => services.value.find((s) => s.id === serviceId.value)?.name ?? '',
 );
+// The picked roster row, whole — every policy read/write is scoped by it.
+const service = computed(() => serviceRef(serviceId.value, serviceName.value));
 /** Writes the SHARED layer selection rather than holding its own, so this and
  *  the shell's picker cannot disagree about which service is on screen. */
 const { summary: policySummary, shortfall, isFetching: summaryFetching, refetch: refetchPolicySummary } =
@@ -176,7 +179,7 @@ function kindCount(k: ContinuousProfilingTargetType | 'none'): number {
 }
 
 const { draft, seed, serverTargets, targetState, inSync, ebpfReporting, reachable, isFetching, save, saving, saveError } =
-  useContinuousProfiling(serviceId);
+  useContinuousProfiling(service);
 
 // `immediate` because a warm query cache leaves both deps unchanged on mount —
 // the draft would stay empty against a policy that exists, and Apply would wipe it.
@@ -216,7 +219,7 @@ const {
   reachable: rosterReachable,
   error: rosterError,
 } = useContinuousProfilingInstances(
-  serviceId,
+  service,
   appliedTargets,
 );
 

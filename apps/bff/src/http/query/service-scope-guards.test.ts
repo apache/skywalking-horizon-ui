@@ -16,10 +16,13 @@
  */
 
 /**
- * The entity-scoped query routes' scoping contract: a `service` the caller
- * asked for and OAP does not know REFUSES the read. It must never fall through
- * as "no service", because every one of these OAP conditions treats a missing
- * serviceId as "all services" — the operator would read another service's
+ * The entity-scoped query routes' scoping contract.
+ *
+ * Every one of them takes the service IDENTITY the roster returned — the id and
+ * the name together — and resolves NOTHING: no `listServices` round-trip on any
+ * path, ever. The query lands on the id, so a name that arrived without one has
+ * nothing to scope with and REFUSES: every OAP condition here reads a missing
+ * serviceId as "all services", and the operator would read another service's
  * traces / logs / errors / profiling tasks under the name they picked.
  *
  * The mirror obligation is here too: a caller that deliberately supplies NO
@@ -47,6 +50,8 @@ import { registerEndpointRoute } from './endpoint.js';
 const SERVICE_NAME = 'songs.sample-services';
 const SERVICE_ID = 'c29uZ3M=.1';
 const INSTANCE_ID = 'c29uZ3M=.1_aW5zdC0x';
+/** The pair as every picker holds it, spelled for a query string. */
+const PAIR = `serviceId=${encodeURIComponent(SERVICE_ID)}&service=${encodeURIComponent(SERVICE_NAME)}`;
 
 interface Captured {
   query: string;
@@ -62,8 +67,8 @@ function json(body: unknown): Response {
 
 /** A fake OAP that answers every query these routes issue and records them, so
  *  a test can assert BOTH what was asked and — the point of this file — that
- *  the data query was never asked at all. */
-function fakeOap(known: Array<{ id: string; name: string; normal?: boolean }>): {
+ *  the roster was never asked at all. */
+function fakeOap(): {
   fetch: FetchLike;
   calls: Captured[];
   asked: (fragment: string) => Captured[];
@@ -74,7 +79,6 @@ function fakeOap(known: Array<{ id: string; name: string; normal?: boolean }>): 
     const query = body.query ?? '';
     calls.push({ query, variables: body.variables ?? {} });
     if (query.includes('hasQueryTracesV2Support')) return json({ data: { hasQueryTracesV2Support: false } });
-    if (query.includes('listServices')) return json({ data: { services: known } });
     if (query.includes('queryBasicTraces')) {
       return json({
         data: {
@@ -129,6 +133,8 @@ function fakeOap(known: Array<{ id: string; name: string; normal?: boolean }>): 
     if (query.includes('queryPprofTaskList')) {
       return json({ data: { pprofTaskList: { tasks: [{ id: 'pprof-1' }] } } });
     }
+    if (query.includes('listInstances')) return json({ data: { instances: [{ id: INSTANCE_ID, name: 'inst-1' }] } });
+    if (query.includes('findEndpoint')) return json({ data: { endpoints: [{ id: 'ep-1', name: '/api' }] } });
     return json({ data: {} });
   };
   return { fetch, calls, asked: (fragment) => calls.filter((c) => c.query.includes(fragment)) };
@@ -174,7 +180,7 @@ function scopedTo(call: Captured | undefined, path: 'condition' | 'request' | 'r
 // each test's fake OAP answers the probe itself.
 beforeEach(() => invalidateTraceQueryApiCache());
 
-describe('traces refuse an unresolvable service instead of listing every service', () => {
+describe('traces scope on the id they were given, and refuse a lone name', () => {
   const post = async (fetchImpl: FetchLike, body: Record<string, unknown>) => {
     const { app, sid } = await build(registerTraceRoutes, fetchImpl);
     const res = await app.inject({
@@ -186,33 +192,27 @@ describe('traces refuse an unresolvable service instead of listing every service
     return res.json();
   };
 
-  it('answers a stale service name with a not-found reason and NO trace query', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, { service: 'retired-service' });
+  it('answers a name with no id with a refusal and NO trace query', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, { service: SERVICE_NAME });
     expect(out.native.reachable).toBe(false);
-    expect(out.native.error).toContain('retired-service');
+    expect(out.native.error).toContain(SERVICE_NAME);
     expect(out.native.traces).toHaveLength(0);
     expect(oap.asked('queryBasicTraces')).toHaveLength(0);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('resolves a real name and scopes the query to its id', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, { service: SERVICE_NAME });
+  it('queries the pair by its id, without asking the roster', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, { serviceId: SERVICE_ID, service: SERVICE_NAME });
     expect(out.native.reachable).toBe(true);
     expect(out.native.traces).toHaveLength(1);
-    expect(scopedTo(oap.asked('queryBasicTraces')[0], 'condition')).toBe(SERVICE_ID);
-  });
-
-  it('takes a service id straight from the body without a lookup', async () => {
-    const oap = fakeOap([]);
-    const out = await post(oap.fetch, { serviceId: SERVICE_ID });
-    expect(out.native.reachable).toBe(true);
     expect(scopedTo(oap.asked('queryBasicTraces')[0], 'condition')).toBe(SERVICE_ID);
     expect(oap.asked('listServices')).toHaveLength(0);
   });
 
   it('keeps the deliberate all-services query when no service is supplied', async () => {
-    const oap = fakeOap([]);
+    const oap = fakeOap();
     const out = await post(oap.fetch, {});
     expect(out.native.reachable).toBe(true);
     expect(out.native.traces).toHaveLength(1);
@@ -220,7 +220,7 @@ describe('traces refuse an unresolvable service instead of listing every service
   });
 });
 
-describe('logs refuse an unresolvable service instead of streaming every service', () => {
+describe('logs scope on the id they were given, and refuse a lone name', () => {
   const post = async (fetchImpl: FetchLike, url: string, body: Record<string, unknown>) => {
     const { app, sid } = await build(registerLogRoute, fetchImpl);
     const res = await app.inject({
@@ -232,25 +232,30 @@ describe('logs refuse an unresolvable service instead of streaming every service
     return res.json();
   };
 
-  it('answers a stale service name with a not-found reason and NO log query', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, '/api/layer/mesh/logs', { service: 'retired-service' });
+  it('answers a name with no id with a refusal and NO log query', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, '/api/layer/mesh/logs', { service: SERVICE_NAME });
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(out.logs).toHaveLength(0);
     expect(oap.asked('queryLogs')).toHaveLength(0);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('resolves a real name and scopes the query to its id', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, '/api/layer/mesh/logs', { service: SERVICE_NAME });
+  it('queries the pair by its id', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, '/api/layer/mesh/logs', {
+      serviceId: SERVICE_ID,
+      service: SERVICE_NAME,
+    });
     expect(out.reachable).toBe(true);
     expect(out.logs).toHaveLength(1);
     expect(scopedTo(oap.asked('queryLogs')[0], 'condition')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
   it('keeps the deliberate all-services query when no service is supplied', async () => {
-    const oap = fakeOap([]);
+    const oap = fakeOap();
     const out = await post(oap.fetch, '/api/layer/mesh/logs', {});
     expect(out.reachable).toBe(true);
     expect(scopedTo(oap.asked('queryLogs')[0], 'condition')).toBeUndefined();
@@ -258,16 +263,16 @@ describe('logs refuse an unresolvable service instead of streaming every service
 
   // The facet rail counts a bigger sample than the page: unscoped, it would
   // attribute other services' log volume to the one on screen.
-  it('refuses the facet sample for a stale service name too', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, '/api/layer/mesh/logs/facets', { service: 'retired-service' });
+  it('refuses the facet sample for a lone name too', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, '/api/layer/mesh/logs/facets', { service: SERVICE_NAME });
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(oap.asked('queryLogs')).toHaveLength(0);
   });
 });
 
-describe('browser errors refuse an unresolvable service', () => {
+describe('browser errors scope on the id they were given', () => {
   const post = async (fetchImpl: FetchLike, body: Record<string, unknown>) => {
     const { app, sid } = await build(registerBrowserErrorsRoute, fetchImpl);
     const res = await app.inject({
@@ -279,54 +284,64 @@ describe('browser errors refuse an unresolvable service', () => {
     return res.json();
   };
 
-  it('answers a stale service name with a not-found reason and NO error-log query', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+  it('answers a name with no id with a refusal and NO error-log query', async () => {
+    const oap = fakeOap();
     const out = await post(oap.fetch, { service: 'retired-app' });
     expect(out.reachable).toBe(false);
     expect(out.error).toContain('retired-app');
     expect(out.logs).toHaveLength(0);
     expect(oap.asked('queryBrowserErrorLogs')).toHaveLength(0);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('resolves a real name and scopes the query to its id', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await post(oap.fetch, { service: SERVICE_NAME });
+  it('queries the pair by its id', async () => {
+    const oap = fakeOap();
+    const out = await post(oap.fetch, { serviceId: SERVICE_ID, service: SERVICE_NAME });
     expect(out.reachable).toBe(true);
     expect(out.logs).toHaveLength(1);
     expect(scopedTo(oap.asked('queryBrowserErrorLogs')[0], 'condition')).toBe(SERVICE_ID);
   });
 
   it('keeps the deliberate all-services query when no service is supplied', async () => {
-    const oap = fakeOap([]);
+    const oap = fakeOap();
     const out = await post(oap.fetch, {});
     expect(out.reachable).toBe(true);
     expect(scopedTo(oap.asked('queryBrowserErrorLogs')[0], 'condition')).toBeUndefined();
   });
 });
 
-describe('profiling task lists refuse an unresolvable service', () => {
-  it('eBPF: reports the unknown service instead of a silent empty list', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(registerEBPFRoutes, oap.fetch, '/api/layer/mesh/ebpf/tasks?service=retired-service');
+describe('profiling task lists refuse a lone name and never look one up', () => {
+  it('eBPF: reports the missing id instead of a silent empty list', async () => {
+    const oap = fakeOap();
+    const out = await get(registerEBPFRoutes, oap.fetch, `/api/layer/mesh/ebpf/tasks?service=${encodeURIComponent(SERVICE_NAME)}`);
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(oap.asked('queryEBPFProfilingTasks')).toHaveLength(0);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('eBPF network: a stale service never widens to the whole fleet', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+  it('eBPF: the pair lists that service\'s tasks, with no roster lookup', async () => {
+    const oap = fakeOap();
+    const out = await get(registerEBPFRoutes, oap.fetch, `/api/layer/mesh/ebpf/tasks?${PAIR}`);
+    expect(out.reachable).toBe(true);
+    expect(scopedTo(oap.asked('queryEBPFProfilingTasks')[0], 'root')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
+  });
+
+  it('eBPF network: a lone name never widens to the whole fleet', async () => {
+    const oap = fakeOap();
     const out = await get(
       registerEBPFRoutes,
       oap.fetch,
-      '/api/layer/mesh/ebpf/network/tasks?service=retired-service',
+      `/api/layer/mesh/ebpf/network/tasks?service=${encodeURIComponent(SERVICE_NAME)}`,
     );
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(oap.asked('queryEBPFProfilingTasks')).toHaveLength(0);
   });
 
   it('eBPF network: an instance-only call stays a legitimate instance-scoped query', async () => {
-    const oap = fakeOap([]);
+    const oap = fakeOap();
     const out = await get(
       registerEBPFRoutes,
       oap.fetch,
@@ -338,83 +353,50 @@ describe('profiling task lists refuse an unresolvable service', () => {
     expect(call?.variables.serviceInstanceId).toBe(INSTANCE_ID);
   });
 
-  it('trace profiling: reports the unknown service instead of a silent empty list', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(registerProfileRoutes, oap.fetch, '/api/layer/mesh/profile/tasks?service=retired-service');
+  it('trace profiling: reports the missing id instead of a silent empty list', async () => {
+    const oap = fakeOap();
+    const out = await get(registerProfileRoutes, oap.fetch, `/api/layer/mesh/profile/tasks?service=${encodeURIComponent(SERVICE_NAME)}`);
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(oap.asked('getProfileTaskList')).toHaveLength(0);
   });
 
-  it('trace profiling: a real name still lists that service\'s tasks', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(
-      registerProfileRoutes,
-      oap.fetch,
-      `/api/layer/mesh/profile/tasks?service=${encodeURIComponent(SERVICE_NAME)}`,
-    );
+  it('trace profiling: the pair lists that service\'s tasks', async () => {
+    const oap = fakeOap();
+    const out = await get(registerProfileRoutes, oap.fetch, `/api/layer/mesh/profile/tasks?${PAIR}`);
     expect(out.reachable).toBe(true);
     expect(out.tasks).toHaveLength(1);
     expect(scopedTo(oap.asked('getProfileTaskList')[0], 'root')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('async profiler: reports the unknown service instead of a silent empty list', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+  it('async profiler: reports the missing id instead of a silent empty list', async () => {
+    const oap = fakeOap();
     const out = await get(
       registerAsyncProfileRoutes,
       oap.fetch,
-      '/api/layer/mesh/async/tasks?service=retired-service',
+      `/api/layer/mesh/async/tasks?service=${encodeURIComponent(SERVICE_NAME)}`,
     );
     expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
+    expect(out.error).toContain(SERVICE_NAME);
     expect(oap.asked('queryAsyncProfilerTaskList')).toHaveLength(0);
   });
 
-  it('pprof: reports the unknown service instead of a silent empty list', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(
-      registerAsyncProfileRoutes,
-      oap.fetch,
-      '/api/layer/mesh/pprof/tasks?service=retired-service',
-    );
-    expect(out.reachable).toBe(false);
-    expect(out.error).toContain('retired-service');
-    expect(oap.asked('queryPprofTaskList')).toHaveLength(0);
-  });
-
-  it('pprof: a real name still scopes the task list to its id', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+  it('pprof: reports the missing id instead of a silent empty list', async () => {
+    const oap = fakeOap();
     const out = await get(
       registerAsyncProfileRoutes,
       oap.fetch,
       `/api/layer/mesh/pprof/tasks?service=${encodeURIComponent(SERVICE_NAME)}`,
     );
-    expect(out.reachable).toBe(true);
-    expect(out.tasks).toHaveLength(1);
-    expect(scopedTo(oap.asked('queryPprofTaskList')[0], 'request')).toBe(SERVICE_ID);
+    expect(out.reachable).toBe(false);
+    expect(out.error).toContain(SERVICE_NAME);
+    expect(oap.asked('queryPprofTaskList')).toHaveLength(0);
   });
 
-  // The profiling tabs hold the OAP id, so they send `serviceId` — an id, said
-  // to be an id. No roster lookup, and nothing to mistake for a name.
-  it('eBPF: an explicit serviceId scopes the list with no roster lookup', async () => {
-    const oap = fakeOap([]);
-    const out = await get(
-      registerEBPFRoutes,
-      oap.fetch,
-      `/api/layer/mesh/ebpf/tasks?serviceId=${encodeURIComponent(SERVICE_ID)}`,
-    );
-    expect(out.reachable).toBe(true);
-    expect(scopedTo(oap.asked('queryEBPFProfilingTasks')[0], 'root')).toBe(SERVICE_ID);
-    expect(oap.asked('listServices')).toHaveLength(0);
-  });
-
-  it('pprof: an explicit serviceId scopes the list with no roster lookup', async () => {
-    const oap = fakeOap([]);
-    const out = await get(
-      registerAsyncProfileRoutes,
-      oap.fetch,
-      `/api/layer/mesh/pprof/tasks?serviceId=${encodeURIComponent(SERVICE_ID)}`,
-    );
+  it('pprof: the pair scopes the task list to its id', async () => {
+    const oap = fakeOap();
+    const out = await get(registerAsyncProfileRoutes, oap.fetch, `/api/layer/mesh/pprof/tasks?${PAIR}`);
     expect(out.reachable).toBe(true);
     expect(out.tasks).toHaveLength(1);
     expect(scopedTo(oap.asked('queryPprofTaskList')[0], 'request')).toBe(SERVICE_ID);
@@ -422,188 +404,77 @@ describe('profiling task lists refuse an unresolvable service', () => {
   });
 });
 
-// A service whose NAME is shaped like an OAP id (`base64(<name>).<0|1>`) — a
-// real possibility for a name as ordinary as `api.1` or `orders.2026`. The
-// name slot used to shape-test its argument, so these names were sent to OAP
-// as ids and matched nothing: an empty trace list / task list under a service
-// that is right there in the roster.
-describe('a service NAME shaped like an OAP id is still resolved as a name', () => {
-  // Both are the real `base64(<name>).1` an OAP would mint for these names.
-  const ID_SHAPED = [
+// An id is `base64(<name>).<0|1>` — a shape an ordinary name can wear (`api.1`,
+// `orders.2026`) — and a name can equally be another service's id string.
+// Neither half is inspected: the query goes to the id slot's value, whatever
+// either of them looks like.
+describe('the two halves are never traded for each other', () => {
+  const CONFUSING = [
     { name: 'api.1', id: 'YXBpLjE=.1' },
     { name: 'orders.2026', id: 'b3JkZXJzLjIwMjY=.1' },
+    // The name IS another service's id string; the id slot still decides.
+    { name: 'c29uZ3M=.1', id: 'Z2F0ZXdheQ==.1' },
   ];
 
-  it.each(ID_SHAPED)('traces: $name resolves to its own id', async ({ name, id }) => {
-    const oap = fakeOap([{ id, name }]);
-    const { app, sid } = await build(registerTraceRoutes, oap.fetch);
-    const res = await app.inject({
-      method: 'POST',
-      url: '/api/layer/mesh/traces',
-      headers: { cookie: `horizon_sid=${sid}`, 'content-type': 'application/json' },
-      payload: { source: 'native', service: name },
-    });
-    const out = res.json();
-    expect(out.native.reachable).toBe(true);
-    expect(scopedTo(oap.asked('queryBasicTraces')[0], 'condition')).toBe(id);
-  });
-
-  it.each(ID_SHAPED)('trace profiling: $name resolves to its own id', async ({ name, id }) => {
-    const oap = fakeOap([{ id, name }]);
-    const { app, sid } = await build(registerProfileRoutes, oap.fetch);
-    const res = await app.inject({
-      method: 'GET',
-      url: `/api/layer/mesh/profile/tasks?service=${encodeURIComponent(name)}`,
-      headers: { cookie: `horizon_sid=${sid}` },
-    });
-    const out = res.json();
-    expect(out.reachable).toBe(true);
-    expect(scopedTo(oap.asked('getProfileTaskList')[0], 'root')).toBe(id);
-  });
-
-  // The picker feeds carried their own copy of the shape test, so an id-shaped
-  // NAME emptied the instance / endpoint drop-downs on every tab that offers
-  // them — the same guess, one directory over.
-  it.each(ID_SHAPED)('instances: $name resolves to its own id', async ({ name, id }) => {
-    const oap = fakeOap([{ id, name }]);
+  it.each(CONFUSING)('instances: $name is queried as id $id', async ({ name, id }) => {
+    const oap = fakeOap();
     const out = await get(
       registerInstanceRoute,
       oap.fetch,
-      `/api/layer/mesh/instances?service=${encodeURIComponent(name)}`,
+      `/api/layer/mesh/instances?serviceId=${encodeURIComponent(id)}&service=${encodeURIComponent(name)}`,
     );
     expect(out.reachable).toBe(true);
     expect(out.error).toBeUndefined();
     expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(id);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it.each(ID_SHAPED)('endpoints: $name resolves to its own id', async ({ name, id }) => {
-    const oap = fakeOap([{ id, name }]);
+  it.each(CONFUSING)('endpoints: $name is queried as id $id', async ({ name, id }) => {
+    const oap = fakeOap();
     const out = await get(
       registerEndpointRoute,
       oap.fetch,
-      `/api/layer/mesh/endpoints?service=${encodeURIComponent(name)}&q=`,
+      `/api/layer/mesh/endpoints?serviceId=${encodeURIComponent(id)}&service=${encodeURIComponent(name)}&q=`,
     );
     expect(out.reachable).toBe(true);
     expect(out.error).toBeUndefined();
     expect(scopedTo(oap.asked('findEndpoint')[0], 'root')).toBe(id);
-  });
-
-  // An id in the same slot still resolves — through the roster's id column,
-  // which is what makes dropping the shape test safe for callers that hold one.
-  it('instances: an OAP id in the service slot resolves through the roster', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(
-      registerInstanceRoute,
-      oap.fetch,
-      `/api/layer/mesh/instances?service=${encodeURIComponent(SERVICE_ID)}`,
-    );
-    expect(out.reachable).toBe(true);
-    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
-  });
-
-  it('endpoints: a service the layer does not have is refused, not searched', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
-    const out = await get(
-      registerEndpointRoute,
-      oap.fetch,
-      '/api/layer/mesh/endpoints?service=api.1&q=',
-    );
-    expect(out.error).toBe('service not found');
-    expect(oap.asked('findEndpoint')).toHaveLength(0);
+    expect(oap.asked('listServices')).toHaveLength(0);
   });
 });
 
-// The picker feeds take the same two slots as every other entity-scoped route:
-// `serviceId` for a screen that already holds the OAP id (every layer tab does
-// — it is what the service picker selects by), `service` for one that genuinely
-// only has a name.
-describe('the picker feeds keep the id and the name in separate slots', () => {
-  it('instances: an id sent as an id reaches OAP unchanged, with no roster lookup', async () => {
-    const oap = fakeOap([]);
-    const out = await get(
-      registerInstanceRoute,
-      oap.fetch,
-      `/api/layer/mesh/instances?serviceId=${encodeURIComponent(SERVICE_ID)}`,
-    );
-    expect(out.reachable).toBe(true);
-    expect(out.error).toBeUndefined();
-    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
+// The picker feeds refuse rather than answer for a service they cannot address.
+// Both refusals are 400s: they are malformed requests, not empty results.
+describe('the picker feeds require the identity, not half of it', () => {
+  it('instances: a name with no id is refused, and nothing is listed', async () => {
+    const oap = fakeOap();
+    const { app, sid } = await build(registerInstanceRoute, oap.fetch);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/layer/mesh/instances?service=${encodeURIComponent(SERVICE_NAME)}`,
+      headers: { cookie: `horizon_sid=${sid}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('incomplete_service');
+    expect(oap.asked('listInstances')).toHaveLength(0);
     expect(oap.asked('listServices')).toHaveLength(0);
   });
 
-  it('endpoints: an id sent as an id reaches OAP unchanged, with no roster lookup', async () => {
-    const oap = fakeOap([]);
-    const out = await get(
-      registerEndpointRoute,
-      oap.fetch,
-      `/api/layer/mesh/endpoints?serviceId=${encodeURIComponent(SERVICE_ID)}&q=`,
-    );
-    expect(out.reachable).toBe(true);
-    expect(out.error).toBeUndefined();
-    expect(scopedTo(oap.asked('findEndpoint')[0], 'root')).toBe(SERVICE_ID);
-    expect(oap.asked('listServices')).toHaveLength(0);
-  });
-
-  // An id is NOT a name: sending one in the name slot cannot resolve it to
-  // some other service that happens to be called that.
-  it('instances: an id in the id slot wins over a same-named service', async () => {
-    const oap = fakeOap([{ id: 'b3RoZXI=.1', name: SERVICE_ID }]);
-    await get(
-      registerInstanceRoute,
-      oap.fetch,
-      `/api/layer/mesh/instances?serviceId=${encodeURIComponent(SERVICE_ID)}`,
-    );
-    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
-  });
-
-  // A normal service and a conjectured (virtual) one can wear the same name —
-  // their ids differ only in the trailing `.1` / `.0`. The caller that knows
-  // which it means says so; the roster alone cannot.
-  const SHARED = [
-    { id: 'cGF5bWVudHM=.1', name: 'payments', normal: true },
-    { id: 'cGF5bWVudHM=.0', name: 'payments', normal: false },
-  ];
-
-  it('instances: `normal` picks the intended one of two same-named services', async () => {
-    const oap = fakeOap(SHARED);
-    const virtual = await get(
-      registerInstanceRoute,
-      oap.fetch,
-      '/api/layer/mesh/instances?service=payments&normal=false',
-    );
-    expect(virtual.reachable).toBe(true);
-    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe('cGF5bWVudHM=.0');
-
-    const oap2 = fakeOap(SHARED);
-    const normal = await get(
-      registerInstanceRoute,
-      oap2.fetch,
-      '/api/layer/mesh/instances?service=payments&normal=true',
-    );
-    expect(normal.reachable).toBe(true);
-    expect(scopedTo(oap2.asked('listInstances')[0], 'root')).toBe('cGF5bWVudHM=.1');
-  });
-
-  it('endpoints: an unqualified shared name is refused, not searched under one of them', async () => {
-    const oap = fakeOap(SHARED);
-    const out = await get(registerEndpointRoute, oap.fetch, '/api/layer/mesh/endpoints?service=payments&q=');
-    expect(out.error).toBe('service not found');
+  it('endpoints: a name with no id is refused, and nothing is searched', async () => {
+    const oap = fakeOap();
+    const { app, sid } = await build(registerEndpointRoute, oap.fetch);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/layer/mesh/endpoints?service=${encodeURIComponent(SERVICE_NAME)}&q=`,
+      headers: { cookie: `horizon_sid=${sid}` },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('incomplete_service');
     expect(oap.asked('findEndpoint')).toHaveLength(0);
   });
 
-  it('instances: a name-only caller still works when the name is unshared', async () => {
-    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME, normal: true }]);
-    const out = await get(
-      registerInstanceRoute,
-      oap.fetch,
-      `/api/layer/mesh/instances?service=${encodeURIComponent(SERVICE_NAME)}`,
-    );
-    expect(out.reachable).toBe(true);
-    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
-  });
-
-  it('neither slot filled is still a 400, not an unscoped list', async () => {
-    const oap = fakeOap([]);
+  it('neither half filled is still a 400, not an unscoped list', async () => {
+    const oap = fakeOap();
     const { app, sid } = await build(registerInstanceRoute, oap.fetch);
     const res = await app.inject({
       method: 'GET',

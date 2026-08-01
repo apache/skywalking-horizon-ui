@@ -72,6 +72,7 @@ function openZipkinTab(): void {
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service="spec.service"
+        :focus-service-id="spec.serviceId"
         :focus-window-minutes="spec.windowMinutes"
         :replay="true"
         :replay-data="spec.replayData"

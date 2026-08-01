@@ -72,6 +72,34 @@ describe('time-defaults store — org default', () => {
     expect(store.orgDefault).toBeNull();
   });
 
+  // `defaultWindowMinutes` reads 60 before the org value lands, so a consumer
+  // that promotes it ONCE has to wait for this flag or it latches the fallback
+  // and the org default can never take effect.
+  it('reports the org read as unsettled until it finishes, either way', async () => {
+    vi.spyOn(bff.configs, 'settings')
+      .mockResolvedValue({ theme: null, timeDefaults: { defaultWindowMinutes: 15 }, alert: null });
+    const store = useTimeDefaultsStore();
+
+    expect(store.orgSettled).toBe(false);
+    expect(store.defaultWindowMinutes).toBe(60);
+
+    await store.loadOrgDefault();
+
+    expect(store.orgSettled).toBe(true);
+    expect(store.defaultWindowMinutes).toBe(15);
+  });
+
+  it('settles even when the org read fails, so the window is never held forever', async () => {
+    vi.spyOn(bff.configs, 'settings').mockRejectedValue(new Error('OAP unreachable'));
+    const store = useTimeDefaultsStore();
+
+    await store.loadOrgDefault();
+
+    expect(store.orgSettled).toBe(true);
+    expect(store.orgDefault).toBeNull();
+    expect(store.defaultWindowMinutes).toBe(60);
+  });
+
   it('keeps the user override above the org default', async () => {
     localStorage.setItem('horizon:time-defaults:user', '240');
     vi.spyOn(bff.configs, 'settings')

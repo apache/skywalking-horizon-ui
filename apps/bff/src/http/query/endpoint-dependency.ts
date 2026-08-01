@@ -16,13 +16,16 @@
  */
 
 /**
- * `GET /api/layer/:key/endpoint-dependency?service=<id|name>&endpoint=<name|id>`
+ * `GET /api/layer/:key/endpoint-dependency?serviceId=&service=&normal=&endpoint=<name|id>`
  *
  * API-dependency feed for the per-layer "API dependency" tab. This is the HTTP
  * edge: it parses the request, resolves the (preview OR effective)
  * `endpointDependency` config + the time window, then delegates the OAP
  * fan-out to `buildEndpointDependency` (logic/oap/endpoint-dependency.ts) —
  * the same builder the AI assistant's `show_endpoint_dependency` tool calls.
+ *
+ * The service arrives as its whole roster row (id + name + normal): the id
+ * finds the endpoint, the name and flag build the endpoint-scoped MQE entity.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -42,6 +45,7 @@ import { endpointDependencyConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewEndpointDep } from '../../logic/layers/preview.js';
 import { buildEndpointDependency, emptyEndpointDependencyResponse } from '../../logic/oap/endpoint-dependency.js';
+import { serviceNormalOf, serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface EndpointDependencyRouteDeps {
   config: ConfigSource;
@@ -68,16 +72,33 @@ export function registerEndpointDependencyRoute(
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
       const q = req.query as {
+        serviceId?: string;
         service?: string;
+        normal?: string;
         endpoint?: string;
         previewConfig?: string;
         step?: string;
         startMs?: string;
         endMs?: string;
       };
-      const serviceArg = (q.service ?? '').trim();
       const endpointArg = (q.endpoint ?? '').trim();
-      if (!serviceArg) return reply.code(400).send({ error: 'missing_service' });
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'all') return reply.code(400).send({ error: 'missing_service' });
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      // The focus service's endpoint metrics are MQE under
+      // `{ scope: Endpoint, serviceName, endpointName, normal }` — no id form,
+      // so the name and its flag must both ride along or the chain's own node
+      // reads blank and drops off the graph.
+      const normal = serviceNormalOf(q.normal);
+      if (!scope.service.name || normal === null) {
+        return reply.code(400).send({
+          error: 'incomplete_service',
+          message: 'service (name) and normal must accompany serviceId, as the service roster returned them.',
+        });
+      }
+      const service = { id: scope.service.id, name: scope.service.name, normal };
       if (!endpointArg) return reply.code(400).send({ error: 'missing_endpoint' });
 
       // Admin Preview: render the operator's draft `endpointDependency`
@@ -90,7 +111,7 @@ export function registerEndpointDependencyRoute(
         const eff = await resolveEffectiveLayer(deps.uiTemplateClient, layerKey);
         if (eff.blocked) {
           // Template store unreachable / layer disabled — block, no defaults.
-          return reply.send(emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, null, { nodeMetrics: [] }, true));
+          return reply.send(emptyEndpointDependencyResponse(layerKey, service.name, endpointArg, null, { nodeMetrics: [] }, true));
         }
         epCfg = endpointDependencyConfigFor(eff.template);
       }
@@ -118,7 +139,7 @@ export function registerEndpointDependencyRoute(
         coldStage: !!req.coldStage,
         cfg: epCfg,
         layerKey,
-        serviceArg,
+        service,
         endpointArg,
       });
       return reply.send(response);

@@ -34,12 +34,15 @@
 import { computed, ref, type ComputedRef, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bff, bffClient } from '@/api/client';
+import { serviceRef } from '@/utils/serviceRef';
 
 /** One entry of the layer's service roster. The `normal` flag is carried
  *  alongside the name because it is part of the OAP entity id — a virtual
  *  (conjectural) service filtered as normal resolves to an id nothing was
- *  ever stored under. */
+ *  ever stored under. The `id` is what the instance / endpoint pickers query
+ *  by; the alarm filter itself stays name-scoped. */
 export interface ServiceOption {
+  id: string;
   name: string;
   normal: boolean;
 }
@@ -93,16 +96,24 @@ export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
   });
   const serviceOptions = computed<ServiceOption[]>(() =>
     (servicesQuery.data.value?.services ?? []).map((s) => ({
+      id: s.id,
       name: s.name,
       normal: s.normal ?? true,
     })),
   );
+  // The picked roster row — the dropdown binds the NAME (that is what the alarm
+  // filter sends), so the row it came from is where the id for the pickers
+  // below comes from.
+  const pickedService = computed(() => {
+    const row = serviceOptions.value.find((o) => o.name === draft.value.service);
+    return serviceRef(row?.id, draft.value.service, row?.normal);
+  });
 
   const instancesQuery = useQuery({
     queryKey: computed(() => ['alarms/instances', draft.value.layer, draft.value.service]),
-    queryFn: () => bffClient.layer.instances(draft.value.layer, draft.value.service),
+    queryFn: () => bffClient.layer.instances(draft.value.layer, pickedService.value!),
     enabled: computed(
-      () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
+      () => hasQueryAlarms.value && draft.value.layer.length > 0 && !!pickedService.value,
     ),
     staleTime: 30_000,
   });
@@ -112,9 +123,9 @@ export function useAlarmFilters(hasQueryAlarms: Ref<boolean>): AlarmFilters {
 
   const endpointsQuery = useQuery({
     queryKey: computed(() => ['alarms/endpoints', draft.value.layer, draft.value.service]),
-    queryFn: () => bffClient.layer.endpoints(draft.value.layer, draft.value.service, '', 50),
+    queryFn: () => bffClient.layer.endpoints(draft.value.layer, pickedService.value!, '', 50),
     enabled: computed(
-      () => hasQueryAlarms.value && draft.value.layer.length > 0 && draft.value.service.length > 0,
+      () => hasQueryAlarms.value && draft.value.layer.length > 0 && !!pickedService.value,
     ),
     staleTime: 30_000,
   });

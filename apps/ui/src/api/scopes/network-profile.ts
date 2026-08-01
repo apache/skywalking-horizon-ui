@@ -26,20 +26,19 @@ import type {
   ProcessTopologyResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.networkProfile` — eBPF continuous-network profiling
  *  (NETWORK + CONTINUOUS_PROFILING task families). */
 export class NetworkProfileApi {
   constructor(private readonly bff: BffClient) {}
 
-  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
-   *  skips the roster lookup a name would need. */
+  /** Scoped by the roster row the screen picked — id and name together. */
   tasks(
     layerKey: string,
-    args: { serviceId?: string; serviceInstance?: string },
+    args: { service?: ServiceRef | null; serviceInstance?: string },
   ): Promise<EBPFTaskListResponse> {
-    const qs = new URLSearchParams();
-    if (args.serviceId) qs.set('serviceId', args.serviceId);
+    const qs = new URLSearchParams(serviceRefFields(args.service ?? null));
     if (args.serviceInstance) qs.set('serviceInstance', args.serviceInstance);
     return this.bff.request<EBPFTaskListResponse>(
       'GET',

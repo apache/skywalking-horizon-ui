@@ -55,7 +55,7 @@ import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { tracesConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
-import { resolveServiceScope, type ServiceScope } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { parsePreviewTraces } from '../../logic/layers/preview.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
@@ -104,8 +104,10 @@ function explicitWindow(
 
 export interface TraceListBody {
   source?: TraceSource;
-  service?: string;
+  /** Identity pair — see {@link serviceScopeOf}. The native list keys on the
+   *  id; Zipkin has no ids and keys on the name. */
   serviceId?: string;
+  service?: string;
   instanceId?: string;
   endpointId?: string;
   traceId?: string;
@@ -256,7 +258,6 @@ function buildTraceCondition(
 export async function fetchNativeList(
   opts: GraphqlOptions,
   body: TraceListBody,
-  layerKey: string,
   coldStage: boolean,
   offsetMinutes: number,
   maxPageSize: number,
@@ -269,30 +270,14 @@ export async function fetchNativeList(
       ? explicitWindow(body.startMs, body.endMs, offsetMinutes)
       : null;
   const window = explicit ?? rollingWindow(body.windowMinutes ?? DEFAULT_WINDOW_MIN, offsetMinutes);
-  let serviceId: string | null = null;
-  if (body.serviceId) {
-    serviceId = body.serviceId;
-  } else {
-    let scope: ServiceScope;
-    try {
-      scope = await resolveServiceScope(opts, layerKey, body.service);
-    } catch (err) {
-      return {
-        source: 'native',
-        api,
-        traces: [],
-        reachable: false,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-    // A name that resolves to nothing must NOT fall through as "no service":
-    // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
-    // every service in the window and the rows would read as this service's.
-    if (scope.kind === 'unknown') {
-      return { source: 'native', api, traces: [], reachable: false, error: scope.message };
-    }
-    serviceId = scope.kind === 'service' ? scope.serviceId : null;
+  const scope = serviceScopeOf(body);
+  // Half an identity must NOT fall through as "no service":
+  // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
+  // every service in the window and the rows would read as this service's.
+  if (scope.kind === 'incomplete') {
+    return { source: 'native', api, traces: [], reachable: false, error: scope.message };
   }
+  const serviceId = scope.kind === 'service' ? scope.service.id : null;
   const condition = buildTraceCondition(body, serviceId, window, coldStage, maxPageSize);
   try {
     if (api === 'queryTraces') {
@@ -426,7 +411,7 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
       // response — the UI's empty / error states cover each slot.
       const [native, zipkin] = await Promise.all([
         wantNative
-          ? fetchNativeList(opts, body, layerKey, !!req.coldStage, offset, maxPageSize)
+          ? fetchNativeList(opts, body, !!req.coldStage, offset, maxPageSize)
           : Promise.resolve(undefined),
         wantZipkin ? fetchZipkinList(opts, body, maxPageSize) : Promise.resolve(undefined),
       ]);

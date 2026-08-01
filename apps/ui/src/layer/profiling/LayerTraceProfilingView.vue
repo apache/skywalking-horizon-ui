@@ -40,7 +40,6 @@ import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { serviceById } from '@/utils/serviceRef';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
@@ -99,7 +98,7 @@ const safeCfg = computed(() => {
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
 const { selectedId } = useSelectedService();
-const { name: serviceName } = useLayerServiceName(layerKey, landing);
+const { name: serviceName, ref: service } = useLayerServiceName(layerKey, landing);
 
 const tasks = ref<ProfileTask[]>([]);
 const tasksError = ref<string | null>(null);
@@ -138,7 +137,7 @@ watch(
 
 async function refreshTasks(): Promise<void> {
   tasksError.value = null;
-  if (!selectedId.value) {
+  if (!service.value) {
     tasks.value = [];
     currentTask.value = null;
     segments.value = [];
@@ -147,7 +146,7 @@ async function refreshTasks(): Promise<void> {
   }
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.profile.tasks(layerKey.value, selectedId.value);
+    const resp = await bffClient.profile.tasks(layerKey.value, service.value!);
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     if (tasks.value.length) {
@@ -241,7 +240,7 @@ const showNewTask = ref(false);
 const taskCreateError = ref<string | null>(null);
 const endpointKeyword = ref('');
 const endpointLimit = ref(20);
-const endpointPicks = useLayerEndpoints(layerKey, computed(() => serviceById(selectedId.value)), endpointKeyword, endpointLimit);
+const endpointPicks = useLayerEndpoints(layerKey, service, endpointKeyword, endpointLimit);
 async function submitNewTask(payload: NewTraceTaskPayload): Promise<void> {
   if (!selectedId.value) {
     taskCreateError.value = t('Pick a service first');

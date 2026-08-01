@@ -19,8 +19,8 @@
   map's BFS. Multi-select + search; rows are grouped by the service's
   own GROUP (OAP's `Service.group`, the `<group>::` prefix). Lives INSIDE
   the topology box so the layer-wide map stays the default. The selection
-  is a v-model array of raw service names (comma-joined upstream into the
-  `?service=` query).
+  is a v-model array of the roster rows themselves — id and name — because
+  that is what seeds the map upstream.
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
@@ -32,13 +32,14 @@ import {
 } from '@/utils/serviceName';
 import type { LandingServiceRow } from '@/api/client';
 import type { ServiceNamingRule } from '@skywalking-horizon-ui/api-client';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 
 const props = defineProps<{
-  selected: string[];
+  selected: ServiceRef[];
   landingRows: LandingServiceRow[];
   namingRule: ServiceNamingRule | null;
 }>();
-const emit = defineEmits<{ 'update:selected': [string[]] }>();
+const emit = defineEmits<{ 'update:selected': [ServiceRef[]] }>();
 
 const { t } = useI18n({ useScope: 'global' });
 
@@ -50,11 +51,16 @@ function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, props.namingRule);
 }
 
-function setSelected(next: string[]): void { emit('update:selected', next); }
-function toggleService(name: string): void {
-  const i = props.selected.indexOf(name);
-  if (i >= 0) setSelected(props.selected.filter((x) => x !== name));
-  else setSelected([...props.selected, name]);
+function setSelected(next: ServiceRef[]): void { emit('update:selected', next); }
+function isSelected(id: string): boolean {
+  return props.selected.some((s) => s.id === id);
+}
+function toggleService(row: GroupedRow): void {
+  if (isSelected(row.id)) setSelected(props.selected.filter((s) => s.id !== row.id));
+  else {
+    const picked = serviceRef(row.id, row.raw);
+    if (picked) setSelected([...props.selected, picked]);
+  }
 }
 function clearFocus(): void { setSelected([]); open.value = false; }
 
@@ -85,19 +91,23 @@ const groupedRows = computed<Map<string, GroupedRow[]>>(() => {
 // focused, 'none' = none, 'some' = partial.
 function groupSelState(rows: GroupedRow[]): 'all' | 'some' | 'none' {
   let n = 0;
-  for (const r of rows) if (props.selected.includes(r.raw)) n++;
+  for (const r of rows) if (isSelected(r.id)) n++;
   return n === 0 ? 'none' : n === rows.length ? 'all' : 'some';
 }
 function toggleGroup(rows: GroupedRow[]): void {
-  const raws = rows.map((r) => r.raw);
-  const allSel = raws.every((x) => props.selected.includes(x));
+  const ids = new Set(rows.map((r) => r.id));
+  const allSel = rows.every((r) => isSelected(r.id));
   // Already all-selected ⇒ drop the whole group; otherwise add the
-  // missing ones (dedup) so a partial group fills to full.
-  setSelected(
-    allSel
-      ? props.selected.filter((x) => !raws.includes(x))
-      : [...new Set([...props.selected, ...raws])],
-  );
+  // missing ones (dedup by id) so a partial group fills to full.
+  if (allSel) {
+    setSelected(props.selected.filter((s) => !ids.has(s.id)));
+    return;
+  }
+  const missing = rows
+    .filter((r) => !isSelected(r.id))
+    .map((r) => serviceRef(r.id, r.raw))
+    .filter((r): r is ServiceRef => r !== null);
+  setSelected([...props.selected, ...missing]);
 }
 
 defineExpose({ open });
@@ -151,11 +161,11 @@ defineExpose({ open });
               v-for="r in rows"
               :key="r.id"
               class="focus-row"
-              :class="{ selected: selected.includes(r.raw), 'in-group': gkey }"
+              :class="{ selected: isSelected(r.id), 'in-group': gkey }"
               type="button"
-              @click="toggleService(r.raw)"
+              @click="toggleService(r)"
             >
-              <span class="focus-check" :class="{ on: selected.includes(r.raw) }" />
+              <span class="focus-check" :class="{ on: isSelected(r.id) }" />
               <span class="focus-name">{{ r.name }}</span>
             </button>
           </div>

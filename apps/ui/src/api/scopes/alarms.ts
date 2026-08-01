@@ -58,10 +58,12 @@ export class AlarmsApi {
   }
 
   /** Service roster for one OAP layer (alpha-sorted) — feeds the
-   *  alarms page's cascading filter. */
+   *  alarms page's cascading filter. Rows carry the id as well as the name:
+   *  the alarm entity filter is name-scoped (OAP's alarm query has no id
+   *  form), but the instance / endpoint pickers below it are id-scoped. */
   services(layer: string): Promise<{
     layer: string;
-    services: Array<{ name: string; normal: boolean | null }>;
+    services: Array<{ id: string; name: string; normal: boolean | null }>;
   }> {
     const p = new URLSearchParams({ layer });
     return this.bff.request('GET', `/api/alarms/services?${p.toString()}`);

@@ -68,6 +68,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus service's OAP id. Travels with `focusService` — the block's
+   *  producer matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusEndpointId?: string;
   focusInstanceId?: string;
   focusWindowMinutes?: number;
@@ -100,12 +103,11 @@ const safeCfg = computed(() => {
 });
 // Replay hides the whole toolbar this rollup feeds, so it fires zero queries.
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
-// Embedded mode takes the focus service straight from the prop (a NAME — a
-// prompt named it); the route takes the picked OAP id from the shared
-// layerSelection store and queries by that, resolving a name only to show it.
-// Overriding here means the chat block never touches that global selection.
-// `serviceReady` is the gate: a trace query fired before the service resolves
-// carries none, and OAP answers it with every service's traces.
+// Embedded mode takes the focus service straight from the props; the route
+// takes it from the shared layerSelection store. Overriding here means the chat
+// block never touches that global selection. `serviceReady` is the gate: a
+// trace query fired before the service resolves carries none, and OAP answers
+// it with every service's traces.
 const {
   name: serviceName,
   ref: serviceRef,
@@ -114,19 +116,14 @@ const {
 } = useLayerTabService(layerKey, landing, {
   embedded,
   focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
   replay,
 });
 // Scalar identity of the tab's service, so the cascade-clear keys on exactly
 // what the query is scoped by. `serviceRef` is a fresh object on every
 // recompute, so watching it directly would fire on re-resolution, not on a
 // switch.
-const serviceKey = computed<string | null>(() =>
-  serviceRef.value === null
-    ? null
-    : serviceRef.value.kind === 'id'
-      ? serviceRef.value.id
-      : serviceRef.value.name,
-);
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,

@@ -86,7 +86,7 @@ const safeCfg = computed(() => {
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
 const { selectedId } = useSelectedService();
-const { name: serviceName } = useLayerServiceName(layerKey, landing);
+const { name: serviceName, ref: service } = useLayerServiceName(layerKey, landing);
 
 const {
   tasks,
@@ -115,7 +115,7 @@ const {
   submitNewTask,
   polling,
   countdown,
-} = useEBPFProfiling(layerKey, selectedId);
+} = useEBPFProfiling(layerKey, service);
 
 // Display-only toggles owned by the view.
 const displayMode = ref<'flame' | 'tree'>('flame');
