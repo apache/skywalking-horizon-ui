@@ -100,7 +100,9 @@ export function useLayerBrowserErrors(layerKey: Ref<string>, params: BrowserErro
   return {
     data,
     logs: computed(() => data.value?.logs ?? []),
-    total: computed(() => data.value?.total ?? 0),
+    /** OAP holds another page after this one. There is no cross-page total on
+     *  the wire, so this is the ONLY paging fact the pager may gate on. */
+    hasNext: computed(() => data.value?.hasNext ?? false),
     reachable: computed(() => data.value?.reachable ?? true),
     queryError: computed(() => data.value?.error ?? null),
     isFetching: q.isFetching,

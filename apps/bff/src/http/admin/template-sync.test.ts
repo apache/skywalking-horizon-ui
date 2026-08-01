@@ -37,7 +37,18 @@ import { SessionStore } from '../../user/sessions.js';
 import { makeRouteAuthHook } from '../../rbac/route-policy.js';
 import { resync } from '../../logic/templates/sync.js';
 import { allLayerTemplates } from '../../logic/layers/loader.js';
-import { layerCrossRefIssues, layerTemplatePushSchema } from '../../logic/templates/bundled-schema.js';
+import { loadOverviewDashboards } from '../../logic/overview/loader.js';
+import {
+  layerCrossRefIssues,
+  layerTemplatePushSchema,
+  overviewTemplatePushSchema,
+} from '../../logic/templates/bundled-schema.js';
+import { canonicalLayerKey } from '../../logic/templates/identity.js';
+import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
+import {
+  resolveEffectiveOverview,
+  resolveEffectiveOverviews,
+} from '../../logic/overview/effective.js';
 import { registerTemplateSyncAdminRoutes } from './template-sync.js';
 
 /** The bundled set the routes see. Mutable so each test can plant exactly the
@@ -52,6 +63,17 @@ vi.mock('../../logic/templates/aggregator.js', () => ({
 }));
 
 type Json = Record<string, unknown>;
+
+/** A minimal overview dashboard that passes the push bar. */
+function validOverview(id: string): Json {
+  return {
+    id,
+    title: id,
+    widgets: [
+      { id: 'w1', title: 'Load', type: 'metric', layer: 'GENERAL', mqe: 'service_cpm', span: 6, rowSpan: 2 },
+    ],
+  };
+}
 
 /** A minimal layer template that passes the push bar. */
 function validLayer(key: string): Json {
@@ -112,6 +134,9 @@ function fakeConfig(): ConfigSource {
 async function buildApp(fetchImpl: FetchLike): Promise<{
   app: FastifyInstance;
   cookie: string;
+  /** The same client the routes write through — the read-side resolvers take
+   *  it, so a test can ask what the runtime makes of what was just published. */
+  client: () => UITemplateClient;
 }> {
   const config = fakeConfig();
   const sessions = new SessionStore({ ttlMinutes: 60 });
@@ -124,7 +149,7 @@ async function buildApp(fetchImpl: FetchLike): Promise<{
   // `operator` carries both dashboard:write (layer saves) and overview:write
   // (the bundled pushes).
   const sid = sessions.create('op', ['operator']).sid;
-  return { app, cookie: `horizon_sid=${sid}` };
+  return { app, cookie: `horizon_sid=${sid}`, client: () => client };
 }
 
 async function post(app: FastifyInstance, url: string, cookieHeader: string, payload: object = {}) {
@@ -229,17 +254,66 @@ describe('POST /api/admin/templates/save — layer content reaching OAP', () => 
     await app.close();
   });
 
-  it('accepts a name that differs from the key only in case', async () => {
+  // Two spellings of the same layer that no reader ever looks up: the row would
+  // be created, the push would report success, and nothing on screen would
+  // change — so the refusal has to name the one spelling that IS read.
+  it.each([
+    ['lower-case', 'horizon.layer.general', 'GENERAL', 'horizon.layer.GENERAL'],
+    ['an OAP legacy alias', 'horizon.layer.CACHE', 'CACHE', 'horizon.layer.VIRTUAL_CACHE'],
+  ])('refuses %s name, names the one Horizon reads, and writes nothing', async (_label, name, key, canonical) => {
     const store = makeStore();
     const { app, cookie: c } = await buildApp(store.fetchImpl);
 
     const res = await post(app, '/api/admin/templates/save', c, {
-      name: 'horizon.layer.general',
-      content: validLayer('GENERAL'),
+      name,
+      content: validLayer(key),
     });
 
-    expect(res.statusCode).toBe(200);
-    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.layer.general' }]);
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_content');
+    expect(body.issues).toEqual([
+      `name: "${name}" is not a name Horizon reads — publish it as "${canonical}"`,
+    ]);
+    expect(store.writes).toEqual([]);
+    expect(store.rows).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses layer content whose key is an alias of the layer it is published as', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    // The row name is the one the runtime reads, but the content answers as
+    // `CACHE` — and the config bundle files a layer under the key its CONTENT
+    // reports, so this lands under a key no page asks for.
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.layer.VIRTUAL_CACHE',
+      content: validLayer('CACHE'),
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues).toEqual([
+      'key: "CACHE" is not the layer this is published as (horizon.layer.VIRTUAL_CACHE)',
+    ]);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a singleton stored under anything but its one key', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.theme.ACTIVE',
+      content: { themeId: 'midnight' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(
+      /publish it as "horizon\.theme\.active"/,
+    );
+    expect(store.writes).toEqual([]);
     await app.close();
   });
 
@@ -436,6 +510,189 @@ describe('POST /api/admin/templates/save — layer content reaching OAP', () => 
   });
 });
 
+describe('POST /api/admin/templates/save — overview content reaching OAP', () => {
+  it('refuses a dashboard whose id is not the row it is published as, and writes nothing', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    // The list page reads each dashboard's identity from its CONTENT and the
+    // page route reads it from the row NAME, so this row would answer as `mesh`
+    // in the picker while `/services` and `/mesh` both resolved elsewhere.
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: validOverview('mesh'),
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = res.json() as { code: string; issues: string[] };
+    expect(body.code).toBe('invalid_content');
+    expect(body.issues).toEqual([
+      'id: "mesh" is not the overview this is published as (horizon.overview.services)',
+    ]);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a misspelled field — the legacy schema stored it as dead config', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validOverview('services');
+    (broken.widgets as Json[])[0].agregation = 'sum';
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(/agregation/);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('refuses a widget type the renderer has no case for', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const broken = validOverview('services');
+    (broken.widgets as Json[])[0].type = 'pie';
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: broken,
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(/widgets\.0\.type:/);
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('publishes a half-authored dashboard — every hole here is one the editor leaves open', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+    const content: Json = {
+      id: 'services',
+      title: '', // meta title cleared
+      description: '',
+      widgets: [
+        // "— any —" layer, MQE cleared, tip + unit cleared.
+        { id: 'w1', title: '', type: 'metric', mqe: '', tip: '', unit: '', span: 6, rowSpan: 2 },
+        // Every KPI row removed, then one added back: "+ add row" seeds a blank MQE.
+        { id: 'w2', title: 'Tile', type: 'kpi-tile', layer: 'GENERAL', kpis: [], span: 6, rowSpan: 2 },
+        {
+          id: 'w3',
+          title: 'Tile 2',
+          type: 'kpi-tile',
+          layer: 'GENERAL',
+          kpis: [{ label: 'new KPI', mqe: '' }],
+          aggregateOnPage: true,
+          // "A separate metric…" picked, expression not typed yet.
+          rankBy: { mqe: '' },
+          span: 6,
+          rowSpan: 2,
+        },
+      ],
+    };
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content,
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.overview.services' }]);
+    await app.close();
+  });
+
+  it('publishes a brand-new dashboard that has no widgets yet', async () => {
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.blank',
+      content: { id: 'blank', title: 'Blank', widgets: [] },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.overview.blank' }]);
+    await app.close();
+  });
+});
+
+/**
+ * The publish boundary and the runtime resolvers have to agree on ONE name per
+ * template — that is the whole rule, and the two halves live in different
+ * files, so pin them against each other rather than against a restated
+ * expectation. Every spelling the route accepts must come back out of the
+ * read side the pages actually use; every spelling it refuses must leave the
+ * store untouched.
+ */
+describe('what publishes is what the runtime reads back', () => {
+  it.each(['GENERAL', 'general', 'General', 'CACHE', 'VIRTUAL_CACHE'])(
+    'layer name %s: accepted iff the layer page can resolve it',
+    async (spelling) => {
+      const store = makeStore();
+      const { app, cookie: c, client } = await buildApp(store.fetchImpl);
+
+      const res = await post(app, '/api/admin/templates/save', c, {
+        name: `horizon.layer.${spelling}`,
+        content: validLayer(spelling.toUpperCase()),
+      });
+
+      // What the sidebar hands the per-layer routes for this template.
+      const routeKey = canonicalLayerKey(spelling).toLowerCase();
+      const effective = await resolveEffectiveLayer(client, routeKey);
+
+      expect(res.statusCode === 200).toBe(effective.template !== null);
+      if (res.statusCode !== 200) expect(store.writes).toEqual([]);
+      await app.close();
+    },
+  );
+
+  it('layer: exactly the canonical spelling publishes', async () => {
+    // Guards the case above from passing vacuously (all-refused / all-accepted).
+    const accepted: string[] = [];
+    for (const spelling of ['GENERAL', 'general', 'General', 'CACHE', 'VIRTUAL_CACHE']) {
+      resync();
+      const store = makeStore();
+      const { app, cookie: c } = await buildApp(store.fetchImpl);
+      const res = await post(app, '/api/admin/templates/save', c, {
+        name: `horizon.layer.${spelling}`,
+        content: validLayer(spelling.toUpperCase()),
+      });
+      if (res.statusCode === 200) accepted.push(spelling);
+      await app.close();
+    }
+    expect(accepted).toEqual(['GENERAL', 'VIRTUAL_CACHE']);
+  });
+
+  it('overview: the row that publishes is the row both read paths return', async () => {
+    const store = makeStore();
+    const { app, cookie: c, client } = await buildApp(store.fetchImpl);
+
+    const mismatched = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: validOverview('mesh'),
+    });
+    expect(mismatched.statusCode).toBe(400);
+    expect(await resolveEffectiveOverview(client, 'services')).toBeNull();
+    expect(await resolveEffectiveOverviews(client)).toEqual([]);
+
+    const ok = await post(app, '/api/admin/templates/save', c, {
+      name: 'horizon.overview.services',
+      content: validOverview('services'),
+    });
+    expect(ok.statusCode).toBe(200);
+
+    // The page route resolves by row name, the list by the content's own id —
+    // the two only ever name the same dashboard because the publish enforced it.
+    const byName = await resolveEffectiveOverview(client, 'services');
+    expect((byName as { id: string } | null)?.id).toBe('services');
+    expect((await resolveEffectiveOverviews(client)).map((d) => d.id)).toEqual(['services']);
+    await app.close();
+  });
+});
+
 describe('POST /api/admin/templates/:name/push-bundled', () => {
   it('refuses a malformed bundled layer and writes nothing', async () => {
     const broken = validLayer('GENERAL');
@@ -487,6 +744,35 @@ describe('POST /api/admin/templates/:name/push-bundled', () => {
     expect(store.writes).toEqual([{ op: 'create', id: 'horizon.layer.GENERAL' }]);
     await app.close();
   });
+
+  it('refuses a bundled overview whose id is not its own file key', async () => {
+    // A replaced `bundled_templates/` directory is the documented risk here:
+    // the dashboard is keyed by the file, the content answers as another one.
+    bundle.rows = [{ kind: 'overview', key: 'services', content: validOverview('mesh') }];
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/horizon.overview.services/push-bundled', c);
+
+    expect(res.statusCode).toBe(400);
+    expect((res.json() as { issues: string[] }).issues.join(' ')).toMatch(
+      /is not the overview this is published as/,
+    );
+    expect(store.writes).toEqual([]);
+    await app.close();
+  });
+
+  it('still pushes a well-formed bundled overview', async () => {
+    bundle.rows = [{ kind: 'overview', key: 'services', content: validOverview('services') }];
+    const store = makeStore();
+    const { app, cookie: c } = await buildApp(store.fetchImpl);
+
+    const res = await post(app, '/api/admin/templates/horizon.overview.services/push-bundled', c);
+
+    expect(res.statusCode).toBe(200);
+    expect(store.writes).toEqual([{ op: 'create', id: 'horizon.overview.services' }]);
+    await app.close();
+  });
 });
 
 describe('POST /api/admin/templates/sync-all', () => {
@@ -531,6 +817,18 @@ describe('push-bar calibration', () => {
     const cleared = validLayer('GENERAL');
     ((cleared.dashboards as Json).service as Json[])[0].rowSpan = '';
     expect(layerTemplatePushSchema.safeParse(cleared).success).toBe(false);
+  });
+
+  it('accepts every overview dashboard this build bundles', () => {
+    // Same reason as the layer case above: reset-to-bundled and sync-all
+    // publish exactly these, so one the push bar refuses could never be reset
+    // to. They are the loader's copies, which is what those routes read.
+    const rejected = loadOverviewDashboards()
+      .map((d) => ({ id: d.id, parsed: overviewTemplatePushSchema.safeParse(JSON.parse(JSON.stringify(d))) }))
+      .filter((r) => !r.parsed.success)
+      .map((r) => r.id);
+    expect(rejected).toEqual([]);
+    expect(loadOverviewDashboards().length).toBeGreaterThan(0);
   });
 
   it('finds no cross-reference defect in any layer template this build bundles', () => {

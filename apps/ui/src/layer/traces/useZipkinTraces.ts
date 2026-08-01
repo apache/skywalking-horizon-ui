@@ -109,6 +109,9 @@ export function useLayerZipkinTraces(params: ZipkinTracesParams) {
   return {
     data,
     traces: computed(() => data.value?.traces ?? []),
+    /** Zipkin returned more than the limit allowed. There is no offset on
+     *  Zipkin's list endpoint, so this is a capped flag, never a next page. */
+    hasNext: computed(() => data.value?.hasNext ?? false),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     reachable,

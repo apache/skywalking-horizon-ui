@@ -36,6 +36,7 @@ import { useLayers } from '@/shell/useLayers';
 import { useLocalTemplateEdits, layerEditName } from '@/controls/localTemplateEdits';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { stableStringify } from '@/utils/stableJson';
 import { refreshConfigBundle } from '@/controls/configBundle';
@@ -497,7 +498,9 @@ export function useLayerTemplateStore() {
         saveMsg.value = 'Refetched after timeout — the push may have completed; please verify.';
         setTimeout(() => (saveMsg.value = null), 10000);
       } else {
-        saveMsg.value = err instanceof Error ? err.message : String(err);
+        // The BFF's issue list, when it sent one — it names the field (or the
+        // name to publish under), which the bare transport message does not.
+        saveMsg.value = pushErrorLines(err).join(' · ');
       }
     } finally {
       isSaving.value = false;

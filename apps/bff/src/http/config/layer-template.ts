@@ -16,16 +16,8 @@
  */
 
 /**
- * `/api/admin/layer-templates*` — admin CRUD for the per-layer JSON
- * templates that drive the dashboards / service-list / overview blocks.
- *
- *   GET  /api/admin/layer-templates           — list every loaded layer.
- *   POST /api/admin/layer-templates/:key      — write one template back
- *                                                to its JSON file; the
- *                                                in-memory cache is
- *                                                invalidated so the
- *                                                next read sees the new
- *                                                shape immediately.
+ * `GET /api/admin/layer-templates` — the disk-bundled per-layer JSON
+ * templates, as the layer-dashboards editor's "bundled" source.
  */
 
 import type { FastifyInstance } from 'fastify';

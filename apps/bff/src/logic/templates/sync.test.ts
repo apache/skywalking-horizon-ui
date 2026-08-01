@@ -798,3 +798,67 @@ describe('duplicate / conflict reconciliation', () => {
     expect(rowOf(status, nameOf(OVERVIEW)).remote?.id).toBe('services-a');
   });
 });
+
+/**
+ * Rows the publish boundary now refuses to create, but which a store written
+ * before it — or by something other than Horizon — can already hold. Nothing
+ * renders them and no admin page lists them (each page enumerates the
+ * templates it can resolve), so the status list is the only place they exist.
+ */
+describe('unreadable rows — stored under a name no page reads', () => {
+  beforeEach(() => {
+    invalidateSyncCache();
+    vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    invalidateSyncCache();
+    vi.restoreAllMocks();
+  });
+
+  /** An envelope whose name and content were written independently — the two
+   *  shapes the publish boundary refuses. */
+  const rawEnvelope = (name: string, kind: string, content: unknown): string =>
+    JSON.stringify({ name, kind, version: 1, content });
+
+  it('reports a non-canonical layer name, an aliased one, and a mis-filed overview', async () => {
+    const oap = fakeOap({
+      rows: [
+        ...alreadySeeded(),
+        remoteRow('lower', rawEnvelope('horizon.layer.general', 'layer', { key: 'GENERAL' })),
+        remoteRow('alias', rawEnvelope('horizon.layer.CACHE', 'layer', { key: 'CACHE' })),
+        remoteRow('misfiled', rawEnvelope('horizon.overview.ops', 'overview', { id: 'services', widgets: [] })),
+      ],
+    });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.unreadable.map((u) => [u.id, u.reason])).toEqual([
+      ['lower', '"horizon.layer.general" is not a name Horizon reads — publish it as "horizon.layer.GENERAL"'],
+      ['alias', '"horizon.layer.CACHE" is not a name Horizon reads — publish it as "horizon.layer.VIRTUAL_CACHE"'],
+      ['misfiled', '"services" is not the overview this is published as (horizon.overview.ops)'],
+    ]);
+    expect(warnings().join(' ')).toMatch(/render for nobody/);
+  });
+
+  it('leaves a clean store — and every bundled template — unreported', async () => {
+    const oap = fakeOap({ rows: alreadySeeded() });
+    const status = await getSyncStatus(depsFor(oap.client, { bundled: () => iterateBundledTemplates() }));
+    expect(status.unreadable).toEqual([]);
+  });
+
+  it('says nothing about a disabled row or a translation overlay', async () => {
+    const oap = fakeOap({
+      rows: [
+        ...alreadySeeded(),
+        // Already retired — it renders for nobody by design, not by accident.
+        remoteRow('retired', rawEnvelope('horizon.layer.general', 'layer', { key: 'GENERAL' }), true),
+        // Overlays carry their parent's key and no identity of their own.
+        remoteRow('overlay', overlayCfgOf(ZH_OVERLAY)),
+      ],
+    });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    expect(status.unreadable).toEqual([]);
+  });
+});

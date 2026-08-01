@@ -405,11 +405,11 @@ note "Step 7 — GitHub release ${TAG}"
 # Extract the CHANGELOG section for this version as the release body, read out
 # of the TAG rather than the working tree — the body has to describe the bytes
 # being published, and the checkout this script runs from may have moved on
-# since the release commit. The committed CHANGELOG is hard-wrapped at ~80
-# cols, which reflows cleanly in the repo file view but renders as a ragged
-# column of <br>-broken short lines in a GitHub Release body (GFM
-# hard-line-breaks). The helper unwraps each paragraph / list item onto one
-# line so the release body flows; see scripts/changelog-release-notes.mjs.
+# since the release commit. A GitHub Release body renders with GFM
+# hard-line-breaks, so every newline inside a paragraph becomes a literal <br>.
+# The committed CHANGELOG is written one physical line per paragraph / list item
+# for that reason; the helper joins any that were hard-wrapped anyway, as a
+# backstop — see scripts/changelog-release-notes.mjs.
 NOTES_FILE="${WORK_DIR}/release-notes.md"
 TAG_CHANGELOG="${WORK_DIR}/CHANGELOG.${TAG}.md"
 if ! git -C "${PROJECT_DIR}" show "${TAG}:CHANGELOG.md" > "${TAG_CHANGELOG}"; then

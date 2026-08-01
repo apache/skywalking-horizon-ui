@@ -47,6 +47,7 @@ import type { LayerTemplate } from './loader.js';
 import { getSyncStatus } from '../templates/sync.js';
 import { iterateBundledTemplates } from '../templates/aggregator.js';
 import { formatName, parseEnvelope } from '../templates/names.js';
+import { canonicalLayerKey } from '../templates/identity.js';
 import { logger } from '../../logger.js';
 
 export interface EffectiveLayer {
@@ -77,7 +78,7 @@ export async function resolveEffectiveLayer(
     // An OAP that never serves the template store (10.x) runs
     // `templates.mode: readonly`, where `unreachable` is always false.
     if (sync.unreachable) return { template: null, blocked: true };
-    const name = formatName('layer', layerKey.toUpperCase());
+    const name = formatName('layer', canonicalLayerKey(layerKey));
     const row = sync.rows.find(
       (r) => r.name === name && r.kind === 'layer' && r.locale === undefined,
     );

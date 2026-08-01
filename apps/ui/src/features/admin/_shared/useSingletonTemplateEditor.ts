@@ -52,6 +52,7 @@ import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources'
 import { useTemplateSync, type SyncBanner } from '@/features/admin/_shared/useTemplateSync';
 import { useLocalTemplateEdits } from '@/controls/localTemplateEdits';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { refreshConfigBundle } from '@/controls/configBundle';
 import { stableStringify } from '@/utils/stableJson';
 
@@ -230,8 +231,7 @@ export function useSingletonTemplateEditor<T>(
     try {
       await bff.templateSync.save(name, draft.value);
     } catch (err) {
-      const anyErr = err as { body?: { issues?: string[] }; message?: string };
-      pushErr.value = anyErr.body?.issues ?? [anyErr.message ?? String(err)];
+      pushErr.value = pushErrorLines(err);
       pushing.value = false;
       return; // keep the modal open with the error; nothing was committed
     }

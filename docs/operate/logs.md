@@ -57,7 +57,7 @@ Log queries use **second-precision** time windows. Logs are record-style data an
 
 A **density histogram** sits above the stream: time on the x-axis, log count on the y-axis, each bar stacked by level (error / warn / info / debug / other) with the same colour as the legend. Hover a bar to see that bucket's time range and per-level counts. The histogram is built from the **currently loaded page**, so it shows the shape of what is on screen, not the whole window.
 
-The **Levels** strip carries a count per level next to each chip. Those counts come from a window-scoped sample (a few hundred of the most recent rows in the window, larger than one page), so they reflect the window's level distribution rather than only the visible page. The strip notes the sample size it used.
+The **Levels** strip carries a count per level next to each chip. Those counts come from a window-scoped sample (a few hundred of the most recent rows in the window, larger than one page), so they reflect the window's level distribution rather than only the visible page. The strip notes the sample size it used, and says when the window held more rows than the sample counted — narrow the window if you need the counts to cover all of it.
 
 Each row shows the timestamp, the level, the service (with any group prefix decoded), an **↗ trace** link when the line is trace-correlated, a format chip (`JSON` / `YAML` / `TEXT`), and a one-line preview of the content. Rows are colour-keyed by level.
 
@@ -65,7 +65,7 @@ Horizon renders the payload according to its content. OAP labels payloads as JSO
 
 Click a row to open the full payload in a popout: the complete content, format-aware pretty-printing, a **Copy** button, the service / instance / endpoint / trace context, and a table of all tags on the line. If the line is trace-correlated, an **↗ trace** button there (and the **↗ trace** link on the row) opens the related [trace's](traces.md) waterfall in an overlay without leaving the log stream — the row's timestamp is passed along so the trace is found even when it sits in a colder storage tier. Press **Escape** or click the backdrop to close.
 
-The pager at the foot shows the current page and the row count on it; **Prev** / **Next** walk the pages, and the page size (**20**, **50**, or **100**) is set on the conditions bar.
+The pager at the foot shows the current page and the row count on it; **Prev** / **Next** walk the pages, and the page size (**20**, **50**, or **100**) is set on the conditions bar. There is no "N of M" total, because the log query does not report one — **Next** is offered only when there really is another page with rows on it, so a full last page ends the walk instead of stepping onto an empty screen. Changing the page size restarts at page 1.
 
 ### Troubleshooting stored logs
 

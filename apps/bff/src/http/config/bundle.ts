@@ -115,6 +115,16 @@ export interface BundleSyncStatus {
     enabledIds: string[];
     identical: boolean;
   }>;
+  /** Enabled OAP records stored under a name no page reads (see
+   *  `UnreadableRow`). They have no badge and no picker row anywhere — the
+   *  admin pages know only the templates they can resolve — so the banner is
+   *  the one place they can be noticed. */
+  unreadable: Array<{
+    id: string;
+    name: string;
+    kind: TemplateKind;
+    reason: string;
+  }>;
 }
 
 export interface ConfigBundle {
@@ -259,6 +269,7 @@ async function buildBundle(
         status: r.status,
       })),
     conflicts: sync.conflicts ?? [],
+    unreadable: sync.unreadable ?? [],
   };
 
   const body = { layers, overviews, syncStatus };

@@ -52,13 +52,10 @@ const {
  *  by the cascade itself when there's nothing to land on. */
 const forceEmpty = computed<boolean>(() => route.name === 'landing-empty');
 
-/** Block dashboard render when OAP is unreachable. The landing page
- *  is the only surface that fully blocks (per the team policy — see
- *  PR #19 thread): per-layer pages still show their bundled-fallback
- *  view so an operator can verify a template they just edited.
- *  Cascade is suppressed alongside so we don't redirect into an
- *  empty overview / layer page that would just re-show the same
- *  error one level deeper. */
+/** Block dashboard render when the OAP query host is unreachable, and
+ *  suppress the cascade alongside so we don't redirect into an empty
+ *  overview / layer page that would just re-show the same error one
+ *  level deeper. */
 const blockForOapDown = computed<boolean>(
   () => !oapReachable.value && !overviewsLoading.value && !layersLoading.value,
 );

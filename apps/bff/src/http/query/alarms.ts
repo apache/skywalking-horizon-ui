@@ -64,6 +64,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { badRequest } from '../../errors.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
+import { readPageWith, type OapPaging } from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 import { alarmsQuerySchema } from './alarms-request.js';
@@ -141,22 +142,21 @@ export interface AlarmMessage {
 }
 
 export interface AlarmsResponse {
-  /** Rows returned for this page. The list route does not page through
-   *  the OAP response; the UI pages this client-side. */
-  total: number;
+  /** Rows returned for this page. NOT a cross-page total — `Alarms` carries
+   *  exactly one field (`msgs`) and no count. The UI pages this client-side. */
+  returned: number;
   pageNum: number;
   pageSize: number;
-  /** True when `total === pageSize`, meaning OAP may have more rows
-   *  than we fetched. The UI shows a "Nrows+" hint to nudge the
-   *  operator to tighten the window. */
+  /** OAP held at least one more row than the fetch allowed — proven by an
+   *  over-fetched read, so a result that exactly fills `pageSize` is NOT
+   *  flagged. The UI nudges the operator to tighten the window. */
   truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];
 }
 
 export interface AlarmsCountResponse {
-  /** Total individual events returned by OAP — capped at
-   *  COUNT_FETCH_CAP. */
+  /** Individual events counted — capped at COUNT_FETCH_CAP. */
   total: number;
   /** Events with `recoveryTime === null`. */
   firing: number;
@@ -350,8 +350,11 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     const start = fmtSecond(q.startTime, offset);
     const end = fmtSecond(q.endTime, offset);
 
-    let msgsRaw: AlarmMessage[];
-    try {
+    const duration = withColdStage(req, { start, end, step: 'SECOND' });
+    /* One page of raw alarm rows for a given paging pair. Handed to the shared
+     * over-fetch seam, which asks for one row more than the page displays so
+     * `truncated` is exact instead of a `length >= pageSize` guess. */
+    const fetchAlarms = async (paging: OapPaging): Promise<AlarmMessage[]> => {
       if (caps.queryAlarms) {
         /* New-mode condition. `entities` + `layer` ride server-side;
          * `scope` is intentionally ignored here because it's a
@@ -363,31 +366,29 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
          * OAP ignores the unknown field and returns every layer's
          * alarms, which looked like "the per-layer filter doesn't
          * work". */
-        const condition: Record<string, unknown> = {
-          duration: withColdStage(req, { start, end, step: 'SECOND' }),
-          paging: { pageNum: q.pageNum, pageSize: q.pageSize },
-        };
+        const condition: Record<string, unknown> = { duration, paging };
         if (q.keyword) condition.keyword = q.keyword;
         if (q.layer) condition.layer = q.layer;
         if (entity) condition.entities = [entity];
         const raw = await graphqlPost<QueryAlarmsRaw>(opts, QUERY_ALARMS_QUERY, { condition });
-        msgsRaw = raw.queryAlarms?.msgs ?? [];
-      } else {
-        /* Legacy mode: scope + keyword + tags only. The UI hides the
-         * layer / cascade filter row in this mode, so `layer` /
-         * `service` / `instance` / `endpoint` query params should
-         * not be present — but if they are (operator hand-rolled a
-         * URL), the BFF silently ignores them rather than 400-ing,
-         * matching the spirit of the spec's "drop fake filters". */
-        const variables: Record<string, unknown> = {
-          duration: withColdStage(req, { start, end, step: 'SECOND' }),
-          paging: { pageNum: q.pageNum, pageSize: q.pageSize },
-        };
-        if (q.scope) variables.scope = q.scope;
-        if (q.keyword) variables.keyword = q.keyword;
-        const raw = await graphqlPost<GetAlarmRaw>(opts, GET_ALARM_QUERY, variables);
-        msgsRaw = raw.getAlarm?.msgs ?? [];
+        return raw.queryAlarms?.msgs ?? [];
       }
+      /* Legacy mode: scope + keyword + tags only. The UI hides the
+       * layer / cascade filter row in this mode, so `layer` /
+       * `service` / `instance` / `endpoint` query params should
+       * not be present — but if they are (operator hand-rolled a
+       * URL), the BFF silently ignores them rather than 400-ing,
+       * matching the spirit of the spec's "drop fake filters". */
+      const variables: Record<string, unknown> = { duration, paging };
+      if (q.scope) variables.scope = q.scope;
+      if (q.keyword) variables.keyword = q.keyword;
+      const raw = await graphqlPost<GetAlarmRaw>(opts, GET_ALARM_QUERY, variables);
+      return raw.getAlarm?.msgs ?? [];
+    };
+
+    let page: { rows: AlarmMessage[]; hasNext: boolean };
+    try {
+      page = await readPageWith(fetchAlarms, { pageNum: q.pageNum, pageSize: q.pageSize });
     } catch (err) {
       return reply.code(502).send({
         error: 'oap_unreachable',
@@ -395,13 +396,13 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       });
     }
 
-    const tagged = tagWithLayer(msgsRaw, catalog);
+    const tagged = tagWithLayer(page.rows, catalog);
 
     const body: AlarmsResponse = {
-      total: tagged.length,
+      returned: tagged.length,
       pageNum: q.pageNum,
       pageSize: q.pageSize,
-      truncated: tagged.length >= q.pageSize,
+      truncated: page.hasNext,
       generatedAt: Date.now(),
       msgs: tagged,
     };
@@ -430,31 +431,26 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
       const start = fmtSecond(q.startTime, offset);
       const end = fmtSecond(q.endTime, offset);
 
-      let rows: Array<{ id: string; startTime: number; recoveryTime: number | null }>;
+      const duration = withColdStage(req, { start, end, step: 'SECOND' });
+      const fetchCountRows = async (
+        paging: OapPaging,
+      ): Promise<Array<{ id: string; startTime: number; recoveryTime: number | null }>> => {
+        const msgs = caps.queryAlarms
+          ? (await graphqlPost<QueryAlarmsRaw>(opts, COUNT_QUERY_ALARMS_QUERY, {
+              condition: { duration, paging },
+            })).queryAlarms?.msgs
+          : (await graphqlPost<GetAlarmRaw>(opts, COUNT_GET_ALARM_QUERY, { duration, paging }))
+              .getAlarm?.msgs;
+        return (msgs ?? []).map((m) => ({
+          id: m.id,
+          startTime: m.startTime,
+          recoveryTime: m.recoveryTime,
+        }));
+      };
+
+      let capped: { rows: Array<{ id: string; startTime: number; recoveryTime: number | null }>; hasNext: boolean };
       try {
-        if (caps.queryAlarms) {
-          const condition = {
-            duration: withColdStage(req, { start, end, step: 'SECOND' }),
-            paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
-          };
-          const raw = await graphqlPost<QueryAlarmsRaw>(opts, COUNT_QUERY_ALARMS_QUERY, { condition });
-          rows = (raw.queryAlarms?.msgs ?? []).map((m) => ({
-            id: m.id,
-            startTime: m.startTime,
-            recoveryTime: m.recoveryTime,
-          }));
-        } else {
-          const variables = {
-            duration: withColdStage(req, { start, end, step: 'SECOND' }),
-            paging: { pageNum: 1, pageSize: COUNT_FETCH_CAP },
-          };
-          const raw = await graphqlPost<GetAlarmRaw>(opts, COUNT_GET_ALARM_QUERY, variables);
-          rows = (raw.getAlarm?.msgs ?? []).map((m) => ({
-            id: m.id,
-            startTime: m.startTime,
-            recoveryTime: m.recoveryTime,
-          }));
-        }
+        capped = await readPageWith(fetchCountRows, { pageNum: 1, pageSize: COUNT_FETCH_CAP });
       } catch (err) {
         return reply.code(502).send({
           error: 'oap_unreachable',
@@ -462,6 +458,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         });
       }
 
+      const rows = capped.rows;
       const total = rows.length;
       const firing = rows.reduce((n, r) => n + (r.recoveryTime === null ? 1 : 0), 0);
 
@@ -486,7 +483,7 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
         firing,
         incidents,
         activeIncidents,
-        truncated: total >= COUNT_FETCH_CAP,
+        truncated: capped.hasNext,
         startTime: q.startTime,
         endTime: q.endTime,
         generatedAt: Date.now(),

@@ -683,6 +683,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
           <span v-if="native?.error" class="err-chip">{{ t('unreachable') }}</span>
           <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
+          <!-- The list is capped by the limit picker and OAP reports no total,
+               so the over-fetch is the only honest "there is more" signal. -->
+          <span v-if="native?.hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: native.traces.length }) }}</span>
         </header>
         <!-- Trailing control: the list waits for the service, and says which
              kind of waiting this is — still resolving, or resolved to nothing. -->

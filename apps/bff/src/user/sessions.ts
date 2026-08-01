@@ -26,19 +26,29 @@ export interface Session {
 }
 
 export interface SessionStoreOptions {
-  ttlMinutes: number;
+  /** Pass a getter over the live config so a hot reload re-evaluates EVERY
+   *  session — already-issued ones included — against the new TTL. The cookie's
+   *  maxAge is stamped from the live config on each request, so a store holding
+   *  a boot-time copy would disagree with the browser after a reload. A plain
+   *  number pins the TTL for the store's lifetime (tests). */
+  ttlMinutes: number | (() => number);
   reapIntervalMs?: number;
 }
 
 export class SessionStore {
   private readonly sessions = new Map<string, Session>();
-  private readonly ttlMs: number;
+  private readonly ttlMinutes: () => number;
   private readonly reaper: NodeJS.Timeout;
 
   constructor(opts: SessionStoreOptions) {
-    this.ttlMs = opts.ttlMinutes * 60_000;
+    const ttl = opts.ttlMinutes;
+    this.ttlMinutes = typeof ttl === 'function' ? ttl : () => ttl;
     this.reaper = setInterval(() => this.reap(), opts.reapIntervalMs ?? 60_000);
     this.reaper.unref?.();
+  }
+
+  private get ttlMs(): number {
+    return this.ttlMinutes() * 60_000;
   }
 
   create(username: string, roles: string[]): Session {
@@ -83,8 +93,9 @@ export class SessionStore {
 
   private reap(): void {
     const now = Date.now();
+    const ttlMs = this.ttlMs;
     for (const [sid, s] of this.sessions) {
-      if (now - s.lastSeenAt > this.ttlMs) this.sessions.delete(sid);
+      if (now - s.lastSeenAt > ttlMs) this.sessions.delete(sid);
     }
   }
 

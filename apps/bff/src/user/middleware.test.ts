@@ -50,6 +50,11 @@ function fakeConfig(session: SessionCfg = {}): { source: ConfigSource; reload: (
   return { source, reload: (next) => void (cfg = configSchema.parse({ session: { ...session, ...next } })) };
 }
 
+/** A store wired to the live config exactly as server.ts wires it. */
+function liveStore(source: ConfigSource): SessionStore {
+  return new SessionStore({ ttlMinutes: () => source.current.session.ttlMinutes });
+}
+
 async function buildApp(config: ConfigSource, sessions: SessionStore): Promise<FastifyInstance> {
   const app = Fastify();
   await app.register(cookie);
@@ -134,7 +139,7 @@ describe('requireAuth — the sliding-cookie re-stamp', () => {
     await app.close();
   });
 
-  it('picks up a new ttlMinutes from a config reload without a restart', async () => {
+  it('stamps a reloaded ttlMinutes onto the cookie without a restart', async () => {
     const { source, reload } = fakeConfig({ ttlMinutes: 15 });
     const sessions = new SessionStore({ ttlMinutes: 15 });
     const app = await buildApp(source, sessions);
@@ -198,6 +203,61 @@ describe('requireAuth — the sliding-cookie re-stamp', () => {
     const after = sessions.get(session.sid)?.lastSeenAt ?? 0;
     expect(after).toBeGreaterThan(aged);
     expect(Date.now() - after).toBeLessThan(5_000);
+    await app.close();
+  });
+});
+
+/**
+ * The cookie's maxAge is stamped from the live config on every request, so the
+ * server-side window has to read the live config too. If the store keeps the
+ * boot-time TTL the two halves silently disagree after a reload, in opposite
+ * ways: a SHORTENED TTL would tell the browser to forget the cookie while the
+ * server keeps honouring the sid for the old, longer window (an operator
+ * tightening the window after an incident is told the sessions are gone when
+ * they are not), and a LENGTHENED one would hand out a long-lived cookie the
+ * server 401s at the old, shorter window.
+ */
+describe('requireAuth — a reloaded session TTL moves the cookie and the server together', () => {
+  it('shortening the TTL expires an already-issued session server-side, not just in the browser', async () => {
+    const { source, reload } = fakeConfig({ ttlMinutes: 60 });
+    const sessions = liveStore(source);
+    const app = await buildApp(source, sessions);
+    const session = sessions.create('alice', ['admin']);
+    const call = () =>
+      app.inject({ method: 'GET', url: '/whoami', headers: { cookie: `horizon_sid=${session.sid}` } });
+    const idleFor30Minutes = () => void (session.lastSeenAt = Date.now() - 30 * 60_000);
+
+    idleFor30Minutes();
+    const wide = await call();
+    expect(wide.statusCode).toBe(200);
+    expect(setCookieOf(wide.headers)?.attrs.get('max-age')).toBe('3600');
+
+    reload({ ttlMinutes: 15 });
+    idleFor30Minutes();
+    const tightened = await call();
+
+    expect(tightened.statusCode).toBe(401);
+    expect(tightened.headers['set-cookie']).toBeUndefined();
+    expect(sessions.size()).toBe(0);
+    await app.close();
+  });
+
+  it('lengthening the TTL keeps an already-issued session alive for as long as the cookie claims', async () => {
+    const { source, reload } = fakeConfig({ ttlMinutes: 15 });
+    const sessions = liveStore(source);
+    const app = await buildApp(source, sessions);
+    const session = sessions.create('alice', ['admin']);
+    session.lastSeenAt = Date.now() - 30 * 60_000; // past the old window, inside the new one
+
+    reload({ ttlMinutes: 60 });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { cookie: `horizon_sid=${session.sid}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(setCookieOf(res.headers)?.attrs.get('max-age')).toBe('3600');
     await app.close();
   });
 });

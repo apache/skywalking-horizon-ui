@@ -191,13 +191,15 @@ export class DslApi {
 
   /** Triggers an `/api/dump[/{catalog}]` download via an invisible
    *  anchor click — the BFF session cookie is HttpOnly and gets sent
-   *  with the same-origin request automatically. */
+   *  with the same-origin request automatically. The href goes through
+   *  `withBase` like every other call here: a bare `/api/dump` escapes
+   *  the deploy base and 404s under a gateway sub-path. */
   triggerDump(catalog?: Catalog): void {
     const path = catalog
       ? `/api/dump/${encodeURIComponent(catalog)}`
       : '/api/dump';
     const a = document.createElement('a');
-    a.href = path;
+    a.href = withBase(path);
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();

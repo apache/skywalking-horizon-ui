@@ -245,11 +245,11 @@ Same model as [layer templates](layer-templates.md): your edit lives **in your b
 1. **Save (local).** Stores your draft in this browser only; the dashboard is tagged **local** in the picker.
 2. **Reset to ▾** loads the **Bundled** or **Remote** version into the canvas.
 3. **Preview ▾** opens the real overview page in a new tab rendering **Local** / **Bundled** / **Remote**.
-4. **Check diff & push** shows a *remote → local* diff and publishes to OAP (create-or-update). Enabled only when your draft differs from remote.
+4. **Check diff & push** shows a *remote → local* diff and publishes to OAP (create-or-update). Enabled only when your draft differs from remote. The dashboard is structurally checked before anything is stored — an unknown field, a widget type the page cannot render, a width or row limit outside what the grid accepts — and refused with the field named, leaving OAP untouched. Half-finished work still publishes: a blank MQE, a KPI row you added but haven't filled in, a cleared title, or a brand-new dashboard with no widgets yet are all normal drafts. A dashboard is also refused when its `id` is not the dashboard it is being published as, since it would then be filed under the wrong identity — listed as the *other* dashboard, while opening it by the name it was published under renders that other dashboard.
 
 A **+ New dashboard** form (inside the picker) creates a dashboard the same way: it writes a **local draft** (id is the template name, must be unique) — edit and preview it, then **Check diff & push** publishes it to OAP. A pushed dashboard with no bundled default is **remote-only**; the picker, the live page, and the sidebar all show it.
 
-A top banner summarizes state — *Synced from OAP — N diverged, Y local* — with **Diverged** / **Local** filters. Status chips per row: **synced**, **diverged** (OAP wins at render), **remote-only**, **disabled** (deleted), **bundled**.
+A top banner summarizes state — *Synced from OAP — N diverged, Y local* — with **Diverged** / **Local** filters. Status chips per row: **synced**, **diverged** (OAP wins at render), **remote-only**, **disabled** (deleted), **bundled**. If OAP holds a dashboard record whose stored name and content disagree, the banner turns to **UNREADABLE** and names it with its OAP record id — see [layer templates](layer-templates.md#admin-editor) for what to do about one.
 
 ### Import / Export
 

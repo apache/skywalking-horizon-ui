@@ -125,7 +125,7 @@ Applied live:
 - Auth backend selection (re-evaluated on next login).
 - RBAC roles and policy (re-evaluated on next route call).
 - OAP URLs and credentials (used on next outbound call).
-- Session TTL (new sessions use the new TTL; existing sessions keep their original).
+- Session TTL (applies to every session immediately, already-signed-in ones included — see [Sessions](session.md#hot-reload)).
 - `sourceMaps.enabled`, `sourceMaps.maxTotalBytes`, `sourceMaps.maxFileCount` — applied on the next source-map upload / resolve / list. Lowering a budget trims the in-memory **uploaded** set then (least-recently-used first). It does **not** shrink maps already loaded from the static mount — see below.
 
 These changes require a process restart:

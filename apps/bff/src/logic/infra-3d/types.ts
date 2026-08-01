@@ -37,7 +37,8 @@
  *
  * Schema versioning: there is none on the wire — saves are full-doc
  * replacements validated before they reach OAP (see validate.ts); a
- * remote row that's somehow invalid falls back to bundled at read.
+ * remote row that's somehow invalid blocks the read rather than falling
+ * back to the disk bundle.
  */
 
 /** MQE entry — used for both topology-pair metrics and the single load

@@ -44,7 +44,9 @@ export type TemplateKind =
  *  - `disabled`         — remote present but disabled on OAP; hidden
  *  - `remote-only`      — remote present, no matching bundled (operator
  *                          added a template the BFF doesn't ship)
- *  - `bundled-fallback` — remote absent at runtime; rendering bundled
+ *  - `bundled-fallback` — bundled present, remote absent. NOT a render
+ *                          source: the entry is dropped from the bundle and
+ *                          the page falls to its in-code default
  *  - `unknown`          — defensive; shouldn't appear */
 export type TemplateStatus =
   | 'synced'
@@ -78,8 +80,23 @@ export interface TemplateConflict {
   identical?: boolean;
 }
 
-/** Bundle-level sync envelope. When `unreachable`, all rows fall back to
- *  bundled and the admin pages render the global read-only banner. */
+/** An enabled OAP record stored under a name no page reads — a layer key that
+ *  isn't the canonical one, or content whose own `key` / `id` names a different
+ *  template than the record it sits in. It renders for nobody, and has no badge
+ *  or picker row of its own (the admin pages know only the templates they can
+ *  resolve), so the page banner is where it surfaces. */
+export interface UnreadableTemplateRow {
+  /** OAP record id — what the operator needs to retire it on OAP. */
+  id: string;
+  name: string;
+  kind: TemplateKind;
+  /** Which of the two is wrong, and the readable form. Not translated: it
+   *  names template names and JSON fields. */
+  reason: string;
+}
+
+/** Bundle-level sync envelope. When `unreachable`, no layer / overview content
+ *  is served at all and the admin pages render the global read-only banner. */
 export interface BundleSyncStatus {
   /** `live` = OAP ui_template store is the source. `readonly` = local bundle
    *  only; the config surface is read-only. */
@@ -89,6 +106,8 @@ export interface BundleSyncStatus {
   generatedAt: number;
   badges: TemplateBadge[];
   conflicts: TemplateConflict[];
+  /** Absent on a bundle cached by an older Horizon — read as "none reported". */
+  unreadable?: UnreadableTemplateRow[];
 }
 
 export interface ConfigBundle {

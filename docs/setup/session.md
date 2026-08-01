@@ -40,9 +40,9 @@ There is **no shared session store** between BFF instances. If you run multiple 
 
 ## Hot reload
 
-- `ttlMinutes` change applies to **new** sessions. Existing sessions keep their original TTL.
+- `ttlMinutes` change applies immediately to **every** session, already-signed-in ones included. Because the window is measured from each session's last request, a session that has already been idle longer than the new (shorter) TTL is refused on its next request and reaped; one still inside it carries on. The cookie's expiry is re-stamped to the new value on the next authenticated request, so from that request on the browser and the server end the session at the same moment. One nuance when you **lengthen** the TTL: a browser that stays idle across the change still holds a cookie stamped with the old, shorter expiry and may drop it before the server would — the effect is an earlier re-login, never a session that outlives its configured window.
 - `cookieName` change applies on next login. Existing sessions become unrecognized (the old cookie name is no longer read) — effectively a forced re-login for already-signed-in users.
-- `cookieSecure` change applies on next login.
+- `cookieSecure` change applies to the cookie stamped on the next authenticated request, so already-signed-in browsers pick it up without re-login.
 
 ## Operational notes
 

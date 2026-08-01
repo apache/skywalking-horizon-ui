@@ -26,7 +26,7 @@ Alarms are **read-only here by design**. OAP recovers an alarm automatically onc
 
 The window picker offers three presets — `20m`, `2h`, `4h` — plus a custom range capped at 4 hours.
 
-Alarms are second-precision events, and a long window pulls thousands of rows that some storage backends struggle to return; the 4-hour ceiling is enforced both in the picker and on the server, so a custom range wider than 4 hours is rejected. If the response is clipped, the timeline header shows a "page may be truncated — tighten the window" note: narrow the window to see a complete slice.
+Alarms are second-precision events, and a long window pulls thousands of rows that some storage backends struggle to return; the 4-hour ceiling is enforced both in the picker and on the server, so a custom range wider than 4 hours is rejected. When the window genuinely holds more alarms than were fetched, the timeline header says so — narrow the window to see a complete slice. A window that exactly fills the fetch is complete and carries no notice.
 
 The window's starting preset can be set per deployment — see [Alert page setup](#admin-setup-pinned-layers-and-default-window) below.
 

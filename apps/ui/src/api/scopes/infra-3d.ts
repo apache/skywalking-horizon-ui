@@ -18,7 +18,9 @@
 import type { BffClient, Infra3dConfig } from '../client';
 
 /** `bff.infra3d` — 3D Infrastructure Map read surface. `config()` returns
- *  the EFFECTIVE config (remote OAP copy when present, bundled fallback).
+ *  the EFFECTIVE config, which is the remote OAP copy — in live mode there is
+ *  no bundled fallback, so an unreadable row makes this reject and the map
+ *  reports the failure rather than drawing shipped defaults.
  *  Writes go through the generic template-sync surface
  *  (`bff.templateSync.save('horizon.infra-3d.config', content)`), same as
  *  layer / overview dashboards. */

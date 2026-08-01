@@ -181,7 +181,7 @@ function clearEndpoint(): void {
   setSelectedEndpoint(null);
   endpointQuery.value = '';
 }
-const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
+const { endpoints: endpointList, hasMore: endpointsHasMore, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
   serviceRef,
   endpointQuery,
@@ -219,6 +219,12 @@ const traceIdInput = ref('');
 // are all indexed dimensions and cover the booster-ui condition set.
 const page = ref(1);
 const pageSize = ref(50);
+// OAP derives the offset from the page size (`from = pageSize * (pageNum - 1)`),
+// so growing the size MULTIPLIES the offset — page 5 at 20 is offset 80, which
+// becomes offset 400 at 100 and lands on an unexplained empty screen.
+watch(pageSize, () => {
+  page.value = 1;
+});
 const traceIdRef = computed<string | null>(() => {
   if (traceIdParam.value) return traceIdParam.value;
   const v = traceIdInput.value.trim();
@@ -312,7 +318,7 @@ const aWindowMinutes = computed(() => applied.value.windowMinutes);
 const aStartMs = computed(() => applied.value.startMs);
 const aEndMs = computed(() => applied.value.endMs);
 
-const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
+const { logs, hasNext, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
   service: aService,
   instanceId: aInstanceId,
   endpointId: aEndpointId,
@@ -488,6 +494,7 @@ watch(
             :selected="selectedEndpoint"
             :show-all="showEndpointSelector"
             :loading="endpointsLoading"
+            :has-more="endpointsHasMore"
             @update:query="endpointQuery = $event"
             @pick="pickEndpoint"
             @clear="clearEndpoint"
@@ -586,7 +593,9 @@ watch(
             <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
           </button>
           <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
-            {{ t('sample of {n}', { n: facets.sampled }) }}
+            {{ facets.truncated
+              ? t('sample of {n}+ (capped — narrow the window)', { n: facets.sampled })
+              : t('sample of {n}', { n: facets.sampled }) }}
           </span>
         </div>
 
@@ -605,15 +614,15 @@ watch(
         />
         <div class="lg-pager">
           <span class="hint">
-            <template v-if="replay">{{ t('showing {shown} of {total} captured', { shown: filteredLogs.length, total }) }}</template>
-            <template v-else>{{ t('page {page} · showing {shown} of {total} total', { page, shown: filteredLogs.length, total }) }}</template>
+            <template v-if="replay">{{ t('showing {shown} captured', { shown: filteredLogs.length }) }}</template>
+            <template v-else>{{ t('page {page} · showing {shown}', { page, shown: filteredLogs.length }) }}</template>
           </span>
           <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">{{ t('Prev') }}</button>
             <button
               class="sw-btn small"
               type="button"
-              :disabled="logs.length < pageSize"
+              :disabled="!hasNext"
               @click="page++"
             >{{ t('Next') }}</button>
           </div>

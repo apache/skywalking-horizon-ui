@@ -52,17 +52,17 @@
  * Content is checked where it is PUBLISHED and nowhere earlier — `save`,
  * `:name/push-bundled` and `sync-all` are the routes that make a template
  * visible to everyone, while the editor's draft lives in the browser and is
- * meant to be half-authored. `save` checks the 3D-map config, overview content
- * and layer content, each against its own schema — a layer additionally against
- * the same cross-reference rules the bundled files pass in CI, and against the
- * name it is being published as (see {@link layerPushIssues}); the two bundled
- * pushes check layer content, because the container's `bundled_templates/`
- * directory is documented as replaceable, so what they read off disk is not
- * necessarily what CI validated. All of them answer 400 `invalid_content` with
- * the same issue list (`sync-all` reports per row, in `failed`).
+ * meant to be half-authored. All three run {@link publishIssues}: the identity
+ * rule (the row must be readable AS what it contains) and then the kind's own
+ * schema. The bundled pushes run it too, because the container's
+ * `bundled_templates/` directory is documented as replaceable, so what they
+ * read off disk is not necessarily what CI validated. All of them answer 400
+ * `invalid_content` with the same issue list (`sync-all` reports per row, in
+ * `failed`).
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { ZodError } from 'zod';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -89,8 +89,12 @@ import {
 } from '../../logic/templates/names.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
-import { layerCrossRefIssues, layerTemplatePushSchema } from '../../logic/templates/bundled-schema.js';
-import { dashboardSchema } from './overview-templates.js';
+import {
+  layerCrossRefIssues,
+  layerTemplatePushSchema,
+  overviewTemplatePushSchema,
+} from '../../logic/templates/bundled-schema.js';
+import { templateIdentityIssue } from '../../logic/templates/identity.js';
 import { logger } from '../../logger.js';
 
 export interface TemplateSyncAdminDeps {
@@ -362,7 +366,7 @@ export function registerTemplateSyncAdminRoutes(
           message: `no bundled template for ${name} — nothing to push`,
         });
       }
-      const bundledIssues = bundledLayerPushIssues(row);
+      const bundledIssues = bundledPushIssues(row);
       if (bundledIssues) {
         return reply.code(400).send({ code: 'invalid_content', issues: bundledIssues });
       }
@@ -421,11 +425,11 @@ export function registerTemplateSyncAdminRoutes(
     const synced: string[] = [];
     const failed: Array<{ name: string; error: string }> = [];
     for (const row of targets) {
-      // One unpublishable layer doesn't sink the batch — it is reported like any
-      // other per-row failure and the rest of the set still syncs.
-      const bundledIssues = bundledLayerPushIssues(row);
+      // One unpublishable template doesn't sink the batch — it is reported like
+      // any other per-row failure and the rest of the set still syncs.
+      const bundledIssues = bundledPushIssues(row);
       if (bundledIssues) {
-        logger.warn({ name: row.name, issues: bundledIssues }, 'sync-all skipped invalid layer content');
+        logger.warn({ name: row.name, issues: bundledIssues }, 'sync-all skipped invalid bundled content');
         failed.push({ name: row.name, error: `invalid content — ${bundledIssues.join('; ')}` });
         continue;
       }
@@ -479,33 +483,21 @@ export function registerTemplateSyncAdminRoutes(
     if (!sessionHasVerb(deps.config.current, session.roles, saveVerb)) {
       return reply.code(403).send({ error: 'permission_denied', verb: saveVerb });
     }
-    // Per-kind content validation. The envelope machinery is content-opaque,
-    // so the 3D-map config (the one kind with a strict structural schema)
-    // is checked here before it can reach OAP — a bad regex / dangling
-    // group level is rejected with the same issue list the admin editor
-    // already surfaces, rather than silently shipping garbage to remote.
-    if (parsed.kind === 'infra-3d') {
-      const v = validateInfra3dConfig(content);
-      if (!v.ok) {
-        return reply.code(400).send({ code: 'invalid_content', issues: v.issues });
-      }
-      // The metric fan-out moved to horizon.yaml (performance.bulk.infra3d) and
-      // the config endpoint injects the live value at READ time. Strip any
-      // `pipeline` the payload still carries before it is persisted — otherwise
-      // the saved row keeps a block the bundled default no longer has and the
-      // template shows `diverged` forever (the sync compare is byte-exact).
-      if (content && typeof content === 'object') {
-        delete (content as Record<string, unknown>).pipeline;
-      }
-    } else if (parsed.kind === 'overview') {
-      const v = dashboardSchema.safeParse(content);
-      if (!v.success) {
-        const issues = v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-        return reply.code(400).send({ code: 'invalid_content', issues });
-      }
-    } else if (parsed.kind === 'layer') {
-      const issues = layerPushIssues(content, { name, key: parsed.key });
-      if (issues) return reply.code(400).send({ code: 'invalid_content', issues });
+    // Identity + per-kind content validation. The envelope machinery is
+    // content-opaque, so this is the only place a stored row is held to the
+    // shape (and the name) its readers depend on.
+    const issues = publishIssues(parsed.kind as TemplateKind, parsed.key, content);
+    if (issues) {
+      return reply.code(400).send({ code: 'invalid_content', issues });
+    }
+    // The 3D-map's metric fan-out moved to horizon.yaml
+    // (performance.bulk.infra3d) and the config endpoint injects the live value
+    // at READ time. Strip any `pipeline` the payload still carries before it is
+    // persisted — otherwise the saved row keeps a block the bundled default no
+    // longer has and the template shows `diverged` forever (the sync compare is
+    // byte-exact).
+    if (parsed.kind === 'infra-3d' && content && typeof content === 'object') {
+      delete (content as Record<string, unknown>).pipeline;
     }
     resync(); // fresh OAP read before deciding create-vs-update — peers / past races shouldn't leave us writing duplicates
     const status = await loadStatus(deps);
@@ -635,42 +627,57 @@ export function registerTemplateSyncAdminRoutes(
 }
 
 /**
- * Layer content on its way to OAP, under the row `name` it will be stored as.
- * Returns the issue list in the same `<path>: <message>` shape the overview +
- * 3D-map checks report, or `null` when the content is publishable.
+ * Content on its way to OAP under the row key it will be stored as. Returns the
+ * issue list in the `<path>: <message>` shape every publish route answers 400
+ * `invalid_content` with, or `null` when the content is publishable.
  *
- * Checked HERE and nowhere earlier: this is the last step before a layer becomes
- * everyone's, while the editor's browser-local draft is expected to be
- * half-authored (a new widget starts with no MQE at all). See
- * {@link layerTemplatePushSchema} for what the push bar does and does not demand,
- * and {@link layerCrossRefIssues} for the rules that span two parts of the file.
+ * Checked HERE and nowhere earlier: this is the last step before a template
+ * becomes everyone's, while the editor's browser-local draft is expected to be
+ * half-authored (a new widget starts with no MQE at all). Two parts:
+ *
+ *   1. {@link templateIdentityIssue} — the row must be readable, and readable AS
+ *      what it holds. Answered ALONE: when the identity is wrong the rest of the
+ *      payload belongs to some other template, so listing its field defects
+ *      would point at the wrong repair.
+ *   2. The kind's structural bar — {@link layerTemplatePushSchema} (plus
+ *      {@link layerCrossRefIssues}, the rules that span two parts of one file),
+ *      {@link overviewTemplatePushSchema}, or the 3D-map validator. Each rejects
+ *      MALFORMED content, never merely incomplete content.
  */
-function layerPushIssues(content: unknown, row: { name: string; key: string }): string[] | null {
-  const v = layerTemplatePushSchema.safeParse(content);
-  if (!v.success) {
-    return v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+function publishIssues(kind: TemplateKind, key: string, content: unknown): string[] | null {
+  const identity = templateIdentityIssue(kind, key, content);
+  if (identity) return [`${identity.path}: ${identity.message}`];
+  if (kind === 'layer') {
+    const v = layerTemplatePushSchema.safeParse(content);
+    if (!v.success) return zodIssues(v.error);
+    const issues = layerCrossRefIssues(v.data, { complete: false }).map(
+      (i) => `${i.path}: ${i.message}`,
+    );
+    return issues.length > 0 ? issues : null;
   }
-  const issues = layerCrossRefIssues(v.data, { complete: false }).map(
-    (i) => `${i.path}: ${i.message}`,
-  );
-  // Readers address a layer by the row NAME, but what they then render reports
-  // its own `key` — the translation overlay and the capability payload are both
-  // looked up by it — so a mismatch has one layer answering as another. Compared
-  // case-insensitively, like the bundled loader's filename check.
-  if (v.data.key.toUpperCase() !== row.key.toUpperCase()) {
-    issues.push(`key: "${v.data.key}" is not the layer this is published as (${row.name})`);
+  if (kind === 'overview') {
+    const v = overviewTemplatePushSchema.safeParse(content);
+    return v.success ? null : zodIssues(v.error);
   }
-  return issues.length > 0 ? issues : null;
+  if (kind === 'infra-3d') {
+    const v = validateInfra3dConfig(content);
+    return v.ok ? null : v.issues;
+  }
+  return null;
+}
+
+function zodIssues(err: ZodError): string[] {
+  return err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
 }
 
 /** Same check for a bundled row on its way out (reset-to-bundled / sync-all):
  *  the shipped bundle is validated in CI, but the container's
  *  `bundled_templates/` directory is documented as replaceable, so what a push
  *  actually reads off disk still has to hold up. */
-function bundledLayerPushIssues(row: SyncStatus['rows'][number]): string[] | null {
-  if (row.kind !== 'layer' || !row.bundled) return null;
+function bundledPushIssues(row: SyncStatus['rows'][number]): string[] | null {
+  if (!row.bundled) return null;
   const env = parseEnvelope(row.bundled.configuration);
-  return env ? layerPushIssues(env.content, row) : null;
+  return env ? publishIssues(row.kind, row.key, env.content) : null;
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {

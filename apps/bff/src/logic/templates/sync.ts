@@ -48,6 +48,7 @@ import {
   type TemplateKind,
 } from './names.js';
 import { iterateBundledOverlays } from './aggregator.js';
+import { templateIdentityIssue } from './identity.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
@@ -98,6 +99,19 @@ export interface ConflictRow {
   identical: boolean;
 }
 
+/** An enabled OAP row no reader can resolve: its name is not the one Horizon
+ *  reads a template of that kind under, or its content declares a different
+ *  identity than the row it sits in. Reported, never touched — the same stance
+ *  as {@link ConflictRow}. */
+export interface UnreadableRow {
+  /** OAP record id — what an operator needs to retire it on OAP. */
+  id: string;
+  name: string;
+  kind: TemplateKind;
+  /** Which of the two is wrong, and the readable form — self-contained. */
+  reason: string;
+}
+
 export interface SyncStatus {
   /** Template source mode. `live` = read/write via OAP's ui_template store
    *  (default). `readonly` = the store is never consulted; `rows` are the local
@@ -120,6 +134,12 @@ export interface SyncStatus {
    *  a disable OAP refused. Empty list = no conflicts. The admin UI
    *  renders a banner per entry. */
   conflicts: ConflictRow[];
+  /** Enabled rows nobody can read (see {@link UnreadableRow}). The publish
+   *  boundary refuses to create these, so a non-empty list is either a row
+   *  written before that check existed or one written by something other than
+   *  Horizon; either way it renders for no one, which is precisely why it has
+   *  to be reported rather than left to be noticed. */
+  unreadable: UnreadableRow[];
 }
 
 export interface BundledOverlay {
@@ -307,6 +327,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       generatedAt: now,
       rows: readonlyRows(bundledRows, overlays),
       conflicts: [],
+      unreadable: [],
     };
   }
 
@@ -325,6 +346,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
       generatedAt: now,
       rows: bundledOnlyRows(bundledRows, 'bundled-fallback'),
       conflicts: [],
+      unreadable: [],
     };
   }
 
@@ -369,6 +391,7 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
     generatedAt: now,
     rows,
     conflicts: parsedRemote.conflicts,
+    unreadable: parsedRemote.unreadable,
   };
 }
 
@@ -580,6 +603,7 @@ interface ParsedRemote {
   /** Names where >1 ENABLED row exists. The BFF renders the
    *  `pickDuplicateWinner` row; the admin UI surfaces the rest. */
   conflicts: ConflictRow[];
+  unreadable: UnreadableRow[];
 }
 
 function parseRemoteRows(
@@ -595,6 +619,7 @@ function parseRemoteRows(
    * more than one ENABLED row is also surfaced as a `conflict` so the
    * admin UI can prompt a reconcile. */
   const groups = new Map<string, Array<RemoteRow>>();
+  const unreadable: UnreadableRow[] = [];
   let skipped = 0;
   for (const r of rows) {
     const env = parseEnvelope(r.configuration);
@@ -621,6 +646,14 @@ function parseRemoteRows(
     const list = groups.get(env.name) ?? [];
     list.push(row);
     groups.set(env.name, list);
+    // A disabled row renders for nobody by design — only a LIVE one that
+    // renders for nobody by accident is worth reporting.
+    if (!r.disabled && env.locale === undefined) {
+      const issue = templateIdentityIssue(env.kind, row.key, env.content);
+      if (issue) {
+        unreadable.push({ id: r.id, name: env.name, kind: env.kind, reason: issue.message });
+      }
+    }
   }
   const out = new Map<string, RemoteRow>();
   const conflicts: ConflictRow[] = [];
@@ -652,7 +685,15 @@ function parseRemoteRows(
         'once you have confirmed which copy you want to keep.',
     );
   }
-  return { byName: out, conflicts };
+  if (unreadable.length > 0) {
+    logger.warn(
+      { rows: unreadable },
+      'OAP UI-template rows no page can read — stored under a name Horizon does not read that template by, or holding ' +
+        'content that names a different template than the record it sits in. They render for nobody. Republish the ' +
+        'content under the name each reason gives, then retire the old record on OAP; Horizon changes nothing on its own.',
+    );
+  }
+  return { byName: out, conflicts, unreadable };
 }
 
 async function seedMissing(

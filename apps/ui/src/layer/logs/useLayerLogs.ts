@@ -102,7 +102,9 @@ export function useLayerLogs(layerKey: Ref<string>, params: LogListParams) {
   return {
     data,
     logs: computed(() => data.value?.logs ?? []),
-    total: computed(() => data.value?.total ?? 0),
+    /** OAP holds another page after this one. There is no cross-page total on
+     *  the wire, so this is the ONLY paging fact the pager may gate on. */
+    hasNext: computed(() => data.value?.hasNext ?? false),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     reachable,

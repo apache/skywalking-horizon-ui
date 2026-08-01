@@ -39,6 +39,7 @@ import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -71,6 +72,10 @@ export interface EndpointsResponse {
   limit: number;
   generatedAt: number;
   endpoints: EndpointRow[];
+  /** `findEndpoint` is a top-N by contract and reports no count. Asking for
+   *  one endpoint more than the limit turns the silent cut into an honest
+   *  "there are more matches — narrow the keyword". */
+  hasMore: boolean;
   reachable: boolean;
   error?: string;
 }
@@ -112,16 +117,18 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
         const data = await graphqlPost<{ endpoints: EndpointRow[] }>(opts, FIND_ENDPOINTS, {
           serviceId,
           keyword,
-          limit,
+          limit: overFetchSize(limit),
           duration: withColdStage(req, { start: window.start, end: window.end, step: 'MINUTE' }),
         });
+        const { rows, hasNext } = takeOverFetched(data.endpoints ?? [], limit);
         return reply.send({
           layer: layerKey,
           service: serviceArg,
           query: keyword,
           limit,
           generatedAt: Date.now(),
-          endpoints: data.endpoints ?? [],
+          endpoints: rows,
+          hasMore: hasNext,
           reachable: true,
         } satisfies EndpointsResponse);
       } catch (err) {
@@ -132,6 +139,7 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
           limit,
           generatedAt: Date.now(),
           endpoints: [],
+          hasMore: false,
           reachable: false,
           error: err instanceof Error ? err.message : String(err),
         } satisfies EndpointsResponse);

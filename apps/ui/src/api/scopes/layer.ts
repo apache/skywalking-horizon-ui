@@ -152,6 +152,9 @@ export class LayerApi {
     limit: number;
     generatedAt: number;
     endpoints: Array<{ id: string; name: string }>;
+    /** More endpoints matched than the top-N returned. `findEndpoint` reports
+     *  no count — this only says there ARE more. */
+    hasMore: boolean;
     reachable: boolean;
     error?: string;
   }> {

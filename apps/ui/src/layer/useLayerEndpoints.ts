@@ -50,6 +50,9 @@ export function useLayerEndpoints(
   return {
     data: computed(() => q.data.value ?? null),
     endpoints: computed(() => q.data.value?.endpoints ?? []),
+    /** More endpoints matched than the top-N limit returned. `findEndpoint`
+     *  reports no count — this only says there ARE more. */
+    hasMore: computed(() => q.data.value?.hasMore ?? false),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

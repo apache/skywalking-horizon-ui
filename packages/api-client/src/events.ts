@@ -84,15 +84,15 @@ export interface EventsQueryRequest {
 export interface EventsResponse {
   generatedAt: number;
   query: EventsQueryRequest;
-  /** OAP exposes no cross-page total for events; the BFF reports the returned
-   *  row count, same as the logs / browser-errors feeds. When `total` reaches
-   *  the effective `pageSize` the window is likely truncated — the UI shows a
-   *  "narrow the range" hint. */
-  total: number;
+  /** 1-based page these rows came from. */
+  pageNum: number;
   /** The effective page-size cap actually used (the request clamped to
-   *  `maxPageSize.events`). The UI compares `total` against this — NOT a
-   *  hardcoded constant — so a sub-default cap still flips `truncated`. */
+   *  `maxPageSize.events`). */
   pageSize: number;
+  /** OAP holds at least one more event after this page. OAP exposes no
+   *  cross-page total for events — this says there IS more, never how much
+   *  more. The popout renders it as a "narrow the range" hint. */
+  hasNext: boolean;
   events: EventRow[];
   reachable: boolean;
   error?: string;
