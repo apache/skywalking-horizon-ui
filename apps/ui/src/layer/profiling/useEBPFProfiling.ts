@@ -37,6 +37,7 @@ import type {
   ProfileAnalyzationTree,
 } from '@/api/client';
 import { useNewTaskPoll } from '@/layer/profiling/useNewTaskPoll';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export interface NewEBPFTaskPayload {
   labels: string[];
@@ -47,7 +48,8 @@ export interface NewEBPFTaskPayload {
   monitorMinutes: number;
 }
 
-export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string | null>) {
+export function useEBPFProfiling(layerKey: Ref<string>, service: Ref<ServiceRef | null>) {
+  const selectedId = computed<string | null>(() => service.value?.id ?? null);
   const tasks = ref<EBPFTask[]>([]);
   const tasksError = ref<string | null>(null);
   const tasksLoading = ref(false);
@@ -77,14 +79,14 @@ export function useEBPFProfiling(layerKey: Ref<string>, selectedId: Ref<string |
 
   async function refreshTasks(): Promise<void> {
     tasksError.value = null;
-    if (!selectedId.value) {
+    if (!service.value) {
       tasks.value = [];
       currentTask.value = null;
       return;
     }
     tasksLoading.value = true;
     try {
-      const resp = await bffClient.ebpf.tasks(layerKey.value, selectedId.value);
+      const resp = await bffClient.ebpf.tasks(layerKey.value, service.value!);
       if (!resp.reachable && resp.error) tasksError.value = resp.error;
       tasks.value = resp.tasks ?? [];
       couldProfiling.value = resp.couldProfiling;

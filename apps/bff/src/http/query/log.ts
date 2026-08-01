@@ -22,8 +22,8 @@
  * `LogQueryRequest` from `@skywalking-horizon-ui/api-client/logs`.
  *
  * Tag filters + content keyword filters are AND-joined server-side.
- * We accept a `service` name on the body so the SPA doesn't have to
- * pre-resolve names → ids; mirror of the topology + endpoint feeds.
+ * The body carries the picked service's identity (`serviceId` + `service`);
+ * the log condition keys on the id.
  *
  * Returns at most one page of logs plus the OAP-reported total so
  * the UI's "page N of M" + density histogram can scope correctly.
@@ -43,7 +43,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
-import { resolveServiceScope } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -206,6 +206,8 @@ export async function fetchLogs(
 }
 
 interface LogBody extends LogQueryRequest {
+  /** Name half of the picked service's identity; `serviceId` (on
+   *  `LogQueryRequest`) is the half the log condition queries with. */
   service?: string;
 }
 
@@ -228,28 +230,21 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         endMs: body.endMs,
       });
 
-      // Resolve a service NAME to an id if the caller used one. An unknown name
-      // refuses the read: `LogQueryCondition.serviceId` is nullable, so falling
-      // through with `null` would stream EVERY service's logs under the picked
-      // service's title.
-      let serviceId = body.serviceId ?? null;
-      if (!serviceId && body.service) {
-        const failed = (error: string): LogsResponse => ({
+      // A name with no id refuses the read: `LogQueryCondition.serviceId` is
+      // nullable, so falling through with `null` would stream EVERY service's
+      // logs under the picked service's title.
+      const scope = serviceScopeOf(body);
+      if (scope.kind === 'incomplete') {
+        return reply.send({
           generatedAt: Date.now(),
           query: body,
           total: 0,
           logs: [],
           reachable: false,
-          error,
-        });
-        try {
-          const scope = await resolveServiceScope(opts, layerKey, body.service);
-          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
-          serviceId = scope.kind === 'service' ? scope.serviceId : null;
-        } catch (err) {
-          return reply.send(failed(err instanceof Error ? err.message : String(err)));
-        }
+          error: scope.message,
+        } satisfies LogsResponse);
       }
+      const serviceId = scope.kind === 'service' ? scope.service.id : null;
       const res = await fetchLogs(
         opts,
         {
@@ -298,27 +293,21 @@ export function registerLogRoute(app: FastifyInstance, deps: LogRouteDeps): void
         startMs: body.startMs,
         endMs: body.endMs,
       });
-      let serviceId = body.serviceId ?? null;
-      if (!serviceId && body.service) {
-        const failed = (error: string): LogFacetsResponse => ({
+      // Same refusal as the row query — a facet sample taken across every
+      // service would count log lines this service never wrote.
+      const scope = serviceScopeOf(body);
+      if (scope.kind === 'incomplete') {
+        return reply.send({
           generatedAt: Date.now(),
           total: 0,
           sampled: 0,
           level: { error: 0, warn: 0, info: 0, debug: 0, other: 0 },
           services: [],
           reachable: false,
-          error,
-        });
-        try {
-          const scope = await resolveServiceScope(opts, layerKey, body.service);
-          // Same refusal as the row query — a facet sample taken across every
-          // service would count log lines this service never wrote.
-          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
-          serviceId = scope.kind === 'service' ? scope.serviceId : null;
-        } catch (err) {
-          return reply.send(failed(err instanceof Error ? err.message : String(err)));
-        }
+          error: scope.message,
+        } satisfies LogFacetsResponse);
       }
+      const serviceId = scope.kind === 'service' ? scope.service.id : null;
       const condition = {
         ...(serviceId ? { serviceId } : {}),
         ...(body.serviceInstanceId ? { serviceInstanceId: body.serviceInstanceId } : {}),

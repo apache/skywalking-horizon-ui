@@ -34,6 +34,7 @@
 
 import { computed, readonly, ref, shallowRef } from 'vue';
 import { bff } from '../../../api/client';
+import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import type {
   Infra3dConfig,
   InfraLayerSpec,
@@ -48,6 +49,17 @@ const cfg = shallowRef<Infra3dConfig | null>(null);
 const error = ref<string | null>(null);
 const loading = ref(false);
 let inFlight: Promise<Infra3dConfig> | null = null;
+
+// The config is org-wide, but the snapshot also GATES the page: the view awaits
+// `ensureLoaded()` and mounts the scene when it resolves, so a snapshot kept
+// across an identity change would render the map for a session whose role has
+// no `infra-3d:read` — the 403 that should have blocked it is never requested.
+onSessionReset(() => {
+  cfg.value = null;
+  error.value = null;
+  loading.value = false;
+  inFlight = null;
+});
 
 /** Resolved derived maps recomputed when `cfg` changes. */
 const layerToLevelId = computed<Record<string, string>>(() => {
@@ -143,19 +155,26 @@ export function useInfra3dConfig() {
 export async function ensureLoaded(): Promise<Infra3dConfig> {
   if (cfg.value) return cfg.value;
   if (inFlight) return inFlight;
+  // The awaiting caller still gets its own result; only the module snapshot is
+  // withheld once an identity change has superseded this fetch.
+  const epoch = sessionEpoch();
   loading.value = true;
   inFlight = (async () => {
     try {
       const r = await bff.infra3d.config();
-      cfg.value = r;
-      error.value = null;
+      if (isCurrentEpoch(epoch)) {
+        cfg.value = r;
+        error.value = null;
+      }
       return r;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : String(err);
+      if (isCurrentEpoch(epoch)) error.value = err instanceof Error ? err.message : String(err);
       throw err;
     } finally {
-      loading.value = false;
-      inFlight = null;
+      if (isCurrentEpoch(epoch)) {
+        loading.value = false;
+        inFlight = null;
+      }
     }
   })();
   return inFlight;

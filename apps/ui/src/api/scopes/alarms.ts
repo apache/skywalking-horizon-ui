@@ -42,6 +42,7 @@ export class AlarmsApi {
     if (q.keyword) p.set('keyword', q.keyword);
     if (q.layer) p.set('layer', q.layer);
     if (q.service) p.set('service', q.service);
+    if (q.normal !== undefined) p.set('normal', String(q.normal));
     if (q.instance) p.set('instance', q.instance);
     if (q.endpoint) p.set('endpoint', q.endpoint);
     return this.bff.request<AlarmsResponse>('GET', `/api/alarms?${p.toString()}`);
@@ -57,28 +58,26 @@ export class AlarmsApi {
   }
 
   /** Service roster for one OAP layer (alpha-sorted) — feeds the
-   *  alarms page's cascading filter. */
+   *  alarms page's cascading filter. Rows carry the id as well as the name:
+   *  the alarm entity filter is name-scoped (OAP's alarm query has no id
+   *  form), but the instance / endpoint pickers below it are id-scoped. */
   services(layer: string): Promise<{
     layer: string;
-    services: Array<{ name: string; normal: boolean | null }>;
+    services: Array<{ id: string; name: string; normal: boolean | null }>;
   }> {
     const p = new URLSearchParams({ layer });
     return this.bff.request('GET', `/api/alarms/services?${p.toString()}`);
   }
 
   /** The alarms page-setup — the `horizon.alert.page-setup` singleton template.
-   *  Read its effective (OAP-remote ↔ bundled) copy from the config bundle's
-   *  sync status, like the theme / time-defaults singletons; there is no local
-   *  BFF store. Edits are saved to OAP via `bff.templateSync.save`. */
+   *  Read as one of the effective org settings, like the theme / time-defaults
+   *  singletons: the BFF resolves it for its template mode and returns nothing
+   *  when live mode has no readable OAP row, in which case the shipped default
+   *  applies. Edits are saved to OAP via `bff.templateSync.save`. */
   config(): Promise<AlarmsConfig> {
-    return this.bff.templateSync.syncStatus().then((status) => {
-      const row = status.rows.find((r) => r.name === 'horizon.alert.page-setup');
-      const source =
-        row?.effective === 'remote' && row.remote
-          ? row.remote.configuration
-          : row?.bundled?.configuration;
-      return normalizeAlarmsConfig(source);
-    });
+    return this.bff.configs
+      .settings()
+      .then((settings) => normalizeAlarmsConfig(settings.alert));
   }
 
   /** OAP `/status/alarm/rules` fan-out + per-rule detail merge.

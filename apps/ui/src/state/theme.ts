@@ -21,9 +21,10 @@
  *   browser (this user's localStorage)
  *     ↑ overrides
  *   org default   (admin set on /admin/global-defaults, stored on OAP
- *                  as `horizon.theme.active`)
+ *                  as `horizon.theme.active`; served by the BFF only when
+ *                  its template mode has a source for it)
  *     ↑ overrides
- *   bundled code  (`bundled_templates/theme/active.json`)
+ *   in-code       (`FALLBACK`)
  *
  * Each tier is observable so the UI can render "your override differs
  * from the org default" affordances. The store keeps the resolved id
@@ -154,13 +155,20 @@ function isThemeBadge(b: TemplateBadge): boolean {
   return b.name === 'horizon.theme.active';
 }
 
+/** The `horizon.theme.active` content, narrowed to a theme this build ships.
+ *  An unknown id is treated as no org default rather than a broken render. */
+function themeIdFrom(content: unknown): ThemeId | null {
+  if (!content || typeof content !== 'object') return null;
+  const id = (content as { themeId?: unknown }).themeId;
+  if (typeof id !== 'string') return null;
+  return AVAILABLE_THEMES.some((t) => t.id === id) ? (id as ThemeId) : null;
+}
+
 export const useThemeStore = defineStore('theme', () => {
   const userOverride = ref<ThemeId | null>(readUserOverride());
 
-  // Org default is read directly from the bundle's syncStatus — the
-  // bundle endpoint already overlays remote-wins on bundled per template.
-  // For the singleton it doesn't carry the full content; we lazy-fetch
-  // it on first need from /api/admin/templates/sync-status.
+  // The config bundle carries only the singleton's sync BADGE, not its
+  // themeId, so the value is lazy-fetched from the org-settings read.
   const orgDefault = ref<ThemeId | null>(null);
 
   const { bundle } = useConfigBundle();
@@ -194,36 +202,18 @@ export const useThemeStore = defineStore('theme', () => {
     { immediate: true },
   );
 
-  /** Fetch the org default from the syncStatus admin endpoint. The
-   *  badge in `configBundle.syncStatus` only carries status (not the
-   *  themeId), so the store hits sync-status once at boot to read the
-   *  actual value. */
+  /** Read the org default from the effective org settings — an auth-only
+   *  read every signed-in user can make, carrying just the resolved value.
+   *  No value means no org default: `FALLBACK` applies. */
   async function loadOrgDefault(): Promise<void> {
     // Lazy import to break a circular dep: api/client imports stores
     // (auth), stores would otherwise import api/client.
     const { bff } = await import('@/api/client');
     try {
-      const status = await bff.templateSync.syncStatus();
-      const row = status.rows.find((r) => r.name === 'horizon.theme.active');
-      if (!row) {
-        orgDefault.value = null;
-        return;
-      }
-      const source = row.effective === 'remote' && row.remote
-        ? row.remote.configuration
-        : row.bundled?.configuration;
-      if (!source) {
-        orgDefault.value = null;
-        return;
-      }
-      const envelope = JSON.parse(source) as { content?: { themeId?: unknown } };
-      const id = envelope?.content?.themeId;
-      if (typeof id === 'string' && AVAILABLE_THEMES.some((t) => t.id === id)) {
-        orgDefault.value = id as ThemeId;
-        debug('theme', `loaded org default = ${id}`);
-      } else {
-        orgDefault.value = null;
-      }
+      const settings = await bff.configs.settings();
+      const id = themeIdFrom(settings.theme);
+      orgDefault.value = id;
+      if (id) debug('theme', `loaded org default = ${id}`);
     } catch (err) {
       debug('theme', 'failed to load org default', err);
       orgDefault.value = null;

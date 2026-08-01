@@ -277,7 +277,7 @@ export async function loadLiveHierarchy(
       batch.map(async (c) => {
         const k = hierKey(c.layer, c.ref.id);
         try {
-          const resp = await bff.layer.serviceHierarchy(c.layer, c.ref.id);
+          const resp = await bff.layer.serviceHierarchy(c.layer, { id: c.ref.id, name: c.ref.name });
           // Success caches the result (an entry, or null for "checked, no
           // peers") so it isn't re-probed. A FAILURE is NOT cached — leaving
           // the key absent re-fetches it next refresh rather than freezing a

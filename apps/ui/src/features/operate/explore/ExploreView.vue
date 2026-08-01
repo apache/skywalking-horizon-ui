@@ -31,6 +31,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { bffClient } from '@/api/client';
+import { serviceRef } from '@/utils/serviceRef';
 import type {
   ExploreEntity,
   ExploreRequest,
@@ -75,6 +76,9 @@ const servicesLoading = ref(false);
 const pickServiceName = computed(
   () => services.value.find((s) => s.id === pickServiceId.value)?.name ?? '',
 );
+const pickServiceNormal = computed<boolean | null>(
+  () => services.value.find((s) => s.id === pickServiceId.value)?.normal ?? null,
+);
 
 async function loadServices(): Promise<void> {
   services.value = [];
@@ -98,10 +102,11 @@ async function loadServices(): Promise<void> {
 async function loadInstances(): Promise<void> {
   instances.value = [];
   pickInstanceId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) return;
+  // The picker selected a roster row — carry it whole.
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+  if (!pickLayer.value || !picked) return;
   try {
-    const res = await bffClient.layer.instances(pickLayer.value, name);
+    const res = await bffClient.layer.instances(pickLayer.value, picked);
     instances.value = res.reachable ? res.instances : [];
   } catch {
     instances.value = [];
@@ -110,15 +115,15 @@ async function loadInstances(): Promise<void> {
 
 async function loadEndpoints(): Promise<void> {
   pickEndpointId.value = '';
-  const name = pickServiceName.value;
-  if (!pickLayer.value || !name) {
+  const picked = serviceRef(pickServiceId.value, pickServiceName.value, pickServiceNormal.value);
+  if (!pickLayer.value || !picked) {
     endpoints.value = [];
     return;
   }
   try {
     // Preload the top endpoints (like the per-layer Traces picker); the
     // dropdown filters them client-side.
-    const res = await bffClient.layer.endpoints(pickLayer.value, name, '', 50);
+    const res = await bffClient.layer.endpoints(pickLayer.value, picked, '', 50);
     endpoints.value = res.reachable ? res.endpoints : [];
   } catch {
     endpoints.value = [];

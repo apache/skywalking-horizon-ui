@@ -31,10 +31,12 @@ import type { TopologyResponse } from '@skywalking-horizon-ui/api-client';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export function useLayerTopology(
   layerKey: Ref<string>,
-  service: Ref<string | null>,
+  /** Roster rows to seed the BFS from; empty seeds the whole layer. */
+  services: Ref<ServiceRef[]>,
   depth: Ref<number>,
   /** Embedded (chat) override: when a positive minute count, the query owns its
    *  OWN window (a frozen look-back snapshot) and does NOT follow the global
@@ -73,11 +75,11 @@ export function useLayerTopology(
     };
   });
   const q = useQuery({
-    queryKey: ['layer-topology', layerKey, service, depth, rangeKey, previewCfg],
+    queryKey: ['layer-topology', layerKey, services, depth, rangeKey, previewCfg],
     queryFn: () =>
       bffClient.layer.topology(
         layerKey.value,
-        service.value ?? undefined,
+        services.value,
         depth.value,
         rangeKey.value,
         previewCfg.value,

@@ -48,6 +48,7 @@ import type {
 import { firstLayerTab, useLayers } from '@/shell/useLayers';
 import { pushEvent } from '@/controls/eventLog';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
+import { serviceRef } from '@/utils/serviceRef';
 import { useServiceHierarchy } from './useServiceHierarchy';
 import { useHierarchyOverlayStore } from './hierarchyStore';
 
@@ -92,8 +93,9 @@ const isOpen = computed<boolean>(() => (props.standalone ? true : store.isOpen))
 
 const layerKey = computed(() => (fLayer.value ?? '').toLowerCase());
 const focusServiceId = computed(() => fServiceId.value);
+const focusService = computed(() => serviceRef(fServiceId.value, fServiceName.value));
 const replayDataRef = computed<ServiceHierarchyResponse | null>(() => props.replayData ?? null);
-const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId, replayDataRef);
+const { data, isLoading } = useServiceHierarchy(layerKey, focusService, replayDataRef);
 
 /** Look up a layer's color from the menu registry; fall back to the
  *  accent for layers we don't have an entry for (e.g. SO11Y_OAP). */

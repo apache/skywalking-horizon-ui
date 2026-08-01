@@ -63,6 +63,8 @@ import DeploymentFlowsTable, { type FlowGroup } from '@/layer/service-map/Deploy
 import DeploymentEdgePanel, { type EdgeRow } from '@/layer/service-map/DeploymentEdgePanel.vue';
 import DeploymentNodePopover from '@/layer/service-map/DeploymentNodePopover.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { useLayers } from '@/shell/useLayers';
 import { fmtMetric, fmtMetricAs, formatDuration } from '@/utils/formatters';
 import { resolveServiceIdentity } from '@/utils/serviceName';
@@ -74,8 +76,10 @@ import { resolveServiceIdentity } from '@/utils/serviceName';
 const props = defineProps<{
   layerKey?: string;
   embedded?: boolean;
-  /** Focus service id (embedded): drives the deployment query directly. */
+  /** Focus service (embedded): the id and the name the chat block was seeded
+   *  with — they drive the deployment query directly. */
   focusServiceId?: string;
+  focusService?: string;
   /** Embedded look-back window (minutes); the query owns it and skips the global
    *  topbar picker + auto-refresh ticker, like the topology block. */
   focusWindowMinutes?: number;
@@ -111,14 +115,18 @@ const { selectedId: headerSelectedId } = useSelectedService();
 const selectedId = computed<string | null>(() =>
   embedded.value ? (props.focusServiceId ?? null) : headerSelectedId.value,
 );
-const enabled = computed(() => !!selectedId.value);
+const pickedService = useSelectedServiceRef(layerKey);
+const service = computed<ServiceRef | null>(() =>
+  embedded.value ? serviceRef(props.focusServiceId, props.focusService) : pickedService.value,
+);
+const enabled = computed(() => !!service.value);
 // Embedded mode is chat-only, so it ALWAYS owns a frozen window (default 60m)
 // even if the spec omits windowMinutes — never silently rides the global ticker.
 const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
 const replayDataRef = computed<DeploymentResponse | null>(() => props.replayData ?? null);
-const { data, nodes, calls, isFetching } = useDeployment(layerKey, selectedId, enabled, focusWindowMinutes, replayDataRef);
+const { data, nodes, calls, isFetching } = useDeployment(layerKey, service, enabled, focusWindowMinutes, replayDataRef);
 const serviceName = computed(() => displayServiceName(data.value?.serviceName) || '');
 const metricsPartial = computed(() => data.value?.metricsPartial ?? null);
 

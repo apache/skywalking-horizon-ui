@@ -29,9 +29,9 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import type { LayerComponentFlags, LayerTemplate } from '../../logic/layers/loader.js';
-import { getSyncStatus } from '../../logic/templates/sync.js';
+import { ambiguousConflicts, getSyncStatus } from '../../logic/templates/sync.js';
 import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
-import { formatName, isOverlayName, parseEnvelope } from '../../logic/templates/names.js';
+import { formatName, parseEnvelope } from '../../logic/templates/names.js';
 import type { SyncStatus, TemplateRow } from '../../logic/templates/sync.js';
 import type { ServiceLayerCatalog } from '../../logic/services/service-layer-catalog.js';
 import { logger } from '../../logger.js';
@@ -92,9 +92,11 @@ interface LayerSyncSnapshot {
   /** Canonical layer keys disabled on OAP (sidebar hides them). */
   disabled: Set<string>;
   /** Canonical layer keys whose template name sits on more than one
-   *  ENABLED OAP record. Which definition the layer has is ambiguous, so
-   *  the sidebar hides it rather than navigate to a dashboard nobody can
-   *  identify. Detection only — Horizon never retires a record. */
+   *  ENABLED OAP record carrying DIFFERENT content. Which definition the
+   *  layer has is ambiguous, so the sidebar hides it rather than navigate
+   *  to a dashboard nobody can identify. Byte-identical copies are a
+   *  reported duplicate, not an ambiguity, and stay in the menu.
+   *  Detection only — Horizon never retires a record. */
   conflicted: Set<string>;
   /** Per-name layer rows for the live OAP UI-template state. Lets the
    *  menu prefer the operator's published edits (alias / components /
@@ -143,12 +145,7 @@ async function layerSyncSnapshot(deps: MenuRouteDeps): Promise<LayerSyncSnapshot
       }
     }
     const conflicted = new Set<string>();
-    for (const c of sync.conflicts) {
-      if (c.kind !== 'layer') continue;
-      // Same source-only filter the row loop applies: a duplicated
-      // translation overlay is reported with `kind: 'layer'` and the
-      // parent's key, but the layer's own definition stays unambiguous.
-      if (isOverlayName(c.name)) continue;
+    for (const c of ambiguousConflicts(sync, 'layer')) {
       conflicted.add(canonical(c.key.toUpperCase()));
     }
     warnConflictedLayersHidden(sync, conflicted);
@@ -171,9 +168,10 @@ function warnConflictedLayersHidden(sync: SyncStatus, conflicted: Set<string>): 
   conflictWarnedFor.add(sync);
   logger.warn(
     { layers: [...conflicted] },
-    'Sidebar menu hides these layers: their template name is on more than one enabled OAP record, so which ' +
-      'definition to render is ambiguous. Review them under Dashboard setup → Layer dashboards (the conflict ' +
-      'banner names the record ids) and retire the extra record on OAP — Horizon never disables one on its own.',
+    'Sidebar menu hides these layers: their template name is on more than one enabled OAP record and the ' +
+      'copies differ, so which definition to render is ambiguous. Review them under Dashboard setup → Layer ' +
+      'dashboards (the conflict banner names the record ids) and retire the extra record on OAP — Horizon ' +
+      'never disables one on its own.',
   );
 }
 

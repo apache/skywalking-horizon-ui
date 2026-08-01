@@ -48,6 +48,18 @@
  *                                                     cache; the next
  *                                                     bundle pull triggers
  *                                                     a fresh OAP probe.
+ *
+ * Content is checked where it is PUBLISHED and nowhere earlier — `save`,
+ * `:name/push-bundled` and `sync-all` are the routes that make a template
+ * visible to everyone, while the editor's draft lives in the browser and is
+ * meant to be half-authored. `save` checks the 3D-map config, overview content
+ * and layer content, each against its own schema — a layer additionally against
+ * the same cross-reference rules the bundled files pass in CI, and against the
+ * name it is being published as (see {@link layerPushIssues}); the two bundled
+ * pushes check layer content, because the container's `bundled_templates/`
+ * directory is documented as replaceable, so what they read off disk is not
+ * necessarily what CI validated. All of them answer 400 `invalid_content` with
+ * the same issue list (`sync-all` reports per row, in `failed`).
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -77,6 +89,7 @@ import {
 } from '../../logic/templates/names.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import { layerCrossRefIssues, layerTemplatePushSchema } from '../../logic/templates/bundled-schema.js';
 import { dashboardSchema } from './overview-templates.js';
 import { logger } from '../../logger.js';
 
@@ -349,6 +362,10 @@ export function registerTemplateSyncAdminRoutes(
           message: `no bundled template for ${name} — nothing to push`,
         });
       }
+      const bundledIssues = bundledLayerPushIssues(row);
+      if (bundledIssues) {
+        return reply.code(400).send({ code: 'invalid_content', issues: bundledIssues });
+      }
       try {
         if (row.remote) {
           await updateAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled.configuration, logger);
@@ -404,6 +421,14 @@ export function registerTemplateSyncAdminRoutes(
     const synced: string[] = [];
     const failed: Array<{ name: string; error: string }> = [];
     for (const row of targets) {
+      // One unpublishable layer doesn't sink the batch — it is reported like any
+      // other per-row failure and the rest of the set still syncs.
+      const bundledIssues = bundledLayerPushIssues(row);
+      if (bundledIssues) {
+        logger.warn({ name: row.name, issues: bundledIssues }, 'sync-all skipped invalid layer content');
+        failed.push({ name: row.name, error: `invalid content — ${bundledIssues.join('; ')}` });
+        continue;
+      }
       try {
         if (row.remote) {
           await updateAndConfirm(deps.uiTemplateClient(), row.remote.id, row.bundled!.configuration, logger);
@@ -478,6 +503,9 @@ export function registerTemplateSyncAdminRoutes(
         const issues = v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
         return reply.code(400).send({ code: 'invalid_content', issues });
       }
+    } else if (parsed.kind === 'layer') {
+      const issues = layerPushIssues(content, { name, key: parsed.key });
+      if (issues) return reply.code(400).send({ code: 'invalid_content', issues });
     }
     resync(); // fresh OAP read before deciding create-vs-update — peers / past races shouldn't leave us writing duplicates
     const status = await loadStatus(deps);
@@ -526,6 +554,8 @@ export function registerTemplateSyncAdminRoutes(
    *   - bundled, no remote    → create a remote from the bundled config
    *     first (so OAP has a row to flag), then disable it; otherwise a
    *     bundled-fallback has no id to disable and the bundle keeps serving.
+   *     That create is NOT content-checked like the push routes are — the row
+   *     it materialises is disabled in the same call, so nothing renders it.
    *   - neither               → nothing on OAP (a local-only browser draft
    *     is removed client-side); no-op.
    *
@@ -602,6 +632,45 @@ export function registerTemplateSyncAdminRoutes(
       }
     },
   );
+}
+
+/**
+ * Layer content on its way to OAP, under the row `name` it will be stored as.
+ * Returns the issue list in the same `<path>: <message>` shape the overview +
+ * 3D-map checks report, or `null` when the content is publishable.
+ *
+ * Checked HERE and nowhere earlier: this is the last step before a layer becomes
+ * everyone's, while the editor's browser-local draft is expected to be
+ * half-authored (a new widget starts with no MQE at all). See
+ * {@link layerTemplatePushSchema} for what the push bar does and does not demand,
+ * and {@link layerCrossRefIssues} for the rules that span two parts of the file.
+ */
+function layerPushIssues(content: unknown, row: { name: string; key: string }): string[] | null {
+  const v = layerTemplatePushSchema.safeParse(content);
+  if (!v.success) {
+    return v.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
+  }
+  const issues = layerCrossRefIssues(v.data, { complete: false }).map(
+    (i) => `${i.path}: ${i.message}`,
+  );
+  // Readers address a layer by the row NAME, but what they then render reports
+  // its own `key` — the translation overlay and the capability payload are both
+  // looked up by it — so a mismatch has one layer answering as another. Compared
+  // case-insensitively, like the bundled loader's filename check.
+  if (v.data.key.toUpperCase() !== row.key.toUpperCase()) {
+    issues.push(`key: "${v.data.key}" is not the layer this is published as (${row.name})`);
+  }
+  return issues.length > 0 ? issues : null;
+}
+
+/** Same check for a bundled row on its way out (reset-to-bundled / sync-all):
+ *  the shipped bundle is validated in CI, but the container's
+ *  `bundled_templates/` directory is documented as replaceable, so what a push
+ *  actually reads off disk still has to hold up. */
+function bundledLayerPushIssues(row: SyncStatus['rows'][number]): string[] | null {
+  if (row.kind !== 'layer' || !row.bundled) return null;
+  const env = parseEnvelope(row.bundled.configuration);
+  return env ? layerPushIssues(env.content, row) : null;
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {

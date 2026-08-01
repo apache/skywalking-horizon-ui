@@ -18,10 +18,13 @@
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 import type { BrowserErrorCategory, BrowserErrorsResponse } from '@/api/client';
 
 export interface BrowserErrorParams {
-  service: Ref<string | null>;
+  /** The browser application to scope by, as the tab holds it: the picked OAP
+   *  id on a route, a name inside a chat block. */
+  service: Ref<ServiceRef | null>;
   /** OAP serviceVersionId — the BROWSER "Version" (instance) filter. */
   serviceVersionId?: Ref<string>;
   /** OAP pagePathId — the BROWSER "Page" (endpoint) filter. */
@@ -65,7 +68,7 @@ export function useLayerBrowserErrors(layerKey: Ref<string>, params: BrowserErro
     ],
     queryFn: () =>
       bffClient.browserErrors.list(layerKey.value, {
-        ...(params.service.value ? { service: params.service.value } : {}),
+        ...serviceRefFields(params.service.value),
         ...(params.serviceVersionId?.value ? { serviceVersionId: params.serviceVersionId.value } : {}),
         ...(params.pagePathId?.value ? { pagePathId: params.pagePathId.value } : {}),
         ...(params.category.value && params.category.value !== 'ALL'

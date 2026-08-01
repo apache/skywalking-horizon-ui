@@ -67,6 +67,7 @@ import { registerInfra3dConfigRoutes } from './http/config/infra-3d.js';
 import { registerInfra3dMetricsRoute } from './http/query/infra-3d-metrics.js';
 import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
+import { registerSettingsRoute } from './http/config/settings.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
 import { buildOapClients } from './client/index.js';
 import { wireLog } from './client/wire-log.js';
@@ -323,6 +324,11 @@ registerOverviewRoutes(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerConfigBundleRoute(app, {
+  config: source,
+  sessions,
+  uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
+});
+registerSettingsRoute(app, {
   config: source,
   sessions,
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),

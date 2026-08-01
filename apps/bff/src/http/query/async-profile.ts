@@ -18,12 +18,12 @@
 /**
  * Async profiler (Java) + pprof (Go) routes.
  *
- *   GET  /api/layer/:key/async/tasks?serviceId=|service=
+ *   GET  /api/layer/:key/async/tasks?serviceId=&service=
  *   POST /api/layer/:key/async/tasks
  *   GET  /api/async/tasks/:taskId/progress
  *   POST /api/async/analyze
  *
- *   GET  /api/layer/:key/pprof/tasks?serviceId=|service=
+ *   GET  /api/layer/:key/pprof/tasks?serviceId=&service=
  *   POST /api/layer/:key/pprof/tasks
  *   GET  /api/pprof/tasks/:taskId/progress
  *   POST /api/pprof/analyze
@@ -52,7 +52,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { resolveRequiredServiceArgs } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface AsyncProfileRouteDeps {
   config: ConfigSource;
@@ -243,22 +243,20 @@ export function registerAsyncProfileRoutes(
     '/api/layer/:key/async/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
       const q = req.query as { serviceId?: string; service?: string; limit?: string };
-      const args = { serviceId: (q.serviceId ?? '').trim(), service: (q.service ?? '').trim() };
       const payload: AsyncProfilingTaskListResponse = { tasks: [], reachable: true };
-      if (!args.serviceId && !args.service) return reply.send(payload);
+      // `AsyncProfilerTaskListRequest.serviceId` is `ID!` — required, so a name
+      // that arrived without its id has nothing valid to send. Refuse with the
+      // reason rather than guess at an id or fire a malformed query.
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'incomplete') return reply.send(softErr(payload, scope.message));
+      if (scope.kind === 'all') return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const limit = clampTaskListLimit(q.limit);
       try {
-        const scope = await resolveRequiredServiceArgs(opts, params.key, args);
-        // `AsyncProfilerTaskListRequest.serviceId` is `ID!` — required, so a
-        // name we could not resolve has nothing valid to send. Refuse with the
-        // reason rather than guess at an id or fire a malformed query.
-        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         const data = await graphqlPost<{
           asyncTaskList: { errorReason?: string; tasks: AsyncProfilingTaskListResponse['tasks'] };
-        }>(opts, GET_ASYNC_TASK_LIST, { request: { serviceId: scope.serviceId, limit } });
+        }>(opts, GET_ASYNC_TASK_LIST, { request: { serviceId: scope.service.id, limit } });
         payload.tasks = data.asyncTaskList?.tasks ?? [];
         payload.errorReason = data.asyncTaskList?.errorReason;
         return reply.send(payload);
@@ -354,20 +352,18 @@ export function registerAsyncProfileRoutes(
     '/api/layer/:key/pprof/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
       const q = req.query as { serviceId?: string; service?: string; limit?: string };
-      const args = { serviceId: (q.serviceId ?? '').trim(), service: (q.service ?? '').trim() };
       const payload: PprofTaskListResponse = { tasks: [], reachable: true };
-      if (!args.serviceId && !args.service) return reply.send(payload);
+      // `PprofTaskListRequest.serviceId` is nullable — same refusal as async.
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'incomplete') return reply.send(softErr(payload, scope.message));
+      if (scope.kind === 'all') return reply.send(payload);
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const limit = clampTaskListLimit(q.limit);
       try {
-        const scope = await resolveRequiredServiceArgs(opts, params.key, args);
-        // `PprofTaskListRequest.serviceId` is nullable — same refusal as async.
-        if (scope.kind === 'unknown') return reply.send(softErr(payload, scope.message));
         const data = await graphqlPost<{
           pprofTaskList: { errorReason?: string; tasks: PprofTaskListResponse['tasks'] };
-        }>(opts, GET_PPROF_TASK_LIST, { request: { serviceId: scope.serviceId, limit } });
+        }>(opts, GET_PPROF_TASK_LIST, { request: { serviceId: scope.service.id, limit } });
         payload.tasks = data.pprofTaskList?.tasks ?? [];
         payload.errorReason = data.pprofTaskList?.errorReason;
         return reply.send(payload);

@@ -37,6 +37,7 @@ import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import { useRoute } from 'vue-router';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useSelectedService } from '@/layer/useSelectedService';
+import { useSelectedServiceRef } from '@/layer/useLayerServiceName';
 import { bffClient } from '@/api/client';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import type {
@@ -62,7 +63,8 @@ const previewProcessTopology = usePreviewLayerBlock(layerKey, 'processTopology')
 const { selectedId: serviceId } = useSelectedService();
 
 // Instance picker — plain ref state (not the URL-bound useSelectedInstance).
-const instances = useLayerInstances(layerKey, serviceId);
+const service = useSelectedServiceRef(layerKey);
+const instances = useLayerInstances(layerKey, service);
 const selectedInstanceId = ref<string | null>(null);
 watch(
   () => instances.instances.value,
@@ -91,12 +93,10 @@ async function refreshTasks(): Promise<void> {
   tasksError.value = null;
   tasks.value = [];
   currentTask.value = null;
-  if (!serviceId.value) return;
+  if (!service.value) return;
   tasksLoading.value = true;
   try {
-    const resp = await bffClient.networkProfile.tasks(layerKey.value, {
-      serviceId: serviceId.value ?? undefined,
-    });
+    const resp = await bffClient.networkProfile.tasks(layerKey.value, { service: service.value });
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];
     currentTask.value = tasks.value[0] ?? null;

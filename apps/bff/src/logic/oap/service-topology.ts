@@ -137,7 +137,7 @@ export interface BuildServiceTopologyInput {
   cfg: TopologyConfig;
   /** Layer key as the response should report it; upper-cased for the OAP query. */
   layerKey: string;
-  /** Comma-separated service ids/names to seed; empty ⇒ the whole layer. */
+  /** Comma-separated OAP service IDS to seed; empty ⇒ the whole layer. */
   serviceArg: string;
   depth: number;
   /** Layer-overview only: scope the all-services seed to one Service.group. */
@@ -161,21 +161,10 @@ export async function buildServiceTopology(input: BuildServiceTopologyInput): Pr
       knownServices.set(s.id, { id: s.id, name: s.name, normal: s.normal !== false });
     }
     if (serviceArg) {
-      // `service` accepts a comma-separated list of names/ids so
-      // the SPA can multi-seed without a separate query param. Any
-      // entry that doesn't resolve is reported back individually
-      // instead of failing the whole request.
-      const wants = serviceArg.split(',').map((s) => s.trim()).filter(Boolean);
-      const matches = wants.map((w) =>
-        data.services.find((s) => s.id === w) ??
-        data.services.find((s) => s.name === w) ??
-        null,
-      );
-      const missing = wants.filter((_, i) => matches[i] === null);
-      if (matches.every((m) => m === null)) {
-        return emptyTopologyResponse(layerKey, serviceArg, depth, topoCfg, true, `service${wants.length === 1 ? '' : 's'} not found: ${missing.join(', ')}`);
-      }
-      seedIds = matches.filter((m): m is { id: string; name: string; normal?: boolean | null } => m !== null).map((m) => m.id);
+      // A comma-separated list of ids so the SPA can multi-seed without a
+      // separate query param. They are ids the caller already held — seeded
+      // as-is, never matched against the roster.
+      seedIds = serviceArg.split(',').map((s) => s.trim()).filter(Boolean);
     } else {
       // Layer-overview topology — seed with EVERY service the layer
       // exposes. Booster-ui does the same: it computes the topology

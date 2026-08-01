@@ -131,7 +131,7 @@ const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
 // the full roster for low-traffic / deep-linked services that miss
 // landing's top-N — without it the dashboard would sit on "Resolving
 // service…" forever. Shared with every other layer tab.
-const { name: serviceName } = useLayerServiceName(layerKey, landing);
+const { name: serviceName, ref: service } = useLayerServiceName(layerKey, landing);
 // Dev-only escape hatch: appending `?mockTop=10` to the page URL pads
 // every TopList result to N synthetic rows. Helps operators verify
 // widget heights without waiting for OAP to populate the layer.
@@ -187,7 +187,7 @@ const {
   effectiveInstance,
   instanceResolvable,
   instAtCap,
-} = useInstanceCascade(layerKey, scope, serviceName, layer);
+} = useInstanceCascade(layerKey, scope, service, layer);
 const {
   selectedEndpoint,
   setSelectedEndpoint,
@@ -204,7 +204,7 @@ const {
   effectiveEndpoint,
   endpointResolvable,
   epAtCap,
-} = useEndpointCascade(layerKey, scope, serviceName, selectedId, landingRows, setSelectedService);
+} = useEndpointCascade(layerKey, scope, service, selectedId, landingRows, setSelectedService);
 // Suppress the reset-then-load overlay when the picker's entity list
 // settles EMPTY (no instance/endpoint can ever be picked, so the
 // dashboard query never fires) — `*Resolvable` (from the cascades)

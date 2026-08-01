@@ -57,15 +57,6 @@ interface EndpointDepResp {
   topology: { nodes: OapEpNode[]; calls: OapEpCall[] };
 }
 
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForEndpointDep($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-      normal
-    }
-  }
-`;
 const FIND_ENDPOINT = /* GraphQL */ `
   query FindEndpointForDep($serviceId: ID!, $keyword: String!, $duration: Duration!) {
     endpoints: findEndpoint(serviceId: $serviceId, keyword: $keyword, limit: 50, duration: $duration) {
@@ -190,37 +181,22 @@ export interface BuildEndpointDependencyInput {
   /** The resolved (preview OR effective) endpoint-dependency config. */
   cfg: EndpointDependencyConfig;
   layerKey: string;
-  /** Service NAME or id to resolve. */
-  serviceArg: string;
+  /** The picked service's roster row: `id` finds its endpoint, `name` +
+   *  `normal` are what the endpoint-scoped MQE entity is built from (it has no
+   *  id form). Nothing here is looked up. */
+  service: { id: string; name: string; normal: boolean };
   /** Endpoint NAME or id — resolved to an endpointId that PINS the chain. */
   endpointArg: string;
 }
 
 export async function buildEndpointDependency(input: BuildEndpointDependencyInput): Promise<EndpointDependencyResponse> {
-  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, serviceArg, endpointArg } = input;
-  const oapLayer = layerKey.toUpperCase();
+  const { opts, perf, window, coldStage, cfg: epCfg, layerKey, service, endpointArg } = input;
+  const serviceId = service.id;
+  const serviceArg = service.name;
+  const normal = service.normal;
   const durationVar = coldStage
     ? { start: window.start, end: window.end, step: window.step, coldStage: true }
     : { start: window.start, end: window.end, step: window.step };
-
-  let serviceId = serviceArg;
-  let normal = true;
-  try {
-    const data = await graphqlPost<{
-      services: Array<{ id: string; name: string; normal?: boolean | null }>;
-    }>(opts, LIST_SERVICES_FOR_RESOLVE, { layer: oapLayer });
-    const match =
-      data.services.find((s) => s.name === serviceArg) ??
-      data.services.find((s) => s.id === serviceArg) ??
-      null;
-    if (!match) {
-      return emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, null, epCfg, true, 'service not found');
-    }
-    serviceId = match.id;
-    normal = match.normal !== false;
-  } catch (err) {
-    return emptyEndpointDependencyResponse(layerKey, serviceArg, endpointArg, null, epCfg, false, err instanceof Error ? err.message : String(err));
-  }
 
   let endpointId = endpointArg;
   if (!/\.0_/.test(endpointArg)) {

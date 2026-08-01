@@ -21,15 +21,18 @@
  * a service is selected. The query is debounced upstream by the
  * picker UI; here we just thread `query` into the queryKey so a new
  * keyword refetches.
+ *
+ * `service` is the roster pair the caller picked — id and name together.
  */
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export function useLayerEndpoints(
   layerKey: Ref<string>,
-  service: Ref<string | null>,
+  service: Ref<ServiceRef | null>,
   query: Ref<string>,
   limit: Ref<number>,
   /** REPLAY mode gate: a replay endpoint-dependency map pins its endpoint from the
@@ -40,7 +43,7 @@ export function useLayerEndpoints(
   const q = useQuery({
     queryKey: ['layer-endpoints', layerKey, service, query, limit],
     queryFn: () =>
-      bffClient.layer.endpoints(layerKey.value, service.value ?? '', query.value, limit.value),
+      bffClient.layer.endpoints(layerKey.value, service.value!, query.value, limit.value),
     enabled: computed(() => !(replay?.value ?? false) && layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
   });

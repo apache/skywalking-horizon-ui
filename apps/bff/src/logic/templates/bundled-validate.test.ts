@@ -137,6 +137,24 @@ describe('validateBundledTemplates — service-list header', () => {
     expect(findings).toEqual([]);
   });
 
+  it('rejects two columns on the same metric', () => {
+    const findings = run({
+      layers: {
+        demo: layer({
+          'layer-header': {
+            columns: [
+              { metric: 'cpm', label: 'RPM', mqe: 'service_cpm' },
+              { metric: 'cpm', label: 'RPM (copy)', mqe: 'service_sla' },
+            ],
+          },
+        }),
+      },
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].path).toBe('layer-header.columns.1.metric');
+    expect(findings[0].message).toContain('duplicate column metric "cpm"');
+  });
+
   it('rejects a column with neither an mqe nor a metric-catalog mapping', () => {
     const findings = run({
       layers: {
@@ -289,6 +307,49 @@ describe('validateBundledTemplates — layer file identity + typos', () => {
       },
     });
     expect(findings).toEqual([]);
+  });
+
+  it('rejects a pattern that does not compile', () => {
+    const findings = run({
+      layers: { demo: layer({ naming: { pattern: '^(?<service>.+', alias: 'group' } }) },
+    });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].path).toBe('naming.pattern');
+    expect(findings[0].message).toContain('invalid regex');
+  });
+});
+
+describe('validateBundledTemplates — deployment roles', () => {
+  const pair = (over: Record<string, unknown>) => ({
+    deployment: {
+      roles: [{ key: 'liaison' }, { key: 'data' }],
+      roleToRole: [
+        {
+          from: 'liaison',
+          to: 'data',
+          metrics: [{ id: 'write', label: 'Write', mqe: 'service_instance_relation_client_cpm' }],
+          ...over,
+        },
+      ],
+    },
+  });
+
+  it('rejects a primary that names none of that pair’s metrics', () => {
+    const findings = run({ layers: { demo: layer(pair({ primary: 'writes' })) } });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].path).toBe('deployment.roleToRole.0.primary');
+    expect(findings[0].message).toContain("is not one of this pair's metric ids (write)");
+  });
+
+  it('rejects a pair side that names no configured role', () => {
+    const findings = run({ layers: { demo: layer(pair({ from: 'liason' })) } });
+    expect(findings).toHaveLength(1);
+    expect(findings[0].path).toBe('deployment.roleToRole.0.from');
+    expect(findings[0].message).toContain('is not a configured deployment role (liaison, data)');
+  });
+
+  it('accepts the `*` wildcard on either side', () => {
+    expect(run({ layers: { demo: layer(pair({ from: '*', to: '*' })) } })).toEqual([]);
   });
 });
 

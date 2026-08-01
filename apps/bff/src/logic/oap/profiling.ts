@@ -35,7 +35,6 @@ import type {
 } from '@skywalking-horizon-ui/api-client';
 import type { GraphqlOptions } from '../../client/graphql.js';
 import { graphqlPost } from '../../client/graphql.js';
-import { resolveRequiredService } from './service-scope.js';
 import { fmtMinute } from '../../util/window.js';
 
 export type ProfilingType = 'trace' | 'pprof' | 'async' | 'ebpf';
@@ -345,6 +344,37 @@ export interface AnalyzeNetworkProfilingInput {
   taskId?: string;
 }
 
+const LIST_SERVICES_FOR_PROFILING = /* GraphQL */ `
+  query HorizonProfilingServiceId($layer: String!) {
+    services: listServices(layer: $layer) { id name }
+  }
+`;
+
+/**
+ * The one name → id lookup left in the BFF, and only because the assistant's
+ * `analyze_profiling` tool schema hands over a service NAME with no id: every
+ * HTTP query route now carries the identity pair and resolves nothing. Removing
+ * this means widening that tool's schema (as `propose_profiling` already does),
+ * not re-introducing a resolver for the routes.
+ *
+ * Throws whatever the round-trip throws — an unreachable OAP is not the same
+ * answer as an unknown service, and both callers report the difference.
+ */
+async function profilingServiceId(
+  opts: GraphqlOptions,
+  layerKey: string,
+  service: string,
+): Promise<{ id: string } | { error: string }> {
+  const layer = layerKey.toUpperCase();
+  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
+    opts,
+    LIST_SERVICES_FOR_PROFILING,
+    { layer },
+  );
+  const match = (data.services ?? []).find((s) => s.name === service);
+  return match ? { id: match.id } : { error: `Unknown service "${service}" in layer ${layer}.` };
+}
+
 // Rover watches processes per instance, so only part of a fleet may report a
 // graph — probe a few instances instead of judging the service by its first.
 const MAX_NETWORK_TOPOLOGY_PROBES = 5;
@@ -587,9 +617,9 @@ export async function analyzeNetworkProfiling(input: AnalyzeNetworkProfilingInpu
     return result;
   };
   try {
-    const scope = await resolveRequiredService(opts, layerKey, service);
-    if (scope.kind === 'unknown') return fail(scope.message);
-    const serviceId = scope.serviceId;
+    const found = await profilingServiceId(opts, layerKey, service);
+    if ('error' in found) return fail(found.error);
+    const serviceId = found.id;
     const task = await findNetworkTask(opts, serviceId, input.taskId);
     if (input.taskId && !task) {
       return fail(`No NETWORK profiling task "${input.taskId}" on ${service}.`);
@@ -709,13 +739,13 @@ export async function analyzeProfiling(input: AnalyzeProfilingInput): Promise<Pr
     reachable: true,
   };
   try {
-    const scope = await resolveRequiredService(opts, layerKey, service);
-    if (scope.kind === 'unknown') {
+    const found = await profilingServiceId(opts, layerKey, service);
+    if ('error' in found) {
       base.reachable = false;
-      base.error = scope.message;
+      base.error = found.error;
       return base;
     }
-    const serviceId = scope.serviceId;
+    const serviceId = found.id;
     switch (profilingType) {
       case 'trace':
         return await analyzeTrace(opts, serviceId, service, input.taskId, base);

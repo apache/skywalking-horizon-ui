@@ -30,10 +30,11 @@ import type { DeploymentResponse } from '@skywalking-horizon-ui/api-client';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
+import type { ServiceRef } from '@/utils/serviceRef';
 
 export function useDeployment(
   layerKey: Ref<string>,
-  serviceId: Ref<string | null>,
+  service: Ref<ServiceRef | null>,
   enabled: Ref<boolean>,
   /** Embedded (chat) override: when a positive minute count, the query owns its
    *  OWN frozen look-back window and does NOT follow the global topbar picker or
@@ -62,14 +63,14 @@ export function useDeployment(
     };
   });
   const isEnabled = computed(
-    () => enabled.value && layerKey.value.length > 0 && !!serviceId.value && !replay.value,
+    () => enabled.value && layerKey.value.length > 0 && !!service.value && !replay.value,
   );
   const q = useQuery({
-    queryKey: ['layer-deployment', layerKey, serviceId, rangeKey, previewCfg],
+    queryKey: ['layer-deployment', layerKey, service, rangeKey, previewCfg],
     queryFn: () =>
       bffClient.layer.deployment(
         layerKey.value,
-        serviceId.value as string,
+        service.value!,
         rangeKey.value,
         previewCfg.value,
       ),

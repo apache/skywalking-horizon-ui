@@ -71,6 +71,7 @@ import {
   resolveServiceIdentity,
   type ServiceIdentity,
 } from '@/utils/serviceName';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { componentIconOrNull, isUserNode } from '@/layer/service-map/useTopologyIcons';
 import ServiceHierarchyOverlay from '@/layer/service-map/ServiceHierarchyOverlay.vue';
 import { useHierarchyOverlayStore } from '@/layer/service-map/hierarchyStore';
@@ -97,10 +98,11 @@ import {
 const props = defineProps<{
   layerKey?: string;
   embedded?: boolean;
-  /** Seed the focus service(s) + BFS depth (e.g. the AI chat mounts this
-   *  embedded, focused on one service at depth 1 for a one-hop map). Absent on
-   *  the interactive route + the overview widget, which start layer-wide. */
-  focusServices?: string[];
+  /** Seed the focus service(s) — roster rows, id and name — plus the BFS depth
+   *  (e.g. the AI chat mounts this embedded, focused on one service at depth 1
+   *  for a one-hop map). Absent on the interactive route + the overview widget,
+   *  which start layer-wide. */
+  focusServices?: ServiceRef[];
   focusDepth?: number;
   /** Fit-to-screen scale cap. Omit for the readable 0.79 default; a small
    *  embedded stage (chat) raises it so a small graph fills its box. */
@@ -164,12 +166,9 @@ const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.ro
 // `useSelectedService` — the topology map is layer-wide by default).
 //   - empty array = no focus, BFF seeds from the layer's services for a
 //     layer-overview graph
-//   - one or more entries = comma-joined and passed as `?service=` so the
-//     BFF seeds BFS from each selected service (multi-select)
-const focusServiceNames = ref<string[]>(props.focusServices ?? []);
-const serviceName = computed<string | null>(() =>
-  focusServiceNames.value.length === 0 ? null : focusServiceNames.value.join(','),
-);
+//   - one or more roster rows = the BFS seeds, each carried whole (multi-select)
+const focusServices = ref<ServiceRef[]>(props.focusServices ?? []);
+const focusServiceNames = computed<string[]>(() => focusServices.value.map((s) => s.name));
 
 /**
  * Build SVG `points=` for a flat-top regular hexagon centred at (0,0)
@@ -202,7 +201,7 @@ const focusWindowMinutes = computed<number | null>(() => props.focusWindowMinute
 const replayDataRef = computed<TopologyResponse | null>(() => props.replayData ?? null);
 const { nodes, calls, isLoading, isFetching, data, refetch } = useLayerTopology(
   layerKey,
-  serviceName,
+  focusServices,
   depth,
   focusWindowMinutes,
   replayDataRef,
@@ -760,8 +759,10 @@ const hierarchy = useHierarchyOverlayStore();
 // The hierarchy chip is hidden in embedded mode, so never probe OAP for it there
 // — otherwise a seeded chat map (click re-enabled) fires a wasted round-trip on a
 // static replay. Null id ⇒ the probe query stays disabled.
-const hierarchyProbeId = computed(() => (embedded.value ? null : selectedNodeId.value));
-const { hasPeers: hierarchyHasPeers } = useServiceHierarchy(layerKey, hierarchyProbeId);
+const hierarchyProbe = computed<ServiceRef | null>(() =>
+  embedded.value ? null : serviceRef(selectedNode.value?.id, selectedNode.value?.name),
+);
+const { hasPeers: hierarchyHasPeers } = useServiceHierarchy(layerKey, hierarchyProbe);
 
 function openHierarchy(): void {
   if (embedded.value) return;
@@ -812,7 +813,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="right">
         <TopologyFocusPicker
-          v-model:selected="focusServiceNames"
+          v-model:selected="focusServices"
           :landing-rows="landingRows"
           :naming-rule="namingRule"
         />

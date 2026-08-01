@@ -193,7 +193,6 @@ export function registerExploreRoutes(app: FastifyInstance, deps: ExploreRouteDe
           const native = await fetchNativeList(
             opts,
             { ...base, ...ids },
-            '', // layer-less: the entity is pre-resolved to ids, so no name lookup runs
             !!req.coldStage,
             offset,
             maxTraces,

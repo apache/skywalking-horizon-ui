@@ -58,6 +58,7 @@ import { useLayerServiceName } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
+import { serviceRef, type ServiceRef } from '@/utils/serviceRef';
 import { watch } from 'vue';
 import Sparkline from '@/components/charts/Sparkline.vue';
 
@@ -126,10 +127,13 @@ const isReplay = computed(() => props.replay === true && !!props.replayData);
 // A replay map takes its service from props.focusService (not the landing rollup)
 // and hides the picker, so it fires ZERO landing queries — gated by replay mode.
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, isReplay);
-const { name: resolvedServiceName } = useLayerServiceName(layerKey, landing, isReplay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : resolvedServiceName.value,
+const { ref: resolvedService } = useLayerServiceName(layerKey, landing, isReplay);
+// The identity every read on this tab carries: the embed's props, or the pair
+// the picker selected. Embedded blocks are given both halves by their producer.
+const service = computed<ServiceRef | null>(() =>
+  embedded.value ? serviceRef(props.focusServiceId, props.focusService) : resolvedService.value,
 );
+const serviceName = computed<string | null>(() => service.value?.name ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 
 // Embedded (chat) mode keeps its endpoint pick LOCAL so the auto-pick never
@@ -156,13 +160,17 @@ function clearEndpointSearch(): void {
 }
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
-  serviceName,
+  service,
   endpointQuery,
   endpointLimit,
   // A replay map pins its endpoint from replayData + hides the picker — no fetch.
   isReplay,
 );
-watch(serviceName, (next, prev) => {
+// Cascade-clear keys on the id, not on the display name: `service` is a fresh
+// object on every recompute, so watching it directly would fire on
+// re-resolution rather than on a switch.
+const serviceKey = computed<string | null>(() => service.value?.id ?? null);
+watch(serviceKey, (next, prev) => {
   if (prev !== undefined && next !== prev && selectedEndpoint.value) {
     setSelectedEndpoint(null);
   }
@@ -206,7 +214,7 @@ const focusWindowMinutes = computed<number | null>(() =>
 const replayDataRef = computed<EndpointDependencyResponse | null>(() => props.replayData ?? null);
 const { nodes: baseNodes, calls: baseCalls, isLoading, isFetching, data } = useLayerEndpointDependency(
   layerKey,
-  serviceName,
+  service,
   selectedEndpoint,
   focusWindowMinutes,
   replayDataRef,

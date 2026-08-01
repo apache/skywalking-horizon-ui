@@ -15,12 +15,11 @@
  * limitations under the License.
  */
 
-// The Alarms page-setup config and its parse/validate helper. A leaf module
+// The Alarms page-setup config and its validate helper. A leaf module
 // (imports nothing internal) so the alarms api scope can read the effective
-// config from OAP without a cycle through client.ts. The config lives ONLY in
-// OAP as the `horizon.alert.page-setup` singleton template — edited on the Alert
-// page admin and read from the config bundle's sync status, like every other
-// template.
+// config without a cycle through client.ts. It is the
+// `horizon.alert.page-setup` singleton template — edited on the Alert page
+// admin, and read back as one of the effective org settings.
 
 /** Allowed values for `AlarmsConfig.defaultWindowMs`, in ms. Matches the alarms
  *  page's preset list so the admin's choice always corresponds to a real tab. */
@@ -55,18 +54,15 @@ export const DEFAULT_ALARMS_CONFIG: AlarmsConfig = {
   overviewAlarmsLimit: OVERVIEW_ALARMS_LIMIT_DEFAULT,
 };
 
-/** Parse + validate the alert page-setup from a template-sync `configuration`
- *  string — the `{ name, kind, version, content }` envelope OAP stores verbatim.
- *  Any missing / out-of-range field falls back to the shipped default, so a
- *  partial or absent template still yields a usable config. */
-export function normalizeAlarmsConfig(configuration: string | null | undefined): AlarmsConfig {
-  if (!configuration) return { ...DEFAULT_ALARMS_CONFIG };
-  let content: Partial<AlarmsConfig>;
-  try {
-    content = (JSON.parse(configuration) as { content?: Partial<AlarmsConfig> }).content ?? {};
-  } catch {
+/** Validate the alert page-setup content the BFF resolved for its template
+ *  mode. Any missing / out-of-range field falls back to the shipped default,
+ *  so a partial template — or none at all, when live mode has no readable OAP
+ *  row — still yields a usable config. */
+export function normalizeAlarmsConfig(raw: unknown): AlarmsConfig {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ...DEFAULT_ALARMS_CONFIG };
   }
+  const content = raw as Partial<AlarmsConfig>;
   const pinnedLayers = Array.isArray(content.pinnedLayers)
     ? content.pinnedLayers.filter((l): l is string => typeof l === 'string')
     : DEFAULT_ALARMS_CONFIG.pinnedLayers;

@@ -25,6 +25,7 @@ import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 import type {
   TraceDetailResponse,
   TraceListResponse,
@@ -35,7 +36,10 @@ import type {
 
 export interface TraceListParams {
   source: Ref<TraceSource>;
-  service: Ref<string | null>;
+  /** The service to scope by, as the tab holds it: the picked OAP id on a
+   *  route, a name inside a chat block. Null runs the read unscoped, which
+   *  only a caller with no service at all may do. */
+  service: Ref<ServiceRef | null>;
   instanceId: Ref<string | null>;
   endpointId: Ref<string | null>;
   traceId: Ref<string | null>;
@@ -93,7 +97,7 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
     queryFn: () =>
       bffClient.trace.list(layerKey.value, {
         source: params.source.value,
-        ...(params.service.value ? { service: params.service.value } : {}),
+        ...serviceRefFields(params.service.value),
         ...(params.instanceId.value ? { instanceId: params.instanceId.value } : {}),
         ...(params.endpointId.value ? { endpointId: params.endpointId.value } : {}),
         ...(params.traceId.value ? { traceId: params.traceId.value } : {}),

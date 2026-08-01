@@ -16,9 +16,9 @@
  */
 
 /**
- * `GET /api/layer/:key/endpoints?service=<id|name>&q=<keyword>&limit=<n>`
- * — keyword-searchable, top-N endpoint list. Drives the endpoint
- * picker on the per-layer Endpoint page.
+ * `GET /api/layer/:key/endpoints?serviceId=<id>&service=<name>&q=<keyword>&limit=<n>`
+ * — keyword-searchable, top-N endpoint list.
+ * Drives the endpoint picker on the per-layer Endpoint page.
  *
  * Endpoints are unbounded by nature (a service can expose thousands)
  * so we don't page through them. The operator types a search term;
@@ -28,12 +28,8 @@
  *   q       trimmed search keyword (empty → all-recent endpoints).
  *   limit   clamped to 20…50. Default 20.
  *
- * The `service` query param takes a service NAME or an OAP service id;
- * both are resolved against `listServices(layer)` — name column first —
- * to an id before forwarding to `findEndpoint`. Neither is guessed at by
- * shape: an OAP id is `base64(<name>).<0|1>`, which an ordinary name can
- * wear too (`api.1`, `orders.2026`), and a shape test turned such a name
- * into an id whose endpoint search came back empty.
+ * `findEndpoint(serviceId)` keys on the id the request already carries,
+ * exactly as on the instances route — no roster lookup.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -42,7 +38,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { resolveServiceScope } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -90,9 +86,20 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string; q?: string; limit?: string };
-      const serviceArg = (q.service ?? '').trim();
-      if (!serviceArg) return reply.code(400).send({ error: 'missing_service' });
+      const q = req.query as {
+        serviceId?: string;
+        service?: string;
+        q?: string;
+        limit?: string;
+      };
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'all') return reply.code(400).send({ error: 'missing_service' });
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceId = scope.service.id;
+      // The handle the caller sent, echoed back on every reply below.
+      const serviceArg = scope.service.name || serviceId;
       const keyword = (q.q ?? '').trim();
       const limit = Math.max(20, Math.min(50, Number(q.limit) || 20));
 
@@ -100,35 +107,6 @@ export function registerEndpointRoute(app: FastifyInstance, deps: EndpointRouteD
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
-
-      let serviceId: string;
-      try {
-        const scope = await resolveServiceScope(opts, layerKey, serviceArg);
-        if (scope.kind !== 'service') {
-          return reply.send({
-            layer: layerKey,
-            service: serviceArg,
-            query: keyword,
-            limit,
-            generatedAt: Date.now(),
-            endpoints: [],
-            reachable: true,
-            error: 'service not found',
-          } satisfies EndpointsResponse);
-        }
-        serviceId = scope.serviceId;
-      } catch (err) {
-        return reply.send({
-          layer: layerKey,
-          service: serviceArg,
-          query: keyword,
-          limit,
-          generatedAt: Date.now(),
-          endpoints: [],
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies EndpointsResponse);
-      }
 
       try {
         const data = await graphqlPost<{ endpoints: EndpointRow[] }>(opts, FIND_ENDPOINTS, {

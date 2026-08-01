@@ -26,15 +26,18 @@
  * here is `.strict()` so a misspelled key is an error rather than a field
  * that quietly does nothing.
  *
- * {@link layerTemplateSaveSchema} is the one runtime user: the admin save
- * route runs it over layer content before it reaches OAP. It is the same body
- * as the bundled layer schema, built at a lower completeness bar — see
- * {@link buildLayerSchemas}.
+ * The admin routes that PUBLISH a layer to OAP are the runtime user: they run
+ * {@link layerTemplatePushSchema} — the same body as the bundled layer schema,
+ * built at a lower completeness bar (see {@link buildLayerSchemas}) — and then
+ * {@link layerCrossRefIssues}, which the bundled validator also runs, so a
+ * published layer is held to the same rules as a shipped one.
  *
  * Two invariants make this worth its weight:
  *   - Widget shape is NOT re-declared: it reuses `widgetSchema`, the exact
  *     schema `POST /api/layer/:key/dashboard` enforces on the widgets the SPA
  *     posts back. A widget that fails here would 400 the whole request batch.
+ *     The push bar opens exactly one hole in it — see
+ *     {@link BLANK_EXPRESSION_STAND_IN}.
  *   - Header-column shape mirrors `POST /api/layer/:key/landing`'s body schema
  *     (aggregation enum, precision range, ≤10 columns) for the same reason:
  *     the SPA forwards these columns verbatim, so a value the route rejects
@@ -102,12 +105,54 @@ const componentsSchema = z
   })
   .strict();
 
+/**
+ * The one thing the push bar accepts that the shared `widgetSchema` cannot:
+ * a widget whose MQE is still blank. "Add widget" seeds `expressions: ['']`,
+ * and the layer renderer filters blank expressions out of the batch before it
+ * posts (a half-authored leaf renders as "no data" instead of being queried),
+ * so a blank is work in progress the runtime already tolerates — refusing the
+ * publish over it is what leaves an operator unable to push after adding a
+ * widget. The dashboard ROUTE must keep rejecting blanks (one would 400 the
+ * whole batch), so the relaxation lives here: blanks are swapped for this
+ * stand-in index-for-index — every other issue path stays exact — and the
+ * substitution never leaves this module. The routes store the operator's own
+ * JSON; this parse only decides accept / reject.
+ */
+const BLANK_EXPRESSION_STAND_IN = '<blank>';
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
+function fillBlankExpressions(widget: unknown): unknown {
+  if (!isRecord(widget)) return widget;
+  const out: Record<string, unknown> = { ...widget };
+  if (Array.isArray(out.expressions)) {
+    out.expressions = out.expressions.map((e) =>
+      typeof e === 'string' && e.trim() === '' ? BLANK_EXPRESSION_STAND_IN : e,
+    );
+  }
+  // A `tab` widget's panels hold leaf widgets, seeded blank the same way.
+  if (Array.isArray(out.tabs)) {
+    out.tabs = out.tabs.map((tab) =>
+      isRecord(tab) && Array.isArray(tab.widgets)
+        ? { ...tab, widgets: tab.widgets.map(fillBlankExpressions) }
+        : tab,
+    );
+  }
+  return out;
+}
+
+const pushWidgetSchema = z.preprocess(fillBlankExpressions, widgetSchema);
+
 /** `dashboards.<scope>` — the key set is `DashboardScope`, reused from the
  *  dashboard route so a scope typo (which would render an empty grid) fails
  *  here instead. */
-const dashboardsShape: Record<string, z.ZodOptional<z.ZodArray<typeof widgetSchema>>> = {};
-for (const scope of scopeSchema.options) dashboardsShape[scope] = z.array(widgetSchema).optional();
-const dashboardsSchema = z.object(dashboardsShape).strict();
+function dashboardsSchemaFor<T extends z.ZodTypeAny>(widget: T) {
+  const shape: Record<string, z.ZodOptional<z.ZodArray<T>>> = {};
+  for (const scope of scopeSchema.options) shape[scope] = z.array(widget).optional();
+  return z.object(shape).strict();
+}
 
 /**
  * The layer schema, built twice from one body at two completeness bars.
@@ -116,16 +161,17 @@ const dashboardsSchema = z.object(dashboardsShape).strict();
  * list, a blank alias: shipped config that can never render anything is a
  * defect, so CI fails on it.
  *
- * `complete: false` — content on its way to OAP through the admin save route.
+ * `complete: false` — content on its way to OAP through an admin PUSH route.
  * The layer editor produces exactly those holes as ordinary work in progress:
  * opening the Topology / API-dependency / network-profiling tab seeds its block
- * with EMPTY metric lists, every "Add metric" seeds `mqe: ""`, "Add role pair"
- * seeds `metrics: []` and `primary: ""`, switching a grouping rule to
- * name-regex seeds `pattern: ""` (and clearing it drops the key entirely), and
- * every free-text field clears to `""`. None of that breaks the layer — an
- * unparseable expression comes back as a per-alias error from OAP, so only that
- * one metric reads "—". The save boundary therefore rejects MALFORMED content,
- * not INCOMPLETE content.
+ * with EMPTY metric lists, every "Add metric" seeds `mqe: ""`, "Add widget"
+ * seeds `expressions: [""]`, "Add role pair" seeds `metrics: []` and
+ * `primary: ""`, switching a grouping rule to name-regex seeds `pattern: ""`
+ * (and clearing it drops the key entirely), and every free-text field clears to
+ * `""`. None of that breaks the layer — an unparseable expression comes back as
+ * a per-alias error from OAP, so only that one metric reads "—", and a blank one
+ * is dropped from the batch before it is queried. The push boundary therefore
+ * rejects MALFORMED content, not INCOMPLETE content.
  *
  * Both bars keep every shape whose failure takes a whole page down: widgets
  * (the dashboard route 400s the entire batch), header columns (same for the
@@ -133,6 +179,7 @@ const dashboardsSchema = z.object(dashboardsShape).strict();
  * keys / wrong types / bad enums anywhere.
  */
 function buildLayerSchemas(complete: boolean) {
+  const dashboardsSchema = dashboardsSchemaFor(complete ? widgetSchema : pushWidgetSchema);
   /** Free text that means nothing when empty. */
   const text = complete ? z.string().min(1) : z.string();
   /** A list that means nothing when empty. */
@@ -298,7 +345,7 @@ function buildLayerSchemas(complete: boolean) {
       // Legacy alias the loader still reads (older / operator-exported files).
       metrics: headerSchema.optional(),
       dashboards: dashboardsSchema.optional(),
-      widgets: z.array(widgetSchema).optional(),
+      widgets: z.array(complete ? widgetSchema : pushWidgetSchema).optional(),
       topology: topologySchema.optional(),
       endpointDependency: endpointDependencySchema.optional(),
       processTopology: processTopologySchema.optional(),
@@ -324,21 +371,194 @@ function buildLayerSchemas(complete: boolean) {
 
 export const layerTemplateSchema = buildLayerSchemas(true).layer;
 
-const saveSchemas = buildLayerSchemas(false);
+const pushSchemas = buildLayerSchemas(false);
 
 /**
- * Layer content as the admin SAVE boundary accepts it
- * (`POST /api/admin/templates/save`), so a hand-edited or imported template is
+ * Layer content as the admin PUSH boundary accepts it — the routes that make a
+ * template live for everyone (`POST /api/admin/templates/save`, `…/:name/
+ * push-bundled`, `…/sync-all`), so a hand-edited or imported template is
  * rejected per-field instead of being stored and breaking that layer for every
- * user. Same body as {@link layerTemplateSchema} at the save completeness bar
- * (see {@link buildLayerSchemas}), plus the one key a stored row carries that a
+ * user. Nothing earlier is checked: a browser-local draft is expected to be
+ * half-authored, and only this step publishes.
+ *
+ * Same body as {@link layerTemplateSchema} at the push completeness bar (see
+ * {@link buildLayerSchemas}), plus the one key a stored row carries that a
  * bundled file never should: `header`, which the layer loader adds to every
  * template it serves (normalising `layer-header` / the legacy `metrics`), so it
  * rides along in every row the editor loads and pushes back.
  */
-export const layerTemplateSaveSchema = saveSchemas.layer.extend({
-  header: saveSchemas.headerSchema.optional(),
+export const layerTemplatePushSchema = pushSchemas.layer.extend({
+  header: pushSchemas.headerSchema.optional(),
 });
+
+/** One cross-reference defect, at the same dotted path a zod issue reports. */
+export interface LayerCrossRefIssue {
+  path: string;
+  message: string;
+}
+
+type PushLayer = z.infer<typeof layerTemplatePushSchema>;
+type PushHeader = NonNullable<PushLayer['header']>;
+
+/** Grouping / naming rules share one regex shape (`ClusterByRule` kind
+ *  `nameRegex` and the layer's own `naming`). */
+interface RegexRule {
+  pattern?: string;
+  flags?: string;
+  displayGroup?: string;
+}
+
+/**
+ * The rules a per-field schema cannot express, because they hold only in
+ * relation to ANOTHER part of the same template: a name that must resolve to a
+ * sibling column / widget / metric / role, and a regex that must compile. Both
+ * callers run this over the parsed content — the bundled-file validator and the
+ * admin PUSH boundary — so a layer published through the editor cannot be less
+ * valid than one shipped on disk.
+ *
+ * `complete` mirrors {@link buildLayerSchemas}. A reference is dangling only
+ * once BOTH ends exist, which is what keeps the push bar on the MALFORMED side
+ * of the line: the editor seeds a rule before it is filled in ("Add role pair"
+ * writes `primary: ''` with `metrics: []`, switching a grouping rule to
+ * name-regex writes `pattern: ''`, every free-text field clears to `''`), and
+ * an empty name names nothing rather than naming the wrong thing. At the
+ * bundled bar the schema already demands each of those fields, so the empty-name
+ * skips are unreachable there; the two rules that read the flag for real are
+ * the display capture and the role-pair sides.
+ */
+export function layerCrossRefIssues(tpl: PushLayer, opts: { complete: boolean }): LayerCrossRefIssue[] {
+  const issues: LayerCrossRefIssue[] = [];
+  const add = (path: string, message: string): void => {
+    issues.push({ path, message });
+  };
+
+  // A stored row carries the loader's `header` mirror beside the authored
+  // `layer-header` (or its legacy `metrics` alias), so identical copies are
+  // checked once — but the editor writes `metrics` alone, so they can also
+  // diverge, and then each copy is the one some reader takes its columns from.
+  const seenHeaders = new Set<string>();
+  for (const key of ['layer-header', 'metrics', 'header'] as const) {
+    const header = tpl[key];
+    if (!header) continue;
+    const fingerprint = JSON.stringify(header);
+    if (seenHeaders.has(fingerprint)) continue;
+    seenHeaders.add(fingerprint);
+    checkHeader(header, key, add);
+  }
+
+  for (const [scope, widgets] of Object.entries(tpl.dashboards ?? {})) {
+    checkWidgetIds(widgets, `dashboards.${scope}`, add);
+  }
+  checkWidgetIds(tpl.widgets, 'widgets', add);
+
+  const regexRules: Array<[string, RegexRule]> = tpl.naming ? [['naming', tpl.naming]] : [];
+  for (const rule of ['clusterBy', 'siblingBy', 'roleBy'] as const) {
+    const r = tpl.deployment?.[rule];
+    if (r?.kind === 'nameRegex') regexRules.push([`deployment.${rule}`, r]);
+  }
+  for (const [path, rule] of regexRules) checkRegexRule(rule, path, opts.complete, add);
+
+  const roleKeys = new Set((tpl.deployment?.roles ?? []).map((r) => r.key.toLowerCase()));
+  (tpl.deployment?.roleToRole ?? []).forEach((pair, i) => {
+    const ids = new Set(pair.metrics.map((m) => m.id));
+    const primary = pair.primary === undefined ? [] : Array.isArray(pair.primary) ? pair.primary : [pair.primary];
+    // A pair with no metrics yet has nothing for `primary` to name.
+    if (ids.size > 0) {
+      for (const p of primary) {
+        if (p !== '' && !ids.has(p)) {
+          add(
+            `deployment.roleToRole.${i}.primary`,
+            `"${p}" is not one of this pair's metric ids (${[...ids].join(', ')})`,
+          );
+        }
+      }
+    }
+    // Bundled bar only: the pairs and the roles they name are authored in two
+    // separate cards, so a pair naming a role that does not exist YET is an
+    // order-of-work hole rather than a defect. `primary` above is different —
+    // it names a metric row of its own card.
+    if (opts.complete) {
+      for (const side of ['from', 'to'] as const) {
+        const role = pair[side];
+        if (role !== '*' && roleKeys.size > 0 && !roleKeys.has(role.toLowerCase())) {
+          add(
+            `deployment.roleToRole.${i}.${side}`,
+            `"${role}" is not a configured deployment role (${[...roleKeys].join(', ')})`,
+          );
+        }
+      }
+    }
+  });
+
+  return issues;
+}
+
+/** Dashboard results come back keyed by widget id, so a duplicate makes one of
+ *  the two unaddressable. */
+function checkWidgetIds(
+  widgets: ReadonlyArray<{ id: string }> | undefined,
+  path: string,
+  add: (path: string, message: string) => void,
+): void {
+  const seen = new Set<string>();
+  (widgets ?? []).forEach((w, i) => {
+    if (seen.has(w.id)) add(`${path}.${i}.id`, `duplicate widget id "${w.id}"`);
+    seen.add(w.id);
+  });
+}
+
+function checkHeader(
+  header: PushHeader,
+  path: string,
+  add: (path: string, message: string) => void,
+): void {
+  const metricIds = new Set<string>();
+  (header.columns ?? []).forEach((c, i) => {
+    if (metricIds.has(c.metric)) {
+      add(`${path}.columns.${i}.metric`, `duplicate column metric "${c.metric}"`);
+    }
+    metricIds.add(c.metric);
+  });
+  // A dangling sort key drops the service list to alphabetical order and costs
+  // the over-cap top-N sampling its ranking pass.
+  if (header.orderBy && !metricIds.has(header.orderBy)) {
+    add(
+      `${path}.orderBy`,
+      `"${header.orderBy}" is not one of the header columns (${[...metricIds].join(', ') || 'none'})`,
+    );
+  }
+}
+
+function checkRegexRule(
+  rule: RegexRule,
+  path: string,
+  complete: boolean,
+  add: (path: string, message: string) => void,
+): void {
+  const pattern = rule.pattern ?? '';
+  try {
+    new RegExp(pattern, rule.flags ?? '');
+  } catch (err) {
+    add(`${path}.pattern`, `invalid regex: ${err instanceof Error ? err.message : err}`);
+    return;
+  }
+  if (!complete) return;
+  // Only the DISPLAY capture is required. resolveServiceIdentity reads both
+  // (apps/ui/src/utils/serviceName.ts) but explicitly supports the partial
+  // case — "capture had display but not cluster" — so a pattern that names
+  // only the display group is a legitimate template, not a defect. Without
+  // the display capture the rule can never resolve anything: the identity
+  // falls through and the dimension silently does nothing. A half-authored
+  // pattern is still on its way to that capture, so this is the bundled bar
+  // only.
+  const displayGroup = rule.displayGroup ?? 'service';
+  if (!pattern.includes(`(?<${displayGroup}>`)) {
+    add(
+      `${path}.displayGroup`,
+      `pattern has no named capture "(?<${displayGroup}>…)" — the rule can never match`,
+    );
+  }
+}
 
 /** Overview KPI. `source: 'service-count'` reads the layer's service count
  *  and carries no MQE; every other KPI needs one (the loader DROPS a KPI

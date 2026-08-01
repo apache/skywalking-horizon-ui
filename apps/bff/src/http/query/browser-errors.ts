@@ -22,10 +22,11 @@
  * the BROWSER-layer "Browser Errors" tab (#6784). Body shape is
  * `BrowserErrorsQueryRequest` from `@skywalking-horizon-ui/api-client`.
  *
- * Like the logs feed, we accept a `service` NAME on the body and resolve
- * it to an OAP id server-side, query at SECOND precision (error logs are
- * event-style — MINUTE rounding would drop the most recent rows), and the
- * source-map resolution is a separate concern (see admin/source-maps.ts).
+ * Like the logs feed, the body carries the picked service's identity
+ * (`serviceId` + `service`) and the condition keys on the id. Queried at
+ * SECOND precision (error logs are event-style — MINUTE rounding would drop
+ * the most recent rows); source-map resolution is a separate concern (see
+ * admin/source-maps.ts).
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -40,7 +41,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
-import { resolveServiceScope } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface BrowserErrorsRouteDeps {
@@ -197,6 +198,8 @@ export async function fetchBrowserErrors(
 }
 
 interface Body extends BrowserErrorsQueryRequest {
+  /** Name half of the picked service's identity; the condition queries with
+   *  `serviceId`. */
   service?: string;
 }
 
@@ -219,26 +222,20 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         endMs: body.endMs,
       });
 
-      let serviceId = body.serviceId ?? null;
-      if (!serviceId && body.service) {
-        const failed = (error: string): BrowserErrorsResponse => ({
+      // `BrowserErrorLogQueryCondition.serviceId` is nullable — a name left
+      // without its id would list every browser app's JS errors.
+      const scope = serviceScopeOf(body);
+      if (scope.kind === 'incomplete') {
+        return reply.send({
           generatedAt: Date.now(),
           query: body,
           total: 0,
           logs: [],
           reachable: false,
-          error,
-        });
-        try {
-          const scope = await resolveServiceScope(opts, layerKey, body.service);
-          // `BrowserErrorLogQueryCondition.serviceId` is nullable — an unknown
-          // name left as `null` would list every browser app's JS errors.
-          if (scope.kind === 'unknown') return reply.send(failed(scope.message));
-          serviceId = scope.kind === 'service' ? scope.serviceId : null;
-        } catch (err) {
-          return reply.send(failed(err instanceof Error ? err.message : String(err)));
-        }
+          error: scope.message,
+        } satisfies BrowserErrorsResponse);
       }
+      const serviceId = scope.kind === 'service' ? scope.service.id : null;
 
       const res = await fetchBrowserErrors(
         opts,

@@ -23,17 +23,17 @@ import type {
   AsyncProfilingTaskListResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.asyncProfile` — Async Profiler (JVM) tasks. */
 export class AsyncProfileApi {
   constructor(private readonly bff: BffClient) {}
 
-  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
-   *  skips the roster lookup a name would need. */
-  tasks(layerKey: string, serviceId: string): Promise<AsyncProfilingTaskListResponse> {
+  /** Scoped by the roster row the screen picked — id and name together. */
+  tasks(layerKey: string, service: ServiceRef): Promise<AsyncProfilingTaskListResponse> {
     return this.bff.request<AsyncProfilingTaskListResponse>(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/async/tasks?serviceId=${encodeURIComponent(serviceId)}`,
+      `/api/layer/${encodeURIComponent(layerKey)}/async/tasks?${new URLSearchParams(serviceRefFields(service)).toString()}`,
     );
   }
   create(

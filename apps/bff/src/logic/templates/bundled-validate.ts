@@ -17,17 +17,15 @@
 
 /**
  * Build-time validator for the templates bundled in this repo. Runs the
- * structural schemas (`bundled-schema.ts`) over every layer + overview
- * file, then the cross-reference checks a schema cannot express — the ones
- * that name something elsewhere in the same file:
+ * structural schemas (`bundled-schema.ts`) over every layer + overview file,
+ * then the cross-reference checks a schema cannot express — the ones that name
+ * something elsewhere in the same file. A layer's share those with the admin
+ * publish boundary (`layerCrossRefIssues`); on top of them, bundled-only:
  *
- *   - `layer-header.orderBy` must name one of the header's own columns;
- *     when it doesn't, the service list silently falls back to sorting
- *     alphabetically and the over-cap top-N sampling loses its ranking pass.
  *   - a column with no `mqe` must resolve through the built-in metric
  *     catalog for its layer, or its cell can only ever be an em-dash.
- *   - `deployment.roleToRole[].primary` must name a metric of that same
- *     pair, and `from` / `to` a configured role (or the `*` wildcard).
+ *   - a widget field the loader tolerates and drops is a defect in shipped
+ *     config, however harmless it is in an operator's own dashboard.
  *   - an overview `rankBy.kpi` must index into that widget's `kpis`, and
  *     every referenced layer must have a bundled template.
  *   - a bundled overview's `id` must equal its filename stem: translation
@@ -46,7 +44,7 @@ import type { ZodError } from 'zod';
 import { isOverlayFilename } from '../../i18n/store.js';
 import { widgetSchema } from '../dashboard/schema.js';
 import { expressionForServiceMetric } from '../../util/mqe-catalog.js';
-import { layerTemplateSchema, overviewTemplateSchema } from './bundled-schema.js';
+import { layerCrossRefIssues, layerTemplateSchema, overviewTemplateSchema } from './bundled-schema.js';
 
 export interface TemplateFinding {
   /** `layers/kafka.json` — relative to the bundled-templates root. */
@@ -158,25 +156,6 @@ function checkWidgetFidelity(
   });
 }
 
-/** Widget-id collisions inside one grid: dashboard results come back keyed
- *  by widget id, so a duplicate makes one of the two unaddressable. */
-function checkWidgetIds(
-  widgets: unknown,
-  file: string,
-  path: string,
-  findings: TemplateFinding[],
-): void {
-  if (!Array.isArray(widgets)) return;
-  const seen = new Set<string>();
-  widgets.forEach((w, i) => {
-    if (!isRecord(w) || typeof w.id !== 'string') return;
-    if (seen.has(w.id)) {
-      findings.push({ file, path: `${path}.${i}.id`, message: `duplicate widget id "${w.id}"` });
-    }
-    seen.add(w.id);
-  });
-}
-
 function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
   const parsed = layerTemplateSchema.safeParse(src.content);
   if (!parsed.success) {
@@ -200,19 +179,12 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
   // loader still honours. Report against whichever the file actually uses.
   const headerKey = tpl['layer-header'] ? 'layer-header' : 'metrics';
   const header = tpl['layer-header'] ?? tpl.metrics;
-  const columns = header?.columns ?? [];
-  const metricIds = new Set<string>();
-  columns.forEach((c, i) => {
-    if (metricIds.has(c.metric)) {
-      findings.push({
-        file: src.label,
-        path: `${headerKey}.columns.${i}.metric`,
-        message: `duplicate column metric "${c.metric}"`,
-      });
-    }
-    metricIds.add(c.metric);
+  (header?.columns ?? []).forEach((c, i) => {
     // No explicit MQE ⇒ the landing route falls back to the built-in
     // catalog; an unmapped key there yields a permanently empty column.
+    // Bundled-only: "Add column" seeds a metric key of its own invention and
+    // leaves `mqe` for the operator to fill in, so at the push bar this fires
+    // on every freshly added column.
     if (!c.mqe && !expressionForServiceMetric(c.metric, tpl.key)) {
       findings.push({
         file: src.label,
@@ -221,18 +193,10 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
       });
     }
   });
-  if (header?.orderBy && !metricIds.has(header.orderBy)) {
-    findings.push({
-      file: src.label,
-      path: `${headerKey}.orderBy`,
-      message: `"${header.orderBy}" is not one of the header columns (${[...metricIds].join(', ') || 'none'})`,
-    });
-  }
 
   const rawDashboards = isRecord(raw.dashboards) ? raw.dashboards : {};
   for (const [scope, rawWidgets] of Object.entries(rawDashboards)) {
     if (!Array.isArray(rawWidgets)) continue;
-    checkWidgetIds(rawWidgets, src.label, `dashboards.${scope}`, findings);
     rawWidgets.forEach((w, i) => {
       const p = widgetSchema.safeParse(w);
       if (p.success) {
@@ -240,76 +204,9 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
       }
     });
   }
-  if (Array.isArray(raw.widgets)) {
-    checkWidgetIds(raw.widgets, src.label, 'widgets', findings);
-  }
 
-  if (tpl.naming) checkNamedCaptures(tpl.naming, src.label, 'naming', findings);
-  for (const rule of ['clusterBy', 'siblingBy', 'roleBy'] as const) {
-    const r = tpl.deployment?.[rule];
-    if (r?.kind === 'nameRegex') checkNamedCaptures(r, src.label, `deployment.${rule}`, findings);
-  }
-
-  const roleKeys = new Set((tpl.deployment?.roles ?? []).map((r) => r.key.toLowerCase()));
-  (tpl.deployment?.roleToRole ?? []).forEach((pair, i) => {
-    const ids = new Set(pair.metrics.map((m) => m.id));
-    const primary = pair.primary === undefined ? [] : Array.isArray(pair.primary) ? pair.primary : [pair.primary];
-    for (const p of primary) {
-      if (!ids.has(p)) {
-        findings.push({
-          file: src.label,
-          path: `deployment.roleToRole.${i}.primary`,
-          message: `"${p}" is not one of this pair's metric ids (${[...ids].join(', ')})`,
-        });
-      }
-    }
-    for (const side of ['from', 'to'] as const) {
-      const role = pair[side];
-      if (role !== '*' && roleKeys.size > 0 && !roleKeys.has(role.toLowerCase())) {
-        findings.push({
-          file: src.label,
-          path: `deployment.roleToRole.${i}.${side}`,
-          message: `"${role}" is not a configured deployment role (${[...roleKeys].join(', ')})`,
-        });
-      }
-    }
-  });
-}
-
-/** A named-capture rule is only usable if the regex compiles AND actually
- *  carries the groups the rule reads. `pattern` is typed optional because the
- *  schema only demands one at the bundled bar; a file that omits it has already
- *  failed the parse above, so here it just reads as the empty pattern. */
-function checkNamedCaptures(
-  rule: { pattern?: string; flags?: string; displayGroup?: string; valueGroup?: string },
-  file: string,
-  path: string,
-  findings: TemplateFinding[],
-): void {
-  const pattern = rule.pattern ?? '';
-  try {
-    new RegExp(pattern, rule.flags ?? '');
-  } catch (err) {
-    findings.push({
-      file,
-      path: `${path}.pattern`,
-      message: `invalid regex: ${err instanceof Error ? err.message : err}`,
-    });
-    return;
-  }
-  // Only the DISPLAY capture is required. resolveServiceIdentity reads both
-  // (apps/ui/src/utils/serviceName.ts) but explicitly supports the partial
-  // case — "capture had display but not cluster" — so a pattern that names
-  // only the display group is a legitimate template, not a defect. Without
-  // the display capture the rule can never resolve anything: the identity
-  // falls through and the dimension silently does nothing.
-  const displayGroup = rule.displayGroup ?? 'service';
-  if (!pattern.includes(`(?<${displayGroup}>`)) {
-    findings.push({
-      file,
-      path: `${path}.displayGroup`,
-      message: `pattern has no named capture "(?<${displayGroup}>…)" — the rule can never match`,
-    });
+  for (const issue of layerCrossRefIssues(tpl, { complete: true })) {
+    findings.push({ file: src.label, path: issue.path, message: issue.message });
   }
 }
 

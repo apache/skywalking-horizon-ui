@@ -24,9 +24,10 @@
  *   browser (user pref in localStorage)
  *     ↑
  *   org default (admin set on /admin/global-defaults, on OAP as
- *                `horizon.time-defaults.global`)
+ *                `horizon.time-defaults.global`; served by the BFF only
+ *                when its template mode has a source for it)
  *     ↑
- *   bundled code (60 minutes)
+ *   in-code (60 minutes)
  */
 
 import { defineStore } from 'pinia';
@@ -60,9 +61,21 @@ function writeUserOverride(minutes: number | null): void {
   }
 }
 
+/** The `horizon.time-defaults.global` content, narrowed to a usable window. */
+function windowMinutesFrom(content: unknown): number | null {
+  if (!content || typeof content !== 'object') return null;
+  const m = (content as { defaultWindowMinutes?: unknown }).defaultWindowMinutes;
+  return typeof m === 'number' && Number.isInteger(m) && m > 0 ? m : null;
+}
+
 export const useTimeDefaultsStore = defineStore('time-defaults', () => {
   const userOverride = ref<number | null>(readUserOverride());
   const orgDefault = ref<number | null>(null);
+  /** The org read has finished (with a value or without one). Until it has,
+   *  `defaultWindowMinutes` is only the in-code fallback — a consumer that
+   *  applies the window ONCE must wait for this, or it latches 60 minutes and
+   *  the org default can never take effect. */
+  const orgSettled = ref(false);
 
   const { bundle } = useConfigBundle();
 
@@ -74,35 +87,21 @@ export const useTimeDefaultsStore = defineStore('time-defaults', () => {
     return userOverride.value !== (orgDefault.value ?? FALLBACK_MINUTES);
   });
 
+  /** Read the org default from the effective org settings — an auth-only
+   *  read every signed-in user can make, carrying just the resolved value.
+   *  No value means no org default: `FALLBACK_MINUTES` applies. */
   async function loadOrgDefault(): Promise<void> {
     const { bff } = await import('@/api/client');
     try {
-      const status = await bff.templateSync.syncStatus();
-      const row = status.rows.find((r) => r.name === 'horizon.time-defaults.global');
-      if (!row) {
-        orgDefault.value = null;
-        return;
-      }
-      const source = row.effective === 'remote' && row.remote
-        ? row.remote.configuration
-        : row.bundled?.configuration;
-      if (!source) {
-        orgDefault.value = null;
-        return;
-      }
-      const envelope = JSON.parse(source) as {
-        content?: { defaultWindowMinutes?: unknown };
-      };
-      const m = envelope?.content?.defaultWindowMinutes;
-      if (typeof m === 'number' && Number.isInteger(m) && m > 0) {
-        orgDefault.value = m;
-        debug('time-defaults', `loaded org default = ${m} min`);
-      } else {
-        orgDefault.value = null;
-      }
+      const settings = await bff.configs.settings();
+      const m = windowMinutesFrom(settings.timeDefaults);
+      orgDefault.value = m;
+      if (m !== null) debug('time-defaults', `loaded org default = ${m} min`);
     } catch (err) {
       debug('time-defaults', 'failed to load org default', err);
       orgDefault.value = null;
+    } finally {
+      orgSettled.value = true;
     }
   }
 
@@ -131,6 +130,7 @@ export const useTimeDefaultsStore = defineStore('time-defaults', () => {
     defaultWindowMinutes,
     userOverride,
     orgDefault,
+    orgSettled,
     hasUserOverride,
     loadOrgDefault,
     setUserOverride,

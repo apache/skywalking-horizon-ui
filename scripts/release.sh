@@ -46,6 +46,11 @@ REPO_BRANCH="${HORIZON_RELEASE_BRANCH:-main}"
 SVN_DEV_URL="https://dist.apache.org/repos/dist/dev/skywalking/horizon-ui"
 WORK_DIR="${SCRIPT_DIR}/.release-work"
 CLONE_DIR="${WORK_DIR}/skywalking-horizon-ui"
+# The stub this script writes into the next version's section, and the exact
+# line the pre-tag gate rejects. One definition so the writer and the checker
+# cannot drift apart — a gate looking for a stub nobody writes anymore passes
+# every release silently.
+CHANGELOG_PLACEHOLDER='(In development — fill in highlights here before cutting the release.)'
 
 # ========================== Helpers ==========================
 
@@ -305,11 +310,16 @@ fi
 # Reject the placeholder body. Operators MUST fill the section in before
 # casting a vote — a stub CHANGELOG line in a release tarball is a
 # review smell.
+#
+# Matched as a WHOLE LINE against the exact stub, not as a substring: the
+# CHANGELOG legitimately describes this very gate, quoting the stub inside a
+# prose bullet, and a substring match reads its own documentation as an
+# unfilled section and aborts the release.
 if awk -v v="${RELEASE_VERSION}" '
     $0 == "## " v        { in_sec=1; next }
     in_sec && /^## /     { in_sec=0 }
     in_sec               { print }
-' "${CLONE_DIR}/CHANGELOG.md" | grep -q "In development"; then
+' "${CLONE_DIR}/CHANGELOG.md" | grep -Fxq "${CHANGELOG_PLACEHOLDER}"; then
     err "CHANGELOG.md ${RELEASE_VERSION} section on the release commit still contains the '(In development …)' placeholder. Fill it in on ${REPO_BRANCH}."
     exit 1
 fi
@@ -609,7 +619,7 @@ node -e "
 const fs = require('fs');
 const path = 'CHANGELOG.md';
 const txt = fs.readFileSync(path, 'utf8');
-const insertion = '## ${NEXT_RELEASE_VERSION}\n\n(In development — fill in highlights here before cutting the release.)\n\n';
+const insertion = '## ${NEXT_RELEASE_VERSION}\n\n${CHANGELOG_PLACEHOLDER}\n\n';
 // Insert above the first '## <prev>' heading.
 const out = txt.replace(/^## /m, insertion + '## ');
 fs.writeFileSync(path, out);

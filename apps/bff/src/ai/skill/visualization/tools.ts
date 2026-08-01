@@ -674,7 +674,7 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
         coldStage: false,
         cfg: endpointDependencyConfigFor(eff.template),
         layerKey: layer.toUpperCase(),
-        serviceArg: row.id,
+        service: { id: row.id, name: row.name, normal: row.normal !== false },
         endpointArg: '',
       });
       ctx.emitEndpointDependency({
@@ -721,7 +721,6 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
       const native = await fetchNativeList(
         ctx.opts,
         { service, serviceId: row.id, startMs: ctx.range.startMs, endMs: ctx.range.endMs, pageSize: maxTraces },
-        layer.toUpperCase(),
         false,
         offsetMinutes,
         cfgTraceCap,

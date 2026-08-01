@@ -16,8 +16,8 @@
  */
 
 /**
- * `GET /api/layer/:key/instances?service=<id|name>` — list active
- * service instances for a service.
+ * `GET /api/layer/:key/instances?serviceId=<id>&service=<name>`
+ * — list active service instances for a service.
  *
  * The per-layer Instance dashboard surfaces a second selector below
  * the service picker: the user picks a service first, then chooses
@@ -25,12 +25,8 @@
  * dashboard MQE then evaluates against `{ scope: ServiceInstance,
  * serviceName, serviceInstanceName }` for the selected pair.
  *
- * The `service` query param takes a service NAME or an OAP service id;
- * both are resolved against `listServices(layer)`, name column first.
- * Neither is guessed at by shape — an OAP id is `base64(<name>).<0|1>`,
- * which an ordinary name can wear too (`api.1`, `orders.2026`), and a
- * shape test turned such a name into an id that lists no instances at
- * all. Returning both id + name keeps the SPA from re-resolving.
+ * `listInstances(serviceId)` keys on the id, which the request already
+ * carries — no roster lookup, and nothing to mistake for a name.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -39,7 +35,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { resolveServiceScope } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 import { withColdStage } from '../../util/duration.js';
 import { defaultMinuteWindow, getServerOffsetMinutes } from '../../util/window.js';
 
@@ -99,39 +95,20 @@ export function registerInstanceRoute(app: FastifyInstance, deps: InstanceRouteD
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string };
-      const serviceArg = (q.service ?? '').trim();
-      if (!serviceArg) {
+      const scope = serviceScopeOf(req.query as { serviceId?: string; service?: string });
+      if (scope.kind === 'all') {
         return reply.code(400).send({ error: 'missing_service' });
       }
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceId = scope.service.id;
+      // The handle the caller sent, echoed back on every reply below.
+      const serviceArg = scope.service.name || serviceId;
       const cfgCurrent = deps.config.current;
       const opts = buildOapOpts(cfgCurrent, deps.fetch);
       const offset = await getServerOffsetMinutes(deps.config, deps.fetch);
       const window = defaultMinuteWindow(offset, DEFAULT_WINDOW_MIN);
-      let serviceId: string;
-      try {
-        const scope = await resolveServiceScope(opts, layerKey, serviceArg);
-        if (scope.kind !== 'service') {
-          return reply.send({
-            layer: layerKey,
-            service: serviceArg,
-            generatedAt: Date.now(),
-            instances: [],
-            reachable: true,
-            error: 'service not found',
-          } satisfies InstancesResponse);
-        }
-        serviceId = scope.serviceId;
-      } catch (err) {
-        return reply.send({
-          layer: layerKey,
-          service: serviceArg,
-          generatedAt: Date.now(),
-          instances: [],
-          reachable: false,
-          error: err instanceof Error ? err.message : String(err),
-        } satisfies InstancesResponse);
-      }
       try {
         const data = await graphqlPost<{ instances: OapInstance[] }>(opts, LIST_INSTANCES, {
           serviceId,

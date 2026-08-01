@@ -37,6 +37,7 @@
  */
 
 import { readonly, shallowRef } from 'vue';
+import { onSessionReset, sessionEpoch, isCurrentEpoch } from '@/state/sessionReset';
 import { ensureLoaded as ensureInfraConfigLoaded } from './useInfra3dConfig';
 
 export type PipelineStageId = 'services' | 'templates' | 'topologies' | 'hierarchy' | 'layout' | 'metrics';
@@ -95,9 +96,16 @@ const stages = shallowRef<Record<PipelineStageId, StageState>>(initialState());
 const running = shallowRef(false);
 const completedAt = shallowRef<number | null>(null);
 
-function patchStage(id: PipelineStageId, patch: Partial<StageState>): void {
-  stages.value = { ...stages.value, [id]: { ...stages.value[id], ...patch } };
-}
+// The drawer reports the previous run verbatim — service counts, layer keys,
+// per-layer probe results — so an identity change puts every stage back to
+// idle. A run superseded mid-flight keeps making OAP calls (there is nothing
+// to abort them with), but its reporter writes are dropped by the epoch check
+// in `reporterFor`, so they can't reappear in the new session's timeline.
+onSessionReset(() => {
+  stages.value = initialState();
+  running.value = false;
+  completedAt.value = null;
+});
 
 /** Hook for stages that need to publish progress AS THEY GO (most
  *  visibly stage 5 — chunked metrics). The composable can pass this
@@ -110,10 +118,14 @@ export interface StageReporter {
   warn: (summary: string, detail: StageDetail) => void;
   fail: (err: unknown) => void;
 }
-function reporterFor(id: PipelineStageId): StageReporter {
+function reporterFor(id: PipelineStageId, epoch: number): StageReporter {
+  const patchStage = (patch: Partial<StageState>): void => {
+    if (!isCurrentEpoch(epoch)) return;
+    stages.value = { ...stages.value, [id]: { ...stages.value[id], ...patch } };
+  };
   return {
     start(summary?: string) {
-      patchStage(id, {
+      patchStage({
         status: 'running',
         startedAt: Date.now(),
         endedAt: null,
@@ -122,16 +134,16 @@ function reporterFor(id: PipelineStageId): StageReporter {
       });
     },
     progress(summary, detail) {
-      patchStage(id, { status: 'running', summary, detail });
+      patchStage({ status: 'running', summary, detail });
     },
     ok(summary, detail) {
-      patchStage(id, { status: 'ok', endedAt: Date.now(), summary, detail });
+      patchStage({ status: 'ok', endedAt: Date.now(), summary, detail });
     },
     warn(summary, detail) {
-      patchStage(id, { status: 'warn', endedAt: Date.now(), summary, detail });
+      patchStage({ status: 'warn', endedAt: Date.now(), summary, detail });
     },
     fail(err) {
-      patchStage(id, {
+      patchStage({
         status: 'error',
         endedAt: Date.now(),
         summary: err instanceof Error ? err.message : String(err),
@@ -158,6 +170,7 @@ export async function run<C>(
   only?: PipelineStageId[],
 ): Promise<void> {
   if (running.value) return;
+  const epoch = sessionEpoch();
   running.value = true;
   completedAt.value = null;
   // A full run resets every stage; a partial (light) run runs only `only`
@@ -172,7 +185,7 @@ export async function run<C>(
   try {
     for (const id of STAGE_ORDER) {
       if (only && !only.includes(id)) continue;
-      const reporter = reporterFor(id);
+      const reporter = reporterFor(id, epoch);
       try {
         await impls[id](reporter, ctx);
       } catch (err) {
@@ -183,9 +196,11 @@ export async function run<C>(
         break;
       }
     }
-    completedAt.value = Date.now();
+    if (isCurrentEpoch(epoch)) completedAt.value = Date.now();
   } finally {
-    running.value = false;
+    // A superseded run leaves the latch alone: the reset already cleared it,
+    // and the new session's run may already own it.
+    if (isCurrentEpoch(epoch)) running.value = false;
   }
 }
 

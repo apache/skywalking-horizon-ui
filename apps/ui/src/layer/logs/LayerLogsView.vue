@@ -38,6 +38,7 @@ import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useSetupStore } from '@/state/setup';
 import { useTracePopout, TRACE_POPOUT_QUERY } from '@/layer/traces/useTracePopout';
 import { useDensityBins } from '@/layer/_shared/useDensityBins';
@@ -58,6 +59,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus service's OAP id. Travels with `focusService` — the block's
+   *  producer matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusWindowMinutes?: number;
   /** REPLAY mode: render the captured log list with zero re-query — no mount
    *  auto-run, no pager (paging would refetch). Implies embedded. */
@@ -94,17 +98,23 @@ const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here means the chat block never
 // touches that global selection. `serviceReady` is the gate: until the picked
-// service has a name, a log read would reach the BFF with no service and stream
+// service resolves, a log read would reach the BFF with no service and stream
 // the whole layer under this service's title.
 const {
-  name: serviceName,
+  ref: serviceRef,
   status: serviceStatus,
   ready: serviceReady,
 } = useLayerTabService(layerKey, landing, {
   embedded,
   focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
   replay,
 });
+// Scalar identity of the tab's service, so the cascade-clear watchers below key
+// on exactly what the query is scoped by. `serviceRef` is a fresh object on
+// every recompute, so watching it directly would fire on re-resolution, not on
+// a switch.
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -139,14 +149,14 @@ const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 // How the picked instance is used depends on `logScope`: pinned primary
 // selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: instanceList } = useLayerInstances(layerKey, toolbarService);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
 // narrowing by picking from the dropdown. Auto-selection is reserved
 // for metrics-scope pages (instance / endpoint dashboards), where a
 // chosen entity is needed to render the metric widgets at all.
-watch(serviceName, (next, prev) => {
+watch(serviceKey, (next, prev) => {
   if (embedded.value) return;
   if (prev !== undefined && next !== prev && selectedInstance.value) {
     setSelectedInstance(null);
@@ -173,14 +183,14 @@ function clearEndpoint(): void {
 }
 const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoints(
   layerKey,
-  serviceName,
+  serviceRef,
   endpointQuery,
   endpointLimit,
   replay,
 );
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
-watch(serviceName, (next, prev) => {
+watch(serviceKey, (next, prev) => {
   if (embedded.value) return;
   if (prev !== undefined && next !== prev) {
     if (selectedEndpoint.value) setSelectedEndpoint(null);
@@ -247,7 +257,7 @@ const { tagInput, customTags, selectedLevel, allTags, addTagFilter, removeTagFil
 // it runs on initial service load, on each "Run query", and on a service
 // switch. `page`/`pageSize` stay live; there is no periodic refresh.
 interface AppliedLogConditions {
-  service: string | null;
+  service: ServiceRef | null;
   instanceId: string | null;
   endpointId: string | null;
   traceId: string | null;
@@ -259,7 +269,7 @@ interface AppliedLogConditions {
 }
 function snapshotConditions(): AppliedLogConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     instanceId: instanceIdRef.value,
     endpointId: endpointIdRef.value,
     traceId: traceIdRef.value,
@@ -284,7 +294,7 @@ function applyConditions(): void {
 // A service switch is a context change → clear back to the Run-query
 // prompt (cascade-clear: never show the prior service's logs under the
 // new one). Filter edits just stage; they wait for Run query.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   hasQueried.value = false;
   selectedLevel.value = null;
@@ -421,7 +431,7 @@ function onRowClick(r: LogRow): void {
  *  (Escape / × / back) — a drill-in / back flow. A bare row → trace jump
  *  (no log popout open) leaves nothing to return to. */
 const logReturnRow = ref<LogRow | null>(null);
-watch([layerKey, serviceName], () => { logReturnRow.value = null; });
+watch([layerKey, serviceKey], () => { logReturnRow.value = null; });
 function jumpToTrace(traceId: string, ts?: number): void {
   if (popoutRow.value) {
     logReturnRow.value = popoutRow.value;

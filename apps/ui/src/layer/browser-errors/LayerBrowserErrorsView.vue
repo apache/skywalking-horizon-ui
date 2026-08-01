@@ -32,6 +32,7 @@ import { useSetupStore } from '@/state/setup';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerTabService } from '@/layer/useLayerServiceName';
+import type { ServiceRef } from '@/utils/serviceRef';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayerBrowserErrors } from '@/layer/browser-errors/useLayerBrowserErrors';
@@ -48,6 +49,9 @@ const props = defineProps<{
   embedded?: boolean;
   layerKey?: string;
   focusService?: string;
+  /** The focus app's OAP id. Travels with `focusService` — the block's producer
+   *  matched the prompt against the layer roster and held both. */
+  focusServiceId?: string;
   focusWindowMinutes?: number;
   /** REPLAY (chat reload): render the frozen captured error list, never query.
    *  The mount auto-run is skipped and the Prev/Next pager is hidden. */
@@ -98,13 +102,20 @@ const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // browser app's JS errors.
 const {
   name: serviceName,
+  ref: serviceRef,
   status: serviceStatus,
   ready: serviceReady,
 } = useLayerTabService(layerKey, landing, {
   embedded,
   focusService: computed(() => props.focusService ?? null),
+  focusServiceId: computed(() => props.focusServiceId ?? null),
   replay,
 });
+// Scalar identity of the tab's service, so the cascade-clear watchers below key
+// on exactly what the query is scoped by. `serviceRef` is a fresh object on
+// every recompute, so watching it directly would fire on re-resolution, not on
+// a switch.
+const serviceKey = computed<string | null>(() => serviceRef.value?.id ?? null);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -170,7 +181,7 @@ const allCategories = ref<BrowserErrorCategory>('ALL');
 // the BROWSER "Versions" are instances → serviceVersionId; "Pages" are
 // endpoints → pagePathId. Reuse the shared layer instance/endpoint feeds.
 const selectedVersionId = ref('');
-const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const toolbarService = computed(() => (replay.value ? null : serviceRef.value));
 const { instances: versionList } = useLayerInstances(layerKey, toolbarService);
 
 // Page (endpoint) is a searchable combobox (shared EndpointCombo), not a
@@ -184,7 +195,7 @@ const selectedPageId = ref('');
 const selectedPageLabel = ref('');
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceName, pageQuery, pageLimit, replay);
+const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceRef, pageQuery, pageLimit, replay);
 function pickPage(name: string): void {
   selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
   selectedPageLabel.value = name;
@@ -207,7 +218,7 @@ const hasQueried = ref(replay.value);
 // however many times the operator has pressed Run query.
 const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 interface AppliedBrowserConditions {
-  service: string | null;
+  service: ServiceRef | null;
   serviceVersionId: string;
   pagePathId: string;
   windowMinutes: number;
@@ -216,7 +227,7 @@ interface AppliedBrowserConditions {
 }
 function snapshotConditions(): AppliedBrowserConditions {
   return {
-    service: serviceName.value,
+    service: serviceRef.value,
     serviceVersionId: selectedVersionId.value,
     pagePathId: selectedPageId.value,
     windowMinutes: windowMinutesEffective.value,
@@ -264,7 +275,7 @@ onMounted(() => {
 
 // Service switch is a context change → cascade-clear back to the Run-query
 // prompt; never show the prior service's errors under the new one.
-watch(serviceName, () => {
+watch(serviceKey, () => {
   if (embedded.value) return; // focus is fixed by prop; onMounted drives the run
   selectedVersionId.value = '';
   clearPage();
@@ -300,7 +311,7 @@ function catOf(r: BrowserErrorRow): Cat {
 }
 
 const selectedCat = ref<Cat | null>(null);
-watch(serviceName, () => { selectedCat.value = null; });
+watch(serviceKey, () => { selectedCat.value = null; });
 function toggleCat(c: Cat): void {
   selectedCat.value = selectedCat.value === c ? null : c;
   // `expanded` indexes into filteredLogs, which just changed — drop it.
@@ -352,7 +363,7 @@ const {
   toggleRow,
   resolveRow,
 } = useSourceMapResolution(t);
-watch(serviceName, () => { selectedMapId.value = ''; });
+watch(serviceKey, () => { selectedMapId.value = ''; });
 
 // idx is part of the key so rows stay uniquely keyed even when the demo
 // reports several errors at the identical timestamp+page+version (a

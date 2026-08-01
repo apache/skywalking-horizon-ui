@@ -25,20 +25,20 @@ import type {
   ProfileTaskLogsResponse,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
+import { serviceRefFields, type ServiceRef } from '@/utils/serviceRef';
 
 /** `bff.profile` — agent-side trace profiling: list / create tasks,
  *  fetch sampled segments + per-instance op logs, resolve into trees. */
 export class ProfileApi {
   constructor(private readonly bff: BffClient) {}
 
-  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
-   *  skips the roster lookup a name would need. */
+  /** Scoped by the roster row the screen picked — id and name together. */
   tasks(
     layerKey: string,
-    serviceId: string,
+    service: ServiceRef,
     endpoint = '',
   ): Promise<ProfileTaskListResponse> {
-    const qs = new URLSearchParams({ serviceId });
+    const qs = new URLSearchParams(serviceRefFields(service));
     if (endpoint) qs.set('endpoint', endpoint);
     return this.bff.request<ProfileTaskListResponse>(
       'GET',

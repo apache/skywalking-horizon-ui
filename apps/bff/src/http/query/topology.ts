@@ -16,7 +16,11 @@
  */
 
 /**
- * `GET /api/layer/:key/topology?service=<id|name>&depth=<1-3>`
+ * `GET /api/layer/:key/topology?serviceId=&service=&depth=<1-3>`
+ *
+ * The map is seeded by the OAP service ID the caller already held; the name
+ * half rides along as identity but the graph names its own nodes. No service
+ * at all is the deliberate layer-wide map.
  *
  * Service-map feed for the per-layer Topology tab. This is the HTTP edge:
  * it parses the request, resolves the (preview OR effective) `topology`
@@ -44,6 +48,7 @@ import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { parsePreviewTopology } from '../../logic/layers/preview.js';
 import { getServiceHierarchy } from '../../logic/oap/hierarchy.js';
 import { buildServiceTopology, emptyTopologyResponse } from '../../logic/oap/service-topology.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface TopologyRouteDeps {
   config: ConfigSource;
@@ -68,6 +73,7 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
       const q = req.query as {
+        serviceId?: string;
         service?: string;
         depth?: string;
         step?: string;
@@ -76,7 +82,13 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
         previewConfig?: string;
         group?: string;
       };
-      const serviceArg = (q.service ?? '').trim();
+      const scope = serviceScopeOf(q);
+      // A named service with no id is refused rather than dropped: an empty
+      // seed is the LAYER-WIDE map, which reads as the focused one.
+      if (scope.kind === 'incomplete') {
+        return reply.code(400).send({ error: 'incomplete_service', message: scope.message });
+      }
+      const serviceArg = scope.kind === 'service' ? scope.service.id : '';
       const depth = Math.max(1, Math.min(3, Number(q.depth) || 1));
 
       // Admin "Preview" mode: the page forwards the operator's unpublished
@@ -152,8 +164,8 @@ export function registerTopologyRoute(app: FastifyInstance, deps: TopologyRouteD
       if (!layerKey || !/^[a-z0-9_]+$/i.test(layerKey)) {
         return reply.code(400).send({ error: 'invalid_layer_key' });
       }
-      const q = req.query as { service?: string };
-      const serviceId = (q.service ?? '').trim();
+      const q = req.query as { serviceId?: string };
+      const serviceId = (q.serviceId ?? '').trim();
       if (!serviceId) {
         return reply.code(400).send({ error: 'missing_service' });
       }

@@ -17,8 +17,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test:unit": "vitest run --root src/",
-    "test:unit:watch": "vitest --root src/"
+    "test:unit": "vitest run --root src/ --pool=threads",
+    "test:unit:watch": "vitest --root src/ --pool=threads"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

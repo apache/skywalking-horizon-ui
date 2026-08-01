@@ -72,6 +72,10 @@ export interface TemplateConflict {
   /** UUIDs of every enabled OAP row for this name, sorted ASC. The first
    *  element is the one Horizon renders (lowest id). */
   enabledIds: string[];
+  /** Duplicated name, unambiguous definition — the layer / overview still
+   *  renders. Absent on a bundle cached by an older Horizon, where reading it
+   *  as "not identical" reproduces that version's hide-on-any-duplicate. */
+  identical?: boolean;
 }
 
 /** Bundle-level sync envelope. When `unreachable`, all rows fall back to
@@ -95,11 +99,30 @@ export interface ConfigBundle {
   syncStatus: BundleSyncStatus;
 }
 
+/** Org-wide singleton settings, resolved by the BFF for its template mode.
+ *  A `null` member means the runtime has no source for that setting — the
+ *  caller applies its own in-code default. The disk bundle never arrives
+ *  here in live mode; in readonly mode it IS the declared source and does. */
+export interface EffectiveSettings {
+  /** `horizon.theme.active` content — `{ themeId }`. */
+  theme: unknown;
+  /** `horizon.time-defaults.global` content — `{ defaultWindowMinutes }`. */
+  timeDefaults: unknown;
+  /** `horizon.alert.page-setup` content — see `AlarmsConfig`. */
+  alert: unknown;
+}
+
 /** `bff.configs` — preload of dashboard + overview configs. The SPA
  *  caches the response in localStorage and re-fetches with
  *  `If-None-Match` so a 304 means "your cached copy is still good". */
 export class ConfigsApi {
   constructor(private readonly bff: BffClient) {}
+
+  /** The three org-wide singletons in one auth-gated read: no verb beyond a
+   *  signed-in session, and no template rows in the payload. */
+  settings(): Promise<EffectiveSettings> {
+    return this.bff.request<EffectiveSettings>('GET', '/api/configs/settings');
+  }
 
   /**
    * Fetch the bundle, optionally with a prior `etag` for cache

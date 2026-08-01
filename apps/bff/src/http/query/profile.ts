@@ -18,7 +18,7 @@
 /**
  * Trace-driven (agent) profiling routes.
  *
- *   GET  /api/layer/:key/profile/tasks?serviceId=|service=&endpoint=
+ *   GET  /api/layer/:key/profile/tasks?serviceId=&service=&endpoint=
  *        — list profile tasks for a service (+ optional endpoint filter).
  *   POST /api/layer/:key/profile/tasks
  *        — create a new profile task.
@@ -29,9 +29,9 @@
  *   POST /api/profile/analyze
  *        — analyze profiled span time-ranges into call trees.
  *
- * Wraps OAP's GraphQL profile fragment. The service is taken as an id
- * (`serviceId`, what the profiling tabs hold) or as a NAME (`service`, resolved
- * against the layer roster) — the caller says which; the route never guesses.
+ * Wraps OAP's GraphQL profile fragment. The service arrives as the identity
+ * pair the roster returned (`serviceId` + `service`); the task list keys on
+ * the id, and the route resolves nothing.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -49,7 +49,7 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
-import { resolveRequiredServiceArgs } from '../../logic/oap/service-scope.js';
+import { serviceScopeOf } from '../../logic/oap/service-scope.js';
 
 export interface ProfileRouteDeps {
   config: ConfigSource;
@@ -163,28 +163,25 @@ export function registerProfileRoutes(app: FastifyInstance, deps: ProfileRouteDe
     '/api/layer/:key/profile/tasks',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      const params = req.params as { key: string };
-      const layerKey = params.key;
       const q = req.query as { serviceId?: string; service?: string; endpoint?: string };
-      const args = { serviceId: (q.serviceId ?? '').trim(), service: (q.service ?? '').trim() };
       const endpointName = (q.endpoint ?? '').trim();
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       const payload: ProfileTaskListResponse = { tasks: [], reachable: true };
 
-      if (!args.serviceId && !args.service) return reply.send(payload);
+      // `getProfileTaskList(serviceId)` is nullable — a name that arrived
+      // without its id must say so, not list every service's profiling tasks.
+      const scope = serviceScopeOf(q);
+      if (scope.kind === 'incomplete') {
+        payload.reachable = false;
+        payload.error = scope.message;
+        return reply.send(payload);
+      }
+      if (scope.kind === 'all') return reply.send(payload);
       try {
-        const scope = await resolveRequiredServiceArgs(opts, layerKey, args);
-        // `getProfileTaskList(serviceId)` is nullable — a name that resolved to
-        // nothing must say so, not list every service's profiling tasks.
-        if (scope.kind === 'unknown') {
-          payload.reachable = false;
-          payload.error = scope.message;
-          return reply.send(payload);
-        }
         const data = await graphqlPost<{ taskList: ProfileTaskListResponse['tasks'] }>(
           opts,
           GET_PROFILE_TASK_LIST,
-          { serviceId: scope.serviceId, endpointName: endpointName || '' },
+          { serviceId: scope.service.id, endpointName: endpointName || '' },
         );
         payload.tasks = data.taskList ?? [];
         return reply.send(payload);
