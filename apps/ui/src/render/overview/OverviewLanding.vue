@@ -15,18 +15,17 @@
   limitations under the License.
 -->
 <!--
-  Root landing. Resolves a sensible first destination via a cascade so
-  the user never sees a blank "nothing to show" screen:
+  Root landing. Resolves the first destination via a cascade:
 
     1. First available public overview (already gated by service
        availability via `useOverviewDashboards`).
     2. Else first layer with services (`availableLayers`).
-    3. Else first layer the BFF knows about (bundled template), even
-       with no services yet — gives operators the layer page to land
-       on while data is starting to flow.
-    4. Else fall back to a page the user's verbs allow — `/alarms` is
-       ungated for logged-in users; admins also land on the templates
-       editor where they can configure the empty deployment.
+    3. Else the empty-landing card — deliberately, rather than a fourth
+       hop: a layer with no services is filtered out of the sidebar, so
+       landing on one would put the operator on a page with no way back.
+
+  Both redirects are frozen while the OAP query host is unreachable —
+  every destination would render the same failure one level deeper.
 -->
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';

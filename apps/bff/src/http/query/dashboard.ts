@@ -60,8 +60,8 @@ export interface DashboardRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled)
-   *  widget set when the caller doesn't pass explicit widgets. */
+  /** OAP UI-template client — serve the in-use REMOTE widget set when the
+   *  caller doesn't pass explicit widgets. */
   uiTemplateClient?: () => UITemplateClient;
 }
 

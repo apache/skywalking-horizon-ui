@@ -801,11 +801,14 @@ describe('duplicate / conflict reconciliation', () => {
 
 /**
  * Rows the publish boundary now refuses to create, but which a store written
- * before it — or by something other than Horizon — can already hold. Nothing
- * renders them and no admin page lists them (each page enumerates the
- * templates it can resolve), so the status list is the only place they exist.
+ * before it — or by something other than Horizon — can already hold. The sync
+ * layer is where the identity rule reaches them: it reports each one AND gives
+ * it `effective: null`, which is the single fact every read path is gated on.
+ * The remote side is kept on the row all the same: a record under a name
+ * Horizon reads is repaired by pushing over that very record, and one under a
+ * name nothing computes is repaired elsewhere and retired by this id.
  */
-describe('unreadable rows — stored under a name no page reads', () => {
+describe('unreadable rows — not readable as the template they are stored as', () => {
   beforeEach(() => {
     invalidateSyncCache();
     vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
@@ -844,6 +847,53 @@ describe('unreadable rows — stored under a name no page reads', () => {
     const oap = fakeOap({ rows: alreadySeeded() });
     const status = await getSyncStatus(depsFor(oap.client, { bundled: () => iterateBundledTemplates() }));
     expect(status.unreadable).toEqual([]);
+  });
+
+  it('serves none of them: an unreadable row is never effective content', async () => {
+    const oap = fakeOap({
+      rows: [
+        ...seededExceptLayer(),
+        // Canonical NAME, another layer's content — the shape that used to
+        // render as this layer.
+        remoteRow('impostor', rawEnvelope('horizon.layer.GENERAL', 'layer', { key: 'K8S', tabs: [] })),
+        // Right content, a name nothing computes.
+        remoteRow('lower', rawEnvelope('horizon.layer.general', 'layer', { key: 'GENERAL', tabs: [] })),
+      ],
+    });
+
+    const status = await getSyncStatus(depsFor(oap.client));
+
+    const impostor = rowOf(status, nameOf(LAYER));
+    expect(impostor.effective).toBeNull();
+    expect(impostor.unreadable).toBe('"K8S" is not the layer this is published as (horizon.layer.GENERAL)');
+    // Kept for the admin: the diff it shows and the push that repairs it both
+    // need the OAP record behind this name.
+    expect(impostor.remote?.id).toBe('impostor');
+    expect(impostor.status).toBe('diverged');
+    expect(impostor.bundled?.configuration).toBe(cfgOf(LAYER));
+
+    const lower = rowOf(status, 'horizon.layer.general');
+    expect(lower.effective).toBeNull();
+    expect(lower.status).toBe('remote-only');
+
+    // Its neighbours are untouched — this drops rows, not the store.
+    expect(rowOf(status, nameOf(OVERVIEW)).effective).toBe('remote');
+  });
+
+  it('does not re-seed a name an unreadable row already holds', async () => {
+    // Dropping the row from the read map instead would make boot see the name
+    // as absent and create a SECOND enabled record for it — a duplicate, on
+    // top of the defect it was meant to fix.
+    const oap = fakeOap({
+      rows: [
+        ...seededExceptLayer(),
+        remoteRow('impostor', rawEnvelope('horizon.layer.GENERAL', 'layer', { key: 'K8S', tabs: [] })),
+      ],
+    });
+
+    await bootSeed(depsFor(oap.client));
+
+    expect(writes(oap.calls)).toEqual([]);
   });
 
   it('says nothing about a disabled row or a translation overlay', async () => {

@@ -75,8 +75,16 @@ export interface TemplateRow {
    *  layer / overview pages) filter to `locale === undefined`. */
   locale?: string;
   status: TemplateStatus;
-  /** What the renderer should use. `null` for `disabled`. */
+  /** What the renderer should use, and the field every render path decides
+   *  content on: `'remote'` means this row's remote configuration is content
+   *  any reader may serve. `null` for `disabled` and for {@link unreadable}
+   *  — a row can carry a `remote` an admin page still needs (to diff it, to
+   *  push over it) while being content no page may render. */
   effective: 'remote' | 'bundled' | null;
+  /** Why this row is not readable AS what it is stored as — the identity
+   *  rule's single reason (see {@link UnreadableRow}). Set only on enabled
+   *  source rows; forces `effective: null`. */
+  unreadable?: string;
   /** Remote-side detail. `null` when remote-absent. */
   remote: { id: string; configuration: string; disabled: boolean } | null;
   /** Bundled-side serialized envelope. `null` when bundled-absent (`remote-only`). */
@@ -102,7 +110,9 @@ export interface ConflictRow {
 /** An enabled OAP row no reader can resolve: its name is not the one Horizon
  *  reads a template of that kind under, or its content declares a different
  *  identity than the row it sits in. Reported, never touched — the same stance
- *  as {@link ConflictRow}. */
+ *  as {@link ConflictRow} — and never RENDERED: the matching {@link TemplateRow}
+ *  carries `effective: null`, so every read path drops it exactly as it drops a
+ *  disabled row. */
 export interface UnreadableRow {
   /** OAP record id — what an operator needs to retire it on OAP. */
   id: string;
@@ -137,8 +147,8 @@ export interface SyncStatus {
   /** Enabled rows nobody can read (see {@link UnreadableRow}). The publish
    *  boundary refuses to create these, so a non-empty list is either a row
    *  written before that check existed or one written by something other than
-   *  Horizon; either way it renders for no one, which is precisely why it has
-   *  to be reported rather than left to be noticed. */
+   *  Horizon; either way nothing renders it, which is precisely why it has to
+   *  be reported rather than left to be noticed. */
   unreadable: UnreadableRow[];
 }
 
@@ -581,6 +591,10 @@ interface RemoteRow {
   id: string;
   configuration: string;
   disabled: boolean;
+  /** Identity-rule reason, when this row is not readable as what it is stored
+   *  as. Carried per row (not per name): duplicates are resolved content-blind,
+   *  so one twin can be readable while the other is not. */
+  unreadable?: string;
 }
 
 function buildBundledRows(bundled: Iterable<BundledTemplate>): Map<string, BundledRow> {
@@ -632,27 +646,31 @@ function parseRemoteRows(
     // template's key, NOT the locale-suffixed string — that's what
     // consumers use to find sibling source rows. The parsed envelope
     // gives us both unambiguously.
+    const key = env.locale === undefined
+      ? env.name.split('.').slice(2).join('.')
+      : env.name.split('.').slice(2, -2).join('.');
+    // A disabled row is already served to nobody, and an overlay carries its
+    // parent's identity rather than one of its own — only a LIVE source row
+    // that no reader can resolve is both reportable and renderable-by-mistake.
+    const issue =
+      !r.disabled && env.locale === undefined
+        ? templateIdentityIssue(env.kind, key, env.content)
+        : null;
     const row: RemoteRow = {
       name: env.name,
       kind: env.kind,
-      key: env.locale === undefined
-        ? env.name.split('.').slice(2).join('.')
-        : env.name.split('.').slice(2, -2).join('.'),
+      key,
       locale: env.locale,
       id: r.id,
       configuration: r.configuration,
       disabled: r.disabled,
+      ...(issue ? { unreadable: issue.message } : {}),
     };
     const list = groups.get(env.name) ?? [];
     list.push(row);
     groups.set(env.name, list);
-    // A disabled row renders for nobody by design — only a LIVE one that
-    // renders for nobody by accident is worth reporting.
-    if (!r.disabled && env.locale === undefined) {
-      const issue = templateIdentityIssue(env.kind, row.key, env.content);
-      if (issue) {
-        unreadable.push({ id: r.id, name: env.name, kind: env.kind, reason: issue.message });
-      }
+    if (issue) {
+      unreadable.push({ id: r.id, name: env.name, kind: env.kind, reason: issue.message });
     }
   }
   const out = new Map<string, RemoteRow>();
@@ -688,9 +706,11 @@ function parseRemoteRows(
   if (unreadable.length > 0) {
     logger.warn(
       { rows: unreadable },
-      'OAP UI-template rows no page can read — stored under a name Horizon does not read that template by, or holding ' +
-        'content that names a different template than the record it sits in. They render for nobody. Republish the ' +
-        'content under the name each reason gives, then retire the old record on OAP; Horizon changes nothing on its own.',
+      'OAP UI-template rows Horizon cannot read as the template they are stored as — the name is not one this kind ' +
+        'is read under, or the content names a different template than the record it sits in. They render for nobody: ' +
+        'no page is served from them, whichever of the two is wrong. Republish each one so its stored name and its ' +
+        'content agree, then retire the record left behind if that moved it to a different name; Horizon changes ' +
+        'nothing on its own.',
     );
   }
   return { byName: out, conflicts, unreadable };
@@ -786,7 +806,10 @@ function mergeRows(
       kind: b.kind,
       key: b.key,
       status,
-      effective: 'remote',
+      // An identity-invalid row keeps its bundled-vs-remote status — that is
+      // what the admin diffs and pushes over to repair it — but serves no one.
+      effective: r.unreadable ? null : 'remote',
+      ...(r.unreadable ? { unreadable: r.unreadable } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: false },
       bundled: { configuration: b.configuration },
     });
@@ -800,7 +823,8 @@ function mergeRows(
       key: r.key,
       locale: r.locale,
       status: r.disabled ? 'disabled' : 'remote-only',
-      effective: r.disabled ? null : 'remote',
+      effective: r.disabled || r.unreadable ? null : 'remote',
+      ...(r.unreadable ? { unreadable: r.unreadable } : {}),
       remote: { id: r.id, configuration: r.configuration, disabled: r.disabled },
       bundled: null,
     });

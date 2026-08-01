@@ -703,5 +703,19 @@ export const overviewTemplateSchema = buildOverviewSchemas(true);
  * /api/admin/templates/save` is the step that makes a dashboard everyone's, so
  * a hand-edited or imported one is rejected per-field there instead of being
  * stored and breaking that page for every user.
+ *
+ * It validates FORMAT, and deliberately NOT completeness. A dashboard with a
+ * blank title, a widget with no `layer` or no MQE, a KPI list that is empty or
+ * whose rows carry no expression yet — all publish. That is the product
+ * decision, not an oversight: the editor is the only way most operators author
+ * a dashboard, half-authored is the normal state between two sessions of work,
+ * and a boundary that refused it would stop an operator from saving their own
+ * work in progress. An incomplete widget renders as an empty cell and can be
+ * finished later; a malformed one takes the page down for everyone, which is
+ * the only line drawn here.
+ *
+ * `apps/bff/src/http/admin/template-sync.test.ts` pins that with a payload of
+ * exactly those holes. Do not "fix" this into a completeness gate — tightening
+ * it is a product change, and the tests will say so.
  */
 export const overviewTemplatePushSchema = buildOverviewSchemas(false);

@@ -227,13 +227,13 @@ These govern how Horizon batches and parallelizes its metric queries to OAP. Eac
 |---|---|---|
 | `topologyMaxNodes` | The render valve for a service map — a graph with more nodes than this is **rejected with a "narrow the scope" notice** rather than drawn as an unreadable hairball. | `5000` |
 | `topologyMaxEdges` | The same valve on edges. | `15000` |
-| `maxPageSize.traces` | The maximum **records** fetched per Traces request (the storage `LIMIT`, not a page count). The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. | `100` |
-| `maxPageSize.logs` | The same per-request record cap for Logs. | `100` |
-| `maxPageSize.browserLogs` | The same per-request record cap for Browser Logs. | `100` |
-| `maxPageSize.events` | The same per-request record cap for Events. Defaults deeper than the other feeds because events are grouped for display (one deployment produces many per-instance rows), so a raw page has to carry more records to fill a screen. | `200` |
+| `maxPageSize.traces` | The largest **page** the Traces list will show — records displayed at once, not a page count. The page-size picker on the page maxes at this same value, so a client can't out-ask the dropdown. Each read fetches one record beyond the page, which is how the list knows whether there is a next page. | `100` |
+| `maxPageSize.logs` | The same displayed-page cap for Logs. | `100` |
+| `maxPageSize.browserLogs` | The same displayed-page cap for Browser Logs. | `100` |
+| `maxPageSize.events` | The same displayed-page cap for Events. Defaults deeper than the other feeds because events are grouped for display (one deployment produces many per-instance rows), so a raw page has to carry more records to fill a screen. | `200` |
 
 - **`topologyMaxNodes` / `topologyMaxEdges`** are a readability and safety valve, not a data limit — if your deployment legitimately has a graph this large, raising them lets it render (at the cost of a denser scene and a heavier draw). Lower them if you'd rather force operators to scope down sooner.
-- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events request pulls from storage. Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per fetch.
+- **`maxPageSize.*`** bound how many rows one Traces / Logs / Browser-Logs / Events page shows, and with it how much each list read pulls from storage (one record beyond the page — that extra row is how the list knows another page exists). Some storage backends fail or slow on large list queries — lower these to keep list pages cheap on a constrained backend; raise them (up to the ceiling) if your backend serves big result sets comfortably and operators want more rows per page.
 
 ## Excluded layers
 

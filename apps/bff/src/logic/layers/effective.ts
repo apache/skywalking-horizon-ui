@@ -34,10 +34,21 @@
  *     nothing (empty) and the UI surfaces the connectivity banner (unreachable)
  *     / the layer is hidden from nav (disabled). Routes MUST NOT fall back to
  *     in-code defaults here.
- *   - `template: null, blocked: false` — reachable but NO remote row
- *     (an OAP layer Horizon ships no bundled template for, or one not yet
- *     synced). Routes render their hard-coded in-code **defaults** — this
+ *   - `template: null, blocked: false` — reachable but NO remote row Horizon
+ *     can read for this layer (an OAP layer Horizon ships no bundled template
+ *     for, one not yet synced, or a row that is not readable as this layer —
+ *     see below). Routes render their hard-coded in-code **defaults** — this
  *     is the "remote OR default" runtime, never "remote OR bundled".
+ *
+ * An identity-invalid row (the sync layer gives it `effective: null`) lands in
+ * that last case DELIBERATELY, not in `blocked`. Blocking is reserved for the
+ * two states an operator can act on and would recognise — the store is down, or
+ * they disabled this layer. A row holding some other layer's template is
+ * neither: it is a record that says nothing about THIS layer, so the honest
+ * reading is the one every other reader already takes, "no row for this layer".
+ * Blocking on it would let one stray record dark a working layer's features,
+ * and the operator would have no disable to un-do. It is reported on the sync
+ * status instead, where the admin banner names the record id.
  *
  * Reads the shared 30s sync cache, so it's cheap on the hot path.
  */
@@ -86,14 +97,17 @@ export async function resolveEffectiveLayer(
     if (!row) return { template: null, blocked: false };
     // Admin disabled the layer's template → block (the sidebar also hides it).
     if (row.status === 'disabled') return { template: null, blocked: true };
+    // The row's own name got us here, but the name alone is not the identity:
+    // `effective` is what the shared identity rule leaves behind, so a row
+    // carrying another layer's template never renders as this one.
     if (row.effective === 'remote' && row.remote) {
       const env = parseEnvelope(row.remote.configuration);
       if (env?.content && typeof env.content === 'object' && 'key' in env.content) {
         return { template: env.content as LayerTemplate, blocked: false };
       }
     }
-    // Bundled-fallback (seed didn't land) or unparseable remote → we do
-    // NOT resurrect bundled at render time; fall to in-code defaults.
+    // Bundled-fallback (seed didn't land), identity-invalid, or unparseable
+    // remote → we do NOT resurrect bundled at render time; in-code defaults.
     return { template: null, blocked: false };
   } catch {
     // Unexpected read error (getSyncStatus soft-fails internally, so this

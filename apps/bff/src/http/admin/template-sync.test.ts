@@ -666,6 +666,29 @@ describe('what publishes is what the runtime reads back', () => {
     expect(accepted).toEqual(['GENERAL', 'VIRTUAL_CACHE']);
   });
 
+  it('overview: a record ALREADY stored as a dashboard it does not contain reaches neither read path', async () => {
+    // The refusal only guards what Horizon writes from now on. A store written
+    // before it — or by another tool — holds these, and the read side has to
+    // apply the same rule or the row renders under the id its content claims.
+    const store = makeStore();
+    store.rows.push({
+      id: 'misfiled',
+      configuration: JSON.stringify({
+        name: 'horizon.overview.ops',
+        kind: 'overview',
+        version: 1,
+        content: validOverview('services'),
+      }),
+      disabled: false,
+    });
+    const { app, client } = await buildApp(store.fetchImpl);
+
+    expect(await resolveEffectiveOverview(client, 'ops')).toBeNull();
+    expect(await resolveEffectiveOverview(client, 'services')).toBeNull();
+    expect(await resolveEffectiveOverviews(client)).toEqual([]);
+    await app.close();
+  });
+
   it('overview: the row that publishes is the row both read paths return', async () => {
     const store = makeStore();
     const { app, cookie: c, client } = await buildApp(store.fetchImpl);

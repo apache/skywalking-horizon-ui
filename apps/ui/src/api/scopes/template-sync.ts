@@ -35,6 +35,11 @@ export interface TemplateSyncRow {
    *  filter `locale === undefined`. */
   locale?: string;
   status: TemplateStatus;
+  /** What the BFF renders from. `null` means nothing renders this row: it is
+   *  disabled, or not readable as the template it is stored as (the BFF also
+   *  reports that one on the bundle's `unreadable` list, which is where the
+   *  admin banner names it — these rows are the editor's content sources and
+   *  carry their `remote` either way, so it can diff and push over it). */
   effective: 'remote' | 'bundled' | null;
   remote: { id: string; configuration: string; disabled: boolean } | null;
   bundled: { configuration: string } | null;

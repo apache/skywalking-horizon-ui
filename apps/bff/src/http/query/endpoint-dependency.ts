@@ -51,7 +51,8 @@ export interface EndpointDependencyRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  /** OAP UI-template client — serve the in-use REMOTE config (blocked /
+   *  in-code defaults when there is none; see `resolveEffectiveLayer`). */
   uiTemplateClient?: () => UITemplateClient;
 }
 

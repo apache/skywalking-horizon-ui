@@ -27,11 +27,15 @@
  * a lower-case layer key, an OAP legacy alias (`CACHE` where the runtime reads
  * `VIRTUAL_CACHE`), an overview whose content `id` is not the row's — is
  * reachable by nobody, however successful the push looked; and a row whose
- * content declares a different identity renders as some OTHER template.
+ * content declares a different identity would otherwise render as some OTHER
+ * template, which is the worse half: not an orphan, a dashboard served under a
+ * name that is not its own.
  *
- * {@link templateIdentityIssue} is that rule, and the only copy of it: the
- * publish routes refuse on it, and the sync status reports the rows on OAP
- * that already carry it (`unreadable`), so the two sides cannot drift.
+ * {@link templateIdentityIssue} is that rule, and the only copy of it. The
+ * publish routes refuse on it; the sync layer applies it to what OAP already
+ * holds, both reporting those rows (`unreadable`) and giving them
+ * `effective: null` so no read path serves them. Refusing to publish one and
+ * declining to read one are the same rule, so the two sides cannot drift.
  */
 
 import {

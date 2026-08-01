@@ -249,8 +249,10 @@ const DEFAULT_FOR_UNKNOWN_LAYER = {
 
 /** Resolve the layer template the menu should serve for `rawKey`,
  *  matching the bundle endpoint + the per-page routes: REMOTE-only.
- *    1. remote OAP UI-template row, when present + not disabled
- *       (operator edits go live the moment they push) ;
+ *    1. remote OAP UI-template row, when present, not disabled and readable
+ *       as this layer (`effective === 'remote'` — the shared identity rule
+ *       already decided, so a row holding another layer's template is not one
+ *       of this layer's candidates) ;
  *    2. null otherwise — the caller (`deriveLayer`) then renders the
  *       in-code `LAYER_DEFAULTS`, NOT the disk-bundled template.
  *  Bundled disk content is the seed/reset source (it syncs INTO remote
@@ -305,18 +307,18 @@ function deriveLayer(
       visibility: tpl.visibility,
       documentLink: tpl.documentLink ?? undefined,
       slots: tpl.slots,
-      // Caps come straight from the in-use (remote-or-bundled) template's
-      // component flags — remote-first. Missing flags fall to the
-      // componentsToCaps defaults, never to the bundled copy of an
-      // already-published layer: bundled is the seed/reset source (it
-      // syncs INTO remote on boot), not a render-time merge partner.
+      // Caps come straight from the in-use REMOTE template's component
+      // flags. Missing flags fall to the componentsToCaps defaults, never
+      // to the bundled copy of an already-published layer: bundled is the
+      // seed/reset source (it syncs INTO remote on boot), not a
+      // render-time merge partner.
       // instanceTopology cap follows the served topology config's
       // `instanceTopology` block (same source the topology routes read),
       // so the Instance-map drill-down only appears where it's configured.
       caps: ((): LayerCaps => {
         const c = componentsToCaps(tpl.components);
-        // Read the EFFECTIVE (remote-or-bundled) template — the same one
-        // the topology routes serve — so the Instance-map drill-down is
+        // Read the EFFECTIVE (remote) template — the same one the
+        // topology routes serve — so the Instance-map drill-down is
         // available iff it's enabled on the in-use template, matching the
         // admin. Gate on the parent Topology component (`serviceMap` =
         // `components.topology`): instance topology is a drill-down OF the
@@ -410,10 +412,17 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
 
       // Order = the synced layer rows (sorted by key), then any OAP-active
       // layer with no synced template, appended so nothing disappears.
+      // An unreadable row with no bundled sibling contributes no entry: its
+      // key is not one anything else in the app addresses, so it would put a
+      // sidebar item on screen leading to a layer nobody has. One that DOES
+      // pair with a bundled template keeps its entry — the layer is real and
+      // renders from the in-code defaults; dropping it would let a single
+      // stray record take a working layer out of the nav.
       const ordered: string[] = [];
       const seen = new Set<string>();
       for (const row of rows) {
         if (row.kind !== 'layer' || row.locale !== undefined) continue;
+        if (row.unreadable && !row.bundled) continue;
         const k = canonicalLayerKey(row.key);
         if (seen.has(k)) continue;
         seen.add(k);

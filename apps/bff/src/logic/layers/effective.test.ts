@@ -59,6 +59,15 @@ const layerRow = (key: string, content: unknown, disabled = false): UITemplateRo
   return { id: `oap-${key}`, configuration: serializeEnvelope(env), disabled };
 };
 
+/** A row whose NAME and CONTENT were written independently. `buildEnvelope`
+ *  derives one from the other, which is the agreement under test, so this
+ *  writes the envelope by hand — the state a store can already be in. */
+const misfiledRow = (name: string, content: unknown): UITemplateRow => ({
+  id: `oap-${name}`,
+  configuration: JSON.stringify({ name, kind: 'layer', version: 1, content }),
+  disabled: false,
+});
+
 /** The release ships a layer template for this key — asserted, not assumed,
  *  so a "no fallback" test can never pass just because the disk is empty. */
 function bundledLayerContent(key: string): unknown {
@@ -129,6 +138,38 @@ describe('resolveEffectiveLayer — a reachable store decides per row', () => {
     const eff = await resolveEffectiveLayer(templateClient([]), 'GENERAL');
 
     expect(eff).toEqual({ template: null, blocked: false });
+  });
+});
+
+/**
+ * The row's NAME is what this resolver looks a layer up by, so a record stored
+ * under the right name while holding another layer's template is the one shape
+ * a name lookup cannot catch on its own — and the worst one, because it does
+ * not orphan a dashboard, it serves someone else's under this layer.
+ *
+ * In-code defaults, not `blocked`: the record says nothing about THIS layer,
+ * which is the same thing "no row" says. Blocking would let one stray record
+ * dark a working layer, with no disable for the operator to un-do.
+ */
+describe('resolveEffectiveLayer — a record that is not this layer', () => {
+  it('does not serve another layer’s template under this layer’s name', async () => {
+    const k8sTemplate = { key: 'K8S', alias: 'Kubernetes', components: { service: true } };
+    const eff = await resolveEffectiveLayer(
+      templateClient([misfiledRow('horizon.layer.GENERAL', k8sTemplate)]),
+      'general',
+    );
+
+    expect(eff).toEqual({ template: null, blocked: false });
+  });
+
+  it('ignores a row stored under a name no reader computes, and still serves the readable one', async () => {
+    const edited = { key: 'GENERAL', alias: 'Operator edit', components: { service: true } };
+    const client = templateClient([
+      misfiledRow('horizon.layer.general', { key: 'GENERAL', alias: 'lower-case row' }),
+      layerRow('GENERAL', edited),
+    ]);
+
+    expect((await resolveEffectiveLayer(client, 'GENERAL')).template).toEqual(edited);
   });
 });
 

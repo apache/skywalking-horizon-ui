@@ -80,11 +80,19 @@ export interface TemplateConflict {
   identical?: boolean;
 }
 
-/** An enabled OAP record stored under a name no page reads — a layer key that
- *  isn't the canonical one, or content whose own `key` / `id` names a different
- *  template than the record it sits in. It renders for nobody, and has no badge
- *  or picker row of its own (the admin pages know only the templates they can
- *  resolve), so the page banner is where it surfaces. */
+/** An enabled OAP record that is not readable as the template it is stored as
+ *  — a layer key that isn't the canonical one, or content whose own `key` /
+ *  `id` names a different template than the record it sits in. Neither shape
+ *  renders: no layer dashboard, overview or sidebar entry is served from one.
+ *  Both still appear in the admin listings that build from stored names, as
+ *  ordinary rows. What differs is the REPAIR. A record under a name no page
+ *  computes has to be republished under the canonical name and this one retired
+ *  by id — the publish boundary refuses to write the non-canonical name at all.
+ *  A record under a name a page DOES compute also fills that name's Remote pane
+ *  in the editor (a `horizon.layer.GENERAL` row holding a K8S template opens as
+ *  GENERAL's remote copy), which is deliberate: its repair IS a push over that
+ *  same record. Neither surface says why, and that is what this row carries —
+ *  the record id and the reason, for the page banner. */
 export interface UnreadableTemplateRow {
   /** OAP record id — what the operator needs to retire it on OAP. */
   id: string;
