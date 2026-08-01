@@ -538,10 +538,13 @@ export interface AlarmsQuery {
   pageSize?: number;
   /** New-API mode only — narrows to alarms in this OAP layer. */
   layer?: string;
+  /** The picked service's NAME — the half OAP's alarm entity filter takes; its
+   *  query has no id form. Travels with `normal`, never alone. */
   service?: string;
   /** `normal` flag of `service` — false for a conjectural (virtual)
    *  service. Part of the OAP entity id, so the wrong flag filters to
-   *  no rows. Omitted means normal, as OAP itself assumes. */
+   *  no rows and a guessed one is worse than none: the BFF refuses a
+   *  `service` that arrives without it. */
   normal?: boolean;
   instance?: string;
   endpoint?: string;

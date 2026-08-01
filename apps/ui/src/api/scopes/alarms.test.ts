@@ -18,6 +18,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { AlarmsApi } from './alarms';
 import type { BffClient } from '../client';
+/* Reaches into the BFF on purpose: `/api/alarms` is a two-sided contract, and a
+ * test that pins only the URL this client builds stays green while the route
+ * refuses that very URL — which is how every service-filtered alarm query came
+ * to 400. The last block below parses this client's own requests with the
+ * route's schema, so a one-sided tightening fails here. */
+import { alarmsQuerySchema } from '../../../../bff/src/http/query/alarms-request';
 
 function makeStub() {
   const calls: Array<[string, string, unknown?]> = [];
@@ -51,11 +57,12 @@ describe('AlarmsApi.list — query param assembly', () => {
       endTime: 2,
       layer: 'MESH',
       service: 'mesh-svr::reviews',
+      normal: true,
       instance: 'reviews-pod-1',
       endpoint: '/api/orders',
     });
     expect(calls[0][1]).toBe(
-      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&layer=MESH&service=mesh-svr%3A%3Areviews&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
+      '/api/alarms?startTime=1&endTime=2&pageNum=1&pageSize=500&layer=MESH&service=mesh-svr%3A%3Areviews&normal=true&instance=reviews-pod-1&endpoint=%2Fapi%2Forders',
     );
   });
 
@@ -74,12 +81,6 @@ describe('AlarmsApi.list — query param assembly', () => {
     expect(real.calls[0][1]).toContain('service=songs&normal=true');
   });
 
-  it('omits the normal flag when the caller did not resolve one', async () => {
-    const { bff, calls } = makeStub();
-    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, service: 'songs' });
-    expect(calls[0][1]).not.toContain('normal');
-  });
-
   it('forwards scope + keyword when present', async () => {
     const { bff, calls } = makeStub();
     await new AlarmsApi(bff).list({
@@ -90,6 +91,61 @@ describe('AlarmsApi.list — query param assembly', () => {
     });
     expect(calls[0][1]).toContain('scope=Service');
     expect(calls[0][1]).toContain('keyword=slow+query');
+  });
+});
+
+/* The other half of the contract: the requests this client actually issues,
+ * read back by the schema the route parses them with, so neither side can move
+ * alone. A service reaches the alarm entity filter as its NAME plus the roster
+ * row's `normal` flag — OAP's alarm query has no id form, and the flag is part
+ * of the entity id the name resolves to. */
+describe('AlarmsApi.list — the BFF route parses what this client sends', () => {
+  /** The last request's query string, as the route receives it. */
+  function sentQuery(calls: Array<[string, string, unknown?]>): Record<string, string> {
+    const url = calls[0][1];
+    return Object.fromEntries(new URLSearchParams(url.slice(url.indexOf('?') + 1)));
+  }
+
+  it('accepts the service-filtered query the alarms page sends', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_600_000,
+      layer: 'VIRTUAL_DATABASE',
+      service: 'mysql-a',
+      normal: false,
+      instance: 'mysql-a-0',
+      keyword: 'response time',
+    });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data).toEqual({
+      startTime: 1_700_000_000_000,
+      endTime: 1_700_000_600_000,
+      pageNum: 1,
+      pageSize: 500,
+      layer: 'VIRTUAL_DATABASE',
+      service: 'mysql-a',
+      normal: false,
+      instance: 'mysql-a-0',
+      keyword: 'response time',
+    });
+  });
+
+  it('accepts the unfiltered query the overview widget and the 3D map send', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, pageSize: 200 });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (!parsed.success) throw parsed.error;
+    expect(parsed.data).toEqual({ startTime: 1, endTime: 2, pageNum: 1, pageSize: 200 });
+  });
+
+  it('is refused when a service travels without its flag', async () => {
+    const { bff, calls } = makeStub();
+    await new AlarmsApi(bff).list({ startTime: 1, endTime: 2, service: 'songs' });
+    const parsed = alarmsQuerySchema.safeParse(sentQuery(calls));
+    if (parsed.success) throw new Error('the route accepted a service with no flag');
+    expect(parsed.error.issues.map((i) => i.path.join('.'))).toEqual(['normal']);
   });
 });
 

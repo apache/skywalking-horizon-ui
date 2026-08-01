@@ -16,17 +16,20 @@
  */
 
 /**
- * `/api/alarms` entity filter: the whole identity the operator picked travels
- * with the request — id, name, and `normal` — and the route uses the halves
- * OAP's alarm query actually takes. `alarm.graphqls` has no id form, so the
- * filter is built from the NAME plus the flag; neither is looked up, guessed,
- * or overridden by a roster.
+ * `/api/alarms` entity filter: the halves OAP's alarm query actually takes
+ * travel with the request — the picked service's NAME and its `normal` flag.
+ * `alarm.graphqls` has no id form, so neither half is looked up, guessed, or
+ * overridden by a roster, and a service id would have nowhere to go.
  *
  * The flag is not decoration — OAP builds the service id as
  * `base64(name).1` (normal) / `base64(name).0` (conjectural), and every
  * instance / endpoint id is built on top of that. Filtering a virtual service
  * as normal therefore asks for an id nothing was ever stored under, and OAP
  * answers with an empty page that reads as "this service has no alarms".
+ *
+ * The URLs below are the ones the UI's alarms client emits (see
+ * `apps/ui/src/api/scopes/alarms.test.ts`, which parses its own output against
+ * this route's schema).
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -43,8 +46,8 @@ import { registerAlarmsQueryRoutes } from './alarms.js';
 
 const NOW = 1_700_000_000_000;
 const WINDOW = `startTime=${NOW - 600_000}&endTime=${NOW}`;
-/** A virtual-layer pick: id, name, flag — one roster row, three fields. */
-const MYSQL = `serviceId=${encodeURIComponent('bXlzcWwtYQ==.0')}&service=mysql-a&normal=false`;
+/** A virtual-layer pick, as the roster row reached the filter: name + flag. */
+const MYSQL = 'service=mysql-a&normal=false';
 
 interface Captured {
   query: string;
@@ -204,42 +207,49 @@ describe('/api/alarms filters on the identity the request carried', () => {
 
   it('rejects a flag that is neither true nor false instead of assuming normal', async () => {
     const oap = fakeOap();
-    const { status, body } = await listAlarms(oap.fetch, '&serviceId=c29uZ3M%3D.1&service=songs&normal=0');
+    const { status, body } = await listAlarms(oap.fetch, '&service=songs&normal=0');
     expect(status).toBe(400);
     expect(body.error).toBe('invalid_query');
     expect(oap.asked('queryAlarms')).toHaveLength(0);
   });
+
+  it('ignores a service id rather than refusing it — there is no id form to use it in', async () => {
+    const oap = fakeOap();
+    const { status } = await listAlarms(
+      oap.fetch,
+      `&serviceId=${encodeURIComponent('bXlzcWwtYQ==.0')}&${MYSQL}`,
+    );
+    expect(status).toBe(200);
+    expect(entitiesOf(oap)).toEqual([
+      { scope: 'Service', serviceName: 'mysql-a', normal: false },
+    ]);
+  });
 });
 
-/* Half an identity is not a service. Filtering on the half that survived would
- * either address a different entity or drop the filter — and a dropped filter
- * answers with the whole layer's alarms under one service's name. */
-describe('/api/alarms refuses half an identity rather than filtering on it', () => {
-  it('refuses a name with no id', async () => {
-    const oap = fakeOap();
-    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=false');
-    expect(status).toBe(400);
-    expect(oap.asked('queryAlarms')).toHaveLength(0);
-  });
-
-  it('refuses an id with no name — the alarm filter has no id form to fall back on', async () => {
-    const oap = fakeOap();
-    const { status } = await listAlarms(oap.fetch, '&serviceId=bXlzcWwtYQ%3D%3D.0&normal=false');
-    expect(status).toBe(400);
-    expect(oap.asked('queryAlarms')).toHaveLength(0);
-  });
-
+/* A name with no flag is half a pick. Guessing the missing half addresses a
+ * different entity; dropping the filter answers with the whole layer's alarms
+ * under one service's name. Neither is acceptable, so the route refuses. */
+describe('/api/alarms refuses a service without its flag rather than filtering on it', () => {
   it('refuses a picked service with no flag instead of defaulting it to normal', async () => {
     const oap = fakeOap();
-    const { status } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&serviceId=bXlzcWwtYQ%3D%3D.0&service=mysql-a');
+    const { status, body } = await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a');
     expect(status).toBe(400);
+    expect(body.error).toBe('invalid_query');
     expect(oap.asked('queryAlarms')).toHaveLength(0);
+  });
+
+  it('reads a flag with no service as no service filter at all', async () => {
+    const oap = fakeOap();
+    const { status } = await listAlarms(oap.fetch, '&layer=GENERAL&normal=false');
+    expect(status).toBe(200);
+    expect(entitiesOf(oap)).toBeUndefined();
   });
 });
 
-/* The roster used to decide the flag, overruling whatever the caller sent. It
- * is gone: the flag comes from the picked row, and the route never reads a
- * per-layer roster to second-guess it. */
+/* The flag is whatever the picked row said. The route holds a per-layer roster
+ * for tagging rows with their layer, and must not consult it to second-guess
+ * the request — a roster snapshot lags the pick, and a filter that swaps in a
+ * stale flag queries an entity the operator did not pick. */
 const ROSTER: Record<string, RosterRow[]> = {
   VIRTUAL_DATABASE: [{ id: 'bXlzcWwtYQ==.0', name: 'mysql-a', normal: false }],
   GENERAL: [{ id: 'c29uZ3M=.1', name: 'songs', normal: true }],
@@ -248,7 +258,7 @@ const ROSTER: Record<string, RosterRow[]> = {
 describe('/api/alarms takes the flag from the request, not from a layer roster', () => {
   it('sends the caller\'s flag even when the layer\'s roster says otherwise', async () => {
     const oap = fakeOap(ROSTER);
-    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&serviceId=bXlzcWwtYQ%3D%3D.0&service=mysql-a&normal=true');
+    await listAlarms(oap.fetch, '&layer=VIRTUAL_DATABASE&service=mysql-a&normal=true');
     expect(entitiesOf(oap)).toEqual([
       { scope: 'Service', serviceName: 'mysql-a', normal: true },
     ]);
@@ -258,7 +268,7 @@ describe('/api/alarms takes the flag from the request, not from a layer roster',
     const oap = fakeOap(ROSTER);
     await listAlarms(
       oap.fetch,
-      '&layer=VIRTUAL_DATABASE&serviceId=cmVkaXMtYg%3D%3D.0&service=redis-b&normal=false&instance=redis-b-0',
+      '&layer=VIRTUAL_DATABASE&service=redis-b&normal=false&instance=redis-b-0',
     );
     expect(entitiesOf(oap)).toEqual([
       {

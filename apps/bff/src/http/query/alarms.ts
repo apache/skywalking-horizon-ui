@@ -40,14 +40,15 @@
  *     can work from a single fetch. The COUNT route uses a 200 cap
  *     since it skips the snapshot payload.
  *   - The entity filter is name-scoped: `alarm.graphqls` has no id
- *     form. It carries the picked service's `normal` flag because that
- *     is part of the OAP service id (`base64(name).1` normal / `.0`
- *     virtual, `IDManager.ServiceID`) that instance and endpoint ids
- *     are built on. Filtering a VIRTUAL (conjectural) service with the
- *     wrong flag asks for an id nothing was stored under, so OAP
- *     answers with an empty page. Name and flag both arrive with the
- *     request — the roster row the operator picked — so nothing is
- *     looked up or guessed here.
+ *     form, so a service id has nowhere to go on this route. What the
+ *     filter needs alongside the name is the picked roster row's
+ *     `normal` flag, because that is part of the OAP service id
+ *     (`base64(name).1` normal / `.0` virtual, `IDManager.ServiceID`)
+ *     that instance and endpoint ids are built on. Filtering a VIRTUAL
+ *     (conjectural) service with the wrong flag asks for an id nothing
+ *     was stored under, so OAP answers with an empty page. Name and
+ *     flag both arrive with the request — the roster row the operator
+ *     picked — so nothing is looked up or guessed here.
  *   - Layer tagging on each row uses the cached service-name → layer
  *     index. Entries the index can't resolve (e.g. instance-scope
  *     alarms whose name doesn't carry a service prefix) get
@@ -65,7 +66,7 @@ import { buildOapOpts, graphqlPost } from '../../client/graphql.js';
 import { getOapCapabilities } from '../../logic/oap/capabilities.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
-import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import { alarmsQuerySchema } from './alarms-request.js';
 import type {
   ServiceCatalog,
   ServiceLayerCatalog,
@@ -258,56 +259,25 @@ interface ListServicesRaw {
  *  depth — the UI picker already enforces this, but a hand-crafted
  *  URL shouldn't pull a 24h fan-out from OAP. */
 const WINDOW_CAP_MS = 4 * 60 * 60_000;
-const LIST_PAGE_SIZE_CAP = 500;
 const COUNT_FETCH_CAP = 200;
-
-const alarmsQuerySchema = z.object({
-  startTime: z.coerce.number().int().positive(),
-  endTime: z.coerce.number().int().positive(),
-  /** Legacy-mode only. Ignored in new mode (use `layer` + entity
-   *  fields instead). */
-  scope: z.string().optional(),
-  keyword: z.string().optional(),
-  pageNum: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(LIST_PAGE_SIZE_CAP).default(LIST_PAGE_SIZE_CAP),
-  /** New-mode only. Maps to `condition.layer` (a single String on the
-   *  OAP side — an alarm record is persisted with one layer). */
-  layer: z.string().optional(),
-  /** New-mode only. The picked service's identity, as the roster returned it:
-   *  the NAME the alarm entity filter is built from, its `normal` flag, and the
-   *  `serviceId` half that rides along (the alarm query has no id form).
-   *  Combined with `instance` / `endpoint`; absent ⇒ no entity narrowing. */
-  service: z.string().optional(),
-  serviceId: z.string().optional(),
-  /** True for an agent-reporting service, false for a conjectural (virtual)
-   *  one. Part of the OAP entity id, so it is required WITH the service and
-   *  strictly `true` / `false`: anything looser would coerce a typo into
-   *  "normal" and quietly filter a virtual service down to no rows. */
-  normal: z
-    .union([z.literal('true'), z.literal('false')])
-    .transform((v) => v === 'true')
-    .optional(),
-  instance: z.string().optional(),
-  endpoint: z.string().optional(),
-});
 
 const countQuerySchema = z.object({
   startTime: z.coerce.number().int().positive(),
   endTime: z.coerce.number().int().positive(),
 });
 
-/* Translate the cascade fields (`layer`, `service`, `instance`,
- * `endpoint`) plus the resolved `normal` flag into the smallest precise
- * `Entity` that the queryAlarms `condition.entities` filter accepts.
- * Scope is inferred from which name fields are populated — same
- * convention OAP itself uses (see alarm.graphqls comment on
- * `entities`). `normal` rides on every scope: instance and endpoint ids
- * are built on top of the service id, which encodes the flag.
+/* Translate the picked service (name + flag) and the cascade fields
+ * (`instance`, `endpoint`) into the smallest precise `Entity` that the
+ * queryAlarms `condition.entities` filter accepts. Scope is inferred
+ * from which name fields are populated — same convention OAP itself
+ * uses (see alarm.graphqls comment on `entities`). `normal` rides on
+ * every scope: instance and endpoint ids are built on top of the
+ * service id, which encodes the flag.
  *
- * Returns null when no entity narrowing is requested. The caller then
- * omits `entities` from the condition entirely, leaving `layers`
- * as the only entity-side filter (or no entity filter at all when
- * `layer` is also blank).
+ * Only ever a non-relation scope: the cascade picks ONE service, and a
+ * non-relation entity matches `id0 = X OR id1 = X`, so relation alarms
+ * with the picked service on either side are included. Naming a
+ * `destServiceName` would instead pin one exact ordered pair.
  */
 interface EntityFilter {
   scope: string;
@@ -363,19 +333,13 @@ export function registerAlarmsQueryRoutes(app: FastifyInstance, deps: AlarmsQuer
     if (q.endTime - q.startTime > WINDOW_CAP_MS) {
       return badRequest(`window exceeds ${WINDOW_CAP_MS / 60_000}m cap`);
     }
-    const scope = serviceScopeOf(q);
-    if (scope.kind === 'incomplete') return badRequest(scope.message);
-    // The alarm entity filter is name-scoped and every instance / endpoint id
-    // is built on top of the service id, which encodes the flag — so a service
-    // picked without both cannot be filtered on at all, and dropping the filter
-    // would answer with the whole layer's alarms.
-    let entity: EntityFilter | null = null;
-    if (scope.kind === 'service') {
-      if (!scope.service.name || q.normal === undefined) {
-        return badRequest('service (name) and normal must accompany serviceId, as the service roster returned them');
-      }
-      entity = buildEntity(q, { name: scope.service.name, normal: q.normal });
-    }
+    /* Name AND flag, or no entity filter at all — the schema refuses the half
+     * pair, so a guessed flag can never narrow the query to an id nothing was
+     * stored under. */
+    const entity =
+      q.service && q.normal !== undefined
+        ? buildEntity(q, { name: q.service, normal: q.normal })
+        : null;
 
     const opts = buildOapOpts(deps.config.current, deps.fetch);
     const [offset, caps, catalog] = await Promise.all([
