@@ -277,15 +277,18 @@ function validateLayer(src: SourceFile, findings: TemplateFinding[]): void {
 }
 
 /** A named-capture rule is only usable if the regex compiles AND actually
- *  carries the groups the rule reads. */
+ *  carries the groups the rule reads. `pattern` is typed optional because the
+ *  schema only demands one at the bundled bar; a file that omits it has already
+ *  failed the parse above, so here it just reads as the empty pattern. */
 function checkNamedCaptures(
-  rule: { pattern: string; flags?: string; displayGroup?: string; valueGroup?: string },
+  rule: { pattern?: string; flags?: string; displayGroup?: string; valueGroup?: string },
   file: string,
   path: string,
   findings: TemplateFinding[],
 ): void {
+  const pattern = rule.pattern ?? '';
   try {
-    new RegExp(rule.pattern, rule.flags ?? '');
+    new RegExp(pattern, rule.flags ?? '');
   } catch (err) {
     findings.push({
       file,
@@ -301,7 +304,7 @@ function checkNamedCaptures(
   // the display capture the rule can never resolve anything: the identity
   // falls through and the dimension silently does nothing.
   const displayGroup = rule.displayGroup ?? 'service';
-  if (!rule.pattern.includes(`(?<${displayGroup}>`)) {
+  if (!pattern.includes(`(?<${displayGroup}>`)) {
     findings.push({
       file,
       path: `${path}.displayGroup`,

@@ -202,25 +202,12 @@ if ! $CONSISTENT; then
 fi
 echo "Code markers all at ${CURRENT_VERSION}; container docs are release-check compatible."
 
-# ========================== Step 5: Doc + Changelog check ==========================
-note "Step 5 — Docs + CHANGELOG check"
+# ========================== Step 5: Release-file check ==========================
+note "Step 5 — Release-file check"
 
-if ! grep -q "^## ${RELEASE_VERSION}$" "${PROJECT_DIR}/CHANGELOG.md"; then
-    err "CHANGELOG.md has no '## ${RELEASE_VERSION}' section heading."
-    exit 1
-fi
-# Reject the placeholder body. Operators MUST fill the section in before
-# casting a vote — a stub CHANGELOG line in a release tarball is a
-# review smell.
-if awk -v v="${RELEASE_VERSION}" '
-    $0 == "## " v        { in_sec=1; next }
-    in_sec && /^## /     { in_sec=0 }
-    in_sec               { print }
-' "${PROJECT_DIR}/CHANGELOG.md" | grep -q "In development"; then
-    err "CHANGELOG.md ${RELEASE_VERSION} section still contains the '(In development …)' placeholder. Fill it in."
-    exit 1
-fi
-echo "CHANGELOG.md has a non-placeholder section for ${RELEASE_VERSION}."
+# The CHANGELOG is NOT checked here: what ships is the freshly cloned tree of
+# Step 7, not this one, so its section is gated in Step 8b against the exact
+# commit being tagged.
 
 # Make sure LICENSE / NOTICE exist at the repo root (they ship in src+bin tarballs).
 for f in LICENSE NOTICE HEADER; do
@@ -303,6 +290,39 @@ fi
 # to), and repo CI does not run on tags — only on pull_request and pushes to
 # main. So this is the only gate the release artifact ever gets.
 note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
+
+# The CHANGELOG section is part of the release artifact — it ships in both
+# tarballs, the vote email links it at ${TAG}, and release-finalize.sh reads
+# the GitHub release body out of the tag — so it is gated on the clone, on the
+# commit about to be tagged. Checking the caller's tree instead can pass here
+# while the tagged tree carries no section at all, or still carries the stub.
+# Cheapest gate in the battery, so it runs first.
+if ! grep -q "^## ${RELEASE_VERSION}$" "${CLONE_DIR}/CHANGELOG.md"; then
+    err "CHANGELOG.md on the release commit has no '## ${RELEASE_VERSION}' section heading."
+    err "Land that section on ${REPO_BRANCH} first — this clone is what gets tagged and shipped."
+    exit 1
+fi
+# Reject the placeholder body. Operators MUST fill the section in before
+# casting a vote — a stub CHANGELOG line in a release tarball is a
+# review smell.
+if awk -v v="${RELEASE_VERSION}" '
+    $0 == "## " v        { in_sec=1; next }
+    in_sec && /^## /     { in_sec=0 }
+    in_sec               { print }
+' "${CLONE_DIR}/CHANGELOG.md" | grep -q "In development"; then
+    err "CHANGELOG.md ${RELEASE_VERSION} section on the release commit still contains the '(In development …)' placeholder. Fill it in on ${REPO_BRANCH}."
+    exit 1
+fi
+echo "CHANGELOG.md on the release commit has a non-placeholder section for ${RELEASE_VERSION}."
+
+# Same reason, and `pnpm license:check` cannot stand in for it: HEADER is in
+# the license-eye paths-ignore list, so nothing else looks at the copy that
+# actually ships.
+for f in LICENSE NOTICE HEADER; do
+    [ -f "${CLONE_DIR}/${f}" ] || { err "${f} missing at the root of the release commit."; exit 1; }
+done
+echo "LICENSE / NOTICE / HEADER present on the release commit."
+
 pnpm install --frozen-lockfile
 pnpm -r run type-check
 pnpm --filter @skywalking-horizon-ui/ui build
@@ -543,7 +563,9 @@ EOF
 # ========================== Step 15: Next-dev bump + release PR ==========================
 note "Step 15 — Add next-dev bump (${NEXT_RELEASE_VERSION}-dev) + open release PR"
 
-if ! confirm "Add the next-dev bump on ${RELEASE_BRANCH_NAME} and open the release PR now?"; then
+echo "  Commit ${NEXT_RELEASE_VERSION}-dev on ${RELEASE_BRANCH_NAME}, push it to ${REPO_URL},"
+echo "  and open a PR ${RELEASE_BRANCH_NAME} -> ${REPO_BRANCH}. Tag ${TAG} is already pushed and stays put."
+if ! confirm "Do that now?"; then
     echo "Skipping the next-dev commit + PR. Release artifacts are in ${WORK_DIR}/."
     echo "Release branch ${RELEASE_BRANCH_NAME} + tag ${TAG} are already pushed; open the PR manually when ready."
     exit 0
@@ -630,7 +652,8 @@ echo "       a) Run the publish-image workflow (workflow_dispatch, tag ${TAG}) t
 echo "          the stable image tags — a tag push publishes only the immutable digest,"
 echo "          because a tag is a candidate until the vote passes."
 echo "       b) bash scripts/release-finalize.sh"
-echo "          It verifies the sha512 + both .asc signatures + the signer identity"
+echo "          It verifies that the candidate directory holds exactly the six voted"
+echo "          artifacts, their sha512, both .asc signatures and the signer identity"
 echo "          BEFORE promoting dev -> release on SVN, then publishes the GitHub"
 echo "          release and confirms the Docker Hub tags. Do NOT 'svn mv' by hand:"
 echo "          that skips every one of those checks."

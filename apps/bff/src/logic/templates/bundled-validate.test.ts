@@ -252,6 +252,23 @@ describe('validateBundledTemplates — layer file identity + typos', () => {
     expect(messages(findings)).toContain('Unrecognized key');
   });
 
+  it('rejects a config block that ships no metrics', () => {
+    // The admin save boundary accepts this (an operator opening the Topology
+    // tab seeds exactly it); a shipped FILE that can never draw anything is a
+    // defect, so the bundled bar keeps demanding at least one metric.
+    const findings = run({ layers: { demo: layer({ topology: { nodeMetrics: [] } }) } });
+    expect(messages(findings)).toContain('topology.nodeMetrics');
+  });
+
+  it('rejects a metric with an empty MQE', () => {
+    const findings = run({
+      layers: {
+        demo: layer({ topology: { nodeMetrics: [{ id: 'cpm', label: 'RPM', mqe: '' }] } }),
+      },
+    });
+    expect(messages(findings)).toContain('topology.nodeMetrics.0.mqe');
+  });
+
   it('rejects a naming rule whose pattern cannot resolve a display name', () => {
     // No display capture — resolveServiceIdentity finds nothing to return, so
     // the rule silently does nothing at render time.

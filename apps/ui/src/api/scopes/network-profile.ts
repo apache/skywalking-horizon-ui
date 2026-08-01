@@ -32,12 +32,14 @@ import type { BffClient } from '../client';
 export class NetworkProfileApi {
   constructor(private readonly bff: BffClient) {}
 
+  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
+   *  skips the roster lookup a name would need. */
   tasks(
     layerKey: string,
-    args: { service?: string; serviceInstance?: string },
+    args: { serviceId?: string; serviceInstance?: string },
   ): Promise<EBPFTaskListResponse> {
     const qs = new URLSearchParams();
-    if (args.service) qs.set('service', args.service);
+    if (args.serviceId) qs.set('serviceId', args.serviceId);
     if (args.serviceInstance) qs.set('serviceInstance', args.serviceInstance);
     return this.bff.request<EBPFTaskListResponse>(
       'GET',

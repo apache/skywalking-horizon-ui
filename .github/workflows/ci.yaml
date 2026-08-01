@@ -161,7 +161,6 @@ jobs:
       # The scripts already include `vitest run`, so no `--run` forwarding
       # needed — keeps the CI line robust against pnpm-flag parsing quirks.
       - run: pnpm -r run test:unit
-      # The release scripts are bash and live outside the workspaces, so
 
   templates:
     # The bundled layer / overview templates are configuration that ships

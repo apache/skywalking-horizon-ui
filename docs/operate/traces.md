@@ -114,7 +114,8 @@ Each Zipkin result shows its duration and error state, with a duration bar color
 ## Troubleshooting
 
 - **"No traces in window."** — the query ran but matched nothing. Widen the time range, relax the Status / Duration / Tag conditions, or confirm the service is actually reporting traces.
-- **An `unreachable` chip on the list** — the trace store did not answer. For native traces this points at OAP or its storage backend; for Zipkin it points at the configured Zipkin endpoint. The two stores fail independently — one being down does not blank the other.
+- **An `unreachable` chip on the list** — the trace store did not answer, and the reason is printed in a banner above the results. For native traces this points at OAP or its storage backend; for Zipkin it points at the configured Zipkin endpoint. The two stores fail independently — one being down does not blank the other.
+- **Run query is greyed out** — the tab does not yet know which service to read. It says which: *Resolving service…* while the picked service is being looked up, or a note that the selected service is not in this layer (it aged out of OAP, was renamed, or the link points elsewhere) — pick another one. Traces are always read for one service, so the tab waits instead of querying the whole layer.
 - **Rows are segments, not whole traces** — that is expected on storage backends without whole-trace support; the banner says so. Click a segment to fetch its full trace.
 - **A pasted trace id from a log row won't resolve** — older traces can sit outside the default lookup window or in a cold storage tier. Open the trace from the log row (which carries its timestamp) rather than pasting the id cold, so the lookup is widened around the right time.
 - **No data even with a valid service** — double-check the time range first; this tab does not follow the global topbar, so the window is whatever the tab's own Time range control says.

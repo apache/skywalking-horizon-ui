@@ -28,10 +28,12 @@ import type { BffClient } from '../client';
 export class PprofApi {
   constructor(private readonly bff: BffClient) {}
 
-  tasks(layerKey: string, service: string): Promise<PprofTaskListResponse> {
+  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
+   *  skips the roster lookup a name would need. */
+  tasks(layerKey: string, serviceId: string): Promise<PprofTaskListResponse> {
     return this.bff.request<PprofTaskListResponse>(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/pprof/tasks?service=${encodeURIComponent(service)}`,
+      `/api/layer/${encodeURIComponent(layerKey)}/pprof/tasks?serviceId=${encodeURIComponent(serviceId)}`,
     );
   }
   create(

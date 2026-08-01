@@ -86,7 +86,7 @@ const safeCfg = computed(() => {
 });
 const landing = useLayerLanding(safeLayer, safeCfg);
 const { selectedId } = useSelectedService();
-const serviceName = useLayerServiceName(layerKey, landing);
+const { name: serviceName } = useLayerServiceName(layerKey, landing);
 
 const {
   tasks,

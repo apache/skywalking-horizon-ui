@@ -53,7 +53,7 @@ import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import TypeaheadSelect from '@/components/primitives/TypeaheadSelect.vue';
 import { useSelectedService } from '@/layer/useSelectedService';
-import { useLayerServiceName } from '@/layer/useLayerServiceName';
+import { useLayerTabService } from '@/layer/useLayerServiceName';
 import { useSetupStore } from '@/state/setup';
 import TraceListPanel from '@/render/widgets/TraceListPanel.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
@@ -101,11 +101,18 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded mode takes the focus service straight from the prop; the route uses
 // the shared layerSelection store (resolved to a name). Overriding here means
-// the chat block never touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
-const serviceName = computed<string | null>(() =>
-  embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
-);
+// the chat block never touches that global selection. `serviceReady` is the
+// gate: a trace query fired before the name lands carries no service, and OAP
+// answers it with every service's traces.
+const {
+  name: serviceName,
+  status: serviceStatus,
+  ready: serviceReady,
+} = useLayerTabService(layerKey, landing, {
+  embedded,
+  focusService: computed(() => props.focusService ?? null),
+  replay,
+});
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
 watch(
   landingRows,
@@ -226,7 +233,9 @@ watch([serviceName], () => {
 // reset the committed snapshot so a stale committed `service` doesn't
 // drive the next query for the wrong layer-service pair.
 const cService = ref<string | null>(null);
-const queryEnabled = computed(() => hasQueried.value);
+// The service is the upstream control: the list read stays parked until it
+// resolves, however many times the operator has pressed Run query.
+const queryEnabled = computed(() => hasQueried.value && serviceReady.value);
 
 const { native, isFetching, refetch } = useLayerTraces(layerKey, {
   source: NATIVE_SOURCE,
@@ -265,6 +274,10 @@ const showApiBanner = computed(() => hasQueried.value && !!native.value?.reachab
  * auto-refresh the result list.
  */
 function runQuery(): void {
+  // `refetch()` bypasses the query's `enabled`, so the gate has to be here too:
+  // a click landing inside the resolution window would otherwise fire a read
+  // with no service — every service's traces under this service's title.
+  if (!serviceReady.value) return;
   traceIdFilter.value = traceIdInput.value.trim() || null;
   cService.value = serviceName.value;
   cInstanceId.value = instanceId.value;
@@ -315,7 +328,7 @@ function resolveDrillEntities(): boolean {
 }
 function maybeRunDrill(): void {
   // Wait for service + any pending entity id, else the first query runs unfiltered.
-  if (!drillArmed.value || !serviceName.value) return;
+  if (!drillArmed.value || !serviceReady.value) return;
   if (pendingDrillInstance.value || pendingDrillEndpoint.value) return;
   drillArmed.value = false;
   runQuery();
@@ -484,7 +497,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
                duplicate chrome. -->
           <span class="kicker">{{ t('Traces') }}</span>
           <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
-          <button class="sw-btn primary tr-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
+          <button
+            class="sw-btn primary tr-run-btn"
+            type="button"
+            :disabled="!serviceReady"
+            @click="runQuery"
+          >{{ t('Run query') }}</button>
         </div>
         <div class="tr-conditions">
           <label class="cf">
@@ -609,6 +627,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       </section>
     </div>
 
+    <!-- The refusal / failure reason belongs in the body, not only in the list
+         header's tooltip: an unknown service is the difference between "no
+         traces here" and "this query was never run". -->
+    <div v-if="native?.error" class="banner err">
+      <strong>{{ replay ? t('This trace read failed when it was captured.') : t('Traces feed failed.') }}</strong>
+      {{ native.error }}
+    </div>
+
     <div v-if="showApiBanner" class="tr-api-banner">
       {{ t('This OAP serves traces via') }} <b>{{ t('Trace Query {label} API', { label: traceApiLabel }) }}</b>
       (<code>{{ native?.api }}</code>).
@@ -628,10 +654,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
       <article class="tr-list-card sw-card">
         <header class="tr-list-head">
           <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
-          <span v-if="native?.error" class="err-chip" :title="native.error">{{ t('unreachable') }}</span>
+          <span v-if="native?.error" class="err-chip">{{ t('unreachable') }}</span>
           <span v-if="native" class="hint">{{ native.traces.length }} {{ isSegmentList ? t('segments') : t('traces') }}</span>
         </header>
-        <div v-if="!hasQueried" class="tr-empty">
+        <!-- Trailing control: the list waits for the service, and says which
+             kind of waiting this is — still resolving, or resolved to nothing. -->
+        <div v-if="!serviceReady" class="tr-empty">
+          <template v-if="serviceStatus === 'resolving'">{{ t('Resolving service…') }}</template>
+          <template v-else-if="serviceStatus === 'unknown'">
+            {{ t('The selected service is not in this layer — pick another one to query.') }}
+          </template>
+          <template v-else>{{ t('Pick a service to run this query.') }}</template>
+        </div>
+        <div v-else-if="!hasQueried" class="tr-empty">
           {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <div v-else-if="!native || (native.reachable && native.traces.length === 0)" class="tr-empty">
@@ -850,6 +885,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
   border-radius: 3px;
   background: rgba(239, 68, 68, 0.18);
   color: var(--sw-err);
+}
+/* Same failure banner as the Logs tab (each view keeps its own scoped copy —
+   they intentionally don't share a stylesheet). */
+.banner.err {
+  padding: 8px 12px;
+  background: var(--sw-err-soft);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 6px;
+  color: #f87171;
+  font-size: 11.5px;
 }
 .tr-api-banner {
   padding: 7px 12px;

@@ -41,6 +41,8 @@ import { registerBrowserErrorsRoute } from './browser-errors.js';
 import { registerEBPFRoutes } from './ebpf.js';
 import { registerProfileRoutes } from './profile.js';
 import { registerAsyncProfileRoutes } from './async-profile.js';
+import { registerInstanceRoute } from './instance.js';
+import { registerEndpointRoute } from './endpoint.js';
 
 const SERVICE_NAME = 'songs.sample-services';
 const SERVICE_ID = 'c29uZ3M=.1';
@@ -151,6 +153,13 @@ async function build(register: Register, fetchImpl: FetchLike): Promise<{ app: F
   register(app, { config, sessions, fetch: fetchImpl });
   await app.ready();
   return { app, sid: sessions.create('op', ['admin']).sid };
+}
+
+/** GET one of these routes as a logged-in operator, decoded. */
+async function get(register: Register, fetchImpl: FetchLike, url: string) {
+  const { app, sid } = await build(register, fetchImpl);
+  const res = await app.inject({ method: 'GET', url, headers: { cookie: `horizon_sid=${sid}` } });
+  return res.json();
 }
 
 /** The `serviceId` an OAP condition/request variable carries, or undefined. */
@@ -296,12 +305,6 @@ describe('browser errors refuse an unresolvable service', () => {
 });
 
 describe('profiling task lists refuse an unresolvable service', () => {
-  const get = async (register: Register, fetchImpl: FetchLike, url: string) => {
-    const { app, sid } = await build(register, fetchImpl);
-    const res = await app.inject({ method: 'GET', url, headers: { cookie: `horizon_sid=${sid}` } });
-    return res.json();
-  };
-
   it('eBPF: reports the unknown service instead of a silent empty list', async () => {
     const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
     const out = await get(registerEBPFRoutes, oap.fetch, '/api/layer/mesh/ebpf/tasks?service=retired-service');
@@ -389,5 +392,123 @@ describe('profiling task lists refuse an unresolvable service', () => {
     expect(out.reachable).toBe(true);
     expect(out.tasks).toHaveLength(1);
     expect(scopedTo(oap.asked('queryPprofTaskList')[0], 'request')).toBe(SERVICE_ID);
+  });
+
+  // The profiling tabs hold the OAP id, so they send `serviceId` — an id, said
+  // to be an id. No roster lookup, and nothing to mistake for a name.
+  it('eBPF: an explicit serviceId scopes the list with no roster lookup', async () => {
+    const oap = fakeOap([]);
+    const out = await get(
+      registerEBPFRoutes,
+      oap.fetch,
+      `/api/layer/mesh/ebpf/tasks?serviceId=${encodeURIComponent(SERVICE_ID)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(scopedTo(oap.asked('queryEBPFProfilingTasks')[0], 'root')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
+  });
+
+  it('pprof: an explicit serviceId scopes the list with no roster lookup', async () => {
+    const oap = fakeOap([]);
+    const out = await get(
+      registerAsyncProfileRoutes,
+      oap.fetch,
+      `/api/layer/mesh/pprof/tasks?serviceId=${encodeURIComponent(SERVICE_ID)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(out.tasks).toHaveLength(1);
+    expect(scopedTo(oap.asked('queryPprofTaskList')[0], 'request')).toBe(SERVICE_ID);
+    expect(oap.asked('listServices')).toHaveLength(0);
+  });
+});
+
+// A service whose NAME is shaped like an OAP id (`base64(<name>).<0|1>`) — a
+// real possibility for a name as ordinary as `api.1` or `orders.2026`. The
+// name slot used to shape-test its argument, so these names were sent to OAP
+// as ids and matched nothing: an empty trace list / task list under a service
+// that is right there in the roster.
+describe('a service NAME shaped like an OAP id is still resolved as a name', () => {
+  // Both are the real `base64(<name>).1` an OAP would mint for these names.
+  const ID_SHAPED = [
+    { name: 'api.1', id: 'YXBpLjE=.1' },
+    { name: 'orders.2026', id: 'b3JkZXJzLjIwMjY=.1' },
+  ];
+
+  it.each(ID_SHAPED)('traces: $name resolves to its own id', async ({ name, id }) => {
+    const oap = fakeOap([{ id, name }]);
+    const { app, sid } = await build(registerTraceRoutes, oap.fetch);
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/layer/mesh/traces',
+      headers: { cookie: `horizon_sid=${sid}`, 'content-type': 'application/json' },
+      payload: { source: 'native', service: name },
+    });
+    const out = res.json();
+    expect(out.native.reachable).toBe(true);
+    expect(scopedTo(oap.asked('queryBasicTraces')[0], 'condition')).toBe(id);
+  });
+
+  it.each(ID_SHAPED)('trace profiling: $name resolves to its own id', async ({ name, id }) => {
+    const oap = fakeOap([{ id, name }]);
+    const { app, sid } = await build(registerProfileRoutes, oap.fetch);
+    const res = await app.inject({
+      method: 'GET',
+      url: `/api/layer/mesh/profile/tasks?service=${encodeURIComponent(name)}`,
+      headers: { cookie: `horizon_sid=${sid}` },
+    });
+    const out = res.json();
+    expect(out.reachable).toBe(true);
+    expect(scopedTo(oap.asked('getProfileTaskList')[0], 'root')).toBe(id);
+  });
+
+  // The picker feeds carried their own copy of the shape test, so an id-shaped
+  // NAME emptied the instance / endpoint drop-downs on every tab that offers
+  // them — the same guess, one directory over.
+  it.each(ID_SHAPED)('instances: $name resolves to its own id', async ({ name, id }) => {
+    const oap = fakeOap([{ id, name }]);
+    const out = await get(
+      registerInstanceRoute,
+      oap.fetch,
+      `/api/layer/mesh/instances?service=${encodeURIComponent(name)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(out.error).toBeUndefined();
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(id);
+  });
+
+  it.each(ID_SHAPED)('endpoints: $name resolves to its own id', async ({ name, id }) => {
+    const oap = fakeOap([{ id, name }]);
+    const out = await get(
+      registerEndpointRoute,
+      oap.fetch,
+      `/api/layer/mesh/endpoints?service=${encodeURIComponent(name)}&q=`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(out.error).toBeUndefined();
+    expect(scopedTo(oap.asked('findEndpoint')[0], 'root')).toBe(id);
+  });
+
+  // An id in the same slot still resolves — through the roster's id column,
+  // which is what makes dropping the shape test safe for callers that hold one.
+  it('instances: an OAP id in the service slot resolves through the roster', async () => {
+    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+    const out = await get(
+      registerInstanceRoute,
+      oap.fetch,
+      `/api/layer/mesh/instances?service=${encodeURIComponent(SERVICE_ID)}`,
+    );
+    expect(out.reachable).toBe(true);
+    expect(scopedTo(oap.asked('listInstances')[0], 'root')).toBe(SERVICE_ID);
+  });
+
+  it('endpoints: a service the layer does not have is refused, not searched', async () => {
+    const oap = fakeOap([{ id: SERVICE_ID, name: SERVICE_NAME }]);
+    const out = await get(
+      registerEndpointRoute,
+      oap.fetch,
+      '/api/layer/mesh/endpoints?service=api.1&q=',
+    );
+    expect(out.error).toBe('service not found');
+    expect(oap.asked('findEndpoint')).toHaveLength(0);
   });
 });

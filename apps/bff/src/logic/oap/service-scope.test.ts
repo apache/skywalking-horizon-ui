@@ -18,7 +18,12 @@
 import { describe, it, expect } from 'vitest';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { GraphqlOptions } from '../../client/graphql.js';
-import { resolveRequiredService, resolveServiceScope } from './service-scope.js';
+import {
+  resolveRequiredService,
+  resolveRequiredServiceArgs,
+  resolveServiceArgs,
+  resolveServiceScope,
+} from './service-scope.js';
 
 const SERVICE_ID = 'bWVzaC1zdnI6OnNvbmdz.1';
 
@@ -52,13 +57,15 @@ describe('resolveServiceScope', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('takes an OAP-shaped id as-is, with no lookup round-trip', async () => {
-    const { opts, calls } = oap([]);
+  // The name slot is for names, but a caller that hands it an id still gets the
+  // right answer — through the roster's `id` column, not a shape test.
+  it('matches an id handed to the name slot against the roster', async () => {
+    const { opts, calls } = oap([{ id: SERVICE_ID, name: 'songs' }]);
     expect(await resolveServiceScope(opts, 'mesh', SERVICE_ID)).toEqual({
       kind: 'service',
       serviceId: SERVICE_ID,
     });
-    expect(calls).toHaveLength(0);
+    expect(calls).toHaveLength(1);
   });
 
   it('resolves a name through listServices, asking for the UPPER-CASE layer', async () => {
@@ -81,12 +88,70 @@ describe('resolveServiceScope', () => {
     expect(calls).toHaveLength(1);
   });
 
+  // An OAP service id is `base64(<name>).<0|1>`, and an ordinary name can wear
+  // that shape: `api.1` (base64 alphabet + `.1`), `orders.2026`. A shape test
+  // classified both as ids and sent them to OAP as ids, where they matched
+  // nothing. They are NAMES and must be looked up.
+  it.each(['api.1', 'orders.2026'])('resolves the id-shaped name %s as a NAME', async (name) => {
+    const { opts, calls } = oap([{ id: SERVICE_ID, name }]);
+    expect(await resolveServiceScope(opts, 'mesh', name)).toEqual({
+      kind: 'service',
+      serviceId: SERVICE_ID,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('refuses an id-shaped name the layer does not have, instead of passing it through', async () => {
+    const { opts } = oap([{ id: SERVICE_ID, name: 'songs' }]);
+    const scope = await resolveServiceScope(opts, 'mesh', 'api.1');
+    expect(scope).toMatchObject({ kind: 'unknown', serviceArg: 'api.1' });
+  });
+
   it('reports "unknown" — never "all" — when the name matches nothing', async () => {
     const { opts } = oap([{ id: SERVICE_ID, name: 'songs' }]);
     const scope = await resolveServiceScope(opts, 'mesh', 'retired-service');
     expect(scope).toMatchObject({ kind: 'unknown', serviceArg: 'retired-service' });
     expect(scope.kind === 'unknown' && scope.message).toContain('retired-service');
     expect(scope.kind === 'unknown' && scope.message).toContain('MESH');
+  });
+});
+
+describe('resolveServiceArgs — the caller says which slot it filled', () => {
+  it('trusts an explicit serviceId without a lookup', async () => {
+    const { opts, calls } = oap([]);
+    expect(await resolveServiceArgs(opts, 'mesh', { serviceId: SERVICE_ID })).toEqual({
+      kind: 'service',
+      serviceId: SERVICE_ID,
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  // The whole point of the split: `api.1` in the NAME slot is a name, even
+  // though it is shaped like an id.
+  it('looks the name slot up even when the name is shaped like an id', async () => {
+    const { opts, calls } = oap([{ id: SERVICE_ID, name: 'api.1' }]);
+    expect(await resolveServiceArgs(opts, 'mesh', { service: 'api.1' })).toEqual({
+      kind: 'service',
+      serviceId: SERVICE_ID,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('reports "all" when neither slot is filled', async () => {
+    const { opts } = oap([]);
+    expect(await resolveServiceArgs(opts, 'mesh', {})).toEqual({ kind: 'all' });
+    expect(await resolveRequiredServiceArgs(opts, 'mesh', { serviceId: '', service: '' })).toMatchObject({
+      kind: 'unknown',
+    });
+  });
+
+  it('takes the explicit id on the required path too', async () => {
+    const { opts, calls } = oap([]);
+    expect(await resolveRequiredServiceArgs(opts, 'mesh', { serviceId: SERVICE_ID })).toEqual({
+      kind: 'service',
+      serviceId: SERVICE_ID,
+    });
+    expect(calls).toHaveLength(0);
   });
 });
 

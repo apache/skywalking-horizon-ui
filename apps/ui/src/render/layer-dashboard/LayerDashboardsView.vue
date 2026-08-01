@@ -131,7 +131,7 @@ const landing = useLayerLanding(safeLayer, safeCfg, rangeRef);
 // the full roster for low-traffic / deep-linked services that miss
 // landing's top-N — without it the dashboard would sit on "Resolving
 // service…" forever. Shared with every other layer tab.
-const serviceName = useLayerServiceName(layerKey, landing);
+const { name: serviceName } = useLayerServiceName(layerKey, landing);
 // Dev-only escape hatch: appending `?mockTop=10` to the page URL pads
 // every TopList result to N synthetic rows. Helps operators verify
 // widget heights without waiting for OAP to populate the layer.

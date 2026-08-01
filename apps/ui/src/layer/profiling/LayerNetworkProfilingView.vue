@@ -95,7 +95,7 @@ async function refreshTasks(): Promise<void> {
   tasksLoading.value = true;
   try {
     const resp = await bffClient.networkProfile.tasks(layerKey.value, {
-      service: serviceId.value ?? undefined,
+      serviceId: serviceId.value ?? undefined,
     });
     if (!resp.reachable && resp.error) tasksError.value = resp.error;
     tasks.value = resp.tasks ?? [];

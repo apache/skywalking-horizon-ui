@@ -119,7 +119,7 @@ Once the template stabilizes:
 - Open `/admin/layer-dashboards`, find the layer, click edit, then save locally.
 - Subsequent edits go through the admin UI; you no longer need to rebuild and restart the BFF for cosmetic changes.
 
-The local bundled file remains the fallback. After you publish, the OAP-stored template becomes the runtime copy every Horizon instance reads.
+The local bundled file remains the seed and the **Reset to bundled** baseline. After you publish, the OAP-stored template is the runtime copy every Horizon instance reads — the bundled file is not consulted again at render time, except under `templates.mode: readonly`, where it is the declared source.
 
 ### 11. Add an overview entry (optional)
 

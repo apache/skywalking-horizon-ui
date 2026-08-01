@@ -28,10 +28,12 @@ import type { BffClient } from '../client';
 export class AsyncProfileApi {
   constructor(private readonly bff: BffClient) {}
 
-  tasks(layerKey: string, service: string): Promise<AsyncProfilingTaskListResponse> {
+  /** `serviceId` is the OAP id, not a name — the BFF trusts it as an id and
+   *  skips the roster lookup a name would need. */
+  tasks(layerKey: string, serviceId: string): Promise<AsyncProfilingTaskListResponse> {
     return this.bff.request<AsyncProfilingTaskListResponse>(
       'GET',
-      `/api/layer/${encodeURIComponent(layerKey)}/async/tasks?service=${encodeURIComponent(service)}`,
+      `/api/layer/${encodeURIComponent(layerKey)}/async/tasks?serviceId=${encodeURIComponent(serviceId)}`,
     );
   }
   create(
