@@ -29,8 +29,12 @@
 export function pushErrorLines(err: unknown): string[] {
   const e = err as { body?: { issues?: unknown }; message?: unknown };
   const issues = e?.body?.issues;
-  if (Array.isArray(issues) && issues.length > 0) {
-    return issues.filter((i): i is string => typeof i === 'string');
-  }
+  // Emptiness is judged AFTER the filter: a non-empty `issues` carrying no
+  // strings would otherwise return [], and every caller joins the result — so
+  // the operator would get a blank message instead of the transport error.
+  const lines = Array.isArray(issues)
+    ? issues.filter((i): i is string => typeof i === 'string')
+    : [];
+  if (lines.length > 0) return lines;
   return [typeof e?.message === 'string' ? e.message : String(err)];
 }
