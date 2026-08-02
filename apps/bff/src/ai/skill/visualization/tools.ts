@@ -57,6 +57,7 @@ import { buildDeployment } from '../../../logic/oap/deployment.js';
 import { buildInstanceTopology } from '../../../logic/oap/instance-topology.js';
 import { buildEndpointDependency } from '../../../logic/oap/endpoint-dependency.js';
 import { zipkinFetchServices, zipkinFetchTraces } from '../../../client/zipkin.js';
+import { overFetchSize, takeOverFetched } from '../../../logic/paging/read-page.js';
 // Reuse the exported list fetchers so a captured triage block freezes the EXACT
 // response the interactive route produces (no re-derived query, no drift). They
 // take a resolved serviceId + OAP-local window and reach OAP only through
@@ -813,20 +814,22 @@ export function visualizationTools(ctx: AiRequestContext): StructuredToolInterfa
       const zopts = { queryUrl: oap.zipkinUrl, timeoutMs: oap.timeoutMs, auth: oap.auth, fetch: ctx.fetch };
       // Freeze the Zipkin list WITH spans so the waterfall replays offline.
       let replayData: ZipkinTraceListResponse;
+      const cap = Math.min(TRACE_CAP, ctx.config.current.performance.limits.maxPageSize.traces);
       try {
-        const rows = await zipkinFetchTraces(
+        const fetched = await zipkinFetchTraces(
           zopts,
           {
             serviceName: service,
             endTs: ctx.range.endMs,
             lookback: ctx.range.endMs - ctx.range.startMs,
-            limit: Math.min(TRACE_CAP, ctx.config.current.performance.limits.maxPageSize.traces),
+            limit: overFetchSize(cap),
           },
           true,
         );
-        replayData = { source: 'zipkin', traces: rows, reachable: true };
+        const { rows, hasNext } = takeOverFetched(fetched, cap);
+        replayData = { source: 'zipkin', traces: rows, hasNext, reachable: true };
       } catch (err) {
-        replayData = { source: 'zipkin', traces: [], reachable: false, error: err instanceof Error ? err.message : String(err) };
+        replayData = { source: 'zipkin', traces: [], hasNext: false, reachable: false, error: err instanceof Error ? err.message : String(err) };
       }
       ctx.emitZipkinTraces({
         title: title || `Zipkin traces — ${service}`,

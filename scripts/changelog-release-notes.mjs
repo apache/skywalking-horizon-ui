@@ -28,17 +28,18 @@
  *
  * Why this exists — the two markdown contexts render newlines differently:
  *   - A `.md` file viewed in a repo renders as CommonMark, where a single
- *     newline inside a paragraph is a SOFT break → collapsed to a space, so
- *     the hard-wrapped CHANGELOG reflows to the container width and looks fine.
+ *     newline inside a paragraph is a SOFT break → collapsed to a space, so a
+ *     hard-wrapped paragraph reflows to the container width and looks fine —
+ *     which is why the damage below is invisible in the repo file view.
  *   - A GitHub *Release* body (like issues/PR comments) renders with GFM
  *     hard-line-breaks ON, where every single newline becomes a literal
- *     `<br>`. Feeding the ~80-col hard-wrapped CHANGELOG straight in produces
- *     a ragged column of short lines with a sea of right-hand whitespace.
- * So the committed CHANGELOG stays hard-wrapped (clean diffs, easy editing)
- * and this script joins each paragraph / list item onto a single physical
- * line for the release body, while preserving the block structure that DOES
- * depend on newlines: blank lines, headings, list markers + indentation,
- * code fences, blockquotes, tables, thematic breaks, and HTML blocks.
+ *     `<br>`. Feeding a hard-wrapped section straight in produces a ragged
+ *     column of short lines with a sea of right-hand whitespace.
+ * The committed CHANGELOG is therefore written one physical line per paragraph
+ * / list item, and this script is the backstop that joins any that were wrapped
+ * anyway, while preserving the block structure that DOES depend on newlines:
+ * blank lines, headings, list markers + indentation, code fences, blockquotes,
+ * tables, thematic breaks, and HTML blocks.
  */
 
 import { readFileSync } from 'node:fs';

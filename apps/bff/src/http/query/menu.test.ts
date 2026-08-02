@@ -95,6 +95,10 @@ const overviewCfg = (id: string, title: string): string =>
   serializeEnvelope(buildEnvelope('overview', id, { id, title, widgets: [] }));
 const zhOverlayCfg = (key: string, alias: string): string =>
   serializeEnvelope(buildOverlayEnvelope('layer', key, 'zh-CN', { alias }));
+/** A record whose NAME and CONTENT were written independently — `buildEnvelope`
+ *  derives one from the other, which is the agreement under test. */
+const misfiledCfg = (name: string, content: unknown): string =>
+  JSON.stringify({ name, kind: 'layer', version: 1, content });
 
 function templateClient(store: Store): () => UITemplateClient {
   return () =>
@@ -140,6 +144,15 @@ async function menuKeys(store: Store): Promise<string[]> {
   // Proves we assert against the normal path, not the OAP-down skeleton.
   expect(body.oap.reachable).toBe(true);
   return body.layers.map((l) => l.key);
+}
+
+/** The full sidebar entry the menu served for `key`, or undefined. */
+async function menuLayer(store: Store, key: string) {
+  const { app, sid } = await build(store);
+  const res = await get(app, sid);
+  await app.close();
+  expect(res.statusCode).toBe(200);
+  return (res.json() as MenuResponse).layers.find((l) => l.key === key);
 }
 
 /** Menu-specific warn lines (sync.ts logs its own conflict line too). */
@@ -232,6 +245,55 @@ describe('menu — a duplicated layer template is not navigable', () => {
     ]);
     expect(keys).toContain('general');
     expect(hiddenWarns()).toHaveLength(0);
+  });
+
+  it('takes no layer definition from a record that is not that layer', async () => {
+    // The record is named GENERAL and holds a K8S template. Reading it would
+    // put K8S's alias and capabilities on the General entry — the sidebar
+    // saying one thing while every page under it answers as another.
+    const general = await menuLayer(
+      [
+        row(
+          'impostor',
+          misfiledCfg('horizon.layer.GENERAL', {
+            key: 'K8S',
+            alias: 'Kubernetes',
+            slots: { services: 'Workloads' },
+            components: { service: true },
+          }),
+        ),
+      ],
+      'general',
+    );
+
+    expect(general).toBeDefined();
+    // The in-code default for GENERAL, not the record's.
+    expect(general?.name).toBe('General');
+    expect(general?.slots?.services).toBe('Services');
+  });
+
+  it('keeps a bundled layer in the sidebar when its record turns out to be another layer', async () => {
+    // K8S is not in this OAP's active list, so its sidebar entry can only come
+    // from the template rows. The layer is real and renders from the in-code
+    // defaults — one stray record must not take it out of the nav.
+    const keys = await menuKeys([
+      row('impostor', misfiledCfg('horizon.layer.K8S', { key: 'GENERAL', components: { service: true } })),
+    ]);
+
+    expect(keys).toContain('k8s');
+  });
+
+  it('invents no sidebar entry from a record stored under a name no reader computes', async () => {
+    // `horizon.layer.a_custom_layer` is a name nothing addresses. Ordering the
+    // menu by the row keys used to give it an entry of its own, routing into a
+    // layer that exists in neither OAP nor the bundle.
+    const keys = await menuKeys([
+      row('lower', misfiledCfg('horizon.layer.a_custom_layer', { key: 'A_CUSTOM_LAYER', components: { service: true } })),
+      row('general-1', layerCfg('GENERAL', 'General Service')),
+    ]);
+
+    expect(keys).not.toContain('a_custom_layer');
+    expect(keys).toContain('general');
   });
 
   it('names the hidden layer in one warn, not one per sidebar poll', async () => {

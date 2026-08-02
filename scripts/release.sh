@@ -302,7 +302,9 @@ note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
 # commit about to be tagged. Checking the caller's tree instead can pass here
 # while the tagged tree carries no section at all, or still carries the stub.
 # Cheapest gate in the battery, so it runs first.
-if ! grep -q "^## ${RELEASE_VERSION}$" "${CLONE_DIR}/CHANGELOG.md"; then
+# -Fx, not a regex: the dots in a version are wildcards, so `## 1.0.0` as a
+# pattern also accepts a heading like `## 1x0x0`.
+if ! grep -Fxq "## ${RELEASE_VERSION}" "${CLONE_DIR}/CHANGELOG.md"; then
     err "CHANGELOG.md on the release commit has no '## ${RELEASE_VERSION}' section heading."
     err "Land that section on ${REPO_BRANCH} first — this clone is what gets tagged and shipped."
     exit 1

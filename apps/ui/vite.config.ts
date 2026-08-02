@@ -34,7 +34,23 @@ const UI_DEV_PORT = Number(process.env.UI_DEV_PORT ?? 9091);
 // BFF serves the built UI directly on its single configured port.
 const BFF_PORT = Number(process.env.BFF_PORT ?? 8081);
 
-export default defineConfig({
+// Deploy sub-path, baked into the bundle at BUILD time — it becomes
+// `import.meta.env.BASE_URL`, which the router history, every API call and
+// every asset URL resolve against. `HORIZON_UI_BASE=/horizon/ pnpm package`
+// therefore produces an artifact for a gateway that serves Horizon at
+// `/horizon/` and strips that prefix before forwarding to the BFF (the BFF
+// itself always answers at the root). Build-only on purpose: the dev proxy
+// below keys on a literal `/api`, so a prefixed dev server would send its
+// API calls somewhere the proxy doesn't match.
+const UI_BASE = ((): string => {
+  const raw = process.env.HORIZON_UI_BASE?.trim();
+  if (!raw) return '/';
+  const trimmed = raw.replace(/^\/+|\/+$/g, '');
+  return trimmed ? `/${trimmed}/` : '/';
+})();
+
+export default defineConfig(({ command }) => ({
+  base: command === 'build' ? UI_BASE : '/',
   plugins: [
     // TresJS's template-compiler options tell Vue that any `<Tres*>` tag
     // (TresMesh, TresPerspectiveCamera, …) is a custom element handled
@@ -60,4 +76,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

@@ -320,6 +320,9 @@ const hasQueried = ref(false);
 const errorMsg = ref<string | null>(null);
 const native = ref<NativeTraceListResponse | null>(null);
 const zipkinRows = ref<ZipkinTraceListRow[]>([]);
+/** The chosen limit held back at least one more row. Neither backend reports a
+ *  total, so this is the only honest "there is more" signal on this page. */
+const capped = ref(false);
 const resolved = ref<ExploreResolved | null>(null);
 const showResolved = ref(false);
 
@@ -385,6 +388,7 @@ async function runQuery(): Promise<void> {
   brushedKeys.value = [];
   native.value = null;
   zipkinRows.value = [];
+  capped.value = false;
   resolved.value = null;
   const zipkin = traceSource.value === 'zipkin';
   const req = zipkin ? buildZipkinRequest() : buildNativeRequest();
@@ -393,11 +397,13 @@ async function runQuery(): Promise<void> {
     if (res.kind === 'trace' && res.traceSource === 'native') {
       native.value = res.native;
       zipkinRows.value = [];
+      capped.value = res.native.hasNext;
       resolved.value = res.resolved;
       if (!res.native.reachable) errorMsg.value = res.native.error ?? t('OAP unreachable');
     } else if (res.kind === 'trace' && res.traceSource === 'zipkin') {
       zipkinRows.value = res.zipkin.traces;
       native.value = null;
+      capped.value = res.zipkin.hasNext;
       resolved.value = res.resolved;
       if (!res.zipkin.reachable) errorMsg.value = res.zipkin.error ?? t('OAP unreachable');
     }
@@ -405,6 +411,7 @@ async function runQuery(): Promise<void> {
     errorMsg.value = e instanceof Error ? e.message : String(e);
     native.value = null;
     zipkinRows.value = [];
+    capped.value = false;
   } finally {
     running.value = false;
   }
@@ -714,6 +721,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPageKeyDown, true)
           <header class="iq-list-head">
             <h4>{{ isSegmentList ? t('Segments') : t('Traces') }}</h4>
             <span class="hint">{{ displayRows.length }}<template v-if="brushedKeys.length"> / {{ rows.length }}</template> {{ isSegmentList ? t('segments') : t('traces') }}</span>
+            <span v-if="capped" class="hint">{{ t('capped at {n} — narrow the window', { n: rows.length }) }}</span>
             <button v-if="brushedKeys.length" type="button" class="iq-brush-clear" @click="clearBrush">{{ t('clear') }}</button>
           </header>
           <TraceListPanel

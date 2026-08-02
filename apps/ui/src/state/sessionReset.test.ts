@@ -316,7 +316,7 @@ describe('resetSessionState — the 3D infrastructure map', () => {
 
   function alarmsResponse(names: string[]): AlarmsResponse {
     return {
-      total: names.length,
+      returned: names.length,
       pageNum: 1,
       pageSize: 500,
       truncated: false,

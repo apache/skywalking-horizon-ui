@@ -20,7 +20,8 @@
   The 3D-map config is a singleton template kind (`horizon.infra-3d.config`)
   on the same bundled → local(browser) → remote(OAP) machinery as the layer
   / overview dashboards: edits save to a browser-local draft, "Check diff &
-  push" publishes to OAP, and the map renders the remote (bundled fallback).
+  push" publishes to OAP, and the map renders the remote copy only — the
+  bundle is the seed / reset source here, not a render-time fallback.
 
   Sections (top-to-bottom):
     1. Header — source pill + sync badge + Reset menu (to remote / to

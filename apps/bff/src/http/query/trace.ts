@@ -53,6 +53,13 @@ import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import {  graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import {
+  overFetchSize,
+  readPage,
+  takeOverFetched,
+  type OapPaging,
+  type PagedQuerySpec,
+} from '../../logic/paging/read-page.js';
 import { tracesConfigFor } from '../../logic/layers/loader.js';
 import { resolveEffectiveLayer } from '../../logic/layers/effective.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
@@ -66,7 +73,8 @@ export interface TraceRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serve the in-use (remote-or-bundled) config. */
+  /** OAP UI-template client — serve the in-use REMOTE config (blocked /
+   *  in-code defaults when there is none; see `resolveEffectiveLayer`). */
   uiTemplateClient?: () => UITemplateClient;
 }
 
@@ -132,25 +140,31 @@ export interface TraceListBody {
   previewConfig?: string;
 }
 
-const QUERY_BASIC_TRACES = /* GraphQL */ `
-  query QueryBasicTraces($condition: TraceQueryCondition) {
-    data: queryBasicTraces(condition: $condition) {
-      traces {
+/** `TraceBrief` carries `traces` + `debuggingTrace` — no total and no
+ *  has-more, so the "capped" signal comes from the over-fetch seam. */
+const BASIC_TRACES_PAGE: PagedQuerySpec = {
+  operationName: 'QueryBasicTraces',
+  conditionType: 'TraceQueryCondition',
+  field: 'queryBasicTraces',
+  rowsField: 'traces',
+  rowsSelection: `
         key: segmentId
         endpointNames
         duration
         start
         isError
-        traceIds
-      }
-    }
-  }
-`;
+        traceIds`,
+  probeSelection: 'segmentId',
+};
 
-const QUERY_TRACES = /* GraphQL */ `
-  query QueryTraces($condition: TraceQueryCondition) {
-    data: queryTraces(condition: $condition) {
-      traces {
+/** `Trace` exposes only `spans` + `debuggingTrace`, so the probe row is a whole
+ *  trace's span array — select one scalar per span and nothing else. */
+const TRACES_PAGE: PagedQuerySpec = {
+  operationName: 'QueryTraces',
+  conditionType: 'TraceQueryCondition',
+  field: 'queryTraces',
+  rowsField: 'traces',
+  rowsSelection: `
         spans {
           traceId
           segmentId
@@ -176,11 +190,9 @@ const QUERY_TRACES = /* GraphQL */ `
             tags { key value }
             summary { key value }
           }
-        }
-      }
-    }
-  }
-`;
+        }`,
+  probeSelection: 'spans { spanId }',
+};
 
 /* `duration` is BanyanDB-only and optional. When the caller passes a
  * window (start/end/step), OAP scopes the trace lookup to that window
@@ -227,7 +239,7 @@ function buildTraceCondition(
   resolvedServiceId: string | null,
   w: { start: string; end: string },
   coldStage: boolean,
-  maxPageSize: number,
+  paging: OapPaging,
 ) {
   return {
     ...(resolvedServiceId ? { serviceId: resolvedServiceId } : {}),
@@ -245,13 +257,7 @@ function buildTraceCondition(
     },
     traceState: (body.traceState ?? 'ALL') as TraceQueryState,
     queryOrder: (body.queryOrder ?? 'BY_START_TIME') as TraceQueryOrder,
-    paging: {
-      pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
-      // OAP forwards `pageSize` straight to storage as a LIMIT
-      // (PaginationUtils.java). The UI picker caps at 200; mirror that
-      // server-side so the cap holds against direct API callers.
-      pageSize: clampPageSize(body.pageSize, 20, maxPageSize),
-    },
+    paging,
   };
 }
 
@@ -275,16 +281,22 @@ export async function fetchNativeList(
   // `TraceQueryCondition.serviceId` is nullable, so the query would widen to
   // every service in the window and the rows would read as this service's.
   if (scope.kind === 'incomplete') {
-    return { source: 'native', api, traces: [], reachable: false, error: scope.message };
+    return { source: 'native', api, traces: [], hasNext: false, reachable: false, error: scope.message };
   }
   const serviceId = scope.kind === 'service' ? scope.service.id : null;
-  const condition = buildTraceCondition(body, serviceId, window, coldStage, maxPageSize);
+  // OAP forwards `pageSize` straight to storage as a LIMIT
+  // (PaginationUtils.java). The UI picker caps at 200; mirror that server-side
+  // so the cap holds against direct API callers.
+  const paging: OapPaging = {
+    pageNum: Math.max(1, Math.round(body.pageNum ?? 1)),
+    pageSize: clampPageSize(body.pageSize, 20, maxPageSize),
+  };
+  const condition = (p: OapPaging): Record<string, unknown> =>
+    buildTraceCondition(body, serviceId, window, coldStage, p);
   try {
     if (api === 'queryTraces') {
-      const env = await graphqlPost<{
-        data: { traces: Array<{ spans: NativeSpan[] }> };
-      }>(opts, QUERY_TRACES, { condition });
-      const traces = (env.data?.traces ?? []).map((t) => {
+      const page = await readPage<{ spans: NativeSpan[] }>(opts, TRACES_PAGE, condition, paging);
+      const traces = page.rows.map((t) => {
         // v2 spans are flat across all segments; every segment's entry span
         // has parentSpanId === -1, so match the global root by its empty refs
         // (booster-ui does the same) — else a downstream callee can win.
@@ -301,21 +313,17 @@ export async function fetchNativeList(
           spans: t.spans,
         };
       });
-      return { source: 'native', api, traces, reachable: true };
+      return { source: 'native', api, traces, hasNext: page.hasNext, reachable: true };
     }
-    const env = await graphqlPost<{
-      data: {
-        traces: Array<{
-          key: string;
-          endpointNames: string[];
-          duration: number;
-          start: string;
-          isError: boolean;
-          traceIds: string[];
-        }>;
-      };
-    }>(opts, QUERY_BASIC_TRACES, { condition });
-    const traces = (env.data?.traces ?? []).map((t) => ({
+    const page = await readPage<{
+      key: string;
+      endpointNames: string[];
+      duration: number;
+      start: string;
+      isError: boolean;
+      traceIds: string[];
+    }>(opts, BASIC_TRACES_PAGE, condition, paging);
+    const traces = page.rows.map((t) => ({
       key: t.key,
       segmentId: t.key,
       endpointNames: t.endpointNames,
@@ -324,12 +332,13 @@ export async function fetchNativeList(
       isError: t.isError,
       traceIds: t.traceIds,
     }));
-    return { source: 'native', api, traces, reachable: true };
+    return { source: 'native', api, traces, hasNext: page.hasNext, reachable: true };
   } catch (err) {
     return {
       source: 'native',
       api,
       traces: [],
+      hasNext: false,
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
     };
@@ -350,23 +359,30 @@ export async function fetchNativeTraceSpans(opts: GraphqlOptions, traceId: strin
   }
 }
 
+/** Zipkin's `/api/v2/traces` takes a `limit` and no offset at all, so this can
+ *  only ever run the over-fetch half of the seam: ask limit+1, render limit,
+ *  and report `hasNext` as "capped". A Zipkin PAGER would need a
+ *  backwards-walking `endTs` cursor, which is a different feature. */
 export async function fetchZipkinList(
   opts: GraphqlOptions,
   body: TraceListBody,
   maxPageSize: number,
 ): Promise<ZipkinTraceListResponse> {
+  const limit = clampPageSize(body.pageSize, 20, maxPageSize);
   try {
-    const traces = await zipkinFetchTraces(opts, {
+    const fetched = await zipkinFetchTraces(opts, {
       serviceName: body.service,
       minDuration: body.minTraceDuration,
       maxDuration: body.maxTraceDuration,
-      limit: clampPageSize(body.pageSize, 20, maxPageSize),
+      limit: overFetchSize(limit),
     });
-    return { source: 'zipkin', traces, reachable: true };
+    const { rows, hasNext } = takeOverFetched(fetched, limit);
+    return { source: 'zipkin', traces: rows, hasNext, reachable: true };
   } catch (err) {
     return {
       source: 'zipkin',
       traces: [],
+      hasNext: false,
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
     };

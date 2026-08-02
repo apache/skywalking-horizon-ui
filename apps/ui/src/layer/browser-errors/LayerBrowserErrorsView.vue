@@ -195,7 +195,7 @@ const selectedPageId = ref('');
 const selectedPageLabel = ref('');
 const pageQuery = ref('');
 const pageLimit = ref(50);
-const { endpoints: pageList, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceRef, pageQuery, pageLimit, replay);
+const { endpoints: pageList, hasMore: pagesHasMore, isFetching: pagesLoading } = useLayerEndpoints(layerKey, serviceRef, pageQuery, pageLimit, replay);
 function pickPage(name: string): void {
   selectedPageId.value = pageList.value.find((p) => p.name === name)?.id ?? '';
   selectedPageLabel.value = name;
@@ -240,7 +240,7 @@ function applyConditions(): void {
   applied.value = snapshotConditions();
 }
 
-const { logs, total, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
+const { logs, hasNext, reachable, queryError, isFetching, refetch } = useLayerBrowserErrors(layerKey, {
   service: computed(() => applied.value.service),
   serviceVersionId: computed(() => applied.value.serviceVersionId),
   pagePathId: computed(() => applied.value.pagePathId),
@@ -292,8 +292,6 @@ watch(pageSize, () => {
 watch(logs, () => {
   closeExpanded();
 });
-
-const hasMorePages = computed(() => logs.value.length >= pageSize.value);
 
 const CATEGORY_ORDER = ['js', 'promise', 'vue', 'ajax', 'resource', 'unknown'] as const;
 type Cat = (typeof CATEGORY_ORDER)[number];
@@ -413,6 +411,7 @@ function loc(row: BrowserErrorRow): string {
             :endpoints="pageList"
             :selected="selectedPageLabel || null"
             :loading="pagesLoading"
+            :has-more="pagesHasMore"
             :placeholder="t('All pages')"
             @update:query="pageQuery = $event"
             @pick="pickPage"
@@ -559,10 +558,10 @@ function loc(row: BrowserErrorRow): string {
         </div>
 
         <div class="lg-pager">
-          <span class="hint">{{ t('page {page} · showing {shown} of {total} loaded', { page, shown: filteredLogs.length, total }) }}</span>
+          <span class="hint">{{ t('page {page} · showing {shown}', { page, shown: filteredLogs.length }) }}</span>
           <div v-if="!replay" class="lg-pager-ctrls">
             <button class="sw-btn small" type="button" :disabled="page <= 1 || isFetching" @click="page--">{{ t('Prev') }}</button>
-            <button class="sw-btn small" type="button" :disabled="!hasMorePages || isFetching" @click="page++">{{ t('Next') }}</button>
+            <button class="sw-btn small" type="button" :disabled="!hasNext || isFetching" @click="page++">{{ t('Next') }}</button>
           </div>
         </div>
       </div>

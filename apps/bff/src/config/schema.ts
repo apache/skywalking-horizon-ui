@@ -503,8 +503,11 @@ const performanceSchema = z
         // with a "narrow the scope" notice rather than drawn unreadably.
         topologyMaxNodes: z.number().int().positive().default(5000),
         topologyMaxEdges: z.number().int().positive().default(15000),
-        // Max RECORDS per request (the OAP storage LIMIT) for each event
-        // list — NOT a page count. The UI page-size picker maxes at the
+        // Max rows one page of each event list DISPLAYS — NOT a page count,
+        // and not the storage LIMIT to the row: every read fetches one row
+        // past the page it shows, which is the only way to know a next page
+        // exists (page 1 asks for size + 1; later pages ask for the page and
+        // a one-row probe beside it). The UI page-size picker maxes at the
         // same value, so a client can't out-ask the dropdown.
         maxPageSize: z
           .object({

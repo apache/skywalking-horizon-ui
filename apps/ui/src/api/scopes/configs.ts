@@ -44,7 +44,9 @@ export type TemplateKind =
  *  - `disabled`         — remote present but disabled on OAP; hidden
  *  - `remote-only`      — remote present, no matching bundled (operator
  *                          added a template the BFF doesn't ship)
- *  - `bundled-fallback` — remote absent at runtime; rendering bundled
+ *  - `bundled-fallback` — bundled present, remote absent. NOT a render
+ *                          source: the entry is dropped from the bundle and
+ *                          the page falls to its in-code default
  *  - `unknown`          — defensive; shouldn't appear */
 export type TemplateStatus =
   | 'synced'
@@ -78,8 +80,31 @@ export interface TemplateConflict {
   identical?: boolean;
 }
 
-/** Bundle-level sync envelope. When `unreachable`, all rows fall back to
- *  bundled and the admin pages render the global read-only banner. */
+/** An enabled OAP record that is not readable as the template it is stored as
+ *  — a layer key that isn't the canonical one, or content whose own `key` /
+ *  `id` names a different template than the record it sits in. Neither shape
+ *  renders: no layer dashboard, overview or sidebar entry is served from one.
+ *  Both still appear in the admin listings that build from stored names, as
+ *  ordinary rows. What differs is the REPAIR. A record under a name no page
+ *  computes has to be republished under the canonical name and this one retired
+ *  by id — the publish boundary refuses to write the non-canonical name at all.
+ *  A record under a name a page DOES compute also fills that name's Remote pane
+ *  in the editor (a `horizon.layer.GENERAL` row holding a K8S template opens as
+ *  GENERAL's remote copy), which is deliberate: its repair IS a push over that
+ *  same record. Neither surface says why, and that is what this row carries —
+ *  the record id and the reason, for the page banner. */
+export interface UnreadableTemplateRow {
+  /** OAP record id — what the operator needs to retire it on OAP. */
+  id: string;
+  name: string;
+  kind: TemplateKind;
+  /** Which of the two is wrong, and the readable form. Not translated: it
+   *  names template names and JSON fields. */
+  reason: string;
+}
+
+/** Bundle-level sync envelope. When `unreachable`, no layer / overview content
+ *  is served at all and the admin pages render the global read-only banner. */
 export interface BundleSyncStatus {
   /** `live` = OAP ui_template store is the source. `readonly` = local bundle
    *  only; the config surface is read-only. */
@@ -89,6 +114,8 @@ export interface BundleSyncStatus {
   generatedAt: number;
   badges: TemplateBadge[];
   conflicts: TemplateConflict[];
+  /** Absent on a bundle cached by an older Horizon — read as "none reported". */
+  unreadable?: UnreadableTemplateRow[];
 }
 
 export interface ConfigBundle {

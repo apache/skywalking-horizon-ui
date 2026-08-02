@@ -76,7 +76,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'v-prefixed tag to (re-)publish, e.g. v0.5.0. Leave empty for the most recent v* tag. Treated identically to a tag-push (GHCR + Docker Hub mirror).'
+        description: 'v-prefixed tag to PROMOTE, e.g. v0.5.0. Leave empty for the most recent v* tag. This run attaches the stable GHCR tags and mirrors to Docker Hub; the tag push itself published :<sha> only.'
         required: false
         default: ''
 
@@ -314,8 +314,9 @@ jobs:
           done
           echo "::notice::Published multi-arch manifest @sha=${SHA} (amd64+arm64)"
 
-      # ── Mirror to Docker Hub on `v*` tags only (push-tag OR a manual
-      # ── workflow_dispatch with a tag input — both set is_tag=true).
+      # ── Mirror to Docker Hub on a PROMOTION run only — a workflow_dispatch
+      # ── for a `v*` tag. A tag PUSH sets is_tag=true but not is_promote, so
+      # ── it publishes `:<sha>` to GHCR and mirrors nothing.
       #
       # `apache/skywalking-ui` is shared with booster-ui; Horizon's
       # release tags are `horizon-<v>` and the `latest` tag (Horizon

@@ -9,9 +9,9 @@ Registry: **GitHub Container Registry (GHCR)** at `ghcr.io/apache/skywalking-hor
 | Tag | Points at | Use case |
 |---|---|---|
 | `<40-char-sha>` | Exact commit. Immutable. | **Production.** Pin to a SHA so deploys are reproducible. |
-| `X.Y.Z` | Tagged release, produced from git tag `vX.Y.Z`. | Stable release. Same image as the SHA it was built from. |
-| `X.Y` | Latest patch on a minor line. Moves over time. | Track a minor release line. |
-| `latest` | Newest git `vX.Y.Z` tag. Moves. | Demos / dev only — do not pin production to `latest`. |
+| `X.Y.Z` | A released version. | Stable release. Same image as the SHA it was built from. |
+| `X.Y` | Latest released patch on a minor line. Moves over time. | Track a minor release line. |
+| `latest` | The newest released version. Moves. | Demos / dev only — do not pin production to `latest`. |
 | `main` | Head of `main`. Moves on every merge. | Smoke-test the development branch. |
 
 ```sh
@@ -20,6 +20,8 @@ docker pull ghcr.io/apache/skywalking-horizon-ui:<sha>
 ```
 
 The full commit SHA is the canonical, immutable identifier. Moving tags are conveniences that point at the same SHA-built image.
+
+Pushing a `vX.Y.Z` git tag publishes the `:<sha>` image only — that tag is a release *candidate* until the Apache release vote passes. The `X.Y.Z`, `X.Y` and `latest` tags, and the Docker Hub mirror, are attached afterwards, when the release is promoted. `latest` moves only if the promoted version is the highest one released, so publishing a patch on an older line never drags it backwards.
 
 ## Image layout
 

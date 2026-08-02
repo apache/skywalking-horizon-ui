@@ -53,6 +53,7 @@ import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
 import { graphqlPost, buildOapOpts } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import { overFetchSize, takeOverFetched } from '../../logic/paging/read-page.js';
 
 export interface AsyncProfileRouteDeps {
   config: ConfigSource;
@@ -244,7 +245,7 @@ export function registerAsyncProfileRoutes(
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = req.query as { serviceId?: string; service?: string; limit?: string };
-      const payload: AsyncProfilingTaskListResponse = { tasks: [], reachable: true };
+      const payload: AsyncProfilingTaskListResponse = { tasks: [], truncated: false, reachable: true };
       // `AsyncProfilerTaskListRequest.serviceId` is `ID!` — required, so a name
       // that arrived without its id has nothing valid to send. Refuse with the
       // reason rather than guess at an id or fire a malformed query.
@@ -256,8 +257,12 @@ export function registerAsyncProfileRoutes(
       try {
         const data = await graphqlPost<{
           asyncTaskList: { errorReason?: string; tasks: AsyncProfilingTaskListResponse['tasks'] };
-        }>(opts, GET_ASYNC_TASK_LIST, { request: { serviceId: scope.service.id, limit } });
-        payload.tasks = data.asyncTaskList?.tasks ?? [];
+        }>(opts, GET_ASYNC_TASK_LIST, {
+          request: { serviceId: scope.service.id, limit: overFetchSize(limit) },
+        });
+        const page = takeOverFetched(data.asyncTaskList?.tasks ?? [], limit);
+        payload.tasks = page.rows;
+        payload.truncated = page.hasNext;
         payload.errorReason = data.asyncTaskList?.errorReason;
         return reply.send(payload);
       } catch (err) {
@@ -353,7 +358,7 @@ export function registerAsyncProfileRoutes(
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
       const q = req.query as { serviceId?: string; service?: string; limit?: string };
-      const payload: PprofTaskListResponse = { tasks: [], reachable: true };
+      const payload: PprofTaskListResponse = { tasks: [], truncated: false, reachable: true };
       // `PprofTaskListRequest.serviceId` is nullable — same refusal as async.
       const scope = serviceScopeOf(q);
       if (scope.kind === 'incomplete') return reply.send(softErr(payload, scope.message));
@@ -363,8 +368,12 @@ export function registerAsyncProfileRoutes(
       try {
         const data = await graphqlPost<{
           pprofTaskList: { errorReason?: string; tasks: PprofTaskListResponse['tasks'] };
-        }>(opts, GET_PPROF_TASK_LIST, { request: { serviceId: scope.service.id, limit } });
-        payload.tasks = data.pprofTaskList?.tasks ?? [];
+        }>(opts, GET_PPROF_TASK_LIST, {
+          request: { serviceId: scope.service.id, limit: overFetchSize(limit) },
+        });
+        const page = takeOverFetched(data.pprofTaskList?.tasks ?? [], limit);
+        payload.tasks = page.rows;
+        payload.truncated = page.hasNext;
         payload.errorReason = data.pprofTaskList?.errorReason;
         return reply.send(payload);
       } catch (err) {

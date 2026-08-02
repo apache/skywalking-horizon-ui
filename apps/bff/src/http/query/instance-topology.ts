@@ -49,8 +49,8 @@ export interface InstanceTopologyRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — lets the route serve the in-use
-   *  (remote-or-bundled) topology config, matching the admin + sidebar. */
+  /** OAP UI-template client — lets the route serve the in-use REMOTE
+   *  topology config, matching the admin + sidebar. */
   uiTemplateClient?: () => UITemplateClient;
 }
 

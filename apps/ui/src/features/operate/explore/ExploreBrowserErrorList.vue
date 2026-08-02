@@ -30,6 +30,9 @@ const props = defineProps<{
   hasQueried: boolean;
   running: boolean;
   errorMsg: string | null;
+  /** The chosen limit held back at least one more row. OAP reports no total
+   *  for this query, so this only says there IS more. */
+  capped: boolean;
 }>();
 
 const emit = defineEmits<{ (e: 'select', row: BrowserErrorRow): void }>();
@@ -77,6 +80,7 @@ function browserRowKey(r: BrowserErrorRow, idx: number): string {
       <header class="iq-list-head">
         <h4>{{ t('Browser errors') }}</h4>
         <span class="hint">{{ props.rows.length }} {{ t('errors') }}</span>
+        <span v-if="props.capped" class="hint">{{ t('capped at {n} — narrow the window', { n: props.rows.length }) }}</span>
       </header>
       <div class="iq-stream-scroll">
         <div class="be-stream">

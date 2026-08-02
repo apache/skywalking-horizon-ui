@@ -244,6 +244,51 @@ describe('SessionStore background reaper', () => {
   });
 });
 
+describe('SessionStore TTL hot reload', () => {
+  it('re-evaluates an ALREADY-ISSUED session against a shortened TTL', () => {
+    let ttlMinutes = 60;
+    const store = new SessionStore({ ttlMinutes: () => ttlMinutes, reapIntervalMs: NO_REAP });
+    const { sid } = store.create('alice', ['admin']);
+
+    vi.advanceTimersByTime(30 * MINUTE);
+    expect(store.get(sid)?.sid).toBe(sid);
+
+    // The operator tightens the window after an incident. A store holding the
+    // boot-time TTL would keep honouring this sid for another half hour while
+    // the cookie it stamps says 15 minutes.
+    ttlMinutes = 15;
+
+    expect(store.get(sid)).toBeUndefined();
+    expect(store.size()).toBe(0);
+  });
+
+  it('re-evaluates an ALREADY-ISSUED session against a lengthened TTL', () => {
+    let ttlMinutes = 15;
+    const store = new SessionStore({ ttlMinutes: () => ttlMinutes, reapIntervalMs: NO_REAP });
+    const { sid } = store.create('alice', ['admin']);
+
+    vi.advanceTimersByTime(30 * MINUTE);
+    ttlMinutes = 60;
+
+    expect(store.touch(sid)?.sid).toBe(sid);
+  });
+
+  it('sweeps on the reloaded TTL, not the one captured at construction', () => {
+    let ttlMinutes = 60;
+    const store = new SessionStore({ ttlMinutes: () => ttlMinutes, reapIntervalMs: MINUTE });
+    store.create('alice', ['admin']);
+
+    vi.advanceTimersByTime(30 * MINUTE);
+    expect(store.size()).toBe(1);
+
+    ttlMinutes = 15;
+    vi.advanceTimersByTime(MINUTE);
+
+    // Nothing read the session, so only the reaper can account for its removal.
+    expect(store.size()).toBe(0);
+  });
+});
+
 describe('SessionStore.close', () => {
   it('stops the reaper and forgets every session', async () => {
     const store = new SessionStore({ ttlMinutes: 60, reapIntervalMs: MINUTE });

@@ -21,10 +21,12 @@
  * Runtime is remote-only: bundled disk overviews reach the UI only by
  * being synced INTO OAP (boot seed / admin reset) or via admin preview —
  * never as a render-time fallback. So overviews are enumerated from the
- * OAP rows: non-disabled remote rows win; admin-disabled overviews are
- * dropped (`null` for a single id). When the template store is
- * unreachable this returns empty / `null` — a deliberate feature block
- * (the UI shows the connectivity banner), not stale bundled config.
+ * OAP rows: the rows the sync layer marks effective win; admin-disabled
+ * ones, and ones whose content declares a different dashboard than the
+ * row they sit in, are dropped (`null` for a single id). When the
+ * template store is unreachable this returns empty / `null` — a
+ * deliberate feature block (the UI shows the connectivity banner), not
+ * stale bundled config.
  *
  * The direct overview routes (`GET /api/overview/dashboards` + `/:id`)
  * MUST go through this — `/:id` is the primary render path. Mirrors
@@ -61,7 +63,10 @@ export async function resolveEffectiveOverviews(
     if (sync.unreachable) return []; // template store down → blocked
     const out: OverviewDashboard[] = [];
     for (const row of sync.rows) {
-      if (row.kind !== 'overview' || row.status === 'disabled' || !row.remote) continue;
+      // `effective === 'remote'` drops the disabled rows AND the ones stored as
+      // a dashboard they do not contain — this list carries each dashboard's
+      // own `id`, so an unreadable row would enter it under someone else's.
+      if (row.kind !== 'overview' || row.effective !== 'remote' || !row.remote) continue;
       if (row.locale !== undefined) continue; // skip per-locale overlay rows
       const env = parseEnvelope(row.remote.configuration);
       if (env && isOverviewLike(env.content)) out.push(env.content);
@@ -83,7 +88,7 @@ export async function resolveEffectiveOverview(
     const row = sync.rows.find(
       (r) => r.name === formatName('overview', id) && r.kind === 'overview' && r.locale === undefined,
     );
-    if (!row || row.status === 'disabled' || !row.remote) return null;
+    if (!row || row.effective !== 'remote' || !row.remote) return null;
     const env = parseEnvelope(row.remote.configuration);
     return env && isOverviewLike(env.content) ? env.content : null;
   } catch {

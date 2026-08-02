@@ -49,8 +49,8 @@ export interface DeploymentRouteDeps {
   config: ConfigSource;
   sessions: SessionStore;
   fetch?: FetchLike;
-  /** OAP UI-template client — serves the in-use (remote-or-bundled)
-   *  config, matching the admin + sidebar. */
+  /** OAP UI-template client — serves the in-use REMOTE config, matching
+   *  the admin + sidebar. */
   uiTemplateClient?: () => UITemplateClient;
 }
 

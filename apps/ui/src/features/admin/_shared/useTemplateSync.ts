@@ -51,9 +51,17 @@ import type {
   TemplateConflict,
   TemplateKind,
   TemplateStatus,
+  UnreadableTemplateRow,
 } from '@/api/scopes/configs';
 
-export type BannerSeverity = 'unreachable' | 'readonly' | 'conflict' | 'diverged' | 'clean' | 'unknown';
+export type BannerSeverity =
+  | 'unreachable'
+  | 'readonly'
+  | 'conflict'
+  | 'unreadable'
+  | 'diverged'
+  | 'clean'
+  | 'unknown';
 
 export interface SyncBanner {
   severity: BannerSeverity;
@@ -156,6 +164,12 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
     return (s.conflicts ?? []).filter((c) => c.kind === opts.kind);
   });
 
+  const ownUnreadable = computed<UnreadableTemplateRow[]>(() => {
+    const s = status.value;
+    if (!s) return [];
+    return (s.unreadable ?? []).filter((u) => u.kind === opts.kind);
+  });
+
   // Read-only when OAP admin is unreachable (live mode, transient) OR the BFF
   // is deliberately in readonly template mode (rendering the local bundle).
   const readOnly = computed<boolean>(
@@ -239,6 +253,32 @@ export function useTemplateSync(opts: UseTemplateSyncOptions): UseTemplateSyncRe
         counts,
         localCount: localCount.value,
         conflicts: ownConflicts.value,
+      };
+    }
+    // Below the conflicts (those HIDE a working template) but above the
+    // diverged / clean summary: nothing renders an unreadable record, but the
+    // admin listings that build from stored names still show one as an
+    // ordinary row, so neither shape explains itself where it appears. This
+    // banner is where the record id and the reason meet the operator, and the
+    // id is what retiring one takes.
+    if (ownUnreadable.value.length > 0) {
+      const names = ownUnreadable.value
+        .map((u) => `${u.name} (${u.id}) — ${u.reason}`)
+        .join('; ');
+      return {
+        severity: 'unreadable',
+        message: t(
+          '{n} records on OAP are not readable as the template they are stored as — they render for nobody.',
+          ownUnreadable.value.length,
+          { named: { n: ownUnreadable.value.length } },
+        ),
+        detail: t(
+          'Affected: {names}. Horizon serves none of them and changes nothing on its own: republish each one so its stored name and its content agree, then retire the record left behind if the fix moved it to a different name.',
+          { names },
+        ),
+        counts,
+        localCount: localCount.value,
+        conflicts: [],
       };
     }
     const diverged = counts.diverged ?? 0;

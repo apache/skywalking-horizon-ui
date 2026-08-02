@@ -40,8 +40,13 @@ import type {
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
-import { graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
 import { serviceScopeOf } from '../../logic/oap/service-scope.js';
+import {
+  readPage,
+  type OapPaging,
+  type PagedQuerySpec,
+} from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface BrowserErrorsRouteDeps {
@@ -84,10 +89,7 @@ function defaultWindow(
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
-const QUERY_BROWSER_ERRORS = /* GraphQL */ `
-  query QueryBrowserErrorLogs($condition: BrowserErrorLogQueryCondition) {
-    data: queryBrowserErrorLogs(condition: $condition) {
-      logs {
+const BROWSER_ERROR_ROW_SELECTION = `
         service
         serviceVersion
         time
@@ -99,11 +101,18 @@ const QUERY_BROWSER_ERRORS = /* GraphQL */ `
         col
         stack
         errorUrl
-        firstReportedError
-      }
-    }
-  }
-`;
+        firstReportedError`;
+
+/** OAP's `BrowserErrorLogs` type carries a single `logs` field — no total and
+ *  no has-more, so paging facts come from the over-fetch seam. */
+const BROWSER_ERROR_PAGE: PagedQuerySpec = {
+  operationName: 'QueryBrowserErrorLogs',
+  conditionType: 'BrowserErrorLogQueryCondition',
+  field: 'queryBrowserErrorLogs',
+  rowsField: 'logs',
+  rowsSelection: BROWSER_ERROR_ROW_SELECTION,
+  probeSelection: 'time',
+};
 
 interface OapBrowserErrorRow {
   service: string;
@@ -140,10 +149,12 @@ export async function fetchBrowserErrors(
   opts: GraphqlOptions,
   scope: BrowserErrorScope,
   window: { start: string; end: string },
-  paging: { pageNum: number; pageSize: number },
+  paging: OapPaging,
   coldStage: boolean,
 ): Promise<BrowserErrorsResponse> {
-  const condition = {
+  // Curried over the resolved window so the page and its next-page probe read
+  // the same range.
+  const condition = (p: OapPaging): Record<string, unknown> => ({
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.serviceVersionId ? { serviceVersionId: scope.serviceVersionId } : {}),
     ...(scope.pagePathId ? { pagePathId: scope.pagePathId } : {}),
@@ -156,15 +167,16 @@ export async function fetchBrowserErrors(
       step: 'SECOND',
       ...(coldStage ? { coldStage: true } : {}),
     },
-    paging,
-  };
+    paging: p,
+  });
   try {
-    const env = await graphqlPost<{ data: { logs: OapBrowserErrorRow[] } }>(
+    const page = await readPage<OapBrowserErrorRow>(
       opts,
-      QUERY_BROWSER_ERRORS,
-      { condition },
+      BROWSER_ERROR_PAGE,
+      condition,
+      paging,
     );
-    const logs: BrowserErrorRow[] = (env.data?.logs ?? []).map((r) => ({
+    const logs: BrowserErrorRow[] = page.rows.map((r) => ({
       service: r.service,
       serviceVersion: r.serviceVersion,
       time: r.time,
@@ -182,14 +194,25 @@ export async function fetchBrowserErrors(
     // BanyanDB returns it per time-segment (each segment DESC, the segments
     // concatenated oldest-first), so a multi-segment result is not globally
     // ordered. Sort by the records' own `time` to guarantee a strictly
-    // newest-first stream.
+    // newest-first stream. The page boundary was already taken in OAP's own
+    // order upstream, so this only reorders WITHIN the page.
     logs.sort((a, b) => b.time - a.time);
-    return { generatedAt: Date.now(), query: {}, total: logs.length, logs, reachable: true };
+    return {
+      generatedAt: Date.now(),
+      query: {},
+      pageNum: page.pageNum,
+      pageSize: page.pageSize,
+      hasNext: page.hasNext,
+      logs,
+      reachable: true,
+    };
   } catch (err) {
     return {
       generatedAt: Date.now(),
       query: {},
-      total: 0,
+      pageNum: paging.pageNum,
+      pageSize: paging.pageSize,
+      hasNext: false,
       logs: [],
       reachable: false,
       error: err instanceof Error ? err.message : String(err),
@@ -222,6 +245,11 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         endMs: body.endMs,
       });
 
+      const paging: OapPaging = {
+        pageNum: Math.max(1, Math.round(body.page ?? 1)),
+        pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.browserLogs),
+      };
+
       // `BrowserErrorLogQueryCondition.serviceId` is nullable — a name left
       // without its id would list every browser app's JS errors.
       const scope = serviceScopeOf(body);
@@ -229,7 +257,8 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
         return reply.send({
           generatedAt: Date.now(),
           query: body,
-          total: 0,
+          ...paging,
+          hasNext: false,
           logs: [],
           reachable: false,
           error: scope.message,
@@ -246,10 +275,7 @@ export function registerBrowserErrorsRoute(app: FastifyInstance, deps: BrowserEr
           category: body.category,
         },
         window,
-        {
-          pageNum: Math.max(1, Math.round(body.page ?? 1)),
-          pageSize: clampPageSize(body.pageSize, 50, deps.config.current.performance.limits.maxPageSize.browserLogs),
-        },
+        paging,
         !!req.coldStage,
       );
       // Echo the operator's query (the shared helper returns an empty echo

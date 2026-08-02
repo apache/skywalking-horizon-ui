@@ -47,6 +47,7 @@ import { useLocalTemplateEdits, overviewEditName } from '@/controls/localTemplat
 import { usePreviewOverride } from '@/controls/previewOverride';
 import { useTemplateSources } from '@/features/admin/_shared/useTemplateSources';
 import { buildExportEnvelope, downloadJson, pickJsonFile, validateImport } from '@/features/admin/_shared/templatePortability';
+import { pushErrorLines } from '@/features/admin/_shared/pushError';
 import { useLayers } from '@/shell/useLayers';
 import SyncStatusBanner from '@/features/admin/_shared/SyncStatusBanner.vue';
 import { refreshConfigBundle } from '@/controls/configBundle';
@@ -639,7 +640,9 @@ async function pushToOap(): Promise<void> {
       }
       setFlash(t('Refetched after timeout — the push may have completed; please verify.'));
     } else {
-      setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('push failed'));
+      // The BFF's issue list, when it sent one — it names the field (or the
+      // name to publish under), which the bare transport message does not.
+      setFlash(t('error: {message}', { message: pushErrorLines(err).join(' · ') }));
     }
   } finally {
     saving.value = false;

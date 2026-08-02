@@ -81,6 +81,10 @@ export interface AsyncProfilingTaskCreationRequest {
 
 export interface AsyncProfilingTaskListResponse {
   tasks: AsyncProfilingTask[];
+  /** The service had at least one more task than the limit allowed. OAP's
+   *  task-list query reports no count, so this says there IS more, never how
+   *  much more. */
+  truncated: boolean;
   errorReason?: string;
   reachable: boolean;
   error?: string;
@@ -144,6 +148,10 @@ export interface PprofTaskCreationRequest {
 }
 export interface PprofTaskListResponse {
   tasks: PprofTask[];
+  /** The service had at least one more task than the limit allowed. OAP's
+   *  task-list query reports no count, so this says there IS more, never how
+   *  much more. */
+  truncated: boolean;
   errorReason?: string;
   reachable: boolean;
   error?: string;

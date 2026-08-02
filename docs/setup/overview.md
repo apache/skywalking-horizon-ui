@@ -68,7 +68,7 @@ For LDAP setup instead, see [Access Control → LDAP Backend](../access-control/
 From inside the unpacked binary directory:
 
 ```sh
-HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./static node server.js
+HORIZON_CONFIG=./horizon.yaml node server.js
 ```
 
 Horizon defaults to `127.0.0.1:8081`. For production, bind to `0.0.0.0` and put TLS termination in front:
@@ -111,7 +111,7 @@ Use source builds when you are developing Horizon itself:
 ```sh
 pnpm install
 pnpm package
-HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./dist/static node dist/server.js
+HORIZON_CONFIG=./horizon.yaml node dist/server.js
 ```
 
 ## Production checklist

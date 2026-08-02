@@ -518,11 +518,12 @@ export interface AlarmMessage {
   layerKey: string | null;
 }
 export interface AlarmsResponse {
-  total: number;
+  /** Rows on this page — NOT a cross-page total, which OAP does not expose. */
+  returned: number;
   pageNum: number;
   pageSize: number;
-  /** True iff `total === pageSize`. The page should warn the operator
-   *  that there may be more alarms than shown. */
+  /** OAP held more rows than the fetch allowed. The page warns the operator
+   *  to tighten the window; it does not say how many more. */
   truncated: boolean;
   generatedAt: number;
   msgs: AlarmMessage[];

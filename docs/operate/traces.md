@@ -45,7 +45,7 @@ All conditions are staged in the toolbar and only take effect on **Run query** �
 | Endpoint | Restrict to one endpoint. Defaults to All. A dropdown of the service's endpoints (capped at 50). |
 | Status | `ALL`, `SUCCESS`, or `ERROR` — the trace state. |
 | Order | `BY_START_TIME` (Newest) or `BY_DURATION` (Slowest). |
-| Limit | Cap on result rows: 30 by default. The server caps a single page at 200. |
+| Limit | Cap on result rows: 30 by default. The server caps a single page at 200. The list says when the window held more traces than the limit returned — there is no total on the wire, only "there is more". |
 | Time range | A rolling preset (Last 15 min through Last 24 hours) or a Custom… absolute start/end pair. |
 | Trace ID | Paste a known trace id to look it up directly. |
 | Duration range (ms) | Min–max trace duration, in milliseconds. |
@@ -104,7 +104,7 @@ When a layer enables Zipkin, the Zipkin tab queries an upstream Zipkin store thr
 | Min duration (ms) / Max duration (ms) | Duration bounds, entered in milliseconds. |
 | Annotations | Zipkin annotation query — `error` or `key=value` terms, AND-joined. |
 | Open trace ID | Paste a trace id to open it directly. |
-| Limit | Result cap: 10, 30, 50, 100, or 200. |
+| Limit | Result cap: 10, 30, 50, 100, or 200. The list says when the window held more traces than the limit returned. |
 | Time range | A lookback preset (Last 15 min through Last 24 hours) or a Custom range… absolute window. |
 
 As with the native tab, conditions are staged and only applied on **Run query**.

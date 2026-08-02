@@ -138,7 +138,7 @@ const cAnno = ref<string | null>(null);
 const hasQueried = ref<boolean>(false);
 const queryEnabled = computed(() => hasQueried.value);
 
-const { traces, isFetching, reachable, error, refetch } = useLayerZipkinTraces({
+const { traces, hasNext, isFetching, reachable, error, refetch } = useLayerZipkinTraces({
   serviceName: cService,
   remoteServiceName: cRemote,
   spanName: cSpan,
@@ -488,6 +488,11 @@ const visibleRows = computed<NativeTraceListRow[]>(() => {
         <header class="ztr-list-head">
           <span class="kicker">{{ t('Results') }}</span>
           <span class="hint">{{ t('{n} traces', { n: visibleRows.length }) }}</span>
+          <!-- Zipkin's list endpoint reports no count and takes no offset, so
+               the over-fetch is the only honest "there is more" signal. The
+               count is the FETCHED set: brushing the scatter filters the list
+               below, but it cannot change how many rows the query returned. -->
+          <span v-if="hasNext" class="hint">{{ t('capped at {n} — narrow the window', { n: nativeRows.length }) }}</span>
         </header>
         <div v-if="failed" class="banner err">
           <strong>{{ replay ? t('This Zipkin read failed when it was captured.') : t('Zipkin query failed.') }}</strong>

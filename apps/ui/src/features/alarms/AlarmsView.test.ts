@@ -93,7 +93,7 @@ function fakeBff() {
     if (path.endsWith('/endpoints')) return jsonResponse({ reachable: true, endpoints: [] });
     if (path === '/api/alarms') {
       return jsonResponse({
-        total: 0,
+        returned: 0,
         pageNum: 1,
         pageSize: 500,
         truncated: false,

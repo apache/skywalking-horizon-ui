@@ -560,30 +560,6 @@ function checkRegexRule(
   }
 }
 
-/** Overview KPI. `source: 'service-count'` reads the layer's service count
- *  and carries no MQE; every other KPI needs one (the loader DROPS a KPI
- *  that has neither). */
-const overviewKpiSchema = z
-  .object({
-    label: z.string().min(1),
-    mqe: z.string().min(1).optional(),
-    unit: z.string().optional(),
-    aggregation: aggregationSchema.optional(),
-    style: z.enum(['number', 'progress-bar']).optional(),
-    max: z.number().positive().optional(),
-    source: z.enum(['mqe', 'service-count']).optional(),
-  })
-  .strict()
-  .superRefine((k, ctx) => {
-    if ((k.source ?? 'mqe') === 'mqe' && !k.mqe) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['mqe'],
-        message: 'an mqe-source KPI requires a non-empty `mqe`',
-      });
-    }
-  });
-
 const OVERVIEW_WIDGET_TYPES = [
   'metric',
   'topology',
@@ -597,57 +573,149 @@ const OVERVIEW_WIDGET_TYPES = [
  *  `layer` or the loader drops it. */
 const OVERVIEW_LAYERLESS_WIDGETS: ReadonlySet<string> = new Set(['section-break', 'alarms']);
 
-const overviewWidgetSchema = z
-  .object({
-    id: z.string().min(1),
-    title: z.string().min(1),
-    tip: z.string().optional(),
-    layer: z.string().min(1).optional(),
-    type: z.enum(OVERVIEW_WIDGET_TYPES),
-    mqe: z.string().min(1).optional(),
-    unit: z.string().optional(),
-    aggregation: aggregationSchema.optional(),
-    cols: z.number().int().positive().optional(),
-    kpis: z.array(overviewKpiSchema).min(1).optional(),
-    showCount: z.boolean().optional(),
-    aggregateOnPage: z.boolean().optional(),
-    limit: z.number().int().positive().optional(),
-    rankBy: z
-      .object({ kpi: z.number().int().min(0).optional(), mqe: z.string().min(1).optional() })
-      .strict()
-      .optional(),
-    span: z.number().int().positive().optional(),
-    rowSpan: z.number().int().positive().optional(),
-  })
-  .strict()
-  .superRefine((w, ctx) => {
-    const issue = (path: string, message: string): void => {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
-    };
-    if (!OVERVIEW_LAYERLESS_WIDGETS.has(w.type) && !w.layer) {
-      issue('layer', `a "${w.type}" widget requires a \`layer\``);
-    }
-    // Below: what the renderer actually reads per type. A widget missing
-    // its payload field fires no query and renders a permanently empty
-    // cell; one carrying a field its type ignores is dead config.
-    if (w.type === 'metric' && !w.mqe) issue('mqe', 'a "metric" widget requires an `mqe`');
-    if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && !w.kpis) {
-      issue('kpis', `a "${w.type}" widget requires \`kpis\``);
-    }
-    if (OVERVIEW_LAYERLESS_WIDGETS.has(w.type) && w.kpis) {
-      issue('kpis', `a "${w.type}" widget renders no kpis`);
-    }
-  });
+/** The bounds the overview editor's own number inputs enforce. The renderer
+ *  clamps anything outside them rather than breaking, so these exist to keep a
+ *  hand-edited or imported file inside what the editor can express — and
+ *  because the publish boundary has always applied them. */
+const MAX_OVERVIEW_SPAN = 12;
+const MAX_OVERVIEW_LIMIT = 100;
+const MAX_OVERVIEW_WIDGETS = 64;
 
-export const overviewTemplateSchema = z
-  .object({
-    id: z.string().min(1),
-    title: z.string().min(1),
-    description: z.string().optional(),
-    visibility: z.enum(['public', 'operate']).optional(),
-    icon: z.string().min(1).optional(),
-    order: z.number().optional(),
-    layers: z.array(z.string().min(1)).optional(),
-    widgets: z.array(overviewWidgetSchema),
-  })
-  .strict();
+/**
+ * The overview schema, built twice from one body at the two completeness bars
+ * {@link buildLayerSchemas} describes — same reasoning, same line between
+ * MALFORMED and INCOMPLETE.
+ *
+ * `complete: true` — a bundled FILE: a KPI with no MQE, a metric widget with
+ * nothing to query, a blank title. Shipped config that can never render is a
+ * defect, so CI fails on it.
+ *
+ * `complete: false` — content on its way to OAP through the admin PUSH routes.
+ * The overview editor produces exactly those holes as ordinary work in
+ * progress: "add row" seeds a KPI with `mqe: ""`, choosing a separate ranking
+ * metric seeds `rankBy: { mqe: "" }`, removing the last KPI row leaves
+ * `kpis: []`, the layer select clears to "— any —", a new dashboard starts
+ * with no widgets at all, and every free-text field clears to `""`.
+ */
+function buildOverviewSchemas(complete: boolean) {
+  /** Free text that means nothing when empty. */
+  const text = complete ? z.string().min(1) : z.string();
+
+  /** Overview KPI. `source: 'service-count'` reads the layer's service count
+   *  and carries no MQE; every other KPI needs one (the loader DROPS a KPI
+   *  that has neither). */
+  const kpi = z
+    .object({
+      label: text,
+      mqe: text.optional(),
+      unit: z.string().optional(),
+      aggregation: aggregationSchema.optional(),
+      style: z.enum(['number', 'progress-bar']).optional(),
+      max: z.number().positive().optional(),
+      source: z.enum(['mqe', 'service-count']).optional(),
+    })
+    .strict()
+    .superRefine((k, ctx) => {
+      // A progress bar with no ceiling has no length to draw. The editor seeds
+      // `max` the moment the style is picked, so this holds at BOTH bars.
+      if (k.style === 'progress-bar' && k.max === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['max'],
+          message: 'a progress-bar KPI requires `max`',
+        });
+      }
+      if (!complete) return;
+      if ((k.source ?? 'mqe') === 'mqe' && !k.mqe) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['mqe'],
+          message: 'an mqe-source KPI requires a non-empty `mqe`',
+        });
+      }
+    });
+
+  const widget = z
+    .object({
+      id: z.string().min(1),
+      title: text,
+      tip: z.string().optional(),
+      layer: text.optional(),
+      type: z.enum(OVERVIEW_WIDGET_TYPES),
+      mqe: text.optional(),
+      unit: z.string().optional(),
+      aggregation: aggregationSchema.optional(),
+      cols: z.number().int().positive().optional(),
+      kpis: (complete ? z.array(kpi).min(1) : z.array(kpi)).optional(),
+      showCount: z.boolean().optional(),
+      aggregateOnPage: z.boolean().optional(),
+      limit: z.number().int().positive().max(MAX_OVERVIEW_LIMIT).optional(),
+      rankBy: z
+        .object({ kpi: z.number().int().min(0).optional(), mqe: text.optional() })
+        .strict()
+        .optional(),
+      span: z.number().int().positive().max(MAX_OVERVIEW_SPAN).optional(),
+      rowSpan: z.number().int().positive().max(MAX_OVERVIEW_SPAN).optional(),
+    })
+    .strict()
+    .superRefine((w, ctx) => {
+      const issue = (path: string, message: string): void => {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+      };
+      // Bundled bar only: what the renderer actually reads per type. A widget
+      // missing its payload field fires no query and renders a permanently
+      // empty cell — shipped that way it is a defect, half-authored it is the
+      // state the editor leaves between two keystrokes.
+      if (!complete) return;
+      if (!OVERVIEW_LAYERLESS_WIDGETS.has(w.type) && !w.layer) {
+        issue('layer', `a "${w.type}" widget requires a \`layer\``);
+      }
+      if (w.type === 'metric' && !w.mqe) issue('mqe', 'a "metric" widget requires an `mqe`');
+      if ((w.type === 'kpi-tile' || w.type === 'metric-composite') && !w.kpis) {
+        issue('kpis', `a "${w.type}" widget requires \`kpis\``);
+      }
+      if (OVERVIEW_LAYERLESS_WIDGETS.has(w.type) && w.kpis) {
+        issue('kpis', `a "${w.type}" widget renders no kpis`);
+      }
+    });
+
+  return z
+    .object({
+      id: z.string().min(1),
+      title: text,
+      description: z.string().optional(),
+      visibility: z.enum(['public', 'operate']).optional(),
+      icon: text.optional(),
+      order: z.number().optional(),
+      layers: z.array(text).optional(),
+      widgets: z
+        .array(widget)
+        .max(MAX_OVERVIEW_WIDGETS, `more widgets than one overview page renders (max ${MAX_OVERVIEW_WIDGETS})`),
+    })
+    .strict();
+}
+
+export const overviewTemplateSchema = buildOverviewSchemas(true);
+
+/**
+ * Overview content as the admin PUSH boundary accepts it — the counterpart of
+ * {@link layerTemplatePushSchema}, and for the same reason: `POST
+ * /api/admin/templates/save` is the step that makes a dashboard everyone's, so
+ * a hand-edited or imported one is rejected per-field there instead of being
+ * stored and breaking that page for every user.
+ *
+ * It validates FORMAT, and deliberately NOT completeness. A dashboard with a
+ * blank title, a widget with no `layer` or no MQE, a KPI list that is empty or
+ * whose rows carry no expression yet — all publish. That is the product
+ * decision, not an oversight: the editor is the only way most operators author
+ * a dashboard, half-authored is the normal state between two sessions of work,
+ * and a boundary that refused it would stop an operator from saving their own
+ * work in progress. An incomplete widget renders as an empty cell and can be
+ * finished later; a malformed one takes the page down for everyone, which is
+ * the only line drawn here.
+ *
+ * `apps/bff/src/http/admin/template-sync.test.ts` pins that with a payload of
+ * exactly those holes. Do not "fix" this into a completeness gate — tightening
+ * it is a product change, and the tests will say so.
+ */
+export const overviewTemplatePushSchema = buildOverviewSchemas(false);

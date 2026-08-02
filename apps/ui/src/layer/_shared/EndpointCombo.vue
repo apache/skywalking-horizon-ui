@@ -40,8 +40,11 @@ const props = withDefaults(
     showAll?: boolean;
     loading?: boolean;
     placeholder?: string;
+    /** More endpoints matched than the top-N list returned. OAP's endpoint
+     *  search reports no count, so this only says there ARE more. */
+    hasMore?: boolean;
   }>(),
-  { showAll: true, loading: false },
+  { showAll: true, loading: false, hasMore: false },
 );
 
 const { t } = useI18n();
@@ -108,6 +111,9 @@ function clear(): void {
       </li>
       <li v-if="endpoints.length === 0" class="cf-combo-empty">
         {{ loading ? t('searching…') : t('no matches') }}
+      </li>
+      <li v-else-if="hasMore" class="cf-combo-empty">
+        {{ t('more matches — narrow the keyword') }}
       </li>
     </ul>
   </div>

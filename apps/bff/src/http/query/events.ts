@@ -42,7 +42,12 @@ import type {
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { requireAuth } from '../../user/middleware.js';
-import { graphqlPost, buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import { buildOapOpts, type GraphqlOptions } from '../../client/graphql.js';
+import {
+  readPage,
+  type OapPaging,
+  type PagedQuerySpec,
+} from '../../logic/paging/read-page.js';
 import { fmtSecond, getServerOffsetMinutes } from '../../util/window.js';
 
 export interface EventsRouteDeps {
@@ -98,10 +103,7 @@ function resolveWindow(
   return { start: fmtSecond(startMs, offsetMinutes), end: fmtSecond(endMs, offsetMinutes) };
 }
 
-const QUERY_EVENTS = /* GraphQL */ `
-  query QueryEvents($condition: EventQueryCondition) {
-    data: queryEvents(condition: $condition) {
-      events {
+const EVENT_ROW_SELECTION = `
         uuid
         source { service serviceInstance endpoint }
         name
@@ -110,11 +112,18 @@ const QUERY_EVENTS = /* GraphQL */ `
         parameters { key value }
         startTime
         endTime
-        layer
-      }
-    }
-  }
-`;
+        layer`;
+
+/** OAP's `Events` type carries a single `events` field — no total and no
+ *  has-more, so paging facts come from the over-fetch seam. */
+const EVENT_PAGE: PagedQuerySpec = {
+  operationName: 'QueryEvents',
+  conditionType: 'EventQueryCondition',
+  field: 'queryEvents',
+  rowsField: 'events',
+  rowsSelection: EVENT_ROW_SELECTION,
+  probeSelection: 'uuid',
+};
 
 export interface OapEventRow {
   uuid: string;
@@ -200,16 +209,28 @@ async function fetchEvents(
   scope: EventScope,
   window: { start: string; end: string },
   order: EventOrder,
-  paging: { pageNum: number; pageSize: number },
+  paging: OapPaging,
   coldStage: boolean,
-): Promise<{ events: EventRow[]; reachable: boolean; error?: string }> {
+): Promise<{ events: EventRow[]; hasNext: boolean; reachable: boolean; error?: string }> {
   try {
-    const env = await graphqlPost<{ data: { events: OapEventRow[] } }>(opts, QUERY_EVENTS, {
-      condition: buildEventsCondition(scope, window, order, paging, coldStage),
-    });
-    return { events: mapAndSortEvents(env.data?.events ?? [], order), reachable: true };
+    const page = await readPage<OapEventRow>(
+      opts,
+      EVENT_PAGE,
+      (p) => buildEventsCondition(scope, window, order, p, coldStage),
+      paging,
+    );
+    return {
+      events: mapAndSortEvents(page.rows, order),
+      hasNext: page.hasNext,
+      reachable: true,
+    };
   } catch (err) {
-    return { events: [], reachable: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      events: [],
+      hasNext: false,
+      reachable: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -223,6 +244,7 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
     const order: EventOrder = body.order === 'ASC' ? 'ASC' : 'DES';
     const pageSize = clampPageSize(body.pageSize, 200, deps.config.current.performance.limits.maxPageSize.events);
 
+    const pageNum = Math.max(1, Math.round(body.page ?? 1));
     const res = await fetchEvents(
       opts,
       {
@@ -235,15 +257,16 @@ export function registerEventsRoute(app: FastifyInstance, deps: EventsRouteDeps)
       },
       window,
       order,
-      { pageNum: Math.max(1, Math.round(body.page ?? 1)), pageSize },
+      { pageNum, pageSize },
       !!req.coldStage,
     );
 
     return reply.send({
       generatedAt: Date.now(),
       query: body,
-      total: res.events.length,
+      pageNum,
       pageSize,
+      hasNext: res.hasNext,
       events: res.events,
       reachable: res.reachable,
       ...(res.error ? { error: res.error } : {}),

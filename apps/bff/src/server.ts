@@ -180,7 +180,7 @@ app.addHook('onSend', (_req, reply, payload, done) => {
   done(null, payload);
 });
 
-const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
+const sessions = new SessionStore({ ttlMinutes: () => source.current.session.ttlMinutes });
 const audit = new AuditLogger(source.current.audit.file, source.current.audit.enabled);
 await audit.open();
 // Wire-level OAP debug log (`debugLog` in horizon.yaml) — reads the live
