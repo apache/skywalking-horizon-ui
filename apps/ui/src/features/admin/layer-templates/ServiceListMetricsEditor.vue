@@ -29,11 +29,16 @@ import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import { fmtMetric } from '@/utils/formatters';
+import { nextFreeId } from './free-id';
 import { rowKey } from './row-key';
 
 const { t } = useI18n();
 const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
 defineProps<{ serviceLabel: string }>();
+
+/** The landing request accepts at most this many columns, and the push schema
+ *  refuses a template carrying more — so the add button stops here. */
+const MAX_COLUMNS = 10;
 
 function ensure(): NonNullable<AdminLayerTemplate['metrics']> {
   if (!config.value) config.value = {};
@@ -53,18 +58,34 @@ const metricsColumns = computed(() => {
   if (!m.columns) m.columns = [];
   return m.columns;
 });
+const atColumnCap = computed(() => metricsColumns.value.length >= MAX_COLUMNS);
 function addMetricColumn(): void {
   const m = ensure();
   if (!m.columns) m.columns = [];
-  m.columns.push({
-    metric: `metric_${m.columns.length + 1}`,
-    label: `Metric ${m.columns.length + 1}`,
-    aggregation: 'avg',
-  });
+  if (m.columns.length >= MAX_COLUMNS) return;
+  // Free index, not columns.length — add/delete/add otherwise re-mints a name a
+  // surviving column already holds, which the push validator refuses.
+  const id = nextFreeId('metric_', m.columns.map((c) => c.metric));
+  m.columns.push({ metric: id, label: `Metric ${id.slice('metric_'.length)}`, aggregation: 'avg' });
 }
 function deleteMetricColumn(i: number): void {
-  if (!config.value?.columns) return;
-  config.value.columns.splice(i, 1);
+  const m = config.value;
+  if (!m?.columns) return;
+  m.columns.splice(i, 1);
+  // An orderBy naming no surviving column is refused on push; drop it back to
+  // the implicit first-column sort the renderer already falls back to.
+  const sortKey = m.orderBy;
+  if (sortKey && !m.columns.some((c) => c.metric === sortKey)) m.orderBy = undefined;
+}
+/** Renaming the sorted-on column strands `orderBy` on an id no column carries
+ *  any more — the same shape the push validator refuses on delete, except the
+ *  select just blanks instead of showing the operator anything. Follow the
+ *  rename, since renaming the sort column is not a request to stop sorting. */
+function renameMetric(col: { metric: string }, e: Event): void {
+  const next = (e.target as HTMLInputElement).value;
+  const m = ensure();
+  if (m.orderBy === col.metric) m.orderBy = next || undefined;
+  col.metric = next;
 }
 // Number inputs clear to undefined, not "" — scale/precision are optional
 // numbers, so an empty string would serialize an invalid value into the saved
@@ -102,7 +123,15 @@ const effectiveOrderBy = computed(
     <div class="card-head">
       <h4>{{ t('Service list metrics') }}</h4>
       <span class="sub">{{ t('columns + default sort for the service list (picker zone)') }}</span>
-      <button class="sw-btn add" type="button" @click="addMetricColumn">{{ t('＋ Add column') }}</button>
+      <button
+        class="sw-btn add"
+        type="button"
+        :disabled="atColumnCap"
+        :title="atColumnCap ? t('The service list accepts at most {n} columns.', { n: MAX_COLUMNS }) : undefined"
+        @click="addMetricColumn"
+      >
+        {{ t('＋ Add column') }}
+      </button>
     </div>
     <div v-if="metricsModel" class="metrics-keys">
       <label>
@@ -131,8 +160,22 @@ const effectiveOrderBy = computed(
       </thead>
       <tbody>
         <tr v-for="(c, i) in metricsColumns" :key="rowKey(c)">
-          <td><input class="mono" v-model="c.metric" /></td>
-          <td><input v-model="c.label" /></td>
+          <td>
+            <input
+              class="mono"
+              :class="{ invalid: !c.metric.trim() }"
+              :title="!c.metric.trim() ? t('Required — a column with no id is refused on push.') : undefined"
+              :value="c.metric"
+              @input="renameMetric(c, $event)"
+            />
+          </td>
+          <td>
+            <input
+              v-model="c.label"
+              :class="{ invalid: !c.label.trim() }"
+              :title="!c.label.trim() ? t('Required — a column with no label is refused on push.') : undefined"
+            />
+          </td>
           <td><input v-model="c.unit" placeholder="—" /></td>
           <td>
             <select v-model="c.aggregation">
@@ -276,6 +319,11 @@ const effectiveOrderBy = computed(
 .metrics-table input.mono {
   font-family: var(--sw-mono);
   font-size: 11px;
+}
+/* `metric` / `label` are the one pair the push bar refuses empty. */
+.metrics-table input.invalid {
+  border-color: rgba(239, 68, 68, 0.55);
+  background: rgba(239, 68, 68, 0.08);
 }
 .metrics-table .sw-btn.danger {
   width: 26px;

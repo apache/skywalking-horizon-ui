@@ -39,6 +39,7 @@ import type {
   NodeRoleConfig,
   RolePairMetrics,
 } from '@skywalking-horizon-ui/api-client';
+import { nextFreeId } from './free-id';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import RoleMetricRow from './RoleMetricRow.vue';
@@ -83,15 +84,13 @@ function getSitList(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient'): Depl
   if (bucket === 'sitLinkServer') return t?.linkServerMetrics ?? [];
   return t?.linkClientMetrics ?? [];
 }
+function blankMetric(taken: readonly DeploymentMetricDef[]): DeploymentMetricDef {
+  const id = nextFreeId('metric_', taken.map((m) => m.id));
+  return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
+}
 function addMetric(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient'): void {
   const list = ensureDeploymentList(bucket);
-  list.push({
-    id: `metric_${list.length + 1}`,
-    label: `Metric ${list.length + 1}`,
-    mqe: '',
-    unit: '',
-    aggregation: 'avg',
-  });
+  list.push(blankMetric(list));
 }
 function removeMetric(bucket: 'sitNode' | 'sitLinkServer' | 'sitLinkClient', i: number): void {
   getSitList(bucket).splice(i, 1);
@@ -282,7 +281,7 @@ const deploymentRoles = computed<NodeRoleConfig[]>(() => config.value?.roles ?? 
 function addRole(): void {
   const t = ensure();
   if (!t.roles) t.roles = [];
-  t.roles.push({ key: `role_${t.roles.length + 1}`, label: '', main: false, nodeMetrics: [] });
+  t.roles.push({ key: nextFreeId('role_', t.roles.map((r) => r.key)), label: '', main: false, nodeMetrics: [] });
 }
 function removeRole(i: number): void {
   config.value?.roles?.splice(i, 1);
@@ -299,7 +298,7 @@ function ensureRoleMetrics(r: NodeRoleConfig): DeploymentMetricDef[] {
   return r.nodeMetrics;
 }
 function addRoleMetric(list: DeploymentMetricDef[]): void {
-  list.push({ id: `metric_${list.length + 1}`, label: `Metric ${list.length + 1}`, mqe: '', unit: '', aggregation: 'avg' });
+  list.push(blankMetric(list));
 }
 function removeRoleMetric(list: DeploymentMetricDef[], i: number): void {
   list.splice(i, 1);

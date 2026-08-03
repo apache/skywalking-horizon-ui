@@ -27,6 +27,7 @@
 import { computed, onMounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { TopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
+import { nextFreeId } from './free-id';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
@@ -64,15 +65,16 @@ function toggleInstance(): void {
   if (t.instanceTopology) delete t.instanceTopology;
   else t.instanceTopology = { nodeMetrics: [], linkServerMetrics: [], linkClientMetrics: [] };
 }
-function blankMetric(n: number): TopologyMetricDef {
-  return { id: `metric_${n + 1}`, label: `Metric ${n + 1}`, mqe: '', unit: '', aggregation: 'avg' };
+function blankMetric(taken: readonly TopologyMetricDef[]): TopologyMetricDef {
+  const id = nextFreeId('metric_', taken.map((m) => m.id));
+  return { id, label: `Metric ${id.slice('metric_'.length)}`, mqe: '', unit: '', aggregation: 'avg' };
 }
-function addNode(): void { ensure().nodeMetrics.push(blankMetric(nodeMetrics.value.length)); }
-function addServer(): void { ensure().linkServerMetrics!.push(blankMetric(serverMetrics.value.length)); }
-function addClient(): void { ensure().linkClientMetrics!.push(blankMetric(clientMetrics.value.length)); }
-function addInstNode(): void { ensure().instanceTopology!.nodeMetrics.push(blankMetric(instNodeMetrics.value.length)); }
-function addInstServer(): void { ensure().instanceTopology!.linkServerMetrics!.push(blankMetric(instServerMetrics.value.length)); }
-function addInstClient(): void { ensure().instanceTopology!.linkClientMetrics!.push(blankMetric(instClientMetrics.value.length)); }
+function addNode(): void { ensure().nodeMetrics.push(blankMetric(nodeMetrics.value)); }
+function addServer(): void { ensure().linkServerMetrics!.push(blankMetric(serverMetrics.value)); }
+function addClient(): void { ensure().linkClientMetrics!.push(blankMetric(clientMetrics.value)); }
+function addInstNode(): void { ensure().instanceTopology!.nodeMetrics.push(blankMetric(instNodeMetrics.value)); }
+function addInstServer(): void { ensure().instanceTopology!.linkServerMetrics!.push(blankMetric(instServerMetrics.value)); }
+function addInstClient(): void { ensure().instanceTopology!.linkClientMetrics!.push(blankMetric(instClientMetrics.value)); }
 function move(list: TopologyMetricDef[], i: number, dir: -1 | 1): void {
   const j = i + dir;
   if (j < 0 || j >= list.length) return;
