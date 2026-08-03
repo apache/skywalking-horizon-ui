@@ -106,6 +106,8 @@ The keys are the per-layer sub-tabs. `networkProfiling` and `podLogs` are also a
 
 The service-list picker on the layer landing page. Columns sortable, with one designated default sort.
 
+The block is also accepted as `layer-header` — what every bundled template authors — and as `metrics`, which is what a template exported from the editor carries. All three name the same thing; pick one per template.
+
 ```json
 "header": {
   "orderBy": "cpm",
@@ -135,12 +137,14 @@ The service-list picker on the layer landing page. Columns sortable, with one de
 
 | Field | Type | Notes |
 |---|---|---|
-| `orderBy` | string | `metric` value of the column that should sort by default. |
-| `columns[].metric` | string | Unique id for the column (referenced by `orderBy`). |
-| `columns[].label` | string | Column header label. |
+| `orderBy` | string, optional | `metric` value of the column that should sort by default. Omit it and the service list sorts by the first column; deleting the column it names clears it back to that default. |
+| `columns[].metric` | string | Unique id for the column (referenced by `orderBy`). Required, and must be non-empty. |
+| `columns[].label` | string | Column header label. Required, and must be non-empty. |
 | `columns[].mqe` | string | MQE expression evaluated per service. |
 | `columns[].unit` | string | Optional unit suffix. |
 | `columns[].aggregation` | `sum` \| `avg` | Aggregation across the time window. |
+
+At most **10** columns — the service list's query rejects more. Publishing is refused outright if two columns share a `metric`, if `orderBy` names no column, if a `metric` or `label` is empty, or if there are more than 10 columns. The editor holds you to the first two and the cap automatically, and marks an emptied `metric` or `label` invalid as you type.
 
 ## `dashboards`
 
