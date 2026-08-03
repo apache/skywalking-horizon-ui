@@ -205,7 +205,9 @@ const rbacSchema = z
         ],
         // Configures observability: dashboards, alarm rules, DSL/OAL,
         // diagnostics. Inherits viewer + platform reads so operators
-        // can verify their changes against live data.
+        // can verify their changes against live data. No reserved verb is
+        // granted here (see RESERVED_VERBS): granting one promises a
+        // capability now and silently confers it the day something enforces it.
         operator: [
           'metrics:read',
           'alarms:read',
@@ -227,13 +229,11 @@ const rbacSchema = z
           'dashboard:write',
           'alarm-setup:read',
           'alarm-rule:read',
-          'alarm-rule:write',
           'infra-3d:read',
           'rule:read',
           'rule:write',
           'rule:write:structural',
           'rule:delete',
-          'rule:debug',
           'live-debug:read',
           'live-debug:write',
           'profile:enable',

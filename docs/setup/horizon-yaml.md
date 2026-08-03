@@ -17,7 +17,7 @@ This page is the top-level map. Each subsection has its own detail page:
 | `query` | Per-request query limits (layer-landing service cap, Overview top-N). | [below](#query-limits) |
 | `sourceMaps` | In-memory source-map budgets + static mount for the Browser Logs tab. | [Browser Logs & Source Maps](../operate/browser-source-maps.md) |
 | `ai` | AI assistant: provider, model, credentials, prompt overrides, history cap. | [AI Assistant](../operate/ai-assistant.md) |
-| `performance` | How hard the BFF fans queries out to OAP, plus render / per-request record caps. | [below](#performance-tuning) |
+| `performance` | How hard the BFF fans queries out to OAP, plus render caps and the largest page a list may display. | [below](#performance-tuning) |
 | `layers` | Layers to hide from the sidebar. | [below](#excluded-layers) |
 
 ## Top-level shape

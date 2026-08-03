@@ -38,7 +38,6 @@ export const VERBS = {
   ruleWrite: 'rule:write',
   ruleWriteStructural: 'rule:write:structural',
   ruleDelete: 'rule:delete',
-  ruleDebug: 'rule:debug',
   dashboardRead: 'dashboard:read',
   dashboardWrite: 'dashboard:write',
   overviewRead: 'overview:read',
@@ -77,6 +76,28 @@ export const VERBS = {
 } as const;
 
 export type KnownVerb = (typeof VERBS)[keyof typeof VERBS];
+
+/**
+ * Declared, but nothing checks them: no route in `ROUTE_POLICY`, no in-handler
+ * check, no UI gate. Granting one neither opens nor closes anything today, so
+ * the Roles board renders them marked instead of as capabilities. They keep
+ * their names so a `horizon.yaml` that already lists one still validates, and
+ * so the name is stable if a capability ever binds to it.
+ *
+ * `alarm-rule:write` has nothing to bind to: OAP's alarm-rule catalog is
+ * read-only upstream (rules change in its YAML + watcher reload), so Horizon
+ * has no write to gate.
+ *
+ * `verb-enforcement.test.ts` re-derives this list from the policy sources —
+ * a verb that gains (or loses) an enforcement site fails the test until this
+ * list is updated.
+ */
+export const RESERVED_VERBS: readonly Verb[] = [
+  'alarm-rule:write',
+  'audit:read',
+  'role:write',
+  'user:write',
+];
 
 function matchOne(grant: Verb, required: Verb): boolean {
   if (grant === '*' || grant === 'admin') return true;

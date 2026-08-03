@@ -57,8 +57,12 @@ const KEYPATH_RE = /keypath=(?:'([^']*)'|"([^"]*)")/g;
 
 let failed = false;
 const missing = new Map();
+/** Every source file concatenated — the orphan check below tests membership
+ *  against this rather than re-parsing call shapes. */
+let allSource = '';
 for (const file of walk(SRC)) {
   const text = ' ' + readFileSync(file, 'utf8');
+  allSource += text;
   for (const m of text.matchAll(CALL_RE)) {
     const key = (m[1] ?? m[2]).replace(/\\'/g, "'").replace(/\\"/g, '"');
     if (key.length === 0 || enKeys.has(key)) continue;
@@ -79,6 +83,24 @@ if (missing.size > 0) {
   failed = true;
   console.error(`✗ ${missing.size} literal t() key(s) missing from en.json:`);
   for (const [key, file] of missing) console.error(`  ${JSON.stringify(key)} — ${file}`);
+}
+
+// 3. A key left in en.json that no source file mentions. The parity check
+//    below measures every other catalog AGAINST en.json, so an orphan in
+//    en.json itself is invisible to it — it simply propagates: the key looks
+//    "present everywhere" while nothing renders it. Membership is a plain
+//    substring test over the source, not the t() patterns above, because a key
+//    may be reached dynamically or split across lines; that keeps this a
+//    dead-weight check and not a second, stricter usage rule.
+//    REPORTS, does not fail: there is a standing backlog of ~80 such keys and
+//    a substring test cannot see a key reached only from outside apps/ui/src
+//    (a BFF-supplied label, a preset table). Blocking on it would stop CI on
+//    work that did not cause it. Triage the list, then make this fail.
+const orphans = [...enKeys].filter((k) => k !== '_comment' && !allSource.includes(k));
+if (orphans.length > 0) {
+  console.warn(`⚠ ${orphans.length} key(s) in en.json that no file under apps/ui/src mentions (not failing):`);
+  for (const k of orphans.slice(0, 5)) console.warn(`  orphan: ${JSON.stringify(k)}`);
+  if (orphans.length > 5) console.warn(`  … and ${orphans.length - 5} more`);
 }
 
 for (const f of readdirSync(LOCALES_DIR)) {

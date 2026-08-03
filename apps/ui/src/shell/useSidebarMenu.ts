@@ -101,7 +101,7 @@ export function useSidebarMenu() {
             { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
             { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
             { icon: 'trace', label: t('OAL · read-only'), to: '/operate/oal', verb: 'rule:read' },
-            { icon: 'download', label: t('Dump & restore'), to: '/operate/dsl/dump', verb: 'rule:read' },
+            { icon: 'download', label: t('Runtime-rule dump'), to: '/operate/dsl/dump', verb: 'rule:read' },
           ],
         },
         {
@@ -159,9 +159,10 @@ export function useSidebarMenu() {
   }
 
   /**
-   * Verb-filtered view of `sections`: rows with a `verb` the current user
-   * lacks are removed; rows without a `verb` always show; sections that
-   * end up empty are dropped so we don't render orphan headers.
+   * Verb-filtered view of `sections`: rows — and the sub-rows under an
+   * expandable one — with a `verb` the current user lacks are removed; rows
+   * without a `verb` always show; sections that end up empty are dropped so
+   * we don't render orphan headers.
    *
    * Hiding is a UX nicety — the BFF enforces the same verbs server-side,
    * so this is "don't show controls that won't work," not security.
@@ -173,7 +174,11 @@ export function useSidebarMenu() {
         .filter((r) => !r.verb || auth.hasVerb(r.verb))
         .map((r) => {
           const badge = syncBadgeFor(r.to);
-          return badge ? { ...r, badge } : r;
+          // L2 rows render inside the open L1 with no gate of their own, so
+          // the filter has to reach them here.
+          const children = r.children?.filter((c) => !c.verb || auth.hasVerb(c.verb));
+          if (!badge && !children) return r;
+          return { ...r, ...(badge ? { badge } : {}), ...(children ? { children } : {}) };
         });
       if (links.length === 0) continue;
       out.push({ kind: sec.kind, kicker: sec.kicker, links });

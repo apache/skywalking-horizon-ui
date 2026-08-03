@@ -319,7 +319,7 @@ function isLayerDiverged(key: string): boolean {
              hostname-driven (on for localhost, off elsewhere). A plain
              button, not a link, so clicks toggle rather than navigate. -->
         <button
-          v-if="entry.kicker === 'Admin'"
+          v-if="entry.kind === 'admin'"
           type="button"
           class="sw-nav-item sw-nav-toggle"
           :class="{ 'is-active': debugPanelEnabled }"

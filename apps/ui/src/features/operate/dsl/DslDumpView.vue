@@ -38,7 +38,7 @@ function dumpCatalog(c: Catalog): void {
   <div class="dump">
     <AdminFeatureWarning module="receiver-runtime-rule" :feature-label="t('Runtime-rule dump')" />
     <header class="dump__header">
-      <h1 class="dump__h1">{{ t('Dump & restore') }}</h1>
+      <h1 class="dump__h1">{{ t('Runtime-rule dump') }}</h1>
       <Pill tone="dim">{{ t('tar.gz') }}</Pill>
     </header>
 
@@ -70,16 +70,6 @@ function dumpCatalog(c: Catalog): void {
           {{ t('dump · {catalog}', { catalog: c }) }}
         </Btn>
       </div>
-    </section>
-
-    <section class="dump__section dump__section--disabled">
-      <header class="dump__sectionhead">
-        {{ t('restore') }}
-        <Pill tone="dim">{{ t('later release') }}</Pill>
-      </header>
-      <i18n-t keypath="OAP doesn't expose a restore endpoint yet. Operators recover from a dump by looping {endpoint} over each YAML file in the archive. A restore upload affordance will land here when the upstream API ships — see Studio's deferred-features memory." tag="p" class="dump__hint">
-        <template #endpoint><code>POST /runtime/rule/addOrUpdate</code></template>
-      </i18n-t>
     </section>
   </div>
 </template>
@@ -116,10 +106,6 @@ function dumpCatalog(c: Catalog): void {
   border: 1px solid var(--rr-border);
   border-radius: var(--rr-radius-md);
   padding: 16px 18px;
-}
-
-.dump__section--disabled {
-  opacity: 0.7;
 }
 
 .dump__sectionhead {
