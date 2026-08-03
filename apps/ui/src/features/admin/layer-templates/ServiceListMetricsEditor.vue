@@ -37,7 +37,9 @@ const config = defineModel<AdminLayerTemplate['metrics'] | undefined>('config');
 defineProps<{ serviceLabel: string }>();
 
 /** The landing request accepts at most this many columns, and the push schema
- *  refuses a template carrying more — so the add button stops here. */
+ *  refuses a template carrying more — so the add button stops here. Mirrors the
+ *  BFF's `MAX_HEADER_COLUMNS`, which cannot be imported across the package
+ *  boundary; bump both together. */
 const MAX_COLUMNS = 10;
 
 function ensure(): NonNullable<AdminLayerTemplate['metrics']> {
