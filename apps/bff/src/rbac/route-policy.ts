@@ -17,9 +17,13 @@
 
 /**
  * Single source of truth for the RBAC verb gating each route.
- *   - 'public' → no auth (login / logout / health).
- *   - 'auth'   → signed-in session, no verb (shell bootstrap routes).
- *   - '<verb>' → signed-in session + that verb grant.
+ *   - 'public'      → no auth (login / logout / health).
+ *   - 'auth'        → signed-in session, no verb (shell bootstrap routes).
+ *   - '<verb>'      → signed-in session + that verb grant.
+ *   - ['<verb>', …] → signed-in session + EVERY listed verb. A conjunction
+ *                     belongs here rather than in a handler check: the hook
+ *                     runs first, so a handler-side second verb is invisible
+ *                     to this table and to anything derived from it.
  * The `onRoute` hook (server.ts) attaches the matching pre-handler. A
  * missing `/api/*` entry hard-throws at boot — never silently open.
  */
@@ -31,7 +35,7 @@ import { requireAuth } from '../user/middleware.js';
 import { isTemplateReadOnly } from '../logic/templates/sync.js';
 import { logger } from '../logger.js';
 
-export type RoutePolicy = 'public' | 'auth' | string;
+export type RoutePolicy = 'public' | 'auth' | string | string[];
 
 /** A config-surface write. The template routes push to OAP's ui_template store
  *  (the alert page-setup rides this path too, as the `horizon.alert.page-setup`
@@ -60,18 +64,31 @@ export async function denyTemplateWriteWhenReadOnly(
 
 /**
  * Verb-only check. Assumes a prior pre-handler (`requireAuth`) has
- * already populated `req.session`; sends 401 if not.
+ * already populated `req.session`; sends 401 if not. Several verbs are a
+ * conjunction — all are required, and the first one the session lacks is the
+ * one reported back.
  */
-export function checkVerb(deps: AuthDeps, verb: string) {
+export function checkVerb(deps: AuthDeps, verb: string | readonly string[]) {
+  const required = typeof verb === 'string' ? [verb] : verb;
   return async function verbOnlyPreHandler(req: FastifyRequest, reply: FastifyReply): Promise<void> {
     const session = req.session;
     if (!session) {
       return void reply.code(401).send({ error: 'unauthenticated' });
     }
-    if (!sessionHasVerb(deps.config.current, session.roles, verb)) {
-      return void reply.code(403).send({ error: 'permission_denied', verb });
+    for (const v of required) {
+      if (!sessionHasVerb(deps.config.current, session.roles, v)) {
+        return void reply.code(403).send({ error: 'permission_denied', verb: v });
+      }
     }
   };
+}
+
+/** Two policy entries requiring the same thing. Conjunctions are distinct
+ *  array objects per key, so identity would read equal lists as a conflict. */
+function samePolicy(a: RoutePolicy, b: RoutePolicy): boolean {
+  const x = Array.isArray(a) ? a : [a];
+  const y = Array.isArray(b) ? b : [b];
+  return x.length === y.length && x.every((v, i) => v === y[i]);
 }
 
 /**
@@ -226,9 +243,15 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/rule':                                'rule:write',
   'POST /api/rule/inactivate':                     'rule:write',
   'POST /api/rule/delete':                         'rule:delete',
-  'GET /api/dump':                                 'rule:debug',
-  'GET /api/dump/:catalog':                        'rule:debug',
+  // Exporting rules is a READ — anything stricter here 403s a `rule:read` role
+  // from a button the DSL page renders as enabled, since this hook decides
+  // before the handler the page and the docs are written against.
+  'GET /api/dump':                                 'rule:read',
+  'GET /api/dump/:catalog':                        'rule:read',
 
+  // The live debugger is the whole of `live-debug:*`: watching a capture is
+  // `live-debug:read`, running one is `live-debug:write`. No rule verb is
+  // involved — a capture installs a debug hook, it does not edit a rule.
   'GET /api/debug/session/:id':                    'live-debug:read',
   'GET /api/debug/sessions':                       'live-debug:read',
   'GET /api/debug/status':                         'live-debug:read',
@@ -284,7 +307,7 @@ export function makeRouteAuthHook(deps: AuthDeps) {
       // explicitly. The policy table only carries GET entries.
       const p = ROUTE_POLICY[key] ?? (M === 'HEAD' ? ROUTE_POLICY[`GET ${route.url}`] : undefined);
       if (p === undefined) continue;
-      if (chosen !== null && chosen !== p) {
+      if (chosen !== null && !samePolicy(chosen, p)) {
         logger.warn(
           { url: route.url, methods, conflicting: [chosenKey, key] },
           'rbac: route registered for multiple methods with divergent policies; using the first',

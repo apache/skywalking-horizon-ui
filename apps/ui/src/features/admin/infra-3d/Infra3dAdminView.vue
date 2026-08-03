@@ -366,7 +366,7 @@ const stats = computed(() => {
         <span class="kicker">{{ t('Dashboard setup · 3D Infra Map') }}</span>
         <h1>{{ t('3D Infrastructure Map') }}</h1>
         <p class="lede">
-          <i18n-t keypath="Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the remote, with bundled defaults as fallback." tag="span" scope="global">
+          <i18n-t keypath="Config for the {mapPath} view, published to OAP. Levels control the vertical stack; per-layer color + metrics drive each cube. Edits save to a {localDraft}; {checkDiffPush} publishes to OAP — the map renders the OAP-published copy only, and reports an error when none can be read." tag="span" scope="global">
             <template #mapPath><code>/3d/map</code></template>
             <template #localDraft><strong>{{ t('local draft in this browser') }}</strong></template>
             <template #checkDiffPush><strong>{{ t('Check diff & push') }}</strong></template>

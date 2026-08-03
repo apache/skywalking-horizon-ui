@@ -52,7 +52,7 @@ What this means in practice:
 | Action | How |
 |---|---|
 | Add a user | Append to `local.users` in `horizon.yaml`. Hot-reload picks it up; no restart needed. |
-| Remove a user | Delete the entry. Existing sessions for that user are **not** invalidated immediately — they expire on their next request when the session lookup finds no matching active user (or just on session TTL). For immediate revocation, restart the BFF. |
+| Remove a user | Delete the entry. This stops them logging in again, but does **not** touch a session they already hold: nothing re-checks the user list on a request, so an existing session stays valid until they sign out, the session TTL elapses, or the BFF restarts. For immediate revocation, restart the BFF. |
 | Reset a password | Generate a new hash, replace `passwordHash`. The next login uses the new hash; existing sessions stay valid until TTL. |
 | Change a user's roles | Edit `roles`. Existing sessions retain **the role list captured at login time** — they will not pick up the change until re-login. New logins get the new role list. |
 

@@ -86,7 +86,7 @@ The Users page is **read-only**. To add a local user, edit `horizon.yaml`. To re
 ## Roles & Permissions
 
 **Path:** `/admin/roles`
-**Verb:** `role:read` (admin)
+**Verb:** `role:read` + `auth:read` (admin) — the board is drawn from the same status read as the Auth Status page, so a role granted only `role:read` reaches the page and gets a load failure.
 
 Renders a read-only board of roles × verbs as a check-mark grid. The intent is to answer "what can role X do?" without having to re-derive it from `horizon.yaml`.
 
@@ -94,7 +94,8 @@ Layout:
 
 - **Menu visibility matrix**: which sidebar destinations each role can see — sidebar item × role.
 - **Per-area cards**: one card per feature area (Data catalog, Platform monitoring, Layer dashboards, …). Each pairs a **scope** list (the screens that area governs) with an **Actions** grid of roles × capabilities, check-marked where the role holds the verb.
-- Any verb not yet placed in an area falls into an **Other** card, so nothing is silently dropped.
+- Capabilities that nothing enforces are marked **Reserved** — see [reserved verbs](rbac.md#reserved-verbs). A check mark on such a row still shows the grant the role holds; it just buys nothing.
+- Any verb not placed in an area falls into an **Other** card, so nothing is silently dropped.
 
 A red banner appears when `rbac.enabled: false` — the page warns that every authenticated session is granted `*`.
 
@@ -109,7 +110,7 @@ Read-only. To change roles, edit `rbac.roles` in `horizon.yaml`; hot-reload appl
 | `/operate/cluster` | `cluster:read` | maintainer, operator, admin |
 | `/admin/auth-status` | `auth:read` | (none built-in; assign explicitly) |
 | `/admin/users` | `user:read` | (none built-in; assign explicitly) |
-| `/admin/roles` | `role:read` | (none built-in; assign explicitly) |
+| `/admin/roles` | `role:read` + `auth:read` | (none built-in; assign explicitly) |
 | `/operate/inspect` | `inspect:read` | viewer, maintainer, operator, admin |
 | `/operate/trace-inspect` | `inspect:read` | viewer, maintainer, operator, admin |
 | `/operate/log-inspect` | `inspect:read` | viewer, maintainer, operator, admin |

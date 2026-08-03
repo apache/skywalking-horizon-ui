@@ -28,7 +28,11 @@
  *
  * The handler accepts a JSON body for input convenience (so the SPA
  * doesn't need to query-string-encode params) and translates to the
- * upstream's query-param shape on the wire. RBAC verb `rule:debug`.
+ * upstream's query-param shape on the wire.
+ *
+ * RBAC lives entirely in `ROUTE_POLICY`: the reads take `live-debug:read`,
+ * start / stop take `live-debug:write`. The `verb` field in the audit records
+ * below names the capability being exercised — it is a log field, not a check.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -45,8 +49,6 @@ import {
 import type { ConfigSource } from '../../config/loader.js';
 import type { AuditLogger } from '../../audit/logger.js';
 import { requireAuth } from '../../user/middleware.js';
-import { sessionHasVerb } from '../../rbac/policy.js';
-import type { Session } from '../../user/sessions.js';
 import type { SessionStore } from '../../user/sessions.js';
 import { resolveTargets } from '../../util/dns-fanout.js';
 import { buildOapClients, type OapClients } from '../../client/index.js';
@@ -76,7 +78,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     '/api/debug/session',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'rule:debug')) return;
       const parsed = parseStartArgs(req.body, reply);
       if (!parsed) return;
       try {
@@ -88,7 +89,7 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
           peers.reduce((n, p) => n + (p.stoppedCount ?? p.stoppedSessionIds?.length ?? 0), 0);
         deps.audit.record({
           action: 'debug.start',
-          verb: 'rule:debug',
+          verb: 'live-debug:write',
           actor: req.session?.username ?? null,
           outcome: 'ok',
           details: {
@@ -112,7 +113,7 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       } catch (err) {
         deps.audit.record({
           action: 'debug.start',
-          verb: 'rule:debug',
+          verb: 'live-debug:write',
           actor: req.session?.username ?? null,
           outcome: outcomeOf(err),
           details: {
@@ -133,7 +134,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     '/api/debug/session/:id',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'rule:debug')) return;
       const params = req.params as { id: string };
       if (!params.id) return reply.code(400).send({ error: 'missing_id' });
       try {
@@ -150,14 +150,13 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     '/api/debug/session/:id/stop',
     { preHandler: auth },
     async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'rule:debug')) return;
       const params = req.params as { id: string };
       if (!params.id) return reply.code(400).send({ error: 'missing_id' });
       try {
         const result = await clients().debug().stopSession(params.id);
         deps.audit.record({
           action: 'debug.stop',
-          verb: 'rule:debug',
+          verb: 'live-debug:write',
           actor: req.session?.username ?? null,
           outcome: 'ok',
           details: { sessionId: params.id, localStopped: result.localStopped },
@@ -168,7 +167,7 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       } catch (err) {
         deps.audit.record({
           action: 'debug.stop',
-          verb: 'rule:debug',
+          verb: 'live-debug:write',
           actor: req.session?.username ?? null,
           outcome: outcomeOf(err),
           details: { sessionId: params.id },
@@ -183,8 +182,7 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
   app.get(
     '/api/debug/sessions',
     { preHandler: auth },
-    async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!ensureVerb(req, reply, deps, 'rule:debug')) return;
+    async (_req: FastifyRequest, reply: FastifyReply) => {
       try {
         const list = await clients().debug().listSessions();
         return reply.send(list);
@@ -203,8 +201,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
     '/api/debug/status',
     { preHandler: auth },
     async (_req: FastifyRequest, reply: FastifyReply) => {
-      // Gated by `live-debug:read` in ROUTE_POLICY (the single source of truth);
-      // no extra in-handler verb so a caller doesn't need two grants.
       const c = clients();
       const targets = await resolveTargets(c.adminUrl());
       const nodes = await Promise.all(
@@ -225,24 +221,6 @@ export function registerDebugRoutes(app: FastifyInstance, deps: DebugRouteDeps):
       return reply.send(body);
     },
   );
-}
-
-function ensureVerb(
-  req: FastifyRequest,
-  reply: FastifyReply,
-  deps: DebugRouteDeps,
-  verb: string,
-): boolean {
-  const session: Session | undefined = req.session;
-  if (!session) {
-    reply.code(401).send({ error: 'unauthenticated' });
-    return false;
-  }
-  if (!sessionHasVerb(deps.config.current, session.roles, verb)) {
-    reply.code(403).send({ error: 'permission_denied', verb });
-    return false;
-  }
-  return true;
 }
 
 /** Validate the JSON body the SPA posts. Translates to the wire's

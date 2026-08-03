@@ -200,6 +200,7 @@ The map's loading stages run in batches, several requests at once. How aggressiv
 The defaults are tuned for a typical deployment; only revisit these if the loading timeline stalls on the Metrics, Topologies, or Templates step, or if OAP returns errors under the load.
 
 Viewing the map needs read access (`infra-3d:read`, held by the built-in
-viewer role and above); editing and publishing the configuration needs
+viewer role and above). A role without it does not get the topbar entry to
+the map at all. Editing and publishing the configuration needs
 `overview:write` (operators and admins by default). See
 [Roles and Permissions](../access-control/rbac.md).

@@ -73,6 +73,9 @@ export interface AuthStatus {
     roles: Record<string, string[]>;
     landingByRole: Record<string, string>;
     knownVerbs: string[];
+    /** Subset of `knownVerbs` that nothing enforces — the Roles board marks
+     *  these instead of presenting them as capabilities. */
+    reservedVerbs: string[];
   };
 }
 

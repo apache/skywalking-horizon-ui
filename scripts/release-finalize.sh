@@ -49,8 +49,8 @@
 #
 #   4. Cut a GitHub release on tag v<v>, attaching the SAME voted bytes
 #      (src + bin tarballs + .asc + .sha512) that were just verified, with
-#      the CHANGELOG section for <v> — read out of the tag, not the working
-#      tree — as the body. On a release that already exists, every attached
+#      the release's notes — docs/changelog/<v>.md read out of the tag, not out
+#      of the working tree — as the body. On a release that already exists, every attached
 #      asset is compared against those verified bytes (size, then sha512) and
 #      only what is missing or different is (re-)uploaded: a matching FILENAME
 #      is not evidence that the bytes behind it are the voted ones.
@@ -402,21 +402,21 @@ SVN_AUTH_READY=false
 # ========================== Step 7: GitHub release ==========================
 note "Step 7 — GitHub release ${TAG}"
 
-# Extract the CHANGELOG section for this version as the release body, read out
-# of the TAG rather than the working tree — the body has to describe the bytes
-# being published, and the checkout this script runs from may have moved on
-# since the release commit. A GitHub Release body renders with GFM
-# hard-line-breaks, so every newline inside a paragraph becomes a literal <br>.
-# The committed CHANGELOG is written one physical line per paragraph / list item
-# for that reason; the helper joins any that were hard-wrapped anyway, as a
-# backstop — see scripts/changelog-release-notes.mjs.
+# The release body is this version's changelog file, read out of the TAG rather
+# than the working tree — the body has to describe the bytes being published,
+# and the checkout this script runs from may have moved on since the release
+# commit. A GitHub Release body renders with GFM hard-line-breaks, so every
+# newline inside a paragraph becomes a literal <br>. The committed changelog is
+# written one physical line per paragraph / list item for that reason; the
+# helper joins any that were hard-wrapped anyway, as a backstop — see
+# scripts/changelog-release-notes.mjs.
 NOTES_FILE="${WORK_DIR}/release-notes.md"
-TAG_CHANGELOG="${WORK_DIR}/CHANGELOG.${TAG}.md"
-if ! git -C "${PROJECT_DIR}" show "${TAG}:CHANGELOG.md" > "${TAG_CHANGELOG}"; then
-    err "Could not read CHANGELOG.md at tag ${TAG}."
+NOTES_SOURCE="${WORK_DIR}/changelog-${RELEASE_VERSION}.md"
+if ! git -C "${PROJECT_DIR}" show "${TAG}:docs/changelog/${RELEASE_VERSION}.md" > "${NOTES_SOURCE}" 2>/dev/null; then
+    err "Tag ${TAG} carries no docs/changelog/${RELEASE_VERSION}.md — cannot build the release notes."
     exit 1
 fi
-node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${TAG_CHANGELOG}" > "${NOTES_FILE}"
+node "${SCRIPT_DIR}/changelog-release-notes.mjs" "${RELEASE_VERSION}" "${NOTES_SOURCE}" > "${NOTES_FILE}"
 {
     echo ""
     echo "---"
@@ -493,7 +493,7 @@ if gh release view "${TAG}" --repo "${GH_REPO}" >/dev/null 2>&1; then
         fi
     fi
 else
-    echo "Release notes preview (CHANGELOG section for ${RELEASE_VERSION} at ${TAG}):"
+    echo "Release notes preview (docs/changelog/${RELEASE_VERSION}.md at ${TAG}):"
     echo "------------------------------------------------------------"
     cat "${NOTES_FILE}"
     echo "------------------------------------------------------------"

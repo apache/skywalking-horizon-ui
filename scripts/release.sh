@@ -46,11 +46,6 @@ REPO_BRANCH="${HORIZON_RELEASE_BRANCH:-main}"
 SVN_DEV_URL="https://dist.apache.org/repos/dist/dev/skywalking/horizon-ui"
 WORK_DIR="${SCRIPT_DIR}/.release-work"
 CLONE_DIR="${WORK_DIR}/skywalking-horizon-ui"
-# The stub this script writes into the next version's section, and the exact
-# line the pre-tag gate rejects. One definition so the writer and the checker
-# cannot drift apart — a gate looking for a stub nobody writes anymore passes
-# every release silently.
-CHANGELOG_PLACEHOLDER='(In development — fill in highlights here before cutting the release.)'
 
 # ========================== Helpers ==========================
 
@@ -137,10 +132,12 @@ if [ "${CURRENT_VERSION}" = "${RELEASE_VERSION}" ]; then
     err "main should carry the dev-suffixed version between releases — bump it before running this script."
     exit 1
 fi
-MAJOR=$(echo "$RELEASE_VERSION" | cut -d. -f1)
-MINOR=$(echo "$RELEASE_VERSION" | cut -d. -f2)
-NEXT_MINOR=$((MINOR + 1))
-NEXT_RELEASE_VERSION="${MAJOR}.${NEXT_MINOR}.0"
+# Proposed next version: the next minor. Computed in a pipeline on purpose —
+# nothing derived from the version may survive as a variable across the prompt
+# below, where the operator can replace RELEASE_VERSION. Anything split out up
+# here (MAJOR / MINOR / …) would still describe the rejected version and be
+# read as current further down.
+NEXT_RELEASE_VERSION=$(echo "$RELEASE_VERSION" | awk -F. '{ printf "%d.%d.0", $1, $2 + 1 }')
 
 echo "Current (in package.json): ${CURRENT_VERSION}"
 echo "Release:                   ${RELEASE_VERSION}"
@@ -210,9 +207,9 @@ echo "Code markers all at ${CURRENT_VERSION}; container docs are release-check c
 # ========================== Step 5: Release-file check ==========================
 note "Step 5 — Release-file check"
 
-# The CHANGELOG is NOT checked here: what ships is the freshly cloned tree of
-# Step 7, not this one, so its section is gated in Step 8b against the exact
-# commit being tagged.
+# The changelog file is NOT checked here: what ships is the freshly cloned tree
+# of Step 7, not this one, so it is gated in Step 8b against the exact commit
+# being tagged.
 
 # Make sure LICENSE / NOTICE exist at the repo root (they ship in src+bin tarballs).
 for f in LICENSE NOTICE HEADER; do
@@ -296,36 +293,13 @@ fi
 # main. So this is the only gate the release artifact ever gets.
 note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
 
-# The CHANGELOG section is part of the release artifact — it ships in both
+# The changelog file is part of the release artifact — it ships in both
 # tarballs, the vote email links it at ${TAG}, and release-finalize.sh reads
 # the GitHub release body out of the tag — so it is gated on the clone, on the
 # commit about to be tagged. Checking the caller's tree instead can pass here
-# while the tagged tree carries no section at all, or still carries the stub.
+# while the tagged tree carries no notes at all, or still carries the stub.
 # Cheapest gate in the battery, so it runs first.
-# -Fx, not a regex: the dots in a version are wildcards, so `## 1.0.0` as a
-# pattern also accepts a heading like `## 1x0x0`.
-if ! grep -Fxq "## ${RELEASE_VERSION}" "${CLONE_DIR}/CHANGELOG.md"; then
-    err "CHANGELOG.md on the release commit has no '## ${RELEASE_VERSION}' section heading."
-    err "Land that section on ${REPO_BRANCH} first — this clone is what gets tagged and shipped."
-    exit 1
-fi
-# Reject the placeholder body. Operators MUST fill the section in before
-# casting a vote — a stub CHANGELOG line in a release tarball is a
-# review smell.
-#
-# Matched as a WHOLE LINE against the exact stub, not as a substring: the
-# CHANGELOG legitimately describes this very gate, quoting the stub inside a
-# prose bullet, and a substring match reads its own documentation as an
-# unfilled section and aborts the release.
-if awk -v v="${RELEASE_VERSION}" '
-    $0 == "## " v        { in_sec=1; next }
-    in_sec && /^## /     { in_sec=0 }
-    in_sec               { print }
-' "${CLONE_DIR}/CHANGELOG.md" | grep -Fxq "${CHANGELOG_PLACEHOLDER}"; then
-    err "CHANGELOG.md ${RELEASE_VERSION} section on the release commit still contains the '(In development …)' placeholder. Fill it in on ${REPO_BRANCH}."
-    exit 1
-fi
-echo "CHANGELOG.md on the release commit has a non-placeholder section for ${RELEASE_VERSION}."
+node "${CLONE_DIR}/scripts/changelog-version.mjs" check "${RELEASE_VERSION}" --repo-root "${CLONE_DIR}"
 
 # Same reason, and `pnpm license:check` cannot stand in for it: HEADER is in
 # the license-eye paths-ignore list, so nothing else looks at the copy that
@@ -371,6 +345,12 @@ git -C "${CLONE_DIR}" archive --format=tar --prefix="${SRC_STAGE_NAME}/" "${TAG}
     | tar -C "${WORK_DIR}" -xf -
 # Drop the CI publish workflow from the source release (ASF-infra specific).
 rm -f "${WORK_DIR}/${SRC_STAGE_NAME}/.github/workflows/publish-image.yaml"
+# ASF convention puts a CHANGELOG at the ROOT of a release, where a reviewer
+# looks for it. The repo has no such file — notes live one file per version
+# under docs/changelog/ — so this release's file is copied there. A packaging
+# artifact only; it is never committed to git.
+cp "${WORK_DIR}/${SRC_STAGE_NAME}/docs/changelog/${RELEASE_VERSION}.md" \
+   "${WORK_DIR}/${SRC_STAGE_NAME}/CHANGELOG.md"
 tar -C "${WORK_DIR}" -czf "${SRC_TAR}" "${SRC_STAGE_NAME}"
 
 echo "Source tarball: ${SRC_TAR}"
@@ -394,7 +374,8 @@ node "${CLONE_DIR}/scripts/check-dist-licenses.mjs"
 BIN_STAGE="${WORK_DIR}/${PRODUCT_NAME}-${RELEASE_VERSION}-bin"
 rm -rf "${BIN_STAGE}"
 cp -R "${CLONE_DIR}/dist" "${BIN_STAGE}"
-cp "${CLONE_DIR}/CHANGELOG.md" "${BIN_STAGE}/CHANGELOG.md"
+# Same packaging convention as the source tarball.
+cp "${CLONE_DIR}/docs/changelog/${RELEASE_VERSION}.md" "${BIN_STAGE}/CHANGELOG.md"
 cp "${CLONE_DIR}/README.md"    "${BIN_STAGE}/README.md"
 # dist/LICENSE and dist/NOTICE were just generated by the collector and
 # are the BINARY-flavored versions (Apache-2.0 + bundled-dep summary +
@@ -529,7 +510,7 @@ version ${RELEASE_VERSION}.
 
 Release notes:
 
- * https://github.com/apache/skywalking-horizon-ui/blob/${TAG}/CHANGELOG.md
+ * https://github.com/apache/skywalking-horizon-ui/blob/${TAG}/docs/changelog/${RELEASE_VERSION}.md
 
 Release Candidate:
 
@@ -616,18 +597,11 @@ rm apps/bff/src/server.ts.bak
 # commit just bumped them). They stay there — docs always reference the
 # last released tag, not the in-flight dev version.
 
-# Rotate CHANGELOG: insert a fresh placeholder at the top.
-node -e "
-const fs = require('fs');
-const path = 'CHANGELOG.md';
-const txt = fs.readFileSync(path, 'utf8');
-const insertion = '## ${NEXT_RELEASE_VERSION}\n\n${CHANGELOG_PLACEHOLDER}\n\n';
-// Insert above the first '## <prev>' heading.
-const out = txt.replace(/^## /m, insertion + '## ');
-fs.writeFileSync(path, out);
-"
+# Open the next cycle: an empty docs/changelog/${NEXT_RELEASE_VERSION}.md plus
+# its docs/menu.yml entry. The released version's file is not touched.
+node "${CLONE_DIR}/scripts/changelog-version.mjs" seed "${NEXT_RELEASE_VERSION}" --repo-root "${CLONE_DIR}"
 
-git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts CHANGELOG.md
+git add package.json packages/*/package.json apps/*/package.json apps/bff/src/server.ts docs/changelog docs/menu.yml
 git commit -m "Prepare next release ${NEXT_DEV_VERSION}"
 git push origin "${RELEASE_BRANCH_NAME}"
 
@@ -640,7 +614,8 @@ Release branch for ${RELEASE_VERSION}. Two commits:
    \`${RELEASE_VERSION}\`. Tagged \`${TAG}\` (the release-candidate commit the
    vote runs against).
 2. \`Prepare next release ${NEXT_DEV_VERSION}\` — bumps every marker to
-   \`${NEXT_DEV_VERSION}\` and rotates CHANGELOG for the next cycle.
+   \`${NEXT_DEV_VERSION}\` and seeds \`docs/changelog/${NEXT_RELEASE_VERSION}.md\`
+   (with its \`docs/menu.yml\` entry) for the next cycle.
 
 Merge after the [VOTE] passes so \`${REPO_BRANCH}\` returns to a \`-dev\`
 version with the release in its history. The \`${TAG}\` tag is immutable and

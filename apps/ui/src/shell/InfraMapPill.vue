@@ -18,8 +18,15 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
+import { useAuthStore } from '@/state/auth';
 
 const { t } = useI18n({ useScope: 'global' });
+
+// The map's config and traffic reads are gated on `infra-3d:read`; without it
+// the page renders nothing, so the entry is removed rather than leading to an
+// empty canvas. Same rule the sidebar rows follow.
+const auth = useAuthStore();
+const canSeeMap = computed<boolean>(() => auth.hasVerb('infra-3d:read'));
 
 /** The 3D Infra Map entry pill lives in the topbar on every page. It
  *  stays compact ("3D Infra") by default and expands to the full
@@ -44,6 +51,7 @@ const exp3dExpanded = computed<boolean>(() => exp3dHover.value);
        mesh / infra) using the same tint colors, so the pill reads as a
        microcosm of the view it leads to. -->
   <RouterLink
+    v-if="canSeeMap"
     to="/3d/map"
     class="exp-badge"
     :class="{ 'is-on': exp3dExpanded }"

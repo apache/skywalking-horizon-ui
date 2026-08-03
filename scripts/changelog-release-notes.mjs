@@ -16,15 +16,22 @@
  */
 
 /**
- * Extract one version's section from CHANGELOG.md and emit it as a GitHub
- * release body, with hard-wrapped paragraphs and list items UNWRAPPED.
+ * Emit one version's changelog as a GitHub release body, with hard-wrapped
+ * paragraphs and list items UNWRAPPED.
  *
- * Usage: node scripts/changelog-release-notes.mjs <version> [changelog-path]
- *          → prints the reflowed section to stdout (exits 1 if not found)
- *        node scripts/changelog-release-notes.mjs --whole-file [changelog-path]
+ * Usage: node scripts/changelog-release-notes.mjs <version> [file]
+ *          → reflows docs/changelog/<version>.md, minus its `# <version>`
+ *            page title, to stdout (exits 1 if the file is not there)
+ *        node scripts/changelog-release-notes.mjs --whole-file <file>
  *          → prints the WHOLE file reflowed (one line per paragraph / item);
- *            pipe back over CHANGELOG.md to normalize the source to the
- *            one-line house style.
+ *            pipe it back over the file to normalize it to the one-line
+ *            house style.
+ *
+ * Every version keeps its own file, so there is one place to read and nothing
+ * to search. Naming a file explicitly overrides the lookup —
+ * scripts/release-finalize.sh passes the copy it read out of the tag, so the
+ * published notes describe the bytes that were released rather than whatever
+ * the working tree holds now.
  *
  * Why this exists — the two markdown contexts render newlines differently:
  *   - A `.md` file viewed in a repo renders as CommonMark, where a single
@@ -35,32 +42,33 @@
  *     hard-line-breaks ON, where every single newline becomes a literal
  *     `<br>`. Feeding a hard-wrapped section straight in produces a ragged
  *     column of short lines with a sea of right-hand whitespace.
- * The committed CHANGELOG is therefore written one physical line per paragraph
+ * The committed changelog is therefore written one physical line per paragraph
  * / list item, and this script is the backstop that joins any that were wrapped
  * anyway, while preserving the block structure that DOES depend on newlines:
  * blank lines, headings, list markers + indentation, code fences, blockquotes,
  * tables, thematic breaks, and HTML blocks.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const PROJECT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 const argv = process.argv.slice(2);
 const wholeFile = argv[0] === '--whole-file';
 const version = wholeFile ? null : argv[0];
-const changelogPath = (wholeFile ? argv[1] : argv[1]) ?? 'CHANGELOG.md';
-if (!wholeFile && !version) {
-  process.stderr.write('usage: changelog-release-notes.mjs <version>|--whole-file [changelog-path]\n');
+const path = argv[1];
+if (wholeFile ? !path : !version) {
+  process.stderr.write('usage: changelog-release-notes.mjs <version> [file] | --whole-file <file>\n');
   process.exit(2);
 }
 
-/** Pull the lines strictly between `## <version>` and the next `## ` heading. */
-function extractSection(content, v) {
+/** Everything below the page title — the notes themselves. */
+function body(content) {
   const lines = content.split('\n');
-  const start = lines.findIndex((l) => l === `## ${v}`);
-  if (start === -1) return null;
-  let end = start + 1;
-  while (end < lines.length && !/^## /.test(lines[end])) end++;
-  return lines.slice(start + 1, end);
+  const title = lines.findIndex((l) => l.startsWith('# '));
+  return title === -1 ? lines : lines.slice(title + 1);
 }
 
 const isBlank = (l) => /^\s*$/.test(l);
@@ -130,18 +138,17 @@ function reflow(lines) {
   return out;
 }
 
-const content = readFileSync(changelogPath, 'utf8');
-
 if (wholeFile) {
+  const content = readFileSync(path, 'utf8');
   // split/join round-trips the trailing newline (a final '\n' yields a
   // trailing '' element that reflow preserves), so the file ends as it began.
   process.stdout.write(reflow(content.split('\n')).join('\n'));
   process.exit(0);
 }
 
-const section = extractSection(content, version);
-if (section === null) {
-  process.stderr.write(`changelog-release-notes: no "## ${version}" section in ${changelogPath}\n`);
+const notes = path ?? resolve(PROJECT_DIR, `docs/changelog/${version}.md`);
+if (!existsSync(notes)) {
+  process.stderr.write(`changelog-release-notes: ${notes} does not exist — ${version} has no changelog file.\n`);
   process.exit(1);
 }
-process.stdout.write(reflow(section).join('\n') + '\n');
+process.stdout.write(reflow(body(readFileSync(notes, 'utf8'))).join('\n') + '\n');

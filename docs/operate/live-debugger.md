@@ -91,8 +91,7 @@ A capture that was archived before its first poll returned data shows as having 
 
 | Permission | Grants |
 |---|---|
-| `live-debug:read` | View the Live Debugger, the active-session list, cluster status, and capture history. |
-| `live-debug:write` | Start and stop capture sessions. |
-| `rule:debug` | Debug a rule — required alongside `live-debug:write` to actually run a capture. |
+| `live-debug:read` | View the Live Debugger, the active-session list, cluster status, and capture history. Nothing else is required to watch a capture. |
+| `live-debug:write` | Start and stop capture sessions. Nothing else is required to run one — no `rule:*` grant takes part, and holding every rule verb without `live-debug:*` gets you nothing here. |
 
-In the bundled roles, all three are held by **operator** (and **admin**). A read-only viewer can be granted `live-debug:read` to inspect existing sessions and history without being able to start new captures. See [Roles and Permissions](../access-control/rbac.md).
+In the bundled roles, both are held by **operator** (and **admin**). A read-only viewer can be granted `live-debug:read` on its own to inspect existing sessions and history without being able to start new captures. See [Roles and Permissions](../access-control/rbac.md).

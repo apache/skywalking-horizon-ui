@@ -27,8 +27,8 @@ Known verbs are grouped into areas:
 | `browser-errors:read` | Browser Logs tab (BROWSER layer): list JS error logs, list source maps, resolve a stack. |
 | `inspect:read` | The read-only inspect tools: Metrics Inspect (`/operate/inspect`), Trace Inspect (`/operate/trace-inspect`), Log Inspect (`/operate/log-inspect`). |
 | `topology:read` | Topology tab, topology widgets on overviews. |
-| `profile:read` | Profiling tab (results read-only). |
-| `overview:read` | Public overview dashboards. |
+| `profile:read` | Profiling tab (results read-only) and the continuous-profiling policy list. |
+| `overview:read` | Public overview dashboards. The template-administration pages read their sync status through it too, so a role built to edit only layer dashboards needs it alongside `dashboard:read`. |
 | `infra-3d:read` | 3D Infrastructure Map — the map's config + live traffic metrics. |
 | `ai:read` | [AI assistant](../operate/ai-assistant.md): send a chat message. Grants no data access by itself — each of the assistant's data tools re-checks its own read verb, so the assistant never reads more than the session could. |
 
@@ -40,16 +40,15 @@ Known verbs are grouped into areas:
 | `dashboard:read` / `dashboard:write` | Layer dashboard templates admin page: list / edit. |
 | `alarm-setup:read` | Shows the Alert page setup entry (`/admin/alert-page-setup`). Publishing an edit there requires `overview:write`, like every other template write. |
 | `alarm-rule:read` | Alarm Rule catalog: list (read-only — alarm-rule edits go through the OAP alarm-rule YAML, not this page). |
-| `alarm-rule:write` | Reserved (the catalog is read-only; no write endpoint). |
+| `alarm-rule:write` | **Reserved** — OAP's alarm-rule catalog is read-only, so there is no write for Horizon to gate. |
 | `setup:read` | Shows the Global defaults entry (`/admin/global-defaults`) — default theme and time defaults. Publishing an edit there requires `overview:write`, like every other template write. |
-| `rule:read` | DSL Management — list rules. |
-| `rule:write` | DSL Management — content edits (non-structural). |
-| `rule:write:structural` | DSL Management — add / remove rules, change rule kind. |
+| `rule:read` | DSL Management — list rules, read a rule body, and download a runtime-rule dump. |
+| `rule:write` | DSL Management — save a rule whose change is not structural, and inactivate a rule. |
+| `rule:write:structural` | DSL Management — save an edit that moves a metric's storage identity (scope, downsampling, single ↔ labeled ↔ histogram), force a re-apply to recover a degraded rule, and revert a rule to its bundled version. |
 | `rule:delete` | DSL Management — delete a rule. |
-| `rule:debug` | DSL Management — debug a rule against sample input. |
-| `live-debug:read` / `live-debug:write` | Live Debugger — observe / start sessions. |
+| `live-debug:read` / `live-debug:write` | Live Debugger — watch captures (the page, the active-session list, per-node status, capture history) / start and stop them. These two are the whole of the Live Debugger's access control: `live-debug:read` is enough on its own to watch, `live-debug:write` is enough on its own to start and stop, and no `rule:*` verb takes part. |
 | `source-map:write` | Browser Logs — upload / remove source maps (held in BFF memory). |
-| `profile:enable` | Create a profiling task on a layer. |
+| `profile:enable` | Create a profiling task on a layer, and arm a continuous-profiling policy. |
 
 ### Platform monitoring
 
@@ -63,19 +62,25 @@ Known verbs are grouped into areas:
 
 | Verb | Gates |
 |---|---|
-| `user:read` | Users admin page (`/admin/users`). |
-| `user:write` | Reserved (no current write endpoint). |
-| `role:read` | Roles & Permissions admin page (`/admin/roles`). |
-| `role:write` | Reserved. |
-| `auth:read` | Auth Status admin page (`/admin/auth-status`) + LDAP probe. |
-| `audit:read` | Reserved (audit log not yet exposed via API). |
+| `user:read` | Users admin page (`/admin/users`) — the list is read-only; local users are defined in `horizon.yaml`. |
+| `user:write` | **Reserved** — the user list has no write. |
+| `role:read` | Shows the Roles & Permissions entry and page (`/admin/roles`). The board is drawn from the same status read as the Auth Status page, so grant `auth:read` alongside it or the page opens and reports a load failure. |
+| `role:write` | **Reserved** — role definitions are edited in `horizon.yaml`, not from the UI. |
+| `auth:read` | Auth Status admin page (`/admin/auth-status`) + LDAP probe. Also the data behind the Roles & Permissions board. |
+| `audit:read` | **Reserved** — the audit trail is a file for you to ship to an SIEM; Horizon does not serve it. |
 
 ### Special
 
 | Verb | Meaning |
 |---|---|
-| `admin` | Synonym for `*`. Matches anything. |
+| `admin` | Synonym for `*`. Matches anything. Never *required* by a request — it is only ever a grant. |
 | `*` | Wildcard. Matches anything. |
+
+### Reserved verbs
+
+Four verbs — `alarm-rule:write`, `user:write`, `role:write`, `audit:read` — are part of the vocabulary but **nothing checks them**. Granting one opens nothing and closes nothing. They keep their names so a `horizon.yaml` that already lists one still validates, and so the name stays stable if a capability is ever bound to it.
+
+No built-in role names a reserved verb — `admin`'s `*` matches them like everything else, which still does nothing — and the Roles & Permissions page marks each one on screen rather than presenting it as a capability. If a custom role of yours grants one, you can drop it: it is doing nothing today, and leaving it in means the grant takes effect silently on the day something enforces it.
 
 ## Grant matching
 
@@ -85,7 +90,7 @@ A user's grant string is matched against a required verb using these rules:
 |---|---|
 | `*` or `admin` | Any verb. |
 | `area:verb` (exact) | The exact required verb (case-sensitive). |
-| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`, `rule:debug`. |
+| `area:*` | Any verb in that area, including sub-actions: `rule:*` matches `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`. |
 | `*:read` | The `read` action in any area: matches `metrics:read`, `alarms:read`, `cluster:read`, etc. Does **not** match `rule:write:structural` (the action is not `read`). |
 
 Effective verbs for a session are the **union** of all grants from all roles.
@@ -112,7 +117,7 @@ viewer baseline + cluster:read, ttl:read, config:read
 
 ### `operator`
 
-Configures observability. Inherits maintainer's reads + write access to dashboards, alarms, rules, live-debug, profiling, source maps.
+Configures observability. Inherits maintainer's reads + write access to dashboards, rules, live-debug, profiling and source maps. Alarm rules stay read-only for every role — see `alarm-rule:write`.
 
 ```
 maintainer baseline +
@@ -121,8 +126,8 @@ source-map:write,
 setup:read,
 dashboard:read, dashboard:write,
 alarm-setup:read,
-alarm-rule:read, alarm-rule:write,
-rule:read, rule:write, rule:write:structural, rule:delete, rule:debug,
+alarm-rule:read,
+rule:read, rule:write, rule:write:structural, rule:delete,
 live-debug:read, live-debug:write,
 profile:enable
 ```
@@ -173,7 +178,9 @@ Every authenticated session is granted `*`. Useful for local development. **Neve
 
 ## Visualizing the policy
 
-The Admin → Roles page (`/admin/roles`, verb `role:read`) renders a read-only board of roles × verbs with check marks. It pulls live data — what you see is exactly what the BFF will use to evaluate the next request. Use it to verify role changes after editing `horizon.yaml`.
+The Admin → Roles page (`/admin/roles`, verbs `role:read` + `auth:read`) renders a read-only board of roles × verbs with check marks, grouped by feature area and preceded by a menu-visibility matrix showing which navigation entries each role sees. It pulls live data — what you see is exactly what the BFF will use to evaluate the next request. Use it to verify role changes after editing `horizon.yaml`.
+
+Rows for [reserved verbs](#reserved-verbs) are marked as such. A check mark on a reserved row still reflects the grant a role holds — it just tells you the grant buys nothing.
 
 ## Common patterns
 
@@ -205,15 +212,20 @@ landingByRole:
 
 `*:read` grants every read — useful for audit access without write capability.
 
-### Separate alarm-tuning role
+### Separate alarm-triage role
 
 ```yaml
 roles:
-  alarm-tuner:
-    - metrics:read, alarms:read, topology:read, traces:read, logs:read
-    - alarm-setup:read
-    - alarm-rule:read, alarm-rule:write
-    - rule:read, rule:debug
+  alarm-triage:
+    - metrics:read
+    - alarms:read
+    - topology:read
+    - traces:read
+    - logs:read
+    - alarm-rule:read      # the rule behind a firing alarm
+    - alarm-setup:read     # which layers the alarm overview covers
+landingByRole:
+  alarm-triage: /alarms
 ```
 
-Can view operational data and edit alarm rules but cannot touch DSL rule structure or live-debug.
+Reads operational data plus the alarm rule behind each firing alarm, and can open the Alert page setup to see how the alarm overview is composed. It cannot change any of it: publishing an Alert page edit needs `overview:write`, and alarm rules are read-only for every role.
