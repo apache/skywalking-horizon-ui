@@ -1,0 +1,133 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Core case — Horizon against a live OAP on BanyanDB, verified on BOTH halves:
+# the BFF's HTTP surface and the rendered UI in headless Chromium.
+#
+# Run it:  e2e run -c test/e2e/cases/core/e2e.yaml
+# Images:  make -C test/e2e images   (must exist first; compose never pulls them)
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    # No browser install: the suite runs inside the pinned Ubuntu image, so
+    # the host needs nothing beyond docker. This only clears stale fail-fast
+    # markers and pre-pulls the image.
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+    # Logs come from a different endpoint than the one `trigger` drives — see
+    # the script. Seeded here so the log assertions have something to find.
+    - name: seed log traffic
+      command: bash test/e2e/script/prepare/log-traffic.sh http://${provider_host}:${provider_9090}
+
+trigger:
+  # Keeps running through verification, so the metrics windows the dashboard
+  # widgets query stay populated rather than ageing out mid-suite.
+  action: http
+  interval: 3s
+  times: -1
+  url: http://${consumer_host}:${consumer_9092}/users
+  method: POST
+  body: '{"id":"123","name":"skywalking"}'
+  headers:
+    "Content-Type": "application/json"
+
+verify:
+  # The roster behind every UI assertion is served from a catalog cached with
+  # a 60s TTL, so a correct Horizon answers with an empty roster for up to a
+  # minute after the agents register. This retry budget is that window; it is
+  # why the specs themselves need no long polls.
+  retry:
+    count: 40
+    interval: 5s
+  cases:
+    # 1. Fixture sanity FIRST, straight off OAP. If this fails the demo app or
+    #    the agent is broken, and no amount of reading Horizon will show it —
+    #    the distinction that costs the most time when a UI suite goes red.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
+          | yq -P '{"demoServices": [.[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
+      expected: expected/demo-services.yml
+
+    # 2. Horizon serves that same roster. Bridges "OAP has it" to "Horizon can
+    #    see it", and absorbs the catalog TTL via the retry budget above.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/general/services \
+          | yq -P '{"reachable": .reachable, "demoServices": [.services[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
+      expected: expected/horizon-roster.yml
+
+    # 3. Metrics have actually landed — the gate the browser cases depend on.
+    #    Services register within seconds, but OAP persists metrics on a ~25s
+    #    cycle and aggregates into minute buckets, so for a while after the
+    #    roster is populated every metric widget is still legitimately empty.
+    #    Without this gate that wait falls to the `ui` case, which absorbs it
+    #    by RETRYING — re-running the whole browser project each time, and
+    #    turning a timing question into what looks like a flaky UI.
+    #    service_cpm is what the layer dashboard's traffic widgets read.
+    - query: |
+        swctl --display yaml --base-url=http://${oap_host}:${oap_12800}/graphql \
+          metrics exec --expression=service_cpm --service-name=e2e-service-provider
+      expected: expected/metrics-has-value.yml
+
+    # 4. The consumer -> provider EDGE exists, not merely both services.
+    #    service_cpm above is satisfied by the log burst alone, which hits the
+    #    provider directly — so the metrics gate can open while the topology
+    #    still has no relation in it. Relation metrics aggregate on their own
+    #    cycle from the trigger traffic, and the topology assertions need that
+    #    to have landed. Missing this is what turned CI red while the same
+    #    suite passed locally, where the consumer had been driven first.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/layer/general/topology?windowMinutes=30" \
+          | yq -P '{"demoNodes": [.nodes[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length, "hasCalls": (.calls | length > 0)}'
+      expected: expected/has-topology.yml
+
+    # 5. Logs reached OAP and survived the LAL pipeline. Separate from the
+    #    metrics gate because a log can fail for its own reasons — a missing
+    #    LAL rule drops every record while traces and metrics stay perfect.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql \
+          logs list --service-name=e2e-service-provider \
+          | yq -P '{"hasLogs": (.logs | length > 0)}'
+      expected: expected/has-logs.yml
+
+    # 6+7. The suites. Playwright owns its own assertions and reporting; the
+    #      contract with infra-e2e is only "exit 0 and print passed: true".
+    #      Split by project so a red run says which half broke — a route
+    #      returning correct JSON into a view that throws on mount passes
+    #      every API assertion and is blank for the operator.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh bff
+      expected: expected/passed.yml
+
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh ui
+      expected: expected/passed.yml
+
+
+cleanup:
+  on: always

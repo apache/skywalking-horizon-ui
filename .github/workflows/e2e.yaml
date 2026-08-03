@@ -1,0 +1,156 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# The gate `tsc` and unit tests cannot be: Horizon against a REAL OAP, fed by
+# real telemetry, verified on BOTH halves of the product — the BFF's HTTP
+# surface and the rendered UI in headless Chromium. A route that returns
+# correct JSON into a view that throws on mount passes every API assertion and
+# is blank for the operator; only the browser half catches that.
+#
+# Separate from ci.yaml because the two answer different questions and cost
+# different amounts. ci.yaml asks "does this compile, lint, package and boot?"
+# in ~3 minutes on one runner; this asks "does it actually work against a
+# backend?" and spends a stack of containers per case to find out.
+#
+# Every case is skywalking-infra-e2e driven — the same harness the rest of the
+# SkyWalking project uses. The case file owns setup / trigger / verify /
+# cleanup; Playwright is invoked from a verify case. Fixture, image pins and
+# local-run instructions: test/e2e/README.md.
+#
+#
+# ── CASE / FEATURE MATRIX ────────────────────────────────────────────────
+#
+# Cases are split by DEPLOYMENT, not by upstream fixture file. Upstream's log
+# case, for example, differs from simple/jdk by two OAP environment variables
+# and a LAL rule — the demo app, storage and topology are identical, so giving
+# it a stack of its own would spend a minute of container boot to learn
+# nothing. Anything the core stack can produce belongs in `core`.
+#
+# Adding a case is a directory under test/e2e/cases/ plus one `case:` entry in
+# the matrix below. Keep this table in step with both.
+#
+#   case        deployment difference        covers                             status
+#   ─────────────────────────────────────────────────────────────────────────────────
+#   core        —  (the baseline stack)      auth gate + session; OAP info,     ACTIVE
+#                                            menu caps; service roster and
+#                                            identity; traces (list + detail);
+#                                            metrics incl. JVM; LOGS via a LAL
+#                                            rule; TOPOLOGY nodes and edges;
+#                                            agent lifecycle EVENTS; and the
+#                                            rendered half of each — shell,
+#                                            picker, dashboard, traces, logs
+#                                            and topology tabs.
+#                                            templates.mode live is covered
+#                                            implicitly: the dashboard cannot
+#                                            render unless Horizon seeded the
+#                                            bundle into OAP and read it back.
+#
+#   dsl         —  (same stack, admin port)  DSL management + live debugger     PLANNED
+#                                            against OAP's admin host, which
+#                                            core already exposes. Folds in.
+#
+#   zipkin      Zipkin receiver              /api/zipkin/* and the              PLANNED
+#                                            zipkin-trace tab
+#   browser     client-js app                Browser Errors tab, source-map     PLANNED
+#                                            de-minification
+#   es          ElasticSearch storage        trace v1 (the ONLY path that       PLANNED
+#                                            reaches it — v2 is BanyanDB-only)
+#                                            and ES-only fuzzy log query
+#   deployment  BanyanDB CLUSTER             the Deployment component, which    PLANNED
+#                                            visualises BanyanDB self-
+#                                            observability. Needs liaison +
+#                                            data nodes, so it cannot ride on
+#                                            the standalone core stack.
+#
+#   profiling   varies per profiling type    trace / async / pprof tabs.        DEFERRED
+#                                            Each relies on a different
+#                                            deployment; revisit as a group.
+#   infra       kind + rover                 eBPF and network profiling,        DEFERRED
+#                                            K8S_SERVICE topology. Uses
+#                                            infra-e2e's `kind` environment,
+#                                            not compose, and cannot run on
+#                                            macOS — eBPF needs a Linux kernel.
+#
+# NOTE: instance topology is NOT a reason for a dedicated case — the core
+# fixture already produces it (consumer -> provider at instance level). Only
+# the Deployment component needs the BanyanDB cluster.
+
+name: E2E
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: ${{ matrix.case.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # One case failing must not cancel the others: when several go red at
+      # once, which ones they are is the diagnosis.
+      fail-fast: false
+      matrix:
+        case:
+          - name: core (BanyanDB)
+            config: test/e2e/cases/core/e2e.yaml
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      # Horizon and the instrumented demo services. Built here rather than
+      # pulled: the point is to test THIS commit, and compose sets
+      # pull_policy: never so a missing build fails loudly instead of silently
+      # testing someone else's image.
+      - name: Build the fixture images
+        run: make -C test/e2e images
+
+      - name: ${{ matrix.case.name }}
+        uses: apache/skywalking-infra-e2e@68bbdec303cf2d3df9f2353f970f91938b52f674
+        with:
+          e2e-file: $GITHUB_WORKSPACE/${{ matrix.case.config }}
+          # Container logs land here. On a red run they answer the first
+          # question — did the fixture break, or did Horizon? — which the
+          # Playwright report alone cannot.
+          log-dir: $GITHUB_WORKSPACE/e2e-logs
+
+      # Traces and screenshots are the only way to diagnose a UI failure that
+      # did not reproduce locally. Also on cancellation: a hung case hits the
+      # job timeout as `cancelled`, which a plain `failure()` would skip.
+      - name: Collect the Playwright report
+        if: ${{ failure() || cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report-${{ strategy.job-index }}
+          path: |
+            test/e2e/playwright/playwright-report
+            test/e2e/playwright/test-results
+            e2e-logs
+          retention-days: 7

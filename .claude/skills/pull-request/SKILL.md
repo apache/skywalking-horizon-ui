@@ -47,8 +47,8 @@ operate it; never internal code narration). Flat layout, registered in
 `docs/menu.yml`. Same one-line-per-paragraph house style.
 
 ### C. Compiling passed (type-check + build)
-This is what "compiling passed" means here — CI runs `type-check`, `build-ui`,
-`build-bff` as separate gates:
+This is what "compiling passed" means here — CI type-checks, then builds both
+apps as part of `pnpm package`:
 
 ```bash
 pnpm -r run type-check                              # vue-tsc + tsc, strict, no `any`
