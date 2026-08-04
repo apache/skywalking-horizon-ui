@@ -59,17 +59,27 @@
 #                                            render unless Horizon seeded the
 #                                            bundle into OAP and read it back.
 #
-#   dsl         —  (same stack, admin port)  DSL management + live debugger     PLANNED
-#                                            against OAP's admin host, which
-#                                            core already exposes. Folds in.
+#               (DSL management and the live debugger fold into core too: both
+#               OAP modules are on by default and core already exposes the
+#               admin host, so they cost no extra containers.)
 #
-#   zipkin      Zipkin receiver              /api/zipkin/* and the              PLANNED
-#                                            zipkin-trace tab
+#   zipkin      Zipkin receiver              Zipkin ingestion and query. The     ACTIVE
+#                                            demo app here reports Zipkin
+#                                            spans straight to OAP rather than
+#                                            through a SkyWalking agent, and
+#                                            Horizon reads them over the
+#                                            Zipkin-compatible API, not
+#                                            GraphQL — neither is reachable
+#                                            from core.
 #   browser     client-js app                Browser Errors tab, source-map     PLANNED
 #                                            de-minification
-#   es          ElasticSearch storage        trace v1 (the ONLY path that       PLANNED
-#                                            reaches it — v2 is BanyanDB-only)
-#                                            and ES-only fuzzy log query
+#   es          ElasticSearch storage        trace v1 — the ONLY path that       ACTIVE
+#                                            reaches it, since v2 is
+#                                            BanyanDB-only. Deliberately not a
+#                                            copy of core: re-asserting every
+#                                            signal on a second backend would
+#                                            double the runtime to re-prove
+#                                            what storage does not affect.
 #   deployment  BanyanDB CLUSTER             the Deployment component, which    PLANNED
 #                                            visualises BanyanDB self-
 #                                            observability. Needs liaison +
@@ -114,6 +124,10 @@ jobs:
         case:
           - name: core (BanyanDB)
             config: test/e2e/cases/core/e2e.yaml
+          - name: es (ElasticSearch)
+            config: test/e2e/cases/es/e2e.yaml
+          - name: zipkin (receiver + query)
+            config: test/e2e/cases/zipkin/e2e.yaml
     steps:
       - uses: actions/checkout@v6
         with:
@@ -124,6 +138,21 @@ jobs:
           node-version: '24'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+
+      # swctl has no published binaries, so the case builds it from source —
+      # about a minute, and the largest fixed cost in the run. The binary only
+      # changes when the pin does, so key the cache on the pin itself rather
+      # than on the file that holds it: bumping an unrelated image pin should
+      # not throw the compiler back at us.
+      - name: Resolve the pinned swctl commit
+        id: pins
+        run: |
+          echo "swctl=$(grep -E '^SW_CTL_COMMIT=' test/e2e/script/env | head -1 | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+      - name: Cache swctl
+        uses: actions/cache@v4
+        with:
+          path: /tmp/skywalking-infra-e2e/bin/swctl
+          key: swctl-${{ runner.os }}-${{ steps.pins.outputs.swctl }}
 
       # Horizon and the instrumented demo services. Built here rather than
       # pulled: the point is to test THIS commit, and compose sets

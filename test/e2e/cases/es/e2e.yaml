@@ -1,0 +1,100 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# ElasticSearch storage. Deliberately NOT a copy of `core`: re-asserting every
+# signal on a second backend would double the runtime to re-prove things that
+# do not depend on storage. This case exists for the branch that does — the
+# pre-v2 trace query — plus enough of a smoke test to show the UI still works
+# when the backend changes underneath it.
+#
+# Run it:  e2e run -c test/e2e/cases/es/e2e.yaml
+# Images:  make -C test/e2e images
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: install swctl
+      command: bash test/e2e/script/prepare/install.sh swctl
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+trigger:
+  action: http
+  interval: 3s
+  times: -1
+  url: http://${consumer_host}:${consumer_9092}/users
+  method: POST
+  body: '{"id":"123","name":"skywalking"}'
+  headers:
+    "Content-Type": "application/json"
+
+verify:
+  retry:
+    count: 40
+    interval: 5s
+  cases:
+    # 1. Fixture sanity straight off OAP, same as core: if this fails the demo
+    #    app or the agent is broken, not Horizon.
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
+          | yq -P '{"demoServices": [.[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
+      expected: expected/demo-services.yml
+
+    # 2. Horizon classifies the backend as NOT banyandb. `backend` is a
+    #    capability classification — banyandb / other / unknown, inferred from
+    #    the TTL shape — not a storage name, so ElasticSearch is correctly
+    #    `other` rather than `elasticsearch`. What matters here is that it is
+    #    not banyandb: if it were, the storage override silently failed and
+    #    every case below would be re-testing core on the wrong stack.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/oap/info \
+          | yq -P '{"reachable": .reachable, "backend": .backend}'
+      expected: expected/backend-es.yml
+
+    # 3. Metrics readiness, for the same reason core needs it: OAP persists on
+    #    a ~25s cycle, so without this the wait lands on the browser case.
+    - query: |
+        swctl --display yaml --base-url=http://${oap_host}:${oap_12800}/graphql \
+          metrics exec --expression=service_cpm --service-name=e2e-service-provider
+      expected: expected/metrics-has-value.yml
+
+    # 4. THE reason this case exists: on a non-BanyanDB backend Horizon's
+    #    capability probe finds no Trace Query v2, and the trace list must come
+    #    back over the v1 API instead. `core` can never reach this branch.
+    - query: |
+        bash test/e2e/script/prepare/horizon-post.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/general/traces \
+          '{"windowMinutes":30,"pageSize":5}' \
+          | yq -P '{"api": .native.api, "hasTraces": (.native.traces | length > 0)}'
+      expected: expected/trace-api-v1.yml
+
+    # 5. The UI still renders against a different backend. Only the shell and
+    #    layer journeys — the signal-specific tabs are core's job.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh ui
+      expected: expected/passed.yml
+
+cleanup:
+  on: always
