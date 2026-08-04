@@ -39,6 +39,16 @@ const here = dirname(fileURLToPath(import.meta.url));
 
 export const AUTH_STATE = resolve(here, '.auth/state.json');
 
+// Report and results are written per PROJECT, not per run.
+//
+// A case runs more than one project in sequence (core: bff then ui; istio:
+// istio then istio-profiling), and infra-e2e keeps going after a verify case
+// fails — so a later project sharing these directories would overwrite the
+// report of the failure that actually mattered. `playwright.sh` exports the
+// project it is running; the fallback keeps a bare `npx playwright test`
+// working while iterating.
+const project = process.env.HORIZON_E2E_PROJECT ?? 'all';
+
 export default defineConfig({
   testDir: './specs',
   // The fixture is a shared, stateful stack — parallel workers would race on
@@ -53,11 +63,11 @@ export default defineConfig({
   // infra-e2e contract. The HTML report is for the CI failure artifact.
   reporter: [
     ['line'],
-    ['html', { open: 'never', outputFolder: resolve(here, 'playwright-report') }],
+    ['html', { open: 'never', outputFolder: resolve(here, `playwright-report/${project}`) }],
   ],
   // Same anchoring as AUTH_STATE — the CI failure artifact collects these two
   // paths by name, so they must not follow the caller's cwd.
-  outputDir: resolve(here, 'test-results'),
+  outputDir: resolve(here, `test-results/${project}`),
   timeout: 60_000,
   expect: { timeout: 20_000 },
   use: {
@@ -66,16 +76,63 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'auth', testMatch: /auth\.setup\.ts/ },
+    // Globs anchored at `specs/`, never bare regexes: testMatch runs against
+    // the ABSOLUTE path, and a pattern like /ui\/.*\.spec\.ts/ also matches a
+    // checkout living under .../skywalking-horizon-ui/... — which silently
+    // collects every spec in the repo into one project.
+    { name: 'auth', testMatch: '**/specs/auth.setup.ts' },
     {
       name: 'bff',
-      testMatch: /bff\/.*\.spec\.ts/,
+      testMatch: '**/specs/bff/*.spec.ts',
       dependencies: ['auth'],
       use: { storageState: AUTH_STATE },
     },
     {
+      // Admin screens, run only by the `admin` case — they assert against
+      // rules and templates that case establishes, so they mean nothing
+      // against a stack that has not been through it.
+      name: 'admin',
+      testMatch: '**/specs/admin/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
+      // Browser telemetry — its own project because the BROWSER layer only
+      // exists in the case that seeds OAP's browser receiver.
+      name: 'browser',
+      testMatch: '**/specs/browser/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
+      // ElasticSearch's browser half — one spec, the pre-v2 trace path, which
+      // is the only thing that deployment proves.
+      name: 'es',
+      testMatch: '**/specs/es/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
+      // The mesh half of the istio case. Its own project because MESH
+      // entities come from Envoy access logs, which only a real mesh
+      // deployment produces.
+      name: 'istio',
+      testMatch: '**/specs/istio/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
+      // Profiling, split out so the without-profiling variant of the istio
+      // case can omit it by not running the project. A skip inside the mesh
+      // project would report passes for pages that were never opened.
+      name: 'istio-profiling',
+      testMatch: '**/specs/istio-profiling/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
       name: 'ui',
-      testMatch: /ui\/.*\.spec\.ts/,
+      testMatch: '**/specs/ui/*.spec.ts',
       dependencies: ['auth'],
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
     },

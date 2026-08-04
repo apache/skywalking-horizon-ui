@@ -32,72 +32,101 @@
 # local-run instructions: test/e2e/README.md.
 #
 #
-# ── CASE / FEATURE MATRIX ────────────────────────────────────────────────
+# ── DEMO SCENARIOS ───────────────────────────────────────────────────────
 #
-# Cases are split by DEPLOYMENT, not by upstream fixture file. Upstream's log
-# case, for example, differs from simple/jdk by two OAP environment variables
-# and a LAL rule — the demo app, storage and topology are identical, so giving
-# it a stack of its own would spend a minute of container boot to learn
-# nothing. Anything the core stack can produce belongs in `core`.
+# Scenarios are split by DEPLOYMENT — the stack that has to be stood up — never
+# by feature. Anything the baseline stack can already produce is a spec inside
+# `core`, never a new scenario: a stack costs about a minute of boot before a
+# single assertion runs, and assertions are cheap where stacks are not.
 #
-# Adding a case is a directory under test/e2e/cases/ plus one `case:` entry in
-# the matrix below. Keep this table in step with both.
+# Each entry below is that deployment, then what of Horizon is tested on it and
+# which components render it. This table is the single source of truth for
+# coverage: every case echoes its own entry to the console before it boots,
+# read straight from here, so there is no second copy to drift.
 #
-#   case        deployment difference        covers                             status
-#   ─────────────────────────────────────────────────────────────────────────────────
-#   core        —  (the baseline stack)      auth gate + session; OAP info,     ACTIVE
-#                                            menu caps; service roster and
-#                                            identity; traces (list + detail);
-#                                            metrics incl. JVM; LOGS via a LAL
-#                                            rule; TOPOLOGY nodes and edges;
-#                                            agent lifecycle EVENTS; and the
-#                                            rendered half of each — shell,
-#                                            picker, dashboard, traces, logs
-#                                            and topology tabs.
-#                                            templates.mode live is covered
-#                                            implicitly: the dashboard cannot
-#                                            render unless Horizon seeded the
-#                                            bundle into OAP and read it back.
+#   core      OAP + BanyanDB + the demo services                ACTIVE
+#             tests: layer template headers and metrics, layer dashboard
+#             layout and widget spans, the line / top / record widget forms,
+#             service picker, traces, logs, topology, instance topology,
+#             alarms, trace profiling (task create -> list), shell and login
+#             components: LayerWidgetTile, TimeChart, TopList, RecordList,
+#             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
+#             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
+#             LayerInstanceTopologyView, LayerShell, LayerServiceSelector,
+#             LayerDashboardsView, LayerInstancePicker, LayerEndpointPicker,
+#             AlarmsView, LayerTraceProfilingView, AppShell
 #
-#               (DSL management and the live debugger fold into core too: both
-#               OAP modules are on by default and core already exposes the
-#               admin host, so they cost no extra containers.)
+#   es        the same, storing to ElasticSearch instead        ACTIVE
+#             tests: the trace page on a non-BanyanDB backend — query-API
+#             banner, segment rows that open to fetch a full trace, and the
+#             cold-stage control being hidden
+#             components: LayerTracesView, TraceListPanel
 #
-#   zipkin      Zipkin receiver              Zipkin ingestion and query. The     ACTIVE
-#                                            demo app here reports Zipkin
-#                                            spans straight to OAP rather than
-#                                            through a SkyWalking agent, and
-#                                            Horizon reads them over the
-#                                            Zipkin-compatible API, not
-#                                            GraphQL — neither is reachable
-#                                            from core.
-#   browser     client-js app                Browser Errors tab, source-map     PLANNED
-#                                            de-minification
-#   es          ElasticSearch storage        trace v1 — the ONLY path that       ACTIVE
-#                                            reaches it, since v2 is
-#                                            BanyanDB-only. Deliberately not a
-#                                            copy of core: re-asserting every
-#                                            signal on a second backend would
-#                                            double the runtime to re-prove
-#                                            what storage does not affect.
-#   deployment  BanyanDB CLUSTER             the Deployment component, which    PLANNED
-#                                            visualises BanyanDB self-
-#                                            observability. Needs liaison +
-#                                            data nodes, so it cannot ride on
-#                                            the standalone core stack.
+#   browser   plus OAP's browser receiver, seeded client-side   ACTIVE
+#             tests: the Browser Errors page — error rows, message, page
+#             path, category, and the stack behind the expander
+#             components: LayerBrowserErrorsView
 #
-#   profiling   varies per profiling type    trace / async / pprof tabs.        DEFERRED
-#                                            Each relies on a different
-#                                            deployment; revisit as a group.
-#   infra       kind + rover                 eBPF and network profiling,        DEFERRED
-#                                            K8S_SERVICE topology. Uses
-#                                            infra-e2e's `kind` environment,
-#                                            not compose, and cannot run on
-#                                            macOS — eBPF needs a Linux kernel.
+#   admin     core, kept separate because it MUTATES OAP        ACTIVE
+#             tests: template push to OAP and the DSL write lifecycle, both
+#             on the wire — a browser cannot drive them without racing the
+#             case's own state. The admin pages themselves are covered only
+#             as far as MOUNTING and listing; editing and pushing from the
+#             page are not exercised
+#             components: DslCatalogView, DebugHistoryView, LiveDebuggerView,
+#             OverviewTemplatesAdmin, LayerDashboardsAdmin — mount + list
 #
-# NOTE: instance topology is NOT a reason for a dedicated case — the core
-# fixture already produces it (consumer -> provider at instance level). Only
-# the Deployment component needs the BanyanDB cluster.
+#   istio     kind + Istio + rover, in place of compose         ACTIVE
+#             tests: the MESH layer — service list, mesh topology, and the
+#             mesh_dp instance dashboard, which is the first bundled template
+#             in the suite to declare `card` widgets — plus the Zipkin trace
+#             page, which the MESH template sources its traces from. The
+#             profiling pages are covered only as far as MOUNTING: no process
+#             is asserted and no task is run, so the profiling components
+#             stay untested for now
+#             components: LayerWidgetTile's card branch,
+#             LayerZipkinTracesView, TraceListPanel,
+#             LayerEBPFProfilingView / LayerNetworkProfilingView — mount only
+#
+# ── RUNNING `istio` WITHOUT PROFILING ────────────────────────────────────
+#
+# Zipkin used to be its own scenario, with a Brave app reporting into an
+# otherwise empty layer. It folded into `istio` once that went green: the MESH
+# template sources its traces from Zipkin, so a mesh deployment feeds the same
+# receiver from the traffic that already produces the topology — real data, and
+# one less stack to boot.
+#
+# `istio` runs on infra-e2e's kind environment rather than compose, and is the
+# only case that needs a Linux kernel: profiling comes from rover, which
+# attaches eBPF probes to the host kernel. On macOS that kernel belongs to a
+# VM rover does not control, so a rover install there cannot work.
+#
+# Profiling is therefore skipped in two situations, decided in ONE place —
+# test/e2e/script/prepare/profiling-enabled.sh — which both the rover
+# deployment and the profiling verification consult, so the two can never
+# disagree:
+#
+#   E2E_SKIP_PROFILING=true    asked for explicitly, on any host
+#   a non-Linux host           automatic, and NOT overridable — forgetting the
+#                              flag on a laptop would otherwise mean a rover
+#                              install that cannot work, a multi-minute helm
+#                              timeout, and a red run saying nothing about
+#                              Horizon
+#
+# Skipping drops the rover deployment AND the profiling verification; the mesh
+# coverage is unaffected. Skipped verify cases print `SKIPPED` to stderr, so a
+# narrowed run never reads as a full one. Locally:
+#
+#     make -C test/e2e run-istio-without-profiling      # sets the flag
+#     make -C test/e2e run CASE=istio                   # macOS: same result
+#
+# THIS WORKFLOW NEVER SETS IT. Runners are Linux, which is the whole reason
+# the full case belongs in CI rather than on a developer's machine — the
+# profiling half is only ever exercised here.
+#
+# Adding a scenario: a directory under test/e2e/cases/, an entry in the table
+# above, and one `case:` entry below. Adding coverage to an existing scenario
+# is a spec, not a new stack.
 
 name: E2E
 
@@ -122,12 +151,19 @@ jobs:
       fail-fast: false
       matrix:
         case:
-          - name: core (BanyanDB)
+          - name: core (OAP + BanyanDB)
             config: test/e2e/cases/core/e2e.yaml
-          - name: es (ElasticSearch)
+          - name: es (OAP + ElasticSearch)
             config: test/e2e/cases/es/e2e.yaml
-          - name: zipkin (receiver + query)
-            config: test/e2e/cases/zipkin/e2e.yaml
+          - name: browser (+ browser receiver)
+            config: test/e2e/cases/browser/e2e.yaml
+          - name: admin (isolated, mutating)
+            config: test/e2e/cases/admin/e2e.yaml
+          # kind rather than compose, and the only case needing a Linux
+          # kernel: rover attaches eBPF probes. Slowest by a wide margin — a
+          # mesh install plus ALS analysis before the first assertion.
+          - name: istio (kind + Istio + rover)
+            config: test/e2e/cases/istio/e2e.yaml
     steps:
       - uses: actions/checkout@v6
         with:
@@ -177,9 +213,33 @@ jobs:
         if: ${{ failure() || cancelled() }}
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-report-${{ strategy.job-index }}
+          # Named after the case: `e2e-report-3` alone means opening the
+          # workflow file to find out which deployment it came from.
+          name: e2e-report-${{ strategy.job-index }}-${{ matrix.case.name }}
           path: |
             test/e2e/playwright/playwright-report
             test/e2e/playwright/test-results
+            # Per-pod logs from infra-e2e, plus — for a kind case — the
+            # cluster state the browser runner captured at the moment it
+            # failed, while the cluster was still up.
             e2e-logs
           retention-days: 7
+
+  # Rolls the matrix up into ONE status so branch protection can gate on it:
+  # `.asf.yaml` lists contexts by name, and a matrix produces one context per
+  # case whose names change whenever a case is added or renamed.
+  #
+  # `always() && !cancelled()` so a single red case still reports rather than
+  # leaving the context pending forever, which would block every merge on a
+  # status that never arrives.
+  required:
+    name: E2E Required
+    if: always() && !cancelled()
+    needs: [e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Assert every case passed
+        run: |
+          result="${{ needs.e2e.result }}"
+          echo "e2e matrix result: ${result}"
+          [ "${result}" = "success" ] || exit 1

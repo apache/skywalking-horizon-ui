@@ -15,5 +15,4 @@
 # specific language governing permissions and limitations
 # under the License.
 
-api: queryBasicTraces
-hasTraces: true
+hasAlarms: true

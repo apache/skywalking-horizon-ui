@@ -15,10 +15,16 @@
 # limitations under the License.
 #
 
-# Zipkin: a different RECEIVER and a different query surface, which is why it
-# earns its own deployment. The demo app here reports Zipkin spans directly to
-# OAP rather than through a SkyWalking agent, and Horizon reads them over the
-# Zipkin query API instead of the GraphQL trace API.
+# The WRITE surfaces: DSL rule hot-update and ui-management template CRUD.
+#
+# These get their own deployment for one reason — they mutate OAP. A rule
+# pushed or a template disabled under `core` would change the backend every
+# other assertion there is reading, and a half-applied hot-update would
+# surface as an unrelated failure somewhere else in that run.
+#
+# Deliberately LIGHTER than core: no demo app, no agent, no traffic. Neither
+# the template store nor the rule loader needs telemetry, so the case skips
+# the slowest part of the fixture — agent registration and metric aggregation.
 
 services:
   banyandb:
@@ -30,48 +36,17 @@ services:
     extends:
       file: ../../script/docker-compose/base-compose.yml
       service: oap
-    environment:
-      # Receiver takes spans on 9411; the Zipkin-compatible query API is
-      # served on 9412, which is what Horizon reads.
-      SW_RECEIVER_ZIPKIN: default
-      SW_QUERY_ZIPKIN: default
-    expose:
-      - 9411
     ports:
       - 12800
       - 17128
-      - 9412
     depends_on:
       banyandb:
-        condition: service_healthy
-
-  zipkin-backend:
-    extends:
-      file: ../../script/docker-compose/base-compose.yml
-      service: zipkin-backend
-    depends_on:
-      oap:
-        condition: service_healthy
-
-  zipkin-frontend:
-    extends:
-      file: ../../script/docker-compose/base-compose.yml
-      service: zipkin-frontend
-    ports:
-      # Published so the trigger can drive it from the host.
-      - 8081
-    depends_on:
-      oap:
         condition: service_healthy
 
   horizon:
     extends:
       file: ../../script/docker-compose/base-compose.yml
       service: horizon
-    environment:
-      # Without this Horizon probes the default localhost URL, reports
-      # zipkinReachable false, and the whole Zipkin surface stays dark.
-      HORIZON_OAP_ZIPKIN_URL: http://oap:9412/zipkin
     ports:
       - 8081
     depends_on:

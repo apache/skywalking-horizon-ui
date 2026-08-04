@@ -174,11 +174,9 @@ jobs:
     # (`.asf.yaml: protected_branches.main.required_status_checks.contexts:
     # [Required]`) can gate on a single rolled-up signal.
     #
-    # e2e-core is deliberately NOT rolled up yet. It reports on every PR and a
-    # red run is a real signal, but a suite this young blocking every merge
-    # trades one class of bug for a worse one — people learn to re-run it.
-    # Promote it by adding it to `needs` and asserting its result below, once
-    # it has held green across a few weeks of real PRs.
+    # E2E is a separate workflow with its own rolled-up "E2E Required"
+    # status, listed alongside this one in .asf.yaml — it cannot be a `needs`
+    # here because `needs` does not cross workflow boundaries.
     if: always() && !cancelled()
     name: Required
     needs: [license-header, build-and-check]

@@ -23,13 +23,23 @@ test/e2e/
       expected/                  expected output per verify case
     es/                          ElasticSearch storage — the only path that
                                  reaches Horizon's pre-v2 trace query
-    zipkin/                      Zipkin receiver + Zipkin query surface
+    browser/                     browser telemetry — OAP's browser receiver
+                                 and the BROWSER layer
+    admin/                       the WRITE paths — DSL hot-update and
+                                 template CRUD, isolated because they mutate
+                                 the backend other cases read; covers the
+                                 admin screens in a browser too
+    istio/                       a real service mesh on kind, not compose —
+      e2e.yaml                   the MESH layer built from Envoy access logs,
+      kind.yaml                  the `card` widget form, Zipkin traces fed by
+      horizon.yaml               Envoy, and rover's profiling pages
+      rover.yaml
   playwright/                    the Playwright project: config + specs
 ```
 
 A case never redefines a service — it `extends` the one it needs from `base-compose.yml` and adds only what is case-specific. `extends` deliberately does not carry `depends_on`, so each case declares its own ordering; that is upstream's convention too.
 
-The Playwright project is **shared by all cases**, not per-case. A case reaches it through one verify line, so a new case reuses the same login, fixtures and config rather than standing up a second browser suite.
+Playwright is reached through one verify line per case, so every case reuses the same login, fixtures and config rather than standing up a second browser suite. The PROJECT differs per case, though — see below.
 
 ## What the core case stands up
 
@@ -90,11 +100,13 @@ Cases needing **rover / eBPF** cannot run on macOS: eBPF needs a Linux kernel, a
 
 ## Adding a case
 
-1. `mkdir test/e2e/cases/<name>` with a `docker-compose.yml` that `extends` the base and an `e2e.yaml`.
+1. `mkdir test/e2e/cases/<name>` with an `e2e.yaml`, plus a `docker-compose.yml` that `extends` the base — or, for a `kind` case, a `kind.yaml` and the manifests it applies. A kind case must list EVERY image it runs under `import-images`: the node has no guaranteed outbound access (see the proxy note in CLAUDE.md).
 2. Add expected files under `cases/<name>/expected/`. **Write them before the first run** — a missing expected file is retried for the whole budget and can never succeed, so a typo costs the full retry window rather than failing fast.
-3. Add one entry to the `case:` matrix in `.github/workflows/e2e.yaml`, and a row to the case/feature matrix in its header comment.
+3. Add one entry to the `case:` matrix in `.github/workflows/e2e.yaml`, and an entry to the case table in its header comment — that table is the single source of truth for coverage, and the case echoes its own entry to the console before it boots.
 
-If the case needs UI coverage, add specs under `playwright/specs/` and a Playwright project, then call `script/prepare/playwright.sh <project> <url>` from a verify case.
+If the case needs UI coverage, add specs under `playwright/specs/` and call `script/prepare/playwright.sh <project>` from a verify case.
+
+**A Playwright project shared between cases couples them: a spec added for one becomes a requirement for every case that runs it,** including cases that never run the readiness gate it depends on. So each case has its OWN project matching `specs/<project>/` — `es` runs only the pre-v2 trace spec, `browser` only the Browser Errors spec, `istio` the mesh specs. `auth` is the exception: it is nobody's project and everybody's dependency, signing in once and sharing the session.
 
 ## Writing a spec that will not flake
 

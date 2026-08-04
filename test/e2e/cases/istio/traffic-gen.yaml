@@ -1,0 +1,58 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Traffic runs INSIDE the cluster rather than from infra-e2e's `trigger`.
+#
+# kind has no load balancer, so the ingress gateway has no address a host-side
+# trigger could call. A pod calling the gateway by cluster DNS is both simpler
+# and closer to how the mesh is actually used.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trafficgenerator
+  namespace: default
+  labels:
+    app: trafficgenerator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: trafficgenerator
+  template:
+    metadata:
+      labels:
+        app: trafficgenerator
+      annotations:
+        # Unmeshed on purpose: a sidecar here would add the generator itself
+        # to the topology the specs assert on.
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: trafficgenerator
+          # Side-loaded by import-images; pinned in script/env.
+          image: alpine/curl:8.9.1
+          command: ["/bin/sh", "-c", "--"]
+          args:
+            - |
+              while true; do
+                curl -s -o /dev/null http://istio-ingressgateway.istio-system:80/productpage
+                sleep 1
+              done
+          resources:
+            requests:
+              cpu: 0.1

@@ -67,7 +67,13 @@ import { parsePreviewTraces } from '../../logic/layers/preview.js';
 import { detectTraceQueryApi } from '../../util/trace-protocol-cache.js';
 import { withColdStage } from '../../util/duration.js';
 import { fmtSecond, getServerOffsetMinutes, windowFromRange } from '../../util/window.js';
-import { zipkinFetchTraces, zipkinFetchTraceById, summariseZipkinTrace } from '../../client/zipkin.js';
+import {
+  buildZipkinOpts,
+  zipkinFetchTraces,
+  zipkinFetchTraceById,
+  summariseZipkinTrace,
+  type ZipkinClientOpts,
+} from '../../client/zipkin.js';
 
 export interface TraceRouteDeps {
   config: ConfigSource;
@@ -364,7 +370,9 @@ export async function fetchNativeTraceSpans(opts: GraphqlOptions, traceId: strin
  *  and report `hasNext` as "capped". A Zipkin PAGER would need a
  *  backwards-walking `endTs` cursor, which is a different feature. */
 export async function fetchZipkinList(
-  opts: GraphqlOptions,
+  // Zipkin options, NOT the GraphQL ones. The two are structurally identical,
+  // so passing the wrong object type-checks and then queries the GraphQL port.
+  opts: ZipkinClientOpts,
   body: TraceListBody,
   maxPageSize: number,
 ): Promise<ZipkinTraceListResponse> {
@@ -429,7 +437,9 @@ export function registerTraceRoutes(app: FastifyInstance, deps: TraceRouteDeps):
         wantNative
           ? fetchNativeList(opts, body, !!req.coldStage, offset, maxPageSize)
           : Promise.resolve(undefined),
-        wantZipkin ? fetchZipkinList(opts, body, maxPageSize) : Promise.resolve(undefined),
+        wantZipkin
+          ? fetchZipkinList(buildZipkinOpts(deps.config.current, deps.fetch), body, maxPageSize)
+          : Promise.resolve(undefined),
       ]);
 
       const response: TraceListResponse = {
