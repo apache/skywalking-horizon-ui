@@ -17,10 +17,13 @@ test/e2e/
     Dockerfile.demo-service      agent image + upstream service jar
     prepare/                     installers and helpers used by cases
   cases/
-    core/
-      e2e.yaml                   setup / trigger / verify / cleanup
+    core/                        the baseline stack — traces, metrics, logs,
+      e2e.yaml                   topology, events, DSL, and the UI for each
       docker-compose.yml         extends the base; adds ports + depends_on
       expected/                  expected output per verify case
+    es/                          ElasticSearch storage — the only path that
+                                 reaches Horizon's pre-v2 trace query
+    zipkin/                      Zipkin receiver + Zipkin query surface
   playwright/                    the Playwright project: config + specs
 ```
 
@@ -88,7 +91,7 @@ Cases needing **rover / eBPF** cannot run on macOS: eBPF needs a Linux kernel, a
 ## Adding a case
 
 1. `mkdir test/e2e/cases/<name>` with a `docker-compose.yml` that `extends` the base and an `e2e.yaml`.
-2. Add expected files under `cases/<name>/expected/`.
+2. Add expected files under `cases/<name>/expected/`. **Write them before the first run** — a missing expected file is retried for the whole budget and can never succeed, so a typo costs the full retry window rather than failing fast.
 3. Add one entry to the `case:` matrix in `.github/workflows/e2e.yaml`, and a row to the case/feature matrix in its header comment.
 
 If the case needs UI coverage, add specs under `playwright/specs/` and a Playwright project, then call `script/prepare/playwright.sh <project> <url>` from a verify case.

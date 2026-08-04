@@ -40,6 +40,22 @@ services:
       timeout: 60s
       retries: 120
 
+  # Alternative storage, used only by the case that needs a non-BanyanDB
+  # backend. Cases that do not extend it never start it.
+  es:
+    image: "elastic/elasticsearch:${ES_VERSION}"
+    networks: [e2e]
+    expose: ["9200"]
+    environment:
+      - discovery.type=single-node
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - xpack.security.enabled=false
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9200"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
   oap:
     image: "ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}"
     networks: [e2e]
@@ -121,6 +137,30 @@ services:
       interval: 5s
       timeout: 30s
       retries: 60
+
+  # Zipkin demo app, used only by the zipkin case. Reports Zipkin spans
+  # straight to OAP's receiver rather than through a SkyWalking agent.
+  zipkin-frontend:
+    image: "${SW_BRAVE_IMAGE}"
+    entrypoint: start-frontend
+    networks: [e2e]
+    expose: ["8081"]
+    environment:
+      ZIPKIN_BASEURL: http://oap:9411
+
+  zipkin-backend:
+    image: "${SW_BRAVE_IMAGE}"
+    entrypoint: start-backend
+    # The frontend calls its peer at the hardcoded hostname `backend`, so the
+    # descriptive service name needs an alias — otherwise the frontend answers
+    # 500 with an NXDOMAIN, and infra-e2e's trigger blocks forever waiting for
+    # a 2xx that will never come.
+    networks:
+      e2e:
+        aliases: [backend]
+    expose: ["9000"]
+    environment:
+      ZIPKIN_BASEURL: http://oap:9411
 
 networks:
   e2e:

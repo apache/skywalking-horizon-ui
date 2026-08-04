@@ -1,0 +1,69 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Zipkin ingestion and query. Scoped to what differs from core: the receiver,
+# the Zipkin query surface, and Horizon's reachability probe for it.
+#
+# Run it:  e2e run -c test/e2e/cases/zipkin/e2e.yaml
+# Images:  make -C test/e2e images
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+    - name: prepare browser image
+      command: bash test/e2e/script/prepare/install.sh playwright
+
+trigger:
+  # Drives frontend -> backend, which is what produces a two-service Zipkin
+  # trace rather than a single orphan span.
+  action: http
+  interval: 3s
+  times: -1
+  url: http://${zipkin-frontend_host}:${zipkin-frontend_8081}/
+  method: GET
+
+verify:
+  retry:
+    count: 40
+    interval: 5s
+  cases:
+    # 1. Horizon can actually reach OAP's Zipkin query API. If this is false
+    #    every assertion below would fail with an empty list, which reads as
+    #    "no traces" rather than "wrong URL".
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/oap/info \
+          | yq -P '{"reachable": .reachable, "zipkinReachable": .zipkinReachable}'
+      expected: expected/zipkin-reachable.yml
+
+    # 2. The receiver accepted the spans and the query API lists both demo
+    #    services — the Zipkin equivalent of core's roster gate.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/zipkin/services \
+          | yq -P '{"hasServices": (. | length > 0)}'
+      expected: expected/has-zipkin-services.yml
+
+cleanup:
+  on: always

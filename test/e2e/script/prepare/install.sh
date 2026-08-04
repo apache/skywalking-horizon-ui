@@ -59,6 +59,15 @@ case "${NAME}" in
     # is pinned in script/env; re-install when the installed one does not
     # match, otherwise a stale swctl from another project silently wins.
     ctl_commit=$(grep -E '^SW_CTL_COMMIT=' "${here}/script/env" | head -1 | cut -d= -f2-)
+    # Check BIN_DIR before PATH: CI restores a cached binary straight into it,
+    # and that restore must count as "already installed" regardless of whether
+    # PATH has been exported yet. Building it takes about a minute, which is
+    # the single largest fixed cost in the case.
+    if [ -x "${BIN_DIR}/swctl" ] &&
+       "${BIN_DIR}/swctl" --version 2>/dev/null | grep -q "${ctl_commit:0:7}"; then
+      echo "swctl already at ${ctl_commit:0:7} (${BIN_DIR}/swctl)"
+      exit 0
+    fi
     if command -v swctl > /dev/null 2>&1 && swctl --version 2>/dev/null | grep -q "${ctl_commit:0:7}"; then
       echo "swctl already at ${ctl_commit:0:7}"
       exit 0
