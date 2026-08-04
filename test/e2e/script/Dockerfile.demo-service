@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -12,11 +13,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
 
-packages:
-  - "apps/*"
-  - "packages/*"
-  # The e2e suite is a workspace package so `pnpm -r run type-check` covers
-  # its specs. It ships nothing: no build, no test:unit, dev-only deps — so
-  # it stays out of the packaged artifact and the binary LICENSE.
-  - "test/e2e/playwright"
+# Instrumented demo service = apache/skywalking's published e2e service jar
+# running on apache/skywalking-java's published agent image.
+#
+# Upstream's own compose bind-mounts a Maven-built jar, which would force a
+# JDK + `./mvnw` + an upstream checkout into this repo's CI. Both halves are
+# published images, so joining them here gets the identical result from
+# registry pulls alone.
+#
+# The agent image sets JAVA_TOOL_OPTIONS=-javaagent:/skywalking/agent/... , so
+# the service is instrumented without a command-line flag here.
+
+ARG AGENT_IMAGE
+ARG APP_IMAGE
+
+FROM ${APP_IMAGE} AS app
+
+FROM ${AGENT_IMAGE}
+COPY --from=app /app.jar /app.jar
+CMD ["java", "-jar", "/app.jar"]

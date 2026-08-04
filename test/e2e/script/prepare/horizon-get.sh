@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -12,11 +14,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+#     horizon-get.sh <base-url> <path>
+#
+# Signs in and GETs an authenticated BFF route, printing the body on stdout.
+# Every Horizon query route is behind a session cookie, so a verify case
+# cannot simply curl one.
 
-packages:
-  - "apps/*"
-  - "packages/*"
-  # The e2e suite is a workspace package so `pnpm -r run type-check` covers
-  # its specs. It ships nothing: no build, no test:unit, dev-only deps — so
-  # it stays out of the packaged artifact and the binary LICENSE.
-  - "test/e2e/playwright"
+set -eu
+
+BASE="${1:?usage: horizon-get.sh <base-url> <path>}"
+PATH_="${2:?usage: horizon-get.sh <base-url> <path>}"
+
+USER="${HORIZON_E2E_USER:-e2e}"
+PASSWORD="${HORIZON_E2E_PASSWORD:-e2e-passw0rd}"
+
+JAR=$(mktemp)
+trap 'rm -f "${JAR}"' EXIT
+
+curl -sSf -c "${JAR}" -X POST "${BASE}/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"${USER}\",\"password\":\"${PASSWORD}\"}" > /dev/null
+
+curl -sSf -b "${JAR}" "${BASE}${PATH_}"

@@ -1,0 +1,126 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Service definitions shared by every case, in the shape of
+# apache/skywalking's test/e2e-v2/script/docker-compose/base-compose.yml.
+#
+# A case never redefines a service — it `extends` the one it needs and adds
+# only what is case-specific (ports to publish, extra env, depends_on).
+# `extends` deliberately does NOT carry depends_on or volumes_from, so each
+# case declares its own ordering; that is upstream's convention too.
+#
+# Ports are exposed, not published: infra-e2e maps them to ephemeral host
+# ports and exports ${<service>_host} / ${<service>_<port>} for the verify
+# cases to address. Hard-coding host ports here would make two cases running
+# back to back collide.
+
+services:
+  banyandb:
+    image: "ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}"
+    networks: [e2e]
+    expose: ["17912", "17913"]
+    command: standalone --measure-metadata-cache-wait-duration 1m --stream-metadata-cache-wait-duration 1m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -nz 127.0.0.1 17912"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  oap:
+    image: "ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}"
+    networks: [e2e]
+    expose: ["11800", "12800", "17128"]
+    environment:
+      SW_HEALTH_CHECKER: default
+      SW_STORAGE_BANYANDB_TARGETS: banyandb:17912
+      # Without a LAL rule OAP accepts log records and drops them, so the Logs
+      # tab is empty even though the agent is reporting correctly. Enabled for
+      # every case: the demo app already emits logs, so this costs nothing and
+      # spares a whole extra stack just to see them.
+      SW_LOG_LAL_FILES: horizon-e2e
+    volumes:
+      - ./lal.yaml:/skywalking/config/lal/horizon-e2e.yaml
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/11800"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+      # OAP installs ~3000 BanyanDB measure schemas at boot; on a rate-limited
+      # daemon (Docker Desktop) that runs 60-120s before the gRPC port opens.
+      # Without this window the failed probes burn the retry budget.
+      start_period: 90s
+
+  provider:
+    image: "horizon-e2e-demo-provider:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    networks: [e2e]
+    expose: ["9090"]
+    environment:
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_AGENT_NAME: e2e-service-provider
+      SW_AGENT_INSTANCE_NAME: provider1
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_METER_ACTIVE: 'false'
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9090"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  consumer:
+    image: "horizon-e2e-demo-consumer:${SW_E2E_SERVICE_COMMIT}"
+    pull_policy: never
+    networks: [e2e]
+    expose: ["9092"]
+    environment:
+      SW_AGENT_COLLECTOR_BACKEND_SERVICES: oap:11800
+      SW_AGENT_NAME: e2e-service-consumer
+      SW_AGENT_INSTANCE_NAME: consumer1
+      SW_LOGGING_OUTPUT: CONSOLE
+      SW_METER_ACTIVE: 'false'
+      PROVIDER_URL: http://provider:9090
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9092"]
+      interval: 5s
+      timeout: 60s
+      retries: 120
+
+  horizon:
+    image: "${HORIZON_E2E_IMAGE}"
+    # Built from this checkout, never pulled — a pull here would silently test
+    # someone else's build.
+    pull_policy: never
+    networks: [e2e]
+    expose: ["8081"]
+    environment:
+      HORIZON_OAP_QUERY_URL: http://oap:12800
+      HORIZON_OAP_ADMIN_URL: http://oap:17128
+      # Default mode, stated explicitly because it is the contract under test:
+      # Horizon seeds the bundle into OAP's ui_template store at boot and then
+      # renders only what OAP holds. A template-store regression must fail the
+      # suite, not fall back to the disk bundle.
+      HORIZON_TEMPLATES_MODE: live
+      HORIZON_AUTH_BACKEND: local
+      HORIZON_AUTH_LOCAL_USERS: '[{"username":"${HORIZON_E2E_USER}","passwordHash":"${HORIZON_E2E_PASSWORD_HASH}","roles":["admin"]}]'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8081/api/health"]
+      interval: 5s
+      timeout: 30s
+      retries: 60
+
+networks:
+  e2e:

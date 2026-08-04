@@ -39,9 +39,10 @@ github:
       required_status_checks:
         # Require branches to be up to date with main before merging.
         strict: true
-        # The CI "required" job rolls up every check (license-header,
-        # dependency-license, type-check, build-ui, build-bff, test) into a
-        # single "Required" status, so protection gates on one context.
+        # The CI "required" job rolls up every check (license-header plus the
+        # build-and-check job that lints, type-checks, tests, packages and
+        # boots the artifact) into a single "Required" status, so protection
+        # gates on one context.
         contexts:
           - Required
       required_pull_request_reviews:
