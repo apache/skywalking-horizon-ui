@@ -1,0 +1,35 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# Single-node cluster for the deployment scenario.
+#
+# The node container joins docker's `kind` network, which is how the browser
+# container reaches Horizon: it attaches to the same network and calls the
+# NodePort on the node by container name. No host port mapping is involved, so
+# a laptop run and a CI run address the fixture identically.
+#
+# The node image is written out in full rather than read from script/env: kind
+# config files are handed to kind verbatim, with none of the ${VAR} expansion
+# infra-e2e does elsewhere, so a reference here would be pulled literally.
+# It carries its own digest, so the k8s version and the image serving it
+# cannot drift apart.
+
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.28.15@sha256:a7c05c7ae043a0b8c818f5a06188bc2c4098f6cb59ca7d1856df00375d839251

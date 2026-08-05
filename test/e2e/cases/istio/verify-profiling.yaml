@@ -25,7 +25,7 @@
 # nothing, so nothing is skipped where it can actually run.
 
 cases:
-  # GATE: rover reported processes for the service.
+  # READINESS: rover reported processes for the service.
   #
   # The profiling SPECS below assert only that their pages mount, so strictly
   # they do not need this. It stays because it is the one check that proves
@@ -34,7 +34,7 @@ cases:
   # to be "kind + Istio + rover".
   - query: |
       if ! bash test/e2e/script/prepare/profiling-enabled.sh; then
-        echo "SKIPPED: rover process gate" >&2
+        echo "SKIPPED: rover process check" >&2
         echo "hasProcesses: true"
       else
         bash test/e2e/script/prepare/rover-processes.sh \

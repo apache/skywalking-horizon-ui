@@ -86,3 +86,18 @@ export const MESH_PEERS = ['productpage', 'reviews', 'details'];
 export const MESH_DP_LAYER = 'mesh_dp';
 /** MESH_DP names services `<workload>.<namespace>`; bookinfo runs in default. */
 export const MESH_DP_SUFFIX = '\\.default';
+
+/**
+ * The deployment fixture: BanyanDB running as a CLUSTER, reporting its own
+ * observability through FODC.
+ *
+ * The service name is the `cluster` label the OTel collector injects — OAP's
+ * banyandb rules build the BANYANDB service from it, so it is fixture
+ * configuration rather than anything BanyanDB chooses.
+ *
+ * The roles come from the `node_role` attribute on those samples. A clustered
+ * install has more than one; a standalone node would have nothing to group.
+ */
+export const BANYANDB_LAYER = 'banyandb';
+export const BANYANDB_CLUSTER = 'e2e-banyandb';
+export const BANYANDB_ROLES = ['liaison', 'data'];

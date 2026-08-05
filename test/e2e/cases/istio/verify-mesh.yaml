@@ -18,7 +18,7 @@
 # Shared by both istio variants: everything the mesh produces without rover.
 
 cases:
-  # 1. GATE, not a test: does OAP know the mesh at all? bookinfo's productpage
+  # 1. READINESS, not a test: does OAP know the mesh at all? bookinfo's productpage
   #    only exists once Envoy's access logs have been analysed into entities,
   #    so this failing means the mesh or ALS is broken, not Horizon.
   - query: |
@@ -26,7 +26,7 @@ cases:
         | yq -P '{"meshServices": [.[] | select(.name == "productpage" or .name == "reviews")] | length}'
     expected: expected/mesh-services.yml
 
-  # 2. GATE: the mesh_dp card widgets read Envoy's own stats, reported through
+  # 2. READINESS: the mesh_dp card widgets read Envoy's own stats, reported through
   #    the metrics service — a DIFFERENT pipeline from the access logs above,
   #    so the topology can be complete while every card is still empty.
   #
@@ -43,7 +43,7 @@ cases:
         )
     expected: expected/metrics-has-value.yml
 
-  # 3. GATE: Horizon can see the mesh roster too, absorbing the catalog TTL
+  # 3. READINESS: Horizon can see the mesh roster too, absorbing the catalog TTL
   #    before the browser project pays for it.
   - query: |
       bash test/e2e/script/prepare/horizon-get.sh \
@@ -51,7 +51,18 @@ cases:
         | yq -P '{"reachable": .reachable, "meshServices": [.services[] | select(.name == "productpage")] | length}'
     expected: expected/horizon-mesh-roster.yml
 
-  # 4. GATE: Zipkin traces are queryable. Everything above is derived from
+  # 3b. READINESS: the mesh topology has EDGES. The service roster above proves
+  #     ALS produced entities; the call graph is a different aggregation and
+  #     lands later, so the spec's `.sm-edge` assertion can fail against a
+  #     mesh that is merely still assembling.
+  - query: |
+      bash test/e2e/script/prepare/horizon-get.sh \
+        "http://${service_horizon_host}:${service_horizon_8081}" \
+        "/api/layer/mesh/topology?windowMinutes=30" \
+        | yq -P '{"hasCalls": ((.calls // []) | length > 0)}'
+    expected: expected/has-mesh-calls.yml
+
+  # 4. READINESS: Zipkin traces are queryable. Everything above is derived from
   #    ALS, which is a different pipeline from Envoy's tracing — the mesh can
   #    be fully mapped while no span has been reported yet. The istio project
   #    asserts on the Zipkin tab and will not be re-run after a first failure.

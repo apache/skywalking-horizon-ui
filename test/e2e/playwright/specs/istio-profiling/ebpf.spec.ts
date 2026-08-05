@@ -31,7 +31,7 @@ import { MESH_LAYER, MESH_PEERS } from '../fixture.js';
 // buy is that the routes resolve and the views do not throw on mount against
 // a deployment where rover is running.
 //
-// The readiness gate beside them is what proves rover reported anything at
+// The readiness check beside them is what proves rover reported anything at
 // all; it asks OAP directly.
 
 test('the eBPF profiling page mounts and resolves a service', async ({ page, pageErrors }) => {

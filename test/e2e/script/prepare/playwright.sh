@@ -52,7 +52,7 @@ image=$(grep -E '^SW_PLAYWRIGHT_IMAGE=' "${here}/script/env" | head -1 | cut -d=
 # a quarter of an hour, and overwrites the artifacts each round, so what
 # survives is the LAST failure rather than the first.
 #
-# The budget exists for the data-readiness gates ahead of this case, which do
+# The budget exists for the data-readiness checks ahead of this case, which do
 # need it. A browser suite does not: if the assertions failed once against a
 # fixture already proven ready, running them again changes nothing. Record the
 # first failure and short-circuit every later attempt, which also preserves
@@ -73,7 +73,7 @@ fi
 #   kind     — Horizon runs inside the cluster, so there is no such container.
 #              The browser instead joins the network the kind NODE is on and
 #              calls the node's NodePort. Deliberately not the host port-
-#              forward infra-e2e sets up for the gates: that binds to the
+#              forward infra-e2e sets up for the checks: that binds to the
 #              host's loopback, which a container only shares on Linux, and
 #              the without-profiling variant exists precisely so a developer
 #              on macOS can run this.

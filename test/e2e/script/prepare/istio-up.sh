@@ -86,11 +86,16 @@ case "${STAGE}" in
     # BanyanDB, as principle 1 requires: this scenario is here for the mesh,
     # not for a second storage backend.
     #
-    # SW_RECEIVER_ZIPKIN / SW_QUERY_ZIPKIN: the MESH layer template sources
-    # its traces from Zipkin, not from SkyWalking's own trace query, so the
-    # mesh Traces tab is dark without these. Istio is configured below to
-    # report spans to the receiver, which makes this the one place the Zipkin
-    # path is exercised with real mesh traffic.
+    # The zipkin PORTS are what turn the receiver and query on: the chart
+    # emits SW_RECEIVER_ZIPKIN / SW_QUERY_ZIPKIN itself whenever they are
+    # declared, so setting those env vars here as well makes the Deployment
+    # carry duplicate env entries and helm refuses the whole release.
+    #
+    # They matter because the MESH layer template sources its traces from
+    # Zipkin rather than SkyWalking's own trace query — the mesh Traces tab is
+    # dark without them, and Istio is configured below to report spans to the
+    # receiver, which makes this the one place the Zipkin path runs on real
+    # mesh traffic.
     #
     # SW_QUERY_GRAPHQL_ENABLE_ON_DEMAND_POD_LOG: pod logs are read from the
     # Kubernetes API on demand rather than from storage, and OAP ships that
@@ -116,8 +121,6 @@ case "${STAGE}" in
       --set 'oap.env.K8S_SERVICE_NAME_RULE=${service.metadata.name}' \
       --set oap.env.SW_HEALTH_CHECKER=default \
       --set oap.env.SW_QUERY_GRAPHQL_ENABLE_ON_DEMAND_POD_LOG=true \
-      --set oap.env.SW_RECEIVER_ZIPKIN=default \
-      --set oap.env.SW_QUERY_ZIPKIN=default \
       --set oap.ports.zipkin-receiver=9411 \
       --set oap.ports.zipkin-query=9412 \
       --set elasticsearch.enabled=false \

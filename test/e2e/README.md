@@ -2,7 +2,7 @@
 
 Runs Horizon against a **real OAP** on **BanyanDB**, fed by an instrumented demo app, and verifies both halves of the product: the BFF's HTTP surface and the rendered UI in a headless browser.
 
-This is the gate that unit tests and `tsc` cannot be. A green type-check proves the code compiles; it does not prove a widget resolves its MQE against live data, that the trace list renders what the BFF returned, or that a view mounts at all.
+This is the check that unit tests and `tsc` cannot be. A green type-check proves the code compiles; it does not prove a widget resolves its MQE against live data, that the trace list renders what the BFF returned, or that a view mounts at all.
 
 Driven by [skywalking-infra-e2e](https://github.com/apache/skywalking-infra-e2e) — the same harness every other e2e in the SkyWalking project uses.
 
@@ -106,7 +106,7 @@ Cases needing **rover / eBPF** cannot run on macOS: eBPF needs a Linux kernel, a
 
 If the case needs UI coverage, add specs under `playwright/specs/` and call `script/prepare/playwright.sh <project>` from a verify case.
 
-**A Playwright project shared between cases couples them: a spec added for one becomes a requirement for every case that runs it,** including cases that never run the readiness gate it depends on. So each case has its OWN project matching `specs/<project>/` — `es` runs only the pre-v2 trace spec, `browser` only the Browser Errors spec, `istio` the mesh specs. `auth` is the exception: it is nobody's project and everybody's dependency, signing in once and sharing the session.
+**A Playwright project shared between cases couples them: a spec added for one becomes a requirement for every case that runs it,** including cases that never run the readiness check it depends on. So each case has its OWN project matching `specs/<project>/` — `es` runs only the pre-v2 trace spec, `browser` only the Browser Errors spec, `istio` the mesh specs. `auth` is the exception: it is nobody's project and everybody's dependency, signing in once and sharing the session.
 
 ## Writing a spec that will not flake
 

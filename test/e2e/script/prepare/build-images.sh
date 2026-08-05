@@ -65,4 +65,21 @@ else
   docker build -t "${HORIZON_E2E_IMAGE}" "${root}"
 fi
 
+# The chart's init container asks for `curlimages/curl` with no tag, which
+# docker resolves to `:latest`. A kind case must side-load exactly that
+# reference, so it cannot be pinned in the import list — pin the CONTENT here
+# instead: pull a fixed version and re-tag it as the name the pod will request.
+# Skipped silently when the pull fails and something is already tagged locally,
+# so an offline run keeps working.
+CURL_IMAGE=$(val SW_CURL_IMAGE)
+if docker pull -q "${CURL_IMAGE}" > /dev/null 2>&1; then
+  docker tag "${CURL_IMAGE}" curlimages/curl:latest
+  echo "▸ pinned curlimages/curl:latest to ${CURL_IMAGE}"
+elif docker image inspect curlimages/curl:latest > /dev/null 2>&1; then
+  echo "▸ curlimages/curl:latest already present (pull failed, using local)"
+else
+  echo "ERROR: cannot resolve ${CURL_IMAGE} and no local curlimages/curl:latest" >&2
+  exit 1
+fi
+
 echo "images ready"

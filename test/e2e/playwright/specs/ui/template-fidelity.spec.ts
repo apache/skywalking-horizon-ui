@@ -59,13 +59,13 @@ function widgetsOf(layer: string, scope: string): Widget[] {
 /**
  * Widgets that must render for THIS fixture's entities.
  *
- * `visibleWhen` is evaluated BFF-side per entity: a gated widget is dropped
+ * `visibleWhen` is evaluated BFF-side per entity: a required widget is dropped
  * from the response entirely when the entity lacks the metric. general's
- * endpoint scope carries "MQ Avg Consuming Latency", gated on
+ * endpoint scope carries "MQ Avg Consuming Latency", required on
  * `endpoint_mq_consume_latency` existing — the demo app serves HTTP, so it is
  * correctly absent. Asserting it would fail on a healthy build.
  *
- * Gated widgets are therefore excluded from the count and the per-widget
+ * Conditional widgets are therefore excluded from the count and the per-widget
  * checks. Everything ungated must appear.
  */
 function unconditional(widgets: Widget[]): Widget[] {

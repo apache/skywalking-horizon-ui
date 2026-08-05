@@ -65,13 +65,13 @@ verify:
   # minute after the agents register. This retry budget is that window; it is
   # why the specs themselves need no long polls.
   retry:
-    # Sized for the slowest gate, which is alarms: OAP's bundled rules need a
+    # Sized for the slowest check, which is alarms: OAP's bundled rules need a
     # couple of minutes of traffic before they trip. The budget only costs
-    # time when a case actually retries, so the earlier gates are unaffected.
+    # time when a case actually retries, so the earlier checks are unaffected.
     count: 60
     interval: 5s
   cases:
-    # 1. GATE + triage split, not a test: asks OAP directly what it knows. If
+    # 1. CHECK FIRST + triage split, not a test: asks OAP directly what it knows. If
     #    this fails the demo app or the agent is broken, and no amount of
     #    reading Horizon will show it — the distinction that costs the most
     #    time when a browser suite goes red.
@@ -88,11 +88,11 @@ verify:
           | yq -P '{"reachable": .reachable, "demoServices": [.services[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
       expected: expected/horizon-roster.yml
 
-    # 3. Metrics have actually landed — the gate the browser cases depend on.
+    # 3. Metrics have actually landed — the check the browser cases depend on.
     #    Services register within seconds, but OAP persists metrics on a ~25s
     #    cycle and aggregates into minute buckets, so for a while after the
     #    roster is populated every metric widget is still legitimately empty.
-    #    Without this gate that wait falls to the `ui` case, which absorbs it
+    #    Without this check that wait falls to the `ui` case, which absorbs it
     #    by RETRYING — re-running the whole browser project each time, and
     #    turning a timing question into what looks like a flaky UI.
     #    service_cpm is what the layer dashboard's traffic widgets read.
@@ -103,7 +103,7 @@ verify:
 
     # 4. The consumer -> provider EDGE exists, not merely both services.
     #    service_cpm above is satisfied by the log burst alone, which hits the
-    #    provider directly — so the metrics gate can open while the topology
+    #    provider directly — so the metrics check can open while the topology
     #    still has no relation in it. Relation metrics aggregate on their own
     #    cycle from the trigger traffic, and the topology assertions need that
     #    to have landed. Missing this is what turned CI red while the same
@@ -114,8 +114,21 @@ verify:
           | yq -P '{"demoNodes": [.nodes[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length, "hasCalls": (.calls | length > 0)}'
       expected: expected/has-topology.yml
 
+    # 4b. READINESS: TRACES are queryable. service_cpm above proves metrics
+    #     persisted, which is a different write — a segment can lag the
+    #     metric it produced. Five renderers hang off a trace (scatter,
+    #     waterfall, tree, statistics, span modal) plus the cold deep link,
+    #     and playwright.sh will not re-run the project after a first
+    #     failure, so the wait belongs here rather than inside the browser.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/layer/general/traces \
+          '{"windowMinutes":30,"pageSize":10,"source":"native"}' \
+          | yq -P '{"hasTraces": ((.native.traces // []) | length > 0)}'
+      expected: expected/has-traces.yml
+
     # 5. Logs reached OAP and survived the LAL pipeline. Separate from the
-    #    metrics gate because a log can fail for its own reasons — a missing
+    #    metrics check because a log can fail for its own reasons — a missing
     #    LAL rule drops every record while traces and metrics stay perfect.
     - query: |
         swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql \

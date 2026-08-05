@@ -23,7 +23,7 @@
 #
 # With a third argument it POSTs that JSON instead of GETting — the list
 # routes (traces, logs, browser errors) take their filters in a body, and a
-# readiness gate has to ask the same question the page will.
+# readiness check has to ask the same question the page will.
 
 set -eu
 

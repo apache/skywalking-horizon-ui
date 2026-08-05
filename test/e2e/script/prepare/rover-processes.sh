@@ -44,7 +44,7 @@ for instance in ${instances}; do
   fi
 done
 
-# The instance names are on stderr so a red gate says WHICH instances were
+# The instance names are on stderr so a red check says WHICH instances were
 # asked — "rover reported nothing" and "the service has no instances at all"
 # are different failures with the same output.
 echo "instances checked: ${instances:-<none>}" >&2

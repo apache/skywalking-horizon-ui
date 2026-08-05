@@ -131,6 +131,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
     },
     {
+      // BanyanDB's own deployment — its own project because the BANYANDB
+      // layer only exists where a FODC-reporting cluster is running.
+      name: 'deployment',
+      testMatch: '**/specs/deployment/*.spec.ts',
+      dependencies: ['auth'],
+      use: { ...devices['Desktop Chrome'], storageState: AUTH_STATE },
+    },
+    {
       name: 'ui',
       testMatch: '**/specs/ui/*.spec.ts',
       dependencies: ['auth'],

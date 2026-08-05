@@ -127,6 +127,18 @@ Keep the changelog current as part of the change, not as an afterthought. Writte
 - **The `CHANGELOG.md` at the root of a source tarball is made during packaging.** ASF convention puts one there for release reviewers, so `scripts/release.sh` copies `docs/changelog/<version>.md` to the tarball root as it assembles it. It is a packaging artifact — do not re-create it in git.
 - **One line per paragraph and per list item — do not hard-wrap prose.** A GitHub **Release** body (rendered by the same engine as issue / PR / discussion comments) turns every single newline into a literal `<br>` (GFM hard line breaks), so a paragraph hard-wrapped at ~80 cols renders as a ragged column of short lines with a sea of right-hand whitespace. The repo file view collapses those same newlines to spaces, so the damage is invisible there — you only see it on the release page. Keep each paragraph / bullet on one physical line and it renders correctly in both. Separate items with a blank line; nested bullets each take their own line. This is the house style for the changelog files **and** every other Markdown page under `docs/`. The release pipeline still unwraps at publish time as a backstop (`scripts/changelog-release-notes.mjs`); run it with `--whole-file <file>` to normalize an existing file to this style.
 
+## Naming and wording
+
+Code and prose are read by people who already know this ecosystem. **Use the word they already have for the thing.** Kubernetes, Istio, Envoy, Prometheus and OAP have settled vocabularies; borrowing from them makes a comment searchable, translatable and unambiguous, while a coined term forces every reader to learn a private language first.
+
+- **Reach for the upstream noun before inventing one.** Kubernetes says *condition*, *readiness probe*, *precondition*, *reconcile*; Prometheus says *scrape*, *target*, *series*, *label*; Envoy says *listener*, *cluster*, *filter*; OAP says *entity*, *scope*, *layer*, *metric*. If a reader could grep the term in upstream docs and land somewhere useful, it is the right term.
+- **Prefer the plain description over the metaphor.** "Check the roster is populated first" beats "gate on the roster". Metaphors read as precise to the person who picked them and as vague to everyone else — and they translate badly, which matters in a project shipping seven locales.
+- **A term must survive being read literally.** Someone will take it at face value: `gate` implies something that opens and closes, `smoke` implies a scope nobody defined, `spine` implies a structure that does not exist in the code. If the literal reading misleads, the word is wrong.
+- **Name the thing by what it does, not by how it feels.** `wait-for-banyandb`, `readiness check`, `retry budget`, `fail-fast marker` — each says what happens. Judge a name by whether a reviewer who has never seen the file can predict the behaviour from it.
+- **One name per concept, everywhere.** The same idea in a comment, a doc, a test name and a log line should use the same word. Two names for one thing reads as two things.
+
+This applies to prose as much as identifiers: file comments, `docs/`, changelog entries, commit messages, test names and CI output are all read by people deciding whether to trust the code.
+
 ## Common AI failure modes to avoid
 
 1. **Skipping the read.** If you change a route, composable, store, or template without reading it end-to-end first, you will break something subtle. Read first, every time.

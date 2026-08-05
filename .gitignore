@@ -56,3 +56,5 @@ horizon-wire.jsonl
 # Release
 scripts/.release-work
 scripts/.finalize-work
+# e2e failure diagnostics — collected on a red run, never committed.
+e2e-logs/
