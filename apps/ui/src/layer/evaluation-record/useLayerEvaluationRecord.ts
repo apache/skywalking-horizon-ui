@@ -24,7 +24,6 @@ import type {
   EvaluationRecordRow,
   EvaluationRecordsResponse,
   LogKeyValue,
-  LogTagFilter,
 } from '@/api/client';
 
 export interface GenAIEvaluationRecordStreamRow {
@@ -32,6 +31,14 @@ export interface GenAIEvaluationRecordStreamRow {
   serviceId: string | null;
   serviceInstanceName: string | null;
   serviceInstanceId: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  modelId: string | null;
+  modelName: string | null;
+  operationName: string | null;
+  scoreValue: number | null;
+  evaluationLevel: string | null;
+  judgeModel: string | null;
   taskName: string | null;
   valueType: string | null;
   endpointName: string | null;
@@ -52,11 +59,18 @@ export interface GenAIEvaluationRecordSummary {
 
 export interface EvaluationRecordParams {
   service: Ref<string | null>;
-  serviceId?: Ref<string | null>;
-  instanceId?: Ref<string | null>;
+  callerServiceName?: Ref<string | null>;
+  providerName?: Ref<string | null>;
+  modelName?: Ref<string | null>;
+  minScore?: Ref<number | null>;
+  maxScore?: Ref<number | null>;
+  taskName?: Ref<string | null>;
+  evaluationLevel?: Ref<string | null>;
+  judgeModel?: Ref<string | null>;
+  sortField?: Ref<'EVALUATION_TIME' | 'SCORE_VALUE'>;
+  sortOrder?: Ref<'ASC' | 'DES'>;
   traceId?: Ref<string | null>;
   keywords?: Ref<string[]>;
-  tags?: Ref<LogTagFilter[]>;
   page: Ref<number>;
   pageSize: Ref<number>;
   windowMinutes?: Ref<number>;
@@ -65,19 +79,23 @@ export interface EvaluationRecordParams {
 }
 
 export function useLayerEvaluationRecord(layerKey: Ref<string>, params: EvaluationRecordParams) {
-  const queryTags = computed(() =>
-    (params.tags?.value ?? []).filter((tag) => tag.key.toLowerCase() !== 'level'),
-  );
   const q = useQuery<EvaluationRecordsResponse>({
     queryKey: [
       'layer-evaluation-record',
       layerKey,
       params.service,
-      params.serviceId ?? computed(() => null),
-      params.instanceId ?? computed(() => null),
+      params.callerServiceName ?? computed(() => null),
+      params.providerName ?? computed(() => null),
+      params.modelName ?? computed(() => null),
+      params.minScore ?? computed(() => null),
+      params.maxScore ?? computed(() => null),
+      params.taskName ?? computed(() => null),
+      params.evaluationLevel ?? computed(() => null),
+      params.judgeModel ?? computed(() => null),
+      params.sortField ?? computed(() => 'EVALUATION_TIME'),
+      params.sortOrder ?? computed(() => 'DES'),
       params.traceId ?? computed(() => null),
       params.keywords ?? computed(() => []),
-      queryTags,
       params.page,
       params.pageSize,
       params.windowMinutes ?? computed(() => 0),
@@ -87,10 +105,17 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     queryFn: () =>
       bffClient.evaluationRecord.list(layerKey.value, {
         ...(params.service.value ? { service: params.service.value } : {}),
-        ...(params.serviceId?.value ? { serviceId: params.serviceId.value } : {}),
-        ...(params.instanceId?.value ? { serviceInstanceId: params.instanceId.value } : {}),
+        ...(params.callerServiceName?.value ? { callerServiceName: params.callerServiceName.value } : {}),
+        ...(params.providerName?.value ? { providerName: params.providerName.value } : {}),
+        ...(params.modelName?.value ? { modelName: params.modelName.value } : {}),
+        ...(params.minScore?.value != null ? { minScore: params.minScore.value } : {}),
+        ...(params.maxScore?.value != null ? { maxScore: params.maxScore.value } : {}),
+        ...(params.taskName?.value ? { taskName: params.taskName.value } : {}),
+        ...(params.evaluationLevel?.value ? { evaluationLevel: params.evaluationLevel.value } : {}),
+        ...(params.judgeModel?.value ? { judgeModel: params.judgeModel.value } : {}),
+        ...(params.sortField?.value ? { sortField: params.sortField.value } : {}),
+        ...(params.sortOrder?.value ? { sortOrder: params.sortOrder.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
-        ...(queryTags.value.length > 0 ? { tags: queryTags.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value
           ? { startTime: params.startTime.value, endTime: params.endTime.value }
@@ -119,10 +144,18 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     const tags = rawTags.filter((tag): tag is LogKeyValue => tag.value != null && tag.value.length > 0);
 
     return {
-      serviceName: null,
+      serviceName: row.serviceName,
       serviceId: row.serviceId,
       serviceInstanceName: null,
-      serviceInstanceId: row.serviceInstanceId,
+      serviceInstanceId: null,
+      providerId: row.providerId,
+      providerName: row.providerName,
+      modelId: row.modelId,
+      modelName: row.modelName,
+      operationName: row.operationName,
+      scoreValue: row.scoreValue,
+      evaluationLevel: row.evaluationLevel,
+      judgeModel: row.judgeModel,
       taskName: row.taskName,
       valueType: row.valueType,
       endpointName: row.taskName,
@@ -169,7 +202,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
 
 export interface EvaluationRecordFacetParams {
   service: Ref<string | null>;
-  instanceId?: Ref<string | null>;
+  modelName?: Ref<string | null>;
   traceId?: Ref<string | null>;
   keywords?: Ref<string[]>;
   windowMinutes?: Ref<number>;
@@ -183,7 +216,7 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
       'layer-evaluation-record-facets',
       layerKey,
       params.service,
-      params.instanceId ?? computed(() => null),
+      params.modelName ?? computed(() => null),
       params.traceId ?? computed(() => null),
       params.keywords ?? computed(() => []),
       params.windowMinutes ?? computed(() => 0),
@@ -193,7 +226,7 @@ export function useLayerEvaluationRecordFacets(layerKey: Ref<string>, params: Ev
     queryFn: () =>
       bffClient.evaluationRecord.facets(layerKey.value, {
         ...(params.service.value ? { service: params.service.value } : {}),
-        ...(params.instanceId?.value ? { serviceInstanceId: params.instanceId.value } : {}),
+        ...(params.modelName?.value ? { modelName: params.modelName.value } : {}),
         ...(params.traceId?.value ? { traceId: params.traceId.value } : {}),
         ...(params.windowMinutes?.value ? { windowMinutes: params.windowMinutes.value } : {}),
         ...(params.startTime?.value && params.endTime?.value

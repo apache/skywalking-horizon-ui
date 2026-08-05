@@ -468,6 +468,16 @@ function traceDrillMode(w: DashboardWidget): 'latency' | 'error' | null {
   const m = w.traceDrill?.mode;
   return m === 'latency' || m === 'error' ? m : null;
 }
+function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
+  return (
+    layerKey.value.toUpperCase() === 'VIRTUAL_GENAI' &&
+    scope.value === 'instance' &&
+    w.type === 'line' &&
+    w.id === 'evaluation score' &&
+    !!serviceName.value &&
+    !!selectedInstance.value
+  );
+}
 function drillCenterMs(dataIndex: number, len: number): number {
   const { startMs, endMs } = timeRange.range;
   if (len <= 1) return endMs;
@@ -497,6 +507,7 @@ const gridEl = ref<HTMLElement | null>(null);
 const drill = ref<{
   widgetId: string;
   point: { x: number; y: number };
+  path: string;
   query: Record<string, string>;
   title: string;
   meta: string;
@@ -507,9 +518,27 @@ function onDrillPoint(
   p: { seriesIndex: number; dataIndex: number; value: number; seriesName: string; x: number; y: number },
 ): void {
   const mode = traceDrillMode(w);
-  if (!mode) return;
+  const evaluationRecordDrill = evaluationRecordDrillEnabled(w);
+  if (!mode && !evaluationRecordDrill) return;
   const len = resultsById.value.get(w.id)?.series?.[0]?.data.length ?? 0;
   const win = drillWindow(p.dataIndex, len);
+  if (evaluationRecordDrill) {
+    drill.value = {
+      widgetId: w.id,
+      point: { x: p.x, y: p.y },
+      path: `/layer/${layerKey.value}/evaluation-record`,
+      query: {
+        providerName: serviceName.value!,
+        modelName: selectedInstance.value!,
+        startTime: toLocalInput(win.fromMs),
+        endTime: toLocalInput(win.toMs),
+      },
+      title: w.title,
+      meta: t('around {t}', { t: bucketTimeLabel(timeRange.step, win.labelMs) }),
+      label: t('View evaluation records'),
+    };
+    return;
+  }
   const ms = Math.max(0, Math.round(p.value));
   const query: Record<string, string> = {
     dMode: mode,
@@ -525,6 +554,7 @@ function onDrillPoint(
   drill.value = {
     widgetId: w.id,
     point: { x: p.x, y: p.y },
+    path: `/layer/${layerKey.value}/trace`,
     query,
     title: w.title,
     meta:
@@ -538,7 +568,7 @@ function openDrill(): void {
   const d = drill.value;
   if (!d) return;
   drill.value = null;
-  const href = router.resolve({ path: `/layer/${layerKey.value}/trace`, query: d.query }).href;
+  const href = router.resolve({ path: d.path, query: d.query }).href;
   window.open(href, '_blank', 'noopener');
 }
 function closeDrill(): void {
@@ -784,6 +814,7 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
         :compare-table-rows="compareTableRows"
         :compare-table-entities="compareTableEntities"
         :trace-drill-mode="traceDrillMode"
+        :evaluation-record-drill-enabled="evaluationRecordDrillEnabled"
         :on-drill-point="onDrillPoint"
         :drill-open-id="drill?.widgetId ?? null"
         @switch-tab="setActiveTab(w.id, $event)"

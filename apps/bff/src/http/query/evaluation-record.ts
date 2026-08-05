@@ -61,6 +61,10 @@ function clampPageSize(requested: number | undefined, fallback: number, max: num
   return Math.min(max, Math.round(requested as number));
 }
 
+function optionalFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
 /** Build the log query window as SECOND-precision strings. Logs are
  *  RECORD-style data (no metric bucket-cap) — using MINUTE step would
  *  round off the most recent log lines for up to a minute, which is
@@ -95,22 +99,19 @@ function toSecond(s: string): string {
   return /\s\d{4}$/.test(s) ? `${s}00` : s;
 }
 
-const LIST_SERVICES_FOR_RESOLVE = /* GraphQL */ `
-  query ListServicesForLogs($layer: String!) {
-    services: listServices(layer: $layer) {
-      id
-      name
-    }
-  }
-`;
-
 const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
   query QueryGenAIEvaluationRecords($evaluationRecordCondition: GenAIEvaluationRecordQueryCondition) {
     data: queryGenAIEvaluationRecord(condition: $evaluationRecordCondition) {
       genAIEvaluationRecordList {
         traceId
         serviceId
-        serviceInstanceId
+        serviceName
+        providerId
+        providerName
+        modelId
+        modelName
+        operationName
+        scoreValue
         segmentId
         spanId
         spanType
@@ -134,7 +135,13 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
 interface OapEvaluationRecordRow {
   traceId?: string | null;
   serviceId?: string | null;
-  serviceInstanceId?: string | null;
+  serviceName?: string | null;
+  providerId?: string | null;
+  providerName?: string | null;
+  modelId?: string | null;
+  modelName?: string | null;
+  operationName?: string | null;
+  scoreValue?: number | null;
   segmentId?: string | null;
   spanId?: string | null;
   spanType?: string | null;
@@ -151,7 +158,13 @@ function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow 
   return {
     traceId: r.traceId ?? null,
     serviceId: r.serviceId ?? null,
-    serviceInstanceId: r.serviceInstanceId ?? null,
+    serviceName: r.serviceName ?? null,
+    providerId: r.providerId ?? null,
+    providerName: r.providerName ?? null,
+    modelId: r.modelId ?? null,
+    modelName: r.modelName ?? null,
+    operationName: r.operationName ?? null,
+    scoreValue: r.scoreValue ?? null,
     segmentId: r.segmentId ?? null,
     spanId: r.spanId ?? null,
     spanType: r.spanType ?? null,
@@ -170,8 +183,16 @@ function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow 
  *  per-layer route resolves a name first; explore forwards ids it
  *  already minted. */
 export interface EvaluationRecordFetchScope {
-  serviceId?: string | null;
-  serviceInstanceId?: string | null;
+  serviceName?: string | null;
+  providerName?: string | null;
+  modelName?: string | null;
+  minScore?: number | null;
+  maxScore?: number | null;
+  taskName?: string | null;
+  evaluationLevel?: string | null;
+  judgeModel?: string | null;
+  sortField?: string | null;
+  sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
   tags?: LogTagFilter[];
 }
@@ -187,9 +208,19 @@ export async function fetchEvaluationRecords(
     paging: { pageNum: number; pageSize: number },
     coldStage: boolean,
 ): Promise<EvaluationRecordsResponse> {
+  const minScore = optionalFiniteNumber(scope.minScore);
+  const maxScore = optionalFiniteNumber(scope.maxScore);
   const evaluationRecordCondition = {
-    ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
-    ...(scope.serviceInstanceId ? { serviceInstanceId: scope.serviceInstanceId } : {}),
+    ...(scope.serviceName ? { serviceName: scope.serviceName } : {}),
+    ...(scope.providerName ? { providerName: scope.providerName } : {}),
+    ...(scope.modelName ? { modelName: scope.modelName } : {}),
+    ...(minScore != null ? { minScore } : {}),
+    ...(maxScore != null ? { maxScore } : {}),
+    ...(scope.taskName ? { taskName: scope.taskName } : {}),
+    ...(scope.evaluationLevel ? { evaluationLevel: scope.evaluationLevel } : {}),
+    ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
+    ...(scope.sortField ? { sortField: scope.sortField } : {}),
+    ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
     ...(scope.traceId ? { relatedTrace: { traceId: scope.traceId } } : {}),
     ...(scope.tags && scope.tags.length > 0 ? { tags: scope.tags } : {}),
     queryDuration: {
@@ -235,26 +266,6 @@ export async function fetchEvaluationRecords(
  * accepted as an id, leading to OAP returning empty / "service not
  * found" on the log query.
  */
-const OAP_SERVICE_ID_RE = /^[A-Za-z0-9+/=]+\.\d+$/;
-async function resolveServiceId(
-    opts: GraphqlOptions,
-    layer: string,
-    serviceArg: string,
-): Promise<string | null> {
-  if (!serviceArg) return null;
-  if (OAP_SERVICE_ID_RE.test(serviceArg)) return serviceArg;
-  const data = await graphqlPost<{ services: Array<{ id: string; name: string }> }>(
-      opts,
-      LIST_SERVICES_FOR_RESOLVE,
-      { layer: layer.toUpperCase() },
-  );
-  return (
-      data.services.find((s) => s.name === serviceArg)?.id ??
-      data.services.find((s) => s.id === serviceArg)?.id ??
-      null
-  );
-}
-
 interface EvaluationRecordBody extends EvaluationRecordQueryRequest {
   service?: string;
 }
@@ -279,26 +290,20 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         });
 
         // Resolve a service NAME to an id if the caller used one.
-        let serviceId = body.serviceId ?? null;
-        if (!serviceId && body.service) {
-          try {
-            serviceId = await resolveServiceId(opts, layerKey, body.service);
-          } catch (err) {
-            return reply.send({
-              generatedAt: Date.now(),
-              query: body,
-              total: 0,
-              records: [],
-              reachable: false,
-              error: err instanceof Error ? err.message : String(err),
-            } satisfies EvaluationRecordsResponse);
-          }
-        }
+        const providerName = body.providerName ?? body.service ?? null;
         const res = await fetchEvaluationRecords(
             opts,
             {
-              serviceId,
-              serviceInstanceId: body.serviceInstanceId,
+              serviceName: body.callerServiceName,
+              providerName,
+              modelName: body.modelName,
+              minScore: body.minScore,
+              maxScore: body.maxScore,
+              taskName: body.taskName,
+              evaluationLevel: body.evaluationLevel,
+              judgeModel: body.judgeModel,
+              sortField: body.sortField,
+              sortOrder: body.sortOrder,
               traceId: body.traceId,
               tags: body.tags,
             },
@@ -340,25 +345,10 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           startTime: body.startTime,
           endTime: body.endTime,
         });
-        let serviceId = body.serviceId ?? null;
-        if (!serviceId && body.service) {
-          try {
-            serviceId = await resolveServiceId(opts, layerKey, body.service);
-          } catch (err) {
-            return reply.send({
-              generatedAt: Date.now(),
-              total: 0,
-              sampled: 0,
-              level: { fail: 0, warning: 0, good: 0, excellent: 0, undefined: 0 },
-              services: [],
-              reachable: false,
-              error: err instanceof Error ? err.message : String(err),
-            } satisfies EvaluationRecordFacetsResponse);
-          }
-        }
+        const providerName = body.providerName ?? body.service ?? null;
         const evaluationRecordCondition = {
-          ...(serviceId ? { serviceId } : {}),
-          ...(body.serviceInstanceId ? { serviceInstanceId: body.serviceInstanceId } : {}),
+          ...(providerName ? { providerName } : {}),
+          ...(body.modelName ? { modelName: body.modelName } : {}),
           ...(body.traceId ? { relatedTrace: { traceId: body.traceId } } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a
@@ -387,7 +377,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
             else if (raw === 'good') level.good++;
             else if (raw === 'excellent') level.excellent++;
             else level.undefined++;
-            const svc = r.serviceId ?? '(none)';
+            const svc = r.providerName ?? '(none)';
             svcMap.set(svc, (svcMap.get(svc) ?? 0) + 1);
           }
           const services = Array.from(svcMap.entries())

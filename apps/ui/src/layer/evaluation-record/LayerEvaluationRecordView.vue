@@ -27,8 +27,9 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import type { LayerDef, LogTagFilter } from '@/api/client';
+import type { LayerDef } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
+import { useLayerServices } from '@/layer/useLayerServices';
 import {
   type GenAIEvaluationRecordStreamRow,
   useLayerEvaluationRecord,
@@ -43,11 +44,19 @@ import { useSetupStore } from '@/state/setup';
 import { useTracePopout } from '@/layer/traces/useTracePopout';
 import EvaluationRecordStreamPanel from '@/render/widgets/EvaluationRecordStreamPanel.vue';
 import EvaluationRecordDetailPopout from '@/render/widgets/EvaluationRecordDetailPopout.vue';
-import TagInput from '@/components/primitives/TagInput.vue';
 
 const route = useRoute();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { openTrace } = useTracePopout();
+
+function queryString(name: string): string | null {
+  const value = route.query[name];
+  return typeof value === 'string' && value.length > 0 ? value : null;
+}
+const providerNameParam = computed(() => queryString('providerName'));
+const modelNameParam = computed(() => queryString('modelName'));
+const startTimeParam = computed(() => queryString('startTime'));
+const endTimeParam = computed(() => queryString('endTime'));
 
 const { selectedId, setSelected: setSelectedService } = useSelectedService();
 const { layers } = useLayers();
@@ -66,6 +75,7 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg);
 const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
+const { services } = useLayerServices(layerKey);
 watch(
     landingRows,
     (rows) => {
@@ -81,6 +91,11 @@ watch(
     },
     { immediate: true },
 );
+watch([providerNameParam, services], ([providerName, allServices]) => {
+  if (!providerName) return;
+  const service = allServices.find((candidate) => candidate.name === providerName);
+  if (service && selectedId.value !== service.id) setSelectedService(service.id);
+}, { immediate: true });
 
 // ── Model picker. Evaluation records currently reuse the instance
 // selector plumbing, but the UI labels it by the GenAI domain concept.
@@ -101,7 +116,12 @@ const selectedInstanceObj = computed(() =>
         ? instanceList.value.find((i) => i.name === selectedInstance.value) ?? null
         : null,
 );
-const instanceIdForQuery = computed<string | null>(() => selectedInstanceObj.value?.id ?? null);
+watch([modelNameParam, instanceList], ([modelName, instances]) => {
+  if (!modelName || !instances.some((instance) => instance.name === modelName)) return;
+  if (selectedInstance.value !== modelName) setSelectedInstance(modelName);
+}, { immediate: true });
+const providerNameForQuery = computed<string | null>(() => providerNameParam.value ?? serviceName.value);
+const modelNameForQuery = computed<string | null>(() => modelNameParam.value ?? selectedInstanceObj.value?.name ?? null);
 
 // ── Query state ────────────────────────────────────────────────────
 // Trace ID rides either from `?traceId=` in the URL (e.g. log row's
@@ -121,15 +141,21 @@ const traceIdInput = ref('');
 // stock H2 store) and indexing across full log bodies has surprising
 // latency / cardinality behaviour on busy clusters. The conditions
 // the UI exposes ??service / instance / endpoint / traceID / tags ??// are all indexed dimensions and cover the booster-ui condition set.
-const customTags = ref<LogTagFilter[]>([]);
 const page = ref(1);
 const pageSize = ref(50);
+const callerServiceName = ref('');
+const minScore = ref<number | null>(null);
+const maxScore = ref<number | null>(null);
+const taskName = ref('');
+const judgeModel = ref('');
+const sortField = ref<'EVALUATION_TIME' | 'SCORE_VALUE'>('EVALUATION_TIME');
+const sortOrder = ref<'ASC' | 'DES'>('DES');
 const traceIdRef = computed<string | null>(() => {
   if (traceIdParam.value) return traceIdParam.value;
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-const instanceIdRef = computed<string | null>(() => instanceIdForQuery.value);
+const modelNameRef = computed<string | null>(() => modelNameForQuery.value);
 const keywordsRef = computed<string[]>(() => []);
 
 // Time-range picker. Logs blocks the global topbar picker (see
@@ -170,6 +196,12 @@ watch(isCustomRange, (custom) => {
     customEnd.value = null;
   }
 });
+watch([startTimeParam, endTimeParam], ([start, end]) => {
+  if (!start || !end) return;
+  windowMinutes.value = CUSTOM_RANGE_SENTINEL;
+  customStart.value = start;
+  customEnd.value = end;
+}, { immediate: true });
 /** OAP wants `YYYY-MM-DD HHmm`; the native `datetime-local` input
  *  emits `YYYY-MM-DDTHH:MM`. Convert so the BFF can forward to the
  *  same `queryDuration.start/end` slot the trace tab uses. */
@@ -193,24 +225,6 @@ const windowMinutesEffective = computed<number>(() =>
 // One text input; Enter commits the tag. Tags accumulate in `customTags`
 // and ride along on the OAP log query as filters. Key/value autocomplete
 // lives in TagInput.
-const tagInput = ref('');
-function addTagFilter(): void {
-  const raw = tagInput.value.trim();
-  if (!raw || !raw.includes('=')) return;
-  const idx = raw.indexOf('=');
-  const key = raw.slice(0, idx).trim();
-  const value = raw.slice(idx + 1).trim();
-  if (!key) return;
-  if (customTags.value.some((t) => t.key === key && t.value === value)) return;
-  customTags.value = [...customTags.value, { key, value }];
-  tagInput.value = '';
-  page.value = 1;
-}
-function removeTagFilter(i: number): void {
-  customTags.value = customTags.value.filter((_, idx) => idx !== i);
-  page.value = 1;
-}
-
 // ── Level filter goes to OAP as a `level=<UPPER>` tag filter so the
 // server-side total + pagination match the visible rows. The filter
 // is single-select (booster-ui uses the same pattern).
@@ -221,13 +235,6 @@ const LEVEL_TAG_VALUES: Record<'fail' | 'warning' | 'good' | 'excellent', string
   excellent: 'excellent',
 };
 const selectedLevel = ref<'fail' | 'warning' | 'good' | 'excellent' | null>(null);
-const allTags = computed<LogTagFilter[]>(() => {
-  const out = [...customTags.value];
-  if (selectedLevel.value) {
-    out.push({ key: 'evaluation_level', value: LEVEL_TAG_VALUES[selectedLevel.value] });
-  }
-  return out;
-});
 function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined'): void {
   if (l === 'undefined') return; // server-side fallback bucket is not user-selectable
   selectedLevel.value = selectedLevel.value === l ? null : l;
@@ -235,12 +242,19 @@ function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined')
 }
 
 const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = useLayerEvaluationRecord(layerKey, {
-  service: serviceName,
-  serviceId: selectedId,
-  instanceId: instanceIdRef,
+  service: providerNameForQuery,
+  callerServiceName: computed(() => callerServiceName.value.trim() || null),
+  providerName: providerNameForQuery,
+  modelName: modelNameRef,
+  minScore,
+  maxScore,
+  taskName: computed(() => taskName.value.trim() || null),
+  evaluationLevel: computed(() => selectedLevel.value ? LEVEL_TAG_VALUES[selectedLevel.value] : null),
+  judgeModel: computed(() => judgeModel.value.trim() || null),
+  sortField,
+  sortOrder,
   traceId: traceIdRef,
   keywords: keywordsRef,
-  tags: allTags,
   page,
   pageSize,
   windowMinutes: windowMinutesEffective,
@@ -249,8 +263,8 @@ const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = u
 });
 
 const { facets } = useLayerEvaluationRecordFacets(layerKey, {
-  service: serviceName,
-  instanceId: instanceIdRef,
+  service: providerNameForQuery,
+  modelName: modelNameRef,
   traceId: traceIdRef,
   keywords: keywordsRef,
   windowMinutes: windowMinutesEffective,
@@ -283,8 +297,7 @@ const LEVEL_COLOR: Record<Level, string> = {
 };
 
 function levelOf(r: GenAIEvaluationRecordStreamRow): Level {
-  const tag = (r.tags ?? []).find((t) => t.key.toLowerCase() === 'evaluation_level');
-  const raw = (tag?.value ?? '').toLowerCase();
+  const raw = (r.evaluationLevel ?? '').toLowerCase();
   if (raw === 'fail') return 'fail';
   if (raw === 'warning') return 'warning';
   if (raw === 'good') return 'good';
@@ -411,6 +424,40 @@ function jumpToTrace(traceId: string, ts?: number): void {
             <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
           </select>
         </label>
+        <label class="cf">
+          <span>Min score</span>
+          <input v-model.number="minScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
+        </label>
+        <label class="cf">
+          <span>Max score</span>
+          <input v-model.number="maxScore" type="number" class="cf-input" step="any" placeholder="Any" @change="page = 1" />
+        </label>
+        <label class="cf">
+          <span>Task name</span>
+          <input v-model="taskName" type="text" class="cf-input" placeholder="All tasks" @change="page = 1" />
+        </label>
+        <label class="cf">
+          <span>Caller service</span>
+          <input v-model="callerServiceName" type="text" class="cf-input" placeholder="All caller services" @change="page = 1" />
+        </label>
+        <label class="cf">
+          <span>Judge model</span>
+          <input v-model="judgeModel" type="text" class="cf-input" placeholder="All judge models" @change="page = 1" />
+        </label>
+        <label class="cf">
+          <span>Sort by</span>
+          <select v-model="sortField" class="cf-input" @change="page = 1">
+            <option value="EVALUATION_TIME">Evaluation time</option>
+            <option value="SCORE_VALUE">Score</option>
+          </select>
+        </label>
+        <label class="cf">
+          <span>Direction</span>
+          <select v-model="sortOrder" class="cf-input" @change="page = 1">
+            <option value="DES">Descending</option>
+            <option value="ASC">Ascending</option>
+          </select>
+        </label>
         <!-- Trace ID. Bound directly ??each keystroke updates the
              query. URL `?traceId=` still overrides. -->
         <label class="cf cf-wide">
@@ -420,16 +467,6 @@ function jumpToTrace(traceId: string, ts?: number): void {
               type="text"
               class="cf-input mono"
               placeholder="paste trace id..."
-          />
-        </label>
-        <!-- Tags ??single key=value input + custom autocomplete. -->
-        <label class="cf cf-wide">
-          <span>Tags</span>
-          <TagInput
-              v-model="tagInput"
-              kind="log"
-              placeholder="key=value, then Enter"
-              @commit="addTagFilter"
           />
         </label>
         <!-- Time range ??presets + Custom??that swaps to two
@@ -451,24 +488,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
         </label>
         <label class="cf">
           <span>Page size</span>
-          <select v-model.number="pageSize" class="cf-input">
+          <select v-model.number="pageSize" class="cf-input" @change="page = 1">
             <option :value="20">20</option>
             <option :value="30">30</option>
             <option :value="50">50</option>
             <option :value="100">100</option>
           </select>
         </label>
-      </div>
-      <!-- Active tag chips ??same markup / class names as the trace
-           tab's `tr-tag-row` so the two pages read identically. -->
-      <div v-if="customTags.length > 0" class="tr-tag-row">
-        <span class="tag-row-label">Active tags</span>
-        <span class="tag-chips">
-          <span v-for="(t, i) in customTags" :key="`${t.key}=${t.value}`" class="tag-chip">
-            <span class="mono">{{ t.key }}={{ t.value }}</span>
-            <button type="button" class="tag-x" @click="removeTagFilter(i)">×</button>
-          </span>
-        </span>
       </div>
     </header>
 

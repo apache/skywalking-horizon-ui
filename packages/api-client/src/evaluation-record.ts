@@ -27,8 +27,16 @@
 
 export interface EvaluationRecordQueryRequest {
   service?: string;
-  serviceId?: string | null;
-  serviceInstanceId?: string | null;
+  callerServiceName?: string | null;
+  providerName?: string | null;
+  modelName?: string | null;
+  minScore?: number | null;
+  maxScore?: number | null;
+  taskName?: string | null;
+  evaluationLevel?: string | null;
+  judgeModel?: string | null;
+  sortField?: 'EVALUATION_TIME' | 'SCORE_VALUE' | null;
+  sortOrder?: 'ASC' | 'DES' | null;
   traceId?: string | null;
   tags?: Array<{ key: string; value: string }>;
   page?: number;
@@ -41,7 +49,13 @@ export interface EvaluationRecordQueryRequest {
 export interface EvaluationRecordRow {
   traceId: string | null;
   serviceId: string | null;
-  serviceInstanceId: string | null;
+  serviceName: string | null;
+  providerId: string | null;
+  providerName: string | null;
+  modelId: string | null;
+  modelName: string | null;
+  operationName: string | null;
+  scoreValue: number | null;
   segmentId: string | null;
   spanId: string | null;
   spanType: string | null;

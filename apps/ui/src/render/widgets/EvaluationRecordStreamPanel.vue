@@ -15,7 +15,6 @@
   limitations under the License.
 -->
 <script setup lang="ts">
-import { parseServiceName } from '@/utils/serviceName';
 import { logRowKey } from '@/utils/logRow';
 import type { GenAIEvaluationRecordStreamRow } from '@/layer/evaluation-record/useLayerEvaluationRecord';
 
@@ -78,15 +77,14 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
     >
       <span class="lg-time mono">{{ fmtTime(r.timestamp) }}</span>
       <span class="lg-date mono dim">{{ fmtDate(r.timestamp) }}</span>
+      <span class="lg-svc mono dim" :title="r.serviceName ?? '-'">{{ r.serviceName ?? '-' }}</span>
+      <span class="lg-provider-model mono dim" :title="[r.providerName, r.modelName].filter(Boolean).join(' / ')">
+        {{ [r.providerName, r.modelName].filter(Boolean).join(' / ') || '-' }}
+      </span>
+      <span class="lg-operation mono dim" :title="r.operationName ?? '-'">{{ r.operationName ?? '-' }}</span>
+      <span class="lg-judge-model mono dim" :title="r.judgeModel ?? '-'">{{ r.judgeModel ?? '-' }}</span>
       <span class="lg-task mono dim" :title="r.taskName ?? '-'">{{ r.taskName ?? '-' }}</span>
       <span class="lg-lvl" :style="{ color: LEVEL_COLOR[levelOf(r)] }">{{ levelOf(r) }}</span>
-      <span class="lg-svc mono dim">
-        <span
-          v-if="r.serviceName && parseServiceName(r.serviceName).group"
-          class="lg-svc-group"
-        >{{ parseServiceName(r.serviceName).group }}</span>
-        {{ r.serviceName ? parseServiceName(r.serviceName).base : '-' }}
-      </span>
       <span
         v-if="r.traceId"
         class="lg-trace mono"
@@ -105,7 +103,7 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
 .lg-stream { font-size: 11.5px; }
 .lg-row {
   display: grid;
-  grid-template-columns: 80px 60px 140px 72px 140px 60px 1fr;
+  grid-template-columns: 80px 60px 120px 180px 80px 140px 130px 64px 60px 1fr;
   gap: 10px;
   align-items: center;
   padding: 4px 12px;
@@ -132,19 +130,14 @@ function keyOf(r: GenAIEvaluationRecordStreamRow, idx: number): string {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.lg-svc { font-size: 10.5px; }
-.lg-svc-group {
-  display: inline-block;
-  padding: 0 5px;
-  margin-right: 4px;
-  background: var(--sw-bg-2);
-  border: 1px solid var(--sw-line-2);
-  border-radius: 3px;
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--sw-fg-2);
-  text-transform: uppercase;
+.lg-svc,
+.lg-provider-model,
+.lg-operation,
+.lg-judge-model {
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .lg-trace {
   font-size: 10px;

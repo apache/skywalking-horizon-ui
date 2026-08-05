@@ -17,24 +17,10 @@
 
 import type {
   EvaluationRecordFacetsResponse,
+  EvaluationRecordQueryRequest,
   EvaluationRecordsResponse,
-  LogTagFilter,
 } from '@skywalking-horizon-ui/api-client';
 import type { BffClient } from '../client';
-
-export interface EvaluationRecordQueryRequest {
-  service?: string;
-  serviceId?: string | null;
-  serviceInstanceId?: string | null;
-  endpointId?: string | null;
-  traceId?: string | null;
-  tags?: LogTagFilter[];
-  page?: number;
-  pageSize?: number;
-  windowMinutes?: number;
-  startTime?: string;
-  endTime?: string;
-}
 
 export class EvaluationRecordApi {
   constructor(private readonly bff: BffClient) {}
