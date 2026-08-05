@@ -122,7 +122,6 @@ const QUERY_EVALUATION_RECORDS = /* GraphQL */ `
         judgeModel
         evaluationTime
       }
-      errorReason
     }
   }
 `;
@@ -205,7 +204,6 @@ export async function fetchEvaluationRecords(
     const env = await graphqlPost<{
       data: {
         genAIEvaluationRecordList: OapEvaluationRecordRow[];
-        errorReason?: string | null;
       } | null;
     }>(opts, QUERY_EVALUATION_RECORDS, { evaluationRecordCondition });
     const records = (env.data?.genAIEvaluationRecordList ?? []).map(mapEvaluationRecordRow);
@@ -215,7 +213,6 @@ export async function fetchEvaluationRecords(
       total: records.length,
       records,
       reachable: true,
-      errorReason: env.data?.errorReason ?? undefined,
     };
   } catch (err) {
     return {

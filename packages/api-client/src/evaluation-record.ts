@@ -60,7 +60,6 @@ export interface EvaluationRecordsResponse {
   total: number;
   records: EvaluationRecordRow[];
   reachable: boolean;
-  errorReason?: string;
   error?: string;
 }
 

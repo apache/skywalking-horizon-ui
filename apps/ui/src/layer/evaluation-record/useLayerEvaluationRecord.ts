@@ -160,7 +160,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     records: computed(() => genAIEvaluationRecords.value.map(toGenAIEvaluationRecordSummary)),
     total: computed(() => q.data.value?.total ?? 0),
     reachable: computed(() => q.data.value?.reachable ?? true),
-    queryError: computed(() => q.data.value?.error ?? q.data.value?.errorReason ?? q.error.value?.message ?? null),
+    queryError: computed(() => q.data.value?.error ?? q.error.value?.message ?? null),
     isFetching: q.isFetching,
     error: q.error,
     refetch: q.refetch,
