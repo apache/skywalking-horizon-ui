@@ -15,16 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-#     horizon-get.sh <base-url> <path>
+#     horizon-get.sh <base-url> <path> [json-body]
 #
-# Signs in and GETs an authenticated BFF route, printing the body on stdout.
+# Signs in and calls an authenticated BFF route, printing the body on stdout.
 # Every Horizon query route is behind a session cookie, so a verify case
 # cannot simply curl one.
+#
+# With a third argument it POSTs that JSON instead of GETting — the list
+# routes (traces, logs, browser errors) take their filters in a body, and a
+# readiness gate has to ask the same question the page will.
 
 set -eu
 
 BASE="${1:?usage: horizon-get.sh <base-url> <path>}"
-PATH_="${2:?usage: horizon-get.sh <base-url> <path>}"
+PATH_="${2:?usage: horizon-get.sh <base-url> <path> [json-body]}"
+BODY="${3:-}"
 
 USER="${HORIZON_E2E_USER:-e2e}"
 PASSWORD="${HORIZON_E2E_PASSWORD:-e2e-passw0rd}"
@@ -36,4 +41,9 @@ curl -sSf -c "${JAR}" -X POST "${BASE}/api/auth/login" \
   -H 'Content-Type: application/json' \
   -d "{\"username\":\"${USER}\",\"password\":\"${PASSWORD}\"}" > /dev/null
 
-curl -sSf -b "${JAR}" "${BASE}${PATH_}"
+if [ -n "${BODY}" ]; then
+  curl -sSf -b "${JAR}" -X POST "${BASE}${PATH_}" \
+    -H 'Content-Type: application/json' -d "${BODY}"
+else
+  curl -sSf -b "${JAR}" "${BASE}${PATH_}"
+fi

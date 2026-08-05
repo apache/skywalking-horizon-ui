@@ -26,9 +26,10 @@
 # happens to have installed. It also removes the whole class of "passes on my
 # machine" caused by fonts, system libraries or a differently-patched Chromium.
 #
-# The container joins the fixture's own compose network and reaches Horizon by
-# SERVICE NAME, so no host port mapping is involved and no URL has to be
-# threaded through from infra-e2e.
+# The container joins the fixture's own network and reaches Horizon by
+# CONTAINER NAME, so no host port mapping is involved and no URL has to be
+# threaded through from infra-e2e. See the discovery block below for how that
+# differs between a compose fixture and a kind one.
 #
 # Playwright's own output goes to STDERR on purpose: infra-e2e parses stdout as
 # YAML and diffs it, so a stray reporter line there would fail the case with a
@@ -61,15 +62,38 @@ if [ -f "${marker}" ]; then
   exit 1
 fi
 
-# Discover the fixture's network from the running horizon container rather
-# than deriving it from a project name — infra-e2e and the `make dev` targets
-# use different compose projects, and both must work.
+# Where Horizon is depends on how the fixture was stood up, and both shapes
+# have to work:
+#
+#   compose  — a horizon container on the case's own network, reached by
+#              service name. Discovered from the container rather than derived
+#              from a project name, because infra-e2e and `make dev` use
+#              different compose projects.
+#
+#   kind     — Horizon runs inside the cluster, so there is no such container.
+#              The browser instead joins the network the kind NODE is on and
+#              calls the node's NodePort. Deliberately not the host port-
+#              forward infra-e2e sets up for the gates: that binds to the
+#              host's loopback, which a container only shares on Linux, and
+#              the without-profiling variant exists precisely so a developer
+#              on macOS can run this.
+#
+# Either way the browser runs in a container on a docker network and addresses
+# the fixture by container name, so a laptop run and a CI run are identical.
 container=$(docker ps --filter 'label=com.docker.compose.service=horizon' \
                       --format '{{.Names}}' | head -1)
-if [ -z "${container}" ]; then
-  echo "passed: false"
-  echo "ERROR: no running horizon container — is the fixture up?" >&2
-  exit 1
+if [ -n "${container}" ]; then
+  target="http://horizon:8081"
+else
+  container=$(docker ps --filter 'label=io.x-k8s.kind.role=control-plane' \
+                        --format '{{.Names}}' | head -1)
+  if [ -z "${container}" ]; then
+    echo "passed: false"
+    echo "ERROR: found neither a horizon container nor a kind node — is the fixture up?" >&2
+    exit 1
+  fi
+  node_port=$(grep -E '^HORIZON_E2E_NODE_PORT=' "${here}/script/env" | head -1 | cut -d= -f2-)
+  target="http://${container}:${node_port}"
 fi
 network=$(docker inspect "${container}" \
   --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}')
@@ -79,7 +103,8 @@ network=$(docker inspect "${container}" \
 if docker run --rm \
      --network "${network}" \
      -v "${root}:/work" -w /work/test/e2e/playwright \
-     -e HORIZON_BASE_URL=http://horizon:8081 \
+     -e HORIZON_BASE_URL="${target}" \
+     -e HORIZON_E2E_PROJECT="${PROJECT}" \
      -e CI=1 \
      "${image}" \
      npx playwright test --project="${PROJECT}" >&2; then
@@ -87,6 +112,16 @@ if docker run --rm \
 else
   mkdir -p "$(dirname "${marker}")"
   : > "${marker}"
+
+  # Cluster state, captured HERE rather than from a later CI step, because
+  # infra-e2e's `cleanup: on: always` deletes the kind cluster the moment the
+  # case ends — a workflow step that runs afterwards finds nothing to talk to
+  # and collects an empty directory. This is the last moment the cluster is
+  # still up. Best-effort: it must never turn a test failure into a
+  # collector failure.
+  bash "${here}/script/prepare/collect-k8s.sh" \
+    "${root}/e2e-logs/cluster-${PROJECT}" >&2 2>&1 || true
+
   echo "passed: false"
   exit 1
 fi

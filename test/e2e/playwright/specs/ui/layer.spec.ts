@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../support/diagnostics.js';
 import { PROVIDER_SERVICE, CONSUMER_SERVICE, DEMO_ENDPOINTS, LAYER } from '../fixture.js';
 
 // These assert on OAP-supplied names (service and endpoint names), which are
@@ -72,9 +73,7 @@ test('picking a service switches the header to it', async ({ page }) => {
   await expect(page.locator('.service-row .svc-name')).toHaveText(CONSUMER_SERVICE);
 });
 
-test('the service dashboard renders widgets driven by live metrics', async ({ page }) => {
-  const crashes: string[] = [];
-  page.on('pageerror', (e) => crashes.push(e.message));
+test('the service dashboard renders widgets driven by live metrics', async ({ page, pageErrors }) => {
 
   await page.goto(`/layer/${LAYER}/service`);
 
@@ -94,12 +93,10 @@ test('the service dashboard renders widgets driven by live metrics', async ({ pa
     `Top-N showed none of the demo endpoints: ${listed.join(', ')}`,
   ).toBe(true);
 
-  expect(crashes, 'an uncaught error during mount blanks the page').toEqual([]);
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });
 
-test('the traces tab returns traces produced by the demo app', async ({ page }) => {
-  const crashes: string[] = [];
-  page.on('pageerror', (e) => crashes.push(e.message));
+test('the traces tab returns traces produced by the demo app', async ({ page, pageErrors }) => {
 
   await page.goto(`/layer/${LAYER}/trace`);
 
@@ -124,5 +121,5 @@ test('the traces tab returns traces produced by the demo app', async ({ page }) 
     `unexpected endpoint in the trace list: ${endpoint}`,
   ).toBe(true);
 
-  expect(crashes).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });

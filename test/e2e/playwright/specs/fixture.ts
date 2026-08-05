@@ -54,3 +54,35 @@ export const LAYER = 'general';
  * longer window buys nothing and a shorter one races the metrics boundary.
  */
 export const WINDOW_MINUTES = 30;
+
+/**
+ * The istio fixture. bookinfo's services reach OAP as MESH entities analysed
+ * from Envoy access logs — no agent is involved, which is what the `istio`
+ * case exists to cover.
+ *
+ * `mesh_dp` is a separate layer holding the Envoy data-plane dashboards; its
+ * instance scope is the only bundled template the suite reaches that declares
+ * `card` widgets.
+ */
+export const MESH_LAYER = 'mesh';
+
+/**
+ * bookinfo's workloads as MESH services. Matched as a SET, never pinned to
+ * one: which service the layer header auto-resolves follows OAP's ordering,
+ * so naming a single one fails on a healthy mesh whenever traffic shifts.
+ *
+ * `ratings` is deliberately absent. Only reviews-v2 and v3 call it, so
+ * whether it has appeared yet depends on which reviews version the traffic
+ * happened to reach — true of a healthy mesh, and not something to assert.
+ */
+export const MESH_PEERS = ['productpage', 'reviews', 'details'];
+
+/**
+ * The SAME workload in the MESH_DP layer, which names services
+ * `<workload>.<namespace>`. ALS produces both sets, and they are not
+ * interchangeable: the request metrics hang off the MESH service, Envoy's own
+ * stats off this one — and those are instance-scoped, one Envoy per pod.
+ */
+export const MESH_DP_LAYER = 'mesh_dp';
+/** MESH_DP names services `<workload>.<namespace>`; bookinfo runs in default. */
+export const MESH_DP_SUFFIX = '\\.default';

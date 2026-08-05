@@ -20,6 +20,7 @@
 #
 #     make images          build the images compose expects (never pulled)
 #     make run CASE=core   full infra-e2e cycle for one case
+#     make run-istio-without-profiling   the mesh case minus rover (macOS)
 #     make setup CASE=core bring the stack up and leave it up
 #     make cleanup CASE=core
 
@@ -40,6 +41,13 @@ images-demo:
 .PHONY: run
 run:
 	$(E2E) run -c $(CASE_FILE)
+
+# The istio case with profiling switched off, for machines with no Linux
+# kernel for eBPF probes to attach to. Same case file, same fixture — the flag
+# drops the rover deployment and the verification that depends on it.
+.PHONY: run-istio-without-profiling
+run-istio-without-profiling:
+	E2E_SKIP_PROFILING=true $(E2E) run -c cases/istio/e2e.yaml
 
 # Spec iteration: a stack that OUTLIVES the command that started it.
 #

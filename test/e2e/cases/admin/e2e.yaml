@@ -1,0 +1,144 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+# DSL hot-update and template management — the two write paths, isolated so
+# their mutations cannot reach another case's assertions.
+#
+# Run it:  e2e run -c test/e2e/cases/admin/e2e.yaml
+# Images:  make -C test/e2e images
+
+setup:
+  env: compose
+  file: docker-compose.yml
+  timeout: 30m
+  init-system-environment: ../../script/env
+  steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh admin
+    - name: set PATH
+      command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
+    - name: install yq
+      command: bash test/e2e/script/prepare/install.sh yq
+
+# No trigger: neither the template store nor the rule loader needs telemetry.
+
+verify:
+  retry:
+    count: 40
+    interval: 5s
+  cases:
+    # 1. templates.mode live is working end to end: Horizon seeded the bundle
+    #    into OAP's store at boot and is reading it back. `unreachable` true
+    #    would mean the admin host never answered — the state the product
+    #    deliberately blocks on rather than falling back to the disk bundle.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/admin/templates/sync-status \
+          | yq -P '{"mode": .mode, "unreachable": .unreachable, "hasRows": (.rows | length > 0)}'
+      expected: expected/sync-live.yml
+
+    # 2. No row is in a BROKEN state. Not "everything is synced" — most rows
+    #    are legitimately `remote-only` (translation overlays OAP holds with no
+    #    bundled counterpart) and `disabled` is an admin choice. The two that
+    #    mean something went wrong are:
+    #      diverged         — both sides present but not byte-equal, i.e. the
+    #                         push half-completed
+    #      bundled-fallback — bundled present, remote ABSENT, i.e. seeding
+    #                         never happened. That is the state live mode is
+    #                         supposed to make impossible, so it is worth
+    #                         naming rather than folding into a count.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" /api/admin/templates/sync-status \
+          | yq -P '{"broken": [.rows[] | select(.status == "diverged" or .status == "bundled-fallback" or .status == "unknown")] | length, "anySynced": ([.rows[] | select(.status == "synced")] | length > 0)}'
+      expected: expected/no-broken-rows.yml
+
+    # 3. A rule hot-update is ACCEPTED. OAP answers 200 with an applyId rather
+    #    than 202, and only a structural add/update is tracked at all — so
+    #    this asserts the accepted status, not a transport code.
+    - query: |
+        bash test/e2e/script/prepare/dsl-push.sh \
+          "http://${horizon_host}:${horizon_8081}" lal horizon-e2e \
+          | yq -P '{"applyStatus": .applyStatus, "hasApplyId": (.applyId != null and .applyId != "")}'
+      expected: expected/rule-accepted.yml
+
+    # 4. …and REACHES the applied phase. Acceptance only means the structural
+    #    change was taken; the phase machine is what says it actually landed,
+    #    and the retry budget covers schema propagation.
+    - query: |
+        bash test/e2e/script/prepare/horizon-get.sh \
+          "http://${horizon_host}:${horizon_8081}" "/api/rule/status?catalog=lal&name=horizon-e2e" \
+          | yq -P '{"found": .found, "phase": .phase}'
+      expected: expected/rule-applied.yml
+
+    # 5. A DEBUG SESSION needs the rule LIVE, not merely pushed. OAP answers
+    #    rule_not_found until the apply reaches APPLIED, which is why this
+    #    follows the phase gate above rather than the push.
+    - query: |
+        bash test/e2e/script/prepare/dsl-lifecycle.sh \
+          "http://${horizon_host}:${horizon_8081}" debug-start \
+          | yq -P '{"hasSession": (.sessionId != null and .sessionId != ""), "localInstalled": .localInstalled}'
+      expected: expected/debug-started.yml
+
+    # 6. …and it appears in the capture HISTORY, which is what the Capture
+    #    history page reads.
+    - query: |
+        bash test/e2e/script/prepare/dsl-lifecycle.sh \
+          "http://${horizon_host}:${horizon_8081}" sessions \
+          | yq -P '{"hasSessions": (.sessions | length > 0), "countMatches": (.count == (.sessions | length))}'
+      expected: expected/debug-history.yml
+
+    # 7. RESTORE is a two-step flow, and this is the half that is easy to get
+    #    wrong: revertToBundled on an ACTIVE rule is REFUSED. Asserting the
+    #    refusal pins the contract — a future change that silently reverted a
+    #    live rule would skip the operator's soft-pause entirely.
+    - query: |
+        bash test/e2e/script/prepare/dsl-lifecycle.sh \
+          "http://${horizon_host}:${horizon_8081}" revert-active \
+          | yq -P '{"httpCode": .httpCode, "applyStatus": .applyStatus}'
+      expected: expected/revert-refused.yml
+
+    # 8. Inactivate: the soft pause. Synchronous — no schema change, so no
+    #    applyId and nothing to poll.
+    - query: |
+        bash test/e2e/script/prepare/dsl-lifecycle.sh \
+          "http://${horizon_host}:${horizon_8081}" inactivate \
+          | yq -P '{"applyStatus": .applyStatus}'
+      expected: expected/inactivated.yml
+
+    # 9. …and only now does the bundled rule come back. The rule under test is
+    #    the LAL rule base-compose mounts, chosen because it HAS a disk twin —
+    #    revertToBundled answers no_bundled_twin for anything pushed ad-hoc,
+    #    so an invented name cannot test restore at all.
+    - query: |
+        bash test/e2e/script/prepare/dsl-lifecycle.sh \
+          "http://${horizon_host}:${horizon_8081}" revert \
+          | yq -P '{"applyStatus": .applyStatus, "hasApplyId": (.applyId != null and .applyId != "")}'
+      expected: expected/reverted.yml
+
+    # 10. The admin SCREENS, in a real browser — last, so they render the
+    #     state the wire cases above established. Everything asserted over the
+    #     wire says nothing about whether an operator can see it, and these are
+    #     among the heaviest pages in the app.
+    - query: |
+        bash test/e2e/script/prepare/playwright.sh admin
+      expected: expected/passed.yml
+
+cleanup:
+  on: always

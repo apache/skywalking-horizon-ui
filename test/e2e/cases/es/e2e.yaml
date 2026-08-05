@@ -30,6 +30,10 @@ setup:
   timeout: 30m
   init-system-environment: ../../script/env
   steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh es
     - name: set PATH
       command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
     - name: install yq
@@ -54,46 +58,35 @@ verify:
     count: 40
     interval: 5s
   cases:
-    # 1. Fixture sanity straight off OAP, same as core: if this fails the demo
-    #    app or the agent is broken, not Horizon.
-    - query: |
-        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
-          | yq -P '{"demoServices": [.[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
-      expected: expected/demo-services.yml
-
-    # 2. Horizon classifies the backend as NOT banyandb. `backend` is a
-    #    capability classification — banyandb / other / unknown, inferred from
-    #    the TTL shape — not a storage name, so ElasticSearch is correctly
-    #    `other` rather than `elasticsearch`. What matters here is that it is
-    #    not banyandb: if it were, the storage override silently failed and
-    #    every case below would be re-testing core on the wrong stack.
-    - query: |
-        bash test/e2e/script/prepare/horizon-get.sh \
-          "http://${horizon_host}:${horizon_8081}" /api/oap/info \
-          | yq -P '{"reachable": .reachable, "backend": .backend}'
-      expected: expected/backend-es.yml
-
-    # 3. Metrics readiness, for the same reason core needs it: OAP persists on
-    #    a ~25s cycle, so without this the wait lands on the browser case.
+    # A readiness gate, not a test (CLAUDE.md §3.3): OAP persists on a ~25s
+    # cycle, so without this the wait lands on the browser case, which absorbs
+    # it by retrying the whole project.
     - query: |
         swctl --display yaml --base-url=http://${oap_host}:${oap_12800}/graphql \
           metrics exec --expression=service_cpm --service-name=e2e-service-provider
       expected: expected/metrics-has-value.yml
 
-    # 4. THE reason this case exists: on a non-BanyanDB backend Horizon's
-    #    capability probe finds no Trace Query v2, and the trace list must come
-    #    back over the v1 API instead. `core` can never reach this branch.
+    # The whole point of this deployment, asserted on screen. The traces tab
+    # renders which OAP query answered, so the pre-v2 path is verifiable the
+    # way an operator meets it — and the same assertion proves the storage
+    # override took effect, since BanyanDB would report the v2 API here.
+    #
+    # Deliberately the ONLY verification: re-running the shell and layer
+    # journeys on a second backend re-proves what storage does not affect.
+    # GATE: traces are queryable. service_cpm above proves metrics persisted,
+    # which is a DIFFERENT write — on ElasticSearch a trace segment can lag
+    # the metric it produced. The es project asserts only on traces, and
+    # playwright.sh will not re-run it after a first failure, so the wait has
+    # to happen here rather than inside the browser attempt.
     - query: |
-        bash test/e2e/script/prepare/horizon-post.sh \
+        bash test/e2e/script/prepare/horizon-get.sh \
           "http://${horizon_host}:${horizon_8081}" /api/layer/general/traces \
-          '{"windowMinutes":30,"pageSize":5}' \
-          | yq -P '{"api": .native.api, "hasTraces": (.native.traces | length > 0)}'
-      expected: expected/trace-api-v1.yml
+          '{"windowMinutes":30,"pageSize":10,"source":"native"}' \
+          | yq -P '{"hasTraces": ((.native.traces // []) | length > 0)}'
+      expected: expected/has-traces.yml
 
-    # 5. The UI still renders against a different backend. Only the shell and
-    #    layer journeys — the signal-specific tabs are core's job.
     - query: |
-        bash test/e2e/script/prepare/playwright.sh ui
+        bash test/e2e/script/prepare/playwright.sh es
       expected: expected/passed.yml
 
 cleanup:

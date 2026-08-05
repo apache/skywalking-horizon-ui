@@ -15,21 +15,20 @@
  * limitations under the License.
  */
 
-import { test, expect, request } from '@playwright/test';
+import { request } from '@playwright/test';
+import { test, expect } from '../support/diagnostics.js';
 
 // A blank page with a console error is the failure mode this file exists for:
 // a TDZ ReferenceError in a view's setup aborts the mount silently, leaving a
 // 200 response, valid JSON underneath, and nothing on screen.
-test('the app shell mounts without a page error', async ({ page }) => {
-  const crashes: string[] = [];
-  page.on('pageerror', (e) => crashes.push(e.message));
+test('the app shell mounts without a page error', async ({ page, pageErrors }) => {
 
   await page.goto('/');
   await expect(page.locator('#app')).toBeVisible();
   // Signed in: the login form must be gone, not merely navigated past.
   await expect(page.locator('input[name="password"]')).toHaveCount(0);
 
-  expect(crashes, 'an uncaught error during mount blanks the page').toEqual([]);
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });
 
 test('an unauthenticated visitor is sent to the login form', async ({ browser }) => {

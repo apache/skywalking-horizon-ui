@@ -18,6 +18,13 @@
 # Pinned images, loaded by every case through `init-system-environment` —
 # the same role apache/skywalking's test/e2e-v2/script/env plays there.
 #
+# A value already exported in your shell WINS over the one here, so a local
+# override needs no edit to this tracked file:
+#
+#     export E2E_SKIP_PROFILING=true     # no rover; implied off-Linux anyway
+#     export ISTIO_VERSION=1.25.0        # try another mesh version
+#     make -C test/e2e run CASE=istio
+#
 # Everything the fixture runs on is a published apache image; nothing is built
 # from an upstream checkout, so this file plus the compose files is the whole
 # dependency on the SkyWalking repo.
@@ -56,10 +63,8 @@ SW_E2E_SERVICE_COMMIT=95a296e2c810e6280b16975dd411e9c595a16836
 # predates this commit, so a tag here would be a downgrade.
 SW_CTL_COMMIT=85e5afdb3d55c6e5af66a472c3fe8ac024d11690
 
-# Zipkin demo app — openzipkin's own Brave example, used by the zipkin case.
 # A frontend calling a backend, both reporting Zipkin spans, which is what
 # exercises OAP's Zipkin receiver and Horizon's Zipkin query surface.
-SW_BRAVE_IMAGE=ghcr.io/openzipkin/brave-example:armeria
 
 # ElasticSearch, for the case that exercises Horizon's pre-v2 trace path.
 # Trace Query v2 is BanyanDB-only, so this is the ONLY deployment where
@@ -94,3 +99,21 @@ HORIZON_E2E_IMAGE=horizon-ui:e2e
 HORIZON_E2E_USER=e2e
 HORIZON_E2E_PASSWORD=e2e-passw0rd
 HORIZON_E2E_PASSWORD_HASH=$argon2id$v=19$m=65536,t=3,p=4$K/f0dJqlI/c1I6RPxNhTPg$sZ2NcLuSPL/o4bqNrARetaLVp4MDmV0xzxdwyYUKh+U
+
+# ── kind / istio scenario ────────────────────────────────────────────────
+# The kind NODE image is pinned in cases/istio/kind.yaml instead — kind reads
+# that file verbatim, so a ${VAR} in it would be pulled literally. Keep this
+# kubectl version in step with the node image's k8s version.
+KUBECTL_VERSION=v1.28.15
+HELM_VERSION=v3.16.3
+ISTIO_VERSION=1.24.3
+# bookinfo's images are tagged independently of Istio itself — read off the
+# manifest the case applies, not guessed from ISTIO_VERSION.
+BOOKINFO_VERSION=1.20.2
+TRAFFIC_GEN_IMAGE=alpine/curl:8.9.1
+# skywalking-helm publishes an OCI chart per commit, not per release.
+SW_HELM_CHART_COMMIT=da0e267f877b9b8e5f7728ae4ea7dc7723a2a073
+# rover ships no helm chart; the istio case applies its DaemonSet directly.
+SW_ROVER_IMAGE=ghcr.io/apache/skywalking-rover/skywalking-rover:79292fe07f17f98f486e0c4471213e1961fb2d1d
+# Reached from the browser container over the kind node's published NodePort.
+HORIZON_E2E_NODE_PORT=30081

@@ -27,6 +27,10 @@ setup:
   timeout: 30m
   init-system-environment: ../../script/env
   steps:
+    # Scope first, so a red run shows what this case covers before it shows
+    # what broke. Read out of the case table in .github/workflows/e2e.yaml.
+    - name: coverage
+      command: bash test/e2e/script/prepare/echo-coverage.sh core
     - name: set PATH
       command: export PATH=/tmp/skywalking-infra-e2e/bin:$PATH
     - name: install yq
@@ -61,12 +65,16 @@ verify:
   # minute after the agents register. This retry budget is that window; it is
   # why the specs themselves need no long polls.
   retry:
-    count: 40
+    # Sized for the slowest gate, which is alarms: OAP's bundled rules need a
+    # couple of minutes of traffic before they trip. The budget only costs
+    # time when a case actually retries, so the earlier gates are unaffected.
+    count: 60
     interval: 5s
   cases:
-    # 1. Fixture sanity FIRST, straight off OAP. If this fails the demo app or
-    #    the agent is broken, and no amount of reading Horizon will show it —
-    #    the distinction that costs the most time when a UI suite goes red.
+    # 1. GATE + triage split, not a test: asks OAP directly what it knows. If
+    #    this fails the demo app or the agent is broken, and no amount of
+    #    reading Horizon will show it — the distinction that costs the most
+    #    time when a browser suite goes red.
     - query: |
         swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql service ls \
           | yq -P '{"demoServices": [.[] | select(.name == "e2e-service-provider" or .name == "e2e-service-consumer")] | length}'
@@ -115,7 +123,20 @@ verify:
           | yq -P '{"hasLogs": (.logs | length > 0)}'
       expected: expected/has-logs.yml
 
-    # 6+7. The suites. Playwright owns its own assertions and reporting; the
+    # 6. Alarms have fired. OAP's bundled rules need sustained traffic before
+    #    they trip — the instance response-time rule wants >1000ms over two
+    #    minutes inside a ten-minute window — so a fresh stack legitimately has
+    #    none for the first few minutes. Gating here keeps that wait off the
+    #    browser cases, which would otherwise absorb it by retrying the whole
+    #    project. No rule is installed by the fixture: this also proves the
+    #    default alerting pipeline runs.
+    - query: |
+        bash test/e2e/script/prepare/alarm-count.sh \
+          "http://${horizon_host}:${horizon_8081}" \
+          | yq -P '{"hasAlarms": (.total > 0)}'
+      expected: expected/has-alarms.yml
+
+    # 7+8. The suites. Playwright owns its own assertions and reporting; the
     #      contract with infra-e2e is only "exit 0 and print passed: true".
     #      Split by project so a red run says which half broke — a route
     #      returning correct JSON into a view that throws on mount passes
