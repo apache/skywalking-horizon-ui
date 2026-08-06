@@ -89,7 +89,7 @@ verify:
 
     # 5. A DEBUG SESSION needs the rule LIVE, not merely pushed. OAP answers
     #    rule_not_found until the apply reaches APPLIED, which is why this
-    #    follows the phase gate above rather than the push.
+    #    follows the phase check above rather than the push.
     - query: |
         bash test/e2e/script/prepare/dsl-lifecycle.sh \
           "http://${horizon_host}:${horizon_8081}" debug-start \

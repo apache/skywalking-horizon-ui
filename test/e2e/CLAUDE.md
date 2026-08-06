@@ -9,7 +9,7 @@ One CI job per case, all in parallel, from the matrix in `.github/workflows/e2e.
 ```
 build images ──▶ infra-e2e run ──▶ setup ──▶ trigger ──▶ verify ──▶ cleanup
                                      │         │           │
-                                     │         │           ├─ gates    (wire, cheap, §3.3)
+                                     │         │           ├─ readiness (wire, cheap, §3.3)
                                      │         │           └─ browser  (playwright.sh <project>)
                                      │         └─ continuous traffic, one per case
                                      └─ compose up + tools + data seeding
@@ -17,11 +17,13 @@ build images ──▶ infra-e2e run ──▶ setup ──▶ trigger ──▶
 
 **Images first.** `make -C test/e2e images` builds the two things no registry carries: Horizon from *this* commit, and the demo services (upstream's service jar on upstream's agent image). Compose sets `pull_policy: never` for both, so a missing build fails loudly instead of silently testing someone else's image.
 
+**Rebuild it after touching app code.** The image is not rebuilt for you, and a stale one fails in the most misleading way available: the suite runs the PREVIOUS build, so a fix looks unfixed and its new spec looks wrong. If a case exercises a change under `apps/`, run `make images` before the case — the failure otherwise reads as a bad selector.
+
 **Setup** announces the case's scope first — read out of the case table in `.github/workflows/e2e.yaml` and printed before anything boots, so a red run says what this case was responsible for before it says what broke. Then it brings up the stack — `cases/<name>/docker-compose.yml` extending `script/docker-compose/base-compose.yml` — and runs the case's remaining steps: install `yq` and `swctl`, pre-pull the browser image, and seed any data the single `trigger` cannot produce.
 
 **Trigger** is one continuous HTTP loop, and a case gets exactly one. Anything else a fixture needs (log traffic, browser errors) is seeded in a setup step instead.
 
-**Verify** runs cases in order, and the order is load-bearing: readiness gates first so the wait lands on one cheap query, then the browser projects. A gate that fails tells you the fixture is not ready; a browser case that fails tells you the product is wrong.
+**Verify** runs cases in order, and the order is load-bearing: readiness checks first so the wait lands on one cheap query, then the browser projects. A readiness check that fails tells you the fixture is not ready; a browser case that fails tells you the product is wrong.
 
 **Cleanup** is `on: always`.
 
@@ -31,7 +33,7 @@ build images ──▶ infra-e2e run ──▶ setup ──▶ trigger ──▶
 
 One project per case, matching `specs/<project>/`. `auth` is the exception: it is nobody's project, it is a *dependency* of every other, signing in once and sharing the session.
 
-A project shared between cases couples them — a spec added for one becomes a requirement for all of them, including cases that do not run the gate it depends on. Prefer a project per case over a shared one.
+A project shared between cases couples them — a spec added for one becomes a requirement for all of them, including cases that never run the readiness check it depends on. Prefer a project per case over a shared one.
 
 ### On failure
 
@@ -120,11 +122,25 @@ The wire list is meant to stay **short and justified**, not to grow by habit. Tw
 
 What each case actually covers is not recorded here — it lives in the case table in `.github/workflows/e2e.yaml`, which every case echoes to the console before it boots. A second copy in this file would be a list to maintain rather than a rule to follow, and it would go stale first.
 
-### 3.3 Readiness gates are not tests
+### 3.3 Readiness checks are not tests
 
 Several verify cases exist purely to **wait**: metrics have persisted, the service relation has aggregated, alarms have fired. They query the wire because that is the cheapest way to ask, and they run before the browser cases so the wait lands on one query instead of a whole browser project retrying.
 
-They are synchronisation, not verification — and they should carry a comment saying what they are waiting for and why that wait is real. A gate that asserts a *feature* has quietly become a BFF test; move it.
+They are synchronisation, not verification — and they should carry a comment saying what they are waiting for and why that wait is real. A readiness check that asserts a *feature* has quietly become a BFF test; move it.
+
+### 3.4 A readiness check must prove the data the BROWSER will render
+
+`playwright.sh` records a project's first failure and refuses to re-run it, so a case that starts one persistence cycle early is red for good. That makes the readiness check ahead of a browser project decisive, and it has to ask for **exactly** what the page will draw. Three ways to get that subtly wrong, each of which has produced a readiness check that passed beside a red spec here:
+
+- **Checking the container, not the content.** A topology check that counts NODES is satisfied while the graph still has no edges; a deployment check that finds an EDGE is satisfied while every metric on it is null. Check for the thing the assertion needs.
+- **Accepting any value rather than a rendered one.** A metric series arrives as one entry per bucket, mostly `null` until data lands — a non-empty array is not data. Count NON-NULL points, and count them on the metric the page actually draws: accepting any key let the condition be met by `bytes` while the `write` and `query` rows the panel renders were still empty.
+- **Querying a different entity from the one on screen.** Metrics are scope-bound. A relation metric cannot be probed with a service name, and a labeled metric returns all-nulls until a label is selected — a probe missing either looks exactly like "no data yet".
+
+- **Sending a parameter the route ignores.** `/api/layer/:key/deployment` honours only the topbar triplet (`step` + `startMs` + `endMs`) and silently falls back to its own default otherwise, so a check written with `windowMinutes` describes a window the browser never asks for — and tuning that number changes nothing at all. Copy the request the page makes, not an equivalent-looking one.
+
+The rule of thumb: write the readiness check by asking *what would the spec have to see?*, then query for that, through Horizon when the entity is awkward to express (relations, labeled series) since the page's own endpoint already resolves it.
+
+And when a check keeps passing while the page stays empty, the answer may be that the fixture cannot yet produce what the assertion wants. Weakening the assertion to match what the fixture reliably proves — and saying so where the assertion lives — is honest; leaving a test that only passes when data happens to land is not.
 
 ## 4. When something fails, read the logs
 

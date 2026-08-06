@@ -56,7 +56,7 @@ verify:
           | yq -P '{"reachable": .reachable, "hasServices": (.services | length > 0)}'
       expected: expected/browser-roster.yml
 
-    # 2. GATE: the seeded RECORDS are queryable, not merely the service.
+    # 2. READINESS: the seeded RECORDS are queryable, not merely the service.
     #    The roster above appears as soon as perfData registers the service,
     #    which is a different write from the error logs the tab reads — so
     #    the roster can be green while the list is still empty. That matters

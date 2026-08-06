@@ -70,7 +70,7 @@ test('the mesh topology draws the bookinfo call graph', async ({ page, pageError
 test('the mesh_dp instance dashboard renders its card widgets', async ({ page, pageErrors }) => {
   // Envoy's own stats, reported through the metrics service rather than ALS —
   // a different pipeline from the topology above, which is why the readiness
-  // gate for this one is separate.
+  // check for this one is separate.
   //
   // MESH_DP, not MESH: the same workload appears in both, named
   // `productpage.default` here and `productpage` there. Envoy's stats hang

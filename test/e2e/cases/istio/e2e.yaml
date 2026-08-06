@@ -64,8 +64,10 @@ setup:
       - ${HORIZON_E2E_IMAGE}
       - ghcr.io/apache/skywalking/oap:${SW_OAP_COMMIT}
       - ghcr.io/apache/skywalking-banyandb:${SW_BANYANDB_COMMIT}
-      # The chart's wait-for-banyandb init container. Untagged upstream, and
-      # its pull policy is IfNotPresent, so side-loading satisfies it.
+      # The chart's wait-for-banyandb init container asks for an UNTAGGED
+      # `image: curlimages/curl` with no value to override it, so the
+      # side-load must name `:latest`. The CONTENT is pinned instead —
+      # `make images` re-tags SW_CURL_IMAGE as this name.
       - curlimages/curl:latest
       - ${SW_ROVER_IMAGE}
       - docker.io/istio/pilot:${ISTIO_VERSION}
@@ -80,7 +82,7 @@ setup:
       - docker.io/istio/examples-bookinfo-reviews-v3:${BOOKINFO_VERSION}
       - ${TRAFFIC_GEN_IMAGE}
     expose-ports:
-      # For the readiness gates only — the browser reaches Horizon over the
+      # For the readiness checks only — the browser reaches Horizon over the
       # node's NodePort instead, so the browser half needs no host port.
       - namespace: istio-system
         resource: service/skywalking-oap

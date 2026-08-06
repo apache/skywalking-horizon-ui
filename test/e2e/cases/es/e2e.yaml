@@ -58,7 +58,7 @@ verify:
     count: 40
     interval: 5s
   cases:
-    # A readiness gate, not a test (CLAUDE.md §3.3): OAP persists on a ~25s
+    # A readiness check, not a test (CLAUDE.md §3.3): OAP persists on a ~25s
     # cycle, so without this the wait lands on the browser case, which absorbs
     # it by retrying the whole project.
     - query: |
@@ -73,7 +73,7 @@ verify:
     #
     # Deliberately the ONLY verification: re-running the shell and layer
     # journeys on a second backend re-proves what storage does not affect.
-    # GATE: traces are queryable. service_cpm above proves metrics persisted,
+    # READINESS: traces are queryable. service_cpm above proves metrics persisted,
     # which is a DIFFERENT write — on ElasticSearch a trace segment can lag
     # the metric it produced. The es project asserts only on traces, and
     # playwright.sh will not re-run it after a first failure, so the wait has

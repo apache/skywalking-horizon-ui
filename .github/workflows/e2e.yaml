@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-# The gate `tsc` and unit tests cannot be: Horizon against a REAL OAP, fed by
+# The check `tsc` and unit tests cannot be: Horizon against a REAL OAP, fed by
 # real telemetry, verified on BOTH halves of the product — the BFF's HTTP
 # surface and the rendered UI in headless Chromium. A route that returns
 # correct JSON into a view that throws on mount passes every API assertion and
@@ -48,13 +48,20 @@
 #             tests: layer template headers and metrics, layer dashboard
 #             layout and widget spans, the line / top / record widget forms,
 #             service picker, traces, logs, topology, instance topology,
-#             alarms, trace profiling (task create -> list), shell and login
+#             alarms and their timeline, trace profiling (task create ->
+#             list), the trace DETAIL — duration scatter, waterfall, tree,
+#             statistics and the span modal — the services overview
+#             dashboard, shell and login
 #             components: LayerWidgetTile, TimeChart, TopList, RecordList,
 #             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
 #             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
 #             LayerInstanceTopologyView, LayerShell, LayerServiceSelector,
 #             LayerDashboardsView, LayerInstancePicker, LayerEndpointPicker,
-#             AlarmsView, LayerTraceProfilingView, AppShell
+#             AlarmsView, AlarmsTimeline, LayerTraceProfilingView,
+#             TraceDistribution, TraceDetailCard, TraceWaterfallView,
+#             TraceTreeView, TraceStatsView, SpanDetailModal,
+#             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
+#             AlarmsWidget, SectionBreak, AppShell
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE
 #             tests: the trace page on a non-BanyanDB backend — query-API
@@ -76,6 +83,16 @@
 #             components: DslCatalogView, DebugHistoryView, LiveDebuggerView,
 #             OverviewTemplatesAdmin, LayerDashboardsAdmin — mount + list
 #
+#   deployment  BanyanDB as a CLUSTER on kind, via its helm chart  ACTIVE
+#             with FODC, plus an OTel collector
+#             tests: the BANYANDB layer — the cluster resolving from the
+#             collector's `cluster` label, the `table` widget form (declared
+#             by no template any other case reaches), and the Deployment tab
+#             drawing the cluster grouped by node role
+#             components: TableWidget, LayerDeploymentView (its edge panel
+#             and metric rows; the edge Sparkline itself is NOT asserted —
+#             the series is still sparse on a minutes-old cluster)
+#
 #   istio     kind + Istio + rover, in place of compose         ACTIVE
 #             tests: the MESH layer — service list, mesh topology, and the
 #             mesh_dp instance dashboard, which is the first bundled template
@@ -85,7 +102,7 @@
 #             is asserted and no task is run, so the profiling components
 #             stay untested for now
 #             components: LayerWidgetTile's card branch,
-#             LayerZipkinTracesView, TraceListPanel,
+#             LayerZipkinTracesView, ZipkinTraceDetailCard, TraceListPanel,
 #             LayerEBPFProfilingView / LayerNetworkProfilingView — mount only
 #
 # ── RUNNING `istio` WITHOUT PROFILING ────────────────────────────────────
@@ -164,6 +181,9 @@ jobs:
           # mesh install plus ALS analysis before the first assertion.
           - name: istio (kind + Istio + rover)
             config: test/e2e/cases/istio/e2e.yaml
+          # kind as well, but no eBPF — this one runs anywhere kind runs.
+          - name: deployment (BanyanDB cluster + FODC)
+            config: test/e2e/cases/deployment/e2e.yaml
     steps:
       - uses: actions/checkout@v6
         with:
@@ -225,7 +245,7 @@ jobs:
             e2e-logs
           retention-days: 7
 
-  # Rolls the matrix up into ONE status so branch protection can gate on it:
+  # Rolls the matrix up into ONE status so branch protection can check on it:
   # `.asf.yaml` lists contexts by name, and a matrix produces one context per
   # case whose names change whenever a case is added or renamed.
   #

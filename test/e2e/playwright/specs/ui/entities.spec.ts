@@ -71,5 +71,14 @@ test('the alarms page lists what OAP is firing', async ({ page, pageErrors }) =>
   // renders without it is unactionable.
   await expect(rows.first().locator('.ax__row-entity-name')).not.toBeEmpty();
 
+  // The timeline above the list is its own ECharts renderer over the same
+  // alarms. It can draw nothing while the rows below are perfect, and an
+  // operator reads it first — it is how a burst is told from a trickle.
+  // Asserting the CANVAS rather than the host: `.alarms-timeline` is an
+  // unconditional container and is present even if the chart never mounted.
+  await expect(page.locator('.alarms-timeline canvas').first()).toBeVisible({
+    timeout: 45_000,
+  });
+
   expect(pageErrors).toEqual([]);
 });

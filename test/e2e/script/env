@@ -111,9 +111,28 @@ ISTIO_VERSION=1.24.3
 # manifest the case applies, not guessed from ISTIO_VERSION.
 BOOKINFO_VERSION=1.20.2
 TRAFFIC_GEN_IMAGE=alpine/curl:8.9.1
+# The helm chart's wait-for-banyandb init container references `curlimages/curl`
+# UNTAGGED — it resolves to `:latest` and the chart exposes no override. The tag
+# a kind case side-loads therefore has to be `:latest` too. build-images.sh pins
+# the CONTENT instead: it pulls this version and re-tags it as `:latest` locally,
+# so a run is reproducible even though the reference cannot be pinned.
+SW_CURL_IMAGE=curlimages/curl:8.11.1
 # skywalking-helm publishes an OCI chart per commit, not per release.
-SW_HELM_CHART_COMMIT=da0e267f877b9b8e5f7728ae4ea7dc7723a2a073
+#
+# Must be at or after 3aee62a, which moved OAP's init job out of a post-install
+# hook. Before it, `helm --wait` deadlocks against that job — the release fails
+# with "Job/skywalking-oap-init not ready ... Job in progress" whenever the job
+# is slower than the timeout, which reads like a broken fixture rather than a
+# known chart bug.
+SW_HELM_CHART_COMMIT=3aee62ac0b0a8c9626abbd386e9728c859cd21be
 # rover ships no helm chart; the istio case applies its DaemonSet directly.
 SW_ROVER_IMAGE=ghcr.io/apache/skywalking-rover/skywalking-rover:79292fe07f17f98f486e0c4471213e1961fb2d1d
+# The collector that scrapes BanyanDB's FODC proxy and pushes OTLP to OAP —
+# the only path by which the BANYANDB layer's metrics exist.
+SW_OTEL_COLLECTOR_IMAGE=otel/opentelemetry-collector-contrib:0.115.1
+# Becomes the BANYANDB service name: OAP's banyandb rules build the service
+# from the `cluster` label the collector adds.
+BANYANDB_E2E_CLUSTER=e2e-banyandb
+
 # Reached from the browser container over the kind node's published NodePort.
 HORIZON_E2E_NODE_PORT=30081
