@@ -21,12 +21,18 @@
 #     make images          build the images compose expects (never pulled)
 #     make run CASE=core   full infra-e2e cycle for one case
 #     make run-istio-without-profiling   the mesh case minus rover (macOS)
-#     make setup CASE=core bring the stack up and leave it up
-#     make cleanup CASE=core
+#     make dev CASE=core   bring the stack up and LEAVE it up (see below)
+#     make dev-down CASE=core
 
 E2E ?= e2e
 CASE ?= core
-CASE_FILE = cases/$(CASE)/e2e.yaml
+# A case's commands run with infra-e2e's own working directory, and the cases
+# spell every script from the REPO ROOT (`bash test/e2e/script/...`) because
+# that is where CI invokes the CLI. So a case runs from there too — started
+# from `test/e2e` it dies on its first step, with a `No such file or
+# directory` that reads like a missing script rather than a wrong directory.
+ROOT = $(CURDIR)/..
+CASE_FILE = test/e2e/cases/$(CASE)/e2e.yaml
 
 .PHONY: images
 images:
@@ -40,14 +46,14 @@ images-demo:
 
 .PHONY: run
 run:
-	$(E2E) run -c $(CASE_FILE)
+	cd $(ROOT) && $(E2E) run -c $(CASE_FILE)
 
 # The istio case with profiling switched off, for machines with no Linux
 # kernel for eBPF probes to attach to. Same case file, same fixture — the flag
 # drops the rover deployment and the verification that depends on it.
 .PHONY: run-istio-without-profiling
 run-istio-without-profiling:
-	E2E_SKIP_PROFILING=true $(E2E) run -c cases/istio/e2e.yaml
+	cd $(ROOT) && E2E_SKIP_PROFILING=true $(E2E) run -c test/e2e/cases/istio/e2e.yaml
 
 # Spec iteration: a stack that OUTLIVES the command that started it.
 #
