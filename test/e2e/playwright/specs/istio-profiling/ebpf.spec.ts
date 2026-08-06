@@ -16,7 +16,7 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { MESH_LAYER, MESH_PEERS } from '../fixture.js';
+import { MESH_LAYER, MESH_SERVICES } from '../fixture.js';
 
 // Profiling pages, which exist only where rover does.
 //
@@ -43,7 +43,7 @@ test('the eBPF profiling page mounts and resolves a service', async ({ page, pag
   // ours.
   const selected = page.locator('.service-row .svc-name');
   await expect(selected).toBeVisible({ timeout: 60_000 });
-  await expect(selected).toHaveText(new RegExp(`^(${MESH_PEERS.join('|')})$`));
+  await expect(selected).toHaveText(new RegExp(`^(${MESH_SERVICES.join('|')})$`));
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

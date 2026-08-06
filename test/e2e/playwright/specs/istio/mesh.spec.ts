@@ -16,7 +16,13 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { MESH_LAYER, MESH_PEERS, MESH_DP_LAYER, MESH_DP_SUFFIX } from '../fixture.js';
+import {
+  MESH_LAYER,
+  MESH_PEERS,
+  MESH_SERVICES,
+  MESH_DP_LAYER,
+  MESH_DP_SUFFIX,
+} from '../fixture.js';
 
 // The MESH layer, which no compose fixture can produce: its services and
 // metrics are derived from Envoy access logs, not reported by an agent.
@@ -35,7 +41,7 @@ test('the mesh layer lists services built from Envoy access logs', async ({ page
   // member of the known set instead.
   const selected = page.locator('.service-row .svc-name');
   await expect(selected).toBeVisible({ timeout: 45_000 });
-  await expect(selected).toHaveText(new RegExp(`^(${MESH_PEERS.join('|')})$`));
+  await expect(selected).toHaveText(new RegExp(`^(${MESH_SERVICES.join('|')})$`));
 
   // The roster itself is the real assertion: every one of these exists only
   // because OAP analysed Envoy access logs into mesh entities. No agent

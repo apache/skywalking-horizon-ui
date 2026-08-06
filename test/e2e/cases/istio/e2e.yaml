@@ -42,6 +42,12 @@ setup:
       # infra-e2e pulls each of these on the HOST if missing, then side-loads
       # it into the node.
       #
+      # Docker Hub images are named WITHOUT the `docker.io/` prefix, which is
+      # how the local daemon lists them. Spelled with the prefix, infra-e2e's
+      # "already present?" check misses an image that is sitting right there
+      # and pulls anyway — so a run needs Hub reachability it should not need,
+      # and fails when Hub is down even though nothing is missing.
+      #
       # Horizon is built from this checkout and exists nowhere else. The rest
       # are here because the node's own containerd is a second network path
       # that has to reach Docker Hub on its own — it inherits none of the
@@ -70,16 +76,16 @@ setup:
       # `make images` re-tags SW_CURL_IMAGE as this name.
       - curlimages/curl:latest
       - ${SW_ROVER_IMAGE}
-      - docker.io/istio/pilot:${ISTIO_VERSION}
-      - docker.io/istio/proxyv2:${ISTIO_VERSION}
+      - istio/pilot:${ISTIO_VERSION}
+      - istio/proxyv2:${ISTIO_VERSION}
       # bookinfo pins its own image tags, independent of the Istio version —
       # taken from the manifest the `demo` stage applies.
-      - docker.io/istio/examples-bookinfo-productpage-v1:${BOOKINFO_VERSION}
-      - docker.io/istio/examples-bookinfo-details-v1:${BOOKINFO_VERSION}
-      - docker.io/istio/examples-bookinfo-ratings-v1:${BOOKINFO_VERSION}
-      - docker.io/istio/examples-bookinfo-reviews-v1:${BOOKINFO_VERSION}
-      - docker.io/istio/examples-bookinfo-reviews-v2:${BOOKINFO_VERSION}
-      - docker.io/istio/examples-bookinfo-reviews-v3:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-productpage-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-details-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-ratings-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v1:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v2:${BOOKINFO_VERSION}
+      - istio/examples-bookinfo-reviews-v3:${BOOKINFO_VERSION}
       - ${TRAFFIC_GEN_IMAGE}
     expose-ports:
       # For the readiness checks only — the browser reaches Horizon over the

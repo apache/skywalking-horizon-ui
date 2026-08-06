@@ -78,6 +78,15 @@ export const MESH_LAYER = 'mesh';
 export const MESH_PEERS = ['productpage', 'reviews', 'details'];
 
 /**
+ * Every service the MESH layer may resolve to, which is the peers PLUS the
+ * ingress gateway — bookinfo is reached through it, so ALS reports it like
+ * any other mesh workload. Which one the header lands on follows OAP's
+ * ordering and changes between runs, so an assertion on the selected service
+ * has to accept the whole set.
+ */
+export const MESH_SERVICES = [...MESH_PEERS, 'istio-ingressgateway'];
+
+/**
  * The SAME workload in the MESH_DP layer, which names services
  * `<workload>.<namespace>`. ALS produces both sets, and they are not
  * interchangeable: the request metrics hang off the MESH service, Envoy's own
