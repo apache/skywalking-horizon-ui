@@ -53,8 +53,8 @@ function queryString(name: string): string | null {
   const value = route.query[name];
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
-const providerNameParam = computed(() => queryString('providerName'));
-const modelNameParam = computed(() => queryString('modelName'));
+const providerIdParam = computed(() => queryString('providerId'));
+const modelIdParam = computed(() => queryString('modelId'));
 const startTimeParam = computed(() => queryString('startTime'));
 const endTimeParam = computed(() => queryString('endTime'));
 
@@ -75,7 +75,8 @@ const safeCfg = computed(() => {
 const landing = useLayerLanding(safeLayer, safeCfg);
 const serviceName = useLayerServiceName(layerKey, landing);
 const landingRows = computed(() => landing.data.value?.sampledRows ?? landing.rows.value ?? []);
-const { services } = useLayerServices(layerKey);
+const generalLayerKey = computed(() => 'general');
+const { services: callerServices, isFetching: callerServicesFetching } = useLayerServices(generalLayerKey);
 watch(
     landingRows,
     (rows) => {
@@ -91,10 +92,8 @@ watch(
     },
     { immediate: true },
 );
-watch([providerNameParam, services], ([providerName, allServices]) => {
-  if (!providerName) return;
-  const service = allServices.find((candidate) => candidate.name === providerName);
-  if (service && selectedId.value !== service.id) setSelectedService(service.id);
+watch(providerIdParam, (providerId) => {
+  if (providerId && selectedId.value !== providerId) setSelectedService(providerId);
 }, { immediate: true });
 
 // ── Model picker. Evaluation records currently reuse the instance
@@ -116,12 +115,10 @@ const selectedInstanceObj = computed(() =>
         ? instanceList.value.find((i) => i.name === selectedInstance.value) ?? null
         : null,
 );
-watch([modelNameParam, instanceList], ([modelName, instances]) => {
-  if (!modelName || !instances.some((instance) => instance.name === modelName)) return;
-  if (selectedInstance.value !== modelName) setSelectedInstance(modelName);
+watch([modelIdParam, instanceList], ([modelId, instances]) => {
+  const model = modelId ? instances.find((instance) => instance.id === modelId) : null;
+  if (model && selectedInstance.value !== model.name) setSelectedInstance(model.name);
 }, { immediate: true });
-const providerNameForQuery = computed<string | null>(() => providerNameParam.value ?? serviceName.value);
-const modelNameForQuery = computed<string | null>(() => modelNameParam.value ?? selectedInstanceObj.value?.name ?? null);
 
 // ── Query state ────────────────────────────────────────────────────
 // Trace ID rides either from `?traceId=` in the URL (e.g. log row's
@@ -143,7 +140,6 @@ const traceIdInput = ref('');
 // the UI exposes ??service / instance / endpoint / traceID / tags ??// are all indexed dimensions and cover the booster-ui condition set.
 const page = ref(1);
 const pageSize = ref(50);
-const callerServiceName = ref('');
 const minScore = ref<number | null>(null);
 const maxScore = ref<number | null>(null);
 const taskName = ref('');
@@ -155,7 +151,9 @@ const traceIdRef = computed<string | null>(() => {
   const v = traceIdInput.value.trim();
   return v.length > 0 ? v : null;
 });
-const modelNameRef = computed<string | null>(() => modelNameForQuery.value);
+const serviceId = ref('');
+const providerIdRef = computed<string | null>(() => providerIdParam.value ?? selectedId.value);
+const modelIdRef = computed<string | null>(() => modelIdParam.value ?? selectedInstanceObj.value?.id ?? null);
 const keywordsRef = computed<string[]>(() => []);
 
 // Time-range picker. Logs blocks the global topbar picker (see
@@ -242,10 +240,10 @@ function toggleLevel(l: 'fail' | 'warning' | 'good' | 'excellent' | 'undefined')
 }
 
 const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = useLayerEvaluationRecord(layerKey, {
-  service: providerNameForQuery,
-  callerServiceName: computed(() => callerServiceName.value.trim() || null),
-  providerName: providerNameForQuery,
-  modelName: modelNameRef,
+  service: computed(() => null),
+  serviceId: computed(() => serviceId.value.trim() || null),
+  providerId: providerIdRef,
+  modelId: modelIdRef,
   minScore,
   maxScore,
   taskName: computed(() => taskName.value.trim() || null),
@@ -263,8 +261,9 @@ const { genAIEvaluationRecordStreamRows, total, isFetching, error, refetch } = u
 });
 
 const { facets } = useLayerEvaluationRecordFacets(layerKey, {
-  service: providerNameForQuery,
-  modelName: modelNameRef,
+  service: computed(() => null),
+  providerId: providerIdRef,
+  modelId: modelIdRef,
   traceId: traceIdRef,
   keywords: keywordsRef,
   windowMinutes: windowMinutesEffective,
@@ -437,8 +436,13 @@ function jumpToTrace(traceId: string, ts?: number): void {
           <input v-model="taskName" type="text" class="cf-input" placeholder="All tasks" @change="page = 1" />
         </label>
         <label class="cf">
-          <span>Caller service</span>
-          <input v-model="callerServiceName" type="text" class="cf-input" placeholder="All caller services" @change="page = 1" />
+          <span>Service</span>
+          <select v-model="serviceId" class="cf-input" :disabled="callerServicesFetching" @change="page = 1">
+            <option value="">All services</option>
+            <option v-for="service in callerServices" :key="service.id" :value="service.id">
+              {{ service.name }}
+            </option>
+          </select>
         </label>
         <label class="cf">
           <span>Judge model</span>

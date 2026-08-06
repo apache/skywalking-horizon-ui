@@ -183,9 +183,9 @@ function mapEvaluationRecordRow(r: OapEvaluationRecordRow): EvaluationRecordRow 
  *  per-layer route resolves a name first; explore forwards ids it
  *  already minted. */
 export interface EvaluationRecordFetchScope {
-  serviceName?: string | null;
-  providerName?: string | null;
-  modelName?: string | null;
+  serviceId?: string | null;
+  providerId?: string | null;
+  modelId?: string | null;
   minScore?: number | null;
   maxScore?: number | null;
   taskName?: string | null;
@@ -211,9 +211,9 @@ export async function fetchEvaluationRecords(
   const minScore = optionalFiniteNumber(scope.minScore);
   const maxScore = optionalFiniteNumber(scope.maxScore);
   const evaluationRecordCondition = {
-    ...(scope.serviceName ? { serviceName: scope.serviceName } : {}),
-    ...(scope.providerName ? { providerName: scope.providerName } : {}),
-    ...(scope.modelName ? { modelName: scope.modelName } : {}),
+    ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
+    ...(scope.providerId ? { providerId: scope.providerId } : {}),
+    ...(scope.modelId ? { modelId: scope.modelId } : {}),
     ...(minScore != null ? { minScore } : {}),
     ...(maxScore != null ? { maxScore } : {}),
     ...(scope.taskName ? { taskName: scope.taskName } : {}),
@@ -290,13 +290,12 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         });
 
         // Resolve a service NAME to an id if the caller used one.
-        const providerName = body.providerName ?? body.service ?? null;
         const res = await fetchEvaluationRecords(
             opts,
             {
-              serviceName: body.callerServiceName,
-              providerName,
-              modelName: body.modelName,
+              serviceId: body.serviceId,
+              providerId: body.providerId,
+              modelId: body.modelId,
               minScore: body.minScore,
               maxScore: body.maxScore,
               taskName: body.taskName,
@@ -345,10 +344,9 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
           startTime: body.startTime,
           endTime: body.endTime,
         });
-        const providerName = body.providerName ?? body.service ?? null;
         const evaluationRecordCondition = {
-          ...(providerName ? { providerName } : {}),
-          ...(body.modelName ? { modelName: body.modelName } : {}),
+          ...(body.providerId ? { providerId: body.providerId } : {}),
+          ...(body.modelId ? { modelId: body.modelId } : {}),
           ...(body.traceId ? { relatedTrace: { traceId: body.traceId } } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a

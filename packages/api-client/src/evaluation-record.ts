@@ -27,9 +27,9 @@
 
 export interface EvaluationRecordQueryRequest {
   service?: string;
-  callerServiceName?: string | null;
-  providerName?: string | null;
-  modelName?: string | null;
+  serviceId?: string | null;
+  providerId?: string | null;
+  modelId?: string | null;
   minScore?: number | null;
   maxScore?: number | null;
   taskName?: string | null;

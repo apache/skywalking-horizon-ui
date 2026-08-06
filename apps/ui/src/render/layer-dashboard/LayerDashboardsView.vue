@@ -188,6 +188,9 @@ const {
   instanceResolvable,
   instAtCap,
 } = useInstanceCascade(layerKey, scope, serviceName, layer);
+const effectiveInstanceId = computed(() =>
+  instanceList.value.find((instance) => instance.name === selectedInstance.value)?.id ?? null,
+);
 const {
   selectedEndpoint,
   setSelectedEndpoint,
@@ -475,6 +478,7 @@ function evaluationRecordDrillEnabled(w: DashboardWidget): boolean {
     w.type === 'line' &&
     w.id === 'evaluation score' &&
     !!serviceName.value &&
+    !!selectedId.value &&
     !!selectedInstance.value
   );
 }
@@ -528,8 +532,8 @@ function onDrillPoint(
       point: { x: p.x, y: p.y },
       path: `/layer/${layerKey.value}/evaluation-record`,
       query: {
-        providerName: serviceName.value!,
-        modelName: selectedInstance.value!,
+        providerId: selectedId.value!,
+        modelId: effectiveInstanceId.value!,
         startTime: toLocalInput(win.fromMs),
         endTime: toLocalInput(win.toMs),
       },
