@@ -78,13 +78,18 @@ export const MESH_LAYER = 'mesh';
 export const MESH_PEERS = ['productpage', 'reviews', 'details'];
 
 /**
- * Every service the MESH layer may resolve to, which is the peers PLUS the
- * ingress gateway — bookinfo is reached through it, so ALS reports it like
- * any other mesh workload. Which one the header lands on follows OAP's
- * ordering and changes between runs, so an assertion on the selected service
- * has to accept the whole set.
+ * EVERY service this fixture's mesh can produce: all four bookinfo workloads
+ * plus the ingress gateway bookinfo is reached through, which ALS reports
+ * like any other mesh workload.
+ *
+ * Distinct from MESH_PEERS on purpose. `ratings` is reached only via
+ * reviews-v2/v3, so whether it exists in a given window depends on which
+ * review version the traffic hit — it cannot be REQUIRED to be listed, but it
+ * can certainly be the one the header resolves to. Which service that is
+ * follows OAP's ordering and changes between runs, so anything asserting on
+ * the SELECTED service must accept the full set.
  */
-export const MESH_SERVICES = [...MESH_PEERS, 'istio-ingressgateway'];
+export const MESH_SERVICES = [...MESH_PEERS, 'ratings', 'istio-ingressgateway'];
 
 /**
  * The SAME workload in the MESH_DP layer, which names services
