@@ -51,7 +51,11 @@
 #             alarms and their timeline, trace profiling (task create ->
 #             list), the trace DETAIL — duration scatter, waterfall, tree,
 #             statistics and the span modal — the services overview
-#             dashboard, shell and login
+#             dashboard, shell and login, plus two live debug CAPTURES:
+#             LAL live debug over logs driven while the session is open, and
+#             OAL live debug entered the way an operator reaches it — the
+#             catalog's green ▶ on the `service_cpm` statement — through to
+#             a captured Service source row carrying a fixture service name
 #             components: LayerWidgetTile, TimeChart, TopList, RecordList,
 #             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
 #             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
@@ -61,7 +65,9 @@
 #             TraceDistribution, TraceDetailCard, TraceWaterfallView,
 #             TraceTreeView, TraceStatsView, SpanDetailModal,
 #             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
-#             AlarmsWidget, SectionBreak, AppShell
+#             AlarmsWidget, SectionBreak, AppShell, DebugView,
+#             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
+#             live debug)
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE
 #             tests: the trace page on a non-BanyanDB backend — query-API
@@ -80,18 +86,24 @@
 #             case's own state. The admin pages themselves are covered only
 #             as far as MOUNTING and listing; editing and pushing from the
 #             page are not exercised
-#             components: DslCatalogView, DebugHistoryView, LiveDebuggerView,
-#             OverviewTemplatesAdmin, LayerDashboardsAdmin — mount + list
+#             components: DslCatalogView, DebugHistoryView,
+#             LiveDebuggerView (the live debug page itself — no capture is
+#             started here; the MAL / LAL / OAL runs live in `deployment`
+#             and `core`), OverviewTemplatesAdmin, LayerDashboardsAdmin
+#             — mount + list
 #
 #   deployment  BanyanDB as a CLUSTER on kind, via its helm chart  ACTIVE
 #             with FODC, plus an OTel collector
 #             tests: the BANYANDB layer — the cluster resolving from the
 #             collector's `cluster` label, the `table` widget form (declared
-#             by no template any other case reaches), and the Deployment tab
-#             drawing the cluster grouped by node role
-#             components: TableWidget, LayerDeploymentView (its edge panel
-#             and metric rows; the edge Sparkline itself is NOT asserted —
-#             the series is still sparse on a minutes-old cluster)
+#             by no template any other case reaches), the Deployment tab
+#             drawing the cluster grouped by node role, and a MAL live debug
+#             CAPTURE — the collector feeds `otel-rules/banyandb`, the only
+#             MAL rule any case's fixture reaches
+#             components: TableWidget, DebugMal (MAL live debug),
+#             LayerDeploymentView (its edge panel and metric rows; the
+#             edge Sparkline itself is NOT asserted — the series is still
+#             sparse on a minutes-old cluster)
 #
 #   istio     kind + Istio + rover, in place of compose         ACTIVE
 #             tests: the MESH layer — service list, mesh topology, and the
