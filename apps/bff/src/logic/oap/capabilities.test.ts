@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
 import type { HorizonConfig } from '../../config/schema.js';
 import { getOapCapabilities, _resetCapabilitiesCache } from './capabilities.js';
@@ -50,6 +50,7 @@ const config = { oap: { queryUrl: 'http://oap:12800' } } as unknown as HorizonCo
 
 describe('OAP capability probe', () => {
   beforeEach(() => _resetCapabilitiesCache());
+  afterEach(() => vi.useRealTimers());
 
   it('reports content search on a storage that answers yes', async () => {
     const oap = fakeOap(['queryAlarms', 'supportQueryLogsByKeywords'], true);
@@ -83,6 +84,45 @@ describe('OAP capability probe', () => {
       queryAlarms: false,
       logKeywords: false,
     });
+  });
+
+  it('re-probes soon after a FAILED keyword read, not in five minutes', async () => {
+    // A false that came from a timeout must not hide content search for the
+    // whole success TTL — one slow reply would cost an ElasticSearch operator
+    // five minutes of a missing input.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    let failing = true;
+    const fetch: FetchLike = async (_url, init) => {
+      const query = String(JSON.parse(String(init?.body ?? '{}')).query ?? '');
+      if (query.includes('__type')) {
+        return json({ data: { __type: { fields: [{ name: 'supportQueryLogsByKeywords' }] } } });
+      }
+      if (failing) throw new Error('timeout');
+      return json({ data: { supportQueryLogsByKeywords: true } });
+    };
+
+    expect((await getOapCapabilities(config, fetch)).logKeywords).toBe(false);
+
+    // Still inside the failure TTL: the cached false stands.
+    vi.setSystemTime(new Date('2026-01-01T00:00:30Z'));
+    failing = false;
+    expect((await getOapCapabilities(config, fetch)).logKeywords).toBe(false);
+
+    // Past it, and well short of the five-minute success TTL.
+    vi.setSystemTime(new Date('2026-01-01T00:01:30Z'));
+    expect((await getOapCapabilities(config, fetch)).logKeywords).toBe(true);
+  });
+
+  it('does not re-probe a storage that ANSWERED no', async () => {
+    // A definite no is durable — it changes only when OAP restarts.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const oap = fakeOap(['supportQueryLogsByKeywords'], false);
+    await getOapCapabilities(config, oap.fetch);
+    vi.setSystemTime(new Date('2026-01-01T00:02:00Z'));
+    await getOapCapabilities(config, oap.fetch);
+    expect(oap.asks()).toBe(1);
   });
 
   it('treats a null answer as no', async () => {

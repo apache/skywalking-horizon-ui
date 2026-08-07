@@ -1185,7 +1185,6 @@
   "Invalid date": "Invalid date",
   "Window exceeds {h}h cap": "Window exceeds {h}h cap",
   "last {window}": "last {window}",
-  "Metrics Analysis Language - …": "Metrics Analysis Language - …",
   "Operate · OAP configuration": "Operate · OAP configuration",
   "local": "local",
   "Local": "Local",
@@ -2611,5 +2610,6 @@
   "more matches — narrow the keyword": "more matches — narrow the keyword",
   "Content": "Content",
   "words the line must contain…": "words the line must contain…",
-  "every word must appear in the line": "every word must appear in the line"
+  "every word must appear in the line": "every word must appear in the line",
+  "Meter Analysis Language - …": "Meter Analysis Language - …"
 }

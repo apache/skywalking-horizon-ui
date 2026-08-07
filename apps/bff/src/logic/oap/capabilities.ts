@@ -111,6 +111,7 @@ export async function getOapCapabilities(
   // A backend that cannot match content answers false, and so does a failed
   // read — the input it gates is offered only on a definite yes.
   let logKeywords = false;
+  let probeFailed = false;
   if (fieldSet.has('supportQueryLogsByKeywords')) {
     try {
       const env = await graphqlPost<LogKeywordsRaw>(
@@ -120,12 +121,20 @@ export async function getOapCapabilities(
       logKeywords = env.supportQueryLogsByKeywords === true;
     } catch {
       logKeywords = false;
+      probeFailed = true;
     }
   }
   const result: OapCapabilities = {
     queryAlarms: fieldSet.has('queryAlarms'),
     logKeywords,
   };
-  cache.set(key, { result, fetchedAt: now });
+  // A false that came from a TIMEOUT expires on the short TTL, not the long
+  // one: caching it for the full window would hide content search on a
+  // capable backend for five minutes over one slow reply. A false the storage
+  // actually answered is durable — it only changes when OAP restarts.
+  cache.set(key, {
+    result,
+    fetchedAt: probeFailed ? now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS : now,
+  });
   return result;
 }

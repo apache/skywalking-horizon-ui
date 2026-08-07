@@ -1205,7 +1205,6 @@
   "Invalid date": "无效的日期",
   "Window exceeds {h}h cap": "窗口超过 {h} 小时上限",
   "last {window}": "最近 {window}",
-  "Metrics Analysis Language - …": "Metrics Analysis Language - …",
   "Operate · OAP configuration": "运维 · OAP 配置",
   "local": "本地",
   "Local": "本地",
@@ -2611,5 +2610,6 @@
   "more matches — narrow the keyword": "还有更多匹配项 —— 请细化关键词",
   "Content": "内容",
   "words the line must contain…": "该行必须包含的词…",
-  "every word must appear in the line": "每个词都必须出现在该行中"
+  "every word must appear in the line": "每个词都必须出现在该行中",
+  "Meter Analysis Language - …": "Meter Analysis Language - …"
 }

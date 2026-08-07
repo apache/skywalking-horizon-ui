@@ -265,7 +265,7 @@ function submitNewRule(): void {
     <AdminFeatureWarning module="receiver-runtime-rule" :feature-label="t('DSL management')" />
     <header class="catalog__header">
       <h1 class="catalog__h1">
-        <!-- Full catalog label (e.g. "Metrics Analysis Language - OpenTelemetry Rules")
+        <!-- Full catalog label (e.g. "Meter Analysis Language - OpenTelemetry Rules")
              instead of the URL slug ("otel-rules") — operators reading the page
              header shouldn't have to translate slug-to-language in their head.
              Sidebar still abbreviates (MAL · OTEL, …) for space. -->

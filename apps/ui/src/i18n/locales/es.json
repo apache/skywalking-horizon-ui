@@ -1204,7 +1204,6 @@
   "Invalid date": "Fecha no válida",
   "Window exceeds {h}h cap": "La ventana supera el tope de {h}h",
   "last {window}": "últimos {window}",
-  "Metrics Analysis Language - …": "Metrics Analysis Language - …",
   "Operate · OAP configuration": "Operar · Configuración de OAP",
   "local": "local",
   "Local": "Local",
@@ -2611,5 +2610,6 @@
   "more matches — narrow the keyword": "hay más coincidencias: acota la palabra clave",
   "Content": "Contenido",
   "words the line must contain…": "palabras que debe contener la línea…",
-  "every word must appear in the line": "cada palabra debe aparecer en la línea"
+  "every word must appear in the line": "cada palabra debe aparecer en la línea",
+  "Meter Analysis Language - …": "Meter Analysis Language - …"
 }
