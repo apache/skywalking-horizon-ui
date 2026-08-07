@@ -2608,5 +2608,8 @@
   "capped at {n} — narrow the window": "{n}건에서 잘림 — 범위를 좁히세요",
   "sample of {n}+ (capped — narrow the window)": "{n}건 이상 샘플 (잘림 — 범위를 좁히세요)",
   "more alarms in this window than were fetched — tighten the range": "이 범위에는 가져온 것보다 많은 알람이 있습니다 — 범위를 좁히세요",
-  "more matches — narrow the keyword": "일치 항목이 더 있습니다 — 키워드를 좁히세요"
+  "more matches — narrow the keyword": "일치 항목이 더 있습니다 — 키워드를 좁히세요",
+  "Content": "내용",
+  "words the line must contain…": "로그 줄에 포함되어야 할 단어…",
+  "every word must appear in the line": "모든 단어가 해당 줄에 나타나야 합니다"
 }

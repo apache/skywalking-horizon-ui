@@ -141,6 +141,7 @@ const drawerGroupedFiles = computed<Record<Source, FileNode[]>>(() => {
     OAL: [],
     'MAL·OTEL': [],
     'MAL·Telegraf': [],
+    'MAL·Meter': [],
     'LAL→MAL': [],
     unknown: [],
   };
@@ -293,7 +294,7 @@ function commitForeign(): void {
       <div class="drawer__sources">
         <span class="ins__lbl">{{ t('source') }}</span>
         <button
-          v-for="s in (['OAL','MAL·OTEL','MAL·Telegraf','LAL→MAL','unknown'] as Source[])"
+          v-for="s in (['OAL','MAL·OTEL','MAL·Telegraf','MAL·Meter','LAL→MAL','unknown'] as Source[])"
           :key="s"
           class="chip"
           :class="{ 'chip--on': sourceFilter.has(s) }"
@@ -308,7 +309,7 @@ function commitForeign(): void {
 
       <div class="drawer__panes">
         <nav class="drawer__tree">
-          <template v-for="src in (['OAL','MAL·OTEL','MAL·Telegraf','LAL→MAL','unknown'] as Source[])" :key="src">
+          <template v-for="src in (['OAL','MAL·OTEL','MAL·Telegraf','MAL·Meter','LAL→MAL','unknown'] as Source[])" :key="src">
             <div v-if="drawerGroupedFiles[src].length > 0" class="drawer__treeGroup">
               <div class="drawer__treeKicker">{{ src }}</div>
               <div

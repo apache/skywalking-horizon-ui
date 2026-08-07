@@ -90,7 +90,14 @@ services:
       SW_AGENT_NAME: e2e-service-provider
       SW_AGENT_INSTANCE_NAME: provider1
       SW_LOGGING_OUTPUT: CONSOLE
-      SW_METER_ACTIVE: 'false'
+      # Turns the agent's meter sender on. Its self-observability meters
+      # (created_tracing_context_counter, interceptor_error_counter, ...) are
+      # what `meter-analyzer-config/java-agent` analyses — the rule the `ui`
+      # project's MAL capture samples. The HikariCP (`datasource`) and Tomcat
+      # (`thread_pool`) plugin meters ride the same stream into that catalog's
+      # `datasource` and `threadpool` rules, so three of its files have a
+      # producer here.
+      SW_METER_ACTIVE: 'true'
     healthcheck:
       test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9090"]
       interval: 5s
@@ -107,7 +114,7 @@ services:
       SW_AGENT_NAME: e2e-service-consumer
       SW_AGENT_INSTANCE_NAME: consumer1
       SW_LOGGING_OUTPUT: CONSOLE
-      SW_METER_ACTIVE: 'false'
+      SW_METER_ACTIVE: 'true'
       PROVIDER_URL: http://provider:9090
     healthcheck:
       test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/9092"]

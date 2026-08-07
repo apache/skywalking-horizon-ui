@@ -27,7 +27,7 @@ import {
   type ListEnvelope,
   type ListRow,
 } from '@skywalking-horizon-ui/api-client';
-import { bff } from '@/api/client';
+import { bff, describeApiError } from '@/api/client';
 import { groupRules } from '@/features/operate/_shared/grouping';
 import RuleCard from '@/features/operate/_shared/RuleCard.vue';
 import Pill from '@/components/primitives/Pill.vue';
@@ -187,6 +187,10 @@ function clearFilters(): void {
 }
 const isPending = computed(() => listQuery.isPending.value || bundledQuery.isPending.value);
 const isError = computed(() => listQuery.isError.value || bundledQuery.isError.value);
+const errorText = computed<string>(() => {
+  const err = listQuery.error.value ?? bundledQuery.error.value;
+  return err ? describeApiError(err) : '';
+});
 function refetch(): void {
   void listQuery.refetch();
   void bundledQuery.refetch();
@@ -316,6 +320,11 @@ function submitNewRule(): void {
       <i18n-t keypath="Could not load {catalog}." tag="span" scope="global">
         <template #catalog><code>{{ catalog }}</code></template>
       </i18n-t>
+      <!-- OAP names the reason itself, and the reasons differ in what the
+           operator should do next: a backend too old for this catalog answers
+           `invalid_catalog` and lists the ones it has, which no generic
+           "could not load" would ever tell them. -->
+      <code v-if="errorText" class="catalog__errdetail">{{ errorText }}</code>
       <button class="catalog__retry" type="button" @click="refetch()">{{ t('retry') }}</button>
     </div>
 
@@ -558,6 +567,16 @@ function submitNewRule(): void {
 .catalog__hint code {
   font-family: var(--rr-font-mono);
   color: var(--rr-info);
+}
+
+/* The backend's own words, on their own line: the reason can be a whole
+   sentence (OAP lists the catalogs it accepts), which reads badly inline. */
+.catalog__errdetail {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--sw-fs-sm);
+  color: var(--rr-dim);
+  white-space: pre-wrap;
 }
 
 .catalog__retry {

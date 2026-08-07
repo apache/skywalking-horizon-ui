@@ -41,7 +41,7 @@
 # OAP. Must be at or after 5b481a41a9 (#13877), which added the
 # server-admin/ui-management module Horizon's template store talks to on the
 # admin host. Before that commit `templates.mode: live` cannot work.
-SW_OAP_COMMIT=c66a476a994a2ce9c89cc955166420f9f3259a0a
+SW_OAP_COMMIT=c59f7b410b20596a1effa09161d334cb081eea33
 
 # BanyanDB — the storage every case runs on. OAP's own default selector is
 # banyandb, so no SW_STORAGE override is needed anywhere.

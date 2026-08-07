@@ -26,7 +26,7 @@ import {
 import { DEBUG_CATALOGS } from './dsl-debugging.js';
 
 describe('isCatalog — the hot-update catalog gate', () => {
-  it('pins the four hot-updatable catalog wire names, and accepts each of them', () => {
+  it('pins the five hot-updatable catalog wire names, and accepts each of them', () => {
     // Membership has to be asserted directly: isCatalog derives from CATALOGS,
     // so the loop alone still passes with an entry silently dropped — and a
     // dropped catalog both disappears from the DSL dump picker and 400s
@@ -34,6 +34,7 @@ describe('isCatalog — the hot-update catalog gate', () => {
     expect([...CATALOGS].sort()).toEqual([
       'lal',
       'log-mal-rules',
+      'meter-analyzer-config',
       'otel-rules',
       'telegraf-rules',
     ]);

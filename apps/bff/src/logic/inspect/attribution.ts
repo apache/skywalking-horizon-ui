@@ -35,12 +35,19 @@ import type { OalClient, RuntimeRuleClient } from '@skywalking-horizon-ui/api-cl
 import { parseOalMetricNames } from './parser-oal.js';
 import { parseMalMetricNames } from './parser-mal.js';
 
-export type AttributionSource = 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'LAL→MAL' | 'unknown';
+export type AttributionSource =
+  | 'OAL'
+  | 'MAL·OTEL'
+  | 'MAL·Telegraf'
+  | 'MAL·Meter'
+  | 'LAL→MAL'
+  | 'unknown';
 
 export interface MetricAttribution {
   source: AttributionSource;
   /** Full file path, e.g. `core.oal`, `otel-rules/jvm-memory`,
-   *  `telegraf-rules/cpu`, `log-mal-rules/log-status`. Includes the
+   *  `telegraf-rules/cpu`, `meter-analyzer-config/java-agent`,
+   *  `log-mal-rules/log-status`. Includes the
    *  catalog prefix for MAL/LAL→MAL so different catalogs don't
    *  collide on duplicate file names. `null` only when a metric has
    *  multiple ambiguous owners (currently rare). */
@@ -106,7 +113,12 @@ export class AttributionCache {
   }
 }
 
-const MAL_CATALOGS = ['otel-rules', 'telegraf-rules', 'log-mal-rules'] as const;
+const MAL_CATALOGS = [
+  'otel-rules',
+  'telegraf-rules',
+  'meter-analyzer-config',
+  'log-mal-rules',
+] as const;
 
 /** Compute a fingerprint that uniquely identifies the current rule
  *  set. Either side is best-effort — if `/runtime/oal/*` or
@@ -242,9 +254,11 @@ async function buildIndex(deps: AttributionDeps): Promise<AttributionIndex> {
         ? 'MAL·OTEL'
         : catalog === 'telegraf-rules'
           ? 'MAL·Telegraf'
-          : catalog === 'log-mal-rules'
-            ? 'LAL→MAL'
-            : 'unknown';
+          : catalog === 'meter-analyzer-config'
+            ? 'MAL·Meter'
+            : catalog === 'log-mal-rules'
+              ? 'LAL→MAL'
+              : 'unknown';
     for (const m of parseMalMetricNames(content)) claim(m, source, file);
   }
 

@@ -98,6 +98,7 @@ export function useSidebarMenu() {
           children: [
             { icon: 'set', label: 'MAL · OTEL', to: '/operate/dsl/otel-rules', verb: 'rule:read' },
             { icon: 'set', label: 'MAL · Telegraf', to: '/operate/dsl/telegraf-rules', verb: 'rule:read' },
+            { icon: 'set', label: 'MAL · Meter', to: '/operate/dsl/meter-analyzer-config', verb: 'rule:read' },
             { icon: 'set', label: 'LAL', to: '/operate/dsl/lal', verb: 'rule:read' },
             { icon: 'set', label: 'LAL → MAL', to: '/operate/dsl/log-mal-rules', verb: 'rule:read' },
             { icon: 'trace', label: t('OAL · read-only'), to: '/operate/oal', verb: 'rule:read' },

@@ -27,10 +27,8 @@
  * (and the staleness is harmless: legacy-mode fallback works against
  * new OAP, just doesn't use the new filters).
  *
- * Add a new probe by inserting it into {@link CAPABILITY_FIELDS}: each
- * entry says "feature `X` requires field `Y` on `Query`". The probe
- * returns false (conservative) when introspection itself fails — we'd
- * rather use the legacy path than fail the page.
+ * A probe that fails returns false for everything — a legacy path or a
+ * hidden input beats a failed page.
  */
 
 import type { FetchLike } from '@skywalking-horizon-ui/api-client';
@@ -43,6 +41,10 @@ export interface OapCapabilities {
    *  ruleName filters; absence means the BFF must fall back to the
    *  scope+keyword+tags-only `getAlarm`. */
   queryAlarms: boolean;
+  /** Whether stored-log CONTENT can be searched (`keywordsOfContent`).
+   *  Decided by the storage, not the OAP version — ElasticSearch yes, the
+   *  others no — so two OAPs on the same build can disagree. */
+  logKeywords: boolean;
 }
 
 const INTROSPECTION_QUERY = /* GraphQL */ `
@@ -53,6 +55,18 @@ const INTROSPECTION_QUERY = /* GraphQL */ `
 
 interface IntrospectionRaw {
   __type?: { fields?: Array<{ name?: string | null } | null> | null } | null;
+}
+
+/** The storage-answered half. Asked only when introspection proved the field
+ *  exists, so an OAP predating it never sees an invalid document. */
+const LOG_KEYWORDS_QUERY = /* GraphQL */ `
+  query HorizonLogKeywordSupport {
+    supportQueryLogsByKeywords
+  }
+`;
+
+interface LogKeywordsRaw {
+  supportQueryLogsByKeywords?: boolean | null;
 }
 
 interface Entry {
@@ -85,7 +99,7 @@ export async function getOapCapabilities(
   try {
     raw = await graphqlPost<IntrospectionRaw>(buildOapOpts(config, fetchImpl), INTROSPECTION_QUERY);
   } catch {
-    const conservative: OapCapabilities = { queryAlarms: false };
+    const conservative: OapCapabilities = { queryAlarms: false, logKeywords: false };
     cache.set(key, { result: conservative, fetchedAt: now - CAPS_TTL_MS + CAPS_FAILURE_TTL_MS });
     return conservative;
   }
@@ -94,8 +108,23 @@ export async function getOapCapabilities(
   for (const f of raw.__type?.fields ?? []) {
     if (f?.name) fieldSet.add(f.name);
   }
+  // A backend that cannot match content answers false, and so does a failed
+  // read — the input it gates is offered only on a definite yes.
+  let logKeywords = false;
+  if (fieldSet.has('supportQueryLogsByKeywords')) {
+    try {
+      const env = await graphqlPost<LogKeywordsRaw>(
+        buildOapOpts(config, fetchImpl),
+        LOG_KEYWORDS_QUERY,
+      );
+      logKeywords = env.supportQueryLogsByKeywords === true;
+    } catch {
+      logKeywords = false;
+    }
+  }
   const result: OapCapabilities = {
     queryAlarms: fieldSet.has('queryAlarms'),
+    logKeywords,
   };
   cache.set(key, { result, fetchedAt: now });
   return result;

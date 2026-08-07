@@ -87,6 +87,7 @@ export function useOapInfo() {
    *  load rather than flashing a "new" UI that then disappears. */
   const capabilities = computed<OapCapabilities>(() => ({
     queryAlarms: info.value?.capabilities?.queryAlarms ?? false,
+    logKeywords: info.value?.capabilities?.logKeywords ?? false,
   }));
 
   /** Storage backend probed via TTL response shape. `unknown` until the

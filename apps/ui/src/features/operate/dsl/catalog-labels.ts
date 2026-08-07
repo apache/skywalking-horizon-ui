@@ -16,10 +16,10 @@
  */
 
 /**
- * Human-readable display labels for the four DSL catalogs.
+ * Human-readable display labels for the five DSL catalogs.
  *
  * The catalog identifier (`otel-rules`, `telegraf-rules`, `log-mal-rules`,
- * `lal`) is the URL slug + the OAP wire identifier — it stays stable. But
+ * `meter-analyzer-config`, `lal`) is the URL slug + the OAP wire identifier — it stays stable. But
  * operators don't read URL slugs; the page header should say "Metrics
  * Analysis Language - OpenTelemetry Rules" instead of "Catalog ·
  * otel-rules". The sidebar still abbreviates (MAL · OTEL, …) because
@@ -43,6 +43,8 @@ export function catalogLabel(c: Catalog): string {
       return 'Metrics Analysis Language - Telegraf Rules';
     case 'log-mal-rules':
       return 'Metrics Analysis Language - Log MAL Rules';
+    case 'meter-analyzer-config':
+      return 'Metrics Analysis Language - Meter Analyzer Config';
     case 'lal':
       return 'Log Analysis Language';
   }

@@ -21,11 +21,12 @@ import { test, expect } from '../support/diagnostics.js';
 // A live MAL debug RUN.
 //
 // MAL samples whichever rule you select, and the debugger lists `otel-rules`,
-// `log-mal-rules` and `telegraf-rules`. This is the only case that feeds any
-// of them: its OTel collector scrapes the FODC proxy into `otel-rules/banyandb`,
-// so a capture here has records to catch. `core` has logs and traces but
-// nothing that reaches a rule the debugger offers, which is why the LAL run
-// lives there and this one does not.
+// `log-mal-rules`, `telegraf-rules` and `meter-analyzer-config`. This case is
+// the only one that feeds an OTel rule set: its collector scrapes the FODC
+// proxy into `otel-rules/banyandb`, so a capture here has records to catch.
+// `core` covers the same debugger against a different producer — the Java
+// agent's own meters through `meter-analyzer-config/java-agent` — so what
+// this run adds is the collector-fed path, on the stack that has one.
 //
 // The rule is chosen BY NAME. Picking the first option lands on whatever
 // sorts first — `log-mal-rules · miniprogram-alipay` in practice — a rule no

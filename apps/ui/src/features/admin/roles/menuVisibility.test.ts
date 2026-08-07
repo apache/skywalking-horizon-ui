@@ -52,6 +52,7 @@ const GATES: ReadonlyArray<{ verb: string; rows: string[]; paths: string[] }> = 
     paths: [
       '/operate/dsl/otel-rules',
       '/operate/dsl/telegraf-rules',
+      '/operate/dsl/meter-analyzer-config',
       '/operate/dsl/lal',
       '/operate/dsl/log-mal-rules',
       '/operate/oal',

@@ -127,6 +127,12 @@ test('the logs tab shows log lines with their content', async ({ page, pageError
   // leave rows that no operator could act on.
   await expect(rows.first().locator('.lg-svc')).toContainText(PROVIDER_SERVICE);
 
+  // No Content field on BanyanDB. OAP reports its storage cannot match log
+  // content, and a box here would send a condition OAP accepts and ignores —
+  // every search answering with the unfiltered stream. The `es` case asserts
+  // the other half: present, and actually filtering.
+  await expect(page.locator('input[name="log-content"]')).toHaveCount(0);
+
   expect(pageErrors).toEqual([]);
 });
 
