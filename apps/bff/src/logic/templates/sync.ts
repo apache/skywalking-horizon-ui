@@ -42,6 +42,8 @@ import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import {
   buildEnvelope,
   buildOverlayEnvelope,
+  formatName,
+  formatOverlayName,
   isOverlayName,
   parseEnvelope,
   serializeEnvelope,
@@ -49,6 +51,7 @@ import {
 } from './names.js';
 import { iterateBundledOverlays } from './aggregator.js';
 import { templateIdentityIssue } from './identity.js';
+import { migrateNodejsRuntimeMetersV2Overlay } from './migrate-overlay.js';
 
 export interface BundledTemplate {
   kind: TemplateKind;
@@ -227,13 +230,51 @@ export async function getSyncStatus(deps: SyncDeps): Promise<SyncStatus> {
 }
 
 /** Boot-time sync: lists OAP, seeds any bundled template missing on OAP,
- *  then re-lists to produce the merged status. This is the only path that
- *  writes implicitly. Failures are non-fatal — boot continues, the UI
- *  falls back to bundled. */
+ *  migrates short overlays for known mid-array inserts, then re-lists.
+ *  Failures are non-fatal — boot continues, the UI falls back to bundled.
+ *  Admin `push-bundled` / `sync-all` also call
+ *  {@link migrateOverlaysAfterSourceChange} after a source write so the
+ *  upgrade path does not require a second BFF restart. */
 export async function bootSeed(deps: SyncDeps): Promise<SyncStatus> {
   const status = await runOnce(deps, { write: true });
   cache = { at: (deps.now ?? Date.now)(), status };
   return status;
+}
+
+/**
+ * Re-list OAP and migrate short index-aligned overlays for known mid-array
+ * widget inserts (currently the Node.js runtime meters 6→12 GENERAL case).
+ *
+ * Call after a source template is pushed to OAP (`push-bundled`, `sync-all`)
+ * so overlays are repaired without waiting for the next BFF boot. Safe to
+ * call when nothing needs migrating (returns 0). Invalidates the sync cache
+ * when at least one overlay row is updated.
+ */
+export async function migrateOverlaysAfterSourceChange(deps: SyncDeps): Promise<number> {
+  if (readOnlyMode) return 0;
+  const fullDeps: SyncDeps = {
+    ...deps,
+    bundledOverlays: deps.bundledOverlays ?? (() => iterateBundledOverlays()),
+  };
+  try {
+    const oapRows = await fullDeps.client.list();
+    const parsed = parseRemoteRows(oapRows, fullDeps.logger);
+    const count = await migrateExistingOverlays(fullDeps, parsed.byName);
+    if (count > 0) {
+      invalidateSyncCache();
+      fullDeps.logger.info(
+        { overlayMigrateCount: count },
+        'OAP translation overlay migration complete',
+      );
+    }
+    return count;
+  } catch (err) {
+    fullDeps.logger.warn(
+      { err: errMsg(err) },
+      'OAP translation overlay migration failed — will retry at next BFF boot or source push',
+    );
+    return 0;
+  }
 }
 
 /**
@@ -366,16 +407,9 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
   if (opts.write) {
     const seedCount = await seedMissing(deps, bundledRows, parsedRemote.byName);
     const overlaySeedCount = await seedMissingOverlays(deps, parsedRemote.byName);
-    // Duplicates are REPORTED at boot, never resolved here. Retiring a row is
-    // irreversible for that copy's CONTENT (OAP has no delete, only disable;
-    // the admin Reactivate control re-enables a name from the bundled default,
-    // it does not bring a disabled copy's content back), and the rule reads an
-    // operator edit from a pristine seed — so two instances on different
-    // Horizon versions, mid rolling-upgrade, can each judge the other's
-    // survivor to be the loser and between them disable every row for a name.
-    // A restart must never be able to do that unattended. The conflict is
-    // surfaced on the sync status instead, and an admin resolves it
-    // deliberately from the Dashboard-templates banner.
+    // Re-list before overlay migration so freshly seeded source rows are
+    // visible — migration keys off the live source shape, not the disk
+    // bundle alone.
     if (seedCount > 0 || overlaySeedCount > 0) {
       try {
         const refreshed = await deps.client.list();
@@ -388,6 +422,32 @@ async function runOnce(deps: SyncDeps, opts: RunOptions): Promise<SyncStatus> {
         deps.logger.warn(
           { err: errMsg(err) },
           'OAP UI-template re-list after seed failed — sync status may lag the next runtime pull',
+        );
+      }
+    }
+    const overlayMigrateCount = await migrateExistingOverlays(deps, parsedRemote.byName);
+    // Duplicates are REPORTED at boot, never resolved here. Retiring a row is
+    // irreversible for that copy's CONTENT (OAP has no delete, only disable;
+    // the admin Reactivate control re-enables a name from the bundled default,
+    // it does not bring a disabled copy's content back), and the rule reads an
+    // operator edit from a pristine seed — so two instances on different
+    // Horizon versions, mid rolling-upgrade, can each judge the other's
+    // survivor to be the loser and between them disable every row for a name.
+    // A restart must never be able to do that unattended. The conflict is
+    // surfaced on the sync status instead, and an admin resolves it
+    // deliberately from the Dashboard-templates banner.
+    if (overlayMigrateCount > 0) {
+      try {
+        const refreshed = await deps.client.list();
+        parsedRemote = parseRemoteRows(refreshed, deps.logger);
+        deps.logger.info(
+          { overlayMigrateCount },
+          'OAP translation overlay migration complete',
+        );
+      } catch (err) {
+        deps.logger.warn(
+          { err: errMsg(err) },
+          'OAP UI-template re-list after overlay migration failed — sync status may lag the next runtime pull',
         );
       }
     }
@@ -760,6 +820,77 @@ async function seedMissingOverlays(
       deps.logger.warn(
         { name: envelope.name, err: errMsg(err) },
         'OAP translation overlay seed failed — will retry at next BFF boot',
+      );
+    }
+  }
+  return count;
+}
+
+/**
+ * Upgrade path for index-aligned overlays: when the live source already
+ * contains a known mid-array widget insert but an existing OAP overlay
+ * still has the pre-insert length, splice in bundled default slots and
+ * push the repaired overlay. Preserves every pre-existing overlay
+ * entry (operator customizations). No-op when `bundledOverlays` is
+ * absent, the source is still the old shape, or the overlay length
+ * does not match the expected shortfall.
+ */
+async function migrateExistingOverlays(
+  deps: SyncDeps,
+  remote: Map<string, RemoteRow>,
+): Promise<number> {
+  if (!deps.bundledOverlays) return 0;
+  let count = 0;
+  for (const ov of deps.bundledOverlays()) {
+    const overlayName = formatOverlayName(ov.kind, ov.key, ov.locale);
+    const remoteOverlay = remote.get(overlayName);
+    if (!remoteOverlay || remoteOverlay.disabled) continue;
+
+    const sourceName = formatName(ov.kind, ov.key);
+    // Prefer the live OAP source shape — migrating against a new disk
+    // bundle while OAP still serves the old source would misalign the
+    // other way. Fall back to the bundled source only when OAP has no
+    // source row yet (should be rare after seedMissing).
+    const remoteSource = remote.get(sourceName);
+    let sourceContent: unknown = null;
+    if (remoteSource && !remoteSource.disabled) {
+      sourceContent = parseEnvelope(remoteSource.configuration)?.content ?? null;
+    }
+    if (sourceContent === null) {
+      for (const b of deps.bundled()) {
+        if (b.kind === ov.kind && b.key === ov.key) {
+          sourceContent = b.content;
+          break;
+        }
+      }
+    }
+    if (sourceContent === null) continue;
+
+    const oapEnv = parseEnvelope(remoteOverlay.configuration);
+    if (!oapEnv) continue;
+    const { content: migratedContent, migrated } = migrateNodejsRuntimeMetersV2Overlay(
+      sourceContent,
+      oapEnv.content,
+      ov.content,
+    );
+    if (!migrated) continue;
+
+    const configuration = serializeEnvelope(
+      buildOverlayEnvelope(ov.kind, ov.key, ov.locale, migratedContent),
+    );
+    try {
+      await updateAndConfirm(deps.client, remoteOverlay.id, configuration, deps.logger);
+      // Keep the in-memory map current for subsequent locales in this pass.
+      remoteOverlay.configuration = configuration;
+      count++;
+      deps.logger.info(
+        { name: overlayName, id: remoteOverlay.id },
+        'OAP translation overlay migrated (Node.js runtime meters 6→12 insert)',
+      );
+    } catch (err) {
+      deps.logger.warn(
+        { name: overlayName, err: errMsg(err) },
+        'OAP translation overlay migration failed — will retry at next BFF boot or source push',
       );
     }
   }
