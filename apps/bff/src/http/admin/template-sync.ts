@@ -30,8 +30,11 @@
  *                                                     template to overwrite
  *                                                     what OAP has. 409 if
  *                                                     OAP unreachable;
- *                                                     forces a resync on
- *                                                     success.
+ *                                                     after a successful
+ *                                                     source write, migrates
+ *                                                     short overlays for
+ *                                                     known mid-array inserts
+ *                                                     then forces a resync.
  *
  *   POST /api/admin/templates/save                  — write a template
  *                                                     (Save in the admin
@@ -74,10 +77,11 @@ import {
   disableAndConfirm,
   WriteNotVisibleError,
   getSyncStatus,
+  migrateOverlaysAfterSourceChange,
   resync,
   type SyncStatus,
 } from '../../logic/templates/sync.js';
-import { iterateBundledTemplates } from '../../logic/templates/aggregator.js';
+import { iterateBundledOverlays, iterateBundledTemplates } from '../../logic/templates/aggregator.js';
 import {
   buildEnvelope,
   buildOverlayEnvelope,
@@ -376,6 +380,9 @@ export function registerTemplateSyncAdminRoutes(
         } else {
           await createAndConfirm(deps.uiTemplateClient(), row.bundled.configuration, logger);
         }
+        // Source shape may have gained mid-array widgets (e.g. Node.js 6→12).
+        // Migrate short overlays now so operators do not need a BFF restart.
+        await migrateOverlaysAfterSourceChange(syncDeps(deps));
         resync();
         const fresh = await loadStatus(deps);
         return reply.send(fresh);
@@ -444,6 +451,11 @@ export function registerTemplateSyncAdminRoutes(
         logger.warn({ err: errMsg(err), name: row.name }, 'sync-all push failed');
         failed.push({ name: row.name, error: errMsg(err) });
       }
+    }
+    // After any source push in the batch, repair short overlays for known
+    // mid-array inserts (same path as push-bundled / bootSeed).
+    if (synced.length > 0) {
+      await migrateOverlaysAfterSourceChange(syncDeps(deps));
     }
     resync();
     const fresh = await loadStatus(deps);
@@ -681,11 +693,16 @@ function bundledPushIssues(row: SyncStatus['rows'][number]): string[] | null {
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {
-  return getSyncStatus({
+  return getSyncStatus(syncDeps(deps));
+}
+
+function syncDeps(deps: TemplateSyncAdminDeps) {
+  return {
     client: deps.uiTemplateClient(),
     bundled: () => iterateBundledTemplates(),
+    bundledOverlays: () => iterateBundledOverlays(),
     logger,
-  });
+  };
 }
 
 function errMsg(err: unknown): string {

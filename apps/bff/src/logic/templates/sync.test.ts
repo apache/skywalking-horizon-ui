@@ -21,6 +21,7 @@ import {
   ambiguousConflicts,
   getSyncStatus,
   bootSeed,
+  migrateOverlaysAfterSourceChange,
   setTemplateReadOnly,
   invalidateSyncCache,
   createAndConfirm,
@@ -372,6 +373,119 @@ describe('bootSeed — translation overlay seeding', () => {
     const oap = fakeOap({ rows: alreadySeeded() });
     await bootSeed(depsFor(oap.client));
     expect(writes(oap.calls)).toEqual([]);
+  });
+
+  it('migrates a short GENERAL zh-CN overlay when the live source already has the 6→12 Node.js insert', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { dirname, join } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const { migrateNodejsRuntimeMetersV2Overlay, nodejsRuntimeMetersV2InsertAt } =
+      await import('./migrate-overlay.js');
+
+    const layersDir = join(dirname(fileURLToPath(import.meta.url)), '../../bundled_templates/layers');
+    const source = JSON.parse(readFileSync(join(layersDir, 'general.json'), 'utf8'));
+    const bundledZh = JSON.parse(
+      readFileSync(join(layersDir, 'general.i18n.zh-CN.json'), 'utf8'),
+    );
+    const insertAt = nodejsRuntimeMetersV2InsertAt(source);
+    const oldZh = structuredClone(bundledZh) as {
+      dashboards: { instance: Array<{ title?: string }> };
+    };
+    oldZh.dashboards.instance.splice(insertAt, 6);
+    oldZh.dashboards.instance[3]!.title = '定制进程 CPU';
+
+    const generalSrc: BundledTemplate = { kind: 'layer', key: 'GENERAL', content: source };
+    const zhOverlay: BundledOverlay = {
+      kind: 'layer',
+      key: 'GENERAL',
+      locale: 'zh-CN',
+      content: bundledZh,
+    };
+    const oap = fakeOap({
+      rows: [
+        remoteRow('oap-GENERAL', cfgOf(generalSrc)),
+        remoteRow(
+          'oap-zh',
+          serializeEnvelope(buildOverlayEnvelope('layer', 'GENERAL', 'zh-CN', oldZh)),
+        ),
+      ],
+    });
+
+    const status = await bootSeed(
+      depsFor(oap.client, {
+        bundled: () => [generalSrc],
+        bundledOverlays: () => [zhOverlay],
+      }),
+    );
+
+    expect(writes(oap.calls)).toEqual(['update:oap-zh']);
+    const updated = oap.rows.find((r) => r.id === 'oap-zh')!.configuration;
+    const env = JSON.parse(updated) as { content: unknown };
+    const { migrated } = migrateNodejsRuntimeMetersV2Overlay(source, env.content, bundledZh);
+    // Already migrated on OAP — a second pass is a no-op.
+    expect(migrated).toBe(false);
+    const inst = (env.content as typeof oldZh).dashboards.instance;
+    expect(inst.length).toBe(source.dashboards.instance.length);
+    expect(inst[3]?.title).toBe('定制进程 CPU');
+    expect(inst[insertAt]?.title).toBe(bundledZh.dashboards.instance[insertAt].title);
+
+    const row = rowOf(status, overlayNameOf(zhOverlay));
+    // Overlay rows are remote-catalogued (not in bundled source rows).
+    expect(row.effective).toBe('remote');
+    expect(row.remote?.configuration).toBe(updated);
+  });
+
+  it('migrateOverlaysAfterSourceChange repairs short overlays after a source push (no bootSeed)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { dirname, join } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const { nodejsRuntimeMetersV2InsertAt } = await import('./migrate-overlay.js');
+
+    const layersDir = join(dirname(fileURLToPath(import.meta.url)), '../../bundled_templates/layers');
+    const source = JSON.parse(readFileSync(join(layersDir, 'general.json'), 'utf8'));
+    const bundledZh = JSON.parse(
+      readFileSync(join(layersDir, 'general.i18n.zh-CN.json'), 'utf8'),
+    );
+    const insertAt = nodejsRuntimeMetersV2InsertAt(source);
+    const oldZh = structuredClone(bundledZh) as {
+      dashboards: { instance: Array<{ title?: string }> };
+    };
+    oldZh.dashboards.instance.splice(insertAt, 6);
+
+    const generalSrc: BundledTemplate = { kind: 'layer', key: 'GENERAL', content: source };
+    const zhOverlay: BundledOverlay = {
+      kind: 'layer',
+      key: 'GENERAL',
+      locale: 'zh-CN',
+      content: bundledZh,
+    };
+    // Live OAP already has the new source (as after push-bundled) but a short overlay.
+    const oap = fakeOap({
+      rows: [
+        remoteRow('oap-GENERAL', cfgOf(generalSrc)),
+        remoteRow(
+          'oap-zh',
+          serializeEnvelope(buildOverlayEnvelope('layer', 'GENERAL', 'zh-CN', oldZh)),
+        ),
+      ],
+    });
+
+    const count = await migrateOverlaysAfterSourceChange(
+      depsFor(oap.client, {
+        bundled: () => [generalSrc],
+        bundledOverlays: () => [zhOverlay],
+      }),
+    );
+
+    expect(count).toBe(1);
+    expect(writes(oap.calls)).toEqual(['update:oap-zh']);
+    const inst = (
+      JSON.parse(oap.rows.find((r) => r.id === 'oap-zh')!.configuration) as {
+        content: typeof oldZh;
+      }
+    ).content.dashboards.instance;
+    expect(inst.length).toBe(source.dashboards.instance.length);
+    expect(inst[insertAt]?.title).toBe(bundledZh.dashboards.instance[insertAt].title);
   });
 });
 
