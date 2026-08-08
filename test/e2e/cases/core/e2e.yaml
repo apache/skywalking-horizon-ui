@@ -149,6 +149,25 @@ verify:
           | yq -P '{"hasAlarms": (.total > 0)}'
       expected: expected/has-alarms.yml
 
+    # 6b. READINESS: the agent's own meter stream has been ANALYSED. The `ui`
+    #     project starts a MAL capture on `meter-analyzer-config/java-agent`,
+    #     and that rule is fed by the agent's self-observability meters rather
+    #     than by request traffic — a different producer from every check
+    #     above, on its own 20s timer. Asking for the metric the rule
+    #     materialises is asking exactly what the debugger will sample; a
+    #     roster or trace check says nothing about whether MAL ran at all.
+    #     The metric is labeled (`created_by`) and instance-scoped, so it is
+    #     queried at the instance the fixture names and collapsed to one
+    #     series — a labeled metric queried without that answers all-null and
+    #     reads identically to "no data yet".
+    - query: |
+        swctl --display json --base-url=http://${oap_host}:${oap_12800}/graphql \
+          metrics exec \
+          --expression='aggregate_labels(meter_java_agent_created_tracing_context_count,sum)' \
+          --service-name=e2e-service-provider --instance-name=provider1 \
+          | yq -P '{"hasAgentMeter": ([.results[].values[].value | select(. != null)] | length > 0)}'
+      expected: expected/has-agent-meter.yml
+
     # 7+8. The suites. Playwright owns its own assertions and reporting; the
     #      contract with infra-e2e is only "exit 0 and print passed: true".
     #      Split by project so a red run says which half broke — a route

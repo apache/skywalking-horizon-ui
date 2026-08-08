@@ -19,9 +19,16 @@
  *  catalog drawer. */
 import type { InspectForeignValueType, InspectScope } from '@skywalking-horizon-ui/api-client';
 
-export type Source = 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'LAL→MAL' | 'unknown';
+export type Source = 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'MAL·Meter' | 'LAL→MAL' | 'unknown';
 
-export const INSPECT_SOURCES: Source[] = ['OAL', 'MAL·OTEL', 'MAL·Telegraf', 'LAL→MAL', 'unknown'];
+export const INSPECT_SOURCES: Source[] = [
+  'OAL',
+  'MAL·OTEL',
+  'MAL·Telegraf',
+  'MAL·Meter',
+  'LAL→MAL',
+  'unknown',
+];
 
 /** Scopes the foreign /inspect/entities path accepts (mirrors OAP's
  *  isSupportedScope). Process / All are out of scope on the OAP side. */

@@ -51,11 +51,13 @@
 #             alarms and their timeline, trace profiling (task create ->
 #             list), the trace DETAIL — duration scatter, waterfall, tree,
 #             statistics and the span modal — the services overview
-#             dashboard, shell and login, plus two live debug CAPTURES:
-#             LAL live debug over logs driven while the session is open, and
+#             dashboard, shell and login, plus three live debug CAPTURES:
+#             LAL live debug over logs driven while the session is open,
 #             OAL live debug entered the way an operator reaches it — the
 #             catalog's green ▶ on the `service_cpm` statement — through to
-#             a captured Service source row carrying a fixture service name
+#             a captured Service source row carrying a fixture service name,
+#             and MAL live debug over the agent's own self-observability
+#             meters, through to the metric its output step materialised
 #             components: LayerWidgetTile, TimeChart, TopList, RecordList,
 #             TraceListPanel, LayerTracesView, TracePopout, LogStreamPanel,
 #             LogDetailPopout, LayerServiceMapView, TopologyDetailPanels,
@@ -67,12 +69,13 @@
 #             OverviewDashboardView, KpiTileWidget, MetricCompositeWidget,
 #             AlarmsWidget, SectionBreak, AppShell, DebugView,
 #             DebugLal (LAL live debug), OalCatalogView + DebugOal (OAL
-#             live debug)
+#             live debug), DebugMal (MAL live debug)
 #
 #   es        the same, storing to ElasticSearch instead        ACTIVE
 #             tests: the trace page on a non-BanyanDB backend — query-API
-#             banner, segment rows that open to fetch a full trace, and the
-#             cold-stage control being hidden
+#             banner, segment rows that open to fetch a full trace, the
+#             cold-stage control being hidden, and stored-log CONTENT search,
+#             which exists only where the storage can answer it
 #             components: LayerTracesView, TraceListPanel
 #
 #   browser   plus OAP's browser receiver, seeded client-side   ACTIVE
@@ -98,8 +101,8 @@
 #             collector's `cluster` label, the `table` widget form (declared
 #             by no template any other case reaches), the Deployment tab
 #             drawing the cluster grouped by node role, and a MAL live debug
-#             CAPTURE — the collector feeds `otel-rules/banyandb`, the only
-#             MAL rule any case's fixture reaches
+#             CAPTURE on `otel-rules/banyandb` — the collector-fed rule set,
+#             a different producer from the agent meters `core` samples
 #             components: TableWidget, DebugMal (MAL live debug),
 #             LayerDeploymentView (its edge panel and metric rows; the
 #             edge Sparkline itself is NOT asserted — the series is still

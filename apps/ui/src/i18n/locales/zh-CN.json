@@ -1205,7 +1205,6 @@
   "Invalid date": "无效的日期",
   "Window exceeds {h}h cap": "窗口超过 {h} 小时上限",
   "last {window}": "最近 {window}",
-  "Metrics Analysis Language - …": "Metrics Analysis Language - …",
   "Operate · OAP configuration": "运维 · OAP 配置",
   "local": "本地",
   "Local": "本地",
@@ -2608,5 +2607,9 @@
   "capped at {n} — narrow the window": "已截断至 {n} 条 —— 请缩小时间范围",
   "sample of {n}+ (capped — narrow the window)": "样本 {n}+ 条（已截断 —— 请缩小时间范围）",
   "more alarms in this window than were fetched — tighten the range": "此时间范围内的告警多于已获取的数量 —— 请缩小时间范围",
-  "more matches — narrow the keyword": "还有更多匹配项 —— 请细化关键词"
+  "more matches — narrow the keyword": "还有更多匹配项 —— 请细化关键词",
+  "Content": "内容",
+  "words the line must contain…": "该行必须包含的词…",
+  "every word must appear in the line": "每个词都必须出现在该行中",
+  "Meter Analysis Language - …": "Meter Analysis Language - …"
 }

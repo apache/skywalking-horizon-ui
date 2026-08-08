@@ -41,6 +41,8 @@ The conditions bar narrows the stream. Every filter is optional; together they a
 
 - **Trace ID** — paste a trace id to show only the log lines correlated with that trace. This is also how a log lands when you arrive from a trace — the field pre-fills and the stream is already scoped.
 
+- **Content** — words the log line must contain, space-separated for AND (`timeout db` matches only lines carrying both). **This field appears only when your storage backend can search log content** — ElasticSearch can, BanyanDB and the others cannot, and Horizon asks the connected OAP which it is. On a backend that cannot, the field is absent rather than present-and-ignored, because OAP accepts the condition there and returns the unfiltered stream — which reads as "everything matched".
+
 - **Tags** — a single `key=value` field with autocomplete. Start typing a key to see suggested keys; type `=` to switch the suggestions to known values for that key; press **Enter** to commit the tag. Committed tags show as removable chips under the bar and ride along on the query as additional filters.
 
 - **Level** — the **Levels** strip above the stream doubles as a filter. Click `error`, `warn`, `info`, or `debug` to show only that level; click again to clear. The level filter is sent to OAP as a `level` tag, so pagination and counts reflect the filtered set. The `other` chip (lines whose level tag is missing or unrecognized) is informational only — it has no server-side value to filter on, so it is not clickable.

@@ -1204,7 +1204,6 @@
   "Invalid date": "Data inválida",
   "Window exceeds {h}h cap": "A janela excede o limite de {h}h",
   "last {window}": "últimos {window}",
-  "Metrics Analysis Language - …": "Metrics Analysis Language - …",
   "Operate · OAP configuration": "Operar · Configuração do OAP",
   "local": "local",
   "Local": "Local",
@@ -2608,5 +2607,9 @@
   "capped at {n} — narrow the window": "limitado a {n} — restrinja a janela",
   "sample of {n}+ (capped — narrow the window)": "amostra de {n}+ (limitada — restrinja a janela)",
   "more alarms in this window than were fetched — tighten the range": "há mais alarmes nesta janela do que os obtidos — restrinja o intervalo",
-  "more matches — narrow the keyword": "há mais correspondências — restrinja a palavra-chave"
+  "more matches — narrow the keyword": "há mais correspondências — restrinja a palavra-chave",
+  "Content": "Conteúdo",
+  "words the line must contain…": "palavras que a linha deve conter…",
+  "every word must appear in the line": "cada palavra deve aparecer na linha",
+  "Meter Analysis Language - …": "Meter Analysis Language - …"
 }

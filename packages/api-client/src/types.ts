@@ -24,7 +24,13 @@
  * hot-update.
  */
 
-export const CATALOGS = ['otel-rules', 'log-mal-rules', 'telegraf-rules', 'lal'] as const;
+export const CATALOGS = [
+  'otel-rules',
+  'log-mal-rules',
+  'telegraf-rules',
+  'meter-analyzer-config',
+  'lal',
+] as const;
 export type Catalog = (typeof CATALOGS)[number];
 
 export function isCatalog(value: unknown): value is Catalog {

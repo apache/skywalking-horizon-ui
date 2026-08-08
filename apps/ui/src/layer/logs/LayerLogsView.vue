@@ -34,6 +34,7 @@ import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
 import { useLayerEndpoints } from '@/layer/useLayerEndpoints';
 import { useLayers } from '@/shell/useLayers';
+import { useOapInfo } from '@/shell/useOapInfo';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useSelectedInstance } from '@/layer/useSelectedInstance';
 import { useSelectedEndpoint } from '@/layer/useSelectedEndpoint';
@@ -211,12 +212,13 @@ const traceIdParam = computed(() => {
   return typeof v === 'string' && v.length > 0 ? v : null;
 });
 const traceIdInput = ref('');
-// Free-text content search is intentionally NOT exposed. OAP's
-// content-keyword filter is opt-in per storage backend (off on the
-// stock H2 store) and indexing across full log bodies has surprising
-// latency / cardinality behaviour on busy clusters. The conditions
-// the UI exposes — service / instance / endpoint / traceID / tags —
-// are all indexed dimensions and cover the booster-ui condition set.
+// Content search appears only where the STORAGE can answer it — OAP
+// reports that per backend (ElasticSearch yes, BanyanDB no). A backend
+// that says no accepts `keywordsOfContent` and ignores it, so offering
+// the box there would return an unfiltered page that reads as a match.
+const { capabilities } = useOapInfo();
+const logKeywordsSupported = computed(() => capabilities.value.logKeywords);
+const keywordInput = ref('');
 const page = ref(1);
 const pageSize = ref(50);
 // OAP derives the offset from the page size (`from = pageSize * (pageNum - 1)`),
@@ -239,7 +241,12 @@ const instanceIdRef = computed<string | null>(() =>
 const endpointIdRef = computed<string | null>(() =>
   embedded.value ? null : endpointIdForQuery.value,
 );
-const keywordsRef = computed<string[]>(() => []);
+// OAP ANDs the keywords, so whitespace splits them: `timeout db` finds the
+// line that has both. Nothing is sent from an unsupported backend even if a
+// value survived in the box from a previous connection.
+const keywordsRef = computed<string[]>(() =>
+  logKeywordsSupported.value ? keywordInput.value.trim().split(/\s+/).filter((k) => k.length > 0) : [],
+);
 
 // Time range (presets + Custom…) — owns the OAP-shaped window refs.
 const {
@@ -509,6 +516,18 @@ watch(
             autocomplete="off"
             class="cf-input mono"
             :placeholder="t('paste trace id…')"
+          />
+        </label>
+        <label v-if="logKeywordsSupported" class="cf cf-wide">
+          <span>{{ t('Content') }}</span>
+          <input
+            v-model="keywordInput"
+            type="text"
+            name="log-content"
+            autocomplete="off"
+            class="cf-input mono"
+            :placeholder="t('words the line must contain…')"
+            :title="t('every word must appear in the line')"
           />
         </label>
         <label class="cf cf-wide">

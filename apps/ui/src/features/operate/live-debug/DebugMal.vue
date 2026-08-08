@@ -74,7 +74,12 @@ interface RuleOption {
   contentHash: string;
 }
 
-const MAL_CATALOGS: Catalog[] = ['otel-rules', 'log-mal-rules', 'telegraf-rules'];
+const MAL_CATALOGS: Catalog[] = [
+  'otel-rules',
+  'log-mal-rules',
+  'telegraf-rules',
+  'meter-analyzer-config',
+];
 
 const { t } = useI18n();
 const route = useRoute();

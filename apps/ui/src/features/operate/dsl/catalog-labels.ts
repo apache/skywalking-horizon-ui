@@ -16,10 +16,10 @@
  */
 
 /**
- * Human-readable display labels for the four DSL catalogs.
+ * Human-readable display labels for the five DSL catalogs.
  *
  * The catalog identifier (`otel-rules`, `telegraf-rules`, `log-mal-rules`,
- * `lal`) is the URL slug + the OAP wire identifier — it stays stable. But
+ * `meter-analyzer-config`, `lal`) is the URL slug + the OAP wire identifier — it stays stable. But
  * operators don't read URL slugs; the page header should say "Metrics
  * Analysis Language - OpenTelemetry Rules" instead of "Catalog ·
  * otel-rules". The sidebar still abbreviates (MAL · OTEL, …) because
@@ -28,7 +28,7 @@
  * Caller pattern in templates:
  *   <h1>{{ t(catalogLabel(catalog)) }}</h1>
  * — the helper returns the *English* label, vue-i18n's Lingui-style
- * key === value lookup makes `t('Metrics Analysis Language - …')`
+ * key === value lookup makes `t('Meter Analysis Language - …')`
  * render that exact string under the English locale, and translators
  * can localize each by adding an entry to their catalog.
  */
@@ -38,11 +38,13 @@ import type { Catalog } from '@skywalking-horizon-ui/api-client';
 export function catalogLabel(c: Catalog): string {
   switch (c) {
     case 'otel-rules':
-      return 'Metrics Analysis Language - OpenTelemetry Rules';
+      return 'Meter Analysis Language - OpenTelemetry Rules';
     case 'telegraf-rules':
-      return 'Metrics Analysis Language - Telegraf Rules';
+      return 'Meter Analysis Language - Telegraf Rules';
     case 'log-mal-rules':
-      return 'Metrics Analysis Language - Log MAL Rules';
+      return 'Meter Analysis Language - Log MAL Rules';
+    case 'meter-analyzer-config':
+      return 'Meter Analysis Language - Meter Analyzer Config';
     case 'lal':
       return 'Log Analysis Language';
   }

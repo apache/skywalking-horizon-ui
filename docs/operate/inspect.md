@@ -11,7 +11,7 @@ Common scenarios:
 - **"What metrics does this OAP build expose?"** — search the catalog by regex, filter by metric type / catalog / MQE-queryable.
 - **"Does this metric have data?"** — for a chosen metric, list the entities currently reporting.
 - **"What's the right scope for this metric?"** — the catalog row shows the metric's scope (Service / ServiceInstance / Endpoint / Process / All); this is load-bearing when authoring widgets.
-- **"Which analysis rule defines this metric?"** — rule-source attribution, when available, surfaces the DSL rule file (OAL, MAL·OTEL, MAL·Telegraf, LAL→MAL, …) that defines the metric.
+- **"Which analysis rule defines this metric?"** — rule-source attribution, when available, surfaces the DSL rule file (OAL, MAL·OTEL, MAL·Telegraf, MAL·Meter, LAL→MAL, …) that defines the metric.
 
 ## Prerequisites
 

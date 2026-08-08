@@ -60,12 +60,19 @@ import type { FetchLike } from './runtime-rule.js';
 
 /** Debug-session catalog — every wire name accepted by the handler.
  *  Matches `Catalog.java` enum's `wireName` values. */
-export type DebugCatalog = 'otel-rules' | 'log-mal-rules' | 'telegraf-rules' | 'lal' | 'oal';
+export type DebugCatalog =
+  | 'otel-rules'
+  | 'log-mal-rules'
+  | 'telegraf-rules'
+  | 'meter-analyzer-config'
+  | 'lal'
+  | 'oal';
 
 export const DEBUG_CATALOGS: readonly DebugCatalog[] = [
   'otel-rules',
   'log-mal-rules',
   'telegraf-rules',
+  'meter-analyzer-config',
   'lal',
   'oal',
 ] as const;

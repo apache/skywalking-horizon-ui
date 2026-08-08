@@ -98,6 +98,7 @@ const MENU_GATES = computed<readonly MenuGate[]>(() => [
     covers: [
       '/operate/dsl/otel-rules',
       '/operate/dsl/telegraf-rules',
+      '/operate/dsl/meter-analyzer-config',
       '/operate/dsl/lal',
       '/operate/dsl/log-mal-rules',
       '/operate/oal',

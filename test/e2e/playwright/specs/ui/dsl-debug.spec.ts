@@ -30,11 +30,12 @@ import { test, expect } from '../support/diagnostics.js';
 // (`ok 0 bytes · no LAL records from this node`) — the test has to drive
 // traffic while the session is live.
 //
-// MAL is NOT here. It samples whichever rule you select, and the debugger
-// lists only `otel-rules`, `log-mal-rules` and `telegraf-rules` — the agent's
-// own meter stream is analysed by meter-analyzer-config, which is not one of
-// those catalogs. Nothing this fixture emits reaches a rule it offers, so MAL
-// belongs in `deployment`, where an OTel collector feeds `otel-rules/banyandb`.
+// MAL samples the agent's own meter stream. `meter-analyzer-config/java-agent`
+// analyses the self-observability meters every Java agent reports — the tracing
+// contexts it creates and finishes — and the demo services report them because
+// the fixture leaves the agent's meter sender on. No traffic has to be driven
+// while the session is live the way LAL needs it: the agent ships its meters on
+// a 20-second timer whether or not a request arrives.
 //
 // OAL is here, and it enters from the CATALOG page rather than the debugger's
 // own controls. The OAL tab has no rule list to pick from — the metric is a
@@ -47,8 +48,11 @@ import { test, expect } from '../support/diagnostics.js';
 // Starting a session mutates OAP — the same scoped write the trace-profiling
 // spec makes.
 
-/** Pick a rule file + rule, then start. Both selects gate the button. */
-async function startSampling(page: Page, filePattern: RegExp): Promise<void> {
+/** Pick a rule file + rule, then start. Both selects gate the button.
+ *  `ruleLabel` names the rule when position won't do: LAL's second select
+ *  holds one entry per file, MAL's holds every metric the rule YAML declares,
+ *  and picking a metric the fixture never increments waits forever. */
+async function startSampling(page: Page, filePattern: RegExp, ruleLabel?: string): Promise<void> {
   const file = page.locator('select.ctl__select').first();
   await expect(file).toBeVisible({ timeout: 45_000 });
   await expect
@@ -62,7 +66,8 @@ async function startSampling(page: Page, filePattern: RegExp): Promise<void> {
   await expect
     .poll(async () => rule.locator('option').count(), { timeout: 60_000 })
     .toBeGreaterThan(1);
-  await rule.selectOption({ index: 1 });
+  if (ruleLabel === undefined) await rule.selectOption({ index: 1 });
+  else await rule.selectOption({ label: ruleLabel });
 
   const start = page.getByRole('button', { name: 'start sampling' });
   await expect(start, 'sampling stayed disabled after picking a file and rule').toBeEnabled({
@@ -177,6 +182,67 @@ test('the OAL catalog runs the statement its green arrow points at', async ({
     page.locator('.oal__kvline').filter({ hasText: /e2e-service-(provider|consumer)/ }).first(),
     'no captured source row carried a fixture service name',
   ).toBeVisible({ timeout: 240_000 });
+
+  expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
+});
+
+test('the MAL debugger samples the agent meter stream the fixture reports', async ({
+  page,
+  pageErrors,
+}) => {
+  test.setTimeout(300_000);
+  await page.goto('/operate/live-debug/mal');
+  // Both halves of the picker are named, never taken by position. The file
+  // list is every rule OAP loaded across four catalogs in OAP's own order, so
+  // a positional pick follows that order rather than this test's intent. The
+  // metric matters more: sorted, the first entry is
+  // `created_ignored_context_count`, and the demo app ignores no path, so that
+  // counter is never created and the capture would wait on data that cannot
+  // arrive.
+  await startSampling(
+    page,
+    /meter-analyzer-config\s+·\s+java-agent\b/,
+    'meter_java_agent_created_tracing_context_count',
+  );
+
+  // `.mal__empty` renders in the records' place when a capture catches
+  // nothing, so the container is the floor, not the assertion.
+  await expect(page.locator('.mal__records').first()).toBeVisible({ timeout: 240_000 });
+
+  // The VALUE: the metric the pipeline MATERIALISED, read off the output
+  // step. A record whose expression stopped early still renders its input and
+  // function rows — only the output carries the metric the rule is named for,
+  // and it is the prefixed form OAP composes (`metricPrefix` + rule name),
+  // which is also the name a session has to be installed under.
+  await expect
+    .poll(
+      async () => {
+        const vals = await page.locator('.mal__meter .mal__mval').allTextContents();
+        return vals.map((v) => v.trim());
+      },
+      { timeout: 240_000, intervals: [5_000] },
+    )
+    .toContain('meter_java_agent_created_tracing_context_count');
+
+  // The sample's own labels prove the record came from THIS fixture rather
+  // than from an empty pipeline that still names its metric. Groups render
+  // folded, so the head has to be opened first; a group holding more than one
+  // series opens in diff mode, which moves the shared labels into
+  // `.mal__diffcommon` — hence the two-class union.
+  await page.locator('.mal__grouphead').first().click();
+  await expect
+    .poll(
+      async () => {
+        const labels = await page
+          .locator('.mal__rtlabel, .mal__diffcommon')
+          .allTextContents();
+        return labels.join(' ');
+      },
+      { timeout: 60_000, intervals: [2_000] },
+    )
+    // Both demo services report meters, and which one's record lands first is
+    // traffic timing — match the SET, as the OAL test does.
+    .toMatch(/service=e2e-service-(provider|consumer)/);
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

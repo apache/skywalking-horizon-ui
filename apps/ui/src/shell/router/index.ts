@@ -174,7 +174,7 @@ const shellRoutes: RouteRecordRaw[] = [
     meta: { verb: 'rule:read' },
   },
   {
-    path: 'operate/dsl/:catalog(otel-rules|telegraf-rules|lal|log-mal-rules)',
+    path: 'operate/dsl/:catalog(otel-rules|telegraf-rules|meter-analyzer-config|lal|log-mal-rules)',
     name: 'catalog',
     component: () => import('@/features/operate/dsl/DslCatalogView.vue'),
     props: true,

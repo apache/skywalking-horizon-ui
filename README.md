@@ -58,7 +58,7 @@ Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.
 - Runtime rule management (OAL / MAL / LAL) — Monaco YAML editor, catalog, and bytecode/AST dump, with a live phase stepper for structural applies (Compiled → Confirming across the cluster → Committing → Done), cluster-propagation warnings, and a force-recover button for degraded applies.
 - Alerting rules — per-entity running-context for alarm rules (FIRING / SILENCED_FIRING / RECOVERY_OBSERVATION) with a snapshot sparkline and per-OAP-node evaluation state.
 - Live Debugger — start/poll/stop debugging sessions for the three runtime-rule languages, with per-node fan-out, sample payloads, diff-default label grouping, and replayable capture history.
-- Metrics Inspect (MQE board) — browse the OAP metric catalog by source (OAL / MAL·OTEL / MAL·Telegraf / LAL→MAL), pick a scope and entity, and fire MQE expressions live against the running system.
+- Metrics Inspect (MQE board) — browse the OAP metric catalog by source (OAL / MAL·OTEL / MAL·Telegraf / MAL·Meter / LAL→MAL), pick a scope and entity, and fire MQE expressions live against the running system.
 - Cluster status — GraphQL-port health (version, server clock, timezone, health score) and admin-host module readiness, surfaced as a topbar health chip.
 - Data retention (TTL) — backend-aware per-data-class retention (BanyanDB hot+warm/cold stages or single-stage for other backends), read-only.
 - OAP configuration dump, RBAC matrix (four built-in roles over a verb-namespaced permission set), Users admin (local + LDAP), and Auth status with an on-demand LDAP resolve probe.

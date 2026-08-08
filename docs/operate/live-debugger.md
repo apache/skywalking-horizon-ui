@@ -29,7 +29,7 @@ The page is split into three tabs, one per DSL family. Each tab runs its own ind
 
 | Tab | DSL family | What it debugs |
 |---|---|---|
-| **MAL** | Meter Analysis Language | `otel-rules`, `log-mal-rules`, `telegraf-rules` — the meter pipeline for OTEL, log-derived, and Telegraf metrics. |
+| **MAL** | Meter Analysis Language | `otel-rules`, `log-mal-rules`, `telegraf-rules`, `meter-analyzer-config` — the meter pipeline for OTEL, log-derived, Telegraf, and agent-reported metrics. |
 | **LAL** | Log Analysis Language | `lal` — log parsing and extraction, capturable at **block** or **statement** granularity. |
 | **OAL** | Observability Analysis Language | the connected OAP's OAL clauses — input source columns through aggregation and output. |
 

@@ -454,7 +454,7 @@ export interface InspectServerTimeResponse {
  *  declared in. */
 export interface InspectCatalogEntry extends MetricRow {
   attribution: {
-    source: 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'LAL→MAL' | 'unknown';
+    source: 'OAL' | 'MAL·OTEL' | 'MAL·Telegraf' | 'MAL·Meter' | 'LAL→MAL' | 'unknown';
     file: string | null;
     candidates?: string[];
   };

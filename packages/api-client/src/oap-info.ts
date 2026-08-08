@@ -71,6 +71,11 @@ export interface OapCapabilities {
    *  ruleName filters; absence means clients fall back to the
    *  scope+keyword+tags-only `getAlarm`. */
   queryAlarms: boolean;
+  /** Whether stored-log CONTENT can be searched (`keywordsOfContent`).
+   *  Decided by the storage — ElasticSearch yes, the others no. On false
+   *  OAP accepts the filter and ignores it, so a client that offers the
+   *  search anyway returns an unfiltered page that reads as a match. */
+  logKeywords: boolean;
 }
 
 /** Storage backend the connected OAP runs on, as far as the BFF can
