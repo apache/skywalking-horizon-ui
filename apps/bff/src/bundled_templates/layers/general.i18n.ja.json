@@ -120,6 +120,48 @@
         ]
       },
       {
+        "title": "配列バッファ",
+        "tip": "Node.js エージェント：ArrayBuffer / SharedArrayBuffer メモリ（process.memoryUsage().arrayBuffers）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "プロセス稼働時間",
+        "tip": "Node.js エージェント：プロセス起動からの日数（process.uptime()）。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "ピーク malloc メモリ",
+        "tip": "Node.js エージェント：V8 ピーク malloc メモリ（v8.getHeapStatistics().peak_malloced_memory）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Malloc メモリ",
+        "tip": "Node.js エージェント：現在の V8 malloc メモリ（v8.getHeapStatistics().malloced_memory）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "旧世代ヒープ使用量",
+        "tip": "Node.js エージェント：V8 旧世代ヒープ使用量（v8.getHeapSpaceStatistics old_space）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "新世代ヒープ使用量",
+        "tip": "Node.js エージェント：V8 新世代ヒープ使用量（v8.getHeapSpaceStatistics new_space）、MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "エージェントが報告する JVM CPU。インスタンスが JVM の場合のみ描画。"
       },

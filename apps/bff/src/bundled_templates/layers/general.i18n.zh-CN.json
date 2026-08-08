@@ -91,6 +91,48 @@
         ]
       },
       {
+        "title": "数组缓冲区",
+        "tip": "Node.js agent：ArrayBuffer / SharedArrayBuffer 内存（process.memoryUsage().arrayBuffers），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "进程运行时间",
+        "tip": "Node.js agent：进程启动至今的天数（process.uptime()）。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "峰值 malloc 内存",
+        "tip": "Node.js agent：V8 峰值 malloc 内存（v8.getHeapStatistics().peak_malloced_memory），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "malloc 内存",
+        "tip": "Node.js agent：V8 当前 malloc 内存（v8.getHeapStatistics().malloced_memory），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "老生代已用",
+        "tip": "Node.js agent：V8 老生代堆已用（v8.getHeapSpaceStatistics old_space），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "新生代已用",
+        "tip": "Node.js agent：V8 新生代堆已用（v8.getHeapSpaceStatistics new_space），单位 MB。",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "由 agent 上报的 JVM CPU。仅当实例为 JVM 时显示。"
       },

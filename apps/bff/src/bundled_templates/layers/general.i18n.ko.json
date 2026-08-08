@@ -120,6 +120,48 @@
         ]
       },
       {
+        "title": "배열 버퍼",
+        "tip": "Node.js 에이전트: ArrayBuffer/SharedArrayBuffer 메모리(process.memoryUsage().arrayBuffers), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "프로세스 가동 시간",
+        "tip": "Node.js 에이전트: 프로세스 시작 이후 일수(process.uptime()).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "최대 malloc 메모리",
+        "tip": "Node.js 에이전트: V8 최대 malloc 메모리(v8.getHeapStatistics().peak_malloced_memory), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Malloc 메모리",
+        "tip": "Node.js 에이전트: 현재 V8 malloc 메모리(v8.getHeapStatistics().malloced_memory), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "구 세대 힙 사용량",
+        "tip": "Node.js 에이전트: V8 구 세대 힙 사용량(v8.getHeapSpaceStatistics old_space), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "신 세대 힙 사용량",
+        "tip": "Node.js 에이전트: V8 신 세대 힙 사용량(v8.getHeapSpaceStatistics new_space), MB.",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM CPU",
         "tip": "에이전트가 보고하는 JVM CPU입니다. 인스턴스가 JVM일 때만 표시됩니다."
       },
