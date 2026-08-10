@@ -267,7 +267,7 @@
       {
         "id": "nodejs_uptime",
         "title": "Process Uptime",
-        "tip": "Days since the process started (process.uptime()).",
+        "tip": "Node.js agent: days since the process started (process.uptime()).",
         "type": "line",
         "unit": "days",
         "expressions": ["meter_instance_nodejs_uptime/86400"],
