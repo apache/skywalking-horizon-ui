@@ -178,6 +178,48 @@
         ]
       },
       {
+        "title": "Array-Puffer",
+        "tip": "Node.js-Agent: ArrayBuffer-/SharedArrayBuffer-Speicher in MB (process.memoryUsage().arrayBuffers).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Prozesslaufzeit",
+        "tip": "Node.js-Agent: Tage seit Prozessstart (process.uptime()).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Spitzen-malloc-Speicher",
+        "tip": "Node.js-Agent: Maximaler V8-malloc-Speicher in MB (v8.getHeapStatistics().peak_malloced_memory).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Malloc-Speicher",
+        "tip": "Node.js-Agent: aktueller V8-malloced-Speicher in MB (v8.getHeapStatistics().malloced_memory).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8-Old-Space genutzt",
+        "tip": "Node.js-Agent: genutzter V8-Old-Space in MB (v8.getHeapSpaceStatistics old_space).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "V8-New-Space genutzt",
+        "tip": "Node.js-Agent: genutzter V8-New-Space in MB (v8.getHeapSpaceStatistics new_space).",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "JVM-CPU",
         "tip": "JVM-CPU, gemeldet vom Agenten. Wird nur angezeigt, wenn die Instanz eine JVM ist.",
         "expressions": [

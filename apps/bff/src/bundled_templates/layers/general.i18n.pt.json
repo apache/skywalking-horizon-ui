@@ -126,6 +126,48 @@
         ]
       },
       {
+        "title": "Buffers de matriz",
+        "tip": "Agente Node.js: memória ArrayBuffer/SharedArrayBuffer em MB (process.memoryUsage().arrayBuffers).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Tempo ativo do processo",
+        "tip": "Agente Node.js: dias desde o início do processo (process.uptime()).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Memória malloc de pico",
+        "tip": "Agente Node.js: memória malloc de pico do V8 em MB (v8.getHeapStatistics().peak_malloced_memory).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Memória malloc atual",
+        "tip": "Agente Node.js: memória malloc atual do V8 em MB (v8.getHeapStatistics().malloced_memory).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Geração antiga usada",
+        "tip": "Agente Node.js: heap V8 de geração antiga usado em MB (v8.getHeapSpaceStatistics old_space).",
+        "expressions": [
+          null
+        ]
+      },
+      {
+        "title": "Geração nova usada",
+        "tip": "Agente Node.js: heap V8 de geração nova usado em MB (v8.getHeapSpaceStatistics new_space).",
+        "expressions": [
+          null
+        ]
+      },
+      {
         "title": "CPU da JVM",
         "tip": "CPU da JVM conforme reportado pelo agente. Só aparece quando a instância é uma JVM."
       },

@@ -105,6 +105,10 @@ For one selected service instance. The first three widgets always render; the re
 - **V8 Heap Used** / **V8 Heap Total** / **V8 Heap Limit** — the V8 heap in MB: currently used, currently allocated, and the maximum the heap may grow to (`meter_instance_nodejs_heap_used` / `_heap_total` / `_heap_limit`).
 - **Process RSS** — resident set size in MB (`meter_instance_nodejs_rss`).
 - **External Memory** — memory held outside the V8 heap (buffers and native objects) in MB (`meter_instance_nodejs_external_memory`).
+- **Array Buffers** — ArrayBuffer / SharedArrayBuffer memory in MB (`meter_instance_nodejs_array_buffers`).
+- **Process Uptime** — days since the process started (`meter_instance_nodejs_uptime/86400`).
+- **Peak Malloced Memory** / **Malloced Memory** — peak and current V8 malloced memory in MB (`meter_instance_nodejs_peak_malloced_memory` / `_malloced_memory`).
+- **Old Space Used** / **New Space Used** — V8 old / new generation heap used in MB (`meter_instance_nodejs_old_space_used` / `_new_space_used`).
 
 **PHP (PHM) instances**
 
