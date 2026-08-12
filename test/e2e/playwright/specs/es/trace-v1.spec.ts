@@ -63,7 +63,18 @@ test('a v1 row is a segment that opens to its full trace', async ({ page, pageEr
   // than already being inline as on v2. This interaction exists only on a
   // pre-v2 backend.
   await rows.first().click();
-  await expect(page.getByText('e2e-service-provider').first()).toBeVisible({ timeout: 45_000 });
+
+  // Scoped to the detail panel, not the page. `getByText('e2e-service-provider')`
+  // matched the layer header's service selector, which is on screen BEFORE the
+  // click — so the assertion passed whether or not the segment ever opened,
+  // which is the one thing this test exists to prove. The sibling v2 spec uses
+  // `.tr-detail` for the same reason.
+  const detail = page.locator('.tr-detail');
+  await expect(detail).toBeVisible({ timeout: 45_000 });
+  // The fetched trace, not the row: a segment row carries no spans until the
+  // full trace is loaded on open, so a waterfall row is what proves the fetch
+  // happened rather than the panel merely opening on the row it already had.
+  await expect(detail.locator('.tr-default-row').first()).toBeVisible({ timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);
 });

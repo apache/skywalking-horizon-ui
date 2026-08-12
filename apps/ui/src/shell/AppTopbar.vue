@@ -54,6 +54,7 @@ const isLightAppearance = computed<boolean>(
 <template>
   <header class="sw-top">
     <RouterLink v-if="sidebarCollapsed" to="/" class="top-brand" :aria-label="t('SkyWalking Horizon')">
+      <!-- eslint-disable-next-line vue/no-v-html -- build-time `?raw` import of a bundled SVG constant; no runtime input reaches it, and scripts/check-security.mjs scans the ?raw set for active content -->
       <span class="top-brand-logo" v-html="isLightAppearance ? logoSwBlue : logoSw" />
       <small>{{ t('Horizon') }}</small>
     </RouterLink>

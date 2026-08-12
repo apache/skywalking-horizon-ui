@@ -159,8 +159,12 @@ export function registerConfigBundleRoute(app: FastifyInstance, deps: ConfigBund
       if (typeof inm === 'string' && inm === body.etag) {
         return reply.code(304).send();
       }
+      // The 304 above still fires under the central `no-store` rule: the SPA
+      // keeps this payload in localStorage and sets `If-None-Match` itself,
+      // so revalidation never depended on the browser's HTTP cache. Nothing
+      // to trade off here — `no-store` only stops the browser writing its own
+      // copy to disk.
       reply.header('ETag', body.etag);
-      reply.header('Cache-Control', 'private, max-age=0, must-revalidate');
       return reply.send(body);
     },
   );

@@ -68,7 +68,7 @@ step('Cleaning ./dist and ./_deploy_tmp');
 rmSync(dist, { recursive: true, force: true });
 rmSync(tmp, { recursive: true, force: true });
 
-step('Building workspace packages (api-client / design-tokens / templates)');
+step('Building workspace packages (api-client / design-tokens)');
 run("pnpm -r --filter './packages/*' run build");
 
 step('Building BFF (esbuild bundle)');

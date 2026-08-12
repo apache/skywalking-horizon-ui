@@ -100,8 +100,17 @@ const RENDERED_AS: Record<string, string> = {
  */
 const FIXTURE_GUARANTEES_DATA = new Set(['line', 'top']);
 
-/** How a widget says "I have nothing to show" — a legitimate outcome. */
+/**
+ * How a widget says "I have nothing to show" — a legitimate outcome.
+ *
+ * The class alone is NOT the signal. A widget body renders `.muted` for three
+ * different outcomes: the query's error message, a transient `loading…`, and
+ * the genuine `no data`. Accepting the class accepted all three, so a widget
+ * whose query FAILED — the one outcome this assertion exists to reject —
+ * counted as a legitimate empty state. The text is what separates them.
+ */
 const EMPTY_STATE = '.muted, .empty';
+const NO_DATA = /^no data$/i;
 
 async function assertScopeMatchesTemplate(page: Page, scope: string, path: string) {
   const declared = unconditional(widgetsOf(LAYER, scope));
@@ -143,12 +152,39 @@ async function assertScopeMatchesTemplate(page: Page, scope: string, path: strin
           `widget "${w.title}" (${w.type}) carries the type class but rendered nothing`,
         ).toBeVisible();
       } else {
-        // Content OR an explicit empty state — never neither. This still
-        // catches a branch that fell through and drew nothing.
-        await expect(
-          tile.locator(`${proof}, ${EMPTY_STATE}`).first(),
-          `widget "${w.title}" (${w.type}) rendered neither content nor an empty state`,
-        ).toBeVisible();
+        // Content OR an explicit "no data" — never neither, and never an
+        // error. The widget's own error text is returned rather than swallowed
+        // so the failure names the OAP problem instead of just the tile.
+        const body = tile.locator('.w-body');
+        await expect
+          .poll(
+            async () => {
+              if (
+                await body
+                  .locator(proof)
+                  .first()
+                  .isVisible()
+                  .catch(() => false)
+              ) {
+                return 'content';
+              }
+              const text =
+                (
+                  await body
+                    .locator(EMPTY_STATE)
+                    .first()
+                    .textContent()
+                    .catch(() => null)
+                )?.trim() ?? '';
+              if (NO_DATA.test(text)) return 'no data';
+              return text === '' ? 'nothing rendered' : text;
+            },
+            {
+              timeout: 45_000,
+              message: `widget "${w.title}" (${w.type}) rendered neither content nor "no data"`,
+            },
+          )
+          .toMatch(/^(content|no data)$/);
       }
     }
 
@@ -193,28 +229,77 @@ test('the instance dashboard renders exactly what its template declares', async 
   // scope mix-up renders 68 correctly-shaped empty tiles.
   test.slow();
   await assertScopeMatchesTemplate(page, 'instance', `/layer/${LAYER}/instance`);
+
+  // `unconditional()` excludes every `visibleWhen` widget from the checks
+  // above, which on this scope is 71 of 74 — so without the next assertion the
+  // richest scope in the product proves three tiles, and the runtime gating
+  // itself is verified nowhere.
+  //
+  // The gate is asserted DIRECTIONALLY rather than by pinning a metric: the
+  // fixture's instance runs a Java agent, so widgets gated on a `jvm_*` metric
+  // belong on this page and widgets gated on a `nodejs_*` one do not. That
+  // catches a gate stuck open (every runtime's widgets render) and a gate
+  // stuck shut (none do), without depending on which JVM metric has landed by
+  // the time the page loads — which §7 warns is timing, not correctness.
+  const gated = widgetsOf(LAYER, 'instance').filter((w) => w.visibleWhen !== undefined);
+  const titlesFor = (family: RegExp): string[] =>
+    gated
+      .filter((w) => family.test(JSON.stringify(w.visibleWhen)))
+      .map((w) => w.title)
+      .filter((t): t is string => typeof t === 'string' && t.length > 0);
+
+  const jvmTitles = titlesFor(/jvm/i);
+  const nodeTitles = titlesFor(/nodejs/i);
+  expect(jvmTitles.length, 'the instance template no longer declares JVM-gated widgets').toBeGreaterThan(0);
+  expect(nodeTitles.length, 'the instance template no longer declares Node.js-gated widgets').toBeGreaterThan(0);
+
+  const shown = async (titles: string[]): Promise<number> => {
+    let n = 0;
+    for (const t of titles) if (await page.getByText(t, { exact: true }).count()) n += 1;
+    return n;
+  };
+  expect(
+    await shown(jvmTitles),
+    'no JVM-gated widget rendered for a Java instance — the visibleWhen gate is stuck shut',
+  ).toBeGreaterThan(0);
+  expect(
+    await shown(nodeTitles),
+    'a Node.js-gated widget rendered for a Java instance — the visibleWhen gate is stuck open',
+  ).toBe(0);
+
   expect(pageErrors).toEqual([]);
 });
 
-test('every declared graph form is covered by this fixture', async () => {
-  // A guard on the SPEC, not the product. If a bundled template starts using
-  // a form the fixture never renders, the assertions above quietly stop
-  // covering it — this fails instead, so the gap is a decision rather than an
-  // accident.
+// A guard on the SPEC, not the product — so it is NOT a test. Every case here
+// costs a browser and a full OAP + BanyanDB stack, and this needs neither: it
+// reads two JSON files. It runs at module load, so an uncovered widget form
+// fails the whole file immediately rather than posing as a passing e2e case.
+//
+// What it protects: if a bundled template starts using a form the fixture
+// never renders, the assertions above quietly stop covering it. This turns
+// that into a decision rather than an accident.
+{
   const covered = new Set(
     ['service', 'endpoint', 'instance']
       .flatMap((scope) => unconditional(widgetsOf(LAYER, scope)))
       .map((w) => w.type),
   );
   for (const type of covered) {
-    expect(RENDERED_AS[type], `no rendered-proof defined for widget type "${type}"`).toBeTruthy();
+    if (!RENDERED_AS[type]) {
+      throw new Error(
+        `template-fidelity: no rendered-proof defined for widget type "${type}" — add one to RENDERED_AS or the assertions silently stop covering it`,
+      );
+    }
   }
   // `card` and `table` are not reachable from this fixture: general declares
   // neither. They live in the Kubernetes layers — k8s.service carries 8 card
   // and 6 table widgets, k8s_service 2 more tables — so coverage arrives with
   // the planned k8s monitoring case, which shares its cluster fixture with
-  // the istio / rover work. Until then this guard keeps the omission visible
-  // rather than letting it pass as covered.
-  expect(covered.has('line')).toBe(true);
-  expect(covered.has('top')).toBe(true);
-});
+  // the istio / rover work. Until then this keeps the omission visible rather
+  // than letting it pass as covered.
+  for (const form of ['line', 'top']) {
+    if (!covered.has(form)) {
+      throw new Error(`template-fidelity: the fixture no longer renders any "${form}" widget`);
+    }
+  }
+}

@@ -16,6 +16,7 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
+import { LAYER } from '../fixture.js';
 
 // The admin screens, in a real browser. Everything the `admin` case asserts
 // over the wire says nothing about whether an operator can see it: these are
@@ -49,8 +50,15 @@ test('the capture history page mounts with its per-catalog filters', async ({ pa
   // rather than content the wire cases created. Populating it would mean
   // driving a capture through the debugger UI, which would race the wire
   // cases' mutations.
-  const filters = page.locator('.dh button');
-  expect(await filters.count()).toBeGreaterThan(2);
+  // The catalog chips BY NAME, in order. `.dh button` also matches "clear
+  // all", so a count alone was satisfied by a page that rendered its header
+  // and no filter row at all — the one thing this asserts.
+  await expect(page.locator('.dh__filterchip')).toHaveText([
+    /^all\b/,
+    /^mal\b/,
+    /^lal\b/,
+    /^oal\b/,
+  ]);
 
   expect(pageErrors).toEqual([]);
 });
@@ -84,15 +92,30 @@ test('the layer dashboard admin mounts', async ({ page, pageErrors }) => {
   await page.goto('/admin/layer-dashboards');
   await expect(page.locator('#app')).toBeVisible();
 
-  // templates.mode is live, so this page renders what OAP holds. Layer keys
-  // are enum values rendered verbatim in every locale, which makes them safe
-  // to match; an empty rail would mean the seed-and-read round trip failed,
-  // the same break the wire assertions catch from the other side.
-  // Several, not an exact count: the rail is paged, so pinning the number
-  // would make an unrelated layer being added or removed fail this test.
-  const layerKeys = page.locator('code');
-  await expect(layerKeys.first()).toBeVisible({ timeout: 45_000 });
-  expect(await layerKeys.count()).toBeGreaterThan(2);
+  // templates.mode is live, so this page renders what OAP holds, and the layer
+  // roster is what proves the seed-and-read round trip.
+  //
+  // The roster is behind a click. The page mounts with its layer list
+  // COLLAPSED and opens on whichever template sorts first, so on load the only
+  // layer key in the DOM is that one — a locator over the page at large finds
+  // one row and says nothing about the roster. Opening the switcher is the
+  // operator's own path to it.
+  const switcher = page.locator('.layer-dd-btn');
+  await expect(switcher).toBeVisible({ timeout: 45_000 });
+  await switcher.click();
+
+  const rows = page.locator('.layer-dd-list .layer-row');
+  await expect(rows.first()).toBeVisible({ timeout: 45_000 });
+  // Several, not an exact count: pinning the number would make an unrelated
+  // layer being added or removed fail this test. The fixture's OWN layer is
+  // named, though — that is the row whose absence means the round trip broke.
+  // Layer keys are enum values rendered verbatim in every locale, which is
+  // what makes them safe to match on.
+  expect(await rows.count()).toBeGreaterThan(2);
+  await expect(
+    rows.locator('.key-tag').filter({ hasText: new RegExp(`^${LAYER}$`, 'i') }),
+    `the ${LAYER} template did not come back from OAP`,
+  ).toHaveCount(1);
 
   expect(pageErrors).toEqual([]);
 });

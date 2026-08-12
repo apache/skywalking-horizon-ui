@@ -312,3 +312,45 @@ describe('menu — a duplicated layer template is not navigable', () => {
     expect(String(warns[0]?.[1])).toContain('Dashboard setup → Layer dashboards');
   });
 });
+
+/** A layer envelope carrying an operator-supplied documentation link. */
+const layerCfgWithLink = (key: string, documentLink: string): string =>
+  serializeEnvelope(
+    buildEnvelope('layer', key, {
+      key,
+      alias: key,
+      slots: { services: 'Services' },
+      components: { service: true },
+      documentLink,
+    }),
+  );
+
+// The publish boundary refuses a bad link, but the store it is read back from
+// is OAP — which keeps templates as opaque text and can be written without
+// going through Horizon at all. So the read path checks too, and this is the
+// wiring that proves it, rather than the pure policy function.
+describe('menu — a documentLink that fails the link policy is not served', () => {
+  // The 30s sync cache is process-wide, so a stale entry would let one case
+  // read the previous case's template.
+  beforeEach(() => invalidateSyncCache());
+  afterEach(() => invalidateSyncCache());
+
+  it('serves a link on a trusted host', async () => {
+    const layer = await menuLayer(
+      [row('1', layerCfgWithLink('GENERAL', 'https://skywalking.apache.org/docs/'))],
+      'general',
+    );
+    expect(layer?.documentLink).toBe('https://skywalking.apache.org/docs/');
+  });
+
+  it.each([
+    ['a javascript: scheme', 'javascript:alert(document.domain)'],
+    ['an untrusted host', 'https://evil.example/x'],
+    ['a backslash escape that leaves the origin', '/\\evil.example/x'],
+  ])('withholds %s', async (_label, documentLink) => {
+    const layer = await menuLayer([row('1', layerCfgWithLink('GENERAL', documentLink))], 'general');
+    // The layer still renders — only its link is dropped.
+    expect(layer).toBeDefined();
+    expect(layer?.documentLink).toBeUndefined();
+  });
+});

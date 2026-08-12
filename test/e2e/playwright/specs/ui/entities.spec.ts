@@ -16,10 +16,16 @@
  */
 
 import { test, expect } from '../support/diagnostics.js';
-import { LAYER } from '../fixture.js';
+import { DEMO_ENDPOINTS, LAYER } from '../fixture.js';
 
 // The tabs below the service dashboard, and the alarms page. Each is a
 // separate render path over data the core fixture already produces.
+
+// Which endpoint a picker auto-selects depends on traffic timing, not on
+// correctness — the fixture drives more than one. Match the known set (§7).
+const AN_ENDPOINT = new RegExp(
+  DEMO_ENDPOINTS.map((e) => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'),
+);
 
 test('the instance tab renders a dashboard for a real instance', async ({ page, pageErrors }) => {
 
@@ -31,7 +37,14 @@ test('the instance tab renders a dashboard for a real instance', async ({ page, 
   // returns empty rather than erroring.
   const widgets = page.locator('.widget');
   await expect(widgets.first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByText('provider1').first()).toBeVisible({ timeout: 45_000 });
+  // `.ib-row.on` is the PICKED row. Matching the name anywhere on the page
+  // matched the picker's list, which renders every instance before one is
+  // selected — so the assertion passed whether or not an entity resolved,
+  // which is the thing it exists to prove.
+  await expect(page.locator('.ib-row.on')).toContainText('provider1', { timeout: 45_000 });
+  // And the grid drew something for it: a resolved entity with 68 empty tiles
+  // is the exact symptom of the wrong-scope query described above.
+  await expect(page.locator('.widget .time-chart').first()).toBeVisible({ timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);
 });
@@ -42,7 +55,9 @@ test('the endpoint tab renders a dashboard for a real endpoint', async ({ page, 
 
   const widgets = page.locator('.widget');
   await expect(widgets.first()).toBeVisible({ timeout: 45_000 });
-  await expect(page.getByText('POST:/users').first()).toBeVisible({ timeout: 45_000 });
+  // Scoped to the picked row for the same reason as the instance tab.
+  await expect(page.locator('.ib-row.on')).toContainText(AN_ENDPOINT, { timeout: 45_000 });
+  await expect(page.locator('.widget .time-chart').first()).toBeVisible({ timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);
 });
@@ -51,10 +66,12 @@ test('the API dependency tab mounts and resolves an endpoint', async ({ page, pa
 
   await page.goto(`/layer/${LAYER}/dependency`);
   await expect(page.locator('#app')).toBeVisible();
-  // The demo app's endpoint reaching this view proves the endpoint scope
+  // The demo app's endpoint being SELECTED here proves the endpoint scope
   // resolved; the dependency graph itself needs a second endpoint to be
-  // interesting, which this fixture does not produce.
-  await expect(page.getByText('POST:/users').first()).toBeVisible({ timeout: 45_000 });
+  // interesting, which this fixture does not produce. `.ep-row.on` is this
+  // view's picked row — matching the name anywhere matched the list, which
+  // renders before anything is picked.
+  await expect(page.locator('.ep-row.on')).toContainText(AN_ENDPOINT, { timeout: 45_000 });
 
   expect(pageErrors).toEqual([]);
 });

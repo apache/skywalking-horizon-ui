@@ -101,6 +101,18 @@ The reasoning is simple: if the rendered page is right, the whole chain beneath 
 
 So: **assert the value on screen, not in the response.**
 
+### 3.1b The spec drives the product, it does not stand in for it
+
+The browser is the SUBJECT of the test, not a scripting host. A spec does two things: perform the actions an operator performs, and read back what the page then shows. Anything else is the spec doing the product's job and then congratulating it for the result.
+
+Three ways that line has been crossed here, each of which produced a passing test that proved nothing:
+
+- **Synthesising an event instead of clicking.** `dispatchEvent('click')` reaches the handler while saying nothing about whether anyone can hit the control — it passes on an element that is covered, zero-sized, or behind an overlay, which is the failure a click test exists to catch. When a real click genuinely cannot land (Playwright aims at the centre of a bounding box, which for a curved SVG edge is not on the path), drive the OTHER real control that reaches the same state and say so in a comment — do not reach past the UI.
+- **Doing the work inside `page.evaluate`.** `page.evaluate` is for reading what only the browser knows: geometry, computed style, scroll width. It is not for producing the behaviour under test. A spec that fetches from inside the page is testing its own JavaScript, and it inherits the page's CSP — one such call turned a correct `connect-src 'self'` into a red suite, which reads as a product regression and is not one.
+- **Issuing HTTP the UI never issues.** Traffic a fixture needs comes from the runner's `request` fixture or from the case's setup step, never from the page. A UI spec that opens its own request context to a backend has stopped being a UI spec.
+
+And when a spec drives something that can fail — seeding traffic, priming state — **the failure has to reach the report**. A driver whose errors are swallowed turns a broken fixture into a mystery about the product, and the spec fails somewhere far from the cause.
+
 ### 3.2 A BFF assertion needs a reason
 
 Wire-level assertions are allowed **only when the browser cannot reach the behaviour**. Before adding one, answer: *what would this catch that a UI assertion would not?*
@@ -173,9 +185,14 @@ Every upstream image is pinned by commit SHA in [`script/env`](script/env). A `l
 
 ## 7. Assert what the fixture proves, not what happens to be true
 
-An assertion should fail when the product breaks and at no other time. Two traps this suite has already hit:
+An assertion should fail when the product breaks and at no other time. The traps this suite has already hit:
 
 - **pinning one value from a set** — the fixture drives more than one endpoint, so "the newest trace is `POST:/users`" turns on traffic timing, not correctness. Match against the known set instead.
 - **asserting a healthy state that is not the only healthy state** — "every template row is synced" was permanently false on a working system, because most rows are legitimately `remote-only`. Name the states that mean *breakage* instead.
+- **asserting something that was already on screen** — after picking an entity, the entity's name is also in the picker LIST, which renders before anything is picked; after opening a trace, the service name is also in the layer header. Both assertions passed whether or not the click did anything. Scope the assertion to what the action CHANGED: the selected row, the opened panel, the fetched detail.
+- **accepting a class that several states share** — a widget body renders `.muted` for its query error, for a transient `loading…`, and for a genuine `no data`. "Content or an empty state" therefore accepted a widget whose query FAILED, which is the one outcome it existed to reject. Match the text, not the class, and let the error text through into the failure message.
+- **treating unlike things alike** — the deployment Flows table groups edges per role-pair, and the pairs are not equivalent: `liaison → data` carries every write the cluster serves, while `lifecycle → data` declares only migration metrics and is legitimately empty where no lifecycle migration is configured. A loop that took the first row rendering anything could settle on the correctly-empty pair and conclude nothing. Name the pair the fixture guarantees, and let the other one be empty.
+- **proving an absence with a selector that never matched** — `toHaveCount(0)` passes just as happily against a typo as against a genuinely hidden affordance. An absence assertion needs a sibling that proves the same selector DOES match where the thing exists, or it only tests your spelling.
+- **letting a fixed wait stand in for a readiness condition** — `waitForTimeout` before measuring says nothing about whether the page rendered, and an empty page satisfies every layout assertion trivially. Wait for the element that proves there is content, then measure — and poll the measurement when it legitimately settles (a chart is briefly wider than its container between mount and first resize).
 
 When an expectation fails, the first question is whether the system is wrong or the expectation is. In this suite it has usually been the expectation.

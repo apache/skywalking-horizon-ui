@@ -59,7 +59,7 @@ Every successful break-glass login is recorded twice:
      "action": "auth.login.break-glass",
      "outcome": "break-glass",
      "fromIp": "192.0.2.10",
-     "sessionId": "...",
+     "sessionId": "...",   // opaque session reference, not a usable session id
      "details": { "backend": "ldap" }
    }
    ```

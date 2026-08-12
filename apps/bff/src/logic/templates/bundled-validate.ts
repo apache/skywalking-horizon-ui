@@ -37,14 +37,22 @@
  * sibling test asserts the shipped bundle is clean.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ZodError } from 'zod';
+import type { ZodError, ZodType } from 'zod';
 import { isOverlayFilename } from '../../i18n/store.js';
 import { widgetSchema } from '../dashboard/schema.js';
 import { expressionForServiceMetric } from '../../util/mqe-catalog.js';
-import { layerCrossRefIssues, layerTemplateSchema, overviewTemplateSchema } from './bundled-schema.js';
+import { validateInfra3dConfig } from '../infra-3d/validate.js';
+import {
+  alertTemplateSchema,
+  layerCrossRefIssues,
+  layerTemplateSchema,
+  overviewTemplateSchema,
+  themeTemplateSchema,
+  timeDefaultsTemplateSchema,
+} from './bundled-schema.js';
 
 export interface TemplateFinding {
   /** `layers/kafka.json` — relative to the bundled-templates root. */
@@ -258,8 +266,91 @@ function validateOverview(
   });
 }
 
-/** Validate every bundled layer + overview template. Returns one finding
- *  per defect; an empty array means the bundle is clean. */
+/** The non-dashboard bundle directories, each holding one singleton whose
+ *  shape a schema fully describes. They are validated with the SAME schemas
+ *  the admin push boundary uses, so CI and runtime cannot drift apart. */
+const SINGLETON_DIRS: { dir: string; schema: ZodType }[] = [
+  { dir: 'alert', schema: alertTemplateSchema },
+  { dir: 'theme', schema: themeTemplateSchema },
+  { dir: 'time-defaults', schema: timeDefaultsTemplateSchema },
+];
+
+// Shape-checks whatever singleton files a root happens to carry. PRESENCE is
+// a separate check — see `singletonPresenceIssues`, which the CLI runs against
+// the shipped bundle — because the fixture roots the tests build carry only
+// `layers/` and `overviews/`.
+function validateSingletons(root: string, findings: TemplateFinding[]): void {
+  for (const { dir, schema } of SINGLETON_DIRS) {
+    if (!existsSync(join(root, dir))) continue;
+    for (const src of readSources(root, dir, findings)) {
+      const parsed = schema.safeParse(src.content);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          findings.push({ file: src.label, path: issue.path.join('.'), message: issue.message });
+        }
+      }
+    }
+  }
+  if (!existsSync(join(root, 'infra-3d'))) return;
+  for (const src of readSources(root, 'infra-3d', findings)) {
+    const result = validateInfra3dConfig(src.content);
+    if (!result.ok) {
+      for (const issue of result.issues) findings.push({ file: src.label, path: '', message: issue });
+    }
+  }
+}
+
+/**
+ * The four singleton files the runtime loads by exact path. Every loader
+ * hardcodes its filename and THROWS when it is missing — there is no default
+ * anywhere — and `iterateBundledTemplates` calls all four, so a missing or
+ * renamed file takes `GET /api/configs/bundle` (which has no catch) to a 500.
+ * The key is a separate constant, never derived from the filename, so an
+ * extra file in one of these directories is validated and then silently
+ * ignored at runtime — which is why the set is exact rather than a minimum.
+ */
+const REQUIRED_SINGLETONS = [
+  'alert/page-setup.json',
+  'theme/active.json',
+  'time-defaults/global.json',
+  'infra-3d/config.json',
+];
+
+/** Presence + naming check for the shipped bundle. Separate from
+ *  {@link validateBundledTemplates} because that one also runs over partial
+ *  fixture roots, where absence is expected. */
+export function singletonPresenceIssues(root: string = BUNDLED_ROOT): TemplateFinding[] {
+  const findings: TemplateFinding[] = [];
+  const dirs = new Set(REQUIRED_SINGLETONS.map((p) => p.split('/')[0]));
+  for (const rel of REQUIRED_SINGLETONS) {
+    if (!existsSync(join(root, rel))) {
+      findings.push({
+        file: rel,
+        path: '',
+        message: 'required bundled file is missing — its loader throws, taking /api/configs/bundle to a 500',
+      });
+    }
+  }
+  for (const dir of dirs) {
+    const abs = join(root, dir);
+    if (!existsSync(abs)) continue;
+    for (const file of readdirSync(abs).sort()) {
+      if (!file.endsWith('.json') || isOverlayFilename(file)) continue;
+      if (!REQUIRED_SINGLETONS.includes(`${dir}/${file}`)) {
+        findings.push({
+          file: `${dir}/${file}`,
+          path: '',
+          message: 'unexpected file — singleton keys are hardcoded, so the runtime never reads this one',
+        });
+      }
+    }
+  }
+  return findings;
+}
+
+/** Validate every bundled template — dashboards and singletons alike.
+ *  Returns one finding per defect; an empty array means the bundle is
+ *  clean. */
 export function validateBundledTemplates(root: string = BUNDLED_ROOT): TemplateFinding[] {
   const findings: TemplateFinding[] = [];
   const layers = readSources(root, 'layers', findings);
@@ -271,5 +362,6 @@ export function validateBundledTemplates(root: string = BUNDLED_ROOT): TemplateF
   );
   for (const src of layers) validateLayer(src, findings);
   for (const src of overviews) validateOverview(src, layerKeys, findings);
+  validateSingletons(root, findings);
   return findings;
 }

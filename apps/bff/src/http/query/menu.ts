@@ -38,6 +38,7 @@ import type { ServiceLayerCatalog } from '../../logic/services/service-layer-cat
 import { logger } from '../../logger.js';
 import type { Locale } from '../../i18n/index.js';
 import { localizeContent, localeFromRequest } from '../../i18n/index.js';
+import { linkSchemeIssue, linkDomainIssue } from '../../util/link-policy.js';
 import { oapOverlayContentFromRows } from '../../logic/templates/overlay.js';
 
 /**
@@ -353,6 +354,34 @@ function deriveLayer(
   };
 }
 
+/**
+ * Re-check every layer's `documentLink` on the way out, and drop the ones that
+ * fail. The push boundary already refuses a bad scheme, but this is the READ
+ * side of a store Horizon does not own: the templates live on OAP, which keeps
+ * them as opaque strings and can be written without going through Horizon at
+ * all. Validating only where we write would leave the render path trusting a
+ * value nobody checked.
+ *
+ * A rejected link is dropped rather than rendered, and logged with its reason
+ * — silently serving it is the failure mode that matters.
+ */
+function applyLinkPolicy(layers: LayerDef[], trustedDomains: readonly string[]): LayerDef[] {
+  return layers.map((layer) => {
+    const link = layer.documentLink;
+    if (!link) return layer;
+    const issue = linkSchemeIssue(link) ?? linkDomainIssue(link, trustedDomains);
+    if (!issue) return layer;
+    // The reason names the host or the scheme; the full URL is NOT logged —
+    // a rejected link's query string can carry a token, and the audit/log
+    // trail is read by more people than the template store is.
+    logger.warn(
+      { layer: layer.key, issue },
+      'layer documentLink rejected by link policy — not rendered',
+    );
+    return { ...layer, documentLink: undefined };
+  });
+}
+
 export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): void {
   const auth = requireAuth(deps);
   app.get('/api/menu', { preHandler: auth }, async (req: FastifyRequest, reply: FastifyReply) => {
@@ -486,7 +515,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         });
 
       const body: MenuResponse = {
-        layers,
+        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
         generatedAt: Date.now(),
         oap: { reachable: true, queryUrl },
       };
@@ -509,7 +538,7 @@ export function registerMenuRoute(app: FastifyInstance, deps: MenuRouteDeps): vo
         layers.push(deriveLayer(key, false, null, -1, null, locale, emptyRows, null));
       }
       const body: MenuResponse = {
-        layers,
+        layers: applyLinkPolicy(layers, cfg.security.trustedLinkDomains),
         generatedAt: Date.now(),
         oap: {
           reachable: false,

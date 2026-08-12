@@ -20,9 +20,11 @@
  *  non-zero on any finding — a broken bundled template is a shipping
  *  defect, not an operator error. */
 
-import { validateBundledTemplates } from './bundled-validate.js';
+import { validateBundledTemplates, singletonPresenceIssues } from './bundled-validate.js';
 
-const findings = validateBundledTemplates();
+// Presence is checked only here: this is the one caller that always runs
+// against the shipped bundle.
+const findings = [...singletonPresenceIssues(), ...validateBundledTemplates()];
 if (findings.length === 0) {
   console.log('templates:validate: no findings');
 } else {

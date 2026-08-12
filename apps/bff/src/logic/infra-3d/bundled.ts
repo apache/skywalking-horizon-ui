@@ -32,6 +32,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Infra3dConfig } from './types.js';
+import { stripCommentKeys } from './validate.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -64,20 +65,4 @@ function locateBundle(): string {
     if (existsSync(c)) return c;
   }
   throw new Error(`bundled infra-3d config not found in: ${candidates.join(', ')}`);
-}
-
-/** Recursively drop `$comment` / `$note` keys. The bundled JSON keeps
- *  them for readability; the loaded shape stays clean so downstream code
- *  doesn't have to special-case them. */
-function stripCommentKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stripCommentKeys);
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (k === '$comment' || k === '$note') continue;
-      out[k] = stripCommentKeys(v);
-    }
-    return out;
-  }
-  return value;
 }

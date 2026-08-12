@@ -62,7 +62,7 @@
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { ZodError } from 'zod';
+import type { ZodError, ZodType } from 'zod';
 import type { UITemplateClient } from '@skywalking-horizon-ui/api-client';
 import type { ConfigSource } from '../../config/loader.js';
 import type { SessionStore } from '../../user/sessions.js';
@@ -89,10 +89,14 @@ import {
 } from '../../logic/templates/names.js';
 import { getLayerOverlay, getOverviewOverlay, isLocale } from '../../i18n/index.js';
 import { validateInfra3dConfig } from '../../logic/infra-3d/validate.js';
+import { linkDomainIssue } from '../../util/link-policy.js';
 import {
+  alertTemplateSchema,
   layerCrossRefIssues,
   layerTemplatePushSchema,
   overviewTemplatePushSchema,
+  themeTemplateSchema,
+  timeDefaultsTemplateSchema,
 } from '../../logic/templates/bundled-schema.js';
 import { templateIdentityIssue } from '../../logic/templates/identity.js';
 import { logger } from '../../logger.js';
@@ -366,7 +370,7 @@ export function registerTemplateSyncAdminRoutes(
           message: `no bundled template for ${name} — nothing to push`,
         });
       }
-      const bundledIssues = bundledPushIssues(row);
+      const bundledIssues = bundledPushIssues(row, deps.config.current.security.trustedLinkDomains);
       if (bundledIssues) {
         return reply.code(400).send({ code: 'invalid_content', issues: bundledIssues });
       }
@@ -427,7 +431,7 @@ export function registerTemplateSyncAdminRoutes(
     for (const row of targets) {
       // One unpublishable template doesn't sink the batch — it is reported like
       // any other per-row failure and the rest of the set still syncs.
-      const bundledIssues = bundledPushIssues(row);
+      const bundledIssues = bundledPushIssues(row, deps.config.current.security.trustedLinkDomains);
       if (bundledIssues) {
         logger.warn({ name: row.name, issues: bundledIssues }, 'sync-all skipped invalid bundled content');
         failed.push({ name: row.name, error: `invalid content — ${bundledIssues.join('; ')}` });
@@ -486,7 +490,12 @@ export function registerTemplateSyncAdminRoutes(
     // Identity + per-kind content validation. The envelope machinery is
     // content-opaque, so this is the only place a stored row is held to the
     // shape (and the name) its readers depend on.
-    const issues = publishIssues(parsed.kind as TemplateKind, parsed.key, content);
+    const issues = publishIssues(
+      parsed.kind as TemplateKind,
+      parsed.key,
+      content,
+      deps.config.current.security.trustedLinkDomains,
+    );
     if (issues) {
       return reply.code(400).send({ code: 'invalid_content', issues });
     }
@@ -644,7 +653,12 @@ export function registerTemplateSyncAdminRoutes(
  *      {@link overviewTemplatePushSchema}, or the 3D-map validator. Each rejects
  *      MALFORMED content, never merely incomplete content.
  */
-function publishIssues(kind: TemplateKind, key: string, content: unknown): string[] | null {
+function publishIssues(
+  kind: TemplateKind,
+  key: string,
+  content: unknown,
+  trustedLinkDomains: readonly string[],
+): string[] | null {
   const identity = templateIdentityIssue(kind, key, content);
   if (identity) return [`${identity.path}: ${identity.message}`];
   if (kind === 'layer') {
@@ -653,6 +667,14 @@ function publishIssues(kind: TemplateKind, key: string, content: unknown): strin
     const issues = layerCrossRefIssues(v.data, { complete: false }).map(
       (i) => `${i.path}: ${i.message}`,
     );
+    // The domain half of the link policy needs config, so it cannot live in
+    // the schema. Applying it HERE too means a publish is refused with the
+    // reason instead of succeeding and then vanishing on the read path.
+    const link = v.data.documentLink;
+    if (link) {
+      const linkIssue = linkDomainIssue(link, trustedLinkDomains);
+      if (linkIssue) issues.push(`documentLink: ${linkIssue}`);
+    }
     return issues.length > 0 ? issues : null;
   }
   if (kind === 'overview') {
@@ -663,8 +685,25 @@ function publishIssues(kind: TemplateKind, key: string, content: unknown): strin
     const v = validateInfra3dConfig(content);
     return v.ok ? null : v.issues;
   }
+  const singleton = SINGLETON_SCHEMAS[kind];
+  if (singleton) {
+    const v = singleton.safeParse(content);
+    return v.success ? null : zodIssues(v.error);
+  }
   return null;
 }
+
+/** Every kind not handled above. Typed as a TOTAL record minus the ones with
+ *  their own branch, so adding a `TemplateKind` fails to compile until its
+ *  validator is supplied — an unvalidated kind means storing arbitrary JSON
+ *  that `GET /api/configs/settings` then serves to every signed-in user, and
+ *  that must not be reachable by simply forgetting. */
+const SINGLETON_SCHEMAS: Record<Exclude<TemplateKind, 'layer' | 'overview' | 'infra-3d'>, ZodType> =
+  {
+    alert: alertTemplateSchema,
+    theme: themeTemplateSchema,
+    'time-defaults': timeDefaultsTemplateSchema,
+  };
 
 function zodIssues(err: ZodError): string[] {
   return err.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
@@ -674,10 +713,13 @@ function zodIssues(err: ZodError): string[] {
  *  the shipped bundle is validated in CI, but the container's
  *  `bundled_templates/` directory is documented as replaceable, so what a push
  *  actually reads off disk still has to hold up. */
-function bundledPushIssues(row: SyncStatus['rows'][number]): string[] | null {
+function bundledPushIssues(
+  row: SyncStatus['rows'][number],
+  trustedLinkDomains: readonly string[],
+): string[] | null {
   if (!row.bundled) return null;
   const env = parseEnvelope(row.bundled.configuration);
-  return env ? publishIssues(row.kind, row.key, env.content) : null;
+  return env ? publishIssues(row.kind, row.key, env.content, trustedLinkDomains) : null;
 }
 
 async function loadStatus(deps: TemplateSyncAdminDeps): Promise<SyncStatus> {

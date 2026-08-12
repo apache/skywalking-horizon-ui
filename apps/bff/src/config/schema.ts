@@ -549,11 +549,49 @@ const templatesSchema = z
   .strict()
   .default({ mode: templatesModeDefault });
 
+/** Hosts a template's outbound link may point at. Horizon is a closed
+ *  console: the only operator-supplied link is a layer template's
+ *  `documentLink` ("docs ↗" in the layer header), and it may only leave the
+ *  origin for a host listed here.
+ *
+ *  The default carries the project's own documentation domain because all 44
+ *  bundled layer templates link there — it is a DEFAULT, not a built-in
+ *  exemption, so an operator who wants a fully closed console sets this to
+ *  `[]` and every outbound link stops rendering. Add your own wiki here.
+ *
+ *  A site-relative link (`/runbook/…`) never needs listing; it does not leave
+ *  the origin. Non-http(s) schemes are refused outright, wherever they come
+ *  from — that check is not configurable. */
+const TRUSTED_LINK_DOMAINS_DEFAULT = ['skywalking.apache.org'];
+
+const securitySchema = z
+  .object({
+    // Hostnames, not URLs or patterns. A value with a scheme, a path, a port
+    // or a wildcard would never match — `new URL(...).hostname` is what it is
+    // compared against — so it is refused at boot rather than silently
+    // matching nothing, which would read as "the allow-list is not working".
+    trustedLinkDomains: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toLowerCase()
+          .refine((v) => /^[a-z0-9.-]+$/.test(v) && !v.startsWith('.') && !v.endsWith('.'), {
+            message:
+              'must be a bare hostname such as "wiki.internal" — no scheme, port, path or wildcard (a host matches itself and its subdomains)',
+          }),
+      )
+      .default(TRUSTED_LINK_DOMAINS_DEFAULT),
+  })
+  .strict()
+  .default({ trustedLinkDomains: TRUSTED_LINK_DOMAINS_DEFAULT });
+
 export const configSchema = z
   .object({
     server: serverSchema.default({}),
     layers: layersSchema,
     templates: templatesSchema,
+    security: securitySchema,
     oap: oapSchema.default({}),
     auth: authSchema,
     rbac: rbacSchema,

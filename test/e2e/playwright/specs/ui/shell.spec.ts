@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-import { request } from '@playwright/test';
 import { test, expect } from '../support/diagnostics.js';
 
 // A blank page with a console error is the failure mode this file exists for:
@@ -59,13 +58,13 @@ test('wrong credentials keep the operator on the login form', async ({ browser }
   await ctx.close();
 });
 
-test('a deep link resolves to a rendered route, not a 404', async ({ page, baseURL }) => {
-  // The SPA fallback serving index.html is a BFF concern; the route actually
-  // resolving to a component is a router concern. Both, in one hop.
-  const anon = await request.newContext({ baseURL, storageState: { cookies: [], origins: [] } });
-  expect((await anon.get('/layer/general/trace')).status()).toBe(200);
-  await anon.dispose();
-
+test('a deep link resolves to a rendered route, not a 404', async ({ page }) => {
+  // Only the router concern is asserted here. That the SPA fallback serves
+  // index.html for an unknown path is an HTTP fact about the packaged server,
+  // and the packaged-server smoke test in CI already asserts its status code
+  // — checking it again from a browser spec proves nothing a rendered route
+  // does not, and a UI spec that issues its own HTTP request is doing
+  // something other than driving the UI.
   await page.goto('/layer/general/trace');
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('input[name="password"]')).toHaveCount(0);

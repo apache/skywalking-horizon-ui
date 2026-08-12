@@ -178,8 +178,17 @@ check_file_has_version() {
 # Every code-side marker carries the dev-suffixed version (`-dev`) on
 # main between releases. Strip-and-tag happens later in the clone, NOT
 # in the local working tree.
+# Kept explicit rather than globbed: `test/e2e/playwright` is a workspace that
+# carries a version this release deliberately does not bump, so a glob would
+# start rewriting it. A path that no longer exists is a hard error — a deleted
+# workspace must fail HERE, not midway through a version bump.
 for pj in package.json packages/api-client/package.json packages/design-tokens/package.json \
-          packages/templates/package.json apps/bff/package.json apps/ui/package.json; do
+          apps/bff/package.json apps/ui/package.json; do
+    if [ ! -f "${PROJECT_DIR}/${pj}" ]; then
+        err "${pj} is listed for version bumping but does not exist — update the list in this script"
+        CONSISTENT=false
+        continue
+    fi
     check_file_has_version "$pj" "\"version\": \"${CURRENT_VERSION}\""
 done
 check_file_has_version "apps/bff/src/server.ts" "'${CURRENT_VERSION}'"
@@ -254,15 +263,20 @@ git checkout -b "${RELEASE_BRANCH_NAME}"
 # release-tagged commit must carry the bare semver.
 node -e "
 const fs = require('fs');
+// Must match the preflight list above. A missing path is fatal rather than
+// skipped: a half-bumped set of manifests is worse than a stopped release.
 const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
-  'packages/templates/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];
 for (const f of files) {
+  if (!fs.existsSync(f)) {
+    console.error(`release.sh: ${f} is listed for version bumping but does not exist`);
+    process.exit(1);
+  }
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   j.version = '${RELEASE_VERSION}';
   fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
@@ -574,15 +588,20 @@ git checkout "${RELEASE_BRANCH_NAME}"
 NEXT_DEV_VERSION="${NEXT_RELEASE_VERSION}-dev"
 node -e "
 const fs = require('fs');
+// Must match the preflight list above. A missing path is fatal rather than
+// skipped: a half-bumped set of manifests is worse than a stopped release.
 const files = [
   'package.json',
   'packages/api-client/package.json',
   'packages/design-tokens/package.json',
-  'packages/templates/package.json',
   'apps/bff/package.json',
   'apps/ui/package.json',
 ];
 for (const f of files) {
+  if (!fs.existsSync(f)) {
+    console.error(`release.sh: ${f} is listed for version bumping but does not exist`);
+    process.exit(1);
+  }
   const j = JSON.parse(fs.readFileSync(f, 'utf8'));
   j.version = '${NEXT_DEV_VERSION}';
   fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');

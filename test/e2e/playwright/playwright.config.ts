@@ -59,6 +59,10 @@ export default defineConfig({
   // A retry masks exactly the flake class this suite exists to catch, so the
   // answer to an intermittent failure is a better wait, not a rerun.
   retries: 0,
+  // Playwright's default is false and is NOT implied by CI, so a committed
+  // `test.only` would run one test, report the project green, and hand
+  // infra-e2e `passed: true` — a whole case silently reduced to nothing.
+  forbidOnly: true,
   // Output goes to stderr (see script/prepare/playwright.sh) — stdout is the
   // infra-e2e contract. The HTML report is for the CI failure artifact.
   reporter: [

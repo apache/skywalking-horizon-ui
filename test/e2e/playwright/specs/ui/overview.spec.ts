@@ -37,7 +37,15 @@ test('the services overview renders its widget vocabulary', async ({ page, pageE
   const tiles = page.locator('.sw-card.tile');
   await expect(tiles.first()).toBeVisible({ timeout: 45_000 });
   await expect.poll(async () => tiles.count(), { timeout: 45_000 }).toBeGreaterThan(1);
-  await expect(tiles.first().locator('.count')).toBeVisible();
+  // `.count` renders "—" when the value is null, so its visibility is
+  // satisfied by an overview that resolved nothing. The fixture drives traffic
+  // through general, so at least one KPI tile must carry a digit.
+  await expect
+    .poll(
+      async () => (await tiles.locator('.count').allTextContents()).filter((t) => /\d/.test(t)).length,
+      { timeout: 60_000, message: 'every KPI tile rendered an em dash — the overview bound no values' },
+    )
+    .toBeGreaterThan(0);
 
   // Section breaks are layout, not data — they render regardless of what OAP
   // answers, so their absence means the template never reached the renderer.

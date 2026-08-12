@@ -69,6 +69,9 @@ test('the MAL debugger samples the collector metrics', async ({ page, pageErrors
   // nothing, so asserting the page or the session state would pass on a
   // debugger that samples and shows nothing.
   await expect(page.locator('.mal__records').first()).toBeVisible({ timeout: 240_000 });
+  // The container is the `v-else` of that empty state, so it already implies a
+  // record exists — but a card that fails to render leaves it standing empty.
+  await expect(page.locator('.mal__rec').first()).toBeVisible({ timeout: 45_000 });
 
   expect(pageErrors, 'an uncaught error during mount blanks the page').toEqual([]);
 });

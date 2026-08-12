@@ -98,10 +98,21 @@ test('the mesh_dp instance dashboard renders its card widgets', async ({ page, p
     timeout: 60_000,
   });
 
-  // The card branch collapses a window to ONE number. A card that dispatched
-  // correctly but bound nothing still carries the type class, so the number
-  // itself is what proves the branch actually rendered.
-  await expect(cards.first().locator('.card-value .num')).toBeVisible({ timeout: 60_000 });
+  // The card branch collapses a window to ONE number. Visibility of `.num` is
+  // NOT enough: that element renders unconditionally and carries an em dash
+  // when the value is null, so an entirely empty Envoy card set satisfied it.
+  // Require a digit in at least one card — the fixture drives mesh traffic, so
+  // some card must have a value; `first()` alone would pin whichever card
+  // happens to sort first, which is timing rather than correctness (§7).
+  await expect
+    .poll(
+      async () => {
+        const texts = await cards.locator('.card-value .num').allTextContents();
+        return texts.filter((t) => /\d/.test(t)).length;
+      },
+      { timeout: 60_000, message: 'every mesh_dp card rendered an em dash — the card branch bound no value' },
+    )
+    .toBeGreaterThan(0);
 
   expect(pageErrors).toEqual([]);
 });

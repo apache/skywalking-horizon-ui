@@ -50,6 +50,23 @@ templates:
   # still used either way. (Changing this mode needs a BFF restart.)
   mode: "${HORIZON_TEMPLATES_MODE:live}"
 
+security:
+  # Hosts a dashboard template's outbound link may point at. The only
+  # operator-supplied link in the product is a layer template's
+  # `documentLink` — the "docs ↗" anchor in the layer header — and it may
+  # only leave this origin for a host listed here. A host matches itself and
+  # its subdomains.
+  #
+  # The default is the project's own documentation domain, because every
+  # bundled layer template links there. It is a default, not a built-in
+  # exemption: set this to `[]` for a fully closed console and no outbound
+  # link renders at all. Add your internal wiki to keep its links working.
+  #
+  # A site-relative link (`/runbook/kafka`) never needs listing — it does not
+  # leave the origin. Non-http(s) schemes (`javascript:`, `data:`, …) are
+  # always refused and that is not configurable.
+  trustedLinkDomains: ${HORIZON_TRUSTED_LINK_DOMAINS:["skywalking.apache.org"]}
+
 oap:
   # OAP query host (GraphQL + /status/*; default port 12800).
   queryUrl: "${HORIZON_OAP_QUERY_URL:http://127.0.0.1:12800}"
