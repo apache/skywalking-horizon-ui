@@ -68,7 +68,7 @@ export interface PreflightResult {
   adminError?: string;
   /**
    * Active template mode. In `readonly` the ui_template feature is not
-   * probed (Horizon serves bundled templates) and its row reads "n/a".
+   * probed (Horizon serves bundled templates) and its row reads "readonly · bundled".
    */
   templatesMode: 'live' | 'readonly';
   modules: PreflightModule[];

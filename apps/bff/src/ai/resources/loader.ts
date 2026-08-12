@@ -32,6 +32,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import YAML from 'yaml';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -60,4 +61,46 @@ export function readResource(relPath: string): string {
       lastErr instanceof Error ? lastErr.message : String(lastErr)
     }`,
   );
+}
+
+// ── Externalized tool prompts ────────────────────────────────────────────────
+// The LLM-facing tool manifest — each tool's `description` + per-param hints —
+// lives in `resources/tools/<skill>.yaml`, NOT hardcoded in the tool factory, so
+// it's editable like system.md/skills.md (one source, no code↔prose drift). Read
+// once per skill at boot and cached: the strings must stay byte-stable, since the
+// tool schemas are part of the provider prompt-cache prefix (see agent/prompt.ts).
+
+interface ToolPromptEntry {
+  description: string;
+  params?: Record<string, string>;
+}
+const skillPromptCache = new Map<string, Record<string, ToolPromptEntry>>();
+
+function loadSkillPrompts(skill: string): Record<string, ToolPromptEntry> {
+  let entry = skillPromptCache.get(skill);
+  if (!entry) {
+    entry = (YAML.parse(readResource(`tools/${skill}.yaml`)) ?? {}) as Record<string, ToolPromptEntry>;
+    skillPromptCache.set(skill, entry);
+  }
+  return entry;
+}
+
+/**
+ * The externalized prompt for one tool: its `description` and a `p(param)` hint
+ * lookup, read from `resources/tools/<skill>.yaml`. Fail-fast at boot if a tool
+ * or a param hint is missing — a silent empty description mis-guides the model.
+ * Usage in a skill factory: `const t = toolPrompt('context', 'list_services')`
+ * → `description: t.description`, `z.string().describe(t.p('layer'))`.
+ */
+export function toolPrompt(skill: string, name: string): { description: string; p(param: string): string } {
+  const entry = loadSkillPrompts(skill)[name];
+  if (!entry?.description) throw new Error(`AI tool prompt missing: tools/${skill}.yaml → ${name}.description`);
+  return {
+    description: entry.description,
+    p(param: string): string {
+      const hint = entry.params?.[param];
+      if (hint === undefined) throw new Error(`AI tool param hint missing: tools/${skill}.yaml → ${name}.params.${param}`);
+      return hint;
+    },
+  };
 }

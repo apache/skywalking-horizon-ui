@@ -15,8 +15,9 @@
     "dev:bff": "pnpm --filter @skywalking-horizon-ui/bff dev",
     "build": "pnpm -r run build",
     "type-check": "pnpm -r run type-check",
-    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs",
+    "lint": "pnpm -r run lint && node scripts/check-source-budget.mjs && node scripts/check-ui-i18n.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate",
     "lint:budget": "node scripts/check-source-budget.mjs",
+    "lint:i18n": "node scripts/check-ui-i18n.mjs && pnpm --filter @skywalking-horizon-ui/bff run i18n:validate",
     "test:unit": "pnpm -r run test:unit",
     "license:check": "license-eye -c .licenserc.yaml header check",
     "license:fix": "license-eye -c .licenserc.yaml header fix",
@@ -41,7 +42,8 @@
       "js-cookie@<3.0.7": ">=3.0.7",
       "ws@>=8.0.0 <8.20.1": ">=8.20.1",
       "esbuild@<0.25.0": ">=0.25.0",
-      "shell-quote@<1.8.4": ">=1.8.4"
+      "shell-quote@<1.8.4": ">=1.8.4",
+      "brace-expansion@>=5.0.0 <5.0.8": ">=5.0.8"
     }
   }
 }

@@ -102,7 +102,7 @@ const refreshTooltip = computed<string>(() => {
     <button
       type="button"
       class="sw-btn refresh-caret"
-      :title="'Pick refresh interval'"
+      :title="t('Pick refresh interval')"
       :disabled="ownsTimeRange"
       @click="refreshMenuOpen = !refreshMenuOpen"
     ><Icon name="caret" :size="10" /></button>
@@ -113,7 +113,7 @@ const refreshTooltip = computed<string>(() => {
           :key="String(p.sec)"
           :class="{ on: auto.intervalSec === p.sec }"
           @click="pickRefresh(p.sec)"
-        >{{ p.label }}</li>
+        >{{ p.sec === null ? t('Off') : p.label }}</li>
       </ul>
     </transition>
   </div>

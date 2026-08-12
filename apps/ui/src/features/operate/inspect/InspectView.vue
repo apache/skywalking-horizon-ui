@@ -893,7 +893,7 @@ function sourcePillTone(s: Source): 'ok' | 'warn' | 'err' | 'dim' {
 
 <template>
   <div class="ins">
-    <AdminFeatureWarning module="inspect" feature-label="Inspect" />
+    <AdminFeatureWarning module="inspect" :feature-label="t('Inspect')" />
     <header class="ins__header">
       <h1 class="ins__h1">{{ t('Inspect') }}</h1>
       <div class="ins__spacer" />

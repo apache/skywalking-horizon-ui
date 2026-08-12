@@ -109,7 +109,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/zipkin/trace/:traceId':                'traces:read',
   'GET /api/zipkin/autocomplete/keys':             'traces:read',
   'GET /api/zipkin/autocomplete/values':           'traces:read',
-  'GET /api/zipkin/traceMany':                     'traces:read',
 
   'POST /api/layer/:key/logs':                     'logs:read',
   'POST /api/layer/:key/logs/facets':              'logs:read',
@@ -160,6 +159,12 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/ebpf/network/topology':                'profile:read',
   'GET /api/ebpf/network/processes':               'profile:read',
   'POST /api/layer/:key/ebpf/network/process-relation-metrics': 'profile:read',
+  // Continuous-profiling policies are profiling CONFIG: reading which rules are
+  // armed is a profiling read; arming them creates tasks (automatically, later),
+  // so the write sits with task creation on `profile:enable` below.
+  'GET /api/continuous-profiling/policies':        'profile:read',
+  'GET /api/continuous-profiling/instances':       'profile:read',
+  'GET /api/continuous-profiling/policy-summary': 'profile:read',
 
   'GET /api/overview/dashboards':                  'overview:read',
   'GET /api/overview/dashboards/:id':              'overview:read',
@@ -198,7 +203,6 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'GET /api/admin/overview-templates':             'overview:write',
   'GET /api/admin/overview-templates/:id':         'overview:write',
   'POST /api/admin/templates/resync':              'overview:write',
-  'POST /api/admin/templates/resolve-conflicts':   'overview:write',
   'POST /api/admin/templates/save-translation':    'overview:write',
   'POST /api/admin/templates/delete-translation':  'overview:write',
   'POST /api/admin/templates/disable':             'overview:write',
@@ -239,6 +243,7 @@ export const ROUTE_POLICY: Record<string, RoutePolicy> = {
   'POST /api/layer/:key/ebpf/network/tasks':       'profile:enable',
   'POST /api/ebpf/network/tasks':                  'profile:enable',
   'POST /api/ebpf/network/tasks/:taskId/keep-alive': 'profile:enable',
+  'POST /api/continuous-profiling/policies':        'profile:enable',
 
   'POST /api/browser-errors/source-maps':          'source-map:write',
   'DELETE /api/browser-errors/source-maps/:id':    'source-map:write',

@@ -23,9 +23,10 @@
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { PodLogSpec } from './types';
 
-const props = defineProps<{ n: number; spec: PodLogSpec }>();
+const props = defineProps<{ n: number; spec: PodLogSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 
 const target = computed(() => [props.spec.service, props.spec.pod].filter(Boolean).join(' / '));
@@ -49,6 +50,7 @@ const hasFilter = computed(() => includeKw.value.length > 0 || excludeKw.value.l
       <span v-if="target" class="plog__target">{{ target }}</span>
       <span v-if="target" class="plog__sep">·</span>
       <span class="plog__container-name">{{ spec.container }}</span>
+      <ChatCapturedTag :at="capturedAt" />
     </div>
 
     <div v-if="hasFilter" class="plog__filter">

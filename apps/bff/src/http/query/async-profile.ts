@@ -72,29 +72,49 @@ function clampTaskListLimit(raw: string | undefined): number {
   return Math.min(Math.floor(n), MAX_TASK_LIST_LIMIT);
 }
 
-/** Per-task caps for async-profiler / pprof bodies. OAP itself only
- *  rejects `duration <= 0`, so without these a caller with `profile:enable`
- *  could submit an hours-long profile that pegs the target instance's
- *  CPU. Caps match the booster-ui defaults: 600s = 10 min duration; up
- *  to 32 target instances per task; up to 8 event types. */
-const MAX_ASYNC_DURATION_SEC = 600;
-const MAX_PPROF_DURATION_SEC = 600;
-const MAX_PPROF_DUMP_PERIOD_SEC = 60;
+/** Per-task caps for async-profiler / pprof bodies.
+ *
+ *  These two flavours take duration in DIFFERENT units, and only pprof's bound
+ *  is OAP's: `PprofMutationService.checkArgumentError` rejects `duration > 15`
+ *  with "duration cannot be greater than 15 minutes" (CPU/BLOCK/MUTEX only).
+ *  Async is seconds and OAP bounds it only by `duration <= 0`, so the async cap
+ *  below is OURS — a route-level guard, since any caller holding `profile:enable`
+ *  could otherwise peg a fleet's CPU for hours. Never describe it as OAP's.
+ *  900s is booster-ui's own ceiling (NewTask.vue `:max="900"`), so the reference
+ *  UI's longest offered task stays acceptable here. */
+const MAX_ASYNC_DURATION_SEC = 900;
+const MAX_PPROF_DURATION_MIN = 15;
 const MAX_TARGET_INSTANCES = 32;
 const MAX_EVENTS_PER_TASK = 8;
 const MAX_EXEC_ARGS_LEN = 256;
 
-function clampPositiveInt(v: unknown, max: number, fallback: number | null): number | null {
-  if (v == null) return fallback;
-  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return fallback;
-  return Math.min(max, Math.round(v));
+/** `'over'` rather than a clamp when the caller exceeds `max`: an approved
+ *  decision card states a duration, and silently running a shorter task leaves
+ *  the operator reading a window it never covered. Same rule as
+ *  `pickInstanceIds`. */
+/** A caller-supplied whole number above zero, with no repair. Used where a
+ *  substituted default would be worse than a rejection. */
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v > 0;
 }
 
-function clampInstanceIds(ids: unknown): string[] {
+function boundedPositiveInt(v: unknown, max: number): number | 'over' | null {
+  if (v == null) return null;
+  // No Math.round: a fractional duration is a caller error, not ours to fix.
+  // 0.4 rounding to 0 previously forwarded a ZERO-second task as if it were
+  // valid; a whole number is required, exactly as the error message already
+  // claimed.
+  if (!isPositiveInt(v)) return null;
+  return v > max ? 'over' : v;
+}
+
+/** `null` when the caller asked for more than the guard allows. OAP caps
+ *  nothing here, so the cap is ours — and exceeding it must be an error, not a
+ *  silent slice that profiles 32 of the 40 instances the card advertised. */
+function pickInstanceIds(ids: unknown): string[] | null {
   if (!Array.isArray(ids)) return [];
-  return ids
-    .filter((s): s is string => typeof s === 'string' && s.length > 0)
-    .slice(0, MAX_TARGET_INSTANCES);
+  const clean = ids.filter((s): s is string => typeof s === 'string' && s.length > 0);
+  return clean.length > MAX_TARGET_INSTANCES ? null : clean;
 }
 
 function clampEvents<E extends string>(events: unknown): E[] {
@@ -279,16 +299,21 @@ export function registerAsyncProfileRoutes(
         payload.errorReason = 'missing serviceId';
         return reply.send(payload);
       }
-      const duration = clampPositiveInt(raw.duration, MAX_ASYNC_DURATION_SEC, null);
-      if (duration === null) {
+      const duration = boundedPositiveInt(raw.duration, MAX_ASYNC_DURATION_SEC);
+      if (duration === null || duration === 'over') {
         payload.errorReason = `duration is required and must be 1..${MAX_ASYNC_DURATION_SEC} seconds`;
+        return reply.send(payload);
+      }
+      const instanceIds = pickInstanceIds(raw.serviceInstanceIds);
+      if (instanceIds === null) {
+        payload.errorReason = `too many target instances (max ${MAX_TARGET_INSTANCES} per task) — split the fleet across several tasks`;
         return reply.send(payload);
       }
       // Sanitised body — OAP gets exactly the fields it expects, all
       // bounded. Unknown keys are dropped.
       const sanitised: AsyncProfilingTaskCreationRequest = {
         serviceId: raw.serviceId,
-        serviceInstanceIds: clampInstanceIds(raw.serviceInstanceIds),
+        serviceInstanceIds: instanceIds,
         duration,
         events: clampEvents<AsyncProfilingEvent>(raw.events),
         ...(clampExecArgs(raw.execArgs) !== undefined ? { execArgs: clampExecArgs(raw.execArgs)! } : {}),
@@ -386,19 +411,42 @@ export function registerAsyncProfileRoutes(
       // events (HEAP / GOROUTINE / ALLOCS / THREADCREATE) are point-in-
       // time and don't carry duration. Forward whatever the caller sent,
       // clamped when present so the same upper bound applies.
+      const pprofInstanceIds = pickInstanceIds(raw.serviceInstanceIds);
+      if (pprofInstanceIds === null) {
+        payload.errorReason = `too many target instances (max ${MAX_TARGET_INSTANCES} per task) — split the fleet across several tasks`;
+        return reply.send(payload);
+      }
+      // Genuinely optional here (HEAP / GOROUTINE / ALLOCS / THREADCREATE are
+      // point-in-time and carry none), so `undefined` and "invalid" must NOT
+      // collapse to the same "omit the field" outcome — a caller who typed 1.6
+      // gets refused, not a silently duration-less task.
+      const pprofDurationRaw = raw.duration === undefined ? null : boundedPositiveInt(raw.duration, MAX_PPROF_DURATION_MIN);
+      if (pprofDurationRaw === 'over') {
+        payload.errorReason = `duration cannot be greater than ${MAX_PPROF_DURATION_MIN} minutes`;
+        return reply.send(payload);
+      }
+      if (pprofDurationRaw === null && raw.duration !== undefined) {
+        payload.errorReason = `duration must be a whole number of minutes between 1 and ${MAX_PPROF_DURATION_MIN}`;
+        return reply.send(payload);
+      }
+      const pprofDuration = pprofDurationRaw;
+      // NOT a period in seconds — OAP defines dumpPeriod as a sampling RATE: for
+      // BLOCK, one event per that many nanoseconds spent blocked; for MUTEX, one
+      // per that many contentions. LOWER means MORE verbose, so substituting a
+      // default for a bad value is the worst possible repair: 1 samples
+      // everything. Reject instead, and forward a valid rate untouched — OAP
+      // requires only `dumpPeriod > 0` and is the authority on the rest.
+      if (raw.dumpPeriod !== undefined && !isPositiveInt(raw.dumpPeriod)) {
+        payload.errorReason =
+          'dumpPeriod must be a whole number greater than 0 (it is a sampling rate — lower means more samples)';
+        return reply.send(payload);
+      }
       const sanitised: PprofTaskCreationRequest = {
         serviceId: raw.serviceId,
-        serviceInstanceIds: clampInstanceIds(raw.serviceInstanceIds),
+        serviceInstanceIds: pprofInstanceIds,
         events: typeof raw.events === 'string' ? raw.events : '',
-        ...(raw.duration !== undefined
-          ? { duration: clampPositiveInt(raw.duration, MAX_PPROF_DURATION_SEC, null) ?? 0 }
-          : {}),
-        ...(raw.dumpPeriod !== undefined
-          ? {
-              dumpPeriod:
-                clampPositiveInt(raw.dumpPeriod, MAX_PPROF_DUMP_PERIOD_SEC, null) ?? 1,
-            }
-          : {}),
+        ...(pprofDuration !== null ? { duration: pprofDuration } : {}),
+        ...(raw.dumpPeriod !== undefined ? { dumpPeriod: raw.dumpPeriod as number } : {}),
       };
       const opts = buildOapOpts(deps.config.current, deps.fetch);
       try {

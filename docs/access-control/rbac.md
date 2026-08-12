@@ -25,21 +25,23 @@ Known verbs are grouped into areas:
 | `traces:read` | Traces tab on any layer, trace detail page. |
 | `logs:read` | Logs tab on any layer, log detail page. |
 | `browser-errors:read` | Browser Logs tab (BROWSER layer): list JS error logs, list source maps, resolve a stack. |
+| `inspect:read` | The read-only inspect tools: Metrics Inspect (`/operate/inspect`), Trace Inspect (`/operate/trace-inspect`), Log Inspect (`/operate/log-inspect`). |
 | `topology:read` | Topology tab, topology widgets on overviews. |
 | `profile:read` | Profiling tab (results read-only). |
 | `overview:read` | Public overview dashboards. |
 | `infra-3d:read` | 3D Infrastructure Map — the map's config + live traffic metrics. |
+| `ai:read` | [AI assistant](../operate/ai-assistant.md): send a chat message. Grants no data access by itself — each of the assistant's data tools re-checks its own read verb, so the assistant never reads more than the session could. |
 
 ### Operate — dashboards, rules, diagnostics
 
 | Verb | Gates |
 |---|---|
-| `overview:write` | Overview templates (`/admin/overview-templates`) and the 3D-map config (`/admin/3d-map`): edit / publish. |
+| `overview:write` | Overview templates (`/admin/overview-templates`), the 3D-map config (`/admin/3d-map`), the Translations editor (`/admin/translations`), and publishing edits from the Alert page (`/admin/alert-page-setup`) and Global defaults (`/admin/global-defaults`) pages. |
 | `dashboard:read` / `dashboard:write` | Layer dashboard templates admin page: list / edit. |
-| `alarm-setup:read` / `alarm-setup:write` | Alarm Setup page: list / edit. |
+| `alarm-setup:read` | Shows the Alert page setup entry (`/admin/alert-page-setup`). Publishing an edit there requires `overview:write`, like every other template write. |
 | `alarm-rule:read` | Alarm Rule catalog: list (read-only — alarm-rule edits go through the OAP alarm-rule YAML, not this page). |
 | `alarm-rule:write` | Reserved (the catalog is read-only; no write endpoint). |
-| `setup:read` / `setup:write` | Service / instance / endpoint setup pages. |
+| `setup:read` | Shows the Global defaults entry (`/admin/global-defaults`) — default theme and time defaults. Publishing an edit there requires `overview:write`, like every other template write. |
 | `rule:read` | DSL Management — list rules. |
 | `rule:write` | DSL Management — content edits (non-structural). |
 | `rule:write:structural` | DSL Management — add / remove rules, change rule kind. |
@@ -56,7 +58,6 @@ Known verbs are grouped into areas:
 | `cluster:read` | Cluster Status page (`/operate/cluster`). |
 | `ttl:read` | Data Retention page (`/operate/ttl`). |
 | `config:read` | OAP Configuration page (`/operate/config`). |
-| `inspect:read` | Metrics Inspect page (`/operate/inspect`). |
 
 ### Admin surface
 
@@ -95,10 +96,10 @@ Default definitions (used when `rbac.roles` is not overridden):
 
 ### `viewer`
 
-Read-only data catalog. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or platform internals.
+Read-only data catalog, the read-only inspect tools, and the AI assistant. Deliberately limited — does not include `*:read` so a viewer cannot peek at rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals.
 
 ```
-metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read
+metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read
 ```
 
 ### `maintainer`
@@ -106,20 +107,20 @@ metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:r
 Viewer + platform monitoring.
 
 ```
-viewer baseline + cluster:read, ttl:read, config:read, inspect:read
+viewer baseline + cluster:read, ttl:read, config:read
 ```
 
 ### `operator`
 
-Configures observability. Inherits maintainer's reads + write access to dashboards, alarms, rules, live-debug, profiling.
+Configures observability. Inherits maintainer's reads + write access to dashboards, alarms, rules, live-debug, profiling, source maps.
 
 ```
 maintainer baseline +
-overview:read, overview:write,
+overview:write,
 source-map:write,
-setup:read, setup:write,
+setup:read,
 dashboard:read, dashboard:write,
-alarm-setup:read, alarm-setup:write,
+alarm-setup:read,
 alarm-rule:read, alarm-rule:write,
 rule:read, rule:write, rule:write:structural, rule:delete, rule:debug,
 live-debug:read, live-debug:write,
@@ -210,7 +211,7 @@ landingByRole:
 roles:
   alarm-tuner:
     - metrics:read, alarms:read, topology:read, traces:read, logs:read
-    - alarm-setup:read, alarm-setup:write
+    - alarm-setup:read
     - alarm-rule:read, alarm-rule:write
     - rule:read, rule:debug
 ```

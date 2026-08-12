@@ -4,20 +4,29 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.com/apache/skywalking) — a config-driven, dark-dense, multi-layer observability front end built for feature parity with the legacy [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) on the same OAP GraphQL query-protocol and MQE. It renders services, instances, endpoints, topology, traces, logs, alarms, and profiling across 44 instrumentation layers, and ships an in-browser admin suite for runtime rules, RBAC, template management, and cluster status. Dashboards are JSON templates published to OAP — new screens are configuration, not code.
+Horizon UI is the next-generation web UI for [Apache SkyWalking](https://github.com/apache/skywalking) — a config-driven, dark-dense, multi-layer observability front end built for feature parity with the legacy [skywalking-booster-ui](https://github.com/apache/skywalking-booster-ui) on the same OAP GraphQL query-protocol and MQE. It renders services, instances, endpoints, topology, traces, logs, alarms, and profiling across 44 instrumentation layers, ships an in-browser admin suite for runtime rules, RBAC, template management, and cluster status, and includes an optional bring-your-own-LLM AI assistant that answers questions from live OAP data using the same dashboard widgets. Dashboards are JSON templates: live OAP 11 deployments publish them to OAP, while readonly deployments render the bundled copies — new screens are configuration, not code.
 
 ## Features
+
+### AI assistant
+
+- Chat with your live system — ask in plain language ("what's unhealthy right now?", "investigate latency for a service") and the assistant reads live OAP data through the same query path the dashboards use, streaming back a narrative with inline charts, top-N lists, and tables drawn by the real widget components; open it as a side drawer, a full page (`/ai`), or a new tab.
+- Real product views embedded in the chat — topology, traces (native and Zipkin, with the span waterfall), logs, browser errors, Kubernetes pod logs, deployment graphs, API dependencies, and instance maps mount as the actual read-only views, scoped to the service in question.
+- Captured-snapshot replay — every figure, map, trace/log list, and profiling result is frozen at read time and stamped "captured &lt;time&gt;" with a replay badge, so reopening a conversation replays the exact evidence offline instead of silently re-querying.
+- Guided root-cause analysis — built-in investigation playbooks (latency, error-rate/SLA, saturation, middleware, Kubernetes-workload, service-mesh) that walk the dependency topology and follow the cross-layer hierarchy down into the backing infrastructure.
+- Profiling only on your approval — when metrics and traces can't pinpoint a cause, the assistant proposes the flavor that fits the target (trace / async-profiler / pprof / eBPF / network) as a decision card; nothing runs until you approve it, and the analysis renders inline as the real flame graph, trace waterfall, or process graph.
+- Bring your own LLM — off by default, enabled via the `ai:` config block against any OpenAI-compatible endpoint or Amazon Bedrock, with the API key env-only and redacted from logs; access is RBAC-gated (`ai:read`), every data tool enforces the same read verbs the signed-in user already holds, and the assistant never changes configuration, rules, or dashboards.
 
 ### Layers & dashboards
 
 - 44 bundled instrumentation layers across four tiers — Apps (GENERAL, BROWSER, mobile, VIRTUAL_DATABASE/CACHE/MQ/GENAI), Service Mesh (MESH, MESH_DP, MESH_CP, CILIUM_SERVICE), Middleware (databases, queues, gateways, Flink, Airflow), and Infrastructure (K8S, OS_LINUX/WINDOWS, AWS) — plus a self-observability group (SO11Y_OAP, SO11Y_SATELLITE, BANYANDB).
-- Config-driven layer dashboards — multi-scope (Service / Instance / Endpoint) JSON templates edited in the UI admin and published to OAP with no code changes; per-layer sync badges show synced / diverged / local state.
+- Config-driven layer dashboards — multi-scope (Service / Instance / Endpoint) JSON templates edited in the UI admin and, in OAP 11 live mode, published to OAP with no code changes; per-layer sync badges show synced / diverged / local state.
 - Rich widget vocabulary — scalar KPI cards, time-series line charts with dual-axis, top-N rankings, sampled record lists, label-dimensioned tables, KPI composites, embedded topology, and alarm tiles.
 - Server-side widget visibility gates (`visibleWhen`) — render a widget only when an MQE metric has a value or an entity attribute matches (e.g. `language = JAVA`, `container_name = lifecycle`).
 - Cross-layer Overview dashboards — war-room views (Services Dashboard, Mesh Dashboard) built from KPI tiles, alarms, topology, and metrics on a 12-column drag-and-resize canvas; inactive layers auto-hide.
 - Layer customization — per-layer aliases (e.g. Pods/Endpoints on K8S_SERVICE), instance badges (agent language, BanyanDB container name), naming rules that group services (namespace.service for K8S/Istio), and split-by-Service.group to fan one layer into per-group sidebar entries.
 - Value formatting — enum maps (translatable value→label), duration as human time-ago, and compact SI suffixes (45.1k, 1.34M).
-- Template store reliability — the runtime renders only the OAP-published version; an unreachable store shows a visible banner, never a silent fallback to bundled defaults.
+- Template store reliability — in live mode the runtime renders only the OAP-published version; an unreachable store shows a visible banner, never a silent fallback to bundled defaults. Readonly mode explicitly renders the bundled templates instead.
 
 ### Maps & topology
 
@@ -133,7 +142,11 @@ Horizon UI is configured by a single `horizon.yaml` (hot-reloaded, with `${VAR}`
 - `oap` — `queryUrl`, `adminUrl`, `zipkinUrl`, `timeoutMs`, and optional outbound basic-auth.
 - `auth` — backend `local` or `ldap` (with LDAP bind / user-filter / group-mapping and an optional audited break-glass local admin).
 - `rbac` — four built-in roles (viewer / maintainer / operator / admin) over fine-grained, verb-namespaced permissions (e.g. `dashboard:write`, `rule:write:structural`, `source-map:write`).
-- `session`, `debugLog`, `sourceMaps` (browser-error source-map cache), `layers.excluded`, `query.landingServiceCap`, and the state-file paths (audit log, setup state, alarms state, wire debug log) — defaulting under `/data/*` in the container.
+- `templates` — `live` (default: bundled templates seed through OAP 11's REST API and stay editable) or `readonly` (render from the local bundle; required for OAP 10 because Horizon does not consume its legacy GraphQL template API).
+- `ai` — the AI assistant: `enabled` (off by default), provider (`openai-compatible` or `bedrock`), model, base URL, and an env-only API key.
+- `performance` — how hard the BFF fans metric queries out to OAP (per-route bulk sizes and concurrency) plus protective caps (topology render valve, per-request record limits).
+- `query` — load caps: `landingServiceCap` (how many top services a layer landing fetches metrics for) and `overviewTopN` (the Overview KPI rollup window).
+- `session`, `audit` (audit-log toggle + file), `debugLog` (the outbound OAP wire log), `sourceMaps` (browser-error source-map cache), and `layers.excluded` — the audit and wire-log files default under `/data/*` in the container.
 
 Local user passwords are argon2-hashed; generate a hash with the BFF CLI. Set `session.cookieSecure: true` when running behind HTTPS.
 

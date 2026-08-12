@@ -57,11 +57,18 @@ export interface TraceListParams {
    *  skip fetching while the popout is open (shareable URLs land on
    *  trace detail; no need to also pull a list page). */
   enabled?: Ref<boolean>;
+  /** REPLAY: a captured list to render from. Present ⇒ the query never fires and
+   *  data/native/zipkin come straight from it — a reloaded chat replays the exact
+   *  list (with inline spans on v2) with zero OAP round-trip. */
+  replayData?: Ref<TraceListResponse | null>;
 }
 
 export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
   // Preview-only: forward the draft `traces` block (source selector).
   const previewCfg = usePreviewLayerBlock(layerKey, 'traces');
+  // Replay is on whenever a captured list is supplied — the query stays disabled
+  // and data is served straight from replayData below.
+  const replay = computed(() => !!params.replayData?.value);
   const q = useQuery<TraceListResponse>({
     queryKey: [
       'layer-traces',
@@ -108,14 +115,22 @@ export function useLayerTraces(layerKey: Ref<string>, params: TraceListParams) {
         ...(previewCfg.value ? { previewConfig: previewCfg.value } : {}),
       }),
     enabled: computed(
-      () => layerKey.value.length > 0 && (params.enabled ? params.enabled.value : true),
+      () =>
+        layerKey.value.length > 0 &&
+        (params.enabled ? params.enabled.value : true) &&
+        !replay.value,
     ),
     staleTime: 15_000,
   });
+  // Replay renders straight from the captured payload — NOT through the query
+  // cache (seeding it would contaminate live trace views during staleTime).
+  const list = computed<TraceListResponse | null>(() =>
+    replay.value ? (params.replayData?.value ?? null) : (q.data.value ?? null),
+  );
   return {
-    data: computed(() => q.data.value ?? null),
-    native: computed(() => q.data.value?.native ?? null),
-    zipkin: computed(() => q.data.value?.zipkin ?? null),
+    data: list,
+    native: computed(() => list.value?.native ?? null),
+    zipkin: computed(() => list.value?.zipkin ?? null),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,
@@ -138,6 +153,9 @@ export function useTraceDetail(
    *  this lets cold-tier trace IDs resolve. When null, the BFF
    *  defaults to OAP's last-1-day `queryTrace` window. */
   atMs?: Ref<number | null>,
+  /** REPLAY: gate the on-demand detail fetch off. Captured v2 rows carry inline
+   *  spans (detail renders with no query); v1 has no offline detail — acceptable. */
+  replay?: Ref<boolean>,
 ) {
   const rangeKey = computed(() => atMs?.value ?? null);
   const q = useQuery<TraceDetailResponse>({
@@ -154,7 +172,7 @@ export function useTraceDetail(
           : undefined;
       return bffClient.trace.detail(traceId.value!, source.value, range);
     },
-    enabled: computed(() => !!traceId.value),
+    enabled: computed(() => !!traceId.value && !(replay?.value ?? false)),
     staleTime: 60_000,
   });
   return {

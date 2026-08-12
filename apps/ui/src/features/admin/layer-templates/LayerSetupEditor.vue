@@ -32,8 +32,11 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { AdminLayerTemplate } from '@/api/client';
 import type { AdminScope, ComponentKey, SlotKey } from './layer-dashboards.scopes';
+
+const { t } = useI18n({ useScope: 'global' });
 
 // `template` is a model (not a plain prop) so the alias / group-split inputs
 // can v-model directly onto it and the component can mutate the shared draft's
@@ -51,23 +54,24 @@ const emit = defineEmits<{ jump: [scope: AdminScope] }>();
  * a key on the template's `components` block; flipping the toggle
  * shows / hides the matching sidebar entry + per-layer route.
  */
-const COMPONENT_TOGGLES: Array<{ key: ComponentKey; label: string; hint: string }> = [
-  { key: 'service', label: 'Service', hint: "The layer's primary landing — widget grid driven by dashboards.service." },
-  { key: 'instances', label: 'Instances', hint: 'Per-instance dashboard (dashboards.instance widget set).' },
-  { key: 'endpoints', label: 'Endpoints', hint: 'Per-endpoint dashboard (dashboards.endpoint widget set).' },
+const COMPONENT_TOGGLES = computed((): Array<{ key: ComponentKey; label: string; hint: string }> => [
+  { key: 'service', label: t('Service'), hint: t("The layer's primary landing — widget grid driven by dashboards.service.") },
+  { key: 'instances', label: t('Instances'), hint: t('Per-instance dashboard (dashboards.instance widget set).') },
+  { key: 'endpoints', label: t('Endpoints'), hint: t('Per-endpoint dashboard (dashboards.endpoint widget set).') },
   // Order mirrors the real sidebar: Topology sits before API dependency.
-  { key: 'topology', label: 'Topology', hint: 'Service topology graph for this layer.' },
-  { key: 'deployment', label: 'Deployment', hint: 'Deployment topology of all of a service’s instances — the instance-to-instance call graph within one service. Needs a deployment config block to appear.' },
-  { key: 'endpointDependency', label: 'API dependency', hint: 'Endpoint-to-endpoint dependency view.' },
-  { key: 'traces', label: 'Traces', hint: 'Trace explorer scoped to this layer.' },
-  { key: 'logs', label: 'Logs', hint: 'Log explorer scoped to this layer.' },
+  { key: 'topology', label: t('Topology'), hint: t('Service topology graph for this layer.') },
+  { key: 'deployment', label: t('Deployment'), hint: t('Deployment topology of all of a service’s instances — the instance-to-instance call graph within one service. Needs a deployment config block to appear.') },
+  { key: 'endpointDependency', label: t('API dependency'), hint: t('Endpoint-to-endpoint dependency view.') },
+  { key: 'traces', label: t('Traces'), hint: t('Trace explorer scoped to this layer.') },
+  { key: 'logs', label: t('Logs'), hint: t('Log explorer scoped to this layer.') },
   { key: 'evaluationRecord', label: 'Evaluation Record', hint: 'GenAI evaluation record explorer scoped to this layer.' },
-  { key: 'browserErrors', label: 'Browser Logs', hint: 'BROWSER-layer JS error logs with source-map de-obfuscation of the minified stack.' },
-  { key: 'podLogs', label: 'Pod Logs', hint: 'On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.' },
-  { key: 'traceProfiling', label: 'Trace Profiling', hint: 'Trace-driven thread profiling — the original SkyWalking profile.' },
-  { key: 'ebpfProfiling', label: 'eBPF Profiling', hint: 'Kernel-level CPU / off-CPU profiling via eBPF agents.' },
-  { key: 'asyncProfiling', label: 'Async Profiling', hint: 'JVM async-profiler integration (Java-only).' },
-];
+  { key: 'browserErrors', label: t('Browser Logs'), hint: t('BROWSER-layer JS error logs with source-map de-obfuscation of the minified stack.') },
+  { key: 'podLogs', label: t('Pod Logs'), hint: t('On-demand Kubernetes pod-log live tail. Only K8s-deployed layers (k8s_service, mesh) carry pods that resolve.') },
+  { key: 'traceProfiling', label: t('Trace Profiling'), hint: t('Trace-driven thread profiling — the original SkyWalking profile.') },
+  { key: 'ebpfProfiling', label: t('eBPF Profiling'), hint: t('Kernel-level CPU / off-CPU profiling via eBPF agents.') },
+  { key: 'asyncProfiling', label: t('Async Profiling'), hint: t('JVM async-profiler integration (Java-only).') },
+  { key: 'continuousProfiling', label: t('Continuous Profiling'), hint: t('Auto-trigger policies — rules that make an eBPF agent start an ON_CPU / OFF_CPU / NETWORK task by itself. Needs the same Rover agent as eBPF Profiling; there is no continuous trace / async / pprof profiling.') },
+]);
 
 function ensureComponents(): AdminLayerTemplate['components'] {
   if (!template.value.components) {
@@ -100,6 +104,9 @@ const COMPONENT_SCOPE: Record<ComponentKey, AdminScope> = {
   traceProfiling: 'traceProfiling',
   ebpfProfiling: 'ebpfProfiling',
   asyncProfiling: 'asyncProfiling',
+  // Continuous profiling authors POLICIES, not widgets — there is no scope of
+  // its own to edit, so this points at the eBPF scope it arms tasks for.
+  continuousProfiling: 'ebpfProfiling',
   // Legacy umbrella flag — no checkbox of its own (the three granular
   // profiling toggles drive the menu), so this entry only satisfies the
   // exhaustive Record; it is never surfaced as a menu item.
@@ -122,7 +129,7 @@ const COMPONENT_SLOT: Partial<Record<ComponentKey, SlotKey>> = {
  *  layer's slot aliases where defined. Drives the menu preview. */
 const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope; child?: boolean }>>(() => {
   const slots = template.value.slots ?? {};
-  const items = COMPONENT_TOGGLES.filter((t) => !!template.value.components?.[t.key]).map((t) => {
+  const items = COMPONENT_TOGGLES.value.filter((t) => !!template.value.components?.[t.key]).map((t) => {
     const slotKey = COMPONENT_SLOT[t.key];
     return {
       key: t.key as string,
@@ -140,7 +147,7 @@ const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope
   // `topology.instanceTopology` block lingers in the config.
   const topoIdx = items.findIndex((i) => i.key === 'topology');
   if (props.instanceTopologyEnabled && topoIdx >= 0) {
-    const instItem = { key: 'instanceTopology', label: slots.instanceTopology || 'Instance map', scope: 'topology' as AdminScope, child: true };
+    const instItem = { key: 'instanceTopology', label: slots.instanceTopology || t('Instance map'), scope: 'topology' as AdminScope, child: true };
     items.splice(topoIdx + 1, 0, instItem);
   }
   return items;
@@ -148,19 +155,19 @@ const menuItems = computed<Array<{ key: string; label: string; scope: AdminScope
 
 /** The configurable slot aliases. Shown for the components the
  *  layer actually exposes so the editor mirrors the menu. */
-const ALIAS_FIELDS: Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string; requireInstanceTopology?: boolean }> = [
+const ALIAS_FIELDS = computed((): Array<{ slot: SlotKey; label: string; comp: ComponentKey; def: string; requireInstanceTopology?: boolean }> => [
   // Order mirrors the real sidebar / menu: Topology (+ its Instance map
   // drill-down) sits before API dependency.
-  { slot: 'services', label: 'Services', comp: 'service', def: 'Service' },
-  { slot: 'instances', label: 'Instances', comp: 'instances', def: 'Instance' },
-  { slot: 'endpoints', label: 'Endpoints', comp: 'endpoints', def: 'Endpoint' },
-  { slot: 'topology', label: 'Topology', comp: 'topology', def: 'Topology' },
-  { slot: 'instanceTopology', label: 'Instance topology', comp: 'topology', def: 'Instance map', requireInstanceTopology: true },
-  { slot: 'deployment', label: 'Deployment', comp: 'deployment', def: 'Deployment' },
-  { slot: 'endpointDependency', label: 'API dependency', comp: 'endpointDependency', def: 'Dependency' },
-];
+  { slot: 'services', label: t('Services'), comp: 'service', def: t('Service') },
+  { slot: 'instances', label: t('Instances'), comp: 'instances', def: t('Instance') },
+  { slot: 'endpoints', label: t('Endpoints'), comp: 'endpoints', def: t('Endpoint') },
+  { slot: 'topology', label: t('Topology'), comp: 'topology', def: t('Topology') },
+  { slot: 'instanceTopology', label: t('Instance topology'), comp: 'topology', def: t('Instance map'), requireInstanceTopology: true },
+  { slot: 'deployment', label: t('Deployment'), comp: 'deployment', def: t('Deployment') },
+  { slot: 'endpointDependency', label: t('API dependency'), comp: 'endpointDependency', def: t('Dependency') },
+]);
 const visibleAliasFields = computed(() =>
-  ALIAS_FIELDS.filter(
+  ALIAS_FIELDS.value.filter(
     (f) => !!template.value.components?.[f.comp] && (!f.requireInstanceTopology || props.instanceTopologyEnabled),
   ),
 );
@@ -198,7 +205,7 @@ function setSlot(slot: SlotKey, value: string): void {
           <code v-if="template.alias && template.alias !== template.key" class="key-tag">{{ template.key }}</code>
         </div>
         <p v-if="menuItems.length === 0" class="menu-preview-empty">
-          No components enabled — toggle one on the right to populate the menu.
+          {{ t('No components enabled — toggle one on the right to populate the menu.') }}
         </p>
         <button
           v-for="m in menuItems"
@@ -206,7 +213,7 @@ function setSlot(slot: SlotKey, value: string): void {
           type="button"
           class="menu-item"
           :class="{ on: activeScope === m.scope && !m.child, 'is-child': m.child }"
-          :title="`Jump to ${m.label} config`"
+          :title="t('Jump to {label} config', { label: m.label })"
           @click="emit('jump', m.scope)"
         >
           <span class="menu-item-label">{{ m.child ? '↳ ' : '' }}{{ m.label }}</span>
@@ -215,7 +222,7 @@ function setSlot(slot: SlotKey, value: string): void {
       </div>
       <div class="setup-right">
         <label class="alias-field">
-          <span>Alias</span>
+          <span>{{ t('Alias') }}</span>
           <input
             v-model="template.alias"
             type="text"
@@ -223,19 +230,19 @@ function setSlot(slot: SlotKey, value: string): void {
             :placeholder="template.key"
             spellcheck="false"
           />
-          <span class="alias-hint">Display name in the sidebar, layer list, and landing KPI tile. Defaults to the layer key.</span>
+          <span class="alias-hint">{{ t('Display name in the sidebar, layer list, and landing KPI tile. Defaults to the layer key.') }}</span>
         </label>
         <div class="alias-field">
-          <span>Group split</span>
+          <span>{{ t('Group split') }}</span>
           <label class="split-check">
             <input type="checkbox" v-model="template.splitByServiceGroup" />
-            <span>Split this layer's menu by service group</span>
+            <span>{{ t("Split this layer's menu by service group") }}</span>
           </label>
-          <span class="alias-hint">One sidebar entry per OAP <code>Service.group</code> (the <code>group::</code> prefix), each scoped to its group. Off keeps all groups in one menu.</span>
+          <span class="alias-hint">{{ t('One sidebar entry per OAP') }} <code>Service.group</code> {{ t('(the') }} <code>group::</code> {{ t('prefix), each scoped to its group. Off keeps all groups in one menu.') }}</span>
         </div>
         <div class="setup-section-head">
-          <h4>Components</h4>
-          <span class="sub">which sub-views this layer exposes</span>
+          <h4>{{ t('Components') }}</h4>
+          <span class="sub">{{ t('which sub-views this layer exposes') }}</span>
         </div>
         <div class="comp-grid">
           <label
@@ -260,8 +267,8 @@ function setSlot(slot: SlotKey, value: string): void {
              preview, scope tabs, and section headings live. -->
         <template v-if="visibleAliasFields.length > 0">
           <div class="setup-section-head">
-            <h4>Menu labels</h4>
-            <span class="sub">rename the nouns shown in the menu &amp; tabs (optional)</span>
+            <h4>{{ t('Menu labels') }}</h4>
+            <span class="sub">{{ t('rename the nouns shown in the menu & tabs (optional)') }}</span>
           </div>
           <div class="alias-grid">
             <label v-for="f in visibleAliasFields" :key="f.slot" class="alias-grid-field">

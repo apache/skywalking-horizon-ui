@@ -26,7 +26,7 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useAutoRefreshSubscribe } from '../../controls/useAutoRefreshSubscribe';
+import type { DeploymentResponse } from '@skywalking-horizon-ui/api-client';
 import { useTimeRangeStore, stepForMinutes } from '../../controls/timeRange';
 import { usePreviewLayerBlock } from '@/controls/previewConfig';
 import { bffClient } from '@/api/client';
@@ -39,7 +39,11 @@ export function useDeployment(
    *  OWN frozen look-back window and does NOT follow the global topbar picker or
    *  auto-refresh ticker — the interactive route omits it. */
   windowMinutes?: Ref<number | null>,
+  /** REPLAY mode: the captured graph to render from. Present ⇒ start with it and
+   *  NEVER fetch, so a reload replays the exact graph + edge series offline. */
+  replayData?: Ref<DeploymentResponse | null>,
 ) {
+  const replay = computed(() => !!replayData?.value);
   const ownsWindow = (windowMinutes?.value ?? 0) > 0;
   const timeRange = useTimeRangeStore();
   // Preview-only: the draft top-level `deployment` block, so
@@ -58,7 +62,7 @@ export function useDeployment(
     };
   });
   const isEnabled = computed(
-    () => enabled.value && layerKey.value.length > 0 && !!serviceId.value,
+    () => enabled.value && layerKey.value.length > 0 && !!serviceId.value && !replay.value,
   );
   const q = useQuery({
     queryKey: ['layer-deployment', layerKey, serviceId, rangeKey, previewCfg],
@@ -72,19 +76,20 @@ export function useDeployment(
     enabled: isEnabled,
     staleTime: 30_000,
   });
-  // Only ride the global ticker while the view is active — a forced refetch
-  // on a closed/disabled query would fetch needlessly. The embedded chat map
-  // owns a frozen window, so it does not subscribe at all.
-  if (!ownsWindow) {
-    useAutoRefreshSubscribe(() => {
-      if (isEnabled.value) void q.refetch();
-    });
-  }
+  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
+  // preset's window advances with the ticker, so each tick already re-keys the
+  // query and vue-query fetches the new window. Subscribing as well would fire
+  // two requests per tick for the same data. A frozen window (embedded/replay,
+  // or a pinned custom range) does not re-key — and must not refetch anyway.
 
+  // Replay renders straight from the captured payload — NOT through the shared
+  // query cache. Seeding initialData under the live query key would let a chat
+  // snapshot serve a live view during staleTime (and vice-versa).
+  const data = computed(() => (replay.value ? (replayData?.value ?? null) : (q.data.value ?? null)));
   return {
-    data: computed(() => q.data.value ?? null),
-    nodes: computed(() => q.data.value?.nodes ?? []),
-    calls: computed(() => q.data.value?.calls ?? []),
+    data,
+    nodes: computed(() => data.value?.nodes ?? []),
+    calls: computed(() => data.value?.calls ?? []),
     isLoading: q.isLoading,
     isFetching: q.isFetching,
     error: q.error,

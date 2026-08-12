@@ -30,11 +30,12 @@ import type {
   HierarchySpec,
   InstanceTopologySpec,
   PodLogSpec,
+  ProcessTopologySpec,
+  ProfilingResultSpec,
   ProposalSpec,
   SseEvent,
   BrowserErrorsSpec,
   LogsSpec,
-  SubPageSpec,
   TopologySpec,
   TracesSpec,
   ZipkinTracesSpec,
@@ -42,11 +43,12 @@ import type {
 
 export interface FigureBuffer {
   emitFigure(fig: { title?: string; figures: ChatFigure[]; group?: string }): void;
-  /** Emit a sub-page block (topology/deployment/…). Shares the figure number
-   *  sequence; closes any pending figure group first so ordering is preserved. */
-  emitSubPage(spec: SubPageSpec): void;
   /** Emit a proposed-action decision card. Same numbering; flushes first. */
   emitProposal(spec: ProposalSpec): void;
+  /** Emit a captured profiling-result (flame) block. Same numbering; flushes first. */
+  emitProfiling(spec: ProfilingResultSpec): void;
+  /** Emit a captured network process-conversation graph block. Same numbering; flushes first. */
+  emitProcessTopology(spec: ProcessTopologySpec): void;
   /** Emit a live-tail pod-log pane. Same numbering; flushes any pending group. */
   emitPodLogs(spec: PodLogSpec): void;
   /** Emit a cross-layer hierarchy block. Same numbering; flushes any pending group. */
@@ -93,14 +95,19 @@ export function createFigureBuffer(send: (ev: SseEvent) => void): FigureBuffer {
     }
   };
 
-  const emitSubPage = (spec: SubPageSpec): void => {
-    flushFigures();
-    send({ type: 'subpage', n: ++figureN, spec });
-  };
-
   const emitProposal = (spec: ProposalSpec): void => {
     flushFigures();
     send({ type: 'proposal', n: ++figureN, spec });
+  };
+
+  const emitProfiling = (spec: ProfilingResultSpec): void => {
+    flushFigures();
+    send({ type: 'profiling', n: ++figureN, spec });
+  };
+
+  const emitProcessTopology = (spec: ProcessTopologySpec): void => {
+    flushFigures();
+    send({ type: 'process-topology', n: ++figureN, spec });
   };
 
   const emitPodLogs = (spec: PodLogSpec): void => {
@@ -155,8 +162,9 @@ export function createFigureBuffer(send: (ev: SseEvent) => void): FigureBuffer {
 
   return {
     emitFigure,
-    emitSubPage,
     emitProposal,
+    emitProfiling,
+    emitProcessTopology,
     emitPodLogs,
     emitHierarchy,
     emitTopology,

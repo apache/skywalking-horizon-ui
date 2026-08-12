@@ -23,9 +23,12 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { ProcessTopologyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const config = defineModel<ProcessTopologyConfig | undefined>('config');
 
@@ -62,17 +65,17 @@ function remove(list: TopologyMetricDef[], i: number): void {
 <template>
   <section class="sw-card editor-card topo-cfg-card">
     <div class="card-head">
-      <h4>Network profiling — process-relation config</h4>
-      <span class="sub">edge MQE for the process-topology detail panel. Queried under ProcessRelation when an operator clicks a process→process call.</span>
+      <h4>{{ t('Network profiling — process-relation config') }}</h4>
+      <span class="sub">{{ t('edge MQE for the process-topology detail panel. Queried under ProcessRelation when an operator clicks a process→process call.') }}</span>
     </div>
     <div class="topo-cfg-body">
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Client-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>process_relation_client_*</code></span>
-          <button class="sw-btn add" type="button" @click="addClient">＋ Add</button>
+          <h5>{{ t('Client-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_client_*</code></span>
+          <button class="sw-btn add" type="button" @click="addClient">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">No client-side metrics.</div>
+        <div v-if="clientMetrics.length === 0" class="topo-cfg-empty">{{ t('No client-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in clientMetrics"
@@ -90,11 +93,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Server-side metrics</h5>
-          <span class="sub">edge metrics queried as <code>process_relation_server_*</code></span>
-          <button class="sw-btn add" type="button" @click="addServer">＋ Add</button>
+          <h5>{{ t('Server-side metrics') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>process_relation_server_*</code></span>
+          <button class="sw-btn add" type="button" @click="addServer">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">No server-side metrics.</div>
+        <div v-if="serverMetrics.length === 0" class="topo-cfg-empty">{{ t('No server-side metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in serverMetrics"

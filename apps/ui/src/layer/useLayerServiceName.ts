@@ -42,9 +42,12 @@ import { isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
 export function useLayerServiceName(
   layerKey: Ref<string>,
   landing: ReturnType<typeof useLayerLanding>,
+  /** REPLAY mode gate: a replayed chat block takes its service from the captured
+   *  spec, so the roster fallback must fire ZERO queries (and skip the ticker). */
+  replay?: Ref<boolean>,
 ): ComputedRef<string | null> {
   const { selectedId } = useSelectedService();
-  const { services: roster } = useLayerServices(layerKey);
+  const { services: roster } = useLayerServices(layerKey, { replay });
   return computed<string | null>(() => {
     // OAP's reserved blank-entity service reports an EMPTY name over the wire
     // (its id base64-decodes to `_blank`). Resolve it to the literal `_blank`

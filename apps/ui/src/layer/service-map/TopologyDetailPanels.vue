@@ -312,11 +312,11 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <span class="tag-val">{{ identity(selectedNode.name).cluster }}</span>
             </span>
             <span v-if="showLegacyGroup && identity(selectedNode.name).legacyGroup" class="sw-tag">
-              <span class="tag-alias">group</span>
+              <span class="tag-alias">{{ t('group') }}</span>
               <span class="tag-val">{{ identity(selectedNode.name).legacyGroup }}</span>
             </span>
             <span v-for="l in selectedNode.layers" :key="l" class="sw-tag">{{ l }}</span>
-            <span v-if="!selectedNode.isReal" class="sw-tag">virtual</span>
+            <span v-if="!selectedNode.isReal" class="sw-tag">{{ t('virtual') }}</span>
           </div>
         </div>
         <button class="sw-btn small" type="button" @click="emit('clearNode')">×</button>
@@ -330,7 +330,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
         </div>
       </div>
       <div class="sp-section">
-        <div class="sp-section-title">Upstream — services this one calls ({{ upstream.length }})</div>
+        <div class="sp-section-title">{{ t('Upstream — services this one calls ({n})', { n: upstream.length }) }}</div>
         <ul class="sp-list">
           <template v-for="(g, gi) in upstreamByNs" :key="gi">
             <li v-if="g.key" class="sp-ns-head">
@@ -344,11 +344,11 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <span class="sp-cpm">{{ fmtWithUnit(nodeVal(u, centerDef), centerDef?.unit) }}</span>
             </li>
           </template>
-          <li v-if="upstream.length === 0" class="sp-empty">no outbound calls in window</li>
+          <li v-if="upstream.length === 0" class="sp-empty">{{ t('no outbound calls in window') }}</li>
         </ul>
       </div>
       <div class="sp-section">
-        <div class="sp-section-title">Downstream — services calling this one ({{ downstream.length }})</div>
+        <div class="sp-section-title">{{ t('Downstream — services calling this one ({n})', { n: downstream.length }) }}</div>
         <ul class="sp-list">
           <template v-for="(g, gi) in downstreamByNs" :key="gi">
             <li v-if="g.key" class="sp-ns-head">
@@ -362,21 +362,21 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <span class="sp-cpm">{{ fmtWithUnit(nodeVal(d, secondaryDef), secondaryDef?.unit) }}</span>
             </li>
           </template>
-          <li v-if="downstream.length === 0" class="sp-empty">no inbound callers in window</li>
+          <li v-if="downstream.length === 0" class="sp-empty">{{ t('no inbound callers in window') }}</li>
         </ul>
       </div>
       <!-- Node-only dashboard jumps. Edges deliberately have no
            corresponding affordance — we keep their detail inline. -->
       <div class="sp-actions">
-        <button class="sw-btn small primary" type="button" @click="emit('jumpToService')">Open service</button>
-        <button class="sw-btn small" type="button" @click="emit('jumpToEndpointDependency')">API map →</button>
+        <button class="sw-btn small primary" type="button" @click="emit('jumpToService')">{{ t('Open service') }}</button>
+        <button class="sw-btn small" type="button" @click="emit('jumpToEndpointDependency')">{{ t('API map') }} →</button>
       </div>
     </article>
 
     <!-- Top-slot placeholder when only an edge is selected — keeps the
          layout balanced. -->
     <article v-if="!selectedNode && selectedCall" class="sm-panel sm-panel-empty">
-      <span>Click a node to inspect a service</span>
+      <span>{{ t('Click a node to inspect a service') }}</span>
     </article>
 
     <!-- ── Bottom slot: edge panel (or empty prompt). ── -->
@@ -390,7 +390,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 <span class="tag-val">{{ identity(selectedCallSource.name).cluster }}</span>
               </span>
               <span v-if="showLegacyGroup && identity(selectedCallSource.name).legacyGroup" class="sw-tag tiny">
-                <span class="tag-alias">group</span>
+                <span class="tag-alias">{{ t('group') }}</span>
                 <span class="tag-val">{{ identity(selectedCallSource.name).legacyGroup }}</span>
               </span>
               <span class="sp-mono small">{{ identity(selectedCallSource.name).display }}</span>
@@ -402,14 +402,14 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 <span class="tag-val">{{ identity(selectedCallTarget.name).cluster }}</span>
               </span>
               <span v-if="showLegacyGroup && identity(selectedCallTarget.name).legacyGroup" class="sw-tag tiny">
-                <span class="tag-alias">group</span>
+                <span class="tag-alias">{{ t('group') }}</span>
                 <span class="tag-val">{{ identity(selectedCallTarget.name).legacyGroup }}</span>
               </span>
               <span class="sp-mono small">{{ identity(selectedCallTarget.name).display }}</span>
             </span>
           </div>
           <div class="sp-tags">
-            <span class="sw-tag">{{ selectedCall.detectPoints.join(' · ') || 'relation' }}</span>
+            <span class="sw-tag">{{ selectedCall.detectPoints.join(' · ') || t('relation') }}</span>
           </div>
         </div>
         <div class="sp-head-actions">
@@ -426,7 +426,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
            server cells sit SIDE-BY-SIDE and each sparkline stretches via
            `fluid` to fill its cell. -->
       <div class="sp-section">
-        <div class="sp-section-title">Line metrics</div>
+        <div class="sp-section-title">{{ t('Line metrics') }}</div>
         <div v-if="edgeRows.length > 0" class="sp-edge-rows">
           <div v-for="row in edgeRows" :key="row.id" class="sp-edge-row-card">
             <div class="sp-edge-row-head">
@@ -459,7 +459,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               <div class="sp-edge-pair">
                 <div class="sp-edge-cell">
                   <div class="sp-edge-cell-head">
-                    <span class="sp-edge-cell-tag">Client</span>
+                    <span class="sp-edge-cell-tag">{{ t('Client') }}</span>
                     <span class="sp-edge-cell-num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span>
                   </div>
                   <Sparkline
@@ -475,7 +475,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
                 </div>
                 <div class="sp-edge-cell">
                   <div class="sp-edge-cell-head">
-                    <span class="sp-edge-cell-tag">Server</span>
+                    <span class="sp-edge-cell-tag">{{ t('Server') }}</span>
                     <span class="sp-edge-cell-num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span>
                   </div>
                   <Sparkline
@@ -494,9 +494,9 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <template v-else-if="edgeRowValues(selectedCall, row).kind === 'client-only'">
               <div class="sp-edge-cell">
                 <div class="sp-edge-cell-head">
-                  <span class="sp-edge-cell-tag">Client</span>
+                  <span class="sp-edge-cell-tag">{{ t('Client') }}</span>
                   <span class="sp-edge-cell-num">{{ fmtMetric(edgeRowValues(selectedCall, row).clientV) }}</span>
-                  <span class="sp-side-note">client only</span>
+                  <span class="sp-side-note">{{ t('client only') }}</span>
                 </div>
                 <Sparkline
                   :values="edgeSeries(selectedCall, 'client', row.clientDef)"
@@ -513,9 +513,9 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
             <template v-else-if="edgeRowValues(selectedCall, row).kind === 'server-only'">
               <div class="sp-edge-cell">
                 <div class="sp-edge-cell-head">
-                  <span class="sp-edge-cell-tag">Server</span>
+                  <span class="sp-edge-cell-tag">{{ t('Server') }}</span>
                   <span class="sp-edge-cell-num">{{ fmtMetric(edgeRowValues(selectedCall, row).serverV) }}</span>
-                  <span class="sp-side-note">server only</span>
+                  <span class="sp-side-note">{{ t('server only') }}</span>
                 </div>
                 <Sparkline
                   :values="edgeSeries(selectedCall, 'server', row.serverDef)"
@@ -530,11 +530,11 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
               </div>
             </template>
             <template v-else>
-              <div class="sp-edge-none">no value</div>
+              <div class="sp-edge-none">{{ t('no value') }}</div>
             </template>
           </div>
         </div>
-        <div v-else class="sp-empty">no line metrics configured</div>
+        <div v-else class="sp-empty">{{ t('no line metrics configured') }}</div>
       </div>
     </article>
 
@@ -543,7 +543,7 @@ function fmtWithUnit(v: number | null | undefined, unit: string | undefined): st
       v-if="selectedNode && !(selectedCall && selectedCallSource && selectedCallTarget)"
       class="sm-panel sm-panel-empty"
     >
-      <span>Click an edge to inspect a call</span>
+      <span>{{ t('Click an edge to inspect a call') }}</span>
     </article>
   </aside>
 </template>

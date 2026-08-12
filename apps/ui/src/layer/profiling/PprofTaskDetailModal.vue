@@ -24,6 +24,7 @@
   type + optional duration / dumpPeriod instead of endpoint + thresholds.
 -->
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n';
 import type { PprofTask, AsyncProfilingProgressLog } from '@/api/client';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 
@@ -37,6 +38,8 @@ const emit = defineEmits<{
   (e: 'close'): void;
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
+
 useEscapeToClose(
   () => props.task != null,
   () => emit('close'),
@@ -47,22 +50,22 @@ useEscapeToClose(
   <div v-if="task" class="dlg-mask" @click.self="emit('close')">
     <div class="dlg wide">
       <div class="dlg-head">
-        <div>pprof task detail</div>
+        <div>{{ t('pprof task detail') }}</div>
         <button class="x" @click="emit('close')">×</button>
       </div>
       <div class="dlg-body">
         <dl class="kv">
-          <dt>Service</dt><dd>{{ serviceName ?? task.serviceId }}</dd>
-          <dt>Instances</dt><dd>{{ task.serviceInstanceIds?.length ?? 0 }}</dd>
-          <dt>Event</dt><dd>{{ task.events }}</dd>
-          <dt>Create time</dt><dd>{{ fmtTime(task.createTime) }}</dd>
-          <dt v-if="task.duration != null">Duration</dt>
-          <dd v-if="task.duration != null">{{ task.duration }} min</dd>
-          <dt v-if="task.dumpPeriod != null">Dump period</dt>
+          <dt>{{ t('Service') }}</dt><dd>{{ serviceName ?? task.serviceId }}</dd>
+          <dt>{{ t('Instances') }}</dt><dd>{{ task.serviceInstanceIds?.length ?? 0 }}</dd>
+          <dt>{{ t('Event') }}</dt><dd>{{ task.events }}</dd>
+          <dt>{{ t('Create time') }}</dt><dd>{{ fmtTime(task.createTime) }}</dd>
+          <dt v-if="task.duration != null">{{ t('Duration') }}</dt>
+          <dd v-if="task.duration != null">{{ t('{n} min', { n: task.duration }) }}</dd>
+          <dt v-if="task.dumpPeriod != null">{{ t('Dump period') }}</dt>
           <dd v-if="task.dumpPeriod != null">{{ task.dumpPeriod }}</dd>
         </dl>
         <div v-if="logs.length" class="logs">
-          <h5>Instance logs</h5>
+          <h5>{{ t('Instance logs') }}</h5>
           <div v-for="(log, i) in logs" :key="i" class="log-line">
             <span class="t-tag">{{ log.operationType }}</span>
             <span class="muted">{{ log.instanceName }}</span>

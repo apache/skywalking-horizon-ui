@@ -163,6 +163,9 @@ export interface ProcessTopologyResponse {
 export interface NetworkProcess {
   id: string;
   name: string;
+  /** OAP's process detect type. VIRTUAL rows are excluded before this list is
+   *  served, because OAP's own create gate counts non-virtual processes only. */
+  detectType?: string;
 }
 export interface NetworkProcessesResponse {
   processes: NetworkProcess[];

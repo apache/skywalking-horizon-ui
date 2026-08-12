@@ -173,16 +173,16 @@ function onReset(): void {
 // ≥ 30d → DAY. The thresholds match the timeRange store's
 // TIME_PRESETS table and OAP's `DurationUtils` mapping (see
 // CLAUDE.md "Time, step, and timezone").
-const PRESETS = [
-  { label: '15 m', value: 15 },
-  { label: '30 m', value: 30 },
-  { label: '1 h', value: 60 },
-  { label: '2 h', value: 120 },
-  { label: '4 h', value: 240 },
-  { label: '12 h', value: 720 },
-  { label: '24 h', value: 1440 },
-  { label: '7 d', value: 10080 },
-];
+const PRESETS = computed(() => [
+  { label: t('15 m'), value: 15 },
+  { label: t('30 m'), value: 30 },
+  { label: t('1 h'), value: 60 },
+  { label: t('2 h'), value: 120 },
+  { label: t('4 h'), value: 240 },
+  { label: t('12 h'), value: 720 },
+  { label: t('24 h'), value: 1440 },
+  { label: t('7 d'), value: 10080 },
+]);
 
 /** Resolve the OAP `step` precision for a given window in minutes.
  *  Mirrors the TIME_PRESETS thresholds in `controls/timeRange.ts`. */

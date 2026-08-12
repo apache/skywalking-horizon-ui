@@ -16,7 +16,7 @@ limitations under the License.
 -->
 # General Service
 
-The **GENERAL** layer is where SkyWalking's language agents report. Any service instrumented by a SkyWalking native agent — Java, .NET (CLR), Go, Python, Ruby, Node.js, and the Spring Boot / Spring Sleuth meter integrations — lands here, so it is the most-used layer and the reference dashboard every other layer's dashboard is modelled on.
+The **GENERAL** layer is where SkyWalking's language agents report. Any service instrumented by a SkyWalking native agent — Java, .NET (CLR), Go, Python, Ruby, Node.js, PHP, and the Spring Boot / Spring Sleuth meter integrations — lands here, so it is the most-used layer and the reference dashboard every other layer's dashboard is modelled on.
 
 In Horizon's sidebar this layer is named **General Service**. Its services are listed as **Services**, instances as **Instances** (each badged with the agent **language**), and endpoints as **API** — the endpoint-to-endpoint view is called **API dependency**. The GENERAL layer enables the full set of sub-tabs: Service, Instance, Endpoint, API dependency, Topology, Traces, Logs, and the profiling tabs (trace, eBPF, async, pprof).
 
@@ -47,6 +47,8 @@ The primary drill-down for one selected service.
 - **Top 10 slowest instances** — instances ranked by average response time (`service_instance_resp_time`, ms).
 - **Top 10 instances by success rate** — instances ranked worst-first by success rate (`service_instance_sla`, %).
 - **Slow Database Statements** — the 20 slowest sampled database statements captured against this service (`top_n_service_database_statement`, ms). Each row carries the statement text and, when the sample has one, a jump-to-trace link. Shows `no data` when OAP captured no statements in the window.
+
+The latency and error widgets ship with the **metric-to-trace drill** enabled: click a data point on **Avg Response Time** or **Response Time Percentile** to open the slowest traces at that moment, or on **Error Rate** or **Apdex** to open the error traces. The same drill rides the instance latency / success-rate widgets and the endpoint latency, percentile, success-rate, and MQ-latency widgets below. See [Dashboard Widgets → Metric-to-trace drill](../components/dashboard-widgets.md#metric-to-trace-drill-tracedrill).
 
 ## Instance dashboard
 
@@ -97,6 +99,21 @@ For one selected service instance. The first three widgets always render; the re
 
 - **Ruby CPU Usage**, **Ruby Memory (RSS)**, **Ruby Memory Usage**, **Ruby Thread Status** (active / running), **Ruby GC Count** (total / minor / major), **Ruby GC Time**, **Ruby Heap Usage**, and **Ruby Heap Slots** (live / available).
 
+**Node.js instances**
+
+- **Process CPU** — process CPU percentage (`meter_instance_nodejs_process_cpu`).
+- **V8 Heap Used** / **V8 Heap Total** / **V8 Heap Limit** — the V8 heap in MB: currently used, currently allocated, and the maximum the heap may grow to (`meter_instance_nodejs_heap_used` / `_heap_total` / `_heap_limit`).
+- **Process RSS** — resident set size in MB (`meter_instance_nodejs_rss`).
+- **External Memory** — memory held outside the V8 heap (buffers and native objects) in MB (`meter_instance_nodejs_external_memory`).
+
+**PHP (PHM) instances**
+
+- **PHP CPU Utilization** — process CPU percentage (`meter_instance_php_process_cpu_utilization`).
+- **PHP Memory Used** and **PHP Memory Peak** — current and peak process memory in MB (`meter_instance_php_memory_used_mb`, `meter_instance_php_memory_peak_mb`).
+- **PHP Virtual Memory** — virtual memory size in MB (`meter_instance_php_virtual_memory_mb`).
+- **PHP Thread Count** — live threads (`meter_instance_php_thread_count`).
+- **PHP Open FDs** — open file descriptors (`meter_instance_php_open_fd_count`).
+
 ## Endpoint dashboard
 
 For one selected endpoint (an **API**).
@@ -125,7 +142,7 @@ The GENERAL dashboard is a pure consumer of what OAP reports — it invents no d
 
 - **Service / instance / endpoint metrics** — the `service_*`, `service_instance_*`, and `endpoint_*` families (traffic, response time, SLA, apdex, percentiles), produced by OAP from agent-reported traces or meters.
 - **Relation metrics** — `service_relation_*`, `service_instance_relation_*`, and `endpoint_relation_*` for the service map, instance map, and API-dependency views.
-- **Runtime metrics**, for the runtime-specific instance widgets to appear: JVM (`instance_jvm_*`), CLR (`instance_clr_*`), the Spring meter family (`meter_*`), and the Golang / Python / Ruby agent meter families. An instance only shows the families its agent emits.
+- **Runtime metrics**, for the runtime-specific instance widgets to appear: JVM (`instance_jvm_*`), CLR (`instance_clr_*`), the Spring meter family (`meter_*`), and the Golang / Python / Ruby / Node.js / PHP agent meter families. An instance only shows the families its agent emits.
 - **Sampled records** — `top_n_service_database_statement` for the Slow Database Statements list, captured by OAP when slow-statement sampling is enabled.
 
 Each metric is queried at its own OAP scope; OAP does not roll a metric up across scopes, so an instance- or endpoint-scope metric is empty until that level of data is reported. When a whole family is missing (for example a non-JVM runtime), its widgets are hidden rather than shown empty.

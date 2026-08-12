@@ -37,7 +37,7 @@ A rolling restart of a large service therefore shows as many bars at the same mo
 
 ## Time window and scrolling
 
-The popout owns its own window — `6h`, `1d`, `2d` presets — queried at second precision so the most recent events are never rounded out. Events are stored under OAP's record retention; a window reaching past it simply returns fewer rows.
+The popout owns its own window — `6h`, `1d`, `2d` presets, plus a **custom** range — queried at second precision so the most recent events are never rounded out. The custom range takes an absolute start and end (entered in your browser's local time) spanning up to 7 days; an invalid range — end before start, or a span past the 7-day cap — is rejected with the reason before anything is queried. A preset window is anchored to the moment you pick it, while a custom range is pinned exactly where you set it. Events are stored under OAP's record retention; a window reaching past it simply returns fewer rows.
 
 Scrolling stays inside the popout: the time-axis header stays pinned at the top and the instance column stays pinned at the left. A long range (a multi-day window) gets a wider, horizontally-scrollable canvas so bars keep a legible spacing instead of collapsing together, and the view opens scrolled to the **newest** events — scroll left for history. The time axis marks the **date at day boundaries**, so a range that crosses midnight is unambiguous.
 

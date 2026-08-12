@@ -171,6 +171,7 @@ const pickerEntries = computed<TemplatePickerEntry[]>(() =>
     syncBadge: sync.badgeFor(`horizon.overview.${d.id}`),
     hasLocalDraft: hasLocalDraftFor(d.id),
     isDiverged: isDivergedRow(d.id),
+    conflictIds: sync.conflictFor(`horizon.overview.${d.id}`)?.enabledIds ?? null,
   })),
 );
 /* Auto-select rule: if nothing is selected (cold start), pick the
@@ -209,15 +210,15 @@ function createDash(payload: { id: string; title: string; description: string })
   const id = payload.id.trim();
   const title = payload.title.trim();
   if (!id) {
-    newDashError.value = 'id is required';
+    newDashError.value = t('id is required');
     return;
   }
   if (!/^[a-z0-9_-]+$/i.test(id)) {
-    newDashError.value = 'id may only contain letters, digits, _ and -';
+    newDashError.value = t('id may only contain letters, digits, _ and -');
     return;
   }
   if (!title) {
-    newDashError.value = 'title is required';
+    newDashError.value = t('title is required');
     return;
   }
   // The id IS the template name (horizon.overview.<id>) — must be unique
@@ -225,7 +226,7 @@ function createDash(payload: { id: string; title: string; description: string })
   // OAP keys on the name string.
   const idLc = id.toLowerCase();
   if (dashboards.value.some((d) => d.id.toLowerCase() === idLc)) {
-    newDashError.value = `a dashboard with id "${id}" already exists`;
+    newDashError.value = t('a dashboard with id "{id}" already exists', { id });
     return;
   }
   // Create mirrors edit: write a LOCAL browser draft, don't touch the
@@ -241,7 +242,7 @@ function createDash(payload: { id: string; title: string; description: string })
   localEdits.set(overviewEditName(id), dash);
   selectedId.value = id;
   newDashOpen.value = false;
-  setFlash(`created local draft · ${id} — edit, preview, then “Check diff & push”.`);
+  setFlash(t('created local draft · {id} — edit, preview, then “Check diff & push”.', { id }));
 }
 
 /* Lightweight layout preview — recreates the dashboard's grid + a
@@ -292,23 +293,23 @@ onMounted(() => void refreshConfigBundle({ force: true }));
 const deleteOpen = ref(false);
 const deleteTitle = ref('');
 const deleteMessage = ref('');
-const deleteConfirmLabel = ref('Delete');
+const deleteConfirmLabel = ref(t('Delete'));
 function askDeleteDash(): void {
   const id = selectedId.value;
   if (!id || !editName.value) return;
   const onOap = remoteAvailable.value || bundledExists.value;
   if (!onOap) {
-    deleteTitle.value = 'Delete local draft?';
-    deleteMessage.value = `Delete the local draft “${id}”? It was never published, so it's removed from this browser only. This can't be undone.`;
-    deleteConfirmLabel.value = 'Delete draft';
+    deleteTitle.value = t('Delete local draft?');
+    deleteMessage.value = t('Delete the local draft “{id}”? It was never published, so it\'s removed from this browser only. This can\'t be undone.', { id });
+    deleteConfirmLabel.value = t('Delete draft');
   } else if (bundledExists.value) {
-    deleteTitle.value = 'Disable built-in dashboard?';
-    deleteMessage.value = `Disable the built-in dashboard “${id}”? OAP has no hard delete, so it's soft-disabled — hidden from everyone. This can't be undone from the UI.`;
-    deleteConfirmLabel.value = 'Disable';
+    deleteTitle.value = t('Disable built-in dashboard?');
+    deleteMessage.value = t('Disable the built-in dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. This can\'t be undone from the UI.', { id });
+    deleteConfirmLabel.value = t('Disable');
   } else {
-    deleteTitle.value = 'Delete dashboard?';
-    deleteMessage.value = `Delete the dashboard “${id}”? OAP has no hard delete, so it's soft-disabled — hidden from everyone. This can't be undone from the UI.`;
-    deleteConfirmLabel.value = 'Delete';
+    deleteTitle.value = t('Delete dashboard?');
+    deleteMessage.value = t('Delete the dashboard “{id}”? OAP has no hard delete, so it\'s soft-disabled — hidden from everyone. This can\'t be undone from the UI.', { id });
+    deleteConfirmLabel.value = t('Delete');
   }
   deleteOpen.value = true;
 }
@@ -321,7 +322,7 @@ async function confirmDeleteDash(): Promise<void> {
   if (!onOap) {
     localEdits.remove(name);
     previewOverride.clear(name);
-    setFlash(`deleted local draft · ${id}`);
+    setFlash(t('deleted local draft · {id}', { id }));
     return;
   }
   try {
@@ -329,9 +330,9 @@ async function confirmDeleteDash(): Promise<void> {
     localEdits.remove(name);
     previewOverride.clear(name);
     await Promise.all([listQuery.refetch(), sources.refetch(), refreshConfigBundle()]);
-    setFlash(`deleted · ${id}`);
+    setFlash(t('deleted · {id}', { id }));
   } catch (err) {
-    setFlash(err instanceof Error ? `error: ${err.message}` : 'delete failed');
+    setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('delete failed'));
   }
 }
 
@@ -374,6 +375,12 @@ const bundledExists = computed<boolean>(() => !!editName.value && sources.hasBun
 // surfaces for LOCAL drafts (always meaningful) and for diverged rows.
 const isSynced = computed<boolean>(
   () => !!editName.value && sync.badgeFor(editName.value) === 'synced',
+);
+/** Conflict banner for the dashboard currently open in the editor. The
+ *  page-level banner only counts the kind's conflicts; this one says
+ *  THIS dashboard is the ambiguous one and which OAP records hold it. */
+const selectedConflictBanner = computed(() =>
+  editName.value ? sync.conflictBannerFor(editName.value) : null,
 );
 
 const draft = ref<OverviewDashboard | null>(null);
@@ -465,9 +472,9 @@ async function refreshFromRemote(): Promise<void> {
     await bff.templateSync.resync();
     await Promise.all([sources.refetch(), listQuery.refetch(), refreshConfigBundle()]);
     reconcileLocalDrafts();
-    setFlash('Refreshed from OAP.');
+    setFlash(t('Refreshed from OAP.'));
   } catch (err) {
-    setFlash(err instanceof Error ? `error: ${err.message}` : 'refresh failed');
+    setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('refresh failed'));
   } finally {
     refreshingFromRemote.value = false;
   }
@@ -571,7 +578,7 @@ function onSave(): void {
   if (!draft.value || !editName.value) return;
   persistLocal(draft.value);
   editorSource.value = 'local';
-  setFlash('Saved to your browser (local). Publish with “Check diff & push”.');
+  setFlash(t('Saved to your browser (local). Publish with “Check diff & push”.'));
 }
 
 // Push = publish local → remote. Available only when a local draft exists
@@ -598,11 +605,11 @@ async function pushToOap(): Promise<void> {
   const local = localEdits.get<OverviewDashboard>(editName.value);
   if (!local || saving.value) return;
   saving.value = true;
-  flash.value = 'Saving to OAP…';
+  flash.value = t('Saving to OAP…');
   let elapsed = 0;
   const ticker = setInterval(() => {
     elapsed++;
-    flash.value = `Saving to OAP… ${elapsed}s`;
+    flash.value = t('Saving to OAP… {elapsed}s', { elapsed });
   }, 1000);
   try {
     await bff.templateSync.save(editName.value, local);
@@ -611,18 +618,18 @@ async function pushToOap(): Promise<void> {
     previewOverride.clear(editName.value);
     pushDiffOpen.value = false;
     for (let n = 10; n > 0; n--) {
-      flash.value = `Pushed. Refreshing in ${n}s…`;
+      flash.value = t('Pushed. Refreshing in {n}s…', { n });
       await sleep(1000);
     }
     await bff.templateSync.resync();
     await Promise.all([sources.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
     reconcileLocalDrafts();
     loadFrom('remote');
-    setFlash('Published your local draft to OAP — now live for everyone.');
+    setFlash(t('Published your local draft to OAP — now live for everyone.'));
   } catch (err) {
     clearInterval(ticker);
     if (err instanceof BffApiError && err.status === 504) {
-      flash.value = 'Timeout waiting for OAP propagation. Refetching…';
+      flash.value = t('Timeout waiting for OAP propagation. Refetching…');
       try {
         await bff.templateSync.resync();
         await Promise.all([sources.refetch(), detailQuery.refetch(), refreshConfigBundle()]);
@@ -630,9 +637,9 @@ async function pushToOap(): Promise<void> {
       } catch {
         /* refetch best-effort */
       }
-      setFlash('Refetched after timeout — the push may have completed; please verify.');
+      setFlash(t('Refetched after timeout — the push may have completed; please verify.'));
     } else {
-      setFlash(err instanceof Error ? `error: ${err.message}` : 'push failed');
+      setFlash(err instanceof Error ? t('error: {message}', { message: err.message }) : t('push failed'));
     }
   } finally {
     saving.value = false;
@@ -673,8 +680,8 @@ async function onImportFile(): Promise<void> {
   loadFrom('local');
   setFlash(
     existed
-      ? `Imported · overwrote the local draft “${id}”. Preview, then “Check diff & push”.`
-      : `Imported “${id}” as a new local draft. Preview, then “Check diff & push”.`,
+      ? t('Imported · overwrote the local draft “{id}”. Preview, then “Check diff & push”.', { id })
+      : t('Imported “{id}” as a new local draft. Preview, then “Check diff & push”.', { id }),
   );
 }
 
@@ -716,7 +723,7 @@ function removeWidget(idx: number): void {
 
     <SyncStatusBanner :banner="sync.banner.value" />
 
-    <div v-if="listQuery.isPending.value" class="ot__empty">loading…</div>
+    <div v-if="listQuery.isPending.value" class="ot__empty">{{ t('loading…') }}</div>
 
     <div v-else class="ot__main">
       <!-- Top dashboard picker — shared TemplatePicker chip + dropdown
@@ -735,13 +742,20 @@ function removeWidget(idx: number): void {
           type="button"
           class="ot__btn"
           :disabled="sync.readOnly.value"
-          :title="sync.readOnly.value ? 'OAP unreachable — cannot create' : ''"
+          :title="sync.readOnly.value ? t('OAP unreachable — cannot create') : ''"
           @click="openNewDash"
-        >+ New dashboard</button>
+        >{{ t('+ New dashboard') }}</button>
       </div>
 
       <section class="ot__detail">
-        <div v-if="detailQuery.isPending.value && !draft" class="ot__empty">loading…</div>
+        <!-- Selection-scoped duplicate warning. The page-level banner
+             above only counts the kind's conflicts; this one fires only
+             for the dashboard in the editor, so "this one is ambiguous"
+             is unmistakable. Warning only — resolving it is an OAP-side
+             decision Horizon never takes. -->
+        <SyncStatusBanner v-if="selectedConflictBanner" :banner="selectedConflictBanner" />
+
+        <div v-if="detailQuery.isPending.value && !draft" class="ot__empty">{{ t('loading…') }}</div>
         <!-- Overview selected but no working copy: no local draft, no OAP
              row. We do NOT auto-load the bundled default (seed/reset source
              only); the operator adopts it explicitly. -->
@@ -754,10 +768,10 @@ function removeWidget(idx: number): void {
           <header class="ot__detail-head">
             <h2><code>{{ draft.id }}</code></h2>
             <span class="ot__count mono">
-              {{ draft.widgets.length }} widget{{ draft.widgets.length === 1 ? '' : 's' }}
+              {{ draft.widgets.length === 1 ? t('{n} widget', { n: draft.widgets.length }) : t('{n} widgets', { n: draft.widgets.length }) }}
             </span>
-            <span v-if="isDirty" class="ot__dirty">unsaved changes</span>
-            <span v-else class="ot__clean">saved</span>
+            <span v-if="isDirty" class="ot__dirty">{{ t('unsaved changes') }}</span>
+            <span v-else class="ot__clean">{{ t('saved') }}</span>
             <!-- Delete. A local-only draft is removed from the browser; a
                  dashboard on OAP (bundled or remote-only) is soft-disabled
                  (OAP has no hard delete). Irreversible from the UI. -->
@@ -766,14 +780,14 @@ function removeWidget(idx: number): void {
               class="ot__head-btn ot__head-btn--danger"
               :disabled="sync.readOnly.value && (remoteAvailable || bundledExists)"
               :title="(sync.readOnly.value && (remoteAvailable || bundledExists))
-                ? 'OAP unreachable — cannot delete'
+                ? t('OAP unreachable — cannot delete')
                 : bundledExists
-                  ? `Disable built-in dashboard ${draft.id} (OAP has no hard delete — hidden, irreversible from the UI)`
+                  ? t('Disable built-in dashboard {id} (OAP has no hard delete — hidden, irreversible from the UI)', { id: draft.id })
                   : remoteAvailable
-                    ? `Delete dashboard ${draft.id} (soft-disabled on OAP — irreversible from the UI)`
-                    : `Delete local draft ${draft.id} (never published)`"
+                    ? t('Delete dashboard {id} (soft-disabled on OAP — irreversible from the UI)', { id: draft.id })
+                    : t('Delete local draft {id} (never published)', { id: draft.id })"
               @click="askDeleteDash"
-            >{{ bundledExists ? 'disable' : 'delete' }}</button>
+            >{{ bundledExists ? t('disable') : t('delete') }}</button>
             <!-- Source / save / publish actions, right-aligned (same row as
                  the title + tabs, mirroring the layer dashboards editor). -->
             <div class="ot__head-actions">
@@ -805,19 +819,19 @@ function removeWidget(idx: number): void {
                 class="ot__btn"
                 :disabled="!canExport"
                 :title="canExport
-                  ? 'Download the in-use version (live on OAP, or the bundled default) as a JSON file.'
-                  : 'Nothing published yet to export — push this draft first.'"
+                  ? t('Download the in-use version (live on OAP, or the bundled default) as a JSON file.')
+                  : t('Nothing published yet to export — push this draft first.')"
                 @click="onExport"
-              >export</button>
+              >{{ t('export') }}</button>
               <button
                 type="button"
                 class="ot__btn"
-                title="Import a dashboard JSON file as a local draft — preview, then publish."
+                :title="t('Import a dashboard JSON file as a local draft — preview, then publish.')"
                 @click="onImportFile"
-              >import</button>
+              >{{ t('import') }}</button>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="resetDropdownOpen = !resetDropdownOpen">
-                  reset to <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
+                  {{ t('reset to') }} <span class="caret" :class="{ open: resetDropdownOpen }">›</span>
                 </button>
                 <template v-if="resetDropdownOpen">
                   <div class="reset-dd-backdrop" @click="resetDropdownOpen = false" />
@@ -841,14 +855,14 @@ function removeWidget(idx: number): void {
               </div>
               <div class="reset-dd">
                 <button type="button" class="ot__btn" @click="previewDropdownOpen = !previewDropdownOpen">
-                  preview <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
+                  {{ t('preview') }} <span class="caret" :class="{ open: previewDropdownOpen }">›</span>
                 </button>
                 <template v-if="previewDropdownOpen">
                   <div class="reset-dd-backdrop" @click="previewDropdownOpen = false" />
                   <div class="reset-dd-pop">
-                    <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" title="Preview your unpublished local draft." @click="previewLive('local')">Local</button>
-                    <button v-if="!isSynced" class="reset-dd-item" type="button" title="Preview the bundled (shipped) default." @click="previewLive('bundled')">Bundled</button>
-                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" title="Preview OAP's live version." @click="previewLive('remote')">Remote</button>
+                    <button class="reset-dd-item" type="button" :disabled="!hasLocalDraft" :title="t('Preview your unpublished local draft.')" @click="previewLive('local')">{{ t('Local') }}</button>
+                    <button v-if="!isSynced" class="reset-dd-item" type="button" :title="t('Preview the bundled (shipped) default.')" @click="previewLive('bundled')">{{ t('Bundled') }}</button>
+                    <button class="reset-dd-item" type="button" :disabled="!remoteAvailable" :title="t('Preview OAP\'s live version.')" @click="previewLive('remote')">{{ t('Remote') }}</button>
                   </div>
                 </template>
               </div>
@@ -857,19 +871,19 @@ function removeWidget(idx: number): void {
                 type="button"
                 class="ot__btn"
                 :disabled="!localDiffersFromRemote || saving"
-                :title="localDiffersFromRemote ? 'Review the local → remote diff, then publish to OAP.' : 'No local changes to publish — local matches remote.'"
+                :title="localDiffersFromRemote ? t('Review the local → remote diff, then publish to OAP.') : t('No local changes to publish — local matches remote.')"
                 @click="pushDiffOpen = true"
               >
-                check diff &amp; push
+                {{ t('check diff & push') }}
               </button>
               <button
                 type="button"
                 class="ot__btn ot__btn--primary"
                 :disabled="(!isDirty && !editorDiffersFromRemote) || saving"
-                title="Save the editor to your browser (local). Publish later with “Check diff & push”."
+                :title="t('Save the editor to your browser (local). Publish later with “Check diff & push”.')"
                 @click="onSave"
               >
-                {{ saving ? 'saving…' : 'save (local)' }}
+                {{ saving ? t('saving…') : t('save (local)') }}
               </button>
             </div>
           </header>
@@ -914,18 +928,17 @@ function removeWidget(idx: number): void {
     />
 
     <!-- Push confirm: shows the remote → local diff before publishing. -->
-    <Modal :open="pushDiffOpen" title="Publish local → OAP?" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
+    <Modal :open="pushDiffOpen" :title="t('Publish local → OAP?')" width="min(1100px, 94vw)" @close="pushDiffOpen = false">
       <p class="ot__push-lede">
-        This replaces the live (remote) version with your local draft — live for everyone. Review the
-        diff (left = remote, right = your local):
+        {{ t('This replaces the live (remote) version with your local draft — live for everyone. Review the diff (left = remote, right = your local):') }}
       </p>
       <div class="ot__push-diff">
         <MonacoDiff :original="pushRemotePretty" :modified="pushLocalPretty" language="json" />
       </div>
       <template #footer>
-        <button class="sw-btn" type="button" @click="pushDiffOpen = false">Cancel</button>
+        <button class="sw-btn" type="button" @click="pushDiffOpen = false">{{ t('Cancel') }}</button>
         <button class="sw-btn is-primary" type="button" :disabled="saving" @click="pushToOap">
-          {{ saving ? 'Pushing…' : 'Confirm push' }}
+          {{ saving ? t('Pushing…') : t('Confirm push') }}
         </button>
       </template>
     </Modal>
@@ -934,7 +947,7 @@ function removeWidget(idx: number): void {
     <Modal :open="deleteOpen" :title="deleteTitle" width="min(520px, 92vw)" @close="deleteOpen = false">
       <p class="ot__confirm-msg">{{ deleteMessage }}</p>
       <template #footer>
-        <button class="sw-btn" type="button" @click="deleteOpen = false">Cancel</button>
+        <button class="sw-btn" type="button" @click="deleteOpen = false">{{ t('Cancel') }}</button>
         <button class="sw-btn is-danger" type="button" @click="confirmDeleteDash">{{ deleteConfirmLabel }}</button>
       </template>
     </Modal>

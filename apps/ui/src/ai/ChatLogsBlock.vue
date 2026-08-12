@@ -20,21 +20,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerLogsView from '@/layer/logs/LayerLogsView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { LogsSpec } from './types';
 
-defineProps<{ n: number; spec: LogsSpec }>();
+defineProps<{ n: number; spec: LogsSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="clg">
-    <div class="clg__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="clg__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="clg__view">
       <LayerLogsView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service="spec.service"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

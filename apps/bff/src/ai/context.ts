@@ -37,10 +37,11 @@ import type {
   HierarchySpec,
   InstanceTopologySpec,
   PodLogSpec,
+  ProcessTopologySpec,
+  ProfilingResultSpec,
   ProposalSpec,
   BrowserErrorsSpec,
   LogsSpec,
-  SubPageSpec,
   TopologySpec,
   TracesSpec,
   ZipkinTracesSpec,
@@ -68,14 +69,14 @@ export interface AiRequestContext {
    *  tab-based" UX); without a group, any pending group is flushed first and
    *  this figure emits on its own. The running figure number is owned here. */
   emitFigure(fig: { title?: string; figures: ChatFigure[]; group?: string }): void;
-  /** Mount an embeddable feature view (topology/deployment/service-list) inline
-   *  in the chat. Params only — the UI view fetches its own data over the chat's
-   *  range; verb-gated in the tool like every other read. */
-  emitSubPage(spec: SubPageSpec): void;
   /** Propose a mutating action (profiling) as a decision card — the agent never
    *  fires it; the user approves/dismisses in the UI, which then calls the
    *  existing verb-gated create route. */
   emitProposal(spec: ProposalSpec): void;
+  /** Emit a captured profiling-result flame block (read-only, frozen on reload). */
+  emitProfiling(spec: ProfilingResultSpec): void;
+  /** Emit a captured network process-conversation graph block (frozen on reload). */
+  emitProcessTopology(spec: ProcessTopologySpec): void;
   /** Mount a LIVE-TAIL pod-log pane inline. Carries the resolved pod/container +
    *  an initial snapshot; the UI pane re-polls OAP on an interval to fetch newer
    *  lines (on-demand logs are a live tail, not a one-shot figure). Verb-gated

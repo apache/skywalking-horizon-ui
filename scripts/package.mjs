@@ -119,13 +119,15 @@ Boot it:
 
     HORIZON_CONFIG=./horizon.yaml \\             # every field is a \${HORIZON_…} env var
       HORIZON_OAP_QUERY_URL=http://oap:12800 \\  # override only what you need
-      HORIZON_STATIC_DIR=./dist/static \\
       node dist/server.js
+
+The UI is served from the sibling static/ automatically — set
+HORIZON_STATIC_DIR only to point somewhere else.
 
 Or from inside dist/ (cwd-relative fallback resolves bundled_templates):
 
     cd dist
-    HORIZON_CONFIG=../horizon.yaml HORIZON_STATIC_DIR=./static node server.js
+    HORIZON_CONFIG=../horizon.yaml node server.js
 
 The folder is fully self-contained — copy it anywhere, no \`pnpm install\`
 required, no network access at boot.

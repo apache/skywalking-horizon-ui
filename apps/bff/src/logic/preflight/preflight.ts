@@ -62,7 +62,7 @@ const REQUIRED_MODULES: readonly ModuleDef[] = [
     required: true,
     probePath: '/debugging/config/dump',
     affects:
-      'Everything Studio does against the admin port. Without admin-server, the other modules fail at boot with ModuleNotFoundException.',
+      'Everything Horizon does against the admin port. Without admin-server, the other modules fail at boot with ModuleNotFoundException.',
   },
   {
     name: 'receiver-runtime-rule',

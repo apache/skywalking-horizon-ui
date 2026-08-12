@@ -27,6 +27,7 @@
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useQuery } from '@tanstack/vue-query';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import type { LayerDef, LandingServiceRow } from '@skywalking-horizon-ui/api-client';
@@ -48,6 +49,8 @@ import { useLayerSelectionStore } from '@/state/layerSelection';
 import { useSetupStore } from '@/state/setup';
 import { fmtMetric } from '@/utils/formatters';
 import { parseServiceName, isBlankServiceName, BLANK_SERVICE_NAME } from '@/utils/serviceName';
+
+const { t } = useI18n({ useScope: 'global' });
 
 const route = useRoute();
 const router = useRouter();
@@ -193,6 +196,7 @@ const SCOPE_CAP_PREDICATE: Record<string, (L: LayerDef) => boolean> = {
   'async-profiling': (L) => Boolean(L.caps?.asyncProfiling),
   'network-profiling': (L) => Boolean(L.caps?.networkProfiling),
   pprof: (L) => Boolean(L.caps?.pprofProfiling),
+  'continuous-profiling': (L) => Boolean(L.caps?.continuousProfiling),
 };
 watch(
   [() => route.path, layer],
@@ -308,7 +312,7 @@ const selectedName = computed(() => {
     // OAP's blank-entity service has an empty name — show its `_blank` label.
     return isBlankServiceName(selectedRow.value.serviceName) ? BLANK_SERVICE_NAME : selectedParsed.value.base;
   }
-  return sampledServices.value.length > 0 ? 'pick a service' : '—';
+  return sampledServices.value.length > 0 ? t('pick a service') : '—';
 });
 
 // Routes can declare `meta: { ownsServiceSelector: true }` to opt out
@@ -421,7 +425,7 @@ function initialsFor(name: string): string {
 }
 const displayName = computed(() => cfg.value?.displayName || layer.value?.name || layerKey.value);
 const initials = computed(() => initialsFor(displayName.value));
-const serviceSlotLabel = computed(() => layer.value?.slots.services || 'services');
+const serviceSlotLabel = computed(() => layer.value?.slots.services || t('services'));
 
 // Header KPI strip: at most 5 metrics from the layer's setup columns;
 // service count always leads. Each KPI is read from
@@ -512,13 +516,13 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <div class="identity-text">
           <div class="title-row">
             <h1>{{ displayName }}</h1>
-            <span v-if="layer.serviceCount === 0" class="sw-badge warn">no services</span>
-            <span v-else-if="!layer.active" class="sw-badge">no data</span>
+            <span v-if="layer.serviceCount === 0" class="sw-badge warn">{{ t('no services') }}</span>
+            <span v-else-if="!layer.active" class="sw-badge">{{ t('no data') }}</span>
           </div>
           <div class="sub">
-            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${serviceSlotLabel.toLowerCase()}` : 'no service data' }}
+            {{ layer.serviceCount >= 0 ? `${layer.serviceCount} ${serviceSlotLabel.toLowerCase()}` : t('no service data') }}
             <span v-if="layer.documentLink">·
-              <a :href="layer.documentLink" target="_blank" rel="noopener noreferrer">docs ↗</a>
+              <a :href="layer.documentLink" target="_blank" rel="noopener noreferrer">{{ t('docs ↗') }}</a>
             </span>
           </div>
         </div>
@@ -571,7 +575,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <button
           class="sw-btn ghost svc-refresh"
           type="button"
-          :title="landing.isFetching.value ? 'Refreshing service list…' : 'Refresh service list'"
+          :title="landing.isFetching.value ? t('Refreshing service list…') : t('Refresh service list')"
           :disabled="landing.isFetching.value"
           @click="() => landing.refetch()"
         >
@@ -586,11 +590,11 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
         <button
           class="sw-btn ghost svc-share"
           type="button"
-          :title="shareCopied ? 'Link copied' : 'Copy a shareable link to the current view'"
+          :title="shareCopied ? t('Link copied') : t('Copy a shareable link to the current view')"
           @click="copyShareLink"
         >
           <Icon name="share" />
-          <span v-if="shareCopied" class="svc-share-flash">copied</span>
+          <span v-if="shareCopied" class="svc-share-flash">{{ t('copied') }}</span>
         </button>
         <!-- Per-service events — open the popout scoped to THIS service so the
              operator sees its instances without leaving the layer. Gated on
@@ -601,7 +605,7 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
           v-if="auth.hasVerb('events:read') && selectedRow?.serviceName"
           class="sw-btn ghost svc-events"
           type="button"
-          :title="`View events for ${selectedName}`"
+          :title="t('View events for {name}', { name: selectedName })"
           @click="() => eventsPopout.open(layerKey, selectedRow!.serviceName)"
         >
           <Icon name="event" />
@@ -645,8 +649,8 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       <div class="sw-card missing-card">
         <Icon name="event" :size="18" />
         <div>
-          <h2>Loading layers…</h2>
-          <p>Resolving <code>{{ layerKey }}</code> against the OAP layer registry.</p>
+          <h2>{{ t('Loading layers…') }}</h2>
+          <p>{{ t('Resolving') }} <code>{{ layerKey }}</code> {{ t('against the OAP layer registry.') }}</p>
         </div>
       </div>
     </div>
@@ -657,10 +661,10 @@ const serviceKpis = computed<HeaderKpi[]>(() => {
       <div class="sw-card missing-card">
         <Icon name="alert" :size="18" />
         <div>
-          <h2>Layer not found</h2>
+          <h2>{{ t('Layer not found') }}</h2>
           <p>
-            No OAP layer matches <code>{{ layerKey }}</code>. The layer may be inactive or unknown.
-            <RouterLink to="/">Back to Overview</RouterLink>.
+            {{ t('No OAP layer matches') }} <code>{{ layerKey }}</code>. {{ t('The layer may be inactive or unknown.') }}
+            <RouterLink to="/">{{ t('Back to Overview') }}</RouterLink>.
           </p>
         </div>
       </div>

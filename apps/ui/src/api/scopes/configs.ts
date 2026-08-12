@@ -61,15 +61,16 @@ export interface TemplateBadge {
   status: TemplateStatus;
 }
 
-/** A template name where OAP has >1 enabled row. The BFF picks the
- *  lowest-id row as the live one (deterministic across instances);
- *  the admin surfaces the rest so an operator can disable them. */
+/** A template name where OAP has >1 enabled row. The BFF renders the
+ *  LOWEST id — content-blind, so Horizon never ranks one operator's
+ *  dashboard above another's — and reports the rest. Nothing here resolves
+ *  the duplicate: retiring a row is an OAP-side decision for a human. */
 export interface TemplateConflict {
   name: string;
   kind: TemplateKind;
   key: string;
-  /** UUIDs of every enabled OAP row for this name, sorted ASC. The
-   *  first element is the winner; the rest are extras to clean up. */
+  /** UUIDs of every enabled OAP row for this name, sorted ASC. The first
+   *  element is the one Horizon renders (lowest id). */
   enabledIds: string[];
 }
 

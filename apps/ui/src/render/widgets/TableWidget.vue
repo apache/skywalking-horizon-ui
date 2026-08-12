@@ -125,7 +125,7 @@ function entityFor(key?: string): CompareEntity | undefined {
 function titleCase(k: string): string {
   return k.replace(/[_.]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
-const valueHeader = computed(() => props.headers?.[1] || 'Value');
+const valueHeader = computed(() => props.headers?.[1] || t('Value'));
 function cell(r: DisplayRow, key: string): string {
   return r.labels.find((l) => l.key === key)?.value ?? '—';
 }
@@ -155,7 +155,7 @@ function fmt(v: number | null): string {
             </template>
           </td>
           <template v-if="r.others > 0">
-            <td class="tw__cell mono others">(others) · +{{ r.others }}</td>
+            <td class="tw__cell mono others">{{ t('(others) · +{n}', { n: r.others }) }}</td>
             <td v-for="k in labelKeys.slice(1)" :key="k" class="tw__cell mono">—</td>
           </template>
           <template v-else>

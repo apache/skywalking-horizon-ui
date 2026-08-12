@@ -58,28 +58,28 @@ const { t } = useI18n({ useScope: 'global' });
 <template>
   <section class="instance-bar sw-card">
     <header class="ib-head">
-      <span class="kicker">{{ slotLabel || 'Endpoint' }}</span>
+      <span class="kicker">{{ slotLabel || t('Endpoint') }}</span>
       <!-- Strictly serviceName, no base64-id fallback (same rule
            as the instance picker above). -->
       <span v-if="serviceName" class="for-svc">
-        for <b>{{ serviceName }}</b>
+        {{ t('for') }} <b>{{ serviceName }}</b>
         <span v-if="endpoints.length > 0" class="count">{{ endpoints.length }}</span>
       </span>
-      <span v-else-if="selectedId" class="hint">resolving service…</span>
-      <span v-if="loading" class="hint">loading endpoints…</span>
+      <span v-else-if="selectedId" class="hint">{{ t('resolving service…') }}</span>
+      <span v-if="loading" class="hint">{{ t('loading endpoints…') }}</span>
     </header>
     <div v-if="!selectedId" class="empty inline">
-      Pick a service in the picker above to search its endpoints.
+      {{ t('Pick a service in the picker above to search its endpoints.') }}
     </div>
     <div v-else-if="!serviceName" class="empty inline">
-      Resolving service…
+      {{ t('Resolving service…') }}
     </div>
     <template v-else>
       <div class="ep-controls">
         <input
           class="ep-search"
           type="search"
-          placeholder="Search endpoints, press Enter…"
+          :placeholder="t('Search endpoints, press Enter…')"
           v-model="searchInput"
           @keydown.enter.prevent="emit('submit')"
           @search="emit('submit')"
@@ -88,18 +88,18 @@ const { t } = useI18n({ useScope: 'global' });
           class="sw-btn small"
           type="button"
           :disabled="searchInput === query"
-          title="Run the search (Enter)"
+          :title="t('Run the search (Enter)')"
           @click="emit('submit')"
-        >Search</button>
+        >{{ t('Search') }}</button>
         <button
           v-if="query"
           class="sw-btn ghost small"
           type="button"
-          title="Clear the search keyword"
+          :title="t('Clear the search keyword')"
           @click="emit('clear')"
-        >Clear</button>
-        <label class="ep-limit" title="Endpoints are unbounded — limit clamps the top-N (20–50).">
-          <span>Top</span>
+        >{{ t('Clear') }}</button>
+        <label class="ep-limit" :title="t('Endpoints are unbounded — limit clamps the top-N (20–50).')">
+          <span>{{ t('Top') }}</span>
           <select v-model.number="limit">
             <option :value="20">20</option>
             <option :value="30">30</option>
@@ -109,13 +109,13 @@ const { t } = useI18n({ useScope: 'global' });
         </label>
       </div>
       <div v-if="query" class="ep-active-query">
-        Showing top {{ limit }} matches for
+        {{ t('Showing top {limit} matches for', { limit }) }}
         <code>{{ query }}</code>
       </div>
       <div v-if="!loading && endpoints.length === 0" class="empty inline">
-        No endpoints match
+        {{ t('No endpoints match') }}
         <code v-if="query">{{ query }}</code>
-        <span v-else>this service in the last 15 minutes</span>.
+        <span v-else>{{ t('this service in the last 15 minutes') }}</span>.
       </div>
       <ul v-else class="ib-list">
         <li

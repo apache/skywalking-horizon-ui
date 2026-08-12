@@ -4,8 +4,8 @@ This page is the shortest path from "no Horizon" to "Horizon in front of a runni
 
 ## Prerequisites
 
-- Apache SkyWalking **OAP 11.x** (native). OAP 10.x runs the data-plane stack (dashboards, traces, logs, topology, alarms, profiling) but the entire admin port — Inspect, DSL Management, Live Debugger, Alarm Rule editor, Cluster Status → Admin pane, and OAP UI-template sync — is v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the feature-vs-version matrix.
-- Network reachability from the Horizon BFF to the OAP query port (`:12800`) and admin port (`:17128`). See [Network Ports](../compatibility/ports.md).
+- Apache SkyWalking **OAP 11.x** (native). OAP 10.x can run the data-plane stack, subject to minor-specific trace and endpoint limitations; **`templates.mode: readonly` is recommended** there. OAP 10 does have persistent UI-template management through legacy query-port GraphQL, but Horizon implements only OAP 11's `/ui-management/templates*` REST protocol; the default `live` mode therefore cannot read the v10 template store, and falls back to the templates bundled in the release (the connectivity banner says so). The admin-port features — Inspect, DSL Management, Live Debugger, Alarm Rule editor, and Cluster Status → Admin pane — are v11-only. See [Compatibility → OAP Version](../compatibility/oap-version.md) for the exact feature matrix and v10 recipe.
+- Network reachability from the Horizon BFF to the OAP query port (`:12800`). The admin port (`:17128`) is additionally required for OAP 11 admin features and live template mode, but not for OAP 10 readonly operation. See [Network Ports](../compatibility/ports.md).
 - A recent LTS Node.js runtime for the binary tarball. Source builds also need pnpm (pinned via Corepack).
 
 ## Five-step start
@@ -132,10 +132,13 @@ HORIZON_CONFIG=./horizon.yaml HORIZON_STATIC_DIR=./dist/static node dist/server.
 - RBAC role redefinition: applies on next route call.
 - OAP URL change: applies on next outbound call.
 
-Two changes still require a BFF restart:
+Some changes still require a BFF restart:
 
 - `server.host` / `server.port` (the listener has already bound).
-- Anything that changes the capability cache — flipping a feature on the OAP side that Horizon probes only at BFF startup.
+- `templates.mode` (the template source is chosen at boot).
+- Anything that changes the capability cache — flipping a feature on the OAP side that Horizon probes once per process.
+
+An edit that fails validation does not apply — the BFF logs an error naming each failing field and keeps serving the previous valid config. See [`horizon.yaml` Reference → Hot reload behavior](horizon-yaml.md#hot-reload-behavior) for the full list of live vs. restart-required fields.
 
 ## Where things go
 
@@ -144,6 +147,6 @@ Two changes still require a BFF restart:
 | Config | `./horizon.yaml` | `HORIZON_CONFIG=` |
 | Audit log | `./horizon-audit.jsonl` | `audit.file` |
 | Wire debug log | `./horizon-wire.jsonl` | `debugLog.file` |
-| Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages |
+| Bundled overview / layer templates | inside the BFF bundle | not user-editable as files; edit via admin pages (edits are stored in OAP's `ui_template` store) |
 
 All paths are resolved relative to the BFF working directory.

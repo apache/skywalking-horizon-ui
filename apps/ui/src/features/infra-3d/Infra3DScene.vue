@@ -30,6 +30,7 @@
 -->
 <script setup lang="ts">
 import { computed, onUnmounted, ref, shallowRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { TresCanvas } from '@tresjs/core';
 import { OrbitControls, Html } from '@tresjs/cientos';
 import {
@@ -73,6 +74,8 @@ import {
   RIPPLE_PHASES,
   useSceneMaterials,
 } from './composables/useSceneMaterials';
+
+const { t } = useI18n({ useScope: 'global' });
 
 interface Props {
   /** Ordered (top-down) list of planes from the admin config. Drives
@@ -1227,25 +1230,25 @@ onUnmounted(() => {
           <div class="d-head">
             <div class="d-title">
               <span class="d-name">{{ hoveredNode.info.display }}</span>
-              <span class="d-sub">service</span>
+              <span class="d-sub">{{ t('service') }}</span>
             </div>
           </div>
           <div class="d-rows">
             <div v-if="hoveredNode.info.tier" class="d-row">
-              <span class="d-label">Tier</span><span class="d-val">{{ hoveredNode.info.tier }}</span>
+              <span class="d-label">{{ t('Tier') }}</span><span class="d-val">{{ hoveredNode.info.tier }}</span>
             </div>
             <div class="d-row">
-              <span class="d-label">Layer</span><span class="d-val">{{ hoveredNode.info.layer }}</span>
+              <span class="d-label">{{ t('Layer') }}</span><span class="d-val">{{ hoveredNode.info.layer }}</span>
             </div>
             <div v-if="hoveredNode.info.group" class="d-row">
-              <span class="d-label">Group</span><span class="d-val">{{ hoveredNode.info.group }}</span>
+              <span class="d-label">{{ t('Group') }}</span><span class="d-val">{{ hoveredNode.info.group }}</span>
             </div>
             <div v-if="hoveredNode.info.cluster" class="d-row">
-              <span class="d-label">{{ hoveredNode.info.clusterAlias || 'Cluster' }}</span>
+              <span class="d-label">{{ hoveredNode.info.clusterAlias || t('Cluster') }}</span>
               <span class="d-val">{{ hoveredNode.info.cluster }}</span>
             </div>
             <div class="d-row">
-              <span class="d-label">Service</span><span class="d-val mono">{{ hoveredNode.info.service }}</span>
+              <span class="d-label">{{ t('Service') }}</span><span class="d-val mono">{{ hoveredNode.info.service }}</span>
             </div>
           </div>
         </div>
@@ -1267,31 +1270,31 @@ onUnmounted(() => {
           <div class="d-head">
             <div class="d-title">
               <span class="d-name">{{ selectedNodeDetail.info.display }}</span>
-              <span class="d-sub">service</span>
+              <span class="d-sub">{{ t('service') }}</span>
             </div>
             <button
               type="button"
               class="d-close"
-              aria-label="close detail"
+              :aria-label="t('close detail')"
               @click.stop="emit('select', null)"
             >×</button>
           </div>
           <div class="d-rows">
             <div v-if="selectedNodeDetail.info.tier" class="d-row">
-              <span class="d-label">Tier</span><span class="d-val">{{ selectedNodeDetail.info.tier }}</span>
+              <span class="d-label">{{ t('Tier') }}</span><span class="d-val">{{ selectedNodeDetail.info.tier }}</span>
             </div>
             <div class="d-row">
-              <span class="d-label">Layer</span><span class="d-val">{{ selectedNodeDetail.info.layer }}</span>
+              <span class="d-label">{{ t('Layer') }}</span><span class="d-val">{{ selectedNodeDetail.info.layer }}</span>
             </div>
             <div v-if="selectedNodeDetail.info.group" class="d-row">
-              <span class="d-label">Group</span><span class="d-val">{{ selectedNodeDetail.info.group }}</span>
+              <span class="d-label">{{ t('Group') }}</span><span class="d-val">{{ selectedNodeDetail.info.group }}</span>
             </div>
             <div v-if="selectedNodeDetail.info.cluster" class="d-row">
-              <span class="d-label">{{ selectedNodeDetail.info.clusterAlias || 'Cluster' }}</span>
+              <span class="d-label">{{ selectedNodeDetail.info.clusterAlias || t('Cluster') }}</span>
               <span class="d-val">{{ selectedNodeDetail.info.cluster }}</span>
             </div>
             <div class="d-row">
-              <span class="d-label">Service</span><span class="d-val mono">{{ selectedNodeDetail.info.service }}</span>
+              <span class="d-label">{{ t('Service') }}</span><span class="d-val mono">{{ selectedNodeDetail.info.service }}</span>
             </div>
           </div>
           <div class="d-foot">
@@ -1304,7 +1307,7 @@ onUnmounted(() => {
               rel="noopener"
               class="d-btn"
             >
-              Open dashboard
+              {{ t('Open dashboard') }}
               <span class="d-btn-arrow">↗</span>
             </a>
           </div>

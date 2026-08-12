@@ -8,9 +8,9 @@ Role-Based Access Control. Defines the role → verb grants and the post-login l
 rbac:
   enabled: true
   roles:
-    viewer:     [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read]
-    maintainer: [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, infra-3d:read, cluster:read, ttl:read, config:read, inspect:read]
-    operator:   [metrics:read, ..., rule:*, live-debug:*, profile:enable]
+    viewer:     [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, inspect:read, topology:read, profile:read, overview:read, infra-3d:read, ai:read]
+    maintainer: [metrics:read, alarms:read, events:read, traces:read, logs:read, browser-errors:read, topology:read, profile:read, overview:read, cluster:read, inspect:read, ttl:read, config:read, infra-3d:read, ai:read]
+    operator:   [metrics:read, ..., rule:*, live-debug:*, profile:enable, ai:read]
     admin:      ["*"]
   landingByRole:
     viewer: /
@@ -24,16 +24,16 @@ rbac:
 | Field | Type | Default | Required | Notes |
 |---|---|---|---|---|
 | `enabled` | boolean | `true` | no | When `false`, every authenticated session is granted `*` (full access). Useful for dev. **Set `true` in production.** |
-| `roles` | object | the four built-ins | no | Custom role definitions. Keys are role names; values are arrays of permission strings. **Omitting this block uses the four built-ins** (`viewer`, `maintainer`, `operator`, `admin`) — see `horizon.yaml` for the full grants. Defining the block at all overrides the built-ins entirely; redefine all four if you want to keep them. |
+| `roles` | object | the four built-ins | no | Custom role definitions. Keys are role names; values are arrays of permission strings. **Omitting this block uses the four built-ins** (`viewer`, `maintainer`, `operator`, `admin`) — the full grants are in the table below. Defining the block at all overrides the built-ins entirely; redefine all four if you want to keep them. |
 | `landingByRole` | object | see below | no | Post-login redirect route per role. First role on the user wins. |
 
 ## Built-in roles (used when `roles` is not set)
 
 | Role | Purpose | Grants |
 |---|---|---|
-| `viewer` | Read-only data catalog and public overviews. | `metrics:read`, `alarms:read`, `events:read`, `traces:read`, `logs:read`, `browser-errors:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or platform internals. |
-| `maintainer` | Viewer + platform monitoring. | viewer baseline + `cluster:read`, `ttl:read`, `config:read`, `inspect:read`. |
-| `operator` | Configures observability. | maintainer baseline + `overview:write`, `setup:read/write`, `dashboard:read/write`, `alarm-setup:read/write`, `alarm-rule:read/write`, `rule:*` (including `rule:write:structural`, `rule:delete`, `rule:debug`), `live-debug:*`, `profile:enable`. |
+| `viewer` | Read-only data catalog, inspect tools, public overviews, and the AI assistant. | `metrics:read`, `alarms:read`, `events:read`, `traces:read`, `logs:read`, `browser-errors:read`, `inspect:read`, `topology:read`, `profile:read`, `overview:read`, `infra-3d:read`, `ai:read`. Deliberately not `*:read` so the viewer cannot see rule definitions, live-debug sessions, setup screens, or cluster / TTL / config internals. |
+| `maintainer` | Viewer + platform monitoring. | viewer baseline + `cluster:read`, `ttl:read`, `config:read`. |
+| `operator` | Configures observability. | maintainer baseline + `overview:write`, `source-map:write`, `setup:read`/`write`, `dashboard:read`/`write`, `alarm-setup:read`/`write`, `alarm-rule:read`/`write`, `rule:read`, `rule:write`, `rule:write:structural`, `rule:delete`, `rule:debug`, `live-debug:read`/`write`, `profile:enable`. |
 | `admin` | Unrestricted. | `*`. |
 
 ## Verb grammar

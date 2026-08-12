@@ -20,7 +20,7 @@
  *
  * Resolution order:
  *
- *   1. Operator override in studio.yaml under `oap.mqe.{host,port}`.
+ *   1. Operator override in horizon.yaml under `oap.mqe.{host,port}`.
  *      Both fields are independently optional — if only host is set,
  *      port is discovered, and vice versa.
  *
@@ -48,10 +48,10 @@ export interface MqeTarget {
   /** e.g. `http://oap-rest.cluster.local:12800` — no trailing slash. */
   baseUrl: string;
   /** Human-readable rationale for the operator: `sharing-server`,
-   *  `core.restPort`, `studio.yaml override`, `admin host fallback`,
+   *  `core.restPort`, `horizon.yaml override`, `admin host fallback`,
    *  combinations thereof. */
   via: string;
-  /** What the operator's studio.yaml had set (echo, not discovery). */
+  /** What the operator's horizon.yaml had set (echo, not discovery). */
   configured: { host?: string; port?: number };
 }
 
@@ -93,7 +93,7 @@ async function resolveMqeTarget(deps: ResolveDeps): Promise<MqeTarget> {
   if (configured.host !== undefined && configured.port !== undefined) {
     return {
       baseUrl: `http://${configured.host}:${configured.port}`,
-      via: 'studio.yaml override (host + port)',
+      via: 'horizon.yaml override (host + port)',
       configured,
     };
   }
@@ -129,10 +129,10 @@ async function resolveMqeTarget(deps: ResolveDeps): Promise<MqeTarget> {
 
   const viaParts: string[] = [];
   viaParts.push(
-    configured.host !== undefined ? 'host from studio.yaml' : `host from ${picked.hostFrom}`,
+    configured.host !== undefined ? 'host from horizon.yaml' : `host from ${picked.hostFrom}`,
   );
   viaParts.push(
-    configured.port !== undefined ? 'port from studio.yaml' : `port from ${picked.portFrom}`,
+    configured.port !== undefined ? 'port from horizon.yaml' : `port from ${picked.portFrom}`,
   );
 
   return {

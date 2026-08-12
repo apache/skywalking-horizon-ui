@@ -32,6 +32,7 @@
 -->
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import * as echarts from 'echarts/core';
 import { LineChart } from 'echarts/charts';
 import {
@@ -55,6 +56,8 @@ echarts.use([
   TooltipComponent,
   CanvasRenderer,
 ]);
+
+const { t } = useI18n({ useScope: 'global' });
 
 const props = defineProps<{
   /** Alarms to bucket into per-minute counts. */
@@ -146,17 +149,19 @@ function buildOption(): echarts.EChartsCoreOption {
         const total = firing + recovered;
         return [
           `<div style="font-weight:600;color:${readAccent()};">${formatMinute(ts)}</div>`,
-          `<div style="margin-top:4px;font-size:11px;color:var(--sw-fg-0);">${total} event${total === 1 ? '' : 's'}</div>`,
+          `<div style="margin-top:4px;font-size:11px;color:var(--sw-fg-0);">${
+            total === 1 ? t('{n} event', { n: total }) : t('{n} events', { n: total })
+          }</div>`,
           total > 0
             ? `<div style="margin-top:2px;font-size:10.5px;">
-                 <span style="color:#ef4444;">${firing} firing</span>
-                 · <span style="color:#22c55e;">${recovered} recovered</span>
+                 <span style="color:#ef4444;">${t('{n} firing', { n: firing })}</span>
+                 · <span style="color:#22c55e;">${t('{n} recovered', { n: recovered })}</span>
                </div>`
             : '',
           `<div style="margin-top:2px;font-size:10.5px;color:var(--sw-fg-3);">${
             total > 0
-              ? 'click to filter to this minute · drag to select a range'
-              : 'drag to select a range'
+              ? t('click to filter to this minute · drag to select a range')
+              : t('drag to select a range')
           }</div>`,
         ].join('');
       },
@@ -388,8 +393,8 @@ watch(() => props.selectedRange, (next) => drawBrush(next));
     <!-- Legend — the stack is firing (red) on the bottom, recovered (green)
          on top; without this the colored areas / pins read ambiguously. -->
     <div class="atl-legend">
-      <span class="atl-leg"><i class="atl-swatch firing" /> firing</span>
-      <span class="atl-leg"><i class="atl-swatch recovered" /> recovered</span>
+      <span class="atl-leg"><i class="atl-swatch firing" /> {{ t('firing') }}</span>
+      <span class="atl-leg"><i class="atl-swatch recovered" /> {{ t('recovered') }}</span>
     </div>
   </div>
 </template>

@@ -37,6 +37,7 @@ import { useI18n } from 'vue-i18n';
 import type {
   EndpointDependencyCall,
   EndpointDependencyNode,
+  EndpointDependencyResponse,
   LayerDef,
   TopologyMetricDef,
 } from '@/api/client';
@@ -74,6 +75,11 @@ const props = defineProps<{
   /** Embedded look-back window (minutes); the query owns it and skips the global
    *  topbar picker + auto-refresh ticker, like the topology / deployment blocks. */
   focusWindowMinutes?: number;
+  /** REPLAY mode (AI chat): render statically from `replayData`, never fetch; the
+   *  replayData's endpointId PINS which endpoint is drawn, so a reload replays the
+   *  SAME chain (not the now-busiest endpoint) + its edge sparklines. */
+  replay?: boolean;
+  replayData?: EndpointDependencyResponse;
 }>();
 
 const route = useRoute();
@@ -112,8 +118,15 @@ const namingRule = computed(() => layer.value?.naming ?? null);
 function identity(name: string | null | undefined): ServiceIdentity {
   return resolveServiceIdentity(name, namingRule.value);
 }
-const landing = useLayerLanding(safeLayer, safeCfg);
-const resolvedServiceName = useLayerServiceName(layerKey, landing);
+// Effective replay: an intentional replay block MUST also carry replayData to
+// render statically. A replay=true block with no captured payload (old / corrupt
+// / fallback) drops to live behavior instead of rendering empty — matching the
+// other map blocks, whose composables already key replay off replayData presence.
+const isReplay = computed(() => props.replay === true && !!props.replayData);
+// A replay map takes its service from props.focusService (not the landing rollup)
+// and hides the picker, so it fires ZERO landing queries — gated by replay mode.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, isReplay);
+const resolvedServiceName = useLayerServiceName(layerKey, landing, isReplay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : resolvedServiceName.value,
 );
@@ -146,6 +159,8 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
   serviceName,
   endpointQuery,
   endpointLimit,
+  // A replay map pins its endpoint from replayData + hides the picker — no fetch.
+  isReplay,
 );
 watch(serviceName, (next, prev) => {
   if (prev !== undefined && next !== prev && selectedEndpoint.value) {
@@ -156,6 +171,17 @@ watch(serviceName, (next, prev) => {
 // pick). The `return` after step 1 prevents racing the endpoint pick
 // before `serviceName` has propagated and the endpoint list refreshed.
 watchEffect(() => {
+  // A REPLAY chain PINS its endpoint: seed the local pick from the replayData's
+  // endpointId (its focused node) so the graph card renders — the template gates
+  // on a non-null selectedEndpoint — and never auto-pick over it, or a reload
+  // would redraw a different (now-busier) endpoint.
+  if (isReplay.value) {
+    if (!selectedEndpoint.value) {
+      const pinned = props.replayData?.nodes.find((n) => n.id === props.replayData?.endpointId)?.name;
+      if (pinned) setSelectedEndpoint(pinned);
+    }
+    return;
+  }
   if (!selectedId.value) {
     // Embedded mode is pinned to props.focusServiceId and must never seed the
     // shared service store; only the interactive route auto-picks a service.
@@ -177,11 +203,13 @@ watchEffect(() => {
 const focusWindowMinutes = computed<number | null>(() =>
   embedded.value ? (props.focusWindowMinutes ?? 60) : null,
 );
+const replayDataRef = computed<EndpointDependencyResponse | null>(() => props.replayData ?? null);
 const { nodes: baseNodes, calls: baseCalls, isLoading, isFetching, data } = useLayerEndpointDependency(
   layerKey,
   serviceName,
   selectedEndpoint,
   focusWindowMinutes,
+  replayDataRef,
 );
 const reachable = computed(() => data.value?.reachable !== false);
 const errorText = computed(() => data.value?.error ?? null);
@@ -616,13 +644,13 @@ function edgeRowCrosshair(rowId: string): number | null {
       <header class="picker-head">
         <span class="kicker">{{ t('API dependency') }}</span>
         <span v-if="serviceName" class="for-svc">
-          on
+          {{ t('on') }}
           <span v-if="identity(serviceName).cluster" class="sw-tag accent tiny inline-tag">
             <span class="tag-alias">{{ identity(serviceName).clusterAlias }}</span>
             <span class="tag-val">{{ identity(serviceName).cluster }}</span>
           </span>
           <span v-if="showLegacyGroup && identity(serviceName).legacyGroup" class="sw-tag tiny inline-tag">
-            <span class="tag-alias">group</span>
+            <span class="tag-alias">{{ t('group') }}</span>
             <span class="tag-val">{{ identity(serviceName).legacyGroup }}</span>
           </span>
           <b>{{ identity(serviceName).display }}</b>
@@ -966,7 +994,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                  (loading callers & callees) → `+` accent (expanded) or a
                  faded `·` (no further dependency). -->
             <g
-              v-if="selectedNodeId === n.id && n.id !== focusedId"
+              v-if="selectedNodeId === n.id && n.id !== focusedId && !embedded"
               class="ep-expand"
               :class="{ exhausted: isExhausted(n), loading: isLoadingExpansion(n) }"
               :transform="`translate(${NW - 9}, -9)`"
@@ -1052,7 +1080,7 @@ function edgeRowCrosshair(rowId: string): number | null {
                 <span class="tag-val">{{ identity(selectedNode.serviceName).cluster }}</span>
               </span>
               <span v-if="showLegacyGroup && identity(selectedNode.serviceName).legacyGroup" class="sw-tag tiny">
-                <span class="tag-alias">group</span>
+                <span class="tag-alias">{{ t('group') }}</span>
                 <span class="tag-val">{{ identity(selectedNode.serviceName).legacyGroup }}</span>
               </span>
               <span class="ed-svc">{{ identity(selectedNode.serviceName).display }}</span>
@@ -1165,7 +1193,8 @@ function edgeRowCrosshair(rowId: string): number | null {
     </section>
 
     <section v-else-if="serviceName" class="empty">
-      Select an endpoint above to see its dependency chain.
+      <template v-if="embedded">{{ t('No API-dependency data was captured for {serviceName} in this window.', { serviceName }) }}</template>
+      <template v-else>{{ t('Select an endpoint above to see its dependency chain.') }}</template>
     </section>
   </div>
 </template>

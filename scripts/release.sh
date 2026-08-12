@@ -293,6 +293,27 @@ if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
     err "Tag ${TAG} already exists on origin. Delete it first if you need to re-cut, or pick a new version."
     exit 1
 fi
+
+# ---- Gate the EXACT release tree before the tag exists ----------------------
+# Everything below runs in ${CLONE_DIR}, on the release commit itself — not on
+# the caller's working tree, which may differ from what is about to be tagged.
+# It must run BEFORE `git tag`/`git push`: pushing the tag is the irreversible
+# step (it is what the vote is cut from, and what the image workflow reacts
+# to), and repo CI does not run on tags — only on pull_request and pushes to
+# main. So this is the only gate the release artifact ever gets.
+note "Step 8b — Run the full gate battery on the release commit (pre-tag)"
+pnpm install --frozen-lockfile
+pnpm -r run type-check
+pnpm --filter @skywalking-horizon-ui/ui build
+pnpm --filter @skywalking-horizon-ui/bff build
+pnpm -r run test:unit
+pnpm lint                     # eslint + source budget + both i18n gates
+pnpm license:check            # Apache headers
+pnpm package                  # assemble dist/ (also proves the packager works)
+node "${CLONE_DIR}/scripts/collect-dist-licenses.mjs" --check
+node "${CLONE_DIR}/scripts/check-dist-licenses.mjs"
+echo "Release commit passed every gate — safe to tag."
+
 git tag "${TAG}"
 # Push the release commit on its own branch + the tag (the tag points at
 # the release commit). The branch is merged into ${REPO_BRANCH} via the PR
@@ -504,7 +525,8 @@ Guide to build the release from source:
  * cd into the extracted directory
  * pnpm install --frozen-lockfile
  * pnpm package
- * node dist/server.js (after copying horizon.yaml → horizon.yaml)
+ * HORIZON_CONFIG=./horizon.yaml node dist/server.js
+ * Open http://127.0.0.1:8081 — the UI is served from dist/static/ automatically.
 
 Voting will start now (${VOTE_DATE}) and will remain open for at least
 72 hours. PMC members, please cast your vote.

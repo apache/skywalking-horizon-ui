@@ -32,12 +32,16 @@ export function useLayerEndpoints(
   service: Ref<string | null>,
   query: Ref<string>,
   limit: Ref<number>,
+  /** REPLAY mode gate: a replay endpoint-dependency map pins its endpoint from the
+   *  replayData and hides the picker this list feeds, so it passes a true ref to
+   *  fire ZERO queries. Defaults off (live) for the interactive route. */
+  replay?: Ref<boolean>,
 ) {
   const q = useQuery({
     queryKey: ['layer-endpoints', layerKey, service, query, limit],
     queryFn: () =>
       bffClient.layer.endpoints(layerKey.value, service.value ?? '', query.value, limit.value),
-    enabled: computed(() => layerKey.value.length > 0 && !!service.value),
+    enabled: computed(() => !(replay?.value ?? false) && layerKey.value.length > 0 && !!service.value),
     staleTime: 30_000,
   });
   return {

@@ -39,13 +39,13 @@ server:
   port: ${HORIZON_SERVER_PORT:8081}
 
 templates:
-  # `live` (default): seed bundled dashboard templates into OAP's
-  # ui_template store at boot, then read/write them via that API.
+  # `live` (default): seed/read/write templates through OAP 11's
+  # /ui-management/templates* REST API and persist them in OAP storage.
   # `readonly`: render templates from the local bundle only — the
-  # ui_template API is never called and the whole config surface is
-  # read-only. OAP's query API (metrics/traces/logs) is still used either
-  # way. Use `readonly` to run standalone against an OAP whose ui_template
-  # admin API is absent or disabled. (Change needs a BFF restart.)
+  # template-management API is never called and the whole config surface
+  # is read-only. OAP 10 has legacy GraphQL template management, but Horizon
+  # does not consume it, so OAP 10 requires `readonly`. OAP's query API is
+  # still used either way. (Changing this mode needs a BFF restart.)
   mode: "${HORIZON_TEMPLATES_MODE:live}"
 
 oap:
@@ -152,6 +152,9 @@ ai:
   # prompt, replace the value with a YAML block scalar ( |- ). starters: JSON array.
   systemPrompt: "${HORIZON_AI_SYSTEM_PROMPT:}"
   starters: ${HORIZON_AI_STARTERS:null}
+  # Client-side chat-history cap (MB); browser IndexedDB, per user.
+  history:
+    maxMb: ${HORIZON_AI_HISTORY_MAX_MB:500}
 
 # Performance / behavior tuning — BFF→OAP fan-out + storage-protective caps.
 # Operational, hot-reloaded. `:null` keeps the built-in defaults (shown in

@@ -1,0 +1,71 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `metric-catalog` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/metric-catalog/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+kb_layer_capabilities:
+  description: >-
+    What a layer offers, from its template — load this to orient on a layer BEFORE reading its metrics/relations. Returns: the entity VOCABULARY (what Service/Instance/Endpoint MEAN here, e.g. Cluster/Node/Pod/Sidecar, plus any service-name grouping like namespace); which COMPONENTS the layer carries (topology/deployment/endpointDependency/traces/logs/…); the trace SOURCE (native | zipkin | both — use THIS to pick show_traces vs show_zipkin_traces, don't guess); per-scope metric COUNTS (get the LIST with kb_browse_catalog); and each relationship's METRIC LEGEND — node + edge metrics with role (ring = HEALTH, judge against its thresholds; center = LOAD magnitude), label and unit. Speak in the layer's vocabulary and judge health values against the thresholds.
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL, MESH, K8S_SERVICE
+
+kb_browse_catalog:
+  description: >-
+    List the metrics available on a layer dashboard page: the curated title, ready MQE expression(s), unit, widget type, and (when present) a human explanation. ALWAYS use these MQE expressions verbatim rather than inventing metric names — they are scope-correct. scope is one of service | instance | endpoint (default service).
+  params:
+    layer: >-
+      OAP layer key, e.g. GENERAL, MESH, K8S_SERVICE
+    scope: >-
+      service (default) | instance | endpoint
+
+kb_resolve_scope_drill:
+  description: >-
+    Drill DOWN from a service to its child entities so you can re-query the same metric at a finer scope. Returns the child instance/endpoint ids+names. Entity-scope is load-bearing: to see a Service metric per-instance you MUST re-query at instance scope with the child id — there is no automatic rollup.
+  params:
+    serviceId: >-
+      OAP service id (from list_services)
+    toScope: >-
+      drill target scope
+    keyword: >-
+      endpoint name filter (endpoint drill only)
+
+kb_describe_metric:
+  description: >-
+    Get the full catalog detail for ONE metric on a (layer, scope) page — title, MQE, unit, explanation, widget type — looked up by its widget id (from kb_browse_catalog) or a metric id it contains.
+  params:
+    id: >-
+      widget id (from kb_browse_catalog) or a raw metric id
+
+kb_search_metrics:
+  description: >-
+    Search the metric catalog ACROSS all layers by keyword (matches a metric title, id, or explanation) at a given scope (default service). Use when you do not already know which layer exposes the metric you need.
+  params:
+    keyword: >-
+      e.g. "gc", "heap", "latency", "cpu"
+
+kb_resolve_hierarchy:
+  description: >-
+    Resolve a service's CROSS-LAYER hierarchy — the same entity projected into other layers (a K8S_SERVICE linked DOWN to its backing PostgreSQL / MongoDB infra layer, or a MESH service to its GENERAL / K8S mirror). Use to continue root-cause ACROSS a layer boundary: when the root service depends on an infra/database layer, follow the hierarchy there and check that layer's metrics (memory, disk, connections). Distinct from kb_resolve_scope_drill (which stays within a layer, drilling to instances/endpoints).
+  params:
+    serviceId: >-
+      OAP service id (from list_services)
+    layer: >-
+      the service's current layer, e.g. K8S_SERVICE

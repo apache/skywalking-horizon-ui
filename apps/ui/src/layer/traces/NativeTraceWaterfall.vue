@@ -32,8 +32,11 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { componentIconOrNull } from '@/layer/service-map/useTopologyIcons';
 import { fmtMetric } from '@/utils/formatters';
+
+const { t } = useI18n({ useScope: 'global' });
 
 /** Structural type covering both NativeSpan (from /trace) and
  *  ProfileSpan (from /trace-profiling). Only the fields the row
@@ -182,7 +185,7 @@ function onPick(span: WaterfallSpan): void {
 
 <template>
   <div>
-    <div v-if="waterfall.length === 0" class="tr-empty">no span data</div>
+    <div v-if="waterfall.length === 0" class="tr-empty">{{ t('no span data') }}</div>
     <div v-else class="tr-default-list">
       <div
         v-for="row in waterfall"
@@ -198,13 +201,13 @@ function onPick(span: WaterfallSpan): void {
         <span
           class="status-flag sm"
           :class="row.span.isError ? 'flag-err' : 'flag-ok'"
-          :title="row.span.isError ? 'Span errored' : 'Span OK'"
+          :title="row.span.isError ? t('Span errored') : t('Span OK')"
         ><span class="flag-dot" /></span>
         <svg
           class="kind-glyph"
           viewBox="0 0 14 14"
           :style="{ color: kindColor(row.span.type) }"
-          :aria-label="row.span.type || 'span'"
+          :aria-label="row.span.type || t('span')"
           :title="row.span.type || ''"
         >
           <template v-if="kindFamily(row.span.type) === 'entry'">
@@ -243,7 +246,7 @@ function onPick(span: WaterfallSpan): void {
           v-else
           class="comp-icon comp-icon-generic"
           viewBox="0 0 18 18"
-          :aria-label="row.span.component || 'generic span'"
+          :aria-label="row.span.component || t('generic span')"
         >
           <rect x="3" y="4.5" width="12" height="3" rx="1.5" fill="currentColor" opacity="0.45" />
           <rect x="5" y="10.5" width="10" height="3" rx="1.5" fill="currentColor" opacity="0.85" />
@@ -272,7 +275,7 @@ function onPick(span: WaterfallSpan): void {
           <span
             v-if="row.span.peer"
             class="tr-peer mono"
-            :title="`peer · ${row.span.peer}`"
+            :title="t('peer · {peer}', { peer: row.span.peer })"
           >→ {{ row.span.peer }}</span>
           <!-- Profile-only marker. Trace explorer hides it (the field is
                undefined on NativeSpan); trace-profiling sets
@@ -281,12 +284,12 @@ function onPick(span: WaterfallSpan): void {
             v-if="markProfiled"
             class="prof-chip"
             :class="row.span.profiled ? 'on' : 'off'"
-            :title="row.span.profiled ? 'Span was profiled' : 'Span not profiled'"
-          >{{ row.span.profiled ? 'profiled' : '—' }}</span>
+            :title="row.span.profiled ? t('Span was profiled') : t('Span not profiled')"
+          >{{ row.span.profiled ? t('profiled') : '—' }}</span>
           <span
             v-if="!markProfiled && row.span.attachedEvents && row.span.attachedEvents.length > 0"
             class="evt-badge"
-            :title="`${row.span.attachedEvents.length} attached event${row.span.attachedEvents.length === 1 ? '' : 's'}`"
+            :title="row.span.attachedEvents.length === 1 ? t('{n} attached event', { n: row.span.attachedEvents.length }) : t('{n} attached events', { n: row.span.attachedEvents.length })"
           >
             <span class="evt-flag">⚑</span>
             <span class="evt-count">{{ row.span.attachedEvents.length }}</span>

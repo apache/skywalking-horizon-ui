@@ -24,8 +24,11 @@
 -->
 <script setup lang="ts">
 import { reactive, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useEscapeToClose } from '@/components/primitives/useEscapeToClose';
 import EndpointCombo from '@/layer/_shared/EndpointCombo.vue';
+
+const { t } = useI18n({ useScope: 'global' });
 
 export interface EndpointPick {
   id: string;
@@ -109,18 +112,18 @@ function submit(): void {
     <div class="dlg">
       <div class="dlg-head">
         <div>
-          New profile task
-          <span v-if="serviceName" class="muted">on {{ serviceName }}</span>
+          {{ t('New profile task') }}
+          <span v-if="serviceName" class="muted">{{ t('on {name}', { name: serviceName }) }}</span>
         </div>
         <button class="x" @click="close">×</button>
       </div>
       <div class="dlg-body">
         <div class="field">
-          <label>Endpoint name</label>
+          <label>{{ t('Endpoint name') }}</label>
           <EndpointCombo
             :endpoints="endpoints"
             :selected="newTask.endpointName || null"
-            placeholder="(any)"
+            :placeholder="t('(any)')"
             @update:query="(q: string) => emit('update:keyword', q)"
             @pick="(name: string) => (newTask.endpointName = name)"
             @clear="newTask.endpointName = ''"
@@ -128,10 +131,10 @@ function submit(): void {
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Start when</label>
+            <label>{{ t('Start when') }}</label>
             <div class="seg">
-              <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">now</button>
-              <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">set time</button>
+              <button :class="{ on: newTask.monitorTime === 'now' }" @click="newTask.monitorTime = 'now'">{{ t('now') }}</button>
+              <button :class="{ on: newTask.monitorTime === 'set' }" @click="newTask.monitorTime = 'set'">{{ t('set time') }}</button>
             </div>
             <input
               v-if="newTask.monitorTime === 'set'"
@@ -142,7 +145,7 @@ function submit(): void {
             />
           </div>
           <div class="field">
-            <label>Duration (min)</label>
+            <label>{{ t('Duration (min)') }}</label>
             <select v-model.number="newTask.monitorDuration" class="sel">
               <option :value="5">5</option>
               <option :value="10">10</option>
@@ -152,11 +155,11 @@ function submit(): void {
         </div>
         <div class="field-row">
           <div class="field">
-            <label>Min threshold (ms)</label>
+            <label>{{ t('Min threshold (ms)') }}</label>
             <input type="number" min="0" v-model.number="newTask.minThreshold" class="ti-input" />
           </div>
           <div class="field">
-            <label>Dump period (ms)</label>
+            <label>{{ t('Dump period (ms)') }}</label>
             <select v-model.number="newTask.dumpPeriod" class="sel">
               <option :value="10">10</option>
               <option :value="20">20</option>
@@ -165,7 +168,7 @@ function submit(): void {
             </select>
           </div>
           <div class="field">
-            <label>Max sampling count</label>
+            <label>{{ t('Max sampling count') }}</label>
             <select v-model.number="newTask.maxSamplingCount" class="sel">
               <option v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" :value="n">{{ n }}</option>
             </select>
@@ -174,8 +177,8 @@ function submit(): void {
         <div v-if="error" class="dlg-err">{{ error }}</div>
       </div>
       <div class="dlg-foot">
-        <button class="btn-secondary" @click="close">Cancel</button>
-        <button class="btn-primary" @click="submit">Create task</button>
+        <button class="btn-secondary" @click="close">{{ t('Cancel') }}</button>
+        <button class="btn-primary" @click="submit">{{ t('Create task') }}</button>
       </div>
     </div>
   </div>

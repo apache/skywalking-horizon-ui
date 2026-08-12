@@ -131,7 +131,7 @@ function startSidebarResize(e: PointerEvent): void {
     <div
       v-if="!sidebarCollapsed"
       class="sw-resize"
-      title="Drag to resize · double-click to reset"
+      :title="t('Drag to resize · double-click to reset')"
       @pointerdown="startSidebarResize"
       @dblclick="resetSidebarWidth"
     />

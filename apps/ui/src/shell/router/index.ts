@@ -73,6 +73,16 @@ function layerRoute(): RouteRecordRaw {
       { path: 'async-profiling', component: () => import('@/layer/profiling/LayerAsyncProfilingView.vue') },
       { path: 'network-profiling', component: () => import('@/layer/profiling/LayerNetworkProfilingView.vue') },
       { path: 'pprof', component: () => import('@/layer/profiling/LayerPprofProfilingView.vue') },
+      // Continuous-profiling POLICIES — the auto-trigger rules behind the eBPF
+      // and Network tabs above. Same agent, same three targets; gated by the
+      // layer template's `continuousProfiling` component flag.
+      {
+        path: 'continuous-profiling',
+        component: () => import('@/layer/continuous-profiling/LayerContinuousProfilingView.vue'),
+        // The page carries its own Target service picker — the policy is defined
+        // against a service, so the choice belongs where the rules are.
+        meta: { ownsServiceSelector: true },
+      },
       // Old single-profiling URL → redirect to the trace-profiling page
       // for back-compat with bookmarks taken before the split.
       {
@@ -135,10 +145,6 @@ const shellRoutes: RouteRecordRaw[] = [
   // grouping. Read-only; OAP auto-recovers, no acknowledge / silence.
   { path: 'alarms', name: 'alarms', component: () => import('@/features/alarms/AlarmsView.vue') },
   // 3D Infra Map lives as a TOP-LEVEL standalone route OUTSIDE
-  // AppShell (see the createRouter call below). The shellRoutes entry
-  // here is kept only so reverse-route lookups by name (`infra-3d-map`)
-  // continue to resolve, redirecting to the standalone path.
-  { path: '3d/map', redirect: '/3d/map' },
   {
     path: 'operate/cluster',
     component: () => import('@/features/operate/cluster/ClusterStatusView.vue'),
@@ -321,8 +327,8 @@ const router = createRouter({
     // AI Assistant — the roomy full-page mode of the chat. A standalone fullscreen
     // route OUTSIDE the AppShell (max canvas for wide charts, tab-grouped figures and
     // pinned sub-pages) sharing the same conversation + localStorage history as the
-    // docked drawer. Requires auth via the global guard; the `ai:read` verb lands with
-    // the BFF (M2), so no `meta.verb` yet.
+    // docked drawer. Requires auth via the global guard; the BFF enforces `ai:read`
+    // on the chat API itself, so the route carries no `meta.verb`.
     {
       path: '/ai',
       name: 'ai',
@@ -336,7 +342,7 @@ const router = createRouter({
     {
       path: '/:catchAll(.*)*',
       component: placeholder,
-      props: { title: 'Not found', phase: 'never', note: 'No route matches.' },
+      props: { title: 'Not found', note: 'No route matches.' },
     },
   ],
 });

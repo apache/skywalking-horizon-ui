@@ -26,6 +26,7 @@ import { tool } from '@langchain/core/tools';
 import { z } from 'zod';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import { PLAYBOOKS } from './playbooks.js';
+import { toolPrompt } from '../../resources/loader.js';
 
 export function rcaTools(): StructuredToolInterface[] {
   const list = tool(
@@ -33,11 +34,12 @@ export function rcaTools(): StructuredToolInterface[] {
       JSON.stringify(PLAYBOOKS.map((p) => ({ id: p.id, title: p.title, whenToUse: p.whenToUse }))),
     {
       name: 'list_playbooks',
-      description:
-        'List the available root-cause investigation playbooks (id + title + when-to-use). Call this at the START of any "why is X wrong / what is the root cause" investigation, then get_playbook the best-matching one and FOLLOW it.',
+      description: toolPrompt('rca', 'list_playbooks').description,
       schema: z.object({}),
     },
   );
+
+  const getP = toolPrompt('rca', 'get_playbook');
 
   const get = tool(
     async ({ id }): Promise<string> => {
@@ -47,12 +49,9 @@ export function rcaTools(): StructuredToolInterface[] {
     },
     {
       name: 'get_playbook',
-      description:
-        'Fetch a root-cause playbook by id (from list_playbooks) — a step-by-step method that sequences the data tools. Load the matching playbook before investigating, then follow its steps in order.',
+      description: getP.description,
       schema: z.object({
-        id: z
-          .string()
-          .describe('playbook id, e.g. root-cause, latency, errors-sla, saturation, middleware-remote, k8s, mesh'),
+        id: z.string().describe(getP.p('id')),
       }),
     },
   );

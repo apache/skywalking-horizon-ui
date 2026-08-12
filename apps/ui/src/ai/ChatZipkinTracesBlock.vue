@@ -23,21 +23,26 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerZipkinTracesView from '@/layer/traces/LayerZipkinTracesView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { ZipkinTracesSpec } from './types';
 
-defineProps<{ n: number; spec: ZipkinTracesSpec }>();
+defineProps<{ n: number; spec: ZipkinTracesSpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="czt">
-    <div class="czt__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="czt__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="czt__view">
       <LayerZipkinTracesView
         :embedded="true"
         :layer-key="spec.layer.toLowerCase()"
         :focus-service="spec.service"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

@@ -21,7 +21,7 @@ Profiling drills past metrics and traces into the call stacks, kernel events, an
 
 Every profiling tab follows the same shape: a task list on the left, a New Task control to start a profiling run, and a result panel on the right that renders the captured data once OAP has fanned the task out to the relevant instances or processes. Results are shown as an indented stack tree or a flame graph, with a toggle between the two where both apply.
 
-Task creation is consistent across every tab. The New Task control opens once you have selected its target — a service, or a service instance for Network Profiling. Inside the dialog, if the target cannot be profiled — no profilable processes, or no instances on the service — Create is disabled with the reason shown next to it, rather than a silently greyed-out control. You always see why a task cannot be started.
+Task creation is consistent across every tab. The New Task control opens once you have selected a service; for Network Profiling, the target instance is picked inside the dialog. Inside the dialog, a target that cannot be profiled at all — no profilable processes for eBPF, or no instances on the service — disables Create with the reason shown next to it, rather than a silently greyed-out control; advisory checks (such as Network Profiling's process list) warn without blocking. You always see why a task cannot be started.
 
 ## Access control
 
@@ -84,7 +84,7 @@ Async Profiling runs the async-profiler against a live Java service, capturing J
 - `CTIMER`
 - `ITIMER`
 
-You can select multiple instances and multiple events in a single task. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`).
+You can select multiple instances and multiple events in a single task, with a duration from 30 seconds up to 15 minutes. After the task runs, choose which instances to include and which event type's tree to render, then press **Analyze**. Because a single task can collect several event types, the result panel has an **Event type** selector — switching it re-draws the flame graph for the selected JVM event (for example `EXECUTION_SAMPLE` for CPU/Wall/Timer events, `LOCK` for lock contention, or one of the object-allocation event types for `ALLOC`).
 
 ## pprof
 
@@ -102,7 +102,7 @@ The dialog adapts to the event you pick:
 
 - `CPU`, `BLOCK`, and `MUTEX` are time-bounded captures and require a **Duration** (up to 15 minutes).
 
-- `BLOCK` and `MUTEX` additionally take a **Dump period** sampling rate — for `BLOCK` it is a blocked-nanoseconds rate, for `MUTEX` a contention-occurrences rate; a value of `1` samples every event.
+- `BLOCK` and `MUTEX` additionally take a **Dump period** sampling rate — for `BLOCK` it is a blocked-nanoseconds rate, for `MUTEX` a contention-occurrences rate; a value of `1` samples every event. Because lower means *more* samples, an invalid value is rejected with the reason rather than silently replaced with a default.
 
 - `HEAP`, `GOROUTINE`, `ALLOCS`, and `THREADCREATE` are one-shot snapshots — they take no duration and no sampling rate, capturing the current state at the moment the task fires.
 
@@ -110,19 +110,53 @@ A task can target multiple Go service instances. After it runs, select the insta
 
 ## Network Profiling
 
-Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance, which you pick inside the New Task dialog. The dialog lists the rover-monitored processes reporting on that instance; an instance with no such processes cannot be profiled — OAP rejects the task — so Create is disabled with that reason. Once a valid instance is chosen, the task defines which traffic to sample.
+Network Profiling captures the network conversations between processes of a service instance and renders them as a process-level topology. It mounts on a specific instance, which you pick inside the New Task dialog. The dialog lists the rover-monitored processes that recently reported on that instance — as advice, not a gate: an instance with no recently-reported process shows a warning that the task may collect nothing, but you can still create it and let OAP decide. Once an instance is chosen, the task defines which traffic to sample.
 
-Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx responses, or by a minimum duration — and controls how much of each request and response body is collected. A network task keeps running until it is stopped, so the New Task dialog defines the sampling rules rather than a fixed duration.
+Each sampling rule scopes the capture — by URI pattern, by HTTP 4xx / 5xx responses, or by a minimum duration — and controls how much of each request and response body is collected. OAP runs every network task for a fixed ten minutes and the create request carries no duration, so the New Task dialog defines the sampling rules rather than a run length.
 
 The result is a **honeycomb topology**: each cell is a process, and the edges between them are the observed inter-process calls. Selecting an edge opens a detail panel with that process-to-process relation's metrics (call rate, latency, and bytes transferred) charted over the task's run window. The topology that drives this layout is the same process-relation data that powers the [3D Infrastructure Map](infra-3d-map.md).
 
+## Continuous Profiling
+
+Everything above starts a profiling task **on demand** — you pick a target and start it. Continuous profiling is the opposite: you arm a policy once, and the profiling task starts **by itself** whenever a process crosses a threshold, with nobody present. It is how you catch a problem that only appears at 3 a.m.
+
+**Continuous profiling is eBPF profiling only, and it requires [Rover](https://github.com/apache/skywalking-rover).** A policy can trigger `ON_CPU`, `OFF_CPU` or `NETWORK` — the same three flavours as the eBPF and Network Profiling tabs above — and the Rover agent both evaluates the thresholds and runs the resulting task. There is no continuous *trace*, *async-profiler* or *pprof* profiling; those stay on demand. So a service with no Rover agent can hold a saved policy, but nothing will fire until one is deployed.
+
+Policies are edited on the layer's **Continuous Profiling** tab, beside the eBPF and Network Profiling tabs whose tasks they trigger. The tab has its own **Target service** picker: each service is labelled with the targets it already has armed, and the picker can be filtered by that — including **no policy**, which is the set you want when arming services that are not set up yet. Opening the tab selects the first service that already has a policy, or the first service in the layer if none does. Once a service is selected, the tab shows its policy plus the instances OAP is currently evaluating it against.
+
+Nothing here is gated on the agent already being present, because **arming a policy before deploying the agent is a valid order of work**: the policy is backend configuration, and it simply starts firing once an eBPF agent begins reporting. If no process of the selected service has reported eBPF-profiling support recently, the tab says so as a warning and still lets you save.
+
+The tab appears on a layer whose template enables the **Continuous Profiling** component (Layer Setup). It ships enabled on **MESH**, matching where the previous SkyWalking UI placed it. Rover registers its processes into `MESH`, `MESH_DP` and `K8S_SERVICE` by default (which layer is configurable per discovery analyzer), so those are the layers where enabling it is likely to be useful — turn it on there if your Rover deployment reports into them.
+
+A policy is a set of **targets** — `ON_CPU`, `OFF_CPU`, or `NETWORK` — and each target carries one or more **conditions**. A condition is:
+
+- a **measurement** (labelled that way on screen; OAP's own name for it is `ContinuousProfilingMonitorType`) — `PROCESS_CPU`, `PROCESS_THREAD_COUNT`, `SYSTEM_LOAD`, `HTTP_ERROR_RATE`, or `HTTP_AVG_RESPONSE_TIME`;
+- a **threshold**, whose unit follows the measurement — a percentage for CPU and error rate, a thread count, a load average, milliseconds for response time. Every threshold is a **whole number**: OAP parses all five as integers and rejects anything else, so `0.5%` or `4.5` will not save. CPU percent and HTTP error rate must be `1`–`100`; the rest must be greater than `0`. The count cannot exceed the period, and one target cannot carry two conditions of the same measurement.
+- a **period**, the number of seconds of metrics to evaluate;
+- a **count**, how many matching evaluations must occur before profiling is triggered.
+
+The two HTTP monitors can additionally be scoped to specific traffic. Choose **All traffic**, **URI list** or **URI regex** — one or the other, never both. Nothing on the backend rejects a rule carrying both, but the agent applies the list and silently ignores the regex, so the form makes the choice explicit; switching away from a filter you have filled asks before erasing it.
+
+Two things are worth knowing before you save:
+
+- **Saving replaces the service's whole policy.** OAP stores one policy per service, and the page sends everything you see. A target you delete is deleted; keep every rule you want to survive.
+- **A policy only evaluates processes an eBPF agent reports.** Inside each target sits a paged **Where it runs** panel: the instances and processes OAP evaluates for that target, with how often each has actually triggered profiling recently, searchable by instance *or* process name, each row expanding to that instance's processes. That trigger count is the thing to read: it is the difference between a policy that is stored and one that is working, and it is the only per-target signal here (the process list itself is the same for every target). An empty panel means nothing is reporting for the service at all.
+
+  The panel is not a Rover presence check — it lists a process whether or not that process can be eBPF-profiled. If the panel has rows *and* the warning above says no process reported eBPF-profiling support, the reading is "processes are there, but none are profilable", which points at Rover's configuration rather than its absence.
+
+Tasks a policy starts appear in the **eBPF Profiling** and **Network Profiling** tabs alongside the ones you start by hand, so a fired policy is read the same way as an on-demand task.
+
+Reading policies needs `profile:read`; saving one needs `profile:enable`, the same permission as starting a task by hand — because that is what a policy eventually does.
+
 ## Troubleshooting
+
+- **A continuous-profiling policy never fires** — first check that it is actually applied: each target shows **Applied** or **Not applied**, and rules that have only been typed are not running. Then check the **Where it runs** panel. If it is empty, nothing is reporting for that service and the thresholds are irrelevant; deploy [Rover](https://github.com/apache/skywalking-rover) for the service. If processes are listed but the trigger count stays at zero, the threshold is not being crossed — lower it, lengthen the period, or reduce the required count.
 
 - **No profiling tabs on a layer** — OAP did not report profiling support for that service. Each tab requires the corresponding capability (trace, eBPF, async-profiler, network, or pprof), which depends on the agent or [Rover](https://github.com/apache/skywalking-rover) deployment behind the service.
 
-- **New Task is unavailable** — you have not selected a service (or, for Network Profiling, an instance), or you lack `profile:enable`.
+- **New Task is unavailable** — you have not selected a service, or you lack `profile:enable`.
 
-- **Create is disabled inside the New Task dialog** — the chosen target cannot be profiled, and the reason is shown next to the button: for eBPF, OAP reports no profilable processes for the service; for Network Profiling, the selected instance has no rover-monitored processes; for Async Profiling and pprof, the service has no instances.
+- **Create is disabled inside the New Task dialog** — the chosen target cannot be profiled, and the reason is shown next to the button: for eBPF, OAP reports no profilable processes for the service; for Async Profiling, pprof, and Network Profiling, the service has no instances. On Network Profiling, an instance whose processes have not reported recently is a warning, not a block — the task can still be created.
 
 - **Task list is empty after creating a task** — the task is created, but results only appear once OAP has dispatched it to the instances or processes and they report back. The view polls for the new task briefly; use the refresh control if it does not appear.
 

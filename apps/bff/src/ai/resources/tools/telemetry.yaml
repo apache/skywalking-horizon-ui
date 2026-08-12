@@ -1,0 +1,30 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# LLM-facing tool manifest for the `telemetry` skill: each tool's description +
+# per-param hints the model reads to pick and call the tool. Edit the prompt text
+# HERE, not in skill/telemetry/tools.ts (which reads these via toolPrompt). These
+# strings are part of the provider prompt-cache prefix — keep them byte-stable.
+
+list_alarms:
+  description: >-
+    List recently firing alarms — SkyWalking's health signal. Start here for 'what is unhealthy / abnormal?': each alarm names the alarmed entity, scope, and the rule message. Active (unrecovered) alarms are listed first. Then drill into the alarmed entity's metrics to explain the anomaly. Optionally filter by layer or a keyword.
+  params:
+    layer: >-
+      OAP layer key filter, e.g. GENERAL
+    keyword: >-
+      alarm-name / entity keyword filter

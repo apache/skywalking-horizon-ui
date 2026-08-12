@@ -16,7 +16,10 @@
 -->
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { RouterLink } from 'vue-router';
+
+const { t } = useI18n({ useScope: 'global' });
 
 /** The 3D Infra Map entry pill lives in the topbar on every page. It
  *  stays compact ("3D Infra") by default and expands to the full
@@ -44,7 +47,7 @@ const exp3dExpanded = computed<boolean>(() => exp3dHover.value);
     to="/3d/map"
     class="exp-badge"
     :class="{ 'is-on': exp3dExpanded }"
-    aria-label="3D Infra Map"
+    :aria-label="t('3D Infra Map')"
     @mouseenter="exp3dHover = true"
     @mouseleave="exp3dHover = false"
   >
@@ -69,7 +72,7 @@ const exp3dExpanded = computed<boolean>(() => exp3dHover.value);
       <path d="M12 13 L21 17 L12 21 L3 17 Z" fill="url(#expTierMesh)" opacity="0.18" />
       <path d="M12 16 L21 20 L12 24 L3 20 Z" fill="url(#expTierInfra)" />
     </svg>
-    <span class="exp-name">{{ exp3dExpanded ? '3D Infrastructure Map' : '3D Infra' }}</span>
+    <span class="exp-name">{{ exp3dExpanded ? t('3D Infrastructure Map') : t('3D Infra') }}</span>
   </RouterLink>
 </template>
 

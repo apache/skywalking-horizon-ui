@@ -23,7 +23,22 @@
  * renders it with the SAME widget components the dashboards use.
  */
 
-import type { DashboardWidget, DashboardWidgetResult } from '@skywalking-horizon-ui/api-client';
+import type {
+  BrowserErrorsResponse,
+  DashboardWidget,
+  DashboardWidgetResult,
+  DeploymentResponse,
+  EndpointDependencyResponse,
+  InstanceTopologyResponse,
+  LogsResponse,
+  ProcessTopologyResponse,
+  ProfileAnalyzationTree,
+  ServiceHierarchyResponse,
+  TopologyResponse,
+  TraceListResponse,
+  ZipkinTraceListResponse,
+} from '@skywalking-horizon-ui/api-client';
+import type { ProfilingLogLine, ProfilingSummary, ProfilingType, TraceContext } from '../logic/oap/profiling.js';
 
 export type FigureLayout = 'single' | 'tabs' | 'stack' | 'grid';
 
@@ -40,40 +55,75 @@ export interface ChatFigure {
   xaxis?: FigureXAxis;
 }
 
-/** A "sub-page" figure: a feature view surfaced as a card that opens the real
- *  full page in a new tab. Graph/triage views (topology, deployment, traces,
- *  logs, browser errors) now embed inline via their own specs; this is the
- *  remaining link-out (the layer service list). */
-export type SubPageKind = 'service-list';
-
-export interface SubPageSpec {
-  kind: SubPageKind;
-  title: string;
-  layer: string;
-  service?: string;
-  range: FigureXAxis;
-}
-
 /** A PROPOSED mutating action (profiling / live-debug). The agent never fires
  *  it — it presents a decision card (what it found, why this action, what it
  *  expects) and the user approves or dismisses in a popout. On approve the UI
  *  calls the existing verb-gated create route; on dismiss nothing happens. */
+/** The five profiling flavors an agent can propose (network adds to the four
+ *  flame-analysable ones — its result is a process topology, not a flame). */
+export type ProfilingProposalType = 'trace' | 'async' | 'pprof' | 'ebpf' | 'network';
+
 export interface ProposalSpec {
-  /** Extensible; profiling first. */
   kind: 'profiling';
-  /** trace-profiling for now. */
-  profilingType: 'trace';
+  profilingType: ProfilingProposalType;
   layer: string;
   serviceId: string;
   service: string;
-  endpoint?: string;
+  /** Agent-facing collection window; the card converts it to each type's unit
+   *  (trace/pprof minutes, async/eBPF seconds, network none). */
   durationMinutes: number;
+  /** trace — the endpoint to sample. */
+  endpoint?: string;
+  /** async / pprof / network — target instance ids the tool resolved server-side. */
+  instanceIds?: string[];
+  /** Display label for the resolved instances ("3 instances" / a single name). */
+  instanceLabel?: string;
+  /** async (multi) / pprof (single) — profiling events, e.g. ['CPU']. */
+  events?: string[];
+  /** eBPF — ON_CPU / OFF_CPU + optional process-label filter (empty ⇒ all). */
+  targetType?: 'ON_CPU' | 'OFF_CPU';
+  processLabels?: string[];
   /** The analyzed cause so far — what the investigation found. */
   cause: string;
   /** Why this action is the right next step. */
   rationale: string;
   /** What the action is expected to reveal / confirm. */
   expectation: string;
+}
+
+/** A captured, frozen network process-conversation graph (network profiling's
+ *  result). ProcessTopologyGraph is a stateless renderer, so the block replays
+ *  `replayData` directly — no re-query. Emitted only when processes exist; an
+ *  absent Rover/eBPF agent is said out in text instead. */
+export interface ProcessTopologySpec {
+  title: string;
+  layer: string;
+  service: string;
+  instanceName: string | null;
+  replayData: ProcessTopologyResponse;
+}
+
+/** A captured, frozen profiling result — analyzed flame `trees` + task facts +
+ *  logs. Renders the Profiling-tab flame from `trees`; never re-queries on
+ *  reload (empty `trees` = nothing collected yet). */
+export interface ProfilingResultSpec {
+  title: string;
+  profilingType: ProfilingType;
+  layer: string;
+  service: string;
+  taskId: string | null;
+  /** The flame input — every profiling flavor mapped to the one render shape. */
+  trees: ProfileAnalyzationTree[];
+  metricKey: 'count' | 'duration';
+  /** OAP's partial-data notice, when the snapshot was only partly analyzed. */
+  tip?: string | null;
+  logs: ProfilingLogLine[];
+  summary: ProfilingSummary;
+  /** trace only — the profiled segment's trace, rendered as a span waterfall
+   *  beside the flame (the trace+profiling combination). */
+  traceContext?: TraceContext;
+  reachable: boolean;
+  error?: string | null;
 }
 
 /** One line of on-demand pod-log output. `timestamp` is epoch-ms (OAP reports
@@ -128,6 +178,10 @@ export interface HierarchySpec {
   groups: HierarchyGroup[];
   reachable: boolean;
   errorReason?: string | null;
+  /** The captured raw hierarchy (the overlay's native shape). Present ⇒ the
+   *  embedded overlay SEEDS from it and never re-queries — a reloaded fan
+   *  replays statically. `groups` stays for the LLM text summary. */
+  replayData?: ServiceHierarchyResponse;
 }
 
 /** A direct neighbour of the focus service in the one-hop ego topology.
@@ -156,6 +210,11 @@ export interface TopologySpec {
   /** The chat window (minutes) the ego graph was resolved over, so the embedded
    *  map re-queries the SAME window — not the global topbar picker. */
   windowMinutes?: number;
+  /** The captured, render-ready graph (nodes+edges WITH metric values + edge
+   *  series). When present the embedded view SEEDS from it and never re-queries
+   *  OAP — so a reloaded conversation replays the exact point-in-time map + its
+   *  edge part-graphs. Absent (too-large / degrade) ⇒ the view live-fetches. */
+  replayData?: TopologyResponse;
 }
 
 /** A mounted DEPLOYMENT view — the real per-service instance-to-instance call
@@ -168,6 +227,10 @@ export interface DeploymentSpec {
   service: string;
   serviceId: string;
   windowMinutes?: number;
+  /** Captured render-ready graph (instances + intra-service edges WITH metric
+   *  values + twin edge series). Present ⇒ the embedded view seeds statically
+   *  and replays the edge part-graphs on reload; absent ⇒ live fetch. */
+  replayData?: DeploymentResponse;
 }
 
 /** A mounted INSTANCE-TOPOLOGY view — the real per-pair instance map embedded
@@ -183,6 +246,9 @@ export interface InstanceTopologySpec {
   serverService: string;
   serverServiceId: string;
   windowMinutes?: number;
+  /** Captured render-ready pair map (instances + edges WITH metric values +
+   *  twin edge series). Present ⇒ replay statically + edge part-graphs. */
+  replayData?: InstanceTopologyResponse;
 }
 
 /** A mounted ENDPOINT-DEPENDENCY view — the real per-endpoint API-dependency
@@ -196,6 +262,10 @@ export interface EndpointDependencySpec {
   service: string;
   serviceId: string;
   windowMinutes?: number;
+  /** Captured render-ready chain (endpoints + edges WITH metric values + edge
+   *  series). The response's `endpointId` PINS which endpoint was drawn, so a
+   *  reload replays the SAME chain — not the now-busiest endpoint. */
+  replayData?: EndpointDependencyResponse;
 }
 
 /** A mounted TRACES view — the real native Traces view embedded read-only in
@@ -207,6 +277,9 @@ export interface TracesSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  /** Captured native trace list (rows carry inline spans on v2). Replay renders
+   *  it frozen; v1 detail (no inline spans) is disabled offline. */
+  replayData?: TraceListResponse;
 }
 
 /** A mounted ZIPKIN TRACES view — the real Zipkin trace view embedded read-only,
@@ -219,6 +292,8 @@ export interface ZipkinTracesSpec {
   layer: string;
   service: string;
   windowMinutes?: number;
+  /** Captured Zipkin trace list WITH spans, so a reload replays the waterfall offline. */
+  replayData?: ZipkinTraceListResponse;
 }
 
 /** A mounted LOGS view — the real layer Logs view embedded read-only, focused on
@@ -229,6 +304,8 @@ export interface LogsSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  /** Captured log rows — self-contained (detail/facets are client-side). */
+  replayData?: LogsResponse;
 }
 
 /** A mounted BROWSER-ERRORS view — the real browser-monitoring error list
@@ -240,6 +317,8 @@ export interface BrowserErrorsSpec {
   service: string;
   serviceId?: string;
   windowMinutes?: number;
+  /** Captured error rows — self-contained (stack/detail are client-side). */
+  replayData?: BrowserErrorsResponse;
 }
 
 export type SseEvent =
@@ -247,8 +326,9 @@ export type SseEvent =
   | { type: 'thinking'; text: string }
   | { type: 'tool'; name: string; status: 'running' | 'done' | 'denied' }
   | { type: 'figure'; n: number; title?: string; layout: FigureLayout; figures: ChatFigure[] }
-  | { type: 'subpage'; n: number; spec: SubPageSpec }
   | { type: 'proposal'; n: number; spec: ProposalSpec }
+  | { type: 'profiling'; n: number; spec: ProfilingResultSpec }
+  | { type: 'process-topology'; n: number; spec: ProcessTopologySpec }
   | { type: 'podlogs'; n: number; spec: PodLogSpec }
   | { type: 'hierarchy'; n: number; spec: HierarchySpec }
   | { type: 'topology'; n: number; spec: TopologySpec }

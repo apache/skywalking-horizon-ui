@@ -22,15 +22,18 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
+import ChatCapturedTag from './ChatCapturedTag.vue';
 import type { TopologySpec } from './types';
 
-defineProps<{ n: number; spec: TopologySpec }>();
+defineProps<{ n: number; spec: TopologySpec; capturedAt?: number }>();
 const { t } = useI18n({ useScope: 'global' });
 </script>
 
 <template>
   <div class="ctp">
-    <div class="ctp__cap">{{ t('Figure {n}', { n }) }} · {{ spec.title }}</div>
+    <div class="ctp__cap">
+      {{ t('Figure {n}', { n }) }} · {{ spec.title }}<ChatCapturedTag :at="capturedAt" />
+    </div>
     <div class="ctp__view">
       <LayerServiceMapView
         :embedded="true"
@@ -40,6 +43,8 @@ const { t } = useI18n({ useScope: 'global' });
         :fit-scale="1.2"
         :zoom-controls="true"
         :focus-window-minutes="spec.windowMinutes"
+        :replay="true"
+        :replay-data="spec.replayData"
       />
     </div>
   </div>

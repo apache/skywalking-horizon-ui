@@ -26,8 +26,9 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import type { LayerDef, LogRow, LogTagFilter } from '@/api/client';
+import type { LayerDef, LogRow, LogsResponse, LogTagFilter } from '@/api/client';
 import { useLayerLanding } from '@/layer/useLayerLanding';
 import { useLayerLogs, useLayerLogFacets } from '@/layer/logs/useLayerLogs';
 import { useLayerInstances } from '@/layer/useLayerInstances';
@@ -48,6 +49,8 @@ import LogStreamPanel from '@/render/widgets/LogStreamPanel.vue';
 import LogDetailPopout from '@/render/widgets/LogDetailPopout.vue';
 import TagInput from '@/components/primitives/TagInput.vue';
 
+const { t } = useI18n({ useScope: 'global' });
+
 const props = defineProps<{
   /** Embedded (AI-chat) mode: seed the focus service from props, bypass the
    *  shared layerSelection store + filter chrome, and auto-run on mount.
@@ -56,9 +59,15 @@ const props = defineProps<{
   layerKey?: string;
   focusService?: string;
   focusWindowMinutes?: number;
+  /** REPLAY mode: render the captured log list with zero re-query — no mount
+   *  auto-run, no pager (paging would refetch). Implies embedded. */
+  replay?: boolean;
+  replayData?: LogsResponse | null;
 }>();
 const route = useRoute();
 const embedded = computed(() => Boolean(props.embedded));
+const replay = computed(() => Boolean(props.replay));
+const replayDataRef = computed<LogsResponse | null>(() => props.replayData ?? null);
 const layerKey = computed(() =>
   props.layerKey && props.layerKey.length > 0 ? props.layerKey : String(route.params.layerKey ?? ''),
 );
@@ -78,11 +87,14 @@ const safeCfg = computed(() => {
     slots: layer.value.slots, caps: layer.value.caps, metrics: layer.value.metrics,
   }).landing;
 });
-const landing = useLayerLanding(safeLayer, safeCfg);
+// The landing / instance / endpoint feeds power the hidden filter chrome; in
+// replay they must fire NO OAP request. Landing + endpoints take a replay gate;
+// instances has none, so starve its service to null in replay.
+const landing = useLayerLanding(safeLayer, safeCfg, undefined, replay);
 // Embedded takes the focus service from the prop; the route resolves it from
 // the shared layerSelection store — overriding here means the chat block never
 // touches that global selection.
-const serviceNameRaw = useLayerServiceName(layerKey, landing);
+const serviceNameRaw = useLayerServiceName(layerKey, landing, replay);
 const serviceName = computed<string | null>(() =>
   embedded.value ? (props.focusService ?? null) : serviceNameRaw.value,
 );
@@ -120,7 +132,8 @@ const showEndpointSelector = computed(() => logScope.value !== 'endpoint');
 // How the picked instance is used depends on `logScope`: pinned primary
 // selector under `instance` scope, optional narrower otherwise.
 const { selectedInstance, setSelectedInstance } = useSelectedInstance();
-const { instances: instanceList } = useLayerInstances(layerKey, serviceName);
+const toolbarService = computed(() => (replay.value ? null : serviceName.value));
+const { instances: instanceList } = useLayerInstances(layerKey, toolbarService);
 // Logs (and traces) intentionally do NOT auto-select an instance.
 // Default is `All` so the stream starts broad; the operator opts into
 // narrowing by picking from the dropdown. Auto-selection is reserved
@@ -156,6 +169,7 @@ const { endpoints: endpointList, isFetching: endpointsLoading } = useLayerEndpoi
   serviceName,
   endpointQuery,
   endpointLimit,
+  replay,
 );
 // No endpoint auto-pick on Logs either — same reasoning as the
 // instance picker above. Default is `All`; operator narrows by hand.
@@ -278,7 +292,7 @@ const aWindowMinutes = computed(() => applied.value.windowMinutes);
 const aStartMs = computed(() => applied.value.startMs);
 const aEndMs = computed(() => applied.value.endMs);
 
-const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
+const { logs, total, isFetching, reachable, error, refetch } = useLayerLogs(layerKey, {
   service: aService,
   instanceId: aInstanceId,
   endpointId: aEndpointId,
@@ -291,7 +305,12 @@ const { logs, total, isFetching, error, refetch } = useLayerLogs(layerKey, {
   startMs: aStartMs,
   endMs: aEndMs,
   enabled: hasQueried,
+  replayData: replayDataRef,
 });
+
+// An unreachable read carries no rows — say so rather than let it read as an
+// empty scope (in replay that's the failure the capture recorded).
+const failed = computed<boolean>(() => !reachable.value || error.value !== null);
 
 const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   service: aService,
@@ -303,6 +322,7 @@ const { facets, refetch: refetchFacets } = useLayerLogFacets(layerKey, {
   startMs: aStartMs,
   endMs: aEndMs,
   enabled: hasQueried,
+  replay,
 });
 
 // Run query refetches BOTH the log stream and the facet sample (level
@@ -321,6 +341,11 @@ function runQuery(): void {
 onMounted(() => {
   if (!embedded.value) return;
   if (props.focusWindowMinutes) windowMinutes.value = props.focusWindowMinutes;
+  // Replay renders the captured rows — flip past the Run-query prompt, never fetch.
+  if (replay.value) {
+    hasQueried.value = true;
+    return;
+  }
   runQuery();
 });
 
@@ -409,26 +434,26 @@ watch(
          Hidden in embedded (chat) mode — the focus is fixed by the prompt. -->
     <header v-if="!embedded" class="lg-toolbar sw-card">
       <div class="lg-toolbar-head">
-        <span class="kicker">Logs</span>
-        <span v-if="traceIdRef" class="trace-pin">trace <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
-        <span v-if="isFetching" class="hint">refreshing…</span>
-        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">Run query</button>
+        <span class="kicker">{{ t('Logs') }}</span>
+        <span v-if="traceIdRef" class="trace-pin">{{ t('trace') }} <code>{{ traceIdRef.slice(0, 12) }}…</code></span>
+        <span v-if="isFetching" class="hint">{{ t('refreshing…') }}</span>
+        <button class="sw-btn primary lg-run-btn" type="button" @click="runQuery">{{ t('Run query') }}</button>
       </div>
       <div class="lg-conditions">
         <label class="cf">
-          <span>{{ logScope === 'instance' ? 'Sidecar' : 'Instance' }}</span>
+          <span>{{ logScope === 'instance' ? t('Sidecar') : t('Instance') }}</span>
           <select
             class="cf-input"
             name="log-instance"
             :value="selectedInstance ?? ''"
             @change="setSelectedInstance(($event.target as HTMLSelectElement).value || null)"
           >
-            <option value="">All</option>
+            <option value="">{{ t('All') }}</option>
             <option v-for="i in instanceList" :key="i.id" :value="i.name">{{ i.name }}</option>
           </select>
         </label>
         <div class="cf cf-wide">
-          <span>Endpoint</span>
+          <span>{{ t('Endpoint') }}</span>
           <EndpointCombo
             :endpoints="endpointList"
             :selected="selectedEndpoint"
@@ -440,42 +465,42 @@ watch(
           />
         </div>
         <label class="cf cf-wide">
-          <span>Trace ID</span>
+          <span>{{ t('Trace ID') }}</span>
           <input
             v-model="traceIdInput"
             type="text"
             name="log-trace-id"
             autocomplete="off"
             class="cf-input mono"
-            placeholder="paste trace id…"
+            :placeholder="t('paste trace id…')"
           />
         </label>
         <label class="cf cf-wide">
-          <span>Tags</span>
+          <span>{{ t('Tags') }}</span>
           <TagInput
             v-model="tagInput"
             kind="log"
-            placeholder="key=value, then Enter"
+            :placeholder="t('key=value, then Enter')"
             @commit="addTagFilter"
           />
         </label>
         <label class="cf" :class="{ 'cf-wide': isCustomRange }">
-          <span>Time range</span>
+          <span>{{ t('Time range') }}</span>
           <template v-if="isCustomRange">
             <div class="cf-range">
               <input v-model="customStart" type="datetime-local" name="log-start" class="cf-input cf-range-num" />
               <span class="cf-range-sep">–</span>
               <input v-model="customEnd" type="datetime-local" name="log-end" class="cf-input cf-range-num" />
-              <button class="sw-btn small ghost" type="button" title="Back to presets" @click="windowMinutes = 30">×</button>
+              <button class="sw-btn small ghost" type="button" :title="t('Back to presets')" @click="windowMinutes = 30">×</button>
             </div>
           </template>
           <select v-else v-model.number="windowMinutes" name="log-window" class="cf-input">
-            <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ p.label }}</option>
-            <option :value="CUSTOM_RANGE_SENTINEL">Custom…</option>
+            <option v-for="p in TIME_RANGE_PRESETS" :key="p.minutes" :value="p.minutes">{{ t(p.label) }}</option>
+            <option :value="CUSTOM_RANGE_SENTINEL">{{ t('Custom…') }}</option>
           </select>
         </label>
         <label class="cf">
-          <span>Page size</span>
+          <span>{{ t('Page size') }}</span>
           <select v-model.number="pageSize" name="log-page-size" class="cf-input">
             <option :value="20">20</option>
             <option :value="30">30</option>
@@ -485,7 +510,7 @@ watch(
         </label>
       </div>
       <div v-if="customTags.length > 0" class="tr-tag-row">
-        <span class="tag-row-label">Active tags</span>
+        <span class="tag-row-label">{{ t('Active tags') }}</span>
         <span class="tag-chips">
           <span v-for="(t, i) in customTags" :key="`${t.key}=${t.value}`" class="tag-chip">
             <span class="mono">{{ t.key }}={{ t.value }}</span>
@@ -495,40 +520,44 @@ watch(
       </div>
     </header>
 
-    <div v-if="error" class="banner err">
-      <strong>Logs feed failed.</strong> {{ String(error) }}
+    <div v-if="failed" class="banner err">
+      <strong>{{ replay ? t('This log read failed when it was captured.') : t('Logs feed failed.') }}</strong>
+      <template v-if="error"> {{ error }}</template>
     </div>
 
     <section class="lg-body sw-card">
       <div class="lg-main">
         <div v-if="!hasQueried" class="lg-empty">
-          Pick your conditions, then click Run query.
+          {{ t('Pick your conditions, then click Run query.') }}
         </div>
         <template v-else>
         <div v-if="facets || logs.length > 0" class="lg-legend">
-          <span class="lg-legend-kicker">Levels</span>
+          <span class="lg-legend-kicker">{{ t('Levels') }}</span>
           <button
             v-for="l in LEVEL_ORDER"
             :key="l"
             type="button"
             class="lg-legend-chip"
             :class="{ on: selectedLevel === l, disabled: l === 'other' }"
-            :disabled="l === 'other'"
+            :disabled="l === 'other' || replay"
+            :title="replay ? t('Captured counts — the level filter runs on OAP, so it is inert in replay.') : undefined"
             @click="toggleLevel(l)"
           >
             <span class="lvl-dot" :style="{ background: LEVEL_COLOR[l] }" />
             <span class="lg-legend-name">{{ l }}</span>
             <span v-if="levelFacet[l] > 0" class="lg-legend-count">{{ levelFacet[l] }}</span>
           </button>
-          <span v-if="facets" class="lg-legend-sample" :title="`window sample of ${facets.sampled} rows`">
-            sample of {{ facets.sampled }}
+          <span v-if="facets" class="lg-legend-sample" :title="t('window sample of {n} rows', { n: facets.sampled })">
+            {{ t('sample of {n}', { n: facets.sampled }) }}
           </span>
         </div>
 
         <DensityHistogram :data="histogram" :keys="LEVEL_ORDER" :colors="LEVEL_COLOR" />
 
         <div v-if="filteredLogs.length === 0" class="lg-empty">
-          {{ logs.length === 0 ? 'No logs returned for this scope.' : 'No logs match the active filters.' }}
+          <template v-if="failed">{{ t('The log read failed — nothing to show.') }}</template>
+          <template v-else-if="logs.length === 0">{{ t('No logs returned for this scope.') }}</template>
+          <template v-else>{{ t('No logs match the active filters.') }}</template>
         </div>
         <LogStreamPanel
           v-else
@@ -537,15 +566,18 @@ watch(
           @jump-trace="jumpToTrace($event.traceId, $event.ts)"
         />
         <div class="lg-pager">
-          <span class="hint">page {{ page }} · showing {{ filteredLogs.length }} of {{ total }} total</span>
-          <div class="lg-pager-ctrls">
-            <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">Prev</button>
+          <span class="hint">
+            <template v-if="replay">{{ t('showing {shown} of {total} captured', { shown: filteredLogs.length, total }) }}</template>
+            <template v-else>{{ t('page {page} · showing {shown} of {total} total', { page, shown: filteredLogs.length, total }) }}</template>
+          </span>
+          <div v-if="!replay" class="lg-pager-ctrls">
+            <button class="sw-btn small" type="button" :disabled="page <= 1" @click="page--">{{ t('Prev') }}</button>
             <button
               class="sw-btn small"
               type="button"
               :disabled="logs.length < pageSize"
               @click="page++"
-            >Next</button>
+            >{{ t('Next') }}</button>
           </div>
         </div>
         </template>
@@ -710,12 +742,14 @@ watch(
   font-size: 11.5px;
   cursor: pointer;
 }
-.lg-legend-chip:hover { color: var(--sw-fg-0); border-color: var(--sw-line); }
+.lg-legend-chip:hover:not(:disabled) { color: var(--sw-fg-0); border-color: var(--sw-line); }
 .lg-legend-chip.on {
   color: var(--sw-accent-2);
   background: var(--sw-accent-soft);
   border-color: var(--sw-accent-line);
 }
+/* Replay disables every chip — it stays a full-strength legend, only inert. */
+.lg-legend-chip:disabled { cursor: default; }
 .lg-legend-chip.disabled { opacity: 0.45; cursor: not-allowed; }
 .lg-legend-name { text-transform: capitalize; }
 .lg-legend-count {

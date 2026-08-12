@@ -35,6 +35,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import { useLayers } from '@/shell/useLayers';
 import { useSelectedService } from '@/layer/useSelectedService';
 import { useLayerLanding } from '@/layer/useLayerLanding';
@@ -52,6 +53,7 @@ import {
 import Icon from '@/components/icons/Icon.vue';
 
 const route = useRoute();
+const { t } = useI18n();
 const layerKey = computed(() => String(route.params.layerKey ?? ''));
 const { layers } = useLayers();
 const layer = computed<LayerDef | null>(
@@ -148,8 +150,8 @@ function fmtTime(ms: number): string {
   return TIME_FMT.format(new Date(ms)).replace(/\//g, '-').replace(', ', ' ');
 }
 
-function onPickTask(t: EBPFTask): void {
-  void pickTask(t);
+function onPickTask(task: EBPFTask): void {
+  void pickTask(task);
 }
 </script>
 
@@ -157,7 +159,7 @@ function onPickTask(t: EBPFTask): void {
   <div class="sw-card ebpf-shell">
     <div class="ebpf-side">
       <div class="side-head">
-        <span>eBPF profile tasks</span>
+        <span>{{ t('eBPF profile tasks') }}</span>
         <div class="side-head-actions">
           <button
             class="btn-refresh"
@@ -165,49 +167,49 @@ function onPickTask(t: EBPFTask): void {
             :disabled="!selectedId || tasksLoading"
             :title="
               !selectedId
-                ? 'Pick a service'
+                ? t('Pick a service')
                 : tasksLoading
-                  ? 'Refreshing…'
-                  : 'Refresh task list'
+                  ? t('Refreshing…')
+                  : t('Refresh task list')
             "
-            aria-label="Refresh task list"
+            :aria-label="t('Refresh task list')"
             @click="refreshTasks"
           ><Icon name="refresh" :size="11" /></button>
           <button
             class="btn-new"
             :disabled="!selectedId"
-            :title="!selectedId ? 'Pick a service' : 'Create a new eBPF task'"
+            :title="!selectedId ? t('Pick a service') : t('Create a new eBPF task')"
             @click="showNewTask = true"
-          >+ New Task</button>
+          >{{ t('+ New Task') }}</button>
         </div>
       </div>
-      <div v-if="polling" class="poll-hint">Registering new task… refreshing in {{ countdown }}s</div>
+      <div v-if="polling" class="poll-hint">{{ t('Registering new task… refreshing in {n}s', { n: countdown }) }}</div>
       <div v-if="tasksError" class="side-err">{{ tasksError }}</div>
-      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">Loading…</div>
+      <div v-else-if="tasksLoading && !tasks.length" class="side-empty">{{ t('Loading…') }}</div>
       <div v-else-if="!tasks.length" class="side-empty">
         {{
           selectedId
             ? couldProfiling
-              ? 'No eBPF tasks yet — kick off one.'
-              : 'OAP can not eBPF-profile this service.'
-            : 'Pick a service to load tasks.'
+              ? t('No eBPF tasks yet — kick off one.')
+              : t('OAP can not eBPF-profile this service.')
+            : t('Pick a service to load tasks.')
         }}
       </div>
       <ul v-else class="side-list">
         <li
-          v-for="t in tasks"
-          :key="t.taskId"
-          :class="{ 'is-active': currentTask?.taskId === t.taskId }"
-          @click="onPickTask(t)"
+          v-for="task in tasks"
+          :key="task.taskId"
+          :class="{ 'is-active': currentTask?.taskId === task.taskId }"
+          @click="onPickTask(task)"
         >
           <div class="row1">
-            <span class="t-tag" :class="{ off: t.targetType === 'OFF_CPU' }">{{ t.targetType }}</span>
-            <span class="ep">{{ t.processLabels?.length ? t.processLabels.join(' · ') : 'All processes' }}</span>
+            <span class="t-tag" :class="{ off: task.targetType === 'OFF_CPU' }">{{ task.targetType }}</span>
+            <span class="ep">{{ task.processLabels?.length ? task.processLabels.join(' · ') : t('All processes') }}</span>
           </div>
           <div class="row2">
-            <span>{{ fmtTime(t.taskStartTime) }}</span>
+            <span>{{ fmtTime(task.taskStartTime) }}</span>
             <span class="muted">→</span>
-            <span>{{ fmtTime(t.taskStartTime + (t.fixedTriggerDuration ?? 0) * 1000) }}</span>
+            <span>{{ fmtTime(task.taskStartTime + (task.fixedTriggerDuration ?? 0) * 1000) }}</span>
           </div>
         </li>
       </ul>
@@ -216,7 +218,7 @@ function onPickTask(t: EBPFTask): void {
     <div class="ebpf-main">
       <div class="filter-bar">
         <div class="tb-block">
-          <label class="lbl">Labels</label>
+          <label class="lbl">{{ t('Labels') }}</label>
           <div class="chip-row">
             <button
               v-for="l in labelOptions"
@@ -229,22 +231,22 @@ function onPickTask(t: EBPFTask): void {
           </div>
         </div>
         <div class="tb-block">
-          <label class="lbl">Aggregate</label>
+          <label class="lbl">{{ t('Aggregate') }}</label>
           <div class="seg">
-            <button :class="{ on: aggregateType === 'COUNT' }" @click="aggregateType = 'COUNT'">Count</button>
+            <button :class="{ on: aggregateType === 'COUNT' }" @click="aggregateType = 'COUNT'">{{ t('Count') }}</button>
             <button
               :class="{ on: aggregateType === 'DURATION' }"
               :disabled="currentTask?.targetType !== 'OFF_CPU'"
-              :title="currentTask?.targetType === 'OFF_CPU' ? '' : 'Duration is OFF_CPU-only'"
+              :title="currentTask?.targetType === 'OFF_CPU' ? '' : t('Duration is OFF_CPU-only')"
               @click="aggregateType = 'DURATION'"
-            >Duration</button>
+            >{{ t('Duration') }}</button>
           </div>
         </div>
         <div class="tb-block">
-          <label class="lbl">Display</label>
+          <label class="lbl">{{ t('Display') }}</label>
           <div class="seg">
-            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">Flame</button>
-            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">Tree</button>
+            <button :class="{ on: displayMode === 'flame' }" @click="displayMode = 'flame'">{{ t('Flame') }}</button>
+            <button :class="{ on: displayMode === 'tree' }" @click="displayMode = 'tree'">{{ t('Tree') }}</button>
           </div>
         </div>
         <EBPFProcessPicker v-model="selectedProcessIds" :processes="processes" />
@@ -252,16 +254,16 @@ function onPickTask(t: EBPFTask): void {
           class="btn-primary"
           :disabled="analyzeLoading || !schedules.length"
           @click="runAnalyze"
-        >{{ analyzeLoading ? 'Analyzing…' : 'Analyze' }}</button>
+        >{{ analyzeLoading ? t('Analyzing…') : t('Analyze') }}</button>
       </div>
 
       <div v-if="schedulesError" class="banner err">{{ schedulesError }}</div>
       <div v-else-if="scheduleDuration" class="banner">
-        Captured between
+        {{ t('Captured between') }}
         <strong>{{ fmtTime(scheduleDuration.start) }}</strong>
-        and
+        {{ t('and') }}
         <strong>{{ fmtTime(scheduleDuration.end) }}</strong>
-        — {{ schedules.length }} schedule{{ schedules.length === 1 ? '' : 's' }}
+        — {{ schedules.length === 1 ? t('{n} schedule', { n: schedules.length }) : t('{n} schedules', { n: schedules.length }) }}
       </div>
 
       <div class="result">
@@ -283,9 +285,9 @@ function onPickTask(t: EBPFTask): void {
           {{
             currentTask
               ? schedules.length
-                ? 'No analyze data yet — click Analyze.'
-                : 'No schedules captured for this task.'
-              : 'Select a task to inspect its eBPF profile.'
+                ? t('No analyze data yet — click Analyze.')
+                : t('No schedules captured for this task.')
+              : t('Select a task to inspect its eBPF profile.')
           }}
         </div>
       </div>

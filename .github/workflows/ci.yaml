@@ -154,9 +154,10 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       # `pnpm -r` walks every workspace package and runs `test:unit` —
-      # currently @skywalking-horizon-ui/ui (vitest + jsdom) and
-      # @skywalking-horizon-ui/bff (vitest, node env). Packages without
-      # the script (api-client, design-tokens) are skipped automatically.
+      # currently @skywalking-horizon-ui/ui (vitest + jsdom),
+      # @skywalking-horizon-ui/bff and @skywalking-horizon-ui/api-client
+      # (vitest, node env). Packages without the script (design-tokens,
+      # templates) are skipped automatically.
       # The scripts already include `vitest run`, so no `--run` forwarding
       # needed — keeps the CI line robust against pnpm-flag parsing quirks.
       - run: pnpm -r run test:unit
@@ -176,8 +177,60 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       # ESLint (rules + 2000-line cap, comments excluded) across ui + bff,
-      # then the source-budget gate (≤2000 code / ≤500 comment lines per file).
+      # the source-budget gate (≤2000 code / ≤500 comment lines per file),
+      # then both i18n gates: UI catalog coverage/parity (check-ui-i18n.mjs)
+      # and the BFF template-overlay validator (i18n:validate).
       - run: pnpm lint
+
+  package:
+    # The two build jobs above compile the UI and the BFF separately; neither
+    # exercises `pnpm package`, which ASSEMBLES the distributable (the three
+    # packages/* builds, dist/server.js, the built UI at dist/static/, bundled
+    # templates, i18n catalogs, AI resources). Until this job existed that
+    # assembly ran for the first time inside the release image build — i.e.
+    # after merge — so a broken tarball merged green. Boot the artifact too:
+    # a dist/ that assembles but 404s at `/` is not a working release.
+    name: Package + boot artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      - name: Boot the packaged server and smoke-test it
+        run: |
+          set -eu
+          # No HORIZON_STATIC_DIR on purpose: the packaged layout must serve
+          # the UI from the static/ dir beside server.js without being told.
+          HORIZON_SERVER_PORT=8099 HORIZON_AUDIT_FILE=/tmp/ci-audit.jsonl \
+            node dist/server.js > /tmp/ci-boot.log 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null "http://127.0.0.1:8099/api/health" && break
+            sleep 1
+          done
+          curl -sf -o /dev/null "http://127.0.0.1:8099/api/health" || { echo "server never became healthy"; cat /tmp/ci-boot.log; exit 1; }
+          fail() { echo "::error::$1"; cat /tmp/ci-boot.log; exit 1; }
+          # `/` must return the SPA shell, not a 404.
+          code=$(curl -s -o /tmp/index.html -w '%{http_code}' "http://127.0.0.1:8099/")
+          [ "$code" = "200" ] || fail "GET / returned ${code}, expected 200 (is the UI in the package?)"
+          grep -qi '<div id="app"' /tmp/index.html || fail "GET / did not return the SPA shell"
+          # A hashed asset referenced by that shell must resolve.
+          asset=$(grep -o '/assets/[^"]*\.js' /tmp/index.html | head -1)
+          [ -n "$asset" ] || fail "no hashed asset referenced by index.html"
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099${asset}")
+          [ "$code" = "200" ] || fail "asset ${asset} returned ${code}"
+          # Client-side route falls through to the shell; /api/* still 404s as JSON.
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/layer/general/traces")
+          [ "$code" = "200" ] || fail "SPA deep link returned ${code}"
+          curl -s "http://127.0.0.1:8099/api/nope" | grep -q '"code":"not_found"' || fail "/api/* 404 is not the JSON envelope"
+          echo "packaged artifact boots and serves the UI"
 
   required:
     # Status-check name pinned to "Required" so Apache branch protection
@@ -185,7 +238,7 @@ jobs:
     # [Required]`) can gate on a single rolled-up signal.
     if: always() && !cancelled()
     name: Required
-    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint]
+    needs: [license-header, dependency-license, type-check, build-ui, build-bff, test, lint, package]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -198,3 +251,4 @@ jobs:
           [[ ${{ needs.build-bff.result }} == 'success' ]] || exit 1
           [[ ${{ needs.test.result }} == 'success' ]] || exit 1
           [[ ${{ needs.lint.result }} == 'success' ]] || exit 1
+          [[ ${{ needs.package.result }} == 'success' ]] || exit 1

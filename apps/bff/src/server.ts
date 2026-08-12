@@ -16,7 +16,8 @@
  */
 
 import { existsSync } from 'node:fs';
-import { resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ZodError } from 'zod';
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
@@ -57,6 +58,7 @@ import { registerPreflightRoutes } from './http/query/preflight.js';
 import { registerTtlRoute } from './http/query/ttl.js';
 import { registerProfileRoutes } from './http/query/profile.js';
 import { registerEBPFRoutes } from './http/query/ebpf.js';
+import { registerContinuousProfilingRoutes } from './http/query/continuous-profiling.js';
 import { registerAsyncProfileRoutes } from './http/query/async-profile.js';
 // Config (CRUD for templates / settings)
 import { registerDashboardConfigRoute } from './http/config/dashboard.js';
@@ -68,6 +70,7 @@ import { registerOverviewRoutes } from './http/config/overview.js';
 import { registerConfigBundleRoute } from './http/config/bundle.js';
 import { registerTemplateSyncAdminRoutes } from './http/admin/template-sync.js';
 import { buildOapClients } from './client/index.js';
+import { wireLog } from './client/wire-log.js';
 import { bootSeed, waitForOapAdminReady, setTemplateReadOnly } from './logic/templates/sync.js';
 import { iterateBundledTemplates, iterateBundledOverlays } from './logic/templates/aggregator.js';
 // Admin (operational tools)
@@ -180,6 +183,9 @@ app.addHook('onSend', (_req, reply, payload, done) => {
 const sessions = new SessionStore({ ttlMinutes: source.current.session.ttlMinutes });
 const audit = new AuditLogger(source.current.audit.file, source.current.audit.enabled);
 await audit.open();
+// Wire-level OAP debug log (`debugLog` in horizon.yaml) — reads the live
+// config per call, so `enabled` / `file` / redaction all hot-reload.
+wireLog.init(() => source.current.debugLog);
 const ldapHealth = new LdapHealth();
 const seenCache = new UserSeenCache();
 // In-memory source-map cache for the Browser Errors tab (#6784). Process-
@@ -288,6 +294,7 @@ registerEBPFRoutes(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 registerAsyncProfileRoutes(app, { config: source, sessions });
+registerContinuousProfilingRoutes(app, { config: source, sessions });
 
 // ── Config ─────────────────────────────────────────────────────────
 registerDashboardConfigRoute(app, {
@@ -343,17 +350,20 @@ registerTemplateSyncAdminRoutes(app, {
   uiTemplateClient: () => buildOapClients(source.current).uiTemplate(),
 });
 
-// Serve the built SPA out of the BFF when a static dir is configured.
-// Two paths to set it:
-//   - HORIZON_STATIC_DIR env var (Docker image layout: /app/static).
-//   - server.staticDir in horizon.yaml (local dev / operator-managed).
-// The env var wins when both are set so the image's default isn't
-// silently shadowed by a stale YAML value. Vite dev-server on :9091 is
-// still the right path during UI development; this branch is for the
-// "serve the built SPA from the BFF" workflow.
+// Who serves the UI is a function of how the BFF was started, not of
+// configuration:
+//   - dev (`pnpm dev`): Vite on :9091 owns the UI and proxies /api here,
+//     so this process is correctly API-only and no static dir exists.
+//   - packaged (binary tarball or Docker image): `static/` always sits
+//     next to server.js, so its location is a structural fact — probed
+//     like bundled_templates rather than asked of the operator.
+// HORIZON_STATIC_DIR / server.staticDir remain as an override for a
+// layout that differs from either (the image sets the env var explicitly).
 const staticDir = (() => {
   const raw = process.env.HORIZON_STATIC_DIR ?? source.current.server.staticDir;
-  return raw ? resolvePath(raw) : null;
+  if (raw) return resolvePath(raw);
+  const sibling = join(dirname(fileURLToPath(import.meta.url)), 'static');
+  return existsSync(sibling) ? sibling : null;
 })();
 if (staticDir && existsSync(staticDir)) {
   await app.register(fastifyStatic, { root: staticDir, prefix: '/', wildcard: false });
@@ -366,6 +376,14 @@ if (staticDir && existsSync(staticDir)) {
     return reply.sendFile('index.html');
   });
   logger.info({ staticDir }, 'serving SPA from static dir');
+} else if (process.env.NODE_ENV === 'development') {
+  logger.info('dev mode — API only; the Vite dev server serves the UI');
+} else {
+  // Packaged layouts always ship `static/` beside server.js, so reaching
+  // here means the tree is incomplete (or an override points nowhere).
+  logger.warn(
+    'no UI found next to server.js — running API-only, `/` will 404. Check the packaged layout is intact, or point HORIZON_STATIC_DIR at the built UI.',
+  );
 }
 
 // Public liveness probe. Intentionally minimal — kept identifier-free so
@@ -451,6 +469,7 @@ async function shutdown(signal: string) {
   await app.close();
   await sessions.close();
   await audit.close();
+  await wireLog.close();
   await source.close();
   process.exit(0);
 }

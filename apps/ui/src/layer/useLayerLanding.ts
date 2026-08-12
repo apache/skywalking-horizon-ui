@@ -17,7 +17,6 @@
 
 import { computed, type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
-import { useAutoRefreshSubscribe } from '../controls/useAutoRefreshSubscribe';
 import type { LandingConfig, LandingResponse, LayerDef } from '@skywalking-horizon-ui/api-client';
 import { bffClient } from '@/api/client';
 
@@ -43,6 +42,10 @@ export function useLayerLanding(
    *  + queryKey so a time-picker change refires the landing
    *  rollup the same way a layer change does. */
   range?: Ref<LandingRange | null>,
+  /** REPLAY mode gate: a replay (captured) map hides the service picker this
+   *  rollup feeds and must fire ZERO queries, so it passes a true ref to suppress
+   *  the fetch. Defaults off (live) for the interactive route. */
+  replay?: Ref<boolean>,
 ) {
   const layerKey = computed(() => layer.value.key);
   // Cache key reflects every field that changes the server response —
@@ -68,6 +71,7 @@ export function useLayerLanding(
   //   2. The manual refresh button in LayerShell — `q.refetch()`.
   // No silent vue-query-driven refetch under the operator, so the
   // service list never moves on its own between operator actions.
+  const isEnabled = computed(() => !(replay?.value ?? false));
   const q = useQuery({
     queryKey: ['layer-landing', layerKey, cfgHash, rangeKey],
     queryFn: () =>
@@ -76,12 +80,17 @@ export function useLayerLanding(
         cfg.value,
         rangeRef.value ?? undefined,
       ),
+    enabled: isEnabled,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     retry: 1,
   });
 
-  useAutoRefreshSubscribe(() => q.refetch());
+  // No ticker subscription: this query is keyed on `rangeKey`, and a rolling
+  // preset's window advances with the ticker, so each tick already re-keys the
+  // query and vue-query fetches the new window. Subscribing as well would fire
+  // two requests per tick for the same data. A frozen window (embedded/replay,
+  // or a pinned custom range) does not re-key — and must not refetch anyway.
 
   const data = computed<LandingResponse | null>(() => q.data.value ?? null);
   const rows = computed(() => data.value?.rows ?? []);

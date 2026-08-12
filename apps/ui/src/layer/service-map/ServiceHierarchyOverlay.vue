@@ -37,9 +37,12 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import type {
   HierarchyPeer,
   LayerLevel,
+  ServiceHierarchyResponse,
   ServiceNamingRule,
 } from '@skywalking-horizon-ui/api-client';
 import { firstLayerTab, useLayers } from '@/shell/useLayers';
@@ -47,6 +50,8 @@ import { pushEvent } from '@/controls/eventLog';
 import { resolveServiceIdentity, type ServiceIdentity } from '@/utils/serviceName';
 import { useServiceHierarchy } from './useServiceHierarchy';
 import { useHierarchyOverlayStore } from './hierarchyStore';
+
+const router = useRouter();
 
 const props = defineProps<{
   /** Topology viewBox dimensions — shared so the overlay's SVG
@@ -67,8 +72,13 @@ const props = defineProps<{
    *  guarded on this, so the interactive topology overlay is unchanged. */
   standalone?: boolean;
   focus?: { serviceId: string; layer: string; serviceName: string };
+  /** REPLAY mode (AI chat, standalone only): render statically from `replayData`,
+   *  never re-query — a reloaded fan replays statically. */
+  replay?: boolean;
+  replayData?: ServiceHierarchyResponse;
 }>();
 
+const { t } = useI18n({ useScope: 'global' });
 const store = useHierarchyOverlayStore();
 const { layers: allLayers, findLayer } = useLayers();
 
@@ -82,7 +92,8 @@ const isOpen = computed<boolean>(() => (props.standalone ? true : store.isOpen))
 
 const layerKey = computed(() => (fLayer.value ?? '').toLowerCase());
 const focusServiceId = computed(() => fServiceId.value);
-const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId);
+const replayDataRef = computed<ServiceHierarchyResponse | null>(() => props.replayData ?? null);
+const { data, isLoading } = useServiceHierarchy(layerKey, focusServiceId, replayDataRef);
 
 /** Look up a layer's color from the menu registry; fall back to the
  *  accent for layers we don't have an entry for (e.g. SO11Y_OAP). */
@@ -351,18 +362,37 @@ function confirmOpen(p: HierarchyPeer, layer: string): void {
   const def = findLayer(layer.toLowerCase());
   if (!def || !def.active) return;
   const tab = firstLayerTab(def);
-  const url = `/layer/${def.key.toLowerCase()}/${tab}?service=${encodeURIComponent(p.id)}`;
+  const href = router.resolve({
+    path: `/layer/${def.key.toLowerCase()}/${tab}`,
+    query: { service: p.id },
+  }).href;
   // `noopener` so the new tab can't reach back into window.opener.
-  window.open(url, '_blank', 'noopener');
+  window.open(href, '_blank', 'noopener');
   armedPeerKey.value = null;
+}
+
+/** Display name of a peer's destination layer — the template's `name`
+ *  when one exists, the raw layer key otherwise. */
+function layerNameFor(layer: string): string {
+  const def = findLayer(layer.toLowerCase());
+  return def?.name ?? layer;
 }
 
 /** Human label for the action chip — e.g. "Open in MESH_DP". The
  *  destination tab is implied (first menu of the layer). */
 function openLabelFor(layer: string): string {
-  const def = findLayer(layer.toLowerCase());
-  if (!def) return `Open in ${layer}`;
-  return `Open in ${def.name}`;
+  return t('Open in {layer}', { layer: layerNameFor(layer) });
+}
+
+/** Approximate rendered width of the chip label at font-size 12 — the
+ *  translated label can carry fullwidth CJK glyphs (~12px each) that the
+ *  old flat 7.6px-per-char estimate under-measured, overlapping the icon. */
+function openLabelWidth(layer: string): number {
+  let w = 0;
+  for (const ch of openLabelFor(layer)) {
+    w += /[ᄀ-ᇿ⺀-꓏가-힣豈-﫿︰-﹏＀-￦　-ヿ]/.test(ch) ? 12 : 7.6;
+  }
+  return w;
 }
 
 function truncate(s: string, n: number): string {
@@ -535,7 +565,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
               font-family="var(--sw-mono)"
               font-weight="700"
             >
-              <tspan fill="var(--sw-fg-3)">{{ focusIdentity.clusterAlias ?? 'cluster' }}·</tspan>{{ focusIdentity.cluster }}
+              <tspan fill="var(--sw-fg-3)">{{ focusIdentity.clusterAlias ?? t('cluster') }}·</tspan>{{ focusIdentity.cluster }}
             </text>
           </g>
           <g v-if="showLegacyGroup && focusIdentity?.legacyGroup" :transform="`translate(0, ${focusIdentity?.cluster ? 100 : 78})`">
@@ -569,7 +599,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
               fill="var(--sw-accent-2)"
               font-family="var(--sw-mono)"
             >
-              FOCUS
+              {{ t('FOCUS') }}
             </text>
           </g>
         </g>
@@ -592,8 +622,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
         >
           <title>
             {{ hasTemplate(r.layer)
-              ? `Click to select ${r.identity.display}; the action chip opens it in ${openLabelFor(r.layer).replace('Open in ', '')} (new tab)`
-              : `No Horizon layer template configured for ${labelForLayer(r.layer)}` }}
+              ? t('Click to select {name}; the action chip opens it in {layer} (new tab)', { name: r.identity.display, layer: layerNameFor(r.layer) })
+              : t('No Horizon layer template configured for {layer}', { layer: labelForLayer(r.layer) }) }}
           </title>
           <!-- Selection ring when armed — same vocabulary as the
                topology's selected-hex halo, scaled for the peer's
@@ -648,7 +678,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
             font-family="var(--sw-mono)"
             font-weight="600"
           >
-            {{ r.identity.clusterAlias ?? 'cluster' }}·{{ r.identity.cluster }}
+            {{ r.identity.clusterAlias ?? t('cluster') }}·{{ r.identity.cluster }}
           </text>
           <text
             v-else-if="showLegacyGroup && r.identity.legacyGroup"
@@ -668,7 +698,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
             font-size="9.5"
             font-family="var(--sw-mono)"
           >
-            virtual
+            {{ t('virtual') }}
           </text>
         </g>
 
@@ -685,11 +715,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           class="sm-h-action"
           @click.stop="confirmOpen(r.peer, r.layer)"
         >
-          <title>Open {{ r.identity.display }} in {{ labelForLayer(r.layer) }} (new tab)</title>
+          <title>{{ t('Open {name} in {layer} (new tab)', { name: r.identity.display, layer: labelForLayer(r.layer) }) }}</title>
           <rect
             x="0"
             y="-14"
-            :width="openLabelFor(r.layer).length * 7.6 + 36"
+            :width="openLabelWidth(r.layer) + 36"
             height="28"
             rx="6"
             :fill="r.color"
@@ -709,7 +739,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
           </text>
           <!-- External-link glyph: square with arrow out the top-right -->
           <g
-            :transform="`translate(${openLabelFor(r.layer).length * 7.6 + 18}, 0)`"
+            :transform="`translate(${openLabelWidth(r.layer) + 18}, 0)`"
             :stroke="r.color"
             stroke-width="1.6"
             fill="none"
@@ -732,7 +762,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
                 fill="var(--sw-bg-1)" stroke="var(--sw-line)" />
           <text text-anchor="middle" y="4" font-size="11.5"
                 font-family="var(--sw-mono)" fill="var(--sw-fg-2)">
-            No cross-layer projections
+            {{ t('No cross-layer projections') }}
           </text>
         </g>
       </g>
@@ -752,7 +782,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown));
       v-if="!standalone"
       class="sm-hierarchy-close"
       type="button"
-      aria-label="Close hierarchy"
+      :aria-label="t('Close hierarchy')"
       @click="store.close()"
     >×</button>
   </div>

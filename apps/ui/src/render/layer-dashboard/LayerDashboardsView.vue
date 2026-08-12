@@ -666,13 +666,13 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
 <template>
   <div class="dash-tab">
     <header v-if="isFetching || compareLoading || !reachable" class="dash-head">
-      <span v-if="isFetching || compareLoading" class="badge fetch">refreshing</span>
-      <span v-else-if="!reachable" class="badge err">OAP unreachable</span>
+      <span v-if="isFetching || compareLoading" class="badge fetch">{{ t('refreshing') }}</span>
+      <span v-else-if="!reachable" class="badge err">{{ t('OAP unreachable') }}</span>
     </header>
 
     <div v-if="!reachable" class="banner err">
-      <strong>OAP unreachable.</strong>
-      {{ errorText ?? 'Widgets are showing nothing — check the BFF is up and OAP is reachable.' }}
+      <strong>{{ t('OAP unreachable.') }}</strong>
+      {{ errorText ?? t('Widgets are showing nothing — check the BFF is up and OAP is reachable.') }}
     </div>
 
     <!-- Instance / endpoint pickers — the sticky list on the left when
@@ -729,23 +729,27 @@ const tabHostCtx = computed<TabHostCtx>(() => ({
     >
       <span class="reading-dot" />
       <span>
-        Reading data
-        <template v-if="serviceName">
-          for <b>{{ serviceName }}</b>
-          <template v-if="scope === 'instance' && selectedInstance">
-            / <b>{{ selectedInstance }}</b>
+        <template v-if="!serviceName">{{ t('Reading data') }}</template>
+        <i18n-t v-else keypath="Reading data for {name}" tag="span" scope="global">
+          <template #name>
+            <b>{{ serviceName }}</b>
+            <template v-if="scope === 'instance' && selectedInstance">
+              / <b>{{ selectedInstance }}</b>
+            </template>
+            <template v-else-if="scope === 'endpoint' && selectedEndpoint">
+              / <b>{{ selectedEndpoint }}</b>
+            </template>
           </template>
-          <template v-else-if="scope === 'endpoint' && selectedEndpoint">
-            / <b>{{ selectedEndpoint }}</b>
-          </template>
-        </template>
+        </i18n-t>
         <span v-if="widgetsForQuery.length > 0" class="reading-progress">
-          · loading {{ widgetsForQuery.length }} metric{{ widgetsForQuery.length === 1 ? '' : 's' }}
+          · {{ widgetsForQuery.length === 1
+            ? t('loading {n} metric', { n: widgetsForQuery.length })
+            : t('loading {n} metrics', { n: widgetsForQuery.length }) }}
         </span>
       </span>
     </div>
     <div v-else-if="widgets.length === 0" class="empty">
-      No widgets defined for this layer. Add some via Dashboard setup → Layer dashboards.
+      {{ t('No widgets defined for this layer. Add some via Dashboard setup → Layer dashboards.') }}
     </div>
     <template v-else>
     <!-- Unified compare cohort bar — the persistent comparison-set surface

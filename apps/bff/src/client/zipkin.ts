@@ -40,6 +40,7 @@ import type {
   ZipkinSpan,
   ZipkinTraceListRow,
 } from '@skywalking-horizon-ui/api-client';
+import { wireFetch } from './wire-log.js';
 
 export interface ZipkinClientOpts {
   queryUrl: string;
@@ -69,7 +70,7 @@ export interface ZipkinTracesQuery {
 const DEFAULT_LOOKBACK_MS = 30 * 60_000;
 
 async function zipkinFetch<T>(opts: ZipkinClientOpts, path: string): Promise<T> {
-  const f = opts.fetch ?? globalThis.fetch.bind(globalThis);
+  const f = wireFetch(opts.fetch ?? globalThis.fetch.bind(globalThis));
   const url = opts.queryUrl.replace(/\/$/, '') + path;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
@@ -140,6 +141,9 @@ export function summariseZipkinTrace(spans: ZipkinSpan[]): ZipkinTraceListRow {
 export async function zipkinFetchTraces(
   opts: ZipkinClientOpts,
   query: ZipkinTracesQuery,
+  /** Carry each trace's spans through on the row (for a frozen, offline-replayable
+   *  capture); the interactive list omits them and re-fetches on click. */
+  carrySpans = false,
 ): Promise<ZipkinTraceListRow[]> {
   const qs = new URLSearchParams();
   if (query.serviceName) qs.set('serviceName', query.serviceName);
@@ -155,7 +159,9 @@ export async function zipkinFetchTraces(
   qs.set('limit', String(query.limit ?? 20));
   const path = `/api/v2/traces?${qs.toString()}`;
   const arr = await zipkinFetch<ZipkinSpan[][]>(opts, path);
-  return arr.map(summariseZipkinTrace).filter((r) => r.traceId);
+  return arr
+    .map((spans) => (carrySpans ? { ...summariseZipkinTrace(spans), spans } : summariseZipkinTrace(spans)))
+    .filter((r) => r.traceId);
 }
 
 /** Fetch a single trace by id. Returns the full span array

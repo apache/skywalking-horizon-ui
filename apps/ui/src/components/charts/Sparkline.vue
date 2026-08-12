@@ -26,6 +26,9 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
 
 const props = withDefaults(
   defineProps<{
@@ -203,7 +206,7 @@ const crosshairPos = computed<{ x: number; y: number } | null>(() => {
     :viewBox="`0 0 ${plot.internalW} ${height}`"
     :preserveAspectRatio="fluid ? 'none' : 'xMidYMid meet'"
     role="img"
-    aria-label="trend"
+    :aria-label="t('trend')"
     @pointermove="onPointerMove"
     @pointerleave="onPointerLeave"
   >

@@ -51,7 +51,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/${firstLayerTab(L)}`) || route.path === `/layer/${L.key}` }"
     >
-      <Icon name="svc" /><span>Service</span>
+      <Icon name="svc" /><span>{{ t('Service') }}</span>
       <span class="sw-badge" style="margin-left: auto">{{ L.serviceCount }}</span>
     </RouterLink>
     <RouterLink
@@ -60,7 +60,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/instance`) }"
     >
-      <Icon name="prof" /><span>{{ L.slots.instances ?? 'Instance' }}</span>
+      <Icon name="prof" /><span>{{ L.slots.instances ?? t('Instance') }}</span>
     </RouterLink>
     <RouterLink
       v-if="hasEndpoints"
@@ -68,7 +68,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/endpoint`) }"
     >
-      <Icon name="ep" /><span>{{ L.slots.endpoints ?? 'Endpoint' }}</span>
+      <Icon name="ep" /><span>{{ L.slots.endpoints ?? t('Endpoint') }}</span>
     </RouterLink>
     <RouterLink
       v-if="hasTopology"
@@ -76,7 +76,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/topology`) }"
     >
-      <Icon name="topo" /><span>{{ L.slots.topology ?? 'Topology' }}</span>
+      <Icon name="topo" /><span>{{ L.slots.topology ?? t('Topology') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.deployment"
@@ -84,7 +84,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/deployment`) }"
     >
-      <Icon name="topo" /><span>{{ L.slots.deployment ?? 'Deployment' }}</span>
+      <Icon name="topo" /><span>{{ L.slots.deployment ?? t('Deployment') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.endpointDependency"
@@ -92,7 +92,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/dependency`) }"
     >
-      <Icon name="ep" /><span>{{ L.slots.endpointDependency ?? `${L.slots.endpoints ?? 'Endpoint'} dependency` }}</span>
+      <Icon name="ep" /><span>{{ L.slots.endpointDependency ?? t('{endpoint} dependency', { endpoint: L.slots.endpoints ?? t('Endpoint') }) }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.traces"
@@ -100,7 +100,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/trace`) }"
     >
-      <Icon name="trace" /><span>Traces</span>
+      <Icon name="trace" /><span>{{ t('Traces') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.traces && L.traces?.source === 'both'"
@@ -108,7 +108,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/zipkin-trace`) }"
     >
-      <Icon name="trace" /><span>OTel &amp; Zipkin Traces</span>
+      <Icon name="trace" /><span>{{ t('OTel & Zipkin Traces') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.logs"
@@ -116,7 +116,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/logs`) }"
     >
-      <Icon name="log" /><span>Logs</span>
+      <Icon name="log" /><span>{{ t('Logs') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.evaluationRecord"
@@ -140,7 +140,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/pod-logs`) }"
     >
-      <Icon name="log" /><span>Pod Logs</span>
+      <Icon name="log" /><span>{{ t('Pod Logs') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.traceProfiling"
@@ -148,7 +148,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/trace-profiling`) }"
     >
-      <Icon name="flame" /><span>Trace Profiling</span>
+      <Icon name="flame" /><span>{{ t('Trace Profiling') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.ebpfProfiling"
@@ -156,7 +156,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/ebpf-profiling`) }"
     >
-      <Icon name="flame" /><span>eBPF Profiling</span>
+      <Icon name="flame" /><span>{{ t('eBPF Profiling') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.networkProfiling"
@@ -164,7 +164,15 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/network-profiling`) }"
     >
-      <Icon name="prof" /><span>Network Profiling</span>
+      <Icon name="prof" /><span>{{ t('Network Profiling') }}</span>
+    </RouterLink>
+    <RouterLink
+      v-if="L.caps.continuousProfiling"
+      :to="`/layer/${L.key}/continuous-profiling`"
+      class="sw-nav-item"
+      :class="{ 'is-active': isActive(`/layer/${L.key}/continuous-profiling`) }"
+    >
+      <Icon name="set" /><span>{{ t('Continuous Profiling') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.pprofProfiling"
@@ -172,7 +180,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/pprof`) }"
     >
-      <Icon name="prof" /><span>pprof (Go)</span>
+      <Icon name="prof" /><span>{{ t('pprof (Go)') }}</span>
     </RouterLink>
     <RouterLink
       v-if="L.caps.asyncProfiling"
@@ -180,7 +188,7 @@ const hasTopology = computed(() =>
       class="sw-nav-item"
       :class="{ 'is-active': isActive(`/layer/${L.key}/async-profiling`) }"
     >
-      <Icon name="flame" /><span>Async Profiling</span>
+      <Icon name="flame" /><span>{{ t('Async Profiling') }}</span>
     </RouterLink>
   </div>
 </template>

@@ -180,5 +180,6 @@ export function firstLayerTab(L: LayerDef | undefined): string {
   if (L.caps?.networkProfiling) return 'network-profiling';
   if (L.caps?.asyncProfiling) return 'async-profiling';
   if (L.caps?.pprofProfiling) return 'pprof';
+  if (L.caps?.continuousProfiling) return 'continuous-profiling';
   return 'service';
 }

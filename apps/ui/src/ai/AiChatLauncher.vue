@@ -22,21 +22,27 @@ import { useI18n } from 'vue-i18n';
 import Icon from '@/components/icons/Icon.vue';
 import { useAuthStore } from '@/state/auth';
 import { useAiChat } from './useAiChat';
+import { useAiConversations } from './useAiConversations';
 
 const { t } = useI18n({ useScope: 'global' });
 const chat = useAiChat();
 const auth = useAuthStore();
+const conv = useAiConversations();
 
 // Probe the server AI config once authenticated (and re-probe after login) so
-// the launcher gates on `ready` + seeds the starters. The component is always
-// mounted in AppShell, so this fires regardless of `available`.
+// the launcher gates on `ready` + seeds the starters, then load history for the
+// current user. The component is always mounted in AppShell, so this fires
+// regardless of `available`.
 onMounted(() => {
-  if (auth.isAuthenticated) void chat.ensureConfig();
+  if (auth.isAuthenticated) void chat.ensureConfig().then(() => conv.hydrate());
 });
 watch(
   () => auth.isAuthenticated,
   (yes) => {
-    if (yes) void chat.ensureConfig();
+    // On login load the new user's history; on logout re-hydrate to owner '' so
+    // the in-memory list is cleared for the next user.
+    if (yes) void chat.ensureConfig().then(() => conv.hydrate());
+    else void conv.hydrate();
   },
 );
 </script>

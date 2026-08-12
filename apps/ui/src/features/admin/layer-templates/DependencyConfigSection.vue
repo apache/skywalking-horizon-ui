@@ -24,10 +24,13 @@
 -->
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { EndpointDependencyConfig, TopologyMetricDef } from '@skywalking-horizon-ui/api-client';
 import { TOPOLOGY_ROLE_OPTIONS } from './layer-dashboards.scopes';
 import MetricDefinitionRow from './MetricDefinitionRow.vue';
 import { rowKey } from './row-key';
+
+const { t } = useI18n();
 
 const config = defineModel<EndpointDependencyConfig | undefined>('config');
 
@@ -71,24 +74,24 @@ function remove(list: TopologyMetricDef[], i: number): void {
 <template>
   <section class="sw-card editor-card topo-cfg-card">
     <div class="card-head">
-      <h4>API dependency config</h4>
-      <span class="sub">node + line metrics (server-side only — OAP has no endpoint client family).</span>
+      <h4>{{ t('API dependency config') }}</h4>
+      <span class="sub">{{ t('node + line metrics (server-side only — OAP has no endpoint client family).') }}</span>
     </div>
     <div class="naming-prefix-row">
       <label class="comp-toggle" :class="{ on: showGroup }">
         <input type="checkbox" :checked="showGroup" @change="toggleShowGroup" />
-        <span class="comp-label">Show <code>&lt;group&gt;::</code> as a chip in the node panel</span>
+        <span class="comp-label">{{ t('Show') }} <code>&lt;group&gt;::</code> {{ t('as a chip in the node panel') }}</span>
       </label>
-      <span class="naming-prefix-hint">Same semantics as the topology view's flag.</span>
+      <span class="naming-prefix-hint">{{ t("Same semantics as the topology view's flag.") }}</span>
     </div>
     <div class="topo-cfg-body">
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Node metrics</h5>
-          <span class="sub">drives endpoint box center number + SLA-coloured border</span>
-          <button class="sw-btn add" type="button" @click="addNode">＋ Add</button>
+          <h5>{{ t('Node metrics') }}</h5>
+          <span class="sub">{{ t('drives endpoint box center number + SLA-coloured border') }}</span>
+          <button class="sw-btn add" type="button" @click="addNode">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">No node metrics.</div>
+        <div v-if="nodeMetrics.length === 0" class="topo-cfg-empty">{{ t('No node metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in nodeMetrics"
@@ -109,11 +112,11 @@ function remove(list: TopologyMetricDef[], i: number): void {
 
       <div class="topo-cfg-section">
         <header class="topo-cfg-head">
-          <h5>Link metrics (server-side)</h5>
-          <span class="sub">edge metrics queried as <code>endpoint_relation_*</code></span>
-          <button class="sw-btn add" type="button" @click="addLink">＋ Add</button>
+          <h5>{{ t('Link metrics (server-side)') }}</h5>
+          <span class="sub">{{ t('edge metrics queried as') }} <code>endpoint_relation_*</code></span>
+          <button class="sw-btn add" type="button" @click="addLink">{{ t('＋ Add') }}</button>
         </header>
-        <div v-if="linkMetrics.length === 0" class="topo-cfg-empty">No link metrics.</div>
+        <div v-if="linkMetrics.length === 0" class="topo-cfg-empty">{{ t('No link metrics.') }}</div>
         <div v-else class="metric-list">
           <MetricDefinitionRow
             v-for="(m, i) in linkMetrics"

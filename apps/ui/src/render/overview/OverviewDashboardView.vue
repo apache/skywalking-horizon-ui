@@ -27,6 +27,7 @@
 -->
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import type { OverviewWidget } from '@skywalking-horizon-ui/api-client';
 import { useOverviewDashboard } from '@/render/overview/useOverviewDashboard';
@@ -37,6 +38,7 @@ import AlarmsWidget from '@/render/widgets/AlarmsWidget.vue';
 import MetricCompositeWidget from '@/render/widgets/MetricCompositeWidget.vue';
 import LayerServiceMapView from '@/layer/service-map/LayerServiceMapView.vue';
 
+const { t } = useI18n({ useScope: 'global' });
 const route = useRoute();
 const dashId = computed(() => String(route.params.id ?? ''));
 const { dashboard, widgets, values, isLoading, isLoadingData } = useOverviewDashboard(dashId);
@@ -73,11 +75,11 @@ function widgetStyle(span?: number, rowSpan?: number, cols = 12): Record<string,
     <header v-if="dashboard" class="dash-head">
       <h1>{{ dashboard.title }}</h1>
       <p v-if="dashboard.description" class="lede">{{ dashboard.description }}</p>
-      <span v-if="isLoadingData" class="loading">Loading data…</span>
+      <span v-if="isLoadingData" class="loading">{{ t('Loading data…') }}</span>
     </header>
 
-    <div v-if="isLoading" class="empty">Loading dashboard…</div>
-    <div v-else-if="!dashboard" class="empty">Dashboard not found.</div>
+    <div v-if="isLoading" class="empty">{{ t('Loading dashboard…') }}</div>
+    <div v-else-if="!dashboard" class="empty">{{ t('Dashboard not found.') }}</div>
     <div v-else class="sections">
       <section v-for="(sec, si) in sections" :key="si" class="section">
         <SectionBreak v-if="sec.title" :title="sec.title" />
