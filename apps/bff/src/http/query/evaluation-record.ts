@@ -146,7 +146,7 @@ interface OapEvaluationRecordRow {
   spanId?: string | null;
   spanType?: string | null;
   taskName?: string | null;
-  valueType?: string | null;
+  valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   value?: string | null;
   evaluationLevel?: string | null;
   reason?: string | null;
@@ -186,6 +186,7 @@ export interface EvaluationRecordFetchScope {
   serviceId?: string | null;
   providerId?: string | null;
   modelId?: string | null;
+  valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   minScore?: number | null;
   maxScore?: number | null;
   taskName?: string | null;
@@ -214,12 +215,13 @@ export async function fetchEvaluationRecords(
     ...(scope.serviceId ? { serviceId: scope.serviceId } : {}),
     ...(scope.providerId ? { providerId: scope.providerId } : {}),
     ...(scope.modelId ? { modelId: scope.modelId } : {}),
+    ...(scope.valueType ? { valueType: scope.valueType } : {}),
     ...(minScore != null ? { minScore } : {}),
     ...(maxScore != null ? { maxScore } : {}),
     ...(scope.taskName ? { taskName: scope.taskName } : {}),
     ...(scope.evaluationLevel ? { evaluationLevel: scope.evaluationLevel } : {}),
     ...(scope.judgeModel ? { judgeModel: scope.judgeModel } : {}),
-    ...(scope.sortField ? { sortField: scope.sortField } : {}),
+    ...(scope.sortField ? { sortBy: scope.sortField } : {}),
     ...(scope.sortOrder ? { queryOrder: scope.sortOrder } : {}),
     ...(scope.traceId ? { relatedTrace: { traceId: scope.traceId } } : {}),
     ...(scope.tags && scope.tags.length > 0 ? { tags: scope.tags } : {}),
@@ -296,6 +298,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
               serviceId: body.serviceId,
               providerId: body.providerId,
               modelId: body.modelId,
+              valueType: body.valueType,
               minScore: body.minScore,
               maxScore: body.maxScore,
               taskName: body.taskName,
@@ -347,6 +350,7 @@ export function registerEvaluationRecordRoute(app: FastifyInstance, deps: Evalua
         const evaluationRecordCondition = {
           ...(body.providerId ? { providerId: body.providerId } : {}),
           ...(body.modelId ? { modelId: body.modelId } : {}),
+          ...(body.valueType ? { valueType: body.valueType } : {}),
           ...(body.traceId ? { relatedTrace: { traceId: body.traceId } } : {}),
           // Facet sample intentionally ignores level/tag filters so the
           // counts show the unfiltered distribution; the user picks a

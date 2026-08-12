@@ -30,6 +30,7 @@ export interface EvaluationRecordQueryRequest {
   serviceId?: string | null;
   providerId?: string | null;
   modelId?: string | null;
+  valueType?: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   minScore?: number | null;
   maxScore?: number | null;
   taskName?: string | null;
@@ -60,7 +61,7 @@ export interface EvaluationRecordRow {
   spanId: string | null;
   spanType: string | null;
   taskName: string | null;
-  valueType: string | null;
+  valueType: 'SCORE' | 'BOOLEAN' | 'STRING' | 'JSON' | null;
   value: string | null;
   evaluationLevel: string | null;
   reason: string | null;

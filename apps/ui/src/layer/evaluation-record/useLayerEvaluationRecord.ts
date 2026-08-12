@@ -127,6 +127,19 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
   });
   useAutoRefreshSubscribe(() => q.refetch());
 
+  function displayValue(row: EvaluationRecordRow): string {
+    if (row.valueType === 'SCORE') {
+      return row.scoreValue == null ? '' : String(row.scoreValue);
+    }
+    if (row.valueType === 'BOOLEAN') {
+      if (row.scoreValue == null) {
+        return '';
+      }
+      return row.scoreValue === 0 ? 'false' : 'true';
+    }
+    return row.value ?? '';
+  }
+
   function toGenAIEvaluationRecordStreamRow(
     row: EvaluationRecordRow,
   ): GenAIEvaluationRecordStreamRow {
@@ -162,7 +175,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
       traceId: row.traceId,
       timestamp: row.evaluationTime,
       contentType: 'text/plain',
-      content: row.value ?? row.reason ?? '',
+      content: displayValue(row),
       tags,
     };
   }
@@ -171,7 +184,7 @@ export function useLayerEvaluationRecord(layerKey: Ref<string>, params: Evaluati
     return {
       name: row.taskName ?? row.valueType ?? '-',
       id: row.traceId ?? row.segmentId ?? row.spanId ?? '-',
-      value: row.value ?? row.reason ?? '',
+      value: displayValue(row),
       refId: row.traceId,
     };
   }
